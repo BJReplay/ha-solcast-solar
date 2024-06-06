@@ -91,7 +91,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.options[CONF_API_KEY],
         SOLCAST_URL,
         hass.config.path('solcast.json'),
-        dt_util.get_time_zone(hass.config.time_zone),
+        dt_util.async_get_time_zone(hass.config.time_zone),
         optdamp,
         entry.options[CUSTOM_HOUR_SENSOR],
         entry.options.get(KEY_ESTIMATE,"estimate"),
