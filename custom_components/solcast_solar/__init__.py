@@ -311,7 +311,15 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     if config_entry.version < 4:
         new_options = {**config_entry.options}
         new_options.pop("const_disableautopoll", None)
-        hass.config_entries.async_update_entry(config_entry, options=new_options, version=4)
+        try:
+            hass.config_entries.async_update_entry(config_entry, options=new_options, version=4)
+        except Exception as e:
+            if "unexpected keyword argument 'version'" in e:
+                config_entry.version = 4
+                hass.config_entries.async_update_entry(config_entry, options=new_options)
+            else:
+                raise
+
 
     #new 4.0.8
     #power factor for each hour
@@ -319,21 +327,42 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
         new = {**config_entry.options}
         for a in range(0,24):
             new[f"damp{str(a).zfill(2)}"] = 1.0
-        hass.config_entries.async_update_entry(config_entry, options=new, version=5)
+        try:
+            hass.config_entries.async_update_entry(config_entry, options=new, version=5)
+        except Exception as e:
+            if "unexpected keyword argument 'version'" in e:
+                config_entry.version = 5
+                hass.config_entries.async_update_entry(config_entry, options=new_options)
+            else:
+                raise
 
     #new 4.0.15
     #custom sensor for 'next x hours'
     if config_entry.version == 5:
         new = {**config_entry.options}
         new[CUSTOM_HOUR_SENSOR] = 1
-        hass.config_entries.async_update_entry(config_entry, options=new, version=6)
+        try:
+            hass.config_entries.async_update_entry(config_entry, options=new, version=6)
+        except Exception as e:
+            if "unexpected keyword argument 'version'" in e:
+                config_entry.version = 6
+                hass.config_entries.async_update_entry(config_entry, options=new_options)
+            else:
+                raise
 
     #new 4.0.16
     #which estimate value to use for data calcs est,est10,est90
     if config_entry.version == 6:
         new = {**config_entry.options}
         new[KEY_ESTIMATE] = "estimate"
-        hass.config_entries.async_update_entry(config_entry, options=new, version=7)
+        try:
+            hass.config_entries.async_update_entry(config_entry, options=new, version=7)
+        except Exception as e:
+            if "unexpected keyword argument 'version'" in e:
+                config_entry.version = 7
+                hass.config_entries.async_update_entry(config_entry, options=new_options)
+            else:
+                raise
 
     _LOGGER.debug("Solcast Migration to version %s successful", config_entry.version)
 
