@@ -309,7 +309,7 @@ Modified from the great works of
 
 - The variable 'tally' should never be unavailable during a forecast fetch retry sequence, but it can be for some reason. This causes site 'forecast today' sensor to show as 'Unknown' until the retries are exhausted, or a successful fetch occurs.
 
-- The call for get current API usage on statup is not correctly retried. This will be fixed in a future release.
+- The call for get current API usage on startup is not correctly retried. This will be fixed in a future release.
 
 - Startup times can be delayed when the Solcast API is returning 429/Too busy status, which is caused by retries. This will be fixed in a future release by getting the data immediately from cache if it exists.
 
