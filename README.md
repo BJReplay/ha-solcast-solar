@@ -309,7 +309,27 @@ Modified from the great works of
 
 - The variable 'tally' should never be unavailable during a forecast fetch retry sequence, but it can be for some reason. This causes site 'forecast today' sensor to show as 'Unknown' until the retries are exhausted, or a successful fetch occurs.
 
+- The call for get current API usage on statup is not correctly retried. This will be fixed in a future release.
+
+- Startup times can be delayed when the Solcast API is returning 429/Too busy status, which is caused by retries. This will be fixed in a future release by getting the data immediately from cache if it exists.
+
 ## Changes
+
+v4.0.33
+- Performance improvements for sensor updates by @isorin, including:
+- Reduced the update interval of sensors to 5 minutes
+- Split the sensors into two groups: sensors that need to be updated every 5 minutes and sensors that need to be updated only when the data is refreshed or the date changes (daily values)
+- Fixed issues with removing the past forecasts (older than 2 years), broken code
+- Improve the functionality of the forecasts, for exmaple "forecast_remaining_today" is updated every 5 minutes by calculating the remaining energy from the current 30 minute interval. Same for "now/next hour" sensors.
+- Redaction of Solcast API key in logs by @isorin
+- Revert Oziee '4.0.23' async_update_options #54 by @autoSteve, as was causing dampening update issues
+
+A comment from @isorin: "_I use the forecast_remaining_today to determine the time of the day when to start charging the batteries so that they will reach a predetermined charge in the evening. With my changes, this is possible._" Nicely done.
+
+New Contributors
+- @isorin made their first contribution in https://github.com/BJReplay/ha-solcast-solar/pull/45
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.32...v4.0.33
 
 v4.0.32
 - Bug fix: Independent API use counter for each Solcast account by @autoSteve
