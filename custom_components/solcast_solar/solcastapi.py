@@ -90,6 +90,7 @@ class SolcastApi:
         self._tz = options.tz
         self._dataenergy = {}
         self._data_forecasts = []
+        self._forecasts_start_idx = 0
         self._detailedForecasts = []
         self._loaded_data = False
         self._serialize_lock = asyncio.Lock()
@@ -381,16 +382,15 @@ class SolcastApi:
 
     async def get_forecast_list(self, *args):
         try:
-            tz = self._tz
+            st_i, end_i = self.get_forecast_list_slice(args[0], args[1])
+            h = self._data_forecasts[st_i:end_i]
+
+            _LOGGER.debug("SOLCAST - get_forecast_list st %s end %s st_i %d end_i %d h.len %d",
+                            args[0], args[1], st_i, end_i, len(h))
 
             return tuple(
-                {
-                    **d,
-                    "period_start": d["period_start"].astimezone(tz),
-                }
-                for d in self._data_forecasts
-                if d["period_start"] >= args[0] and d["period_start"] < args[1]
-            )
+                    {**d, "period_start": d["period_start"].astimezone(self._tz)} for d in h
+                )
 
         except Exception:
             _LOGGER.error(f"SOLCAST - service event to get list of forecasts failed")
@@ -466,7 +466,7 @@ class SolcastApi:
         st_i, end_i = self.get_forecast_list_slice(start_utc, end_utc)
         h = self._data_forecasts[st_i:end_i]
 
-        _LOGGER.debug("SOLCAST get_forecast_day %d st %s end %s st_i %d end_i %d h.len %d",
+        _LOGGER.debug("SOLCAST - get_forecast_day %d st %s end %s st_i %d end_i %d h.len %d",
                         futureday,
                         start_utc.strftime('%Y-%m-%d %H:%M:%S'),
                         end_utc.strftime('%Y-%m-%d %H:%M:%S'),
@@ -552,13 +552,13 @@ class SolcastApi:
         res = 0.5 * self.get_forecast_pv_estimates(start_utc, end_utc)
         return res
 
-    def get_forecast_list_slice(self, start_utc, end_utc):
+    def get_forecast_list_slice(self, start_utc, end_utc, search_past=False):
         """Return Solcast pv_estimates list slice [st_i, end_i) for interval [start_utc, end_utc)"""
         crt_i = -1
         st_i = -1
         end_i = len(self._data_forecasts)
-        for d in self._data_forecasts:
-            crt_i += 1
+        for crt_i in range(0 if search_past else self._forecasts_start_idx, end_i):
+            d = self._data_forecasts[crt_i]
             d1 = d['period_start']
             d2 = d1 + timedelta(seconds=1800)
             # after the last segment
@@ -591,7 +591,7 @@ class SolcastApi:
                 if s < 1800:
                     f *= s / 1800
                 res += f
-            _LOGGER.debug("SOLCAST %s st %s end %s st_i %d end_i %d res %s",
+            _LOGGER.debug("SOLCAST - %s st %s end %s st_i %d end_i %d res %s",
                           currentFuncName(1),
                           start_utc.strftime('%Y-%m-%d %H:%M:%S'),
                           end_utc.strftime('%Y-%m-%d %H:%M:%S'),
@@ -609,7 +609,7 @@ class SolcastApi:
             for d in self._data_forecasts[st_i:end_i]:
                 if res is None or res[self._use_data_field] < d[self._use_data_field]:
                     res = d
-            _LOGGER.debug("SOLCAST %s st %s end %s st_i %d end_i %d res %s",
+            _LOGGER.debug("SOLCAST - %s st %s end %s st_i %d end_i %d res %s",
                           currentFuncName(1),
                           start_utc.strftime('%Y-%m-%d %H:%M:%S'),
                           end_utc.strftime('%Y-%m-%d %H:%M:%S'),
@@ -709,7 +709,7 @@ class SolcastApi:
         if not isinstance(af, list):
             raise TypeError(f"forecasts must be a list, not {type(af)}")
 
-        _LOGGER.debug(f"SOLCAST - Solcast returned {len(af)} records (should be 168)")
+        _LOGGER.debug(f"SOLCAST - Solcast returned {len(af)} records")
 
         st_time = time.time()
         for x in af:
@@ -738,7 +738,7 @@ class SolcastApi:
         except:
             pass
 
-        _LOGGER.debug("SOLCAST http_data_call _fcasts_dict len %s", len(_fcasts_dict))
+        _LOGGER.debug("SOLCAST - http_data_call _fcasts_dict len %s", len(_fcasts_dict))
 
         for x in _data:
             #loop each rooftop site and its forecasts
@@ -919,9 +919,9 @@ class SolcastApi:
 
             self._data_forecasts = sorted(_fcasts_dict.values(), key=itemgetter("period_start"))
 
-            self._dataenergy = {"wh_hours": self.makeenergydict()}
+            self._forecasts_start_idx = self.calcForecastStartIndex()
 
-            await self.removePastForecastData()
+            self._dataenergy = {"wh_hours": self.makeenergydict()}
 
             await self.checkDataRecords()
 
@@ -929,26 +929,27 @@ class SolcastApi:
 
         except Exception as e:
             _LOGGER.error("SOLCAST - http_data error: %s", traceback.format_exc())
-        
 
-    async def removePastForecastData(self):
-        _LOGGER.debug("SOLCAST - removePastForecastData forecasts len in %s", len(self._data_forecasts))
-        midnight_utc = dt.now(self._tz).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
-        self._data_forecasts = list(filter(lambda x: x["period_start"] >= midnight_utc, self._data_forecasts))
-        _LOGGER.debug("SOLCAST - removePastForecastData midnight_utc %s, forecasts len out %s", midnight_utc, len(self._data_forecasts))
+
+    def calcForecastStartIndex(self):
+        midnight_utc = self.get_day_start_utc()
+        # search in reverse (less to iterate) and find the interval just before midnight
+        # we could stop at midnight but some sensors might need the previous interval
+        for idx in range(len(self._data_forecasts)-1, -1, -1):
+            if self._data_forecasts[idx]["period_start"] < midnight_utc: break
+        _LOGGER.debug("SOLCAST - calcForecastStartIndex midnight_utc %s, idx %s, len %s", midnight_utc, idx, len(self._data_forecasts))
+        return idx
 
 
     async def checkDataRecords(self):
-        tz = self._tz
         for i in range(0,8):
-            da = dt.now(tz).date() + timedelta(days=i)
-            h = tuple(
-                d
-                for d in self._data_forecasts
-                if d["period_start"].astimezone(tz).date() == da
-            )
+            start_utc = self.get_day_start_utc() + timedelta(days=i)
+            end_utc = start_utc + timedelta(days=1)
+            st_i, end_i = self.get_forecast_list_slice(start_utc, end_utc)
+            num_rec = end_i - st_i
 
-            if len(h) == 48:
+            da = dt.now(self._tz).date() + timedelta(days=i)
+            if num_rec == 48:
                 _LOGGER.debug(f"SOLCAST - Data for {da} contains all 48 records")
             else:
-                _LOGGER.debug(f"SOLCAST - Data for {da} contains only {len(h)} of 48 records and may produce inaccurate forecast data")
+                _LOGGER.debug(f"SOLCAST - Data for {da} contains only {num_rec} of 48 records and may produce inaccurate forecast data")
