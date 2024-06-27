@@ -382,11 +382,13 @@ class SolcastApi:
 
     async def get_forecast_list(self, *args):
         try:
-            st_i, end_i = self.get_forecast_list_slice(args[0], args[1])
+            st_time = time.time()
+
+            st_i, end_i = self.get_forecast_list_slice(args[0], args[1], search_past=True)
             h = self._data_forecasts[st_i:end_i]
 
-            _LOGGER.debug("SOLCAST - get_forecast_list st %s end %s st_i %d end_i %d h.len %d",
-                            args[0], args[1], st_i, end_i, len(h))
+            _LOGGER.debug("SOLCAST - get_forecast_list (%ss) st %s end %s st_i %d end_i %d h.len %d",
+                            round(time.time()-st_time,4), args[0], args[1], st_i, end_i, len(h))
 
             return tuple(
                     {**d, "period_start": d["period_start"].astimezone(self._tz)} for d in h
