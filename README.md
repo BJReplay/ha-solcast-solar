@@ -315,21 +315,33 @@ Modified from the great works of
 
 ## Changes
 
+v4.0.34
+* Fix query_forecast_data so that near-term historical forecasts are returned by @isorin
+* Instantly fall-back to cache on reload if rooftop/usage API calls fail, which can reduce start time by @autoSteve
+* An async call timeout of sites get will fall back to cache if it exists by @autoSteve
+* Much logging improvements by @autoSteve
+* Sites cache being sometimes incorrectly created with the API key appended, despite only having one API key by @autoSteve
+* Redaction of latitude/longitude in debug logs by @autoSteve
+* Likely elimination of 'tally' warnings by @autoSteve
+* Fix API usage retry mechanism by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.33...v4.0.34
+
 v4.0.33
-- Performance improvements for sensor updates by @isorin, including:
-- Reduced the update interval of sensors to 5 minutes
-- Split the sensors into two groups: sensors that need to be updated every 5 minutes and sensors that need to be updated only when the data is refreshed or the date changes (daily values)
-- Fixed issues with removing the past forecasts (older than 2 years), broken code
-- Improve the functionality of the forecasts, for exmaple "forecast_remaining_today" is updated every 5 minutes by calculating the remaining energy from the current 30 minute interval. Same for "now/next hour" sensors.
-- Redaction of Solcast API key in logs by @isorin
-- Revert Oziee '4.0.23' async_update_options #54 by @autoSteve, which was causing dampening update issues
+* Performance improvements for sensor updates by @isorin, including:
+  * Reduced the update interval of sensors to 5 minutes
+  * Split the sensors into two groups: sensors that need to be updated every 5 minutes and sensors that need to be updated only when the data is refreshed or the date changes (daily values)
+  * Fixed issues with removing the past forecasts (older than 2 years), broken code
+  * Improve the functionality of the forecasts, for exmaple "forecast_remaining_today" is updated every 5 minutes by calculating the remaining energy from the current 30 minute interval. Same for "now/next hour" sensors.
+* Redaction of Solcast API key in logs by @isorin
+* Revert Oziee '4.0.23' async_update_options #54 by @autoSteve, which was causing dampening update issues
 
 A comment from @isorin: "_I use the forecast_remaining_today to determine the time of the day when to start charging the batteries so that they will reach a predetermined charge in the evening. With my changes, this is possible._"
 
 To that, I say nicely done.
 
 New Contributors
-- @isorin made their first contribution in https://github.com/BJReplay/ha-solcast-solar/pull/45
+* @isorin made their first contribution in https://github.com/BJReplay/ha-solcast-solar/pull/45
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.32...v4.0.33
 
