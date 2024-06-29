@@ -154,6 +154,14 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 return self.solcast.get_forecast_day(5)
             case "total_kwh_forecast_d7":
                 return self.solcast.get_forecast_day(6)
+            case "peak_w_today":
+                return self.solcast.get_sites_peak_w_day(0)
+            case "peak_w_time_today":
+                return self.solcast.get_sites_peak_w_time_day(0)
+            case "peak_w_tomorrow":
+                return self.solcast.get_sites_peak_w_day(1)
+            case "peak_w_time_tomorrow":
+                return self.solcast.get_sites_peak_w_time_day(1)
             case _:
                 return None
 
