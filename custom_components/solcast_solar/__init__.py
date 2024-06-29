@@ -298,33 +298,42 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     """Migrate old entry."""
-    _LOGGER.debug("Solcast Migrating from version %s", config_entry.version)
+    def upgraded():
+        _LOGGER.debug("SOLCAST - Upgraded to options version %s", config_entry.version)
+
+    try:
+        _LOGGER.debug("SOLCAST - Options version %s", config_entry.version)
+    except:
+        pass
 
     if config_entry.version < 4:
         new_options = {**config_entry.options}
         new_options.pop("const_disableautopoll", None)
         try:
             hass.config_entries.async_update_entry(config_entry, options=new_options, version=4)
+            upgraded()
         except Exception as e:
             if "unexpected keyword argument 'version'" in e:
                 config_entry.version = 4
                 hass.config_entries.async_update_entry(config_entry, options=new_options)
+                upgraded()
             else:
                 raise
 
-
     #new 4.0.8
-    #power factor for each hour
+    #dampening factor for each hour
     if config_entry.version == 4:
         new = {**config_entry.options}
         for a in range(0,24):
             new[f"damp{str(a).zfill(2)}"] = 1.0
         try:
             hass.config_entries.async_update_entry(config_entry, options=new, version=5)
+            upgraded()
         except Exception as e:
             if "unexpected keyword argument 'version'" in e:
                 config_entry.version = 5
                 hass.config_entries.async_update_entry(config_entry, options=new_options)
+                upgraded()
             else:
                 raise
 
@@ -335,10 +344,12 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
         new[CUSTOM_HOUR_SENSOR] = 1
         try:
             hass.config_entries.async_update_entry(config_entry, options=new, version=6)
+            upgraded()
         except Exception as e:
             if "unexpected keyword argument 'version'" in e:
                 config_entry.version = 6
                 hass.config_entries.async_update_entry(config_entry, options=new_options)
+                upgraded()
             else:
                 raise
 
@@ -349,13 +360,13 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
         new[KEY_ESTIMATE] = "estimate"
         try:
             hass.config_entries.async_update_entry(config_entry, options=new, version=7)
+            upgraded()
         except Exception as e:
             if "unexpected keyword argument 'version'" in e:
                 config_entry.version = 7
                 hass.config_entries.async_update_entry(config_entry, options=new_options)
+                upgraded()
             else:
                 raise
-
-    _LOGGER.debug("Solcast Migration to version %s successful", config_entry.version)
 
     return True
