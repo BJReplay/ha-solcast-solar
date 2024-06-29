@@ -10,6 +10,9 @@
 > [!WARNING]  
 > This repository is **not** currently in HACS, so cannot yet be searched for there.  While [this PR](https://github.com/hacs/default/pull/2535) remains open, you must install manually using the [Manually in HACS](#manually-in-hacs) instructions below: 
 
+> [!NOTE]
+> The use of beta versions can be a simple way to fix issues. Check the releases at https://github.com/BJReplay/ha-solcast-solar/releases to see if an issue has already been resolved. If so, turn ```Show beta versions``` on when re-downloading from HACS. Your feedback from testing betas will be most welcome in the repository discussions. https://github.com/BJReplay/ha-solcast-solar/discussions.
+
 > [!IMPORTANT]  
 > This repository may only be sporadically maintained.  Breaking API changes from Solcast will be maintained on a best efforts basis.
 >
