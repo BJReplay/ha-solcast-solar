@@ -691,25 +691,6 @@ class SolcastApi:
         except Exception as ex:
             _LOGGER.error(f"SOLCAST - get_max_forecast_pv_estimate: {ex}")
             return None
-    '''
-    def get_max_forecast_pv_estimate(self, start_utc, end_utc):
-        """Return max Solcast pv_estimate for the interval [start_utc, end_utc)"""
-        try:
-            res = None
-            st_i, end_i = self.get_forecast_list_slice(self._data_forecasts, start_utc, end_utc)
-            for d in self._data_forecasts[st_i:end_i]:
-                if res is None or res[self._use_data_field] < d[self._use_data_field]:
-                    res = d
-            _LOGGER.debug("SOLCAST - %s st %s end %s st_i %d end_i %d res %s",
-                          currentFuncName(1),
-                          start_utc.strftime('%Y-%m-%d %H:%M:%S'),
-                          end_utc.strftime('%Y-%m-%d %H:%M:%S'),
-                          st_i, end_i, res)
-            return res
-        except Exception as ex:
-            _LOGGER.error(f"SOLCAST - get_max_forecast_pv_estimate: {ex}")
-            return None
-    '''
 
     def get_energy_data(self) -> dict[str, Any]:
         try:
