@@ -264,18 +264,22 @@ Click the Forecast option button and select the Solcast Solar option.. Click SAV
 | `D5` | number | Y | `kWh` | Total forecast solar production for day + 4 (day 5) |
 | `D6` | number | Y | `kWh`| Total forecast solar production for day + 5 (day 6) |
 | `D7` | number | Y | `kWh` | Total forecast solar production for day + 6 (day 7) |
-| `This Hour` | number | N | `Wh` | Forecasted solar production current hour |
-| `Next Hour` | number | N | `Wh` | Forecasted solar production next hour |
+| `This Hour` | number | Y | `Wh` | Forecasted solar production current hour (attributes contain site breakdown) |
+| `Next Hour` | number | Y | `Wh` | Forecasted solar production next hour (attributes contain site breakdown) |
 | `Forecast Next X Hours` | number | N | `kWh` | Custom user defined X hour forecast |
 | `Remaining Today` | number | N | `kWh` | Predicted remaining solar production today |
-| `Peak Forecast Today` | number | N | `W` | Highest predicted production within an hour period today |
-| `Peak Time Today` | date/time | N |  | Hour of max forecasted production of solar today |
-| `Peak Forecast Tomorrow` | number | N | `W` | Highest predicted production within an hour period tomorrow |
-| `Peak Time Tomorrow` | date/time | N |  | Hour of max forecasted production of solar tomorrow |
-| `Power Now` | number | N | `W` | Power forecast during the current 0-30 / 30-59 min hour period |
-| `Power Next 30 Mins` | number | N | `W` | Power forecast for the next 30 min block period |
-| `Power Next Hour` | number | N | `W` | Power forecast for the next block 60 min from now |
+| `Peak Forecast Today` | number | Y | `W` | Highest predicted production within an hour period today (attributes contain site breakdown) |
+| `Peak Time Today` | date/time | Y |  | Hour of max forecasted production of solar today (attributes contain site breakdown) |
+| `Peak Forecast Tomorrow` | number | Y | `W` | Highest predicted production within an hour period tomorrow (attributes contain site breakdown) |
+| `Peak Time Tomorrow` | date/time | Y |  | Hour of max forecasted production of solar tomorrow (attributes contain site breakdown) |
+| `Power Now` | number | Y | `W` | Power forecast during the current 0-30 / 30-59 min hour period (attributes contain site breakdown) |
+| `Power Next 30 Mins` | number | Y | `W` | Power forecast for the next 30 min block period (attributes contain site breakdown) |
+| `Power Next Hour` | number | Y | `W` | Power forecast for the next block 60 min from now (attributes contain site breakdown) |
 
+> [!NOTE]
+> Where a site breakdown is available as an attribute, the attribute name is the Solcast site resource ID.
+>
+> Access these in a template sensor or automation using something like ```{{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', '1234-5678-9012-3456') }}```
 
 ### Configuration
 
