@@ -576,13 +576,18 @@ class SolcastApi:
         res = round(500 * self.get_forecast_pv_estimates(start_utc, end_utc))
         return res
 
-    def get_power_n_mins(self, n_mins) -> int:
+    def get_power_n_mins(self, n_mins, site=None) -> int:
         """Return Solcast Power for the next N minutes"""
         # uses a rolling 20mins interval (arbitrary decision) to smooth out the transitions between the 30mins intervals
         start_utc = self.get_now_utc() + timedelta(minutes=n_mins-10)
         end_utc = start_utc + timedelta(minutes=20)
         # multiply with 1.5 as the power reported is only for a 20mins interval (out of 30mins)
-        res = round(1000 * 1.5 * self.get_forecast_pv_estimates(start_utc, end_utc))
+        res = round(1000 * 1.5 * self.get_forecast_pv_estimates(start_utc, end_utc, site))
+        return res
+
+    def get_sites_power_n_mins(self, n_mins) -> Dict[str, Any]:
+        res = {}
+        for site in self._sites: res[site['resource_id']] = self.get_power_n_mins(n_mins, site['resource_id'])
         return res
 
     def get_peak_w_day(self, n_day, site=None) -> int:
@@ -646,12 +651,13 @@ class SolcastApi:
             end_i = 0
         return st_i, end_i
 
-    def get_forecast_pv_estimates(self, start_utc, end_utc) -> float:
+    def get_forecast_pv_estimates(self, start_utc, end_utc, site=None) -> float:
         """Return Solcast pv_estimates for interval [start_utc, end_utc)"""
         try:
+            _data = self._data_forecasts if site is None else self._site_data_forecasts[site]
             res = 0
-            st_i, end_i = self.get_forecast_list_slice(self._data_forecasts, start_utc, end_utc)
-            for d in self._data_forecasts[st_i:end_i]:
+            st_i, end_i = self.get_forecast_list_slice(_data, start_utc, end_utc)
+            for d in _data[st_i:end_i]:
                 d1 = d['period_start']
                 d2 = d1 + timedelta(seconds=1800)
                 s = 1800
