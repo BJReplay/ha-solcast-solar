@@ -669,8 +669,9 @@ class SolcastApi:
                 if s < 1800:
                     f *= s / 1800
                 res += f
-            _LOGGER.debug("SOLCAST - %s st %s end %s st_i %d end_i %d res %s",
+            _LOGGER.debug("SOLCAST - %s%s st %s end %s st_i %d end_i %d res %s",
                           currentFuncName(1),
+                          '' if site is None else ' '+site,
                           start_utc.strftime('%Y-%m-%d %H:%M:%S'),
                           end_utc.strftime('%Y-%m-%d %H:%M:%S'),
                           st_i, end_i, round(res,3))
@@ -688,8 +689,9 @@ class SolcastApi:
             for d in _data[st_i:end_i]:
                 if res is None or res[self._use_data_field] < d[self._use_data_field]:
                     res = d
-            _LOGGER.debug("SOLCAST - %s st %s end %s st_i %d end_i %d res %s",
+            _LOGGER.debug("SOLCAST - %s%s st %s end %s st_i %d end_i %d res %s",
                           currentFuncName(1),
+                          '' if site is None else ' '+site,
                           start_utc.strftime('%Y-%m-%d %H:%M:%S'),
                           end_utc.strftime('%Y-%m-%d %H:%M:%S'),
                           st_i, end_i, res)
