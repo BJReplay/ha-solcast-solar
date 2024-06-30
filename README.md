@@ -281,7 +281,7 @@ Click the Forecast option button and select the Solcast Solar option.. Click SAV
 >
 > Access these in a template sensor or automation using something like:
 >
-> ```{{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', '1234-5678-9012-3456') }}```
+> ```{{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', '1234-5678-9012-3456') | float(0) }}```
 
 ### Configuration
 
