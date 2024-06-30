@@ -16,6 +16,8 @@
 > Collaborators are welcome, as are PRs for enhancements.
 >
 > Bug reports unrelated to API changes may not get the attention you want, as the the repository owner is largely retired for medical reasons, but knows the Solcast API as a former / user in this and other projects.
+>
+> This integration can be used as a replacement for the original oziee/ha-solcast-solar integration. Uninstalling the oziee version then installing this one will preserve the history and configuration from the oziee integration.
 
 Version Change Notes: See [below](#changes).
 
