@@ -562,18 +562,28 @@ class SolcastApi:
             "dataCorrect": noDataError,
         }
 
-    def get_forecast_n_hour(self, n_hour) -> int:
+    def get_forecast_n_hour(self, n_hour, _use_data_field=None) -> int:
         """Return Solcast Forecast for the Nth hour"""
         start_utc = self.get_hour_start_utc() + timedelta(hours=n_hour)
         end_utc = start_utc + timedelta(hours=1)
-        res = round(500 * self.get_forecast_pv_estimates(start_utc, end_utc))
+        res = round(500 * self.get_forecast_pv_estimates(start_utc, end_utc, _use_data_field=_use_data_field))
         return res
 
-    def get_forecast_custom_hours(self, n_hours) -> int:
+    def get_forecasts_n_hour(self, n_hour) -> Dict[str, Any]:
+        res = {}
+        for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'): res[_data_field] = self.get_forecast_n_hour(n_hour, _data_field)
+        return res
+
+    def get_forecast_custom_hours(self, n_hours, _use_data_field=None) -> int:
         """Return Solcast Forecast for the next N hours"""
         start_utc = self.get_now_utc()
         end_utc = start_utc + timedelta(hours=n_hours)
-        res = round(500 * self.get_forecast_pv_estimates(start_utc, end_utc))
+        res = round(500 * self.get_forecast_pv_estimates(start_utc, end_utc, _use_data_field=_use_data_field))
+        return res
+
+    def get_forecasts_custom_hours(self, n_hour) -> Dict[str, Any]:
+        res = {}
+        for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'): res[_data_field] = self.get_forecast_custom_hours(n_hour, _data_field)
         return res
 
     def get_power_n_mins(self, n_mins, site=None) -> int:
@@ -597,6 +607,11 @@ class SolcastApi:
         res = self.get_max_forecast_pv_estimate(start_utc, end_utc, site=site)
         return 0 if res is None else round(1000 * res[self._use_data_field])
 
+    def get_sites_peak_w_day(self, n_day) -> Dict[str, Any]:
+        res = {}
+        for site in self._sites: res[site['resource_id']] = self.get_peak_w_day(n_day, site['resource_id'])
+        return res
+
     def get_peak_w_time_day(self, n_day, site=None) -> dt:
         """Return hour of max kW for site N days ahead"""
         start_utc = self.get_day_start_utc() + timedelta(days=n_day)
@@ -604,29 +619,34 @@ class SolcastApi:
         res = self.get_max_forecast_pv_estimate(start_utc, end_utc, site=site)
         return res if res is None else res["period_start"]
 
-    def get_sites_peak_w_day(self, n_day) -> Dict[str, Any]:
-        res = {}
-        for site in self._sites: res[site['resource_id']] = self.get_peak_w_day(n_day, site['resource_id'])
-        return res
-
     def get_sites_peak_w_time_day(self, n_day) -> Dict[str, Any]:
         res = {}
         for site in self._sites: res[site['resource_id']] = self.get_peak_w_time_day(n_day, site['resource_id'])
         return res
 
-    def get_forecast_remaining_today(self) -> float:
-        """Return remaining Forecasts data for today"""
+    def get_forecast_remaining_today(self, _use_data_field=None) -> float:
+        """Return remaining forecasted production for today"""
         # time remaining today
         start_utc = self.get_now_utc()
         end_utc = self.get_day_start_utc() + timedelta(days=1)
-        res = 0.5 * self.get_forecast_pv_estimates(start_utc, end_utc)
+        res = 0.5 * self.get_forecast_pv_estimates(start_utc, end_utc, site=None, _use_data_field=_use_data_field)
         return res
 
-    def get_total_kwh_forecast_day(self, n_day) -> float:
-        """Return total kWh total for site N days ahead"""
+    def get_forecasts_remaining_today(self) -> Dict[str, Any]:
+        res = {}
+        for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'): res[_data_field] = self.get_forecast_remaining_today(_data_field)
+        return res
+
+    def get_total_kwh_forecast_day(self, n_day, _use_data_field=None) -> float:
+        """Return forecast kWh total for site N days ahead"""
         start_utc = self.get_day_start_utc() + timedelta(days=n_day)
         end_utc = start_utc + timedelta(days=1)
-        res = 0.5 * self.get_forecast_pv_estimates(start_utc, end_utc)
+        res = 0.5 * self.get_forecast_pv_estimates(start_utc, end_utc, site=None, _use_data_field=_use_data_field)
+        return res
+
+    def get_total_kwh_forecasts_day(self, n_day) -> Dict[str, Any]:
+        res = {}
+        for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'): res[_data_field] = self.get_total_kwh_forecast_day(n_day, _data_field)
         return res
 
     def get_forecast_list_slice(self, _data, start_utc, end_utc, search_past=False):
@@ -651,17 +671,18 @@ class SolcastApi:
             end_i = 0
         return st_i, end_i
 
-    def get_forecast_pv_estimates(self, start_utc, end_utc, site=None) -> float:
+    def get_forecast_pv_estimates(self, start_utc, end_utc, site=None, _use_data_field=None) -> float:
         """Return Solcast pv_estimates for interval [start_utc, end_utc)"""
         try:
             _data = self._data_forecasts if site is None else self._site_data_forecasts[site]
+            _data_field = self._use_data_field if _use_data_field is None else _use_data_field
             res = 0
             st_i, end_i = self.get_forecast_list_slice(_data, start_utc, end_utc)
             for d in _data[st_i:end_i]:
                 d1 = d['period_start']
                 d2 = d1 + timedelta(seconds=1800)
                 s = 1800
-                f = d[self._use_data_field]
+                f = d[_data_field]
                 if start_utc > d1:
                     s -= (start_utc - d1).total_seconds()
                 if end_utc < d2:
@@ -1016,7 +1037,7 @@ class SolcastApi:
 
             await self.checkDataRecords()
 
-            _LOGGER.info(f"SOLCAST - buildforecastdata processing took {round(time.time()-st_time,4)}s")
+            _LOGGER.debug(f"SOLCAST - buildforecastdata processing took {round(time.time()-st_time,4)}s")
 
         except Exception as e:
             _LOGGER.error("SOLCAST - http_data error: %s", traceback.format_exc())
