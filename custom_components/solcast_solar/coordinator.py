@@ -48,7 +48,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             async_track_utc_time_change(self._hass, self.update_utcmidnight_usage_sensor_data, hour=0,minute=0,second=0)
             async_track_utc_time_change(self._hass, self.update_integration_listeners, minute=range(0, 60, 5), second=0)
         except Exception as error:
-            _LOGGER.error("SOLCAST - Error coordinator setup: %s", traceback.format_exc())
+            _LOGGER.error("Solcast exception in coordinator setup: %s", traceback.format_exc())
 
 
     async def update_integration_listeners(self, *args):

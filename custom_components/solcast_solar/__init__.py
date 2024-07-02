@@ -123,7 +123,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         integration = await loader.async_get_integration(hass, DOMAIN)
         _VERSION = str(integration.version)
-        _LOGGER.info(f"Solcast Integration version number: {_VERSION}")
+        _LOGGER.info(
+            f"\n{'-'*67}\n"
+            f"Solcast integration version: {_VERSION}\n\n"
+            f"This is a custom integration. When troubleshooting a problem, after\n"
+            f"reviewing open and closed issues, and the discussions, check the\n"
+            f"required automation is functioning correctly and try enabling debug\n"
+            f"logging to see more. Troubleshooting tips available at:\n"
+            f"https://github.com/BJReplay/ha-solcast-solar/discussions/38\n\n"
+            f"Beta versions may also have addressed some issues so look at those.\n\n"
+            f"If all else fails, then open an issue and our community will try to\n"
+            f"help: https://github.com/BJReplay/ha-solcast-solar/issues\n"
+            f"{'-'*67}")
     except loader.IntegrationNotFound:
         pass
 
@@ -139,28 +150,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
-    _LOGGER.info(f"SOLCAST - Solcast API data UTC times are converted to {hass.config.time_zone}")
+    _LOGGER.info(f"Solcast API data UTC times are converted to {hass.config.time_zone}")
 
     if options.hard_limit < 100:
         _LOGGER.info(
-            f"SOLCAST - Inverter hard limit value has been set. If the forecasts and graphs are not as you expect, try running the service 'solcast_solar.remove_hard_limit' to remove this setting. "
+            f"Solcast inverter hard limit value has been set. If the forecasts and graphs are not as you expect, try running the service 'solcast_solar.remove_hard_limit' to remove this setting. "
             f"This setting is really only for advanced quirky solar setups."
         )
 
     async def handle_service_update_forecast(call: ServiceCall):
         """Handle service call"""
-        _LOGGER.info(f"SOLCAST - Service call: {SERVICE_UPDATE}")
+        _LOGGER.info(f"Solcast service call: {SERVICE_UPDATE}")
         await coordinator.service_event_update()
 
     async def handle_service_clear_solcast_data(call: ServiceCall):
         """Handle service call"""
-        _LOGGER.info(f"SOLCAST - Service call: {SERVICE_CLEAR_DATA}")
+        _LOGGER.info(f"Solcast service call: {SERVICE_CLEAR_DATA}")
         await coordinator.service_event_delete_old_solcast_json_file()
 
     async def handle_service_get_solcast_data(call: ServiceCall) -> ServiceResponse:
         """Handle service call"""
         try:
-            _LOGGER.info(f"SOLCAST - Service call: {SERVICE_QUERY_FORECAST_DATA}")
+            _LOGGER.info(f"Solcast service call: {SERVICE_QUERY_FORECAST_DATA}")
 
             start = call.data.get(EVENT_START_DATETIME, dt_util.now())
             end = call.data.get(EVENT_END_DATETIME, dt_util.now())
@@ -177,7 +188,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_service_set_dampening(call: ServiceCall):
         """Handle service call"""
         try:
-            _LOGGER.info(f"SOLCAST - Service call: {SERVICE_SET_DAMPENING}")
+            _LOGGER.info(f"Solcast service call: {SERVICE_SET_DAMPENING}")
 
             factors = call.data.get(DAMP_FACTOR, None)
 
@@ -213,7 +224,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_service_set_hard_limit(call: ServiceCall):
         """Handle service call"""
         try:
-            _LOGGER.info(f"SOLCAST - Service call: {SERVICE_SET_HARD_LIMIT}")
+            _LOGGER.info(f"Solcast service call: {SERVICE_SET_HARD_LIMIT}")
 
             hl = call.data.get(HARD_LIMIT, 100000)
 
@@ -238,7 +249,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_service_remove_hard_limit(call: ServiceCall):
         """Handle service call"""
         try:
-            _LOGGER.info(f"SOLCAST - Service call: {SERVICE_REMOVE_HARD_LIMIT}")
+            _LOGGER.info(f"Solcast service call: {SERVICE_REMOVE_HARD_LIMIT}")
 
             opt = {**entry.options}
             opt[HARD_LIMIT] = 100000
