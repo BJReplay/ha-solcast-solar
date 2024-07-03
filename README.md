@@ -274,8 +274,8 @@ Click the Forecast option button and select the Solcast Solar option.. Click SAV
 | `D7` | number | Y | `kWh` | Total forecast solar production for day + 6 (day 7) |
 | `This Hour` | number | Y | `Wh` | Forecasted solar production current hour (attributes contain site breakdown) |
 | `Next Hour` | number | Y | `Wh` | Forecasted solar production next hour (attributes contain site breakdown) |
-| `Forecast Next X Hours` | number | N | `kWh` | Custom user defined X hour forecast |
-| `Remaining Today` | number | N | `kWh` | Predicted remaining solar production today |
+| `Forecast Next X Hours` | number | Y | `kWh` | Custom user defined X hour forecast |
+| `Remaining Today` | number | Y | `kWh` | Predicted remaining solar production today |
 | `Peak Forecast Today` | number | Y | `W` | Highest predicted production within an hour period today (attributes contain site breakdown) |
 | `Peak Time Today` | date/time | Y |  | Hour of max forecasted production of solar today (attributes contain site breakdown) |
 | `Peak Forecast Tomorrow` | number | Y | `W` | Highest predicted production within an hour period tomorrow (attributes contain site breakdown) |
@@ -290,6 +290,8 @@ Click the Forecast option button and select the Solcast Solar option.. Click SAV
 > Access these in a template sensor or automation using something like:
 >
 > ```{{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', '1234-5678-9012-3456') | float(0) }}```
+
+Most sensors include an attribute for `estimate`, `estimate10` and `estimate90`. Template sensors may be created to expose their value, or the `state_attr()` can be used directly in automations.
 
 ### Configuration
 
