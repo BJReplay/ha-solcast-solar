@@ -287,11 +287,13 @@ Click the Forecast option button and select the Solcast Solar option.. Click SAV
 > [!NOTE]
 > Where a site breakdown is available as an attribute, the attribute name is the Solcast site resource ID.
 >
+> Most sensors also include an attribute for `pv_estimate`, `pv_estimate10` and `pv_estimate90`. Template sensors may be created to expose their value, or the `state_attr()` can be used directly in automations.
+>
 > Access these in a template sensor or automation using something like:
 >
-> ```{{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', '1234-5678-9012-3456') | float(0) }}```
-
-Most sensors include an attribute for `estimate`, `estimate10` and `estimate90`. Template sensors may be created to expose their value, or the `state_attr()` can be used directly in automations.
+> `{{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', '1234-5678-9012-3456') | float(0) }}`
+> `{{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', 'pv_estimate10') | float(0) }}`
+> `{{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', '1234-5678-9012-3456_pv_estimate10') | float(0) }}`
 
 ### Configuration
 
@@ -326,6 +328,11 @@ Modified from the great works of
 None
 
 ## Changes
+
+v4.0.36
+* (Enhancement) Additional sensor attributes (estimate/estimate10/estimate90) and logging improvements by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.35...v4.0.36
 
 v4.0.35
 * (Enhancement) Breakdown of individual site forecast wattage and time as attributes by @autoSteve
