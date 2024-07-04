@@ -318,7 +318,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             self._sensor_data = coordinator.get_sensor_value(entity_description.key)
         except Exception as ex:
             _LOGGER.error(
-                f"SOLCAST - unable to get sensor value {ex} %s", traceback.format_exc()
+                f"Unable to get sensor value {ex} %s", traceback.format_exc()
             )
             self._sensor_data = None
 
@@ -347,7 +347,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             )
         except Exception as ex:
             _LOGGER.error(
-                f"SOLCAST - unable to get sensor value {ex} %s", traceback.format_exc()
+                f"Unable to get sensor value {ex} %s", traceback.format_exc()
             )
             return None
 
@@ -379,7 +379,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             )
         except Exception as ex:
             _LOGGER.error(
-                f"SOLCAST - unable to get sensor value {ex} %s", traceback.format_exc()
+                f"Unable to get sensor value {ex} %s", traceback.format_exc()
             )
             self._sensor_data = None
 
@@ -423,7 +423,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
             self._sensor_data = coordinator.get_site_sensor_value(self.rooftop_id, key)
         except Exception as ex:
             _LOGGER.error(
-                f"SOLCAST - unable to get sensor value {ex} %s", traceback.format_exc()
+                f"Unable to get sensor value {ex} %s", traceback.format_exc()
             )
             self._sensor_data = None
 
@@ -464,7 +464,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
             )
         except Exception as ex:
             _LOGGER.error(
-                f"SOLCAST - unable to get sensor value {ex} %s", traceback.format_exc()
+                f"Unable to get sensor value {ex} %s", traceback.format_exc()
             )
             return None
 
@@ -495,7 +495,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
             )
         except Exception as ex:
             _LOGGER.error(
-                f"SOLCAST - unable to get sensor value {ex} %s", traceback.format_exc()
+                f"Unable to get sensor value {ex} %s", traceback.format_exc()
             )
             self._sensor_data = None
         self.async_write_ha_state()

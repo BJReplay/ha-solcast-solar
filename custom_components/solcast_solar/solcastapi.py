@@ -423,13 +423,13 @@ class SolcastApi:
 
                 if not self._loaded_data:
                     #no file to load
-                    _LOGGER.warning(f"There is no cached Solcast data to load, so fetching Solcast forecast, including past forecasts")
+                    _LOGGER.warning(f"There is no solcast.json to load, so fetching solar forecast, including past forecasts")
                     #could be a brand new install of the integation so this is poll once now automatically
                     await self.http_data(dopast=True)
             else:
-                _LOGGER.error(f"Solcast site count is zero in load_saved_data. The get sites must have failed.")
+                _LOGGER.error(f"Solcast site count is zero in load_saved_data; the get sites must have failed, and there is no sites cache")
         except json.decoder.JSONDecodeError:
-            _LOGGER.error("The cached Solcast data is corrupt in load_saved_data error")
+            _LOGGER.error("The cached data in solcast.json is corrupt in load_saved_data")
         except Exception as e:
             _LOGGER.error("Solcast exception in load_saved_data: %s", traceback.format_exc())
 
