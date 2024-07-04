@@ -69,6 +69,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     random.seed()
 
+    _VERSION = ""
+    try:
+        integration = await loader.async_get_integration(hass, DOMAIN)
+        _VERSION = str(integration.version)
+        _LOGGER.info(
+            f"\n{'-'*67}\n"
+            f"Solcast integration version: {_VERSION}\n\n"
+            f"This is a custom integration. When troubleshooting a problem, after\n"
+            f"reviewing open and closed issues, and the discussions, check the\n"
+            f"required automation is functioning correctly and try enabling debug\n"
+            f"logging to see more. Troubleshooting tips available at:\n"
+            f"https://github.com/BJReplay/ha-solcast-solar/discussions/38\n\n"
+            f"Beta versions may also have addressed some issues so look at those.\n\n"
+            f"If all else fails, then open an issue and our community will try to\n"
+            f"help: https://github.com/BJReplay/ha-solcast-solar/issues\n"
+            f"{'-'*67}")
+    except loader.IntegrationNotFound:
+        pass
+
     #new in v4.0.16 for the selector of which field to use from the data
     if entry.options.get(KEY_ESTIMATE,None) is None:
         new = {**entry.options}
@@ -118,25 +137,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise ConfigEntryNotReady(f"Getting sites data failed: {ex}") from ex
 
     await solcast.load_saved_data()
-
-    _VERSION = ""
-    try:
-        integration = await loader.async_get_integration(hass, DOMAIN)
-        _VERSION = str(integration.version)
-        _LOGGER.info(
-            f"\n{'-'*67}\n"
-            f"Solcast integration version: {_VERSION}\n\n"
-            f"This is a custom integration. When troubleshooting a problem, after\n"
-            f"reviewing open and closed issues, and the discussions, check the\n"
-            f"required automation is functioning correctly and try enabling debug\n"
-            f"logging to see more. Troubleshooting tips available at:\n"
-            f"https://github.com/BJReplay/ha-solcast-solar/discussions/38\n\n"
-            f"Beta versions may also have addressed some issues so look at those.\n\n"
-            f"If all else fails, then open an issue and our community will try to\n"
-            f"help: https://github.com/BJReplay/ha-solcast-solar/issues\n"
-            f"{'-'*67}")
-    except loader.IntegrationNotFound:
-        pass
 
     coordinator = SolcastUpdateCoordinator(hass, solcast, _VERSION)
 

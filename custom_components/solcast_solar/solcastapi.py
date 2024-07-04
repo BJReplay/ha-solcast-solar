@@ -420,6 +420,7 @@ class SolcastApi:
 
                             #create an up to date forecast and make sure the TZ fits just in case its changed
                             await self.buildforecastdata()
+                            _LOGGER.info(f"Loaded solcast.json forecast cache")
 
                 if not self._loaded_data:
                     #no file to load
