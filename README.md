@@ -87,7 +87,7 @@ You probably **do not** want to do this! Use the HACS method above unless you kn
 1. Enter your `Solcast API Key`
 1. Click `Submit`
 
-* Create your own [automation](#services) to call the service `solcast_solar.update_forecasts` when you would like.
+* Create your own [automation](#services) to call the service `solcast_solar.update_forecasts` when you would like to update the Solar forecast within Home Assistant.
 
 * Change the configuration options for an existing `Solcast PV Forecast` integration in the Home Assistant Integrations by selecting Solcast then `Configure` (cog wheel).
 
@@ -115,6 +115,21 @@ New in v4.0.8 is the option to configure hourly dampening values.
 Here you can change the dampening factor value for any hour. Values from 0.0 - 1.0 are valid. Setting 0.95 will dampen each Solcast forecast data value by 5%. This is reflected in the sensor values and attributes and also in the Home Assistant Energy dashboard.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/v3/.github/SCREENSHOTS/dampopt.png" width="200">](https://github.com/BJReplay/ha-solcast-solar/blob/v3/.github/SCREENSHOTS/dampopt.png)
+
+## Key Solcast concepts
+
+Solcast will produce a forecast of your solar PV generation for today, tomorrow, the day after (day 3), ... up to day 7.
+Each of these daily forecasts will be in a separate sensor (see below) and the sensor value will be the total predicted solar generation for your Solcast account.
+Separate sensors contain peak solar generation power, peak solar generation time, and various forecasts of next hour, 30 minutes, etc.
+
+If you have multiple arrays on different roof orientations, these can be configured in Solcast as separate 'sites', to a maximum of two.
+
+Three solar PV generation estimates are produced by the Solcast integration, the:
+- 'central' or 50% or most likely to occur PV forecast,
+- '10%' or 1 in 10 'worst case' PV forecast assuming more cloud coverage, and
+- '90%' or 1 in 10 'best case' PV forecast assuming less cloud coverage.
+
+These different forecast estimates can be found in the sensor attributes, broken down by 30 minute slots across the day. Separate attributes sum the different estimates for the day.
 
 ## Services
 These are the services for this integration: ([Configuration](#configuration))
@@ -218,8 +233,9 @@ mode: single
 
 > [!TIP]
 > The Solcast Servers seem to occasionally be under some strain, and the servers return 429 return codes when they are busy.
+> The Solcast integration will automatically pause, then retry the connection several times, but occasionally even this strategy can fail to download Solcast data.
 > Changing your API Key is not a solution, nor is uninstalling and re-installing the Solcast PV Solar Integration.
-> These "tricks" might appear to work, but all that has actually happened is that you have tried again later, and the integration has worked.
+> These "tricks" might appear to work, but all that has actually happened is that you have tried again later, and the integration has worked as the Solcast servers are less busy.
 > 
 > If you think that have problems in the integration, make sure that you have logging turned on, and capture logs to find out if you are getting messages indicating that the Solcast API is busy - these indicate that the Solcast API is under stress.
 > Log capture instructions are in the Bug Issue Template - you will see them if you start creating a new issue - make sure you include logs if you want the assistance of the repository constributors.
@@ -238,13 +254,11 @@ homeassistant  | 2024-06-17 09:35:18.089 DEBUG (MainThread) [custom_components.s
 homeassistant  | 2024-06-17 09:35:18.090 DEBUG (MainThread) [custom_components.solcast_solar.solcastapi] SOLCAST - fetch_data code http_session status is 200
 ```
 
-
 <summary><h3>Set up HA Energy Dashboard settings</summary></h3>
 
 Go to the `HA>Settings>Dashboards>Energy`
 
 Click the 'edit the Solar Production' item you have previously created in the Energy dashboard. 
-
 
 > [!IMPORTANT]  
 > If you do not have a solar generation sensor in your system then this integration will not work in the Energy dashboard. The graph, and adding the forecast integration rely on there being a generation sensor setup.
@@ -316,6 +330,117 @@ Click the Forecast option button and select the Solcast Solar option.. Click SAV
 [^1]: API usage information is directly read from Solcast
 [^2]: Each rooftop created in Solcast will be listed separately
 
+### Sample PV Graph
+
+The following YAML produces a graph of today's PV generation, PV forecast and PV10 forecast. Requires [Apex Charts](https://github.com/RomRider/apexcharts-card) to be installed.
+Customise with appropriate Home Assistant sensors for today's total solar generation and solar panel PV power output.
+
+```yaml
+type: custom:apexcharts-card
+header:
+  title: Solar forecast
+  show: true
+  show_states: true
+  colorize_states: true
+apex_config:
+  chart:
+    height: 300px
+  tooltip:
+    enabled: true
+    shared: true
+    followCursor: true
+graph_span: 24h
+span:
+  start: day
+yaxis:
+  - id: capacity
+    show: true
+    opposite: true
+    decimals: 0
+    max: 100
+    min: 0
+    apex_config:
+      tickAmount: 10
+  - id: kWh
+    show: true
+    min: 0
+    apex_config:
+      tickAmount: 10
+  - id: header_only
+    show: false
+series:
+  - entity: sensor.SOLAR_POWER
+    name: Solar Power
+    type: line
+    stroke_width: 2
+    float_precision: 2
+    color: Orange
+    yaxis_id: kWh
+    unit: kW
+    extend_to: now
+    show:
+      legend_value: true
+      in_header: false
+    group_by:
+      func: avg
+      duration: 5m
+  - entity: sensor.solcast_pv_forecast_forecast_today
+    name: Forecast
+    color: grey
+    opacity: 0.3
+    stroke_width: 0
+    type: area
+    extend_to: false
+    yaxis_id: kWh
+    show:
+      legend_value: false
+      in_header: false
+    data_generator: |
+      return entity.attributes.detailedForecast.map((entry) => {
+            return [new Date(entry.period_start), entry.pv_estimate];
+          });
+  - entity: sensor.solcast_pv_forecast_forecast_today
+    name: Forecast 10%
+    color: grey
+    opacity: 0.3
+    stroke_width: 0
+    type: area
+    extend_to: false
+    yaxis_id: kWh
+    show:
+      legend_value: false
+      in_header: false
+    data_generator: |
+      return entity.attributes.detailedForecast.map((entry) => {
+            return [new Date(entry.period_start), entry.pv_estimate10];
+          });
+  - entity: sensor.SOLAR_GENERATION_ENERGY_TODAY
+    yaxis_id: header_only
+    name: Today Actual
+    stroke_width: 2
+    color: Orange
+    show:
+      legend_value: true
+      in_header: true
+      in_chart: false
+  - entity: sensor.solcast_pv_forecast_forecast_today
+    yaxis_id: header_only
+    name: Today Forecast
+    color: Grey
+    show:
+      legend_value: true
+      in_header: true
+      in_chart: false
+  - entity: sensor.solcast_pv_forecast_forecast_remaining_today
+    yaxis_id: header_only
+    name: Remaining
+    color: Grey
+    show:
+      legend_value: true
+      in_header: true
+      in_chart: false
+```
+
 <summary><h3>Credits</summary></h3>
 
 Modified from the great works of
@@ -325,7 +450,7 @@ Modified from the great works of
 * cjtapper/solcast-py
 * home-assistant-libs/forecast_solar
 
-## Known issues
+# Known issues
 
 None
 
@@ -486,7 +611,7 @@ v4.0.17
 
 v4.0.16
 - added @Zachoz idea of adding a setting to select which solcast estimate field value for the forecast calculations, either estimate, estimate10 or estimate90
-    ESTIMATE - Default forecasts  
+    ESTIMATE - Default forecasts
     ESTIMATE10 = Forecasts 10 - cloudier than expected scenario  
     ESTIMATE90 = Forecasts 90 - less cloudy than expected scenario  
 
@@ -758,4 +883,4 @@ Integration contains
 
 ### Polling Imformation
 Solcast has a 50 API poll limit per day.
-Resently new solcast accounts only get a limit of 10
+Recently new Solcast Hobbyist accounts only get a limit of 10 API calls per day.
