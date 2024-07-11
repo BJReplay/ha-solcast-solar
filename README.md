@@ -119,17 +119,17 @@ Here you can change the dampening factor value for any hour. Values from 0.0 - 1
 ## Key Solcast concepts
 
 Solcast will produce a forecast of your solar PV generation for today, tomorrow, the day after (day 3), ... up to day 7.
-Each of these daily forecasts will be in a separate sensor (see below) and the sensor value will be the total predicted solar generation for your Solcast account.
+Each of these forecasts will be in a separate sensor (see below) and the sensor value will be the total predicted solar generation for your Solcast account for each day.
 Separate sensors contain peak solar generation power, peak solar generation time, and various forecasts of next hour, 30 minutes, etc.
 
-If you have multiple arrays on different roof orientations, these can be configured in Solcast as separate 'sites', to a maximum of two.
+If you have multiple arrays on different roof orientations, these can be configured in Solcast as separate 'sites' with differing azimuth, tilt and generation, to a maximum of two sites for a free hobbyist account.
 
-Three solar PV generation estimates are produced by the Solcast integration, the:
-- 'central' or 50% or most likely to occur PV forecast,
-- '10%' or 1 in 10 'worst case' PV forecast assuming more cloud coverage, and
-- '90%' or 1 in 10 'best case' PV forecast assuming less cloud coverage.
+Three solar PV generation estimates are produced by the Solcast integration:
+- 'central' or 50% or most likely to occur PV forecast (or the `forecast`),
+- '10%' or 1 in 10 'worst case' PV forecast assuming more cloud coverage (`forecast10`)
+- '90%' or 1 in 10 'best case' PV forecast assuming less cloud coverage (`forecast90`)
 
-These different forecast estimates can be found in the sensor attributes, broken down by 30 minute slots across the day. Separate attributes sum the different estimates for the day.
+The detail of these different forecast estimates can be found in sensor attributes, broken down by 30 minute and hourly invervals across the day. Separate attributes sum the different estimates for each day.
 
 ## Services
 These are the services for this integration: ([Configuration](#configuration))
@@ -333,6 +333,9 @@ Click the Forecast option button and select the Solcast Solar option.. Click SAV
 ### Sample PV Graph
 
 The following YAML produces a graph of today's PV generation, PV forecast and PV10 forecast. Requires [Apex Charts](https://github.com/RomRider/apexcharts-card) to be installed.
+
+[<img src=".github/SCREENSHOTS/forecast_today.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/v3/.github/SCREENSHOTS/forecast_today.png)
+
 Customise with appropriate Home Assistant sensors for today's total solar generation and solar panel PV power output.
 
 ```yaml
@@ -370,7 +373,7 @@ yaxis:
     show: false
 series:
   - entity: sensor.SOLAR_POWER
-    name: Solar Power
+    name: Solar Power (now)
     type: line
     stroke_width: 2
     float_precision: 2
@@ -386,7 +389,7 @@ series:
       duration: 5m
   - entity: sensor.solcast_pv_forecast_forecast_today
     name: Forecast
-    color: grey
+    color: Grey
     opacity: 0.3
     stroke_width: 0
     type: area
@@ -401,7 +404,7 @@ series:
           });
   - entity: sensor.solcast_pv_forecast_forecast_today
     name: Forecast 10%
-    color: grey
+    color: Grey
     opacity: 0.3
     stroke_width: 0
     type: area
@@ -427,6 +430,16 @@ series:
     yaxis_id: header_only
     name: Today Forecast
     color: Grey
+    show:
+      legend_value: true
+      in_header: true
+      in_chart: false
+  - entity: sensor.solcast_pv_forecast_forecast_today
+    attribute: estimate10
+    yaxis_id: header_only
+    name: Today Forecast 10%
+    color: Grey
+    opacity: 0.3
     show:
       legend_value: true
       in_header: true
