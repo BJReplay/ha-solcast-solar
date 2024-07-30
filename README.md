@@ -459,11 +459,13 @@ series:
       in_header: true
       in_chart: false
   - entity: sensor.solcast_pv_forecast_forecast_today
-    attribute: estimate10
     yaxis_id: header_only
     name: Today Forecast 10%
-    color: Grey
+    color: LightGrey
     opacity: 0.3
+    transform: >
+      return entity.attributes.detailedForecast.reduce((partialSum, entry) =>
+      partialSum + entry.pv_estimate10, 0);
     show:
       legend_value: true
       in_header: true
