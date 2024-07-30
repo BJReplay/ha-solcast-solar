@@ -464,7 +464,7 @@ series:
     color: Grey
     opacity: 0.3
     transform: >
-      return entity.attributes.detailedForecast.reduce((partialSum, entry) =>
+      return entity.attributes.detailedHourly.reduce((partialSum, entry) =>
       partialSum + entry.pv_estimate10, 0);
     show:
       legend_value: true
