@@ -461,7 +461,7 @@ series:
   - entity: sensor.solcast_pv_forecast_forecast_today
     yaxis_id: header_only
     name: Today Forecast 10%
-    color: LightGrey
+    color: Grey
     opacity: 0.3
     transform: >
       return entity.attributes.detailedForecast.reduce((partialSum, entry) =>
