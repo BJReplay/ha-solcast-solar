@@ -967,9 +967,9 @@ class SolcastApi:
                 if not result:
                     failure = True
                     if len(self.sites) > sitesAttempted:
-                        _LOGGER.warning('At least one forecast update for a site failed, so not continuing')
+                        _LOGGER.warning('Forecast update for site %s failed, so not getting remaining sites', site['resource_id'])
                     else:
-                        _LOGGER.warning('Forecast update for the last site queued failed, so not continuing - API use count will look odd')
+                        _LOGGER.warning('Forecast update for the last site queued failed (%s), so not getting remaining sites - API use count will look odd', site['resource_id'])
                     break
 
             if sitesAttempted > 0 and not failure:
