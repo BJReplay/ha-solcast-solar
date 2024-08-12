@@ -1,6 +1,7 @@
 """Support for Solcast PV forecast."""
 
 import logging
+import traceback
 import random
 import os
 from datetime import timedelta
@@ -82,7 +83,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         #if something ever goes wrong with the damp factors just create a blank 1.0
         for a in range(0,24):
             optdamp[str(a)] = entry.options[f"damp{str(a).zfill(2)}"]
-    except Exception as ex:
+    except:
         new = {**entry.options}
         for a in range(0,24):
             new[f"damp{str(a).zfill(2)}"] = 1.0
@@ -181,7 +182,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await coordinator.update_integration_listeners()
             coordinator._dataUpdated = False
         except Exception as ex:
-            _LOGGER.error("Exception force fetching data on stale start: %s", traceback.format_exc())
+            _LOGGER.error("Exception force fetching data on stale start: %s", ex)
+            _LOGGER.error(traceback.format_exc())
 
     async def handle_service_update_forecast(call: ServiceCall):
         """Handle service call"""
