@@ -970,7 +970,7 @@ class SolcastApi:
                 result = await self.http_data_call(self.get_api_usage_cache_filename(site['apikey']), site['resource_id'], site['apikey'], dopast)
                 if not result:
                     failure = True
-                    if len(self.sites) > sitesAttempted:
+                    if len(self._sites) > sitesAttempted:
                         _LOGGER.warning('Forecast update for site %s failed, so not getting remaining sites', site['resource_id'])
                     else:
                         _LOGGER.warning('Forecast update for the last site queued failed (%s), so not getting remaining sites - API use count will look odd', site['resource_id'])
