@@ -1151,7 +1151,6 @@ class SolcastApi:
                                 _LOGGER.warning(f"The Solcast API is busy, pausing {delay} seconds before retry")
                                 await asyncio.sleep(delay)
                             else:
-                                status = 999 # Unknown status, so break to error
                                 break
 
                         if status == 200:
