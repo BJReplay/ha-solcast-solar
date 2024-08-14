@@ -189,6 +189,9 @@ mode: single
 > [!NOTE]  
 > If you have two arrays on your roof then two api calls will be made for each update, effectively reducing the number of updates to five per day. For this case, change to: `api_request_limit = 5`
 
+### Additional automation examples
+<details><summary><i>Click here for more ideas</i><p/></summary>
+
 The next automation also includes a randomisation so that calls aren't made at precisely the same time, hopefully avoiding the likelihood that the Solcast servers are inundated by multiple calls at the same time, but it triggers every four hours between sunrise and sunset:
 
 ```yaml
@@ -229,6 +232,7 @@ action:
     data: {}
 mode: single
 ```
+</details>
 
 > [!TIP]
 > The Solcast Servers seem to occasionally be under some strain, and the servers return 429/Too busy return codes at these times. The integration will automatically pause, then retry the connection several times, but occasionally even this strategy can fail to download forecast data.
@@ -416,7 +420,10 @@ The following YAML produces a graph of today's PV generation, PV forecast and PV
 
 Customise with appropriate Home Assistant sensors for today's total solar generation and solar panel PV power output.
 
-The chart assumes that your Solar PV sensors are in kW, but if some are in W, add the line `transform: "return x / 1000;"` under the entity id to convert the sensor value to kW.
+> [!NOTE] The chart assumes that your Solar PV sensors are in kW, but if some are in W, add the line `transform: "return x / 1000;"` under the entity id to convert the sensor value to kW.
+
+### Reveal code
+<details><summary><i>Click here</i></summary>
 
 ```yaml
 type: custom:apexcharts-card
@@ -535,6 +542,8 @@ series:
       in_header: true
       in_chart: false
 ```
+</details>
+
 
 ## Known issues
 
@@ -572,6 +581,9 @@ v4.1
 Release Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.31...v4.1
 
 Most Recent Changes: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.43...v4.1
+
+### Prior changes
+<details><summary><i>Click here for changes back to v3.0</i></summary>
 
 v4.0.43
 * Auto-fetch on startup when stale forecast data is detected by @autoSteve
@@ -1039,6 +1051,7 @@ Integration contains
   - Peak Time Tomorrow      (date/time)
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolcastService.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolcastService.png)
+</details>
 
 ## Credits
 
