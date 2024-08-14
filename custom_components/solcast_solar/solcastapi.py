@@ -1140,8 +1140,9 @@ class SolcastApi:
                                 url=url, params=params, ssl=False
                             )
                             status = resp.status
-                            if status == 200: break
-                            if status == 429:
+                            if status == 200:
+                                break
+                            elif status == 429:
                                 if counter >= tries:
                                     status = 999 # All retries have been exhausted
                                     break
@@ -1149,6 +1150,9 @@ class SolcastApi:
                                 delay = (counter * backoff) + random.randrange(0,30)
                                 _LOGGER.warning(f"The Solcast API is busy, pausing {delay} seconds before retry")
                                 await asyncio.sleep(delay)
+                            else:
+                                status = 999 # Unknown status, so break to error
+                                break
 
                         if status == 200:
                             _LOGGER.debug(f"Fetch successful")
