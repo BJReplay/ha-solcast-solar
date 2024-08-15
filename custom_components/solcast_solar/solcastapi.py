@@ -1194,7 +1194,8 @@ class SolcastApi:
                                     break
                                 # Solcast is busy, so delay (15 seconds * counter), plus a random number of seconds between zero and 15
                                 delay = (counter * backoff) + random.randrange(0,15)
-                                _LOGGER.warning(f"The Solcast API is busy, pausing {delay} seconds before retry")
+                                _LOGGER.warning(f"The Solcast API returned 'try again later', pausing {delay} seconds before retry")
+                                _LOGGER.warning("This could mean that Solcast is busy, or that your hobbyist API quota is exhausted")
                                 await asyncio.sleep(delay)
                             else:
                                 break
