@@ -334,8 +334,7 @@ class SolcastApi:
                         _LOGGER.debug(f"API usage cache loaded")
                 else:
                     _LOGGER.warning(f"No Solcast API usage cache found, creating one assuming zero API used")
-                    usage['daily_limit'] = quota[spl]
-                    usage['daily_limit_consumed'] = 0
+                    usage = {'daily_limit': quota[spl], 'daily_limit_consumed': 0}
                     await self.write_api_usage_cache_file(apiCacheFileName, usage, sitekey)
 
                 self._api_limit[sitekey] = usage.get("daily_limit", None)
