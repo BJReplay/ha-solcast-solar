@@ -4,6 +4,9 @@ import logging
 import traceback
 import random
 import os
+import json
+import aiofiles
+import os.path as path
 from datetime import timedelta
 
 from homeassistant import loader
@@ -431,7 +434,19 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
     #API quota
     if config_entry.version < 9:
         new = {**config_entry.options}
-        if new.get(API_QUOTA) is None: new[API_QUOTA] = '10'
+        try:
+            default = []
+            configDir = path.abspath(path.join(path.dirname(__file__) ,"../.."))
+            for spl in new[CONF_API_KEY].split(','):
+                apiCacheFileName = "%s/solcast-usage%s.json" % (configDir, "" if len(new[CONF_API_KEY].split(',')) < 2 else "-" + spl.strip())
+                async with aiofiles.open(apiCacheFileName) as f:
+                    usage = json.loads(await f.read())
+                default.append(str(usage['daily_limit']))
+            default = ','.join(default)
+        except Exception as e:
+            _LOGGER.warning('Could not load API usage cache quota while upgrading config, using default: %s', e)
+            default = '10'
+        if new.get(API_QUOTA) is None: new[API_QUOTA] = default
         try:
             hass.config_entries.async_update_entry(config_entry, options=new, version=9)
             upgraded()
