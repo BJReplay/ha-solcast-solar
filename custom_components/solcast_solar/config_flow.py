@@ -82,6 +82,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_API_KEY, default=""): str,
+                    vol.Required(API_QUOTA, default="10"): str,
                 }
             ),
         )
