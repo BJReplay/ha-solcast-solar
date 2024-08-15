@@ -7,7 +7,7 @@
             "user": {
                 "data": {
                     "api_key": "API key (comma separate multiple values)",
-                    "api_quota": "API quota (comma separate multiple values)"
+                    "api_quota": "API quota (optionally comma separate multiple values per key)"
                 },
                 "description": "Solcast API Account Details"
             }
