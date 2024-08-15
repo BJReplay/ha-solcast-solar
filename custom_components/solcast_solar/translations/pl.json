@@ -3,9 +3,10 @@
         "step": {
             "user": {
                 "data": {
-                    "api_key": "Klucz API Solcast"
+                    "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
+                    "api_quota": "Limit interfejsu API (wielokrotne wartości oddzielane przecinkiem)"
                 },
-                "description": "Wprowadź swój klucz konta API Solcast."
+                "description": "Dane konta Solcast API"
             }
         }
     },
@@ -13,15 +14,16 @@
         "step": {
             "init": {
                 "data": {
-                    "api_key": "Klucz API Solcast"
+                    "api_key": "Działanie"
                 },
-                "description": "Twój klucz konta API Solcast"
+                "description": "Opcje konfiguracji Solcast"
             },
             "api": {
                 "data": {
-                    "api_key": "Klucz API Solcast"
+                    "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
+                    "api_quota": "Limit interfejsu API (wielokrotne wartości oddzielane przecinkiem)"
                 },
-                "description": "Twój klucz konta API Solcast"
+                "description": "Dane konta Solcast API"
             },
             "dampen": {
                 "data": {

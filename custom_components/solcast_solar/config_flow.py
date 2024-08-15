@@ -13,13 +13,13 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 from homeassistant import config_entries
-from .const import DOMAIN, TITLE, CONFIG_OPTIONS, CUSTOM_HOUR_SENSOR, BRK_ESTIMATE, BRK_ESTIMATE10, BRK_ESTIMATE90, BRK_SITE, BRK_HALFHOURLY, BRK_HOURLY
+from .const import DOMAIN, TITLE, CONFIG_OPTIONS, API_QUOTA, CUSTOM_HOUR_SENSOR, BRK_ESTIMATE, BRK_ESTIMATE10, BRK_ESTIMATE90, BRK_SITE, BRK_HALFHOURLY, BRK_HOURLY
 
 @config_entries.HANDLERS.register(DOMAIN)
 class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
     """Handle the config flow."""
 
-    VERSION = 8 #v5 started in 4.0.8, #6 started 4.0.15, #7 started in 4.0.16, #8 started in 4.0.39
+    VERSION = 9 #v5 started 4.0.8, #6 started 4.0.15, #7 started 4.0.16, #8 started 4.0.39, #9 started 4.1.3
 
     @staticmethod
     @callback
@@ -42,6 +42,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 data = {},
                 options={
                     CONF_API_KEY: user_input[CONF_API_KEY],
+                    API_QUOTA: "10",
                     "damp00":1.0,
                     "damp01":1.0,
                     "damp02":1.0,
@@ -127,30 +128,39 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         )
 
     async def async_step_api(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Manage the options"""
-        if user_input is not None:
-            allConfigData = {**self.config_entry.options}
-            k = user_input["api_key"].replace(" ","").strip()
-            k = ','.join([s for s in k.split(',') if s])
-            allConfigData["api_key"] = k
+        """Manage the API key/quota"""
 
-            self.hass.config_entries.async_update_entry(
-                self.config_entry,
-                title=TITLE,
-                options=allConfigData,
-            )
-            return self.async_create_entry(title=TITLE, data=None)
+        errors = {}
+        apiQuota = self.config_entry.options[API_QUOTA]
+        
+        if user_input is not None:
+            try:
+                apiQuota = user_input[API_QUOTA]
+
+                allConfigData = {**self.config_entry.options}
+                k = user_input["api_key"].replace(" ","").strip()
+                k = ','.join([s for s in k.split(',') if s])
+                allConfigData["api_key"] = k
+                allConfigData[API_QUOTA] = apiQuota
+
+                self.hass.config_entries.async_update_entry(
+                    self.config_entry,
+                    title=TITLE,
+                    options=allConfigData,
+                )
+                return self.async_create_entry(title=TITLE, data=None)
+            except Exception as e:
+                errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="api",
             data_schema=vol.Schema(
                 {
-                    vol.Required(
-                        CONF_API_KEY,
-                        default=self.config_entry.options.get(CONF_API_KEY),
-                    ): str,
+                    vol.Required(CONF_API_KEY, default=self.config_entry.options.get(CONF_API_KEY),): str,
+                    vol.Required(API_QUOTA, default=self.config_entry.options.get(API_QUOTA),): str,
                 }
             ),
+            errors=errors,
         )
 
     async def async_step_dampen(self, user_input: dict[str, Any] | None = None) -> FlowResult: #user_input=None):

@@ -16,6 +16,7 @@ ENTRY_TYPE_SERVICE: Final = "service"
 
 ATTRIBUTION: Final = "Data retrieved from Solcast"
 
+API_QUOTA = "api_quota"
 CUSTOM_HOUR_SENSOR = "customhoursensor"
 KEY_ESTIMATE = "key_estimate"
 BRK_ESTIMATE = "attr_brk_estimate"
@@ -32,8 +33,6 @@ SERVICE_SET_DAMPENING = "set_dampening"
 SERVICE_SET_HARD_LIMIT = "set_hard_limit"
 SERVICE_REMOVE_HARD_LIMIT = "remove_hard_limit"
 
-#new 4.0.8 - integration config options menu
-#new 4.0.15 - integration config options for custom hour (option 3)
 CONFIG_OPTIONS = [
     selector.SelectOptionDict(value="configure_api", label="option1"),
     selector.SelectOptionDict(value="configure_dampening", label="option2"),

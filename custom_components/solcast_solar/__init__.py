@@ -28,6 +28,7 @@ from .const import (
     SERVICE_SET_HARD_LIMIT,
     SERVICE_REMOVE_HARD_LIMIT,
     SOLCAST_URL,
+    API_QUOTA,
     CUSTOM_HOUR_SENSOR,
     KEY_ESTIMATE,
     BRK_ESTIMATE,
@@ -104,6 +105,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     options = ConnectionOptions(
         entry.options[CONF_API_KEY],
+        entry.options[API_QUOTA],
         SOLCAST_URL,
         hass.config.path('%s/solcast.json' % os.path.abspath(os.path.join(os.path.dirname(__file__) ,"../.."))),
         tz,
@@ -242,9 +244,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
                         solcast._damp = d
                         hass.config_entries.async_update_entry(entry, options=opt)
-
-            #why is this here?? why did i make it delete the file when changing the damp factors??
-            #await coordinator.service_event_delete_old_solcast_json_file()
         except intent.IntentHandleError as err:
             raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: {err}") from err
 
@@ -423,6 +422,22 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
         except Exception as e:
             if "unexpected keyword argument 'version'" in e:
                 config_entry.version = 8
+                hass.config_entries.async_update_entry(config_entry, options=new_options)
+                upgraded()
+            else:
+                raise
+
+    #new 4.1.3
+    #API quota
+    if config_entry.version < 9:
+        new = {**config_entry.options}
+        if new.get(API_QUOTA) is None: new[API_QUOTA] = '10'
+        try:
+            hass.config_entries.async_update_entry(config_entry, options=new, version=9)
+            upgraded()
+        except Exception as e:
+            if "unexpected keyword argument 'version'" in e:
+                config_entry.version = 9
                 hass.config_entries.async_update_entry(config_entry, options=new_options)
                 upgraded()
             else:

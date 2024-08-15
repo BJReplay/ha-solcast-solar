@@ -3,9 +3,10 @@
         "step": {
             "user": {
                 "data": {
-                    "api_key": "Solcast-API-Schlüssel"
+                    "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
+                    "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)"
                 },
-                "description": "Trage deinen Solcast-API-Kontoschlüssel ein."
+                "description": "Details zum Solcast API-Konto"
             }
         }
     },
@@ -19,9 +20,10 @@
             },
             "api": {
                 "data": {
-                    "api_key": "Solcast-API-Schlüssel"
+                    "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
+                    "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)"
                 },
-                "description": "Ihr Solcast-API-Kontoschlüssel"
+                "description": "Details zum Solcast API-Konto"
             },
             "dampen": {
                 "data": {

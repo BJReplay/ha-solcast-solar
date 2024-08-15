@@ -6,9 +6,10 @@
         "step": {
             "user": {
                 "data": {
-                    "api_key": "Solcast API key"
+                    "api_key": "API key (comma separate multiple values)",
+                    "api_quota": "API quota (comma separate multiple values)"
                 },
-                "description": "Your Solcast API Account Key"
+                "description": "Solcast API Account Details"
             }
         }
     },
@@ -22,9 +23,10 @@
             },
             "api": {
                 "data": {
-                    "api_key": "Solcast API key"
+                    "api_key": "API key (comma separate multiple values)",
+                    "api_quota": "API quota (comma separate multiple values)"
                 },
-                "description": "Your Solcast API Account Key"
+                "description": "Solcast API Account Details"
             },
             "dampen": {
                 "data": {

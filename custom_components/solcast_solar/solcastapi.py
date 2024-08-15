@@ -62,7 +62,7 @@ statusTranslate = {
     403: 'Forbidden',
     404: 'Not found',
     418: 'I\'m a teapot', # Included here for fun. An April Fools joke in 1998. Included in RFC2324#section-2.3.2
-    429: 'Solcast too busy',
+    429: 'Try again later',
     500: 'Internal web server error',
     501: 'Not implemented',
     502: 'Bad gateway',
@@ -79,6 +79,7 @@ class ConnectionOptions:
     """Solcast options for the integration"""
 
     api_key: str
+    api_quota: str
     host: str
     file_path: str
     tz: timezone
@@ -302,7 +303,7 @@ class SolcastApi:
             _LOGGER.error("Exception in sites_data(): %s", traceback.format_exc())
 
     async def sites_usage(self):
-        """Request api usage"""
+        """Load api usage"""
 
         try:
             sp = self.options.api_key.split(",")

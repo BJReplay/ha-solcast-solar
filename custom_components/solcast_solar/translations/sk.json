@@ -6,9 +6,10 @@
         "step": {
             "user": {
                 "data": {
-                    "api_key": "Solcast API kľúč"
+                    "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
+                    "api_quota": "Kvóta rozhrania API (viac hodnôt oddelených čiarkou)"
                 },
-                "description": "Váš kľúč účtu Solcast API"
+                "description": "Podrobnosti účtu Solcast API"
             }
         }
     },
@@ -22,9 +23,10 @@
             },
             "api": {
                 "data": {
-                    "api_key": "Solcast API kľúč"
+                    "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
+                    "api_quota": "Kvóta rozhrania API (viac hodnôt oddelených čiarkou)"
                 },
-                "description": "Váš kľúč účtu Solcast API"
+                "description": "Podrobnosti účtu Solcast API"
             },
             "dampen": {
                 "data": {

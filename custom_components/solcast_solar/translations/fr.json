@@ -6,9 +6,10 @@
         "step": {
             "user": {
                 "data": {
-                    "api_key": "Clé API Solcast"
+                    "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
+                    "api_quota": "Quota d'API (plusieurs valeurs séparées par des virgules)"
                 },
-                "description": "Votre clé de compte API Solcast"
+                "description": "Détails de votre compte API Solcast"
             }
         }
     },
@@ -22,9 +23,10 @@
             },
             "api": {
                 "data": {
-                    "api_key": "Clé API Solcast"
+                    "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
+                    "api_quota": "Quota d'API (plusieurs valeurs séparées par des virgules)"
                 },
-                "description": "Votre clé de compte API Solcast"
+                "description": "Détails de votre compte API Solcast"
             },
             "dampen": {
                 "data": {
