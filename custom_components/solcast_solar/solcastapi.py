@@ -1167,7 +1167,7 @@ class SolcastApi:
             url=f"{self.options.host}/rooftop_sites/{site}/{path}"
             _LOGGER.debug(f"Fetch data url: {url}")
 
-            async with async_timeout.timeout(1800):
+            async with async_timeout.timeout(900):
                 apiCacheFileName = self.configDir + '/' + cachedname + "_" + site + ".json"
                 if self.apiCacheEnabled and file_exists(apiCacheFileName):
                     status = 404
@@ -1179,7 +1179,7 @@ class SolcastApi:
                     if self._api_used[apikey] < self._api_limit[apikey]:
                         tries = 10
                         counter = 0
-                        backoff = 30 # On every retry the back-off increases by (at least) thirty seconds more than the previous back-off
+                        backoff = 15 # On every retry the back-off increases by (at least) fifteen seconds more than the previous back-off
                         while True:
                             _LOGGER.debug(f"Fetching forecast")
                             counter += 1
@@ -1193,8 +1193,8 @@ class SolcastApi:
                                 if counter >= tries:
                                     status = 999 # All retries have been exhausted
                                     break
-                                # Solcast is busy, so delay (30 seconds * counter), plus a random number of seconds between zero and 30
-                                delay = (counter * backoff) + random.randrange(0,30)
+                                # Solcast is busy, so delay (15 seconds * counter), plus a random number of seconds between zero and 15
+                                delay = (counter * backoff) + random.randrange(0,15)
                                 _LOGGER.warning(f"The Solcast API is busy, pausing {delay} seconds before retry")
                                 await asyncio.sleep(delay)
                             else:
