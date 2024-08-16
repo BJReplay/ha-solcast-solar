@@ -1196,11 +1196,15 @@ class SolcastApi:
                                     if rs is not None:
                                         if rs.get('error_code') == 'TooManyRequests':
                                             status = 998
-                                            _LOGGER.debug(f"Exceeded daily free limit, setting API Counter to {self._api_used[apikey]}")
+                                            _LOGGER.debug(f"Exceeded daily free limit, setting API Counter to {self._api_limit[apikey]}")
                                             self._api_used[apikey] = self._api_limit[apikey]
                                             await self.write_api_usage_cache_file(usageCacheFileName,
                                                 {"daily_limit": self._api_limit[apikey], "daily_limit_consumed": self._api_used[apikey]},
                                                 apikey)
+                                            break
+                                        else:
+                                            _LOGGER.warning("An unexpected error occurred: %s", rs.get('message'))
+                                            status = 1000 # Intentionally not handled below
                                             break
                                 except:
                                     pass
