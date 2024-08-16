@@ -1189,13 +1189,27 @@ class SolcastApi:
                             if status == 200:
                                 break
                             elif status == 429:
+                                try:
+                                    # Test for API limit exceeded {"response_status":{"error_code":"TooManyRequests","message":"You have exceeded your free daily limit.","errors":[]}}
+                                    resp_json = await resp.json(content_type=None)
+                                    rs = resp_json.get('response_status')
+                                    if rs is not None:
+                                        if rs.get('error_code') == 'TooManyRequests':
+                                            status = 998
+                                            _LOGGER.debug(f"Exceeded daily free limit, setting API Counter to {self._api_used[apikey]}")
+                                            self._api_used[apikey] = self._api_limit[apikey]
+                                            await self.write_api_usage_cache_file(usageCacheFileName,
+                                                {"daily_limit": self._api_limit[apikey], "daily_limit_consumed": self._api_used[apikey]},
+                                                apikey)
+                                            break
+                                except:
+                                    pass
                                 if counter >= tries:
                                     status = 999 # All retries have been exhausted
                                     break
                                 # Solcast is busy, so delay (15 seconds * counter), plus a random number of seconds between zero and 15
                                 delay = (counter * backoff) + random.randrange(0,15)
-                                _LOGGER.warning(f"The Solcast API returned 'try again later', pausing {delay} seconds before retry")
-                                _LOGGER.warning("This could mean that Solcast is busy, or that your hobbyist API quota is exhausted")
+                                _LOGGER.warning(f"The Solcast API is busy, pausing {delay} seconds before retry")
                                 await asyncio.sleep(delay)
                             else:
                                 break
@@ -1214,6 +1228,9 @@ class SolcastApi:
                             if self.apiCacheEnabled:
                                 async with aiofiles.open(apiCacheFileName, 'w') as f:
                                     await f.write(json.dumps(resp_json, ensure_ascii=False))
+                        elif status == 998:
+                            _LOGGER.error(f"The Solcast API use quota has been exceeded, attempt failed")
+                            return None
                         elif status == 999:
                             _LOGGER.error(f"The Solcast API was tried {tries} times, but all attempts have failed")
                             return None
