@@ -127,7 +127,7 @@ You probably **do not** want to do this! Use the HACS method above unless you kn
  
  [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/Setupanewintegration.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/Setupanewintegration.png)
 
-1. Enter your `Solcast API Key`, and `API quota` click `Submit`. If you have more than one Solcast account because you have more than two rooftop setups, enter both account API keys separated by a comma `xxxxxxxx-xxxxx-xxxx,yyyyyyyy-yyyyy-yyyy` (_NB: this goes against Solcast T&C's by having more than one account_). If the API quota is the same for multiple accounts then enter a single value, or both values separated by a comma.
+1. Enter your `Solcast API Key`, `API quota` and click `Submit`. If you have more than one Solcast account because you have more than two rooftop setups, enter both account API keys separated by a comma `xxxxxxxx-xxxxx-xxxx,yyyyyyyy-yyyyy-yyyy` (_NB: this goes against Solcast T&C's by having more than one account_). If the API quota is the same for multiple accounts then enter a single value, or both values separated by a comma.
 1. Create your own automation to call the service `solcast_solar.update_forecasts` at the times you would like to update the solar forecast.
 1. Set up HA Energy Dashboard settings.
 1. To change other configuration options after installation, select the integration in `Devices & services` then `CONFIGURE`.
