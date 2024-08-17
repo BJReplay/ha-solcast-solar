@@ -1,10 +1,13 @@
 {
     "config": {
+        "abort": {
+            "single_instance_allowed": "Dozwolona tylko jedna instancja Solcast"
+        },
         "step": {
             "user": {
                 "data": {
                     "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
-                    "api_quota": "Limit interfejsu API (wielokrotne wartości oddzielane przecinkiem)"
+                    "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)"
                 },
                 "description": "Dane konta Solcast API"
             }
@@ -14,14 +17,14 @@
         "step": {
             "init": {
                 "data": {
-                    "api_key": "Działanie"
+                    "solcast_config_action": "Działanie"
                 },
                 "description": "Opcje konfiguracji Solcast"
             },
             "api": {
                 "data": {
                     "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
-                    "api_quota": "Limit interfejsu API (wielokrotne wartości oddzielane przecinkiem)"
+                    "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)"
                 },
                 "description": "Dane konta Solcast API"
             },
@@ -71,12 +74,26 @@
                 },
                 "description": "Wybierz atrybuty czujnika, które będą dostępne"
             }
+        },
+        "error": {
+            "unknown": "Nieznany błąd",
+            "incorrect_options_action": "Wybrano nieprawidłowe działanie"
+        }
+    },
+    "selector": {
+        "solcast_config_action": {
+            "options": {
+                "configure_api": "Konfiguruj klucz Solcast API",
+                "configure_dampening": "Konfiguruj tłumienie",
+                "configure_customsensor": "Konfiguruj niestandardowy czujnik godzin",
+                "configure_attributes": "Konfiguruj dostępne atrybuty"
+            }
         }
     },
     "system_health": {
         "info": {
             "can_reach_server": "Połączenie z serwerem Solcast",
-            "used_requests": "Wykorzystane zapytania API",
+            "used_requests": "Wykorzystane żądania API",
             "rooftop_site_count": "Liczba połaci"
         }
     },
@@ -86,22 +103,46 @@
             "description": "Pobierz najnowsze dane prognoz Solcast."
         },
         "clear_all_solcast_data": {
-            "name": "Wyczyść dane Solcast",
-            "description": "Usunięte zostaną wszystkie przechowywane dane Solcast. Plik solcast.json zostanie usunięty."
+            "name": "Wyczyść wszystkie zapisane dane Solcast",
+            "description": "Usuwa plik solcast.json, aby usunąć wszystkie aktualne dane witryny Solcast."
         },
         "query_forecast_data": {
             "name": "Pobierz dane prognoz",
-            "description": "Pobierz aktualne dane prognoz.",
+            "description": "Zwraca zestaw danych lub wartość dla podanego zapytania.",
             "fields": {
                 "start_date_time": {
                     "name": "Data i godzina rozpoczęcia",
-                    "description": "Czas rozpoczęcia danych prognozowych."
+                    "description": "Pobierz dane prognoz od określonej daty i godziny."
                 },
                 "end_date_time": {
                     "name": "Data i godzina zakończenia",
-                    "description": "Czas zakończenia danych prognozowych."
+                    "description": "Pobierz dane prognoz do określonej daty i godziny."
                 }
             }
+        },
+        "set_dampening": {
+            "name": "Ustaw tłumienie prognoz",
+            "description": "Ustaw godzinowy współczynnik tłumienia prognoz.",
+            "fields": {
+                "damp_factor": {
+                    "name": "Ciąg tłumienia",
+                    "description": "Ciąg wartości współczynnika tłumienia godzinowego, oddzielany przecinkiem."
+                }
+            }
+        },
+        "set_hard_limit": {
+            "name": "Ustaw twardy limit prognoz inwertera",
+            "description": "Zabrania wartości prognoz przekraczających maksymalną moc inwertera.",
+            "fields": {
+                "hard_limit": {
+                    "name": "Wartość limitu w watach",
+                    "description": "Ustaw maksymalną wartość w watach, jaką może wyprodukować inwerter."
+                }
+            }
+        },
+        "remove_hard_limit": {
+            "name": "Usuń twardy limit prognoz inwertera",
+            "description": "Usuń ustawiony limit."
         }
     },
     "entity": {
@@ -114,6 +155,7 @@
             "forecast_this_hour": {"name": "Prognoza na bieżącą godzinę"},
             "get_remaining_today": {"name": "Pozostała prognoza na dziś"},
             "forecast_next_hour": {"name": "Prognoza na następną godzinę"},
+            "forecast_custom_hours": {"name": "Prognoza na następne X godzin"},
             "total_kwh_forecast_tomorrow": {"name": "Prognoza na jutro"},
             "peak_w_tomorrow": {"name": "Szczytowa moc jutro"},
             "peak_w_time_tomorrow": {"name": "Czas szczytowej mocy jutro"},
@@ -125,7 +167,12 @@
             "total_kwh_forecast_d5": {"name": "Prognoza na dzień 5"},
             "total_kwh_forecast_d6": {"name": "Prognoza na dzień 6"},
             "total_kwh_forecast_d7": {"name": "Prognoza na dzień 7"},
-            "power_now": {"name": "Aktualna moc"}
+            "power_now": {"name": "Aktualna moc"},
+            "weather_description": {"name": "Pogoda"},
+            "hard_limit": {"name": "Ustawiony twardy limit"}
+        },
+        "select": {
+            "estimate_mode" : {"name": "Użyj pola prognozy"}
         }
     }
 }
