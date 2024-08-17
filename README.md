@@ -585,9 +585,9 @@ v4.1
 * @autoSteve is welcomed as a CodeOwner
 * It is now apparent that it is unlikely that this repo will be added as a default repo in HACS until HACS 2.0 is out, so the installation instructions make it clear that adding via the Manual Repository flow is the preferred approach, and new instructions have been added to show how to do this.
 
-Release Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.31...v4.1
+Release Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.31...v4.1.0
 
-Most Recent Changes: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.43...v4.1
+Most Recent Changes: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.43...v4.1.0
 
 ### Prior changes
 <details><summary><i>Click here for changes back to v3.0</i></summary>
