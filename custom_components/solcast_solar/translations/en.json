@@ -7,9 +7,9 @@
             "user": {
                 "data": {
                     "api_key": "API key (comma separate multiple values)",
-                    "api_quota": "API quota (optionally comma separate multiple values per key)"
+                    "api_quota": "API limit (optionally comma separate multiple values per key)"
                 },
-                "description": "Solcast API Account Details"
+                "description": "Solcast Account Details"
             }
         }
     },
@@ -24,9 +24,9 @@
             "api": {
                 "data": {
                     "api_key": "API key (comma separate multiple values)",
-                    "api_quota": "API quota (optionally comma separate multiple values per key)"
+                    "api_quota": "API limit (optionally comma separate multiple values per key)"
                 },
-                "description": "Solcast API Account Details"
+                "description": "Solcast Account Details"
             },
             "dampen": {
                 "data": {
@@ -83,10 +83,10 @@
     "selector": {
         "solcast_config_action": {
             "options": {
-                "configure_api": "Solcast API key",
-                "configure_dampening": "Configure Dampening",
-                "configure_customsensor": "Configure Custom Hour Sensor",
-                "configure_attributes": "Configure Available Attributes"
+                "configure_api": "Solcast account details",
+                "configure_dampening": "Configure dampening",
+                "configure_customsensor": "Configure custom hours sensor",
+                "configure_attributes": "Configure available attributes"
             }
         }
     },

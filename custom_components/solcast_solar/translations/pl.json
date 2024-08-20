@@ -9,7 +9,7 @@
                     "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
                     "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)"
                 },
-                "description": "Dane konta Solcast API"
+                "description": "Dane konta Solcast"
             }
         }
     },
@@ -26,7 +26,7 @@
                     "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
                     "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)"
                 },
-                "description": "Dane konta Solcast API"
+                "description": "Dane konta Solcast"
             },
             "dampen": {
                 "data": {
@@ -83,7 +83,7 @@
     "selector": {
         "solcast_config_action": {
             "options": {
-                "configure_api": "Konfiguruj klucz Solcast API",
+                "configure_api": "Dane konta Solcast",
                 "configure_dampening": "Konfiguruj tłumienie",
                 "configure_customsensor": "Konfiguruj niestandardowy czujnik godzin",
                 "configure_attributes": "Konfiguruj dostępne atrybuty"

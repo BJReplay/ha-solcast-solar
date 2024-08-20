@@ -9,7 +9,7 @@
                     "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
                     "api_quota": "Kvóta rozhrania API (viac hodnôt oddelených čiarkou)"
                 },
-                "description": "Podrobnosti účtu Solcast API"
+                "description": "Podrobnosti o účte Solcast"
             }
         }
     },
@@ -26,7 +26,7 @@
                     "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
                     "api_quota": "Kvóta rozhrania API (viac hodnôt oddelených čiarkou)"
                 },
-                "description": "Podrobnosti účtu Solcast API"
+                "description": "Podrobnosti o účte Solcast"
             },
             "dampen": {
                 "data": {
@@ -83,7 +83,7 @@
     "selector": {
         "solcast_config_action": {
             "options": {
-                "configure_api": "Solcast API kľúč",
+                "configure_api": "Podrobnosti o účte Solcast",
                 "configure_dampening": "Konfigurácia tlmenia",
                 "configure_customsensor": "Konfigurácia vlastného snímača hodín",
                 "configure_attributes": "Konfigurácia dostupných atribútov"

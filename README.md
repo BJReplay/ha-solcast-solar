@@ -42,7 +42,7 @@ This custom component integrates the Solcast Hobby PV Forecast API into Home Ass
 > [!NOTE]  
 > Solcast have altered their API limits for new account creators
 >
-> Solcast now only offer new account creators a quota of 10 API calls per day (used to be 50). 
+> Solcast now only offer new account creators a limit of 10 API calls per day (used to be 50). 
 > Old account users still have 50 API calls.
 > 
 > The integration currently no longer includes auto API polling. Users now need to create their own automations to call the update solcast service to poll for new data. Keep in mind your API poll limit.
@@ -127,7 +127,7 @@ You probably **do not** want to do this! Use the HACS method above unless you kn
  
  [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/Setupanewintegration.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/Setupanewintegration.png)
 
-1. Enter your `Solcast API Key`, `API quota` and click `Submit`. If you have more than one Solcast account because you have more than two rooftop setups, enter both account API keys separated by a comma `xxxxxxxx-xxxxx-xxxx,yyyyyyyy-yyyyy-yyyy` (_NB: this goes against Solcast T&C's by having more than one account_). If the API quota is the same for multiple accounts then enter a single value, or both values separated by a comma.
+1. Enter your `Solcast API Key`, `API limit` and click `Submit`. If you have more than one Solcast account because you have more than two rooftop setups, enter both account API keys separated by a comma `xxxxxxxx-xxxxx-xxxx,yyyyyyyy-yyyyy-yyyy` (_NB: this goes against Solcast T&C's by having more than one account_). If the API limit is the same for multiple accounts then enter a single value, or both values separated by a comma.
 1. Create your own automation to call the service `solcast_solar.update_forecasts` at the times you would like to update the solar forecast.
 1. Set up HA Energy Dashboard settings.
 1. To change other configuration options after installation, select the integration in `Devices & services` then `CONFIGURE`.

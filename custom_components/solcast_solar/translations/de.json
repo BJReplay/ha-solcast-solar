@@ -1,12 +1,15 @@
 {
     "config": {
+        "abort": {
+            "single_instance_allowed": "Es ist nur eine Solcast-Instanz zulässig"
+        },
         "step": {
             "user": {
                 "data": {
                     "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
                     "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)"
                 },
-                "description": "Details zum Solcast API-Konto"
+                "description": "Solcast-Kontodaten"
             }
         }
     },
@@ -23,7 +26,7 @@
                     "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
                     "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)"
                 },
-                "description": "Details zum Solcast API-Konto"
+                "description": "Solcast-Kontodaten"
             },
             "dampen": {
                 "data": {
@@ -70,6 +73,16 @@
                     "attr_brk_hourly": "Aktivieren Sie die stündlichen Detailprognose"
                 },
                 "description": "Wählen Sie die verfügbaren Sensorattribute aus"
+            }
+        }
+    },
+    "selector": {
+        "solcast_config_action": {
+            "options": {
+                "configure_api": "Solcast-Kontodaten",
+                "configure_dampening": "Dämpfung konfigurieren",
+                "configure_customsensor": "Konfigurieren Sie einen benutzerdefinierten Stundensensor",
+                "configure_attributes": "Konfigurieren Sie verfügbare Attribute"
             }
         }
     },

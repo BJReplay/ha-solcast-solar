@@ -9,7 +9,7 @@
                     "api_key": "کلید (کوما سے الگ متعدد اقدار) API",
                     "api_quota": "کوٹہ (کوما سے الگ متعدد اقدار) API"
                 },
-                "description": "سولکاسٹ API اکاؤنٹ کی تفصیلات"
+                "description": "سولکاسٹ اکاؤنٹ کی تفصیلات"
             }
         }
     },
@@ -26,7 +26,7 @@
                     "api_key": "کلید (کوما سے الگ متعدد اقدار) API",
                     "api_quota": "کوٹہ (کوما سے الگ متعدد اقدار) API"
                 },
-                "description": "سولکاسٹ API اکاؤنٹ کی تفصیلات"
+                "description": "سولکاسٹ اکاؤنٹ کی تفصیلات"
             },
             "dampen": {
                 "data": {
@@ -83,8 +83,10 @@
     "selector": {
         "solcast_config_action": {
             "options": {
-                "configure_api": "سولکاسٹ API کلید",
-                "configure_dampening": "ڈیمپننگ کو ترتیب دیں۔"
+                "configure_api": "سولکاسٹ اکاؤنٹ کی تفصیلات",
+                "configure_dampening": "ڈیمپننگ کو ترتیب دیں۔",
+                "configure_customsensor": "حسب ضرورت اوقات کے سینسر کو ترتیب دیں۔",
+                "configure_attributes": "دستیاب صفات کو ترتیب دیں۔"
             }
         }
     },
