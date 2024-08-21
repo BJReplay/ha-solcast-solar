@@ -800,93 +800,43 @@ class SolcastApi:
             end_i = 0
         return st_i, end_i
 
-    async def spline_moments(self):
-        """A cubic spline to retrieve interpolated inter-interval momentary estimates for five minute periods"""
-        df = ['pv_estimate']
-        if self.options.attr_brk_estimate10: df.append('pv_estimate10')
-        if self.options.attr_brk_estimate90: df.append('pv_estimate90')
-        xx = [ i for i in range(0, 1800*len(self._spline_period), 300) ]
-        _data = self._data_forecasts
-        st, _ = self.get_forecast_list_slice(_data, self.get_day_start_utc()) # Get start of day index
-        self.fc_moment['all'] = {}
+    def get_spline(self, spline, st, xx, _data, df, reducing=False):
         for _data_field in df:
             if st > 0:
                 y = [_data[st+i][_data_field] for i in range(0, len(self._spline_period))]
-                self.fc_moment['all'][_data_field] = cubic_interp(xx, self._spline_period, y)
-                for j in xx:
-                    i = int(j/300)
-                    if math.copysign(1.0, self.fc_moment['all'][_data_field][i]) < 0: self.fc_moment['all'][_data_field][i] = 0.0 # Suppress negative values
-                    k = int(math.floor(j/1800))
-                    if k+1 <= len(y)-1 and y[k] == 0 and y[k+1] == 0: self.fc_moment['all'][_data_field][i] = 0.0 # Suppress spline bounce
-                self.fc_moment['all'][_data_field] = ([0]*3) + self.fc_moment['all'][_data_field] # Shift right by fifteen minutes because 30-minute averages, padding
-            else: # The list slice was not found, so zero the moments
-                self.fc_moment['all'][_data_field] = [0] * (len(self._spline_period) * 6)
+                if reducing: y = [0.5 * sum(y[i:]) for i in range(0, len(self._spline_period))] # If called for, build a decreasing set of forecasted values instead
+                spline[_data_field] = cubic_interp(xx, self._spline_period, y)
+                self.sanitise_spline(spline, _data_field, xx, y)
+            else: # The list slice was not found, so zero all values in the spline
+                spline[_data_field] = [0] * (len(self._spline_period) * 6)
+
+    def sanitise_spline(self, spline, _data_field, xx, y):
+        for j in xx:
+            i = int(j/300)
+            if math.copysign(1.0, spline[_data_field][i]) < 0: spline[_data_field][i] = 0.0 # Suppress negative values
+            k = int(math.floor(j/1800))
+            if k+1 <= len(y)-1 and y[k] == 0 and y[k+1] == 0: spline[_data_field][i] = 0.0 # Suppress spline bounce
+        spline[_data_field] = ([0]*3) + spline[_data_field] # Shift right by fifteen minutes because 30-minute averages, padding
+
+    def splines_build(self, variant, reducing=False):
+        """A cubic spline to retrieve interpolated inter-interval momentary or reducing estimates for five minute periods"""
+        df = ['pv_estimate'] + (['pv_estimate10'] if self.options.attr_brk_estimate10 else []) + (['pv_estimate90'] if self.options.attr_brk_estimate90 else [])
+        xx = [ i for i in range(0, 1800*len(self._spline_period), 300) ]
+        st, _ = self.get_forecast_list_slice(self._data_forecasts, self.get_day_start_utc()) # Get start of day index
+
+        variant['all'] = {}
+        self.get_spline(variant['all'], st, xx, self._data_forecasts, df, reducing=reducing)
         if self.options.attr_brk_site:
             for site in self._sites:
-                self.fc_moment[site['resource_id']] = {}
-                _data = self._site_data_forecasts[site['resource_id']]
-                st, _ = self.get_forecast_list_slice(_data, self.get_day_start_utc()) # Get start of day index
-                for _data_field in df:
-                    if st > 0:
-                        y = [_data[st+i][_data_field] for i in range(0, len(self._spline_period))]
-                        self.fc_moment[site['resource_id']][_data_field] = cubic_interp(xx, self._spline_period, y)
-                        for j in xx:
-                            i = int(j/300)
-                            if math.copysign(1.0, self.fc_moment[site['resource_id']][_data_field][i]) < 0: self.fc_moment[site['resource_id']][_data_field][i] = 0.0 # Suppress negative values
-                            k = int(math.floor(j/1800))
-                            if k+1 <= len(y)-1 and y[k] == 0 and y[k+1] == 0: self.fc_moment[site['resource_id']][_data_field][i] = 0.0 # Suppress spline bounce
-                        self.fc_moment[site['resource_id']][_data_field] = ([0]*3) + self.fc_moment[site['resource_id']][_data_field] # Shift right by fifteen minutes because 30-minute averages, padding
-                    else: # The list slice was not found, so zero the moments
-                        self.fc_moment[site['resource_id']][_data_field] = [0] * (len(self._spline_period) * 6)
+                variant[site['resource_id']] = {}
+                self.get_spline(variant[site['resource_id']], st, xx, self._data_forecasts, df, reducing=reducing)
+
+    async def spline_moments(self): self.splines_build(self.fc_moment)
 
     def get_moment(self, site, _data_field, t):
         return self.fc_moment['all' if site is None else site][self._data_field if _data_field is None else _data_field][int(t / 300)]
 
-    async def spline_remaining(self):
-        """A cubic spline to retrieve interpolated inter-interval reducing estimates for five minute periods"""
-        def buildY(_data, _data_field, st):
-            y = []
-            for i in range(0, len(self._spline_period)):
-                rem = 0
-                for j in range(i, len(self._spline_period)): rem += _data[st+j][_data_field]
-                y.append(0.5 * rem)
-            return  y
-        df = ['pv_estimate']
-        if self.options.attr_brk_estimate10: df.append('pv_estimate10')
-        if self.options.attr_brk_estimate90: df.append('pv_estimate90')
-        xx = [ i for i in range(0, 1800*len(self._spline_period), 300) ]
-        _data = self._data_forecasts
-        st, _ = self.get_forecast_list_slice(_data, self.get_day_start_utc()) # Get start of day index
-        self.fc_remaining['all'] = {}
-        for _data_field in df:
-            if st > 0:
-                y = buildY(_data, _data_field, st)
-                self.fc_remaining['all'][_data_field] = cubic_interp(xx, self._spline_period, y)
-                for j in xx:
-                    i = int(j/300)
-                    k = int(math.floor(j/1800))
-                    if math.copysign(1.0, self.fc_remaining['all'][_data_field][i]) < 0: self.fc_remaining['all'][_data_field][i] = 0.0 # Suppress negative values
-                    if k+1 <= len(y)-1 and y[k] == y[k+1] and self.fc_remaining['all'][_data_field][i] > round(y[k],4): self.fc_remaining['all'][_data_field][i] = y[k] # Suppress spline bounce
-                self.fc_remaining['all'][_data_field] = ([self.fc_remaining['all'][_data_field][0]]*3) + self.fc_remaining['all'][_data_field] # Shift right by fifteen minutes because 30-minute averages, padding
-            else: # The list slice was not found, so zero the remainings
-                self.fc_remaining['all'][_data_field] = [0] * (len(self._spline_period) * 6)
-        if self.options.attr_brk_site:
-            for site in self._sites:
-                self.fc_remaining[site['resource_id']] = {}
-                _data = self._site_data_forecasts[site['resource_id']]
-                st, _ = self.get_forecast_list_slice(_data, self.get_day_start_utc()) # Get start of day index
-                for _data_field in df:
-                    if st > 0:
-                        y = buildY(_data, _data_field, st)
-                        self.fc_remaining[site['resource_id']][_data_field] = cubic_interp(xx, self._spline_period, y)
-                        for j in xx:
-                            i = int(j/300)
-                            k = int(math.floor(j/1800))
-                            if math.copysign(1.0, self.fc_remaining[site['resource_id']][_data_field][i]) < 0: self.fc_remaining[site['resource_id']][_data_field][i] = 0.0 # Suppress negative values
-                            if k+1 <= len(y)-1 and y[k] == y[k+1] and self.fc_remaining[site['resource_id']][_data_field][i] > round(y[k],4): self.fc_remaining[site['resource_id']][_data_field][i] = y[k] # Suppress spline bounce
-                        self.fc_remaining[site['resource_id']][_data_field] = ([self.fc_remaining[site['resource_id']][_data_field][0]]*3) + self.fc_remaining[site['resource_id']][_data_field] # Shift right by fifteen minutes because 30-minute averages, padding
-                    else: # The list slice was not found, so zero the remainings
-                        self.fc_remaining[site['resource_id']][_data_field] = [0] * (len(self._spline_period) * 6)
+    async def spline_remaining(self): self.splines_build(self.fc_remaining, reducing=True)
 
     def get_remaining(self, site, _data_field, t):
         return self.fc_remaining['all' if site is None else site][self._data_field if _data_field is None else _data_field][int(t / 300)]
