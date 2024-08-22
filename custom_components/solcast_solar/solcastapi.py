@@ -831,15 +831,31 @@ class SolcastApi:
                 variant[site['resource_id']] = {}
                 self.get_spline(variant[site['resource_id']], st, xx, self._data_forecasts, df, reducing=reducing)
 
-    async def spline_moments(self): self.splines_build(self.fc_moment)
+    async def spline_moments(self):
+        try:
+            self.splines_build(self.fc_moment)
+        except Exception as e:
+            _LOGGER.debug('Exception in spline_moments(): %s', e)
 
     def get_moment(self, site, _data_field, t):
-        return self.fc_moment['all' if site is None else site][self._data_field if _data_field is None else _data_field][int(t / 300)]
+        try:
+            return self.fc_moment['all' if site is None else site][self._data_field if _data_field is None else _data_field][int(t / 300)]
+        except Exception as e:
+            _LOGGER.debug('Exception in get_moment(): %s', e)
+            return 0
 
-    async def spline_remaining(self): self.splines_build(self.fc_remaining, reducing=True)
+    async def spline_remaining(self):
+        try:
+            self.splines_build(self.fc_remaining, reducing=True)
+        except Exception as e:
+            _LOGGER.debug('Exception in spline_remaining(): %s', e)
 
     def get_remaining(self, site, _data_field, t):
-        return self.fc_remaining['all' if site is None else site][self._data_field if _data_field is None else _data_field][int(t / 300)]
+        try:
+            return self.fc_remaining['all' if site is None else site][self._data_field if _data_field is None else _data_field][int(t / 300)]
+        except Exception as e:
+            _LOGGER.debug('Exception in get_remaining(): %s', e)
+            return 0
 
     def get_forecast_pv_remaining(self, start_utc, end_utc=None, site=None, _use_data_field=None) -> float:
         """Return pv_estimates remaining for period"""
@@ -872,7 +888,7 @@ class SolcastApi:
                 end_utc.strftime('%Y-%m-%d %H:%M:%S') if end_utc is not None else None,
                 st_i, end_i, round(res,4)
             )
-            return res
+            return res if res > 0 else 0
         except Exception as ex:
             _LOGGER.error(f"Exception in get_forecast_pv_remaining(): {ex}")
             _LOGGER.error(traceback.format_exc())
