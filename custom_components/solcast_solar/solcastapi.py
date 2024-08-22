@@ -806,17 +806,24 @@ class SolcastApi:
                 y = [_data[st+i][_data_field] for i in range(0, len(self._spline_period))]
                 if reducing: y = [0.5 * sum(y[i:]) for i in range(0, len(self._spline_period))] # If called for, build a decreasing set of forecasted values instead
                 spline[_data_field] = cubic_interp(xx, self._spline_period, y)
-                self.sanitise_spline(spline, _data_field, xx, y)
+                self.sanitise_spline(spline, _data_field, xx, y, reducing=reducing)
             else: # The list slice was not found, so zero all values in the spline
                 spline[_data_field] = [0] * (len(self._spline_period) * 6)
 
-    def sanitise_spline(self, spline, _data_field, xx, y):
+    def sanitise_spline(self, spline, _data_field, xx, y, reducing=False):
         for j in xx:
             i = int(j/300)
             if math.copysign(1.0, spline[_data_field][i]) < 0: spline[_data_field][i] = 0.0 # Suppress negative values
-            k = int(math.floor(j/1800))
-            if k+1 <= len(y)-1 and y[k] == 0 and y[k+1] == 0: spline[_data_field][i] = 0.0 # Suppress spline bounce
-        spline[_data_field] = ([0]*3) + spline[_data_field] # Shift right by fifteen minutes because 30-minute averages, padding
+            if reducing:
+                if i+1 <= len(xx)-1 and spline[_data_field][i+1] > spline[_data_field][i]: spline[_data_field][i+1] = spline[_data_field][i]
+            else:
+                k = int(math.floor(j/1800))
+                if k+1 <= len(y)-1 and y[k] == 0 and y[k+1] == 0: spline[_data_field][i] = 0.0 # Suppress spline bounce
+        # Shift right by fifteen minutes because 30-minute averages, padding
+        if reducing:
+            spline[_data_field] = ([spline[_data_field][0]]*3) + spline[_data_field]
+        else:
+            spline[_data_field] = ([0]*3) + spline[_data_field]
 
     def splines_build(self, variant, reducing=False):
         """A cubic spline to retrieve interpolated inter-interval momentary or reducing estimates for five minute periods"""
