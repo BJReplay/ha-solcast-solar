@@ -813,12 +813,15 @@ class SolcastApi:
     def sanitise_spline(self, spline, _data_field, xx, y, reducing=False):
         for j in xx:
             i = int(j/300)
-            if math.copysign(1.0, spline[_data_field][i]) < 0: spline[_data_field][i] = 0.0 # Suppress negative values
+            # Suppress negative values
+            if math.copysign(1.0, spline[_data_field][i]) < 0:
+                spline[_data_field][i] = 0.0
+            # Suppress spline bounce
             if reducing:
                 if i+1 <= len(xx)-1 and spline[_data_field][i+1] > spline[_data_field][i]: spline[_data_field][i+1] = spline[_data_field][i]
             else:
                 k = int(math.floor(j/1800))
-                if k+1 <= len(y)-1 and y[k] == 0 and y[k+1] == 0: spline[_data_field][i] = 0.0 # Suppress spline bounce
+                if k+1 <= len(y)-1 and y[k] == 0 and y[k+1] == 0: spline[_data_field][i] = 0.0
         # Shift right by fifteen minutes because 30-minute averages, padding
         if reducing:
             spline[_data_field] = ([spline[_data_field][0]]*3) + spline[_data_field]
