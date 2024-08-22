@@ -804,7 +804,9 @@ class SolcastApi:
         for _data_field in df:
             if st > 0:
                 y = [_data[st+i][_data_field] for i in range(0, len(self._spline_period))]
-                if reducing: y = [0.5 * sum(y[i:]) for i in range(0, len(self._spline_period))] # If called for, build a decreasing set of forecasted values instead
+                if reducing:
+                    # Build a decreasing set of forecasted values instead
+                    y = [0.5 * sum(y[i:]) for i in range(0, len(self._spline_period))]
                 spline[_data_field] = cubic_interp(xx, self._spline_period, y)
                 self.sanitise_spline(spline, _data_field, xx, y, reducing=reducing)
             else: # The list slice was not found, so zero all values in the spline
@@ -822,14 +824,14 @@ class SolcastApi:
             else:
                 k = int(math.floor(j/1800))
                 if k+1 <= len(y)-1 and y[k] == 0 and y[k+1] == 0: spline[_data_field][i] = 0.0
-        # Shift right by fifteen minutes because 30-minute averages, padding
+        # Shift right by fifteen minutes because 30-minute averages, padding as appropriate
         if reducing:
             spline[_data_field] = ([spline[_data_field][0]]*3) + spline[_data_field]
         else:
             spline[_data_field] = ([0]*3) + spline[_data_field]
 
-    def splines_build(self, variant, reducing=False):
-        """A cubic spline to retrieve interpolated inter-interval momentary or reducing estimates for five minute periods"""
+    def build_splines(self, variant, reducing=False):
+        """Cubic splines for interpolated inter-interval momentary or reducing estimates"""
         df = ['pv_estimate'] + (['pv_estimate10'] if self.options.attr_brk_estimate10 else []) + (['pv_estimate90'] if self.options.attr_brk_estimate90 else [])
         xx = [ i for i in range(0, 1800*len(self._spline_period), 300) ]
         st, _ = self.get_forecast_list_slice(self._data_forecasts, self.get_day_start_utc()) # Get start of day index
@@ -843,7 +845,7 @@ class SolcastApi:
 
     async def spline_moments(self):
         try:
-            self.splines_build(self.fc_moment)
+            self.build_splines(self.fc_moment)
         except Exception as e:
             _LOGGER.debug('Exception in spline_moments(): %s', e)
 
@@ -856,7 +858,7 @@ class SolcastApi:
 
     async def spline_remaining(self):
         try:
-            self.splines_build(self.fc_remaining, reducing=True)
+            self.build_splines(self.fc_remaining, reducing=True)
         except Exception as e:
             _LOGGER.debug('Exception in spline_remaining(): %s', e)
 
@@ -878,9 +880,11 @@ class SolcastApi:
             res = self.get_remaining(site, _data_field, (start_utc - day_start).total_seconds())
             if end_utc is not None:
                 end_utc = end_utc.replace(minute = math.floor(end_utc.minute / 5) * 5)
-                if end_utc < day_start + timedelta(seconds=1800*len(self._spline_period)): # Spline data points are limited
+                if end_utc < day_start + timedelta(seconds=1800*len(self._spline_period)):
+                    # End is within today so use spline data
                     res -= self.get_remaining(site, _data_field, (end_utc - day_start).total_seconds())
                 else:
+                    # End is beyond today, so revert to simple linear interpolation
                     st_i2, _ = self.get_forecast_list_slice(_data, day_start + timedelta(seconds=1800*len(self._spline_period))) # Get post-spline day onwards start index
                     for d in _data[st_i2:end_i]:
                         d2 = d['period_start'] + timedelta(seconds=1800)
@@ -888,7 +892,7 @@ class SolcastApi:
                         f = 0.5 * d[_data_field]
                         if end_utc < d2:
                             s -= (d2 - end_utc).total_seconds()
-                            res += f * s / 1800 # Simple linear interpolation
+                            res += f * s / 1800
                         else:
                             res += f
             if _SENSOR_DEBUG_LOGGING: _LOGGER.debug(
