@@ -462,6 +462,7 @@ class SolcastApi:
 
     async def load_saved_data(self):
         try:
+            status = ''
             if len(self._sites) > 0:
                 if file_exists(self._filename):
                     async with aiofiles.open(self._filename) as data_file:
@@ -504,16 +505,17 @@ class SolcastApi:
                     # No file to load
                     _LOGGER.warning(f"There is no solcast.json to load, so fetching solar forecast, including past forecasts")
                     # Could be a brand new install of the integation, or the file has been removed. Poll once now...
-                    await self.http_data(dopast=True)
-
-                if self._loaded_data: return True
+                    status = await self.http_data(dopast=True)
             else:
                 _LOGGER.error(f"Solcast site count is zero in load_saved_data(); the get sites must have failed, and there is no sites cache")
+                status = 'Solcast sites count is zero, add sites'
         except json.decoder.JSONDecodeError:
             _LOGGER.error("The cached data in solcast.json is corrupt in load_saved_data()")
+            status = 'The cached data in solcast.json is corrupt'
         except Exception as e:
             _LOGGER.error("Exception in load_saved_data(): %s", traceback.format_exc())
-        return False
+            status = 'Exception in load_saved_data(): %s' % (e,)
+        return status
 
     async def delete_solcast_file(self, *args):
         _LOGGER.debug(f"Service event to delete old solcast.json file")
@@ -988,9 +990,10 @@ class SolcastApi:
     async def http_data(self, dopast = False):
         """Request forecast data for all sites"""
         try:
+            status = ''
             if self.get_last_updated_datetime() + timedelta(minutes=15) > dt.now(timezone.utc):
                 _LOGGER.warning(f"Not requesting a forecast from Solcast because time is within fifteen minutes of last update ({self.get_last_updated_datetime().astimezone(self._tz)})")
-                return
+                return 'Not requesting a forecast from Solcast because time is within fifteen minutes of last update'
 
             failure = False
             sitesAttempted = 0
@@ -1004,6 +1007,7 @@ class SolcastApi:
                         _LOGGER.warning('Forecast update for site %s failed, so not getting remaining sites', site['resource_id'])
                     else:
                         _LOGGER.warning('Forecast update for the last site queued failed (%s), so not getting remaining sites - API use count will look odd', site['resource_id'])
+                    status = 'At least one site forecast get failed'
                     break
 
             if sitesAttempted > 0 and not failure:
@@ -1020,9 +1024,12 @@ class SolcastApi:
                     _LOGGER.error("At least one Solcast site forecast failed to fetch, so forecast data has not been built")
                 else:
                     _LOGGER.error("No Solcast sites were attempted, so forecast data has not been built - check for earlier failure to retrieve sites")
+                status = 'At least one site forecast get failed'
         except Exception as ex:
-            _LOGGER.error("Exception in http_data(): %s - Forecast data has not been built", ex)
+            status = 'Exception in http_data(): %s - Forecast data has not been built' % (ex,)
+            _LOGGER.error(status)
             _LOGGER.error(traceback.format_exc())
+        return status
 
     async def http_data_call(self, usageCacheFileName, r_id = None, api = None, dopast = False):
         """Request forecast data via the Solcast API"""

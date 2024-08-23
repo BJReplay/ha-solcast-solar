@@ -133,10 +133,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise ConfigEntryNotReady(f"Getting sites data failed: {ex}") from ex
 
     if not solcast._sites_loaded:
-        raise ConfigEntryNotReady(f"Sites data could not be retrieved")
+        raise ConfigEntryNotReady('Sites data could not be retrieved')
 
-    if not await solcast.load_saved_data():
-        raise ConfigEntryNotReady(f"Failed to load initial data from cache or the Solcast API")
+    status = await solcast.load_saved_data()
+    if status != '':
+        raise ConfigEntryNotReady(status)
 
     _VERSION = ""
     try:
