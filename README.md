@@ -551,6 +551,18 @@ If a hard limit or dampening factors are set then the individual sites breakdown
 
 ## Changes
 
+v4.1.4
+* Update Polish translation by @home409ca
+* Rename integration in HACS to Solcast PV Forecast by @BJReplay
+* Reduce aiofiles version requirement to >=23.2.0 by @autoSteve
+* Configuration dialog improvements by @autoSteve
+* Misc translation updates by @autoSteve
+* Refactor moment and remaining spline build by @autoSteve
+* Prevent negative forecast for X hour sensor by @autoSteve
+* Suppress spline bounce for reducing spline by @autoSteve
+ 
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.3...v4.1.4
+
 v4.1.3
 * Accommodate the removal of API call GetUserUsageAllowance by @autoSteve
 * Halve retry delays by @autoSteve
