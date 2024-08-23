@@ -511,7 +511,7 @@ class SolcastApi:
                 status = 'Solcast sites count is zero, add sites'
         except json.decoder.JSONDecodeError:
             _LOGGER.error("The cached data in solcast.json is corrupt in load_saved_data()")
-            status = 'The cached data in solcast.json is corrupt'
+            status = 'The cached data in /config/solcast.json is corrupted, suggest removing or repairing it'
         except Exception as e:
             _LOGGER.error("Exception in load_saved_data(): %s", traceback.format_exc())
             status = 'Exception in load_saved_data(): %s' % (e,)
