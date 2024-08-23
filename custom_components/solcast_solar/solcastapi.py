@@ -225,11 +225,15 @@ class SolcastApi:
                             except: raise
 
                             if status == 200:
-                                _LOGGER.debug(f"Writing sites cache")
-                                async with aiofiles.open(apiCacheFileName, 'w') as f:
-                                    await f.write(json.dumps(resp_json, ensure_ascii=False))
-                                success = True
-                                break
+                                if resp_json['total_records'] > 0:
+                                    _LOGGER.debug(f"Writing sites cache")
+                                    async with aiofiles.open(apiCacheFileName, 'w') as f:
+                                        await f.write(json.dumps(resp_json, ensure_ascii=False))
+                                    success = True
+                                    break
+                                else:
+                                    _LOGGER.error('No sites for the API key %s are configured at solcast.com', self.redact_api_key(spl))
+                                    return
                             else:
                                 if cacheExists:
                                     useCacheImmediate = True

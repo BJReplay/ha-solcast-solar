@@ -52,6 +52,8 @@ Sign up for an API key (https://solcast.com/).
 
 > Solcast may take up to 24hrs to create the account.
 
+Configure your rooftop sites correctly at `solcast.com`.
+
 Copy the API Key for use with this integration (See [Configuration](#Configuration) below).
 
 ## Installation
