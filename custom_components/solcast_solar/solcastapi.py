@@ -1251,8 +1251,7 @@ class SolcastApi:
                 _LOGGER.error(f"The Solcast site cannot be found, status {translate(status)} returned")
             elif status == 200:
                 d = cast(dict, resp_json)
-                if _FORECAST_DEBUG_LOGGING:
-                    _LOGGER.debug(f"Status {translate(status)} in fetch_data(), returned: {d}")
+                _LOGGER.debug(f"Status {translate(status)} in fetch_data(){', returned: %s' % (str(d),) if _FORECAST_DEBUG_LOGGING else ''}")
                 return d
                 #await self.format_json_data(d)
         except ConnectionRefusedError as err:
