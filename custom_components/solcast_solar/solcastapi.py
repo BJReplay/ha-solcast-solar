@@ -33,6 +33,7 @@ from isodate import parse_datetime
 currentFuncName = lambda n=0: sys._getframe(n + 1).f_code.co_name
 
 _SENSOR_DEBUG_LOGGING = False
+_FORECAST_DEBUG_LOGGING = False
 
 _JSON_VERSION = 4
 _LOGGER = logging.getLogger(__name__)
@@ -1250,7 +1251,8 @@ class SolcastApi:
                 _LOGGER.error(f"The Solcast site cannot be found, status {translate(status)} returned")
             elif status == 200:
                 d = cast(dict, resp_json)
-                _LOGGER.debug(f"Status {translate(status)} in fetch_data(), returned: {d}")
+                if _FORECAST_DEBUG_LOGGING:
+                    _LOGGER.debug(f"Status {translate(status)} in fetch_data(), returned: {d}")
                 return d
                 #await self.format_json_data(d)
         except ConnectionRefusedError as err:
