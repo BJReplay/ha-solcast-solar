@@ -422,7 +422,8 @@ The following YAML produces a graph of today's PV generation, PV forecast and PV
 
 Customise with appropriate Home Assistant sensors for today's total solar generation and solar panel PV power output.
 
-> [!NOTE] The chart assumes that your Solar PV sensors are in kW, but if some are in W, add the line `transform: "return x / 1000;"` under the entity id to convert the sensor value to kW.
+> [!NOTE]
+> The chart assumes that your Solar PV sensors are in kW, but if some are in W, add the line `transform: "return x / 1000;"` under the entity id to convert the sensor value to kW.
 
 ### Reveal code
 <details><summary><i>Click here</i></summary>
