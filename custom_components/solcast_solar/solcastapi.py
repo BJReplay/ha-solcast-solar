@@ -991,9 +991,10 @@ class SolcastApi:
         """Request forecast data for all sites"""
         try:
             status = ''
-            if self.get_last_updated_datetime() + timedelta(minutes=15) > dt.now(timezone.utc):
-                _LOGGER.warning(f"Not requesting a forecast from Solcast because time is within fifteen minutes of last update ({self.get_last_updated_datetime().astimezone(self._tz)})")
-                return 'Not requesting a forecast from Solcast because time is within fifteen minutes of last update'
+            if self.get_last_updated_datetime() + timedelta(minutes=1) > dt.now(timezone.utc):
+                status = f"Not requesting a forecast from Solcast because time is within one minute of last update ({self.get_last_updated_datetime().astimezone(self._tz)})"
+                _LOGGER.warning(status)
+                return status
 
             failure = False
             sitesAttempted = 0
