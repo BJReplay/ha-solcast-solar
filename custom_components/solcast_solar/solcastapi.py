@@ -163,9 +163,11 @@ class SolcastApi:
     def redact_msg_api_key(self, msg, api_key):
         return msg.replace(api_key, self.redact_api_key(api_key))
 
-    async def write_api_usage_cache_file(self, json_file, json_content, api_key):
+    async def write_api_usage_cache_file(self, api_key):
         try:
+            json_file = self.get_api_usage_cache_filename(api_key)
             _LOGGER.debug(f"Writing API usage cache file: {self.redact_msg_api_key(json_file, api_key)}")
+            json_content = {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key]}
             async with aiofiles.open(json_file, 'w') as f:
                 await f.write(json.dumps(json_content, ensure_ascii=False))
         except Exception as ex:
@@ -181,11 +183,7 @@ class SolcastApi:
     async def reset_api_usage(self):
         for api_key in self._api_used.keys():
             self._api_used[api_key] = 0
-            await self.write_api_usage_cache_file(
-                self.get_api_usage_cache_filename(api_key),
-                {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key]},
-                api_key
-            )
+            await self.write_api_usage_cache_file(api_key)
 
     async def sites_data(self):
         """Request sites detail"""
@@ -324,27 +322,27 @@ class SolcastApi:
                 for i in range(len(sp)): quota[sp[i]] = 10
 
             for spl in sp:
-                sitekey = spl.strip()
-                _LOGGER.debug(f"Getting API usage from cache for API key {self.redact_api_key(sitekey)}")
-                apiCacheFileName = self.get_api_usage_cache_filename(sitekey)
+                api_key = spl.strip()
+                _LOGGER.debug(f"Getting API usage from cache for API key {self.redact_api_key(api_key)}")
+                apiCacheFileName = self.get_api_usage_cache_filename(api_key)
                 _LOGGER.debug(f"{'API usage cache ' + ('exists' if file_exists(apiCacheFileName) else 'does not yet exist')}")
                 if file_exists(apiCacheFileName):
                     async with aiofiles.open(apiCacheFileName) as f:
                         usage = json.loads(await f.read())
-                    if usage['daily_limit'] != quota[spl]:
-                        usage['daily_limit'] = quota[spl]
-                        await self.write_api_usage_cache_file(apiCacheFileName, usage, sitekey)
+                    self._api_limit[api_key] = usage.get("daily_limit", None)
+                    self._api_used[api_key] = usage.get("daily_limit_consumed", None)
+                    if usage['daily_limit'] != quota[spl]: # Limit has been adjusted, so rewrite the cache
+                        self._api_limit[api_key] = quota[spl]
+                        await self.write_api_usage_cache_file(api_key)
                         _LOGGER.info(f"API usage cache loaded and updated with new quota")
                     else:
                         _LOGGER.debug(f"API usage cache loaded")
                 else:
-                    _LOGGER.warning(f"No Solcast API usage cache found, creating one assuming zero API used")
-                    usage = {'daily_limit': quota[spl], 'daily_limit_consumed': 0}
-                    await self.write_api_usage_cache_file(apiCacheFileName, usage, sitekey)
-
-                self._api_limit[sitekey] = usage.get("daily_limit", None)
-                self._api_used[sitekey] = usage.get("daily_limit_consumed", None)
-                _LOGGER.debug(f"API counter for {self.redact_api_key(sitekey)} is {self._api_used[sitekey]}/{self._api_limit[sitekey]}")
+                    _LOGGER.warning(f"No Solcast API usage cache found, creating one and assuming zero API used")
+                    self._api_limit[api_key] = quota[spl]
+                    self._api_used[api_key] = 0
+                    await self.write_api_usage_cache_file(api_key)
+                _LOGGER.debug(f"API counter for {self.redact_api_key(api_key)} is {self._api_used[api_key]}/{self._api_limit[api_key]}")
         except:
             _LOGGER.error("Exception in sites_usage(): %s", traceback.format_exc())
 
@@ -356,11 +354,11 @@ class SolcastApi:
             sp = self.options.api_key.split(",")
 
             for spl in sp:
-                sitekey = spl.strip()
-                params = {"api_key": sitekey}
-                _LOGGER.debug(f"Getting API limit and usage from solcast for {self.redact_api_key(sitekey)}")
+                api_key = spl.strip()
+                params = {"api_key": api_key}
+                _LOGGER.debug(f"Getting API limit and usage from solcast for {self.redact_api_key(api_key)}")
                 async with async_timeout.timeout(60):
-                    apiCacheFileName = self.get_api_usage_cache_filename(sitekey)
+                    apiCacheFileName = self.get_api_usage_cache_filename(api_key)
                     _LOGGER.debug(f"{'API usage cache ' + ('exists' if file_exists(apiCacheFileName) else 'does not yet exist')}")
                     retries = 3
                     retry = retries
@@ -379,7 +377,10 @@ class SolcastApi:
                         except: raise
                         _LOGGER.debug(f"HTTP session returned status {translate(status)} in sites_usage()")
                         if status == 200:
-                            await self.write_api_usage_cache_file(apiCacheFileName, resp_json, sitekey)
+                            d = cast(dict, resp_json)
+                            self._api_limit[api_key] = d.get("daily_limit", None)
+                            self._api_used[api_key] = d.get("daily_limit_consumed", None)
+                            await self.write_api_usage_cache_file(api_key)
                             retry = 0
                             success = True
                         else:
@@ -397,18 +398,19 @@ class SolcastApi:
                             async with aiofiles.open(apiCacheFileName) as f:
                                 resp_json = json.loads(await f.read())
                                 status = 200
+                            d = cast(dict, resp_json)
+                            self._api_limit[api_key] = d.get("daily_limit", None)
+                            self._api_used[api_key] = d.get("daily_limit_consumed", None)
                             _LOGGER.info(f"Loaded API usage cache")
                         else:
                             _LOGGER.warning(f"No Solcast API usage cache found")
 
                 if status == 200:
-                    d = cast(dict, resp_json)
-                    self._api_limit[sitekey] = d.get("daily_limit", None)
-                    self._api_used[sitekey] = d.get("daily_limit_consumed", None)
-                    _LOGGER.debug(f"API counter for {self.redact_api_key(sitekey)} is {self._api_used[sitekey]}/{self._api_limit[sitekey]}")
+                    _LOGGER.debug(f"API counter for {self.redact_api_key(api_key)} is {self._api_used[api_key]}/{self._api_limit[api_key]}")
                 else:
-                    self._api_limit[sitekey] = 10
-                    self._api_used[sitekey] = 0
+                    self._api_limit[api_key] = 10
+                    self._api_used[api_key] = 0
+                    await self.write_api_usage_cache_file(api_key)
                     raise Exception(f"Gathering site usage failed in sites_usage(). Request returned Status code: {translate(status)} - Response: {resp_json}.")
 
         except json.decoder.JSONDecodeError:
@@ -485,7 +487,7 @@ class SolcastApi:
                                 # Some site data does not exist yet so get it
                                 _LOGGER.info("New site(s) have been added, so getting forecast data for just those site(s)")
                                 for a in ks:
-                                    await self.http_data_call(self.get_api_usage_cache_filename(ks[a]), r_id=a, api=ks[a], dopast=True)
+                                    await self.http_data_call(r_id=a, api=ks[a], dopast=True)
                                 await self.serialize_data()
 
                             # Check for sites that need to be removed
@@ -1002,7 +1004,7 @@ class SolcastApi:
             for site in self._sites:
                 sitesAttempted += 1
                 _LOGGER.info(f"Getting forecast update for Solcast site {site['resource_id']}")
-                result = await self.http_data_call(self.get_api_usage_cache_filename(site['apikey']), site['resource_id'], site['apikey'], dopast)
+                result = await self.http_data_call(site['resource_id'], site['apikey'], dopast)
                 if not result:
                     failure = True
                     if len(self._sites) > sitesAttempted:
@@ -1033,7 +1035,7 @@ class SolcastApi:
             _LOGGER.error(traceback.format_exc())
         return status
 
-    async def http_data_call(self, usageCacheFileName, r_id = None, api = None, dopast = False):
+    async def http_data_call(self, r_id = None, api = None, dopast = False):
         """Request forecast data via the Solcast API"""
         try:
             lastday = self.get_day_start_utc() + timedelta(days=8)
@@ -1046,7 +1048,7 @@ class SolcastApi:
             if dopast:
                 # Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.
                 ae = None
-                resp_dict = await self.fetch_data(usageCacheFileName, "estimated_actuals", 168, site=r_id, apikey=api, cachedname="actuals")
+                resp_dict = await self.fetch_data("estimated_actuals", 168, site=r_id, apikey=api, cachedname="actuals")
                 if not isinstance(resp_dict, dict):
                     _LOGGER.error(f"No data was returned for Solcast estimated_actuals so this WILL cause errors...")
                     _LOGGER.error(f"Either your API limit is exhaused, Internet down, or networking is misconfigured...")
@@ -1079,7 +1081,7 @@ class SolcastApi:
                             }
                         )
 
-            resp_dict = await self.fetch_data(usageCacheFileName, "forecasts", numhours, site=r_id, apikey=api, cachedname="forecasts")
+            resp_dict = await self.fetch_data("forecasts", numhours, site=r_id, apikey=api, cachedname="forecasts")
             if resp_dict is None:
                 return False
 
@@ -1152,7 +1154,7 @@ class SolcastApi:
         return False
 
 
-    async def fetch_data(self, usageCacheFileName, path="error", hours=168, site="", apikey="", cachedname="forcasts") -> dict[str, Any]:
+    async def fetch_data(self, path="error", hours=168, site="", apikey="", cachedname="forcasts") -> dict[str, Any]:
         """Fetch forecast data"""
         try:
             params = {"format": "json", "api_key": apikey, "hours": hours}
@@ -1166,7 +1168,7 @@ class SolcastApi:
                     async with aiofiles.open(apiCacheFileName) as f:
                         resp_json = json.loads(await f.read())
                         status = 200
-                        _LOGGER.debug(f"Got cached file data for site {site}")
+                        _LOGGER.debug(f"Offline cached mode enabled, loaded data for site {site}")
                 else:
                     if self._api_used[apikey] < self._api_limit[apikey]:
                         tries = 10
@@ -1189,15 +1191,12 @@ class SolcastApi:
                                     if rs is not None:
                                         if rs.get('error_code') == 'TooManyRequests':
                                             status = 998
-                                            _LOGGER.debug(f"Exceeded daily free limit, setting API Counter to {self._api_limit[apikey]}")
                                             self._api_used[apikey] = self._api_limit[apikey]
-                                            await self.write_api_usage_cache_file(usageCacheFileName,
-                                                {"daily_limit": self._api_limit[apikey], "daily_limit_consumed": self._api_used[apikey]},
-                                                apikey)
+                                            await self.write_api_usage_cache_file(apikey)
                                             break
                                         else:
+                                            status = 1000
                                             _LOGGER.warning("An unexpected error occurred: %s", rs.get('message'))
-                                            status = 1000 # Intentionally not handled below
                                             break
                                 except:
                                     pass
@@ -1214,44 +1213,43 @@ class SolcastApi:
                         if status == 200:
                             _LOGGER.debug(f"Fetch successful")
 
-                            _LOGGER.debug(f"API returned data. API Counter incremented from {self._api_used[apikey]} to {self._api_used[apikey] + 1}")
-                            self._api_used[apikey] = self._api_used[apikey] + 1
-                            await self.write_api_usage_cache_file(usageCacheFileName,
-                                {"daily_limit": self._api_limit[apikey], "daily_limit_consumed": self._api_used[apikey]},
-                                apikey)
+                            _LOGGER.debug(f"API returned data, API counter incremented from {self._api_used[apikey]} to {self._api_used[apikey] + 1}")
+                            self._api_used[apikey] += 1
+                            await self.write_api_usage_cache_file(apikey)
 
                             resp_json = await resp.json(content_type=None)
 
                             if self.apiCacheEnabled:
                                 async with aiofiles.open(apiCacheFileName, 'w') as f:
                                     await f.write(json.dumps(resp_json, ensure_ascii=False))
-                        elif status == 998:
-                            _LOGGER.error(f"The Solcast API use quota has been exceeded, attempt failed")
+                        elif status == 998: # Exceeded API limit
+                            _LOGGER.error(f"API allowed polling limit has been exceeded, API counter set to {self._api_used[apikey]}/{self._api_limit[apikey]}")
                             return None
-                        elif status == 999:
-                            _LOGGER.error(f"The Solcast API was tried {tries} times, but all attempts have failed")
+                        elif status == 999: # Attempts exhausted
+                            _LOGGER.error(f"API was tried {tries} times, but all attempts failed")
+                            return None
+                        elif status == 1000: # An unexpected response
                             return None
                         else:
-                            _LOGGER.error(f"Solcast API returned status {translate(status)}. API used is {self._api_used[apikey]}/{self._api_limit[apikey]}")
+                            _LOGGER.error(f"API returned status {translate(status)}, API used is {self._api_used[apikey]}/{self._api_limit[apikey]}")
                             return None
                     else:
-                        _LOGGER.warning(f"API limit exceeded, not getting forecast")
+                        _LOGGER.warning(f"API polling limit exhausted, not getting forecast, API used is {self._api_used[apikey]}/{self._api_limit[apikey]}")
                         return None
 
-                _LOGGER.debug(f"HTTP session returned data type in fetch_data() is {type(resp_json)}")
-                _LOGGER.debug(f"HTTP session status in fetch_data() is {translate(status)}")
+                _LOGGER.debug(f"HTTP session returned data type {type(resp_json)}")
+                _LOGGER.debug(f"HTTP session status {translate(status)}")
 
             if status == 429:
-                _LOGGER.warning("Solcast is too busy or exceeded API allowed polling limit, API used is {self._api_used[apikey]}/{self._api_limit[apikey]}")
+                _LOGGER.warning("Solcast is too busy, try again later")
             elif status == 400:
-                _LOGGER.warning(
-                    "Status {translate(status)}: The Solcast site is likely missing capacity, please specify capacity or provide historic data for tuning."
-                )
+                _LOGGER.warning("Status {translate(status)}: The Solcast site is likely missing capacity, please specify capacity or provide historic data for tuning")
             elif status == 404:
                 _LOGGER.error(f"The Solcast site cannot be found, status {translate(status)} returned")
             elif status == 200:
                 d = cast(dict, resp_json)
-                _LOGGER.debug(f"Status {translate(status)} in fetch_data(){', returned: %s' % (str(d),) if _FORECAST_DEBUG_LOGGING else ''}")
+                if _FORECAST_DEBUG_LOGGING:
+                    _LOGGER.debug('HTTP session returned: %s' % (str(d),))
                 return d
                 #await self.format_json_data(d)
         except ConnectionRefusedError as err:
