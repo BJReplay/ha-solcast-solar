@@ -1,5 +1,7 @@
 """Constants for the Solcast Solar integration."""
 
+# pylint: disable=C0304, E0401
+
 from __future__ import annotations
 
 from typing import Final
@@ -9,7 +11,6 @@ from homeassistant.helpers import selector
 DOMAIN = "solcast_solar"
 TITLE = "Solcast Solar"
 SOLCAST_URL = "https://api.solcast.com.au"
-
 
 ATTR_ENTRY_TYPE: Final = "entry_type"
 ENTRY_TYPE_SERVICE: Final = "service"

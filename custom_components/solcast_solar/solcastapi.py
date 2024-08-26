@@ -1,8 +1,10 @@
 """Solcast API"""
+
+# pylint: disable=C0302, C0304, C0321, E0401, R0902, R0914, W0105, W0702, W0706, W0718, W0719
+
 from __future__ import annotations
 
 import asyncio
-import aiofiles
 import copy
 import json
 import logging
@@ -13,7 +15,6 @@ import time
 import traceback
 import random
 import re
-from .spline import cubic_interp
 from dataclasses import dataclass
 from datetime import datetime as dt
 from datetime import timedelta, timezone
@@ -23,9 +24,12 @@ from os.path import dirname
 from typing import Any, Dict, cast
 
 import async_timeout
+import aiofiles
 from aiohttp import ClientConnectionError, ClientSession
 from aiohttp.client_reqrep import ClientResponse
 from isodate import parse_datetime
+
+from .spline import cubic_interp
 
 # For current func name, specify 0 or no argument
 # For name of caller of current func, specify 1
@@ -34,21 +38,27 @@ currentFuncName = lambda n=0: sys._getframe(n + 1).f_code.co_name
 
 _SENSOR_DEBUG_LOGGING = False
 _FORECAST_DEBUG_LOGGING = False
+_SPLINE_DEBUG_LOGGING = False
 
 _JSON_VERSION = 4
 _LOGGER = logging.getLogger(__name__)
 
 class DateTimeEncoder(json.JSONEncoder):
+    """Date/time helper"""
     def default(self, o):
         if isinstance(o, dt):
             return o.isoformat()
+        else:
+            return None
 
 class JSONDecoder(json.JSONDecoder):
-    def __init__(self, *args, **kwargs):
+    """JSON decoder helper"""
+    def __init__(self, *args, **kwargs) -> None:
         json.JSONDecoder.__init__(
             self, object_hook=self.object_hook, *args, **kwargs)
 
-    def object_hook(self, obj):
+    def object_hook(self, obj) -> dict:
+        """Hook"""
         ret = {}
         for key, value in obj.items():
             if key in {'period_start'}:
@@ -57,12 +67,14 @@ class JSONDecoder(json.JSONDecoder):
                 ret[key] = value
         return ret
 
+# HTTP status code translation.
+# A 418 error is included here for fun. This was included in RFC2324#section-2.3.2 as an April Fools joke in 1998.
 statusTranslate = {
     200: 'Success',
     401: 'Unauthorized',
     403: 'Forbidden',
     404: 'Not found',
-    418: 'I\'m a teapot', # Included here for fun. An April Fools joke in 1998. Included in RFC2324#section-2.3.2
+    418: 'I\'m a teapot',
     429: 'Try again later',
     500: 'Internal web server error',
     501: 'Not implemented',
@@ -71,8 +83,9 @@ statusTranslate = {
     504: 'Gateway timeout',
 }
 
-def translate(status):
-    return ('%s/%s' % (str(status), statusTranslate[status], )) if statusTranslate.get(status) else status
+def translate(status) -> str | Any:
+    """Translate HTTP status code to a human-readable translation"""
+    return (f"{str(status)}/{statusTranslate[status]}") if statusTranslate.get(status) else status
 
 
 @dataclass
@@ -103,12 +116,12 @@ class SolcastApi:
         self,
         aiohttp_session: ClientSession,
         options: ConnectionOptions,
-        apiCacheEnabled: bool = False
+        api_cache_enabled: bool = False
     ):
         """Device init"""
         self.aiohttp_session = aiohttp_session
         self.options = options
-        self.apiCacheEnabled = apiCacheEnabled
+        self.api_cache_enabled = api_cache_enabled
         self._sites_loaded = False
         self._sites = []
         self._data = {'siteinfo': {}, 'last_updated': dt.fromtimestamp(0, timezone.utc).isoformat()}
@@ -116,14 +129,12 @@ class SolcastApi:
         self._api_used = {}
         self._api_limit = {}
         self._filename = options.file_path
-        self.configDir = dirname(self._filename)
-        _LOGGER.debug("Configuration directory is %s", self.configDir)
+        self._config_dir = dirname(self._filename)
         self._tz = options.tz
         self._dataenergy = {}
         self._data_forecasts = []
         self._site_data_forecasts = {}
         self._forecasts_start_idx = 0
-        self._detailedForecasts = []
         self._loaded_data = False
         self._serialize_lock = asyncio.Lock()
         self._damp = options.dampening
@@ -135,6 +146,7 @@ class SolcastApi:
         self.fc_moment = {}
         self.fc_remaining = {}
         #self._weather = ""
+        _LOGGER.debug("Configuration directory is %s", self._config_dir)
 
     async def serialize_data(self):
         """Serialize data to file"""
@@ -153,41 +165,46 @@ class SolcastApi:
                 async with aiofiles.open(self._filename, "w") as f:
                     await f.write(json.dumps(self._data, ensure_ascii=False, cls=DateTimeEncoder))
                     _LOGGER.debug("Saved forecast cache")
-        except Exception as ex:
-            _LOGGER.error("Exception in serialize_data(): %s", ex)
+        except Exception as e:
+            _LOGGER.error("Exception in serialize_data(): %s", e)
             _LOGGER.error(traceback.format_exc())
 
-    def redact_api_key(self, api_key):
+    def redact_api_key(self, api_key) -> str:
+        """Obfuscate API key"""
         return '*'*6 + api_key[-6:]
 
-    def redact_msg_api_key(self, msg, api_key):
+    def redact_msg_api_key(self, msg, api_key) -> str:
+        """Obfuscate API key in messages"""
         return msg.replace(api_key, self.redact_api_key(api_key))
 
     async def write_api_usage_cache_file(self, api_key):
+        """Serialise the usage cache file"""
         try:
             json_file = self.get_api_usage_cache_filename(api_key)
-            _LOGGER.debug(f"Writing API usage cache file: {self.redact_msg_api_key(json_file, api_key)}")
+            _LOGGER.debug("Writing API usage cache file: %s", self.redact_msg_api_key(json_file, api_key))
             json_content = {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key]}
             async with aiofiles.open(json_file, 'w') as f:
                 await f.write(json.dumps(json_content, ensure_ascii=False))
-        except Exception as ex:
-            _LOGGER.error("Exception in write_api_usage_cache_file(): %s", ex)
+        except Exception as e:
+            _LOGGER.error("Exception in write_api_usage_cache_file(): %s", e)
             _LOGGER.error(traceback.format_exc())
 
     def get_api_usage_cache_filename(self, entry_name):
-        return "%s/solcast-usage%s.json" % (self.configDir, "" if len(self.options.api_key.split(",")) < 2 else "-" + entry_name) # For more than one API key use separate files
+        """Build a fully qualified API usage cache filename using a simple name or separate files for more than one API key"""
+        return '%s/solcast-usage%s.json' % (self._config_dir, "" if len(self.options.api_key.split(",")) < 2 else "-" + entry_name) # pylint: disable=C0209
 
     def get_api_sites_cache_filename(self, entry_name):
-        return "%s/solcast-sites%s.json" % (self.configDir, "" if len(self.options.api_key.split(",")) < 2 else "-" + entry_name) # Ditto
+        """Build a fully qualified site details cache filename using a simple name or separate files for more than one API key"""
+        return '%s/solcast-sites%s.json' % (self._config_dir, "" if len(self.options.api_key.split(",")) < 2 else "-" + entry_name) # pylint: disable=C0209
 
     async def reset_api_usage(self):
-        for api_key in self._api_used.keys():
+        """Reset the daily API usage counter"""
+        for api_key, _ in self._api_used.items():
             self._api_used[api_key] = 0
             await self.write_api_usage_cache_file(api_key)
 
     async def sites_data(self):
-        """Request sites detail"""
-
+        """Request site details"""
         try:
             def redact(s):
                 return re.sub(r'itude\': [0-9\-\.]+', 'itude\': **.******', s)
@@ -195,38 +212,39 @@ class SolcastApi:
             for spl in sp:
                 params = {"format": "json", "api_key": spl.strip()}
                 async with async_timeout.timeout(60):
-                    apiCacheFileName = self.get_api_sites_cache_filename(spl)
-                    _LOGGER.debug(f"{'Sites cache ' + ('exists' if file_exists(apiCacheFileName) else 'does not yet exist')}")
-                    if self.apiCacheEnabled and file_exists(apiCacheFileName):
-                        _LOGGER.debug(f"Loading cached sites data")
+                    api_cache_filename = self.get_api_sites_cache_filename(spl)
+                    _LOGGER.debug("%s", 'Sites cache ' + ('exists' if file_exists(api_cache_filename) else 'does not yet exist'))
+                    if self.api_cache_enabled and file_exists(api_cache_filename):
+                        _LOGGER.debug("Loading cached sites data")
                         status = 404
-                        async with aiofiles.open(apiCacheFileName) as f:
+                        async with aiofiles.open(api_cache_filename) as f:
                             resp_json = json.loads(await f.read())
                             status = 200
                     else:
-                        _LOGGER.debug(f"Connecting to {self.options.host}/rooftop_sites?format=json&api_key={self.redact_api_key(spl)}")
+                        _LOGGER.debug("Connecting to %s/rooftop_sites?format=json&api_key=%s", self.options.host, self.redact_api_key(spl))
                         retries = 3
                         retry = retries
                         success = False
-                        useCacheImmediate = False
-                        cacheExists = file_exists(apiCacheFileName)
+                        use_cache_immediate = False
+                        cache_exists = file_exists(api_cache_filename)
                         while retry >= 0:
                             resp: ClientResponse = await self.aiohttp_session.get(
                                 url=f"{self.options.host}/rooftop_sites", params=params, ssl=False
                             )
 
                             status = resp.status
-                            _LOGGER.debug(f"HTTP session returned status {translate(status)} in sites_data()")
+                            _LOGGER.debug("HTTP session returned status %s in sites_data(), trying cache", translate(status))
                             try:
                                 resp_json = await resp.json(content_type=None)
                             except json.decoder.JSONDecodeError:
                                 _LOGGER.error("JSONDecodeError in sites_data(): Solcast site could be having problems")
-                            except: raise
+                            except:
+                                raise
 
                             if status == 200:
                                 if resp_json['total_records'] > 0:
-                                    _LOGGER.debug(f"Writing sites cache")
-                                    async with aiofiles.open(apiCacheFileName, 'w') as f:
+                                    _LOGGER.debug("Writing sites cache")
+                                    async with aiofiles.open(api_cache_filename, 'w') as f:
                                         await f.write(json.dumps(resp_json, ensure_ascii=False))
                                     success = True
                                     break
@@ -234,29 +252,29 @@ class SolcastApi:
                                     _LOGGER.error('No sites for the API key %s are configured at solcast.com', self.redact_api_key(spl))
                                     return
                             else:
-                                if cacheExists:
-                                    useCacheImmediate = True
+                                if cache_exists:
+                                    use_cache_immediate = True
                                     break
                                 if retry > 0:
-                                    _LOGGER.debug(f"Will retry get sites, retry {(retries - retry) + 1}")
+                                    _LOGGER.debug("Will retry get sites, retry %d", (retries - retry) + 1)
                                     await asyncio.sleep(5)
                                 retry -= 1
                         if not success:
-                            if not useCacheImmediate:
-                                _LOGGER.warning(f"Retries exhausted gathering Solcast sites, last call result: {translate(status)}, using cached data if it exists")
+                            if not use_cache_immediate:
+                                _LOGGER.warning("Retries exhausted gathering Solcast sites, last call result: %s, using cached data if it exists", translate(status))
                             status = 404
-                            if cacheExists:
-                                async with aiofiles.open(apiCacheFileName) as f:
+                            if cache_exists:
+                                async with aiofiles.open(api_cache_filename) as f:
                                     resp_json = json.loads(await f.read())
                                     status = 200
-                                _LOGGER.info(f"Loaded sites cache for {self.redact_api_key(spl)}")
+                                _LOGGER.info("Loaded sites cache for %s", self.redact_api_key(spl))
                             else:
-                                _LOGGER.error(f"Cached Solcast sites are not yet available for {self.redact_api_key(spl)} to cope with API call failure")
-                                _LOGGER.error(f"At least one successful API 'get sites' call is needed, so the integration will not function correctly")
+                                _LOGGER.error("Cached Solcast sites are not yet available for %s to cope with API call failure", self.redact_api_key(spl))
+                                _LOGGER.error("At least one successful API 'get sites' call is needed, so the integration will not function correctly")
 
                 if status == 200:
                     d = cast(dict, resp_json)
-                    _LOGGER.debug(f"Sites data: {redact(str(d))}")
+                    _LOGGER.debug("Sites data: %s", redact(str(d)))
                     for i in d['sites']:
                         i['apikey'] = spl.strip()
                         #v4.0.14 to stop HA adding a pin to the map
@@ -265,8 +283,8 @@ class SolcastApi:
                     self._sites = self._sites + d['sites']
                     self._sites_loaded = True
                 else:
-                    _LOGGER.error(f"{self.options.host} HTTP status error {translate(status)} in sites_data() while gathering sites")
-                    raise Exception(f"HTTP sites_data error: Solcast Error gathering sites")
+                    _LOGGER.error("%s HTTP status error %s in sites_data() while gathering sites", self.options.host, translate(status))
+                    raise Exception("HTTP sites_data error: Solcast Error gathering sites")
         except ConnectionRefusedError as err:
             _LOGGER.error("Connection refused in sites_data(): %s", err)
         except ClientConnectionError as e:
@@ -276,14 +294,14 @@ class SolcastApi:
                 _LOGGER.warning("Retrieving Solcast sites timed out, attempting to continue")
                 error = False
                 for spl in sp:
-                    apiCacheFileName = self.get_api_sites_cache_filename(spl)
-                    cacheExists = file_exists(apiCacheFileName)
-                    if cacheExists:
+                    api_cache_filename = self.get_api_sites_cache_filename(spl)
+                    cache_exists = file_exists(api_cache_filename)
+                    if cache_exists:
                         _LOGGER.info("Loading cached Solcast sites for {self.redact_api_key(spl)}")
-                        async with aiofiles.open(apiCacheFileName) as f:
+                        async with aiofiles.open(api_cache_filename) as f:
                             resp_json = json.loads(await f.read())
                             d = cast(dict, resp_json)
-                            _LOGGER.debug(f"Sites data: {redact(str(d))}")
+                            _LOGGER.debug("Sites data: %s", redact(str(d)))
                             for i in d['sites']:
                                 i['apikey'] = spl.strip()
                                 #v4.0.14 to stop HA adding a pin to the map
@@ -291,19 +309,19 @@ class SolcastApi:
                                 i.pop('latitude', None)
                             self._sites = self._sites + d['sites']
                             self._sites_loaded = True
-                            _LOGGER.info(f"Loaded sites cache for {self.redact_api_key(spl)}")
+                            _LOGGER.info("Loaded sites cache for %s", self.redact_api_key(spl))
                     else:
                         error = True
-                        _LOGGER.error(f"Cached sites are not yet available for {self.redact_api_key(spl)} to cope with Solcast API call failure")
-                        _LOGGER.error(f"At least one successful API 'get sites' call is needed, so the integration cannot function yet")
+                        _LOGGER.error("Cached sites are not yet available for %s to cope with Solcast API call failure", self.redact_api_key(spl))
+                        _LOGGER.error("At least one successful API 'get sites' call is needed, so the integration cannot function yet")
                 if error:
                     _LOGGER.error("Timed out getting Solcast sites, and one or more site caches failed to load")
                     _LOGGER.error("This is critical, and the integration cannot function reliably yet")
                     _LOGGER.error("Suggestion: Double check your overall HA configuration, specifically networking related")
-            except Exception as e:
+            except:
                 pass
         except Exception as e:
-            _LOGGER.error("Exception in sites_data(): %s", traceback.format_exc())
+            _LOGGER.error(f"Exception in sites_data(): {e}: %s", traceback.format_exc())
 
     async def sites_usage(self):
         """Load api usage cache"""
@@ -313,38 +331,38 @@ class SolcastApi:
             qt = self.options.api_quota.split(",")
             try:
                 for i in range(len(sp)): # If only one quota value is present, yet there are multiple sites then use the same quota
-                    if len(qt) < i+1: qt.append(qt[i-1])
+                    if len(qt) < i+1:
+                        qt.append(qt[i-1])
                 quota = { sp[i].strip(): int(qt[i].strip()) for i in range(len(qt)) }
             except Exception as e:
-                _LOGGER.error('Exception: %s', e)
-                _LOGGER.warning('Could not interpret API quota configuration string, using default of 10')
-                quota = {}
-                for i in range(len(sp)): quota[sp[i]] = 10
+                _LOGGER.error("Exception: %s", e)
+                _LOGGER.warning("Could not interpret API quota configuration string, using default of 10")
+                quota = {s: 10 for s in sp}
 
             for spl in sp:
                 api_key = spl.strip()
-                _LOGGER.debug(f"Getting API usage from cache for API key {self.redact_api_key(api_key)}")
-                apiCacheFileName = self.get_api_usage_cache_filename(api_key)
-                _LOGGER.debug(f"{'API usage cache ' + ('exists' if file_exists(apiCacheFileName) else 'does not yet exist')}")
-                if file_exists(apiCacheFileName):
-                    async with aiofiles.open(apiCacheFileName) as f:
+                _LOGGER.debug("Getting API usage from cache for API key %s", self.redact_api_key(api_key))
+                api_cache_filename = self.get_api_usage_cache_filename(api_key)
+                _LOGGER.debug("%s", 'API usage cache ' + ('exists' if file_exists(api_cache_filename) else 'does not yet exist'))
+                if file_exists(api_cache_filename):
+                    async with aiofiles.open(api_cache_filename) as f:
                         usage = json.loads(await f.read())
                     self._api_limit[api_key] = usage.get("daily_limit", None)
                     self._api_used[api_key] = usage.get("daily_limit_consumed", None)
                     if usage['daily_limit'] != quota[spl]: # Limit has been adjusted, so rewrite the cache
                         self._api_limit[api_key] = quota[spl]
                         await self.write_api_usage_cache_file(api_key)
-                        _LOGGER.info(f"API usage cache loaded and updated with new quota")
+                        _LOGGER.info("API usage cache loaded and updated with new quota")
                     else:
-                        _LOGGER.debug(f"API usage cache loaded")
+                        _LOGGER.debug("API usage cache loaded")
                 else:
-                    _LOGGER.warning(f"No Solcast API usage cache found, creating one and assuming zero API used")
+                    _LOGGER.warning("No Solcast API usage cache found, creating one and assuming zero API used")
                     self._api_limit[api_key] = quota[spl]
                     self._api_used[api_key] = 0
                     await self.write_api_usage_cache_file(api_key)
-                _LOGGER.debug(f"API counter for {self.redact_api_key(api_key)} is {self._api_used[api_key]}/{self._api_limit[api_key]}")
-        except:
-            _LOGGER.error("Exception in sites_usage(): %s", traceback.format_exc())
+                _LOGGER.debug("API counter for %s is %d/%d", self.redact_api_key(api_key), self._api_used[api_key], self._api_limit[api_key])
+        except Exception as e:
+            _LOGGER.error(f"Exception in sites_usage(): {e}: %s", traceback.format_exc())
 
     '''
     async def sites_usage(self):
@@ -358,13 +376,13 @@ class SolcastApi:
                 params = {"api_key": api_key}
                 _LOGGER.debug(f"Getting API limit and usage from solcast for {self.redact_api_key(api_key)}")
                 async with async_timeout.timeout(60):
-                    apiCacheFileName = self.get_api_usage_cache_filename(api_key)
-                    _LOGGER.debug(f"{'API usage cache ' + ('exists' if file_exists(apiCacheFileName) else 'does not yet exist')}")
+                    api_cache_filename = self.get_api_usage_cache_filename(api_key)
+                    _LOGGER.debug(f"{'API usage cache ' + ('exists' if file_exists(api_cache_filename) else 'does not yet exist')}")
                     retries = 3
                     retry = retries
                     success = False
-                    useCacheImmediate = False
-                    cacheExists = file_exists(apiCacheFileName)
+                    use_cache_immediate = False
+                    cache_exists = file_exists(api_cache_filename)
                     while retry > 0:
                         resp: ClientResponse = await self.aiohttp_session.get(
                             url=f"{self.options.host}/json/reply/GetUserUsageAllowance", params=params, ssl=False
@@ -384,18 +402,18 @@ class SolcastApi:
                             retry = 0
                             success = True
                         else:
-                            if cacheExists:
-                                useCacheImmediate = True
+                            if cache_exists:
+                                use_cache_immediate = True
                                 break
                             _LOGGER.debug(f"Will retry GetUserUsageAllowance, retry {(retries - retry) + 1}")
                             await asyncio.sleep(5)
                             retry -= 1
                     if not success:
-                        if not useCacheImmediate:
+                        if not use_cache_immediate:
                             _LOGGER.warning(f"Timeout getting Solcast API usage allowance, last call result: {translate(status)}, using cached data if it exists")
                         status = 404
-                        if cacheExists:
-                            async with aiofiles.open(apiCacheFileName) as f:
+                        if cache_exists:
+                            async with aiofiles.open(api_cache_filename) as f:
                                 resp_json = json.loads(await f.read())
                                 status = 200
                             d = cast(dict, resp_json)
@@ -464,64 +482,66 @@ class SolcastApi:
     '''
 
     async def load_saved_data(self):
+        """Load the saved solcast.json data, also checking for new API keys and site removal"""
         try:
             status = ''
             if len(self._sites) > 0:
                 if file_exists(self._filename):
                     async with aiofiles.open(self._filename) as data_file:
-                        jsonData = json.loads(await data_file.read(), cls=JSONDecoder)
-                        json_version = jsonData.get("version", 1)
-                        #self._weather = jsonData.get("weather", "unknown")
-                        _LOGGER.debug(f"The saved data file exists, file type is {type(jsonData)}")
+                        json_data = json.loads(await data_file.read(), cls=JSONDecoder)
+                        json_version = json_data.get("version", 1)
+                        #self._weather = json_data.get("weather", "unknown")
+                        _LOGGER.debug("The saved data file exists, file type is %s", type(json_data))
                         if json_version == _JSON_VERSION:
-                            self._data = jsonData
+                            self._data = json_data
                             self._loaded_data = True
 
                             # Check for any new API keys so no sites data yet for those
                             ks = {}
                             for d in self._sites:
-                                if not any(s == d.get('resource_id', '') for s in jsonData['siteinfo']):
+                                if not any(s == d.get('resource_id', '') for s in json_data['siteinfo']):
                                     ks[d.get('resource_id')] = d.get('apikey')
 
                             if len(ks.keys()) > 0:
                                 # Some site data does not exist yet so get it
                                 _LOGGER.info("New site(s) have been added, so getting forecast data for just those site(s)")
-                                for a in ks:
-                                    await self.http_data_call(r_id=a, api=ks[a], dopast=True)
+                                for a, _api_key in ks:
+                                    await self.http_data_call(r_id=a, api=_api_key, dopast=True)
                                 await self.serialize_data()
 
                             # Check for sites that need to be removed
                             l = []
-                            for s in jsonData['siteinfo']:
+                            for s in json_data['siteinfo']:
                                 if not any(d.get('resource_id', '') == s for d in self._sites):
-                                    _LOGGER.info(f"Solcast site resource id {s} is no longer configured, removing saved data from cached file")
+                                    _LOGGER.info("Solcast site resource id %s is no longer configured, removing saved data from cached file", s)
                                     l.append(s)
 
                             for ll in l:
-                                del jsonData['siteinfo'][ll]
+                                del json_data['siteinfo'][ll]
 
                             # Create an up to date forecast
                             await self.buildforecastdata()
-                            _LOGGER.info(f"Loaded solcast.json forecast cache")
+                            _LOGGER.info("Loaded solcast.json forecast cache")
 
                 if not self._loaded_data:
                     # No file to load
-                    _LOGGER.warning(f"There is no solcast.json to load, so fetching solar forecast, including past forecasts")
+                    _LOGGER.warning("There is no solcast.json to load, so fetching solar forecast, including past forecasts")
                     # Could be a brand new install of the integation, or the file has been removed. Poll once now...
                     status = await self.http_data(dopast=True)
             else:
-                _LOGGER.error(f"Solcast site count is zero in load_saved_data(); the get sites must have failed, and there is no sites cache")
+                _LOGGER.error("Solcast site count is zero in load_saved_data(); the get sites must have failed, and there is no sites cache")
                 status = 'Solcast sites count is zero, add sites'
         except json.decoder.JSONDecodeError:
             _LOGGER.error("The cached data in solcast.json is corrupt in load_saved_data()")
             status = 'The cached data in /config/solcast.json is corrupted, suggest removing or repairing it'
         except Exception as e:
             _LOGGER.error("Exception in load_saved_data(): %s", traceback.format_exc())
-            status = 'Exception in load_saved_data(): %s' % (e,)
+            status = f"Exception in load_saved_data(): {e}"
         return status
 
-    async def delete_solcast_file(self, *args):
-        _LOGGER.debug(f"Service event to delete old solcast.json file")
+    async def delete_solcast_file(self, *args): # pylint: disable=W0613
+        """Service event to delete old solcast.json file"""
+        _LOGGER.debug("Service event to delete old solcast.json file")
         try:
             if file_exists(self._filename):
                 os.remove(self._filename)
@@ -531,9 +551,10 @@ class SolcastApi:
             else:
                 _LOGGER.warning("There is no solcast.json to delete")
         except Exception:
-            _LOGGER.error(f"Service event to delete old solcast.json file failed")
+            _LOGGER.error("Service event to delete old solcast.json file failed")
 
     async def get_forecast_list(self, *args):
+        """Service event to get list of forecasts"""
         try:
             st_time = time.time()
 
@@ -548,23 +569,22 @@ class SolcastApi:
             return tuple( {**d, "period_start": d["period_start"].astimezone(self._tz)} for d in h )
 
         except Exception:
-            _LOGGER.error(f"Service event to get list of forecasts failed")
+            _LOGGER.error("Service event to get list of forecasts failed")
             return None
 
     def get_api_used_count(self):
-        """Return API polling count for this UTC 24hr period"""
+        """Return total API polling count for this UTC 24hr period (all accounts combined)"""
         used = 0
-        for _, v in self._api_used.items(): used += v
+        for _, v in self._api_used.items():
+            used += v
         return used
 
     def get_api_limit(self):
-        """Return API polling limit for this account"""
-        try:
-            limit = 0
-            for _, v in self._api_limit.items(): limit += v
-            return limit
-        except Exception:
-            return None
+        """Return API polling limit (all accounts combined)"""
+        limit = 0
+        for _, v in self._api_limit.items():
+            limit += v
+        return limit
 
     # def get_weather(self):
     #     """Return weather description"""
@@ -576,7 +596,8 @@ class SolcastApi:
 
     def get_rooftop_site_total_today(self, site) -> float:
         """Return total kW for today for a site"""
-        if self._tally.get(site) == None: _LOGGER.warning(f"Site total kW forecast today is currently unavailable for {site}")
+        if self._tally.get(site) is None:
+            _LOGGER.warning("Site total kW forecast today is currently unavailable for %s", site)
         return self._tally.get(site)
 
     def get_rooftop_site_extra_data(self, site = ""):
@@ -602,21 +623,25 @@ class SolcastApi:
         return ret
 
     def get_now_utc(self):
+        """Datetime helper"""
         return dt.now(self._tz).replace(second=0, microsecond=0).astimezone(timezone.utc)
 
     def get_interval_start_utc(self, moment):
+        """Datetime helper"""
         n = moment.replace(second=0, microsecond=0)
         return n.replace(minute=0 if n.minute < 30 else 30).astimezone(timezone.utc)
 
     def get_hour_start_utc(self):
+        """Datetime helper"""
         return dt.now(self._tz).replace(minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
     def get_day_start_utc(self):
+        """Datetime helper"""
         return dt.now(self._tz).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
 
     def get_forecast_day(self, futureday) -> Dict[str, Any]:
         """Return forecast data for the Nth day ahead"""
-        noDataError = True
+        no_data_error = True
 
         start_utc = self.get_day_start_utc() + timedelta(days=futureday)
         end_utc = start_utc + timedelta(days=1)
@@ -633,7 +658,7 @@ class SolcastApi:
         tup = tuple( {**d, "period_start": d["period_start"].astimezone(self._tz)} for d in h )
 
         if len(tup) < 48:
-            noDataError = False
+            no_data_error = False
 
         hourlytup = []
         for index in range(0,len(tup),2):
@@ -648,16 +673,18 @@ class SolcastApi:
                     x2 = round((tup[index]["pv_estimate10"]), 4)
                     x3 = round((tup[index]["pv_estimate90"]), 4)
                     hourlytup.append({"period_start":tup[index]["period_start"], "pv_estimate":x1, "pv_estimate10":x2, "pv_estimate90":x3})
-                except Exception as ex:
-                    _LOGGER.error("Exception in get_forecast_day(): %s", ex)
+                except Exception as e:
+                    _LOGGER.error("Exception in get_forecast_day(): %s", e)
                     _LOGGER.error(traceback.format_exc())
 
         res = {
             "dayname": start_utc.astimezone(self._tz).strftime("%A"),
-            "dataCorrect": noDataError,
+            "dataCorrect": no_data_error,
         }
-        if self.options.attr_brk_halfhourly: res["detailedForecast"] = tup
-        if self.options.attr_brk_hourly: res["detailedHourly"] = hourlytup
+        if self.options.attr_brk_halfhourly:
+            res["detailedForecast"] = tup
+        if self.options.attr_brk_hourly:
+            res["detailedHourly"] = hourlytup
         return res
 
     def get_forecast_n_hour(self, n_hour, site=None, _use_data_field=None) -> int:
@@ -668,14 +695,17 @@ class SolcastApi:
         return res
 
     def get_forecasts_n_hour(self, n_hour) -> Dict[str, Any]:
+        """Return forecast for the Nth hour for all sites and individual sites"""
         res = {}
         if self.options.attr_brk_site:
             for site in self._sites:
                 res[site['resource_id']] = self.get_forecast_n_hour(n_hour, site=site['resource_id'])
                 for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-                    if self._estimen.get(_data_field): res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_forecast_n_hour(n_hour, site=site['resource_id'], _use_data_field=_data_field)
+                    if self._estimen.get(_data_field):
+                        res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_forecast_n_hour(n_hour, site=site['resource_id'], _use_data_field=_data_field)
         for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-            if self._estimen.get(_data_field): res[_data_field.replace('pv_','')] = self.get_forecast_n_hour(n_hour, _use_data_field=_data_field)
+            if self._estimen.get(_data_field):
+                res[_data_field.replace('pv_','')] = self.get_forecast_n_hour(n_hour, _use_data_field=_data_field)
         return res
 
     def get_forecast_custom_hours(self, n_hours, site=None, _use_data_field=None) -> int:
@@ -686,14 +716,17 @@ class SolcastApi:
         return res
 
     def get_forecasts_custom_hours(self, n_hour) -> Dict[str, Any]:
+        """Return forecast for the next N hours for all sites and individual sites"""
         res = {}
         if self.options.attr_brk_site:
             for site in self._sites:
                 res[site['resource_id']] = self.get_forecast_custom_hours(n_hour, site=site['resource_id'])
                 for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-                    if self._estimen.get(_data_field): res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_forecast_custom_hours(n_hour, site=site['resource_id'], _use_data_field=_data_field)
+                    if self._estimen.get(_data_field):
+                        res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_forecast_custom_hours(n_hour, site=site['resource_id'], _use_data_field=_data_field)
         for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-            if self._estimen.get(_data_field): res[_data_field.replace('pv_','')] = self.get_forecast_custom_hours(n_hour, _use_data_field=_data_field)
+            if self._estimen.get(_data_field):
+                res[_data_field.replace('pv_','')] = self.get_forecast_custom_hours(n_hour, _use_data_field=_data_field)
         return res
 
     def get_power_n_mins(self, n_mins, site=None, _use_data_field=None) -> int:
@@ -702,14 +735,17 @@ class SolcastApi:
         return round(1000 * self.get_forecast_pv_moment(time_utc, site=site, _use_data_field=_use_data_field))
 
     def get_sites_power_n_mins(self, n_mins) -> Dict[str, Any]:
+        """Return expected power generation in the next N minutes for all sites and individual sites"""
         res = {}
         if self.options.attr_brk_site:
             for site in self._sites:
                 res[site['resource_id']] = self.get_power_n_mins(n_mins, site=site['resource_id'])
                 for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-                    if self._estimen.get(_data_field): res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_power_n_mins(n_mins, site=site['resource_id'], _use_data_field=_data_field)
+                    if self._estimen.get(_data_field):
+                        res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_power_n_mins(n_mins, site=site['resource_id'], _use_data_field=_data_field)
         for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-            if self._estimen.get(_data_field): res[_data_field.replace('pv_','')] = self.get_power_n_mins(n_mins, site=None, _use_data_field=_data_field)
+            if self._estimen.get(_data_field):
+                res[_data_field.replace('pv_','')] = self.get_power_n_mins(n_mins, site=None, _use_data_field=_data_field)
         return res
 
     def get_peak_w_day(self, n_day, site=None, _use_data_field=None) -> int:
@@ -721,14 +757,17 @@ class SolcastApi:
         return 0 if res is None else round(1000 * res[_data_field])
 
     def get_sites_peak_w_day(self, n_day) -> Dict[str, Any]:
+        """Return max kW for site N days ahead for all sites and individual sites"""
         res = {}
         if self.options.attr_brk_site:
             for site in self._sites:
                 res[site['resource_id']] = self.get_peak_w_day(n_day, site=site['resource_id'])
                 for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-                    if self._estimen.get(_data_field): res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_peak_w_day(n_day, site=site['resource_id'], _use_data_field=_data_field)
+                    if self._estimen.get(_data_field):
+                        res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_peak_w_day(n_day, site=site['resource_id'], _use_data_field=_data_field)
         for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-            if self._estimen.get(_data_field): res[_data_field.replace('pv_','')] = self.get_peak_w_day(n_day, site=None, _use_data_field=_data_field)
+            if self._estimen.get(_data_field):
+                res[_data_field.replace('pv_','')] = self.get_peak_w_day(n_day, site=None, _use_data_field=_data_field)
         return res
 
     def get_peak_w_time_day(self, n_day, site=None, _use_data_field=None) -> dt:
@@ -739,14 +778,17 @@ class SolcastApi:
         return res if res is None else res["period_start"]
 
     def get_sites_peak_w_time_day(self, n_day) -> Dict[str, Any]:
+        """Return hour of max kW for site N days ahead for all sites and individual sites"""
         res = {}
         if self.options.attr_brk_site:
             for site in self._sites:
                 res[site['resource_id']] = self.get_peak_w_time_day(n_day, site=site['resource_id'])
                 for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-                    if self._estimen.get(_data_field): res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_peak_w_time_day(n_day, site=site['resource_id'], _use_data_field=_data_field)
+                    if self._estimen.get(_data_field):
+                        res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_peak_w_time_day(n_day, site=site['resource_id'], _use_data_field=_data_field)
         for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-            if self._estimen.get(_data_field): res[_data_field.replace('pv_','')] = self.get_peak_w_time_day(n_day, site=None, _use_data_field=_data_field)
+            if self._estimen.get(_data_field):
+                res[_data_field.replace('pv_','')] = self.get_peak_w_time_day(n_day, site=None, _use_data_field=_data_field)
         return res
 
     def get_forecast_remaining_today(self, site=None, _use_data_field=None) -> float:
@@ -758,14 +800,17 @@ class SolcastApi:
         return res
 
     def get_forecasts_remaining_today(self) -> Dict[str, Any]:
+        """Return remaining forecasted production for today for all sites and individual sites"""
         res = {}
         if self.options.attr_brk_site:
             for site in self._sites:
                 res[site['resource_id']] = self.get_forecast_remaining_today(site=site['resource_id'])
                 for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-                    if self._estimen.get(_data_field): res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_forecast_remaining_today(site=site['resource_id'], _use_data_field=_data_field)
+                    if self._estimen.get(_data_field):
+                        res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_forecast_remaining_today(site=site['resource_id'], _use_data_field=_data_field)
         for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-            if self._estimen.get(_data_field): res[_data_field.replace('pv_','')] = self.get_forecast_remaining_today(_use_data_field=_data_field)
+            if self._estimen.get(_data_field):
+                res[_data_field.replace('pv_','')] = self.get_forecast_remaining_today(_use_data_field=_data_field)
         return res
 
     def get_total_kwh_forecast_day(self, n_day, site=None, _use_data_field=None) -> float:
@@ -776,19 +821,23 @@ class SolcastApi:
         return res
 
     def get_sites_total_kwh_forecast_day(self, n_day) -> Dict[str, Any]:
+        """Return forecast kWh total for site N days ahead for all sites and individual sites"""
         res = {}
         if self.options.attr_brk_site:
             for site in self._sites:
                 res[site['resource_id']] = self.get_total_kwh_forecast_day(n_day, site=site['resource_id'])
                 for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-                    if self._estimen.get(_data_field): res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_total_kwh_forecast_day(n_day, site=site['resource_id'], _use_data_field=_data_field)
+                    if self._estimen.get(_data_field):
+                        res[_data_field.replace('pv_','')+'-'+site['resource_id']] = self.get_total_kwh_forecast_day(n_day, site=site['resource_id'], _use_data_field=_data_field)
         for _data_field in ('pv_estimate', 'pv_estimate10', 'pv_estimate90'):
-            if self._estimen.get(_data_field): res[_data_field.replace('pv_','')] = self.get_total_kwh_forecast_day(n_day, site=None, _use_data_field=_data_field)
+            if self._estimen.get(_data_field):
+                res[_data_field.replace('pv_','')] = self.get_total_kwh_forecast_day(n_day, site=None, _use_data_field=_data_field)
         return res
 
-    def get_forecast_list_slice(self, _data, start_utc, end_utc=None, search_past=False):
+    def get_forecast_list_slice(self, _data, start_utc, end_utc=None, search_past=False) -> tuple[int, int]:
         """Return pv_estimates list slice (st_i, end_i) for interval"""
-        if end_utc is None: end_utc = start_utc + timedelta(seconds=1800)
+        if end_utc is None:
+            end_utc = start_utc + timedelta(seconds=1800)
         crt_i = -1
         st_i = -1
         end_i = len(_data)
@@ -809,7 +858,8 @@ class SolcastApi:
             end_i = 0
         return st_i, end_i
 
-    def get_spline(self, spline, st, xx, _data, df, reducing=False):
+    def get_spline(self, spline, st, xx, _data, df, reducing=False) -> None:
+        """Build an individual site/forecast confidence spline"""
         for _data_field in df:
             if st > 0:
                 y = [_data[st+i][_data_field] for i in range(0, len(self._spline_period))]
@@ -820,8 +870,11 @@ class SolcastApi:
                 self.sanitise_spline(spline, _data_field, xx, y, reducing=reducing)
             else: # The list slice was not found, so zero all values in the spline
                 spline[_data_field] = [0] * (len(self._spline_period) * 6)
+        if _SPLINE_DEBUG_LOGGING:
+            _LOGGER.debug(str(spline))
 
-    def sanitise_spline(self, spline, _data_field, xx, y, reducing=False):
+    def sanitise_spline(self, spline, _data_field, xx, y, reducing=False) -> None:
+        """Ensures that no negative values are returned, and also shifts the spline to account for half-hour average input values"""
         for j in xx:
             i = int(j/300)
             # Suppress negative values
@@ -829,18 +882,20 @@ class SolcastApi:
                 spline[_data_field][i] = 0.0
             # Suppress spline bounce
             if reducing:
-                if i+1 <= len(xx)-1 and spline[_data_field][i+1] > spline[_data_field][i]: spline[_data_field][i+1] = spline[_data_field][i]
+                if i+1 <= len(xx)-1 and spline[_data_field][i+1] > spline[_data_field][i]:
+                    spline[_data_field][i+1] = spline[_data_field][i]
             else:
                 k = int(math.floor(j/1800))
-                if k+1 <= len(y)-1 and y[k] == 0 and y[k+1] == 0: spline[_data_field][i] = 0.0
+                if k+1 <= len(y)-1 and y[k] == 0 and y[k+1] == 0:
+                    spline[_data_field][i] = 0.0
         # Shift right by fifteen minutes because 30-minute averages, padding as appropriate
         if reducing:
             spline[_data_field] = ([spline[_data_field][0]]*3) + spline[_data_field]
         else:
             spline[_data_field] = ([0]*3) + spline[_data_field]
 
-    def build_splines(self, variant, reducing=False):
-        """Cubic splines for interpolated inter-interval momentary or reducing estimates"""
+    def build_splines(self, variant, reducing=False) -> None:
+        """Build cubic splines for interpolated inter-interval momentary or reducing estimates"""
         df = ['pv_estimate'] + (['pv_estimate10'] if self.options.attr_brk_estimate10 else []) + (['pv_estimate90'] if self.options.attr_brk_estimate90 else [])
         xx = [ i for i in range(0, 1800*len(self._spline_period), 300) ]
         st, _ = self.get_forecast_list_slice(self._data_forecasts, self.get_day_start_utc()) # Get start of day index
@@ -852,28 +907,32 @@ class SolcastApi:
                 variant[site['resource_id']] = {}
                 self.get_spline(variant[site['resource_id']], st, xx, self._data_forecasts, df, reducing=reducing)
 
-    async def spline_moments(self):
+    async def spline_moments(self) -> None:
+        """Build the moments splines"""
         try:
             self.build_splines(self.fc_moment)
         except Exception as e:
             _LOGGER.debug('Exception in spline_moments(): %s', e)
 
-    def get_moment(self, site, _data_field, t):
+    def get_moment(self, site, _data_field, t) -> float:
+        """Get a time value from a moment spline, with times needing to be for today, and also on five-minute boundaries"""
         try:
-            return self.fc_moment['all' if site is None else site][self._data_field if _data_field is None else _data_field][int(t / 300)]
+            return self.fc_moment['all' if site is None else site][self._use_data_field if _data_field is None else _data_field][int(t / 300)]
         except Exception as e:
             _LOGGER.debug('Exception in get_moment(): %s', e)
             return 0
 
-    async def spline_remaining(self):
+    async def spline_remaining(self) -> None:
+        """Build the descending splines"""
         try:
             self.build_splines(self.fc_remaining, reducing=True)
         except Exception as e:
             _LOGGER.debug('Exception in spline_remaining(): %s', e)
 
-    def get_remaining(self, site, _data_field, t):
+    def get_remaining(self, site, _data_field, t) -> float:
+        """Get a time value from a reducing spline, with times needing to be for today, and also on five-minute boundaries"""
         try:
-            return self.fc_remaining['all' if site is None else site][self._data_field if _data_field is None else _data_field][int(t / 300)]
+            return self.fc_remaining['all' if site is None else site][self._use_data_field if _data_field is None else _data_field][int(t / 300)]
         except Exception as e:
             _LOGGER.debug('Exception in get_remaining(): %s', e)
             return 0
@@ -912,8 +971,8 @@ class SolcastApi:
                 st_i, end_i, round(res,4)
             )
             return res if res > 0 else 0
-        except Exception as ex:
-            _LOGGER.error(f"Exception in get_forecast_pv_remaining(): {ex}")
+        except Exception as e:
+            _LOGGER.error("Exception in get_forecast_pv_remaining(): %s", e)
             _LOGGER.error(traceback.format_exc())
             return 0
 
@@ -936,8 +995,8 @@ class SolcastApi:
                 st_i, end_i, round(res,4)
             )
             return res
-        except Exception as ex:
-            _LOGGER.error(f"Exception in get_forecast_pv_estimates(): {ex}")
+        except Exception as e:
+            _LOGGER.error("Exception in get_forecast_pv_estimates(): %s", e)
             _LOGGER.error(traceback.format_exc())
             return 0
 
@@ -954,8 +1013,8 @@ class SolcastApi:
                 time_utc.strftime('%Y-%m-%d %H:%M:%S'), (time_utc - day_start).total_seconds(), round(res, 4)
             )
             return res
-        except Exception as ex:
-            _LOGGER.error(f"Exception in get_forecast_pv_moment(): {ex}")
+        except Exception as e:
+            _LOGGER.error("Exception in get_forecast_pv_moment(): %s", e)
             _LOGGER.error(traceback.format_exc())
             return 0
 
@@ -964,10 +1023,10 @@ class SolcastApi:
         try:
             _data = self._data_forecasts if site is None else self._site_data_forecasts[site]
             _data_field = self._use_data_field if _use_data_field is None else _use_data_field
-            res = None
             st_i, end_i = self.get_forecast_list_slice(_data, start_utc, end_utc)
+            res = _data[st_i]
             for d in _data[st_i:end_i]:
-                if res is None or res[_data_field] < d[_data_field]:
+                if  res[_data_field] < d[_data_field]:
                     res = d
             if _SENSOR_DEBUG_LOGGING: _LOGGER.debug(
                 "Get max estimate: %s()%s %s st %s end %s st_i %d end_i %d res %s",
@@ -977,16 +1036,17 @@ class SolcastApi:
                 st_i, end_i, res
             )
             return res
-        except Exception as ex:
-            _LOGGER.error(f"Exception in get_max_forecast_pv_estimate(): {ex}")
+        except Exception as e:
+            _LOGGER.error("Exception in get_max_forecast_pv_estimate(): %s", e)
             _LOGGER.error(traceback.format_exc())
             return None
 
     def get_energy_data(self) -> dict[str, Any]:
+        """Get energy data"""
         try:
             return self._dataenergy
-        except Exception as ex:
-            _LOGGER.error(f"Exception in get_energy_data(): {ex}")
+        except Exception as e:
+            _LOGGER.error("Exception in get_energy_data(): %s", e)
             _LOGGER.error(traceback.format_exc())
             return None
 
@@ -1000,21 +1060,21 @@ class SolcastApi:
                 return status
 
             failure = False
-            sitesAttempted = 0
+            sites_attempted = 0
             for site in self._sites:
-                sitesAttempted += 1
-                _LOGGER.info(f"Getting forecast update for Solcast site {site['resource_id']}")
+                sites_attempted += 1
+                _LOGGER.info("Getting forecast update for Solcast site %s", site['resource_id'])
                 result = await self.http_data_call(site['resource_id'], site['apikey'], dopast)
                 if not result:
                     failure = True
-                    if len(self._sites) > sitesAttempted:
+                    if len(self._sites) > sites_attempted:
                         _LOGGER.warning('Forecast update for site %s failed, so not getting remaining sites', site['resource_id'])
                     else:
                         _LOGGER.warning('Forecast update for the last site queued failed (%s), so not getting remaining sites - API use count will look odd', site['resource_id'])
                     status = 'At least one site forecast get failed'
                     break
 
-            if sitesAttempted > 0 and not failure:
+            if sites_attempted > 0 and not failure:
                 self._data["last_updated"] = dt.now(timezone.utc).isoformat()
                 #self._data["weather"] = self._weather
 
@@ -1024,13 +1084,13 @@ class SolcastApi:
 
                 await self.serialize_data()
             else:
-                if sitesAttempted > 0:
+                if sites_attempted > 0:
                     _LOGGER.error("At least one Solcast site forecast failed to fetch, so forecast data has not been built")
                 else:
                     _LOGGER.error("No Solcast sites were attempted, so forecast data has not been built - check for earlier failure to retrieve sites")
                 status = 'At least one site forecast get failed'
-        except Exception as ex:
-            status = 'Exception in http_data(): %s - Forecast data has not been built' % (ex,)
+        except Exception as e:
+            status = f"Exception in http_data(): {e} - Forecast data has not been built"
             _LOGGER.error(status)
             _LOGGER.error(traceback.format_exc())
         return status
@@ -1040,7 +1100,7 @@ class SolcastApi:
         try:
             lastday = self.get_day_start_utc() + timedelta(days=8)
             numhours = math.ceil((lastday - self.get_now_utc()).total_seconds() / 3600)
-            _LOGGER.debug(f"Polling API for site {r_id} lastday {lastday} numhours {numhours}")
+            _LOGGER.debug('Polling API for site %s lastday %d numhours %d', r_id, lastday, numhours)
 
             _data = []
             _data2 = []
@@ -1050,16 +1110,15 @@ class SolcastApi:
                 ae = None
                 resp_dict = await self.fetch_data("estimated_actuals", 168, site=r_id, apikey=api, cachedname="actuals")
                 if not isinstance(resp_dict, dict):
-                    _LOGGER.error(f"No data was returned for Solcast estimated_actuals so this WILL cause errors...")
-                    _LOGGER.error(f"Either your API limit is exhaused, Internet down, or networking is misconfigured...")
-                    _LOGGER.error(f"This almost certainly not a problem with the integration, and sensor values will be wrong"
-                    )
+                    _LOGGER.error('No data was returned for Solcast estimated_actuals so this WILL cause errors...')
+                    _LOGGER.error('Either your API limit is exhaused, Internet down, or networking is misconfigured...')
+                    _LOGGER.error('This almost certainly not a problem with the integration, and sensor values will be wrong')
                     raise TypeError(f"Solcast API did not return a json object. Returned {resp_dict}")
 
                 ae = resp_dict.get("estimated_actuals", None)
 
                 if not isinstance(ae, list):
-                    raise TypeError(f"estimated actuals must be a list, not {type(ae)}")
+                    raise TypeError(f"Estimated actuals must be a list, not {type(ae)}")
 
                 oldest = dt.now(self._tz).replace(hour=0,minute=0,second=0,microsecond=0) - timedelta(days=6)
                 oldest = oldest.astimezone(timezone.utc)
@@ -1092,7 +1151,7 @@ class SolcastApi:
             if not isinstance(af, list):
                 raise TypeError(f"forecasts must be a list, not {type(af)}")
 
-            _LOGGER.debug(f"Solcast returned {len(af)} records")
+            _LOGGER.debug("Solcast returned %d records", len(af))
 
             st_time = time.time()
             for x in af:
@@ -1146,7 +1205,7 @@ class SolcastApi:
 
             self._data['siteinfo'].update({r_id:{'forecasts': copy.deepcopy(_forecasts)}})
 
-            _LOGGER.debug(f"HTTP data call processing took {round(time.time() - st_time, 4)}s")
+            _LOGGER.debug("HTTP data call processing took %.4fs", round(time.time() - st_time, 4))
             return True
         except Exception as ex:
             _LOGGER.error("Exception in http_data_call(): %s", ex)
@@ -1159,23 +1218,23 @@ class SolcastApi:
         try:
             params = {"format": "json", "api_key": apikey, "hours": hours}
             url=f"{self.options.host}/rooftop_sites/{site}/{path}"
-            _LOGGER.debug(f"Fetch data url: {url}")
+            _LOGGER.debug("Fetch data url: %s", url)
 
             async with async_timeout.timeout(900):
-                apiCacheFileName = self.configDir + '/' + cachedname + "_" + site + ".json"
-                if self.apiCacheEnabled and file_exists(apiCacheFileName):
+                api_cache_filename = self._config_dir + '/' + cachedname + "_" + site + ".json"
+                if self.api_cache_enabled and file_exists(api_cache_filename):
                     status = 404
-                    async with aiofiles.open(apiCacheFileName) as f:
+                    async with aiofiles.open(api_cache_filename) as f:
                         resp_json = json.loads(await f.read())
                         status = 200
-                        _LOGGER.debug(f"Offline cached mode enabled, loaded data for site {site}")
+                        _LOGGER.debug("Offline cached mode enabled, loaded data for site %s", site)
                 else:
                     if self._api_used[apikey] < self._api_limit[apikey]:
                         tries = 10
                         counter = 0
                         backoff = 15 # On every retry the back-off increases by (at least) fifteen seconds more than the previous back-off
                         while True:
-                            _LOGGER.debug(f"Fetching forecast")
+                            _LOGGER.debug("Fetching forecast")
                             counter += 1
                             resp: ClientResponse = await self.aiohttp_session.get(
                                 url=url, params=params, ssl=False
@@ -1205,51 +1264,51 @@ class SolcastApi:
                                     break
                                 # Solcast is busy, so delay (15 seconds * counter), plus a random number of seconds between zero and 15
                                 delay = (counter * backoff) + random.randrange(0,15)
-                                _LOGGER.warning(f"The Solcast API is busy, pausing {delay} seconds before retry")
+                                _LOGGER.warning("The Solcast API is busy, pausing %d seconds before retry", delay)
                                 await asyncio.sleep(delay)
                             else:
                                 break
 
                         if status == 200:
-                            _LOGGER.debug(f"Fetch successful")
+                            _LOGGER.debug("Fetch successful")
 
-                            _LOGGER.debug(f"API returned data, API counter incremented from {self._api_used[apikey]} to {self._api_used[apikey] + 1}")
+                            _LOGGER.debug("API returned data, API counter incremented from %d to %d", self._api_used[apikey], self._api_used[apikey] + 1)
                             self._api_used[apikey] += 1
                             await self.write_api_usage_cache_file(apikey)
 
                             resp_json = await resp.json(content_type=None)
 
-                            if self.apiCacheEnabled:
-                                async with aiofiles.open(apiCacheFileName, 'w') as f:
+                            if self.api_cache_enabled:
+                                async with aiofiles.open(api_cache_filename, 'w') as f:
                                     await f.write(json.dumps(resp_json, ensure_ascii=False))
                         elif status == 998: # Exceeded API limit
-                            _LOGGER.error(f"API allowed polling limit has been exceeded, API counter set to {self._api_used[apikey]}/{self._api_limit[apikey]}")
+                            _LOGGER.error("API allowed polling limit has been exceeded, API counter set to %d/%d", self._api_used[apikey], self._api_limit[apikey])
                             return None
                         elif status == 999: # Attempts exhausted
-                            _LOGGER.error(f"API was tried {tries} times, but all attempts failed")
+                            _LOGGER.error("API was tried %d times, but all attempts failed", tries)
                             return None
                         elif status == 1000: # An unexpected response
                             return None
                         else:
-                            _LOGGER.error(f"API returned status {translate(status)}, API used is {self._api_used[apikey]}/{self._api_limit[apikey]}")
+                            _LOGGER.error("API returned status %s, API used is %d/%d", translate(status), self._api_used[apikey], self._api_limit[apikey])
                             return None
                     else:
-                        _LOGGER.warning(f"API polling limit exhausted, not getting forecast, API used is {self._api_used[apikey]}/{self._api_limit[apikey]}")
+                        _LOGGER.warning("API polling limit exhausted, not getting forecast, API used is %d/%d", self._api_used[apikey], self._api_limit[apikey])
                         return None
 
-                _LOGGER.debug(f"HTTP session returned data type {type(resp_json)}")
-                _LOGGER.debug(f"HTTP session status {translate(status)}")
+                _LOGGER.debug("HTTP session returned data type %s", type(resp_json))
+                _LOGGER.debug("HTTP session status %s", translate(status))
 
             if status == 429:
                 _LOGGER.warning("Solcast is too busy, try again later")
             elif status == 400:
                 _LOGGER.warning("Status {translate(status)}: The Solcast site is likely missing capacity, please specify capacity or provide historic data for tuning")
             elif status == 404:
-                _LOGGER.error(f"The Solcast site cannot be found, status {translate(status)} returned")
+                _LOGGER.error("The Solcast site cannot be found, status %s returned", translate(status))
             elif status == 200:
                 d = cast(dict, resp_json)
                 if _FORECAST_DEBUG_LOGGING:
-                    _LOGGER.debug('HTTP session returned: %s' % (str(d),))
+                    _LOGGER.debug("HTTP session returned: %s", str(d))
                 return d
                 #await self.format_json_data(d)
         except ConnectionRefusedError as err:
@@ -1258,12 +1317,13 @@ class SolcastApi:
             _LOGGER.error("Connection error in fetch_data(): %s", str(e))
         except asyncio.TimeoutError:
             _LOGGER.error("Connection error in fetch_data(): Timed out connecting to Solcast API server")
-        except Exception as e:
+        except:
             _LOGGER.error("Exception in fetch_data(): %s", traceback.format_exc())
 
         return None
 
     def makeenergydict(self) -> dict:
+        """Make an energy-compatible dictionary"""
         wh_hours = {}
         try:
             lastv = -1
@@ -1285,7 +1345,7 @@ class SolcastApi:
 
                     lastk = d
                     lastv = v[self._use_data_field]
-        except Exception as e:
+        except:
             _LOGGER.error("Exception in makeenergydict(): %s", traceback.format_exc())
 
         return wh_hours
@@ -1328,7 +1388,12 @@ class SolcastApi:
                                                 "pv_estimate90": min(round((x["pv_estimate90"] * self._damp[h]),4), self._hardlimit)}
 
                         # Record the individual site forecast
-                        _site_fcasts_dict[z] = {"period_start": z, "pv_estimate": round((x["pv_estimate"]),4), "pv_estimate10": round((x["pv_estimate10"]),4), "pv_estimate90": round((x["pv_estimate90"]),4)}
+                        _site_fcasts_dict[z] = {
+                            "period_start": z,
+                            "pv_estimate": round((x["pv_estimate"]),4),
+                            "pv_estimate10": round((x["pv_estimate10"]),4),
+                            "pv_estimate90": round((x["pv_estimate90"]),4),
+                        }
 
                 self._site_data_forecasts[site] = sorted(_site_fcasts_dict.values(), key=itemgetter("period_start"))
 
@@ -1337,33 +1402,34 @@ class SolcastApi:
 
             self._data_forecasts = sorted(_fcasts_dict.values(), key=itemgetter("period_start"))
 
-            self._forecasts_start_idx = self.calcForecastStartIndex()
+            self._forecasts_start_idx = self.calc_forecast_start_index()
 
             self._dataenergy = {"wh_hours": self.makeenergydict()}
 
-            await self.checkDataRecords()
+            await self.check_data_records()
 
             _LOGGER.debug('Calculating splines')
             await self.spline_moments()
             await self.spline_remaining()
 
-            _LOGGER.debug(f"Build forecast processing took {round(time.time()-st_time,4)}s")
+            _LOGGER.debug("Build forecast processing took %.4s", round(time.time()-st_time,4))
 
-        except Exception as e:
+        except:
             _LOGGER.error("Exception in http_data(): %s", traceback.format_exc())
 
 
-    def calcForecastStartIndex(self):
+    def calc_forecast_start_index(self):
+        """Get the start of forecasts as-at just before midnight (Doesn't stop at midnight because some sensors may need the previous interval)"""
         midnight_utc = self.get_day_start_utc()
-        # Search in reverse (less to iterate) and find the interval just before midnight
-        # (Doesn't stop at midnight because some sensors may need the previous interval)
-        for idx in range(len(self._data_forecasts)-1, -1, -1):
-            if self._data_forecasts[idx]["period_start"] < midnight_utc: break
+        for idx in range(len(self._data_forecasts)-1, -1, -1): # Search in reverse (less to iterate)
+            if self._data_forecasts[idx]["period_start"] < midnight_utc:
+                break
         _LOGGER.debug("Calc forecast start index midnight: %s UTC, idx %s, len %s", midnight_utc.strftime('%Y-%m-%d %H:%M:%S'), idx, len(self._data_forecasts))
         return idx
 
 
-    async def checkDataRecords(self):
+    async def check_data_records(self):
+        """Verify that all records are present for each day"""
         for i in range(0, 8):
             start_utc = self.get_day_start_utc() + timedelta(days=i)
             end_utc = start_utc + timedelta(days=1)
@@ -1372,6 +1438,6 @@ class SolcastApi:
 
             da = dt.now(self._tz).date() + timedelta(days=i)
             if num_rec == 48:
-                _LOGGER.debug(f"Data for {da} contains all 48 records")
+                _LOGGER.debug("Data for %s contains all 48 records", da.strftime('%Y-%m-%d'))
             else:
-                _LOGGER.debug(f"Data for {da} contains only {num_rec} of 48 records and may produce inaccurate forecast data")
+                _LOGGER.debug("Data for %s contains only %d of 48 records and may produce inaccurate forecast data", da.strftime('%Y-%m-%d'), num_rec)

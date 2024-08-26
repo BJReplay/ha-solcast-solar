@@ -1,4 +1,7 @@
 """Integration platform for recorder."""
+
+# pylint: disable=C0304, E0401, W0613
+
 from __future__ import annotations
 
 from homeassistant.core import HomeAssistant, callback

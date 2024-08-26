@@ -1,4 +1,7 @@
 """Config flow for Solcast Solar integration"""
+
+# pylint: disable=C0304, E0401, W0702
+
 from __future__ import annotations
 from typing import Any
 
@@ -35,10 +38,10 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         """Handle a flow initiated by the user."""
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
-        
+
         if user_input is not None:
             return self.async_create_entry(
-                title= TITLE, 
+                title= TITLE,
                 data = {},
                 options={
                     CONF_API_KEY: user_input[CONF_API_KEY],
@@ -96,18 +99,20 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         self.config_entry = config_entry
         self.options = dict(config_entry.options)
 
-    async def async_step_init(self, user_input=None):
+    async def async_step_init(self, user_input=None) -> Any:
+        """Initialise steps"""
+
         errors = {}
         if user_input is not None:
             if "solcast_config_action" in user_input:
-                nextAction = user_input["solcast_config_action"]
-                if nextAction == "configure_dampening":
+                next_action = user_input["solcast_config_action"]
+                if next_action == "configure_dampening":
                     return await self.async_step_dampen()
-                elif nextAction == "configure_api":
+                elif next_action == "configure_api":
                     return await self.async_step_api()
-                elif nextAction == "configure_customsensor":
+                elif next_action == "configure_customsensor":
                     return await self.async_step_customsensor()
-                elif nextAction == "configure_attributes":
+                elif next_action == "configure_attributes":
                     return await self.async_step_attributes()
                 else:
                     errors["base"] = "incorrect_options_action"
@@ -132,25 +137,25 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         """Manage the API key/quota"""
 
         errors = {}
-        apiQuota = self.config_entry.options[API_QUOTA]
-        
+        api_quota = self.config_entry.options[API_QUOTA]
+
         if user_input is not None:
             try:
-                apiQuota = user_input[API_QUOTA]
+                api_quota = user_input[API_QUOTA]
 
-                allConfigData = {**self.config_entry.options}
+                all_config_data = {**self.config_entry.options}
                 k = user_input["api_key"].replace(" ","").strip()
                 k = ','.join([s for s in k.split(',') if s])
-                allConfigData["api_key"] = k
-                allConfigData[API_QUOTA] = apiQuota
+                all_config_data["api_key"] = k
+                all_config_data[API_QUOTA] = api_quota
 
                 self.hass.config_entries.async_update_entry(
                     self.config_entry,
                     title=TITLE,
-                    options=allConfigData,
+                    options=all_config_data,
                 )
                 return self.async_create_entry(title=TITLE, data=None)
-            except Exception as e:
+            except:
                 errors["base"] = "unknown"
 
         return self.async_show_form(
@@ -193,7 +198,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         damp21 = self.config_entry.options["damp21"]
         damp22 = self.config_entry.options["damp22"]
         damp23 = self.config_entry.options["damp23"]
-        
+
         if user_input is not None:
             try:
                 damp00 = user_input["damp00"]
@@ -221,40 +226,40 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 damp22 = user_input["damp22"]
                 damp23 = user_input["damp23"]
 
-                allConfigData = {**self.config_entry.options}
-                allConfigData["damp00"] = damp00
-                allConfigData["damp01"] = damp01
-                allConfigData["damp02"] = damp02
-                allConfigData["damp03"] = damp03
-                allConfigData["damp04"] = damp04
-                allConfigData["damp05"] = damp05
-                allConfigData["damp06"] = damp06
-                allConfigData["damp07"] = damp07
-                allConfigData["damp08"] = damp08
-                allConfigData["damp09"] = damp09
-                allConfigData["damp10"] = damp10
-                allConfigData["damp11"] = damp11
-                allConfigData["damp12"] = damp12
-                allConfigData["damp13"] = damp13
-                allConfigData["damp14"] = damp14
-                allConfigData["damp15"] = damp15
-                allConfigData["damp16"] = damp16
-                allConfigData["damp17"] = damp17
-                allConfigData["damp18"] = damp18
-                allConfigData["damp19"] = damp19
-                allConfigData["damp20"] = damp20
-                allConfigData["damp21"] = damp21
-                allConfigData["damp22"] = damp22
-                allConfigData["damp23"] = damp23
+                all_config_data = {**self.config_entry.options}
+                all_config_data["damp00"] = damp00
+                all_config_data["damp01"] = damp01
+                all_config_data["damp02"] = damp02
+                all_config_data["damp03"] = damp03
+                all_config_data["damp04"] = damp04
+                all_config_data["damp05"] = damp05
+                all_config_data["damp06"] = damp06
+                all_config_data["damp07"] = damp07
+                all_config_data["damp08"] = damp08
+                all_config_data["damp09"] = damp09
+                all_config_data["damp10"] = damp10
+                all_config_data["damp11"] = damp11
+                all_config_data["damp12"] = damp12
+                all_config_data["damp13"] = damp13
+                all_config_data["damp14"] = damp14
+                all_config_data["damp15"] = damp15
+                all_config_data["damp16"] = damp16
+                all_config_data["damp17"] = damp17
+                all_config_data["damp18"] = damp18
+                all_config_data["damp19"] = damp19
+                all_config_data["damp20"] = damp20
+                all_config_data["damp21"] = damp21
+                all_config_data["damp22"] = damp22
+                all_config_data["damp23"] = damp23
 
                 self.hass.config_entries.async_update_entry(
                     self.config_entry,
                     title=TITLE,
-                    options=allConfigData,
+                    options=all_config_data,
                 )
-                
+
                 return self.async_create_entry(title=TITLE, data=None)
-            except Exception as e:
+            except:
                 errors["base"] = "unknown"
 
         return self.async_show_form(
@@ -320,22 +325,22 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         errors = {}
 
         customhoursensor = self.config_entry.options[CUSTOM_HOUR_SENSOR]
-        
+
         if user_input is not None:
             try:
                 customhoursensor = user_input[CUSTOM_HOUR_SENSOR]
 
-                allConfigData = {**self.config_entry.options}
-                allConfigData[CUSTOM_HOUR_SENSOR] = customhoursensor
+                all_config_data = {**self.config_entry.options}
+                all_config_data[CUSTOM_HOUR_SENSOR] = customhoursensor
 
                 self.hass.config_entries.async_update_entry(
                     self.config_entry,
                     title=TITLE,
-                    options=allConfigData,
+                    options=all_config_data,
                 )
-                
+
                 return self.async_create_entry(title=TITLE, data=None)
-            except Exception as e:
+            except:
                 errors["base"] = "unknown"
 
         return self.async_show_form(
@@ -348,55 +353,55 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             ),
             errors=errors,
         )
-    
+
     async def async_step_attributes(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Manage the attributes present"""
 
         errors = {}
 
-        estimateBreakdown = self.config_entry.options[BRK_ESTIMATE]
-        estimateBreakdown10 = self.config_entry.options[BRK_ESTIMATE10]
-        estimateBreakdown90 = self.config_entry.options[BRK_ESTIMATE90]
-        siteBreakdown = self.config_entry.options[BRK_SITE]
-        halfHourly = self.config_entry.options[BRK_HALFHOURLY]
+        estimate_breakdown = self.config_entry.options[BRK_ESTIMATE]
+        estimate_breakdown10 = self.config_entry.options[BRK_ESTIMATE10]
+        estimate_breakdown90 = self.config_entry.options[BRK_ESTIMATE90]
+        site_breakdown = self.config_entry.options[BRK_SITE]
+        half_hourly = self.config_entry.options[BRK_HALFHOURLY]
         hourly = self.config_entry.options[BRK_HOURLY]
-        
+
         if user_input is not None:
             try:
-                estimateBreakdown = user_input[BRK_ESTIMATE]
-                estimateBreakdown10 = user_input[BRK_ESTIMATE10]
-                estimateBreakdown90 = user_input[BRK_ESTIMATE90]
-                siteBreakdown = user_input[BRK_SITE]
-                halfHourly = user_input[BRK_HALFHOURLY]
+                estimate_breakdown = user_input[BRK_ESTIMATE]
+                estimate_breakdown10 = user_input[BRK_ESTIMATE10]
+                estimate_breakdown90 = user_input[BRK_ESTIMATE90]
+                site_breakdown = user_input[BRK_SITE]
+                half_hourly = user_input[BRK_HALFHOURLY]
                 hourly = user_input[BRK_HOURLY]
 
-                allConfigData = {**self.config_entry.options}
-                allConfigData[BRK_ESTIMATE] = estimateBreakdown
-                allConfigData[BRK_ESTIMATE10] = estimateBreakdown10
-                allConfigData[BRK_ESTIMATE90] = estimateBreakdown90
-                allConfigData[BRK_SITE] = siteBreakdown
-                allConfigData[BRK_HALFHOURLY] = halfHourly
-                allConfigData[BRK_HOURLY] = hourly
+                all_config_data = {**self.config_entry.options}
+                all_config_data[BRK_ESTIMATE] = estimate_breakdown
+                all_config_data[BRK_ESTIMATE10] = estimate_breakdown10
+                all_config_data[BRK_ESTIMATE90] = estimate_breakdown90
+                all_config_data[BRK_SITE] = site_breakdown
+                all_config_data[BRK_HALFHOURLY] = half_hourly
+                all_config_data[BRK_HOURLY] = hourly
 
                 self.hass.config_entries.async_update_entry(
                     self.config_entry,
                     title=TITLE,
-                    options=allConfigData,
+                    options=all_config_data,
                 )
-                
+
                 return self.async_create_entry(title=TITLE, data=None)
-            except Exception as e:
+            except:
                 errors["base"] = "unknown"
 
         return self.async_show_form(
             step_id="attributes",
             data_schema=vol.Schema(
                 {
-                    vol.Required(BRK_ESTIMATE10, description={"suggested_value": estimateBreakdown10}): bool,
-                    vol.Required(BRK_ESTIMATE, description={"suggested_value": estimateBreakdown}): bool,
-                    vol.Required(BRK_ESTIMATE90, description={"suggested_value": estimateBreakdown90}): bool,
-                    vol.Required(BRK_SITE, description={"suggested_value": siteBreakdown}): bool,
-                    vol.Required(BRK_HALFHOURLY, description={"suggested_value": halfHourly}): bool,
+                    vol.Required(BRK_ESTIMATE10, description={"suggested_value": estimate_breakdown10}): bool,
+                    vol.Required(BRK_ESTIMATE, description={"suggested_value": estimate_breakdown}): bool,
+                    vol.Required(BRK_ESTIMATE90, description={"suggested_value": estimate_breakdown90}): bool,
+                    vol.Required(BRK_SITE, description={"suggested_value": site_breakdown}): bool,
+                    vol.Required(BRK_HALFHOURLY, description={"suggested_value": half_hourly}): bool,
                     vol.Required(BRK_HOURLY, description={"suggested_value": hourly}): bool,
                 }
             ),

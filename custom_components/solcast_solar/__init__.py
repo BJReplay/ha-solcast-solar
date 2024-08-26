@@ -1,14 +1,17 @@
 """Support for Solcast PV forecast."""
 
+# pylint: disable=C0304, C0321, E0401, E1135, W0212, W0613, W0702, W0718
+
 import logging
 import traceback
 import random
 import os
 import json
-import aiofiles
-import os.path as path
 from datetime import timedelta
+from typing import Final
+import aiofiles
 
+import voluptuous as vol
 from homeassistant import loader
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, Platform
@@ -44,10 +47,6 @@ from .const import (
 
 from .coordinator import SolcastUpdateCoordinator
 from .solcastapi import ConnectionOptions, SolcastApi
-
-from typing import Final
-
-import voluptuous as vol
 
 PLATFORMS = [Platform.SENSOR, Platform.SELECT,]
 
@@ -97,7 +96,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Introduced in core 2024.6.0: async_get_time_zone
     try:
-        dt_util.async_get_time_zone
+        dt_util.async_get_time_zone # pylint: disable=W0104
         asynctz = True
     except:
         asynctz = False
@@ -110,7 +109,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.options[CONF_API_KEY],
         entry.options[API_QUOTA],
         SOLCAST_URL,
-        hass.config.path('%s/solcast.json' % os.path.abspath(os.path.join(os.path.dirname(__file__) ,"../.."))),
+        hass.config.path(f"{os.path.abspath(os.path.join(os.path.dirname(__file__) ,'../..'))}/solcast.json"),
         tz,
         optdamp,
         entry.options.get(CUSTOM_HOUR_SENSOR, 1),
@@ -128,7 +127,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         await solcast.sites_data()
-        if solcast._sites_loaded: await solcast.sites_usage()
+        if solcast._sites_loaded:
+            await solcast.sites_usage()
     except Exception as ex:
         raise ConfigEntryNotReady(f"Getting sites data failed: {ex}") from ex
 
@@ -139,22 +139,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if status != '':
         raise ConfigEntryNotReady(status)
 
-    _VERSION = ""
     try:
+        _VERSION = ""  # pylint: disable=C0103
         integration = await loader.async_get_integration(hass, DOMAIN)
-        _VERSION = str(integration.version)
-        _LOGGER.info(
-            f"\n{'-'*67}\n"
-            f"Solcast integration version: {_VERSION}\n\n"
-            f"This is a custom integration. When troubleshooting a problem, after\n"
-            f"reviewing open and closed issues, and the discussions, check the\n"
-            f"required automation is functioning correctly and try enabling debug\n"
-            f"logging to see more. Troubleshooting tips available at:\n"
-            f"https://github.com/BJReplay/ha-solcast-solar/discussions/38\n\n"
-            f"Beta versions may also have addressed some issues so look at those.\n\n"
-            f"If all else fails, then open an issue and our community will try to\n"
-            f"help: https://github.com/BJReplay/ha-solcast-solar/issues\n"
-            f"{'-'*67}")
+        _VERSION = str(integration.version) # pylint: disable=C0103
+        _LOGGER.info('''
+"\n%s\n
+Solcast integration version: %s\n\n"
+This is a custom integration. When troubleshooting a problem, after\n"
+reviewing open and closed issues, and the discussions, check the\n"
+required automation is functioning correctly and try enabling debug\n"
+logging to see more. Troubleshooting tips available at:\n"
+https://github.com/BJReplay/ha-solcast-solar/discussions/38\n\n"
+Beta versions may also have addressed some issues so look at those.\n\n"
+If all else fails, then open an issue and our community will try to\n"
+help: https://github.com/BJReplay/ha-solcast-solar/issues\n"
+%s''', '-'*67, _VERSION, '-'*67)
     except loader.IntegrationNotFound:
         pass
 
@@ -170,13 +170,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
-    _LOGGER.debug(f"UTC times are converted to {hass.config.time_zone}")
+    _LOGGER.debug("UTC times are converted to %s", hass.config.time_zone)
 
     if options.hard_limit < 100:
-        _LOGGER.info(
-            f"Solcast inverter hard limit value has been set. If the forecasts and graphs are not as you expect, try running the service 'solcast_solar.remove_hard_limit' to remove this setting. "
-            f"This setting is really only for advanced quirky solar setups."
-        )
+        _LOGGER.info("Solcast inverter hard limit value has been set. If the forecasts and graphs are not as you expect, remove this setting")
 
     # If the integration has failed for some time and then is restarted retrieve forecasts
     if solcast.get_api_used_count() == 0 and solcast.get_last_updated_datetime() < solcast.get_day_start_utc() - timedelta(days=1):
@@ -187,24 +184,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             coordinator._dataUpdated = True
             await coordinator.update_integration_listeners()
             coordinator._dataUpdated = False
-        except Exception as ex:
-            _LOGGER.error("Exception force fetching data on stale start: %s", ex)
+        except Exception as e:
+            _LOGGER.error("Exception force fetching data on stale start: %s", e)
             _LOGGER.error(traceback.format_exc())
 
     async def handle_service_update_forecast(call: ServiceCall):
         """Handle service call"""
-        _LOGGER.info(f"Service call: {SERVICE_UPDATE}")
+        _LOGGER.info("Service call: %s", SERVICE_UPDATE)
         await coordinator.service_event_update()
 
     async def handle_service_clear_solcast_data(call: ServiceCall):
         """Handle service call"""
-        _LOGGER.info(f"Service call: {SERVICE_CLEAR_DATA}")
+        _LOGGER.info("Service call: %s", SERVICE_CLEAR_DATA)
         await coordinator.service_event_delete_old_solcast_json_file()
 
     async def handle_service_get_solcast_data(call: ServiceCall) -> ServiceResponse:
         """Handle service call"""
         try:
-            _LOGGER.info(f"Service call: {SERVICE_QUERY_FORECAST_DATA}")
+            _LOGGER.info("Service call: %s", SERVICE_QUERY_FORECAST_DATA)
 
             start = call.data.get(EVENT_START_DATETIME, dt_util.now())
             end = call.data.get(EVENT_END_DATETIME, dt_util.now())
@@ -221,12 +218,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_service_set_dampening(call: ServiceCall):
         """Handle service call"""
         try:
-            _LOGGER.info(f"Service call: {SERVICE_SET_DAMPENING}")
+            _LOGGER.info("Service call: %s", SERVICE_SET_DAMPENING)
 
             factors = call.data.get(DAMP_FACTOR, None)
 
-            if factors == None:
-                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Empty factor string")
+            if factors is None:
+                raise HomeAssistantError("Error processing {SERVICE_SET_DAMPENING}: Empty factor string")
             else:
                 factors = factors.strip().replace(" ","")
                 if len(factors) == 0:
@@ -254,12 +251,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def handle_service_set_hard_limit(call: ServiceCall):
         """Handle service call"""
         try:
-            _LOGGER.info(f"Service call: {SERVICE_SET_HARD_LIMIT}")
+            _LOGGER.info("Service call: %s", SERVICE_SET_HARD_LIMIT)
 
             hl = call.data.get(HARD_LIMIT, 100000)
 
 
-            if hl == None:
+            if hl is None:
                 raise HomeAssistantError(f"Error processing {SERVICE_SET_HARD_LIMIT}: Empty hard limit value")
             else:
                 val = int(hl)
@@ -271,15 +268,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 # solcast._hardlimit = val
                 hass.config_entries.async_update_entry(entry, options=opt)
 
-        except ValueError:
-            raise HomeAssistantError(f"Error processing {SERVICE_SET_HARD_LIMIT}: Hard limit value not a positive number")
+        except ValueError as err:
+            raise HomeAssistantError(f"Error processing {SERVICE_SET_HARD_LIMIT}: Hard limit value not a positive number") from err
         except intent.IntentHandleError as err:
             raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: {err}") from err
 
     async def handle_service_remove_hard_limit(call: ServiceCall):
         """Handle service call"""
         try:
-            _LOGGER.info(f"Service call: {SERVICE_REMOVE_HARD_LIMIT}")
+            _LOGGER.info("Service call: %s", SERVICE_REMOVE_HARD_LIMIT)
 
             opt = {**entry.options}
             opt[HARD_LIMIT] = 100000
@@ -315,7 +312,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry."""
+    """Unload a config entry"""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
@@ -330,6 +327,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device) -> bool:
+    """Remove ConfigEntry device"""
     device_registry(hass).async_remove_device(device.id)
     return True
 
@@ -338,7 +336,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     await hass.config_entries.async_reload(entry.entry_id)
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
-    """Migrate old entry."""
+    """Migrate old entry"""
     def upgraded():
         _LOGGER.debug("Upgraded to options version %s", config_entry.version)
 
@@ -437,10 +435,10 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
         new = {**config_entry.options}
         try:
             default = []
-            configDir = path.abspath(path.join(path.dirname(__file__) ,"../.."))
+            _config_dir = os.path.abspath(os.path.join(os.path.dirname(__file__) ,"../.."))
             for spl in new[CONF_API_KEY].split(','):
-                apiCacheFileName = "%s/solcast-usage%s.json" % (configDir, "" if len(new[CONF_API_KEY].split(',')) < 2 else "-" + spl.strip())
-                async with aiofiles.open(apiCacheFileName) as f:
+                api_cache_filename = f"{_config_dir}/solcast-usage{'' if len(new[CONF_API_KEY].split(',')) < 2 else '-' + spl.strip()}.json"
+                async with aiofiles.open(api_cache_filename) as f:
                     usage = json.loads(await f.read())
                 default.append(str(usage['daily_limit']))
             default = ','.join(default)

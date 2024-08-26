@@ -1,4 +1,7 @@
 """Energy platform"""
+
+# pylint: disable=C0304, E0401
+
 from __future__ import annotations
 
 import logging

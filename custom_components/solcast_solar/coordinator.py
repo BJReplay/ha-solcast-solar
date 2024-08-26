@@ -1,6 +1,11 @@
 """The Solcast Solar coordinator"""
+
+# pylint: disable=C0302, C0304, C0321, E0401, R0902, R0914, W0212, W0105, W0613, W0702, W0706, W0719
+
 from __future__ import annotations
 from datetime import datetime as dt
+
+from typing import Any, Dict
 
 import logging
 import traceback
@@ -25,9 +30,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._hass = hass
         self._previousenergy = None
         self._version = version
-        self._lastDay = None
-        self._dayChanged = False
-        self._dataUpdated = False
+        self._last_day = None
+        self._date_changed = False
+        self._data_updated = False
 
         super().__init__(
             hass,
@@ -40,68 +45,76 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """Update data via library"""
         return self.solcast._data
 
-    async def setup(self):
+    async def setup(self) -> None:
+        """Set up time change tracking"""
         d={}
         self._previousenergy = d
-        self._lastDay = dt.now(self.solcast._tz).day
+        self._last_day = dt.now(self.solcast._tz).day
         try:
             #4.0.18 - added reset usage call to reset usage sensors at UTC midnight
             async_track_utc_time_change(self._hass, self.update_utcmidnight_usage_sensor_data, hour=0,minute=0,second=0)
             async_track_utc_time_change(self._hass, self.update_integration_listeners, minute=range(0, 60, 5), second=0)
-        except Exception as error:
+        except:
             _LOGGER.error("Exception in Solcast coordinator setup: %s", traceback.format_exc())
 
 
-    async def update_integration_listeners(self, *args):
+    async def update_integration_listeners(self, *args) -> None:
+        """Get updated sensor values"""
         try:
-            crtDay = dt.now(self.solcast._tz).day
-            self._dateChanged = (crtDay != self._lastDay)
-            if self._dateChanged:
-                self._lastDay = crtDay
+            current_day = dt.now(self.solcast._tz).day
+            self._date_changed = current_day != self._last_day
+            if self._date_changed:
+                self._last_day = current_day
                 #4.0.41 - recalculate splines at midnight local
                 await self.update_midnight_spline_recalc()
 
             self.async_update_listeners()
-        except Exception:
+        except:
             #_LOGGER.error("update_integration_listeners: %s", traceback.format_exc())
             pass
 
-    async def update_utcmidnight_usage_sensor_data(self, *args):
+    async def update_utcmidnight_usage_sensor_data(self, *args) -> None:
+        """Resets tracked API usage at midnight UTC"""
         try:
             await self.solcast.reset_api_usage()
-        except Exception:
+        except:
             #_LOGGER.error("Exception in update_utcmidnight_usage_sensor_data(): %s", traceback.format_exc())
             pass
 
-    async def update_midnight_spline_recalc(self, *args):
+    async def update_midnight_spline_recalc(self, *args) -> None:
+        """Re-calculates splines at midnight local time"""
         try:
             _LOGGER.debug('Recalculating splines')
             await self.solcast.spline_moments()
             await self.solcast.spline_remaining()
-        except Exception:
+        except:
             _LOGGER.error("Exception in update_midnight_spline_recalc(): %s", traceback.format_exc())
-            pass
 
-    async def service_event_update(self, *args):
+    async def service_event_update(self, *args) -> None:
+        """Get updated forecast data when requested by a service call"""
         try:
             #await self.solcast.sites_weather()
             await self.solcast.http_data(dopast=False)
-            self._dataUpdated = True
+            self._data_updated = True
             await self.update_integration_listeners()
-            self._dataUpdated = False
-        except Exception as ex:
+            self._data_updated = False
+        except:
             _LOGGER.error("Exception in service_event_update(): %s", traceback.format_exc())
 
-    async def service_event_delete_old_solcast_json_file(self, *args):
+    async def service_event_delete_old_solcast_json_file(self, *args) -> None:
+        """Delete the solcast.json file when requested by a service call"""
         await self.solcast.delete_solcast_file()
 
     async def service_query_forecast_data(self, *args) -> tuple:
+        """Return forecast data requested by a service call"""
         return await self.solcast.get_forecast_list(*args)
 
-    def get_energy_tab_data(self):
+    def get_energy_tab_data(self) -> dict[str, Any]:
+        """Return an energy page compatible dictionary"""
         return self.solcast.get_energy_data()
 
-    def get_sensor_value(self, key=""):
+    def get_sensor_value(self, key="") -> (int | dt | float | Any | str | bool | None):
+        """Return the value of a sensor"""
         match key:
             case "peak_w_today":
                 return self.solcast.get_peak_w_day(0)
@@ -152,7 +165,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             case _:
                 return None
 
-    def get_sensor_extra_attributes(self, key=""):
+    def get_sensor_extra_attributes(self, key="") -> (Dict[str, Any] | None):
+        """Return the attributes for a sensor"""
         match key:
             case "forecast_this_hour":
                 return self.solcast.get_forecasts_n_hour(0)
@@ -207,14 +221,16 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             case _:
                 return None
 
-    def get_site_sensor_value(self, roof_id, key):
+    def get_site_sensor_value(self, roof_id, key) -> (float | None):
+        """Get the site total for today"""
         match key:
             case "site_data":
                 return self.solcast.get_rooftop_site_total_today(roof_id)
             case _:
                 return None
 
-    def get_site_sensor_extra_attributes(self, roof_id, key):
+    def get_site_sensor_extra_attributes(self, roof_id, key) -> (dict[str, Any] | None):
+        """Get the attributes for a sensor"""
         match key:
             case "site_data":
                 return self.solcast.get_rooftop_site_extra_data(roof_id)

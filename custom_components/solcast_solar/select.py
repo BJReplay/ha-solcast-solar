@@ -1,4 +1,7 @@
 """Selector to allow users to select the pv_ data field to use for calcualtions."""
+
+# pylint: disable=C0304, E0401, W0212
+
 import logging
 
 from enum import IntEnum
@@ -32,7 +35,6 @@ class PVEstimateMode(IntEnum):
     ESTIMATE - Default forecasts
     ESTIMATE10 = Forecasts 10 - cloudier than expected scenario
     ESTIMATE90 = Forecasts 90 - less cloudy than expected scenario
-    
     """
 
     ESTIMATE = 0
@@ -63,12 +65,12 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-
+    """Setup entry"""
     coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     try:
         est_mode = coordinator.solcast.options.key_estimate
-    except (ValueError):
+    except ValueError:
         _LOGGER.debug("Could not read estimate mode", exc_info=True)
     else:
         entity = EstimateModeEntity(
@@ -84,7 +86,7 @@ async def async_setup_entry(
 class EstimateModeEntity(SelectEntity):
     """Entity representing the solcast estimate field to use for calculations."""
 
-    _attr_attribution = ATTRIBUTION 
+    _attr_attribution = ATTRIBUTION
     _attr_should_poll = False
     _attr_has_entity_name = True
 
@@ -103,7 +105,7 @@ class EstimateModeEntity(SelectEntity):
 
         self.entity_description = entity_description
         self._attr_unique_id = f"{entity_description.key}"
-    
+
         self._attr_options = supported_options
         self._attr_current_option = current_option
 
@@ -114,7 +116,7 @@ class EstimateModeEntity(SelectEntity):
 
         self._attr_device_info = {
             ATTR_IDENTIFIERS: {(DOMAIN, entry.entry_id)},
-            ATTR_NAME: "Solcast PV Forecast", 
+            ATTR_NAME: "Solcast PV Forecast",
             ATTR_MANUFACTURER: "BJReplay",
             ATTR_MODEL: "Solcast PV Forecast",
             ATTR_ENTRY_TYPE: DeviceEntryType.SERVICE,

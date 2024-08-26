@@ -1,4 +1,7 @@
 """Provide info to system health."""
+
+# pylint: disable=C0304, E0401, W0212, W0613
+
 from __future__ import annotations
 
 from typing import Any
