@@ -143,17 +143,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _VERSION = ""  # pylint: disable=C0103
         integration = await loader.async_get_integration(hass, DOMAIN)
         _VERSION = str(integration.version) # pylint: disable=C0103
-        _LOGGER.info('''
-"\n%s\n
-Solcast integration version: %s\n\n"
-This is a custom integration. When troubleshooting a problem, after\n"
-reviewing open and closed issues, and the discussions, check the\n"
-required automation is functioning correctly and try enabling debug\n"
-logging to see more. Troubleshooting tips available at:\n"
-https://github.com/BJReplay/ha-solcast-solar/discussions/38\n\n"
-Beta versions may also have addressed some issues so look at those.\n\n"
-If all else fails, then open an issue and our community will try to\n"
-help: https://github.com/BJReplay/ha-solcast-solar/issues\n"
+        _LOGGER.info('''\n%s
+Solcast integration version: %s\n
+This is a custom integration. When troubleshooting a problem, after
+reviewing open and closed issues, and the discussions, check the
+required automation is functioning correctly and try enabling debug
+logging to see more. Troubleshooting tips available at:
+https://github.com/BJReplay/ha-solcast-solar/discussions/38\n
+Beta versions may also have addressed some issues so look at those.\n
+If all else fails, then open an issue and our community will try to
+help: https://github.com/BJReplay/ha-solcast-solar/issues
 %s''', '-'*67, _VERSION, '-'*67)
     except loader.IntegrationNotFound:
         pass
