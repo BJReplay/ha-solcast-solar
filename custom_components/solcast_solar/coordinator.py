@@ -11,7 +11,6 @@ import logging
 import traceback
 
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.event import async_track_utc_time_change
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator

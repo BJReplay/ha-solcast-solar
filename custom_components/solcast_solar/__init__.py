@@ -180,9 +180,9 @@ help: https://github.com/BJReplay/ha-solcast-solar/issues
             _LOGGER.info('Integration has been failed for some time, or your update automation has not been running (see readme). Retrieving forecasts.')
             #await solcast.sites_weather()
             await solcast.http_data(dopast=False)
-            coordinator._dataUpdated = True
+            coordinator._data_updated = True
             await coordinator.update_integration_listeners()
-            coordinator._dataUpdated = False
+            coordinator._data_updated = False
         except Exception as e:
             _LOGGER.error("Exception force fetching data on stale start: %s", e)
             _LOGGER.error(traceback.format_exc())

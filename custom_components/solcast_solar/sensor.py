@@ -368,11 +368,11 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         """Handle updated data from the coordinator."""
 
         # these sensors will pick-up the change on the next interval update (5mins)
-        if self.update_policy == SensorUpdatePolicy.EVERY_TIME_INTERVAL and self.coordinator._dataUpdated:
+        if self.update_policy == SensorUpdatePolicy.EVERY_TIME_INTERVAL and self.coordinator._data_updated:
             return
 
         # these sensors update when the date changed or when there is new data
-        if self.update_policy == SensorUpdatePolicy.DEFAULT and not (self.coordinator._dateChanged or self.coordinator._dataUpdated) :
+        if self.update_policy == SensorUpdatePolicy.DEFAULT and not (self.coordinator._date_changed or self.coordinator._data_updated) :
             return
 
         try:
