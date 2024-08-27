@@ -1100,7 +1100,7 @@ class SolcastApi:
         try:
             lastday = self.get_day_start_utc() + timedelta(days=8)
             numhours = math.ceil((lastday - self.get_now_utc()).total_seconds() / 3600)
-            _LOGGER.debug('Polling API for site %s lastday %d numhours %d', r_id, lastday, numhours)
+            _LOGGER.debug('Polling API for site %s lastday %s numhours %d', r_id, lastday.strftime('%Y-%m-%d'), numhours)
 
             _data = []
             _data2 = []
