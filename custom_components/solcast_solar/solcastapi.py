@@ -264,7 +264,7 @@ class SolcastApi:
                             )
 
                             status = resp.status
-                            _LOGGER.debug("HTTP session returned status %s in sites_data(), trying cache", translate(status))
+                            _LOGGER.debug("HTTP session returned status %s in sites_data()%s", translate(status), ', trying cache' if status != 200 else '')
                             try:
                                 resp_json = await resp.json(content_type=None)
                             except json.decoder.JSONDecodeError:
