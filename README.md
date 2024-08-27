@@ -550,7 +550,8 @@ series:
 
 ## Known issues
 
-If a hard limit or dampening factors are set then the individual sites breakdown attributes will not be limited by these factors. The only way to implement this would be to have separate hard limits and dampening factors for each site, and this would become overly complex.
+* Code was added that checked whether the integration had been down for a long time, and if so then on next start it would automatically poll Solcast. This feature is now broken, caused by Solcast removing the API call to get current usage.
+* If a hard limit or dampening factors are set then the individual sites breakdown attributes will not be limited by these factors. The only way to implement this would be to have separate hard limits and dampening factors for each site, and this would become overly complex.
 
 ## Changes
 
