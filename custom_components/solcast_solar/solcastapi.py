@@ -1112,10 +1112,13 @@ class SolcastApi:
                 result = await self.http_data_call(site['resource_id'], site['apikey'], dopast)
                 if not result:
                     failure = True
-                    if len(self._sites) > sites_attempted:
-                        _LOGGER.warning('Forecast update for site %s failed, so not getting remaining sites', site['resource_id'])
+                    if len(self._sites) > 1:
+                        if sites_attempted < len(self._sites):
+                            _LOGGER.warning('Forecast update for site %s failed so not getting remaining sites%s', site['resource_id'], ' - API use count may look odd' if len(self._sites > 2) else '')
+                        else:
+                            _LOGGER.warning('Forecast update for the last site queued failed (%s) so not getting remaining sites - API use count may look odd', site['resource_id'])
                     else:
-                        _LOGGER.warning('Forecast update for the last site queued failed (%s), so not getting remaining sites - API use count will look odd', site['resource_id'])
+                        _LOGGER.warning('Forecast update for site %s failed', site['resource_id'])
                     status = 'At least one site forecast get failed'
                     break
 
