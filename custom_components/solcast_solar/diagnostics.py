@@ -1,6 +1,6 @@
 """Support for the Solcast diagnostics."""
 
-# pylint: disable=C0304, E0401, W0212
+# pylint: disable=C0304, E0401
 
 from __future__ import annotations
 
@@ -25,12 +25,12 @@ async def async_get_config_entry_diagnostics(
     coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
 
     return {
-        "tz_conversion": coordinator.solcast._tz,
+        "tz_conversion": coordinator.solcast.get_tz(),
         "used_api_requests": coordinator.solcast.get_api_used_count(),
         "api_request_limit": coordinator.solcast.get_api_limit(),
-        "rooftop_site_count": len(coordinator.solcast._sites),
-        "forecast_hard_limit_set": coordinator.solcast._hardlimit < 100,
+        "rooftop_site_count": len(coordinator.solcast.get_sites()),
+        "forecast_hard_limit_set": coordinator.solcast.get_hardlimit() < 100,
         "data": (coordinator.data, TO_REDACT),
-        "energy_history_graph": coordinator._previousenergy,
-        "energy_forecasts_graph": coordinator.solcast._dataenergy["wh_hours"],
+        "energy_history_graph": coordinator.get_previousenergy(),
+        "energy_forecasts_graph": coordinator.solcast.get_energy_data()["wh_hours"],
     }

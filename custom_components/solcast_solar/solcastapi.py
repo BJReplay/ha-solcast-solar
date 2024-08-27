@@ -149,6 +149,34 @@ class SolcastApi:
         #self._weather = ""
         _LOGGER.debug("Configuration directory is %s", self._config_dir)
 
+    def get_tz(self) -> str:
+        """Return the time zone"""
+        return self._tz
+
+    def sites_loaded(self) -> bool:
+        """Return the active sites"""
+        return self._sites_loaded
+
+    def get_sites(self) -> dict[str, Any]:
+        """Return the active sites"""
+        return self._sites
+
+    def get_data(self) -> dict[str, Any]:
+        """Return the data dictionary"""
+        return self._data
+
+    def get_customhoursensor(self) -> int:
+        """Return the custom hour sensor"""
+        return self._customhoursensor
+
+    def get_hardlimit(self) -> int:
+        """Return the hard limit"""
+        return self._hardlimit
+
+    def set_damp(self, d) -> None:
+        """Set the dampening dictionary"""
+        self._damp = d
+
     async def serialize_data(self):
         """Serialize data to file"""
         try:

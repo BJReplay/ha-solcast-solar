@@ -1,6 +1,6 @@
 """Support for Solcast PV forecast."""
 
-# pylint: disable=C0304, C0321, E0401, E1135, W0212, W0613, W0702, W0718
+# pylint: disable=C0304, C0321, E0401, E1135, W0613, W0702, W0718
 
 import logging
 import traceback
@@ -127,12 +127,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         await solcast.sites_data()
-        if solcast._sites_loaded:
+        if solcast.sites_loaded():
             await solcast.sites_usage()
     except Exception as ex:
         raise ConfigEntryNotReady(f"Getting sites data failed: {ex}") from ex
 
-    if not solcast._sites_loaded:
+    if not solcast.sites_loaded():
         raise ConfigEntryNotReady('Sites data could not be retrieved')
 
     status = await solcast.load_saved_data()
@@ -180,9 +180,9 @@ help: https://github.com/BJReplay/ha-solcast-solar/issues
             _LOGGER.info('Integration has been failed for some time, or your update automation has not been running (see readme). Retrieving forecasts.')
             #await solcast.sites_weather()
             await solcast.http_data(dopast=False)
-            coordinator._data_updated = True
+            coordinator.set_data_updated(True)
             await coordinator.update_integration_listeners()
-            coordinator._data_updated = False
+            coordinator.set_data_updated(False)
         except Exception as e:
             _LOGGER.error("Exception force fetching data on stale start: %s", e)
             _LOGGER.error(traceback.format_exc())
@@ -242,7 +242,7 @@ help: https://github.com/BJReplay/ha-solcast-solar/issues
                             d.update({f"{i}": float(sp[i])})
                             opt[f"damp{i:02}"] = float(sp[i])
 
-                        solcast._damp = d
+                        solcast.set_damp(d)
                         hass.config_entries.async_update_entry(entry, options=opt)
         except intent.IntentHandleError as err:
             raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: {err}") from err
@@ -264,7 +264,6 @@ help: https://github.com/BJReplay/ha-solcast-solar/issues
 
                 opt = {**entry.options}
                 opt[HARD_LIMIT] = val
-                # solcast._hardlimit = val
                 hass.config_entries.async_update_entry(entry, options=opt)
 
         except ValueError as err:
