@@ -83,7 +83,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     async def update_midnight_spline_recalc(self, *args) -> None:
         """Re-calculates splines at midnight local time"""
         try:
-            _LOGGER.debug('Recalculating splines')
+            _LOGGER.debug("Recalculating splines")
             await self.solcast.spline_moments()
             await self.solcast.spline_remaining()
         except:

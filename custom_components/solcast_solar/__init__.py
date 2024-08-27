@@ -177,7 +177,7 @@ help: https://github.com/BJReplay/ha-solcast-solar/issues
     # If the integration has failed for some time and then is restarted retrieve forecasts
     if solcast.get_api_used_count() == 0 and solcast.get_last_updated_datetime() < solcast.get_day_start_utc() - timedelta(days=1):
         try:
-            _LOGGER.info('Integration has been failed for some time, or your update automation has not been running (see readme). Retrieving forecasts.')
+            _LOGGER.info('Integration has been failed for some time, or your update automation has not been running (see readme), so retrieving forecasts')
             #await solcast.sites_weather()
             await solcast.http_data(dopast=False)
             coordinator.set_data_updated(True)
@@ -441,7 +441,7 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
                 default.append(str(usage['daily_limit']))
             default = ','.join(default)
         except Exception as e:
-            _LOGGER.warning('Could not load API usage cache quota while upgrading config, using default: %s', e)
+            _LOGGER.warning('Could not load API usage cached limit while upgrading config, using default: %s', e)
             default = '10'
         if new.get(API_QUOTA) is None: new[API_QUOTA] = default
         try:
