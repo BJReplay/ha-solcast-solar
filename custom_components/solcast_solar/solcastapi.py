@@ -128,6 +128,7 @@ class SolcastApi:
         self._tally = {}
         self._api_used = {}
         self._api_limit = {}
+        self._api_used_reset = {}
         self._filename = options.file_path
         self._config_dir = dirname(self._filename)
         self._tz = options.tz
@@ -177,12 +178,14 @@ class SolcastApi:
         """Obfuscate API key in messages"""
         return msg.replace(api_key, self.redact_api_key(api_key))
 
-    async def write_api_usage_cache_file(self, api_key):
+    async def write_api_usage_cache_file(self, api_key, reset=False):
         """Serialise the usage cache file"""
         try:
             json_file = self.get_api_usage_cache_filename(api_key)
+            if reset:
+                self._api_used_reset[api_key] = self.get_day_start_utc()
             _LOGGER.debug("Writing API usage cache file: %s", self.redact_msg_api_key(json_file, api_key))
-            json_content = {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key]}
+            json_content = {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key], "reset": self._api_used_reset[api_key]}
             async with aiofiles.open(json_file, 'w') as f:
                 await f.write(json.dumps(json_content, ensure_ascii=False))
         except Exception as e:
@@ -201,7 +204,7 @@ class SolcastApi:
         """Reset the daily API usage counter"""
         for api_key, _ in self._api_used.items():
             self._api_used[api_key] = 0
-            await self.write_api_usage_cache_file(api_key)
+            await self.write_api_usage_cache_file(api_key, reset=True)
 
     async def sites_data(self):
         """Request site details"""
@@ -282,6 +285,7 @@ class SolcastApi:
                         i.pop('latitude', None)
                     self._sites = self._sites + d['sites']
                     self._sites_loaded = True
+                    self._api_used_reset[spl] = None
                 else:
                     _LOGGER.error("%s HTTP status error %s in sites_data() while gathering sites", self.options.host, translate(status))
                     raise Exception("HTTP sites_data error: Solcast Error gathering sites")
@@ -309,6 +313,7 @@ class SolcastApi:
                                 i.pop('latitude', None)
                             self._sites = self._sites + d['sites']
                             self._sites_loaded = True
+                            self._api_used_reset[spl] = None
                             _LOGGER.info("Loaded sites cache for %s", self.redact_api_key(spl))
                     else:
                         error = True
@@ -327,6 +332,9 @@ class SolcastApi:
         """Load api usage cache"""
 
         try:
+            if not self._sites_loaded:
+                _LOGGER.error("Internal error. Sites must be loaded before sites_usage() is called")
+
             sp = self.options.api_key.split(",")
             qt = self.options.api_quota.split(",")
             try:
@@ -349,17 +357,22 @@ class SolcastApi:
                         usage = json.loads(await f.read())
                     self._api_limit[api_key] = usage.get("daily_limit", None)
                     self._api_used[api_key] = usage.get("daily_limit_consumed", None)
+                    self._api_used_reset[api_key] = usage.get("reset", None)
                     if usage['daily_limit'] != quota[spl]: # Limit has been adjusted, so rewrite the cache
                         self._api_limit[api_key] = quota[spl]
                         await self.write_api_usage_cache_file(api_key)
                         _LOGGER.info("API usage cache loaded and updated with new quota")
                     else:
                         _LOGGER.debug("API usage cache loaded")
+                    if self._api_used_reset[api_key] is not None and self.get_real_now_utc() > self._api_used_reset[api_key] + timedelta(hours=24):
+                        _LOGGER.warning("Resetting API usage for %s, last reset was more than 24-hours ago", self.redact_api_key(api_key))
+                        self._api_used[api_key] = 0
+                        await self.write_api_usage_cache_file(api_key, reset=True)
                 else:
-                    _LOGGER.warning("No Solcast API usage cache found, creating one and assuming zero API used")
+                    _LOGGER.warning("No Solcast API usage cache found for %s, creating one and assuming zero API used", self.redact_api_key(api_key))
                     self._api_limit[api_key] = quota[spl]
                     self._api_used[api_key] = 0
-                    await self.write_api_usage_cache_file(api_key)
+                    await self.write_api_usage_cache_file(api_key, reset=True)
                 _LOGGER.debug("API counter for %s is %d/%d", self.redact_api_key(api_key), self._api_used[api_key], self._api_limit[api_key])
         except Exception as e:
             _LOGGER.error(f"Exception in sites_usage(): {e}: %s", traceback.format_exc())
@@ -625,6 +638,10 @@ class SolcastApi:
     def get_now_utc(self):
         """Datetime helper"""
         return dt.now(self._tz).replace(second=0, microsecond=0).astimezone(timezone.utc)
+
+    def get_real_now_utc(self):
+        """Datetime helper"""
+        return dt.now(self._tz).astimezone(timezone.utc)
 
     def get_interval_start_utc(self, moment):
         """Datetime helper"""
