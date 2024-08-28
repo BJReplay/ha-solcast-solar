@@ -213,7 +213,7 @@ class SolcastApi:
             if reset:
                 self._api_used_reset[api_key] = self.get_day_start_utc()
             _LOGGER.debug("Writing API usage cache file: %s", self.redact_msg_api_key(json_file, api_key))
-            json_content = {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key], "reset": self._api_used_reset[api_key]}
+            json_content = {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key], "reset": self._api_used_reset[api_key].strftime("%Y-%m-%dT%H:%M:%S+00:00")}
             async with aiofiles.open(json_file, 'w') as f:
                 await f.write(json.dumps(json_content, ensure_ascii=False))
         except Exception as e:
@@ -380,24 +380,36 @@ class SolcastApi:
                 api_key = spl.strip()
                 api_cache_filename = self.get_api_usage_cache_filename(api_key)
                 _LOGGER.debug("%s for %s", 'Usage cache ' + ('exists' if file_exists(api_cache_filename) else 'does not yet exist'), self.redact_api_key(api_key))
+                cache = True
                 if file_exists(api_cache_filename):
                     async with aiofiles.open(api_cache_filename) as f:
-                        usage = json.loads(await f.read())
-                    self._api_limit[api_key] = usage.get("daily_limit", None)
-                    self._api_used[api_key] = usage.get("daily_limit_consumed", None)
-                    self._api_used_reset[api_key] = usage.get("reset", None)
-                    if usage['daily_limit'] != quota[spl]: # Limit has been adjusted, so rewrite the cache
-                        self._api_limit[api_key] = quota[spl]
-                        await self.write_api_usage_cache_file(api_key)
-                        _LOGGER.info("Usage loaded and cache updated with new quota")
-                    else:
-                        _LOGGER.info("Usage loaded for %s", self.redact_api_key(api_key))
-                    if self._api_used_reset[api_key] is not None and self.get_real_now_utc() > self._api_used_reset[api_key] + timedelta(hours=24):
-                        _LOGGER.warning("Resetting usage for %s, last reset was more than 24-hours ago", self.redact_api_key(api_key))
-                        self._api_used[api_key] = 0
-                        await self.write_api_usage_cache_file(api_key, reset=True)
+                        try:
+                            usage = json.loads(await f.read(), cls=JSONDecoder)
+                        except:
+                            cache = False
+                    if cache:
+                        self._api_limit[api_key] = usage.get("daily_limit", None)
+                        self._api_used[api_key] = usage.get("daily_limit_consumed", None)
+                        self._api_used_reset[api_key] = usage.get("reset", None)
+                        try:
+                            self._api_used_reset[api_key] = parse_datetime(self._api_used_reset[api_key]).astimezone(timezone.utc)
+                        except:
+                            _LOGGER.error("Internal error parsing datetime from usage cache, continuing")
+                            _LOGGER.error(traceback.format_exc())
+                        if usage['daily_limit'] != quota[spl]: # Limit has been adjusted, so rewrite the cache
+                            self._api_limit[api_key] = quota[spl]
+                            await self.write_api_usage_cache_file(api_key)
+                            _LOGGER.info("Usage loaded and cache updated with new quota")
+                        else:
+                            _LOGGER.info("Usage loaded for %s", self.redact_api_key(api_key))
+                        if self._api_used_reset[api_key] is not None and self.get_real_now_utc() > self._api_used_reset[api_key] + timedelta(hours=24):
+                            _LOGGER.warning("Resetting usage for %s, last reset was more than 24-hours ago", self.redact_api_key(api_key))
+                            self._api_used[api_key] = 0
+                            await self.write_api_usage_cache_file(api_key, reset=True)
                 else:
-                    _LOGGER.warning("No usage cache found for %s, creating one and assuming zero API used", self.redact_api_key(api_key))
+                    cache = False
+                if not cache:
+                    _LOGGER.warning("No usage cache found (or corrupt) for %s, creating one and assuming zero API used", self.redact_api_key(api_key))
                     self._api_limit[api_key] = quota[spl]
                     self._api_used[api_key] = 0
                     await self.write_api_usage_cache_file(api_key, reset=True)
@@ -1114,7 +1126,7 @@ class SolcastApi:
                     failure = True
                     if len(self._sites) > 1:
                         if sites_attempted < len(self._sites):
-                            _LOGGER.warning('Forecast update for site %s failed so not getting remaining sites%s', site['resource_id'], ' - API use count may look odd' if len(self._sites > 2) else '')
+                            _LOGGER.warning('Forecast update for site %s failed so not getting remaining sites%s', site['resource_id'], ' - API use count may look odd' if len(self._sites) > 2 else '')
                         else:
                             _LOGGER.warning('Forecast update for the last site queued failed (%s) so not getting remaining sites - API use count may look odd', site['resource_id'])
                     else:
