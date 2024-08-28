@@ -363,6 +363,7 @@ class SolcastApi:
         try:
             if not self._sites_loaded:
                 _LOGGER.error("Internal error. Sites must be loaded before sites_usage() is called")
+                return
 
             sp = self.options.api_key.split(",")
             qt = self.options.api_quota.split(",")
@@ -373,7 +374,7 @@ class SolcastApi:
                 quota = { sp[i].strip(): int(qt[i].strip()) for i in range(len(qt)) }
             except Exception as e:
                 _LOGGER.error("Exception: %s", e)
-                _LOGGER.warning("Could not interpret API quota configuration string, using default of 10")
+                _LOGGER.warning("Could not interpret API limit configuration string (%s), using default of 10", self.options.api_quota)
                 quota = {s: 10 for s in sp}
 
             for spl in sp:
@@ -385,21 +386,27 @@ class SolcastApi:
                     async with aiofiles.open(api_cache_filename) as f:
                         try:
                             usage = json.loads(await f.read(), cls=JSONDecoder)
-                        except:
+                        except json.decoder.JSONDecodeError:
+                            _LOGGER.error("The usage cache for %s is corrupt, re-creating cache with zero usage", self.redact_api_key(api_key))
+                            cache = False
+                        except Exception as e:
+                            _LOGGER.error("Load usage cache exception %s for %s, re-creating cache with zero usage", e, self.redact_api_key(api_key))
                             cache = False
                     if cache:
                         self._api_limit[api_key] = usage.get("daily_limit", None)
                         self._api_used[api_key] = usage.get("daily_limit_consumed", None)
                         self._api_used_reset[api_key] = usage.get("reset", None)
-                        try:
-                            self._api_used_reset[api_key] = parse_datetime(self._api_used_reset[api_key]).astimezone(timezone.utc)
-                        except:
-                            _LOGGER.error("Internal error parsing datetime from usage cache, continuing")
-                            _LOGGER.error(traceback.format_exc())
-                        if usage['daily_limit'] != quota[spl]: # Limit has been adjusted, so rewrite the cache
-                            self._api_limit[api_key] = quota[spl]
+                        if self._api_used_reset[api_key] is not None:
+                            try:
+                                self._api_used_reset[api_key] = parse_datetime(self._api_used_reset[api_key]).astimezone(timezone.utc)
+                            except:
+                                _LOGGER.error("Internal error parsing datetime from usage cache, continuing")
+                                _LOGGER.error(traceback.format_exc())
+                                self._api_used_reset[api_key] = None
+                        if usage['daily_limit'] != quota[api_key]: # Limit has been adjusted, so rewrite the cache
+                            self._api_limit[api_key] = quota[api_key]
                             await self.write_api_usage_cache_file(api_key)
-                            _LOGGER.info("Usage loaded and cache updated with new quota")
+                            _LOGGER.info("Usage loaded and cache updated with new limit")
                         else:
                             _LOGGER.info("Usage loaded for %s", self.redact_api_key(api_key))
                         if self._api_used_reset[api_key] is not None and self.get_real_now_utc() > self._api_used_reset[api_key] + timedelta(hours=24):
@@ -409,8 +416,8 @@ class SolcastApi:
                 else:
                     cache = False
                 if not cache:
-                    _LOGGER.warning("No usage cache found (or corrupt) for %s, creating one and assuming zero API used", self.redact_api_key(api_key))
-                    self._api_limit[api_key] = quota[spl]
+                    _LOGGER.warning("Creating usage cache for %s, assuming zero API used", self.redact_api_key(api_key))
+                    self._api_limit[api_key] = quota[api_key]
                     self._api_used[api_key] = 0
                     await self.write_api_usage_cache_file(api_key, reset=True)
                 _LOGGER.debug("API counter for %s is %d/%d", self.redact_api_key(api_key), self._api_used[api_key], self._api_limit[api_key])
