@@ -221,8 +221,8 @@ class SolcastApi:
             if reset:
                 self._api_used_reset[api_key] = self.get_day_start_utc()
             _LOGGER.debug("Writing API usage cache file: %s", self.redact_msg_api_key(json_file, api_key))
-            json_content = {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key], "reset": self._api_used_reset[api_key].strftime("%Y-%m-%dT%H:%M:%S+00:00")}
-            payload = json.dumps(json_content, ensure_ascii=False)
+            json_content = {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key], "reset": self._api_used_reset[api_key]}
+            payload = json.dumps(json_content, ensure_ascii=False, cls=DateTimeEncoder)
         except Exception as e:
             _LOGGER.error("Exception in write_api_usage_cache_file(): %s", e)
             _LOGGER.error(traceback.format_exc())
