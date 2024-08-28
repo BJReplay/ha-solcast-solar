@@ -179,6 +179,7 @@ class SolcastApi:
 
     async def serialize_data(self):
         """Serialize data to file"""
+        serialise = True
         try:
             if not self._loaded_data:
                 _LOGGER.debug("Not saving forecast cache in serialize_data() as no data has been loaded yet")
@@ -190,13 +191,19 @@ class SolcastApi:
                 _LOGGER.error("Internal error: Solcast forecast cache date has not been set, not saving data")
                 return
 
-            async with self._serialize_lock:
-                async with aiofiles.open(self._filename, "w") as f:
-                    await f.write(json.dumps(self._data, ensure_ascii=False, cls=DateTimeEncoder))
-                    _LOGGER.debug("Saved forecast cache")
+            payload = json.dumps(self._data, ensure_ascii=False, cls=DateTimeEncoder)
         except Exception as e:
             _LOGGER.error("Exception in serialize_data(): %s", e)
             _LOGGER.error(traceback.format_exc())
+            serialise = False
+        if serialise:
+            try:
+                async with self._serialize_lock:
+                    async with aiofiles.open(self._filename, 'w') as f:
+                        await f.write(payload)
+                _LOGGER.debug("Saved forecast cache")
+            except Exception as e:
+                _LOGGER.error("Exception writing forecast data: %s", e)
 
     def redact_api_key(self, api_key) -> str:
         """Obfuscate API key"""
@@ -208,17 +215,25 @@ class SolcastApi:
 
     async def write_api_usage_cache_file(self, api_key, reset=False):
         """Serialise the usage cache file"""
+        serialise = True
         try:
             json_file = self.get_api_usage_cache_filename(api_key)
             if reset:
                 self._api_used_reset[api_key] = self.get_day_start_utc()
             _LOGGER.debug("Writing API usage cache file: %s", self.redact_msg_api_key(json_file, api_key))
             json_content = {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key], "reset": self._api_used_reset[api_key].strftime("%Y-%m-%dT%H:%M:%S+00:00")}
-            async with aiofiles.open(json_file, 'w') as f:
-                await f.write(json.dumps(json_content, ensure_ascii=False))
+            payload = json.dumps(json_content, ensure_ascii=False)
         except Exception as e:
             _LOGGER.error("Exception in write_api_usage_cache_file(): %s", e)
             _LOGGER.error(traceback.format_exc())
+            serialise = False
+        if serialise:
+            try:
+                async with self._serialize_lock:
+                    async with aiofiles.open(json_file, 'w') as f:
+                        await f.write(payload)
+            except Exception as e:
+                _LOGGER.error("Exception writing usage cache for %s: %s", self.redact_msg_api_key(json_file, api_key), e)
 
     def get_api_usage_cache_filename(self, entry_name):
         """Build a fully qualified API usage cache filename using a simple name or separate files for more than one API key"""
@@ -275,8 +290,9 @@ class SolcastApi:
                             if status == 200:
                                 if resp_json['total_records'] > 0:
                                     _LOGGER.debug("Writing sites cache")
-                                    async with aiofiles.open(api_cache_filename, 'w') as f:
-                                        await f.write(json.dumps(resp_json, ensure_ascii=False))
+                                    async with self._serialize_lock:
+                                        async with aiofiles.open(api_cache_filename, 'w') as f:
+                                            await f.write(json.dumps(resp_json, ensure_ascii=False))
                                     success = True
                                     break
                                 else:
@@ -1346,8 +1362,9 @@ class SolcastApi:
                             resp_json = await resp.json(content_type=None)
 
                             if self.api_cache_enabled:
-                                async with aiofiles.open(api_cache_filename, 'w') as f:
-                                    await f.write(json.dumps(resp_json, ensure_ascii=False))
+                                async with self._serialize_lock:
+                                    async with aiofiles.open(api_cache_filename, 'w') as f:
+                                        await f.write(json.dumps(resp_json, ensure_ascii=False))
                         elif status == 998: # Exceeded API limit
                             _LOGGER.error("API allowed polling limit has been exceeded, API counter set to %d/%d", self._api_used[apikey], self._api_limit[apikey])
                             return None
