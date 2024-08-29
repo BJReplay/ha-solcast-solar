@@ -310,7 +310,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
         #doesnt work :()
         if entity_description.key == "forecast_custom_hours":
-            self._attr_translation_placeholders = {"forecast_custom_hours": f"{coordinator.solcast._customhoursensor}"}
+            self._attr_translation_placeholders = {"forecast_custom_hours": f"{coordinator.solcast.custom_hour_sensor}"}
 
         self.entity_description = entity_description
         self.coordinator = coordinator

@@ -48,7 +48,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """Set up time change tracking"""
         d={}
         self._previousenergy = d
-        self._last_day = dt.now(self.solcast.get_tz()).day
+        self._last_day = dt.now(self.solcast.options.tz).day
         try:
             #4.0.18 - added reset usage call to reset usage sensors at UTC midnight
             async_track_utc_time_change(self._hass, self.update_utcmidnight_usage_sensor_data, hour=0,minute=0,second=0)
@@ -60,7 +60,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     async def update_integration_listeners(self, *args) -> None:
         """Get updated sensor values"""
         try:
-            current_day = dt.now(self.solcast.get_tz()).day
+            current_day = dt.now(self.solcast.options.tz).day
             self._date_changed = current_day != self._last_day
             if self._date_changed:
                 self._last_day = current_day
@@ -110,7 +110,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     def get_solcast_sites(self) -> dict[str, Any]:
         """Return the active solcast sites"""
-        return self.solcast.get_sites()
+        return self.solcast.sites
 
     def get_previousenergy(self) -> dict[str, Any]:
         """Return the prior energy dictionary"""
@@ -144,7 +144,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             case "forecast_next_hour":
                 return self.solcast.get_forecast_n_hour(1)
             case "forecast_custom_hours":
-                return self.solcast.get_forecast_custom_hours(self.solcast.get_customhoursensor())
+                return self.solcast.get_forecast_custom_hours(self.solcast.custom_hour_sensor)
             case "total_kwh_forecast_today":
                 return self.solcast.get_total_kwh_forecast_day(0)
             case "total_kwh_forecast_tomorrow":
@@ -178,7 +178,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             case "lastupdated":
                 return self.solcast.get_last_updated_datetime()
             case "hard_limit":
-                return False if self.solcast.get_hardlimit() == 100 else f"{round(self.solcast.get_hardlimit() * 1000)}w"
+                return False if self.solcast.hard_limit == 100 else f"{round(self.solcast.hard_limit * 1000)}w"
             # case "weather_description":
             #     return self.solcast.get_weather()
             case _:
@@ -192,7 +192,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             case "forecast_next_hour":
                 return self.solcast.get_forecasts_n_hour(1)
             case "forecast_custom_hours":
-                return self.solcast.get_forecasts_custom_hours(self.solcast.get_customhoursensor())
+                return self.solcast.get_forecasts_custom_hours(self.solcast.custom_hour_sensor)
             case "total_kwh_forecast_today":
                 ret = self.solcast.get_forecast_day(0)
                 ret = {**ret, **self.solcast.get_sites_total_kwh_forecast_day(0)}

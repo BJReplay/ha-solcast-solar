@@ -127,12 +127,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     try:
         await solcast.sites_data()
-        if solcast.sites_loaded():
+        if solcast.sites_loaded:
             await solcast.sites_usage()
     except Exception as ex:
         raise ConfigEntryNotReady(f"Getting sites data failed: {ex}") from ex
 
-    if not solcast.sites_loaded():
+    if not solcast.sites_loaded:
         raise ConfigEntryNotReady('Sites data could not be retrieved')
 
     status = await solcast.load_saved_data()
@@ -242,7 +242,7 @@ help: https://github.com/BJReplay/ha-solcast-solar/issues
                             d.update({f"{i}": float(sp[i])})
                             opt[f"damp{i:02}"] = float(sp[i])
 
-                        solcast.set_damp(d)
+                        solcast.damp = d
                         hass.config_entries.async_update_entry(entry, options=opt)
         except intent.IntentHandleError as err:
             raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: {err}") from err

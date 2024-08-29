@@ -25,11 +25,11 @@ async def async_get_config_entry_diagnostics(
     coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][config_entry.entry_id]
 
     return {
-        "tz_conversion": coordinator.solcast.get_tz(),
+        "tz_conversion": coordinator.solcast.options.tz,
         "used_api_requests": coordinator.solcast.get_api_used_count(),
         "api_request_limit": coordinator.solcast.get_api_limit(),
-        "rooftop_site_count": len(coordinator.solcast.get_sites()),
-        "forecast_hard_limit_set": coordinator.solcast.get_hardlimit() < 100,
+        "rooftop_site_count": len(coordinator.solcast.sites),
+        "forecast_hard_limit_set": coordinator.solcast.hard_limit < 100,
         "data": (coordinator.data, TO_REDACT),
         "energy_history_graph": coordinator.get_previousenergy(),
         "energy_forecasts_graph": coordinator.solcast.get_energy_data()["wh_hours"],
