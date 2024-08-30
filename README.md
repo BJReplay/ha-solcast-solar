@@ -560,6 +560,8 @@ v4.1.4
 * Refactor moment and remaining spline build by @autoSteve
 * Prevent negative forecast for X hour sensor by @autoSteve
 * Suppress spline bounce for reducing spline by @autoSteve
+* More careful serialisation of solcast.json by @autoSteve
+* Extensive code clean-up by #autoSteve
  
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.3...v4.1.4
 
