@@ -11,7 +11,7 @@
 
 ### Custom Repository in HACS
 
-See [detailed](#hacs-recommended) instructions below.  Until HACS 2.0 is released, it is unlikely that this repository will be included as a default repository in HACS.  That means that the quickest and easist way to install is a Custom Repository via HACS.  This is a straightforward process, and detailed instructions are shown below.  Clicking on the button below will open this page in your Home Assistant HACS page (assuming you already have Home Assistant set up and HACS set up), and you can follow the [detailed](#hacs-recommended) instructions from there.
+See [detailed](#hacs-recommended) instructions below.  Until HACS 2.0 is released, it is unlikely that this repository will be included as a default repository in HACS.  That means that the quickest and easist way to install is a Custom Repository via HACS.  This is a straightforward process, and detailed instructions are shown below.  Clicking on the button below will open this page in your Home Assistant HACS page (assuming you already have Home Assistant and HACS set up), and you can follow the [detailed](#hacs-recommended) instructions from there.
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BJReplay&repository=ha-solcast-solar&category=integration)
 
@@ -283,7 +283,7 @@ Click the Forecast option button and select the Solcast Solar option. Click SAVE
 
 ### Dampening Configuration
 
-New in v4.0.8 is the option to configure hourly dampening values.
+It is possible to configure hourly dampening values to account for shading.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png)
 
@@ -300,8 +300,6 @@ Here you can change the dampening factor value for any hour. Values from 0.0 - 1
 
 ### Sensor Attributes Configuration
 
-New in v4.0.39 is the option to turn off many sensor attributes.
-
 There are quite a few sensor attributes that can be used as a data source for template sensors, charts, etc., including a per-site breakdown, estimate 10/50/90 values, and per-hour and half hour detailed breakdown for each forecast day.
 
 Many users will not use these attributes, so to cut the clutter (especially in the UI) and also long-term statistics (LTS) storage all of these can be individually disabled.
@@ -313,9 +311,9 @@ By default, all of them are enabled. (NB: Hourly and half-hourly detail is alrea
 
 ### Hard Limit Configuration (hidden away)
 
-Introduced in v4.0.22 is an option to set a "hard limit" for projected inverter output, and this limit will 'clip' the Solcast forecasts to a maximum value.
+There is an option to set a "hard limit" for projected inverter output, and this limit will 'clip' the Solcast forecasts to a maximum value.
 
-The scenario requiring use of this limit is straightforward, but note that hardly any PV installations will need to do so. (And if you have micro-inverters, or one inverter per string then definitely not.)
+The scenario requiring use of this limit is straightforward, but note that hardly any PV installations will need to do so. (And if you have micro-inverters, or one inverter per string then definitely not. The same goes for all panels with identical orentation in a single Solcast site.)
 
 Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may in fact be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
 
@@ -323,7 +321,7 @@ There is currently not a simple configuration option to set this hard limit, and
 
 ## Key Solcast concepts
 
-Solcast will produce a forecast of your solar PV generation for today, tomorrow, the day after (day 3), ... up to day 7.
+Solcast will produce a forecast of solar PV generation for today, tomorrow, the day after (day 3), ... up to day 7.
 Each of these forecasts will be in a separate sensor (see below) and the sensor value will be the total predicted solar generation for your Solcast account for each day.
 Separate sensors contain peak solar generation power, peak solar generation time, and various forecasts of next hour, 30 minutes, etc.
 
@@ -391,7 +389,7 @@ These are the services for this integration: ([Configuration](#configuration))
 > [!NOTE]
 > The values for `Next Hour` and `Forecast Next X Hours` may be different if the custom X hour setting is 1. This has a simple explanation.
 >
-> They are calculated using a different start and end time. One is from the start of this hour, i.e. in the past, e.g. 14:00:00 to 15:00:00. The custom is from now(), e.g. 14:21:19 to 15:21:19.
+> They are calculated using a different start and end time. One is from the start of this hour, i.e. in the past, e.g. 14:00:00 to 15:00:00. The custom sensor is from now() on five minute boudaries, e.g. 14:20:00 to 15:20:00 using interpolated values.
 >
 > This will likely yield a different result, depending on the time the value is requested, so it is not wrong. It's just different.
 
@@ -550,7 +548,7 @@ series:
 
 ## Known issues
 
-* If a hard limit or dampening factors are set then the individual sites breakdown attributes will not be limited by these factors. The only way to implement this would be to have separate hard limits and dampening factors for each site, and this would become overly complex.
+* If a hard limit or dampening factors are set then the individual sites breakdown attributes will not be affected by these factors. The only way to implement this would be to have separate hard limits and dampening factors for each site, and this would become overly complex.
 
 ## Changes
 
@@ -564,7 +562,8 @@ v4.1.4
 * Prevent negative forecast for X hour sensor by @autoSteve
 * Suppress spline bounce for reducing spline by @autoSteve
 * More careful serialisation of solcast.json by @autoSteve
-* Extensive code clean-up by #autoSteve
+* Monitor last updated timestamp for sites-usage.json by @autoSteve
+* Extensive code clean-up by @autoSteve
  
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.3...v4.1.4
 
