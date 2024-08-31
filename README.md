@@ -11,12 +11,12 @@
 
 ### Custom Repository in HACS
 
-See [detailed](#hacs-recommended) instructions below.  Until HACS 2.0 is released, it is unlikely that this repository will be included as a default repository in HACS.  That means that the quickest and easist way to install is a Custom Repository.  This is a straightforward process, and detailed instructions are shown below.  Clicking on the button below will open this page in your Home Assistant HACS page (assuming you already have Home Assistant and HACS set up), and you can follow the [detailed](#hacs-recommended) instructions from there.
+See [detailed](#hacs-recommended) instructions below.  Now that HACS 2.0 has been released, it is going to take some time to clear the huge backlog of database inclusion requests that have built up over its development. This database allows a simple search for 'Solcast' to find this integration. That means that the quickest and easist way to install is a custom repository. This is a straightforward process, and detailed instructions are shown below.  Clicking on the button below will open this page in your Home Assistant HACS page (assuming you already have Home Assistant and HACS set up), and you can follow the [detailed](#hacs-recommended) instructions from there.
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BJReplay&repository=ha-solcast-solar&category=integration)
 
 > [!WARNING]  
-> This repository is **not** currently in HACS, so cannot yet be searched for there. While [this PR](https://github.com/hacs/default/pull/2535) remains open, you should install using the [HACS *(recommended)*](#hacs-recommended) instructions below: 
+> This repository is **not** currently in HACS, awaiting [this PR](https://github.com/hacs/default/pull/2535) to be merged. Install using the [HACS *(recommended)*](#hacs-recommended) instructions below: 
 
 > [!NOTE]
 > The use of beta versions can be a simple way to fix issues. Check the releases at https://github.com/BJReplay/ha-solcast-solar/releases to see if an issue has already been resolved. If so, enable the `Solcast PV Pre-release` entity to enable beta upgrade (or for HACS v1 turn on ```Show beta versions``` when re-downloading). Your feedback from testing betas will be most welcome in the repository discussions. https://github.com/BJReplay/ha-solcast-solar/discussions.
