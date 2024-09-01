@@ -206,7 +206,7 @@ class SolcastApi:
         try:
             json_file = self.get_usage_cache_filename(api_key)
             if reset:
-                self._api_used_reset[api_key] = self.get_day_start_utc()
+                self._api_used_reset[api_key] = self.utc_previous_midnight()
             _LOGGER.debug("Writing API usage cache file: %s", self.redact_msg_api_key(json_file, api_key))
             json_content = {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key], "reset": self._api_used_reset[api_key]}
             payload = json.dumps(json_content, ensure_ascii=False, cls=DateTimeEncoder)
@@ -693,6 +693,10 @@ class SolcastApi:
     def get_day_start_utc(self):
         """Datetime helper"""
         return dt.now(self._tz).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(timezone.utc)
+
+    def utc_previous_midnight(self):
+        """Datetime helper"""
+        return dt.now().astimezone(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
 
     def get_forecast_day(self, futureday) -> Dict[str, Any]:
         """Return forecast data for the Nth day ahead"""
