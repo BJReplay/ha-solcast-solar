@@ -611,7 +611,7 @@ class SolcastApi:
                             if len(ks.keys()) > 0:
                                 # Some site data does not exist yet so get it
                                 _LOGGER.info("New site(s) have been added, so getting forecast data for them")
-                                for a, _api_key in ks:
+                                for a, _api_key in ks.items():
                                     await self.http_data_call(r_id=a, api=_api_key, dopast=True)
                                 await self.serialize_data()
 
