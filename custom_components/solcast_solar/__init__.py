@@ -125,10 +125,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options)
 
+    solcast.hass = hass
+
     try:
-        await solcast.sites_data()
-        if solcast.sites_loaded:
-            await solcast.sites_usage()
+        await solcast.get_sites_and_usage()
     except Exception as ex:
         raise ConfigEntryNotReady(f"Getting sites data failed: {ex}") from ex
 

@@ -19,6 +19,7 @@ from dataclasses import dataclass
 from datetime import datetime as dt
 from datetime import timedelta, timezone
 from operator import itemgetter
+from pathlib import Path
 from os.path import exists as file_exists
 from os.path import dirname
 from typing import Any, Dict, cast
@@ -121,6 +122,7 @@ class SolcastApi:
         """Device init"""
 
         # Public vars
+        self.hass = None
         self.options = options
         self.hard_limit = options.hard_limit
         self.custom_hour_sensor = options.custom_hour_sensor
@@ -166,13 +168,17 @@ class SolcastApi:
         """Obfuscate API key in messages"""
         return msg.replace(api_key, self.redact_api_key(api_key))
 
+    def is_multi_key(self):
+        """Test whether multiple API keys are in use"""
+        return len(self.options.api_key.split(",")) > 1
+
     def get_usage_cache_filename(self, entry_name):
         """Build a fully qualified API usage cache filename using a simple name or separate files for more than one API key"""
-        return '%s/solcast-usage%s.json' % (self._config_dir, "" if len(self.options.api_key.split(",")) < 2 else "-" + entry_name) # pylint: disable=C0209
+        return '%s/solcast-usage%s.json' % (self._config_dir, "" if not self.is_multi_key() else "-" + entry_name) # pylint: disable=C0209
 
     def get_sites_cache_filename(self, entry_name):
         """Build a fully qualified site details cache filename using a simple name or separate files for more than one API key"""
-        return '%s/solcast-sites%s.json' % (self._config_dir, "" if len(self.options.api_key.split(",")) < 2 else "-" + entry_name) # pylint: disable=C0209
+        return '%s/solcast-sites%s.json' % (self._config_dir, "" if not self.is_multi_key() else "-" + entry_name) # pylint: disable=C0209
 
     async def serialize_data(self):
         """Serialize data to file"""
@@ -270,15 +276,20 @@ class SolcastApi:
                                     break
                                 else:
                                     _LOGGER.error('No sites for the API key %s are configured at solcast.com', self.redact_api_key(api_key))
-                                    return
+                                    break
                             else:
                                 if cache_exists:
                                     use_cache_immediate = True
+                                    break
+                                if status == 404:
+                                    _LOGGER.error('Error getting sites for the API key %s, is the key correct?', self.redact_api_key(api_key))
                                     break
                                 if retry > 0:
                                     _LOGGER.debug("Will retry get sites, retry %d", (retries - retry) + 1)
                                     await asyncio.sleep(5)
                                 retry -= 1
+                        if status == 404:
+                            continue
                         if not success:
                             if not use_cache_immediate:
                                 _LOGGER.warning("Retries exhausted gathering Solcast sites, last call result: %s, using cached data if it exists", translate(status))
@@ -411,6 +422,50 @@ class SolcastApi:
                 _LOGGER.debug("API counter for %s is %d/%d", self.redact_api_key(api_key), self._api_used[api_key], self._api_limit[api_key])
         except Exception as e:
             _LOGGER.error("Exception in sites_usage(): %s: %s", e, traceback.format_exc())
+
+    async def get_sites_and_usage(self):
+        """Get the sites and usage, and validate API key changes against the cache files in use"""
+
+        def cleanup(file1, file2):
+            if file_exists(file1) and not file_exists(file2):
+                _LOGGER.info('Renaming %s to %s', self.redact_msg_api_key(file1, sp[0]), self.redact_msg_api_key(file2, sp[0]))
+                os.rename(file1, file2) # Rename to simple or multi
+            if file_exists(file1) and file_exists(file2):
+                _LOGGER.warning('Removing orphaned %s', self.redact_msg_api_key(file1, sp[0]))
+                os.remove(file1) # Remove orphaned simple or multi
+
+        def remove_orphans(all_a, multi_a):
+            for s in all_a:
+                if s not in multi_a:
+                    red = re.match('(.+-)(.+)([0-9a-zA-Z]{6}.json)', s)
+                    _LOGGER.warning('Removing orphaned %s', red.group(1)+'******'+red.group(3))
+                    os.remove(s) # Remove orphaned file
+
+        try:
+            sp = [s.strip() for s in self.options.api_key.split(",")]
+            simple_sites = f"{self._config_dir}/solcast-sites.json"
+            simple_usage = f"{self._config_dir}/solcast-usage.json"
+            multi_sites = [f"{self._config_dir}/solcast-sites-{s}.json" for s in sp]
+            multi_usage = [f"{self._config_dir}/solcast-usage-{s}.json" for s in sp]
+            if self.is_multi_key():
+                cleanup(simple_sites, multi_sites[0])
+                cleanup(simple_usage, multi_usage[0])
+            else:
+                cleanup(multi_sites[0], simple_sites)
+                cleanup(multi_usage[0], simple_usage)
+            def list_files():
+                all_sites = [str(s) for s in Path("/config").glob("solcast-sites-*.json")]
+                all_usage = [str(s) for s in Path("/config").glob("solcast-usage-*.json")]
+                return all_sites, all_usage
+            all_sites, all_usage = await self.hass.async_add_executor_job(list_files)
+            remove_orphans(all_sites, multi_sites)
+            remove_orphans(all_usage, multi_usage)
+        except:
+            _LOGGER.debug(traceback.format_exc())
+
+        await self.sites_data()
+        if self.sites_loaded:
+            await self.sites_usage()
 
     async def reset_api_usage(self):
         """Reset the daily API usage counter"""
@@ -596,8 +651,7 @@ class SolcastApi:
         try:
             if file_exists(self._filename):
                 os.remove(self._filename)
-                await self.sites_data()
-                await self.sites_usage()
+                await self.get_sites_and_usage()
                 await self.load_saved_data()
             else:
                 _LOGGER.warning("There is no solcast.json to delete")
