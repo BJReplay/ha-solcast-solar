@@ -632,6 +632,8 @@ class SolcastApi:
 
                             for ll in l:
                                 del json_data['siteinfo'][ll]
+                            if len(l) > 0:
+                                await self.serialize_data()
 
                             # Create an up to date forecast
                             await self.buildforecastdata()
