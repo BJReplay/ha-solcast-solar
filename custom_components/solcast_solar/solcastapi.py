@@ -604,9 +604,13 @@ class SolcastApi:
 
                             # Check for any new API keys so no sites data yet for those
                             ks = {}
-                            for d in self.sites:
-                                if not any(s == d.get('resource_id', '') for s in json_data['siteinfo']):
-                                    ks[d.get('resource_id')] = d.get('apikey')
+                            try:
+                                cache_sites = list(json_data['siteinfo'].keys())
+                                for d in self.sites:
+                                    if d['resource_id'] not in cache_sites:
+                                        ks[d['resource_id']] = d['apikey']
+                            except Exception  as e:
+                                raise f"Exception while adding new sites: {e}"
 
                             if len(ks.keys()) > 0:
                                 # Some site data does not exist yet so get it
@@ -617,10 +621,14 @@ class SolcastApi:
 
                             # Check for sites that need to be removed
                             l = []
-                            for s in json_data['siteinfo']:
-                                if not any(d.get('resource_id', '') == s for d in self.sites):
-                                    _LOGGER.warning("Solcast site resource id %s is no longer configured, removing saved data from cached file", s)
-                                    l.append(s)
+                            try:
+                                configured_sites = [s['resource_id'] for s in self.sites]
+                                for s in cache_sites:
+                                    if s not in configured_sites:
+                                        _LOGGER.warning("Solcast site resource id %s is no longer configured, removing saved data from cached file", s)
+                                        l.append(s)
+                            except Exception  as e:
+                                raise f"Exception while removing stale sites: {e}"
 
                             for ll in l:
                                 del json_data['siteinfo'][ll]
@@ -628,6 +636,8 @@ class SolcastApi:
                             # Create an up to date forecast
                             await self.buildforecastdata()
                             _LOGGER.info("Data loaded")
+                        else:
+                            _LOGGER.warning('solcast.json version is not latest (%d vs. %d), upgrading', json_version, _JSON_VERSION)
 
                 if not self._loaded_data:
                     # No file to load
