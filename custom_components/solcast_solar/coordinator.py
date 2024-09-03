@@ -24,7 +24,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching data"""
 
     def __init__(self, hass: HomeAssistant, solcast: SolcastApi, version: str) -> None:
-        """Initialize."""
+        """Initialize"""
         self.solcast = solcast
         self._hass = hass
         self._previousenergy = None
@@ -50,8 +50,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._previousenergy = d
         self._last_day = dt.now(self.solcast.options.tz).day
         try:
-            #4.0.18 - added reset usage call to reset usage sensors at UTC midnight
-            async_track_utc_time_change(self._hass, self.update_utcmidnight_usage_sensor_data, hour=0,minute=0,second=0)
+            async_track_utc_time_change(self._hass, self.update_utcmidnight_usage_sensor_data, hour=0, minute=0, second=0)
             async_track_utc_time_change(self._hass, self.update_integration_listeners, minute=range(0, 60, 5), second=0)
         except:
             _LOGGER.error("Exception in Solcast coordinator setup: %s", traceback.format_exc())
@@ -64,7 +63,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             self._date_changed = current_day != self._last_day
             if self._date_changed:
                 self._last_day = current_day
-                #4.0.41 - recalculate splines at midnight local
                 await self.update_midnight_spline_recalc()
 
             self.async_update_listeners()

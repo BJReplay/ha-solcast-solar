@@ -77,13 +77,13 @@ SERVICE_QUERY_SCHEMA: Final = vol.All(
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up solcast parameters."""
+    """Set up solcast parameters"""
 
     random.seed()
 
     optdamp = {}
     try:
-        #if something ever goes wrong with the damp factors just create a blank 1.0
+        # If something ever goes wrong with the damp factors just create a blank 1.0 list
         for a in range(0,24):
             optdamp[str(a)] = entry.options[f"damp{str(a).zfill(2)}"]
     except:
@@ -94,7 +94,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         for a in range(0,24):
             optdamp[str(a)] = 1.0
 
-    # Introduced in core 2024.6.0: async_get_time_zone
+    # async_get_time_zone() mandated in HA core 2024.6.0
     try:
         dt_util.async_get_time_zone # pylint: disable=W0104
         asynctz = True
@@ -177,10 +177,10 @@ help: https://github.com/BJReplay/ha-solcast-solar/issues
     # If the integration has failed for some time and then is restarted retrieve forecasts
     if solcast.get_api_used_count() == 0 and solcast.get_last_updated_datetime() < solcast.get_day_start_utc() - timedelta(days=1):
         try:
-            _LOGGER.info('Integration has been failed for some time, or your update automation has not been running (see readme), so retrieving forecasts')
+            _LOGGER.info('First start, or integration has been failed for some time, retrieving forecasts (or your update automation has not been running - see readme)')
             await coordinator.service_event_update()
         except Exception as e:
-            _LOGGER.error("Exception force fetching data on stale start: %s", e)
+            _LOGGER.error("Exception force fetching data on stale/initial start: %s", e)
             _LOGGER.error(traceback.format_exc())
 
     async def handle_service_update_forecast(call: ServiceCall):
