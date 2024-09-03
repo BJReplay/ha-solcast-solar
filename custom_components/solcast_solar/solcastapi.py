@@ -40,11 +40,11 @@ from .spline import cubic_interp
 """
 currentFuncName = lambda n=0: sys._getframe(n + 1).f_code.co_name # pylint: disable=C3001, W0212
 
-_SENSOR_DEBUG_LOGGING = False
-_FORECAST_DEBUG_LOGGING = False
-_SPLINE_DEBUG_LOGGING = False
+FORECAST_DEBUG_LOGGING = False
+JSON_VERSION = 4
+SENSOR_DEBUG_LOGGING = False
+SPLINE_DEBUG_LOGGING = False
 
-_JSON_VERSION = 4
 _LOGGER = logging.getLogger(__name__)
 
 class DateTimeEncoder(json.JSONEncoder):
@@ -640,7 +640,7 @@ class SolcastApi:
                         json_version = json_data.get("version", 1)
                         #self._weather = json_data.get("weather", "unknown")
                         _LOGGER.debug("Data cache exists, file type is %s", type(json_data))
-                        if json_version == _JSON_VERSION:
+                        if json_version == JSON_VERSION:
                             self._data = json_data
                             self._loaded_data = True
 
@@ -681,7 +681,7 @@ class SolcastApi:
                             await self.buildforecastdata()
                             _LOGGER.info("Data loaded")
                         else:
-                            _LOGGER.warning('solcast.json version is not latest (%d vs. %d), upgrading', json_version, _JSON_VERSION)
+                            _LOGGER.warning('solcast.json version is not latest (%d vs. %d), upgrading', json_version, JSON_VERSION)
 
                 if not self._loaded_data:
                     # No file to load.
@@ -724,7 +724,7 @@ class SolcastApi:
             st_i, end_i = self.get_forecast_list_slice(self._data_forecasts, args[0], args[1], search_past=True)
             h = self._data_forecasts[st_i:end_i]
 
-            if _SENSOR_DEBUG_LOGGING: _LOGGER.debug(
+            if SENSOR_DEBUG_LOGGING: _LOGGER.debug(
                 "Get forecast list: (%ss) st %s end %s st_i %d end_i %d h.len %d",
                 round(time.time()-st_time,4), args[0], args[1], st_i, end_i, len(h)
             )
@@ -819,7 +819,7 @@ class SolcastApi:
         st_i, end_i = self.get_forecast_list_slice(self._data_forecasts, start_utc, end_utc)
         h = self._data_forecasts[st_i:end_i]
 
-        if _SENSOR_DEBUG_LOGGING: _LOGGER.debug(
+        if SENSOR_DEBUG_LOGGING: _LOGGER.debug(
             "Get forecast day: %d st %s end %s st_i %d end_i %d h.len %d",
             futureday,
             start_utc.strftime('%Y-%m-%d %H:%M:%S'), end_utc.strftime('%Y-%m-%d %H:%M:%S'),
@@ -1040,7 +1040,7 @@ class SolcastApi:
                 self.sanitise_spline(spline, _data_field, xx, y, reducing=reducing)
             else: # The list slice was not found, so zero all values in the spline.
                 spline[_data_field] = [0] * (len(self._spline_period) * 6)
-        if _SPLINE_DEBUG_LOGGING:
+        if SPLINE_DEBUG_LOGGING:
             _LOGGER.debug(str(spline))
 
     def sanitise_spline(self, spline, _data_field, xx, y, reducing=False) -> None:
@@ -1133,7 +1133,7 @@ class SolcastApi:
                             res += f * s / 1800
                         else:
                             res += f
-            if _SENSOR_DEBUG_LOGGING: _LOGGER.debug(
+            if SENSOR_DEBUG_LOGGING: _LOGGER.debug(
                 "Get estimate: %s()%s %s st %s end %s st_i %d end_i %d res %s",
                 currentFuncName(1), '' if site is None else ' '+site, _data_field,
                 start_utc.strftime('%Y-%m-%d %H:%M:%S'),
@@ -1157,7 +1157,7 @@ class SolcastApi:
             st_i, end_i = self.get_forecast_list_slice(_data, start_utc, end_utc) # Get start and end indexes for the requested range.
             for d in _data[st_i:end_i]:
                 res += d[_data_field]
-            if _SENSOR_DEBUG_LOGGING: _LOGGER.debug(
+            if SENSOR_DEBUG_LOGGING: _LOGGER.debug(
                 "Get estimate: %s()%s %s st %s end %s st_i %d end_i %d res %s",
                 currentFuncName(1), '' if site is None else ' '+site, _data_field,
                 start_utc.strftime('%Y-%m-%d %H:%M:%S'),
@@ -1177,7 +1177,7 @@ class SolcastApi:
             day_start = self.get_day_start_utc()
             time_utc = time_utc.replace(minute = math.floor(time_utc.minute / 5) * 5)
             res = self.get_moment(site, _data_field, (time_utc - day_start).total_seconds())
-            if _SENSOR_DEBUG_LOGGING: _LOGGER.debug(
+            if SENSOR_DEBUG_LOGGING: _LOGGER.debug(
                 "Get estimate moment: %s()%s %s t %s sec %d res %s",
                 currentFuncName(1), '' if site is None else ' '+site, _data_field,
                 time_utc.strftime('%Y-%m-%d %H:%M:%S'), (time_utc - day_start).total_seconds(), round(res, 4)
@@ -1198,7 +1198,7 @@ class SolcastApi:
             for d in _data[st_i:end_i]:
                 if  res[_data_field] < d[_data_field]:
                     res = d
-            if _SENSOR_DEBUG_LOGGING: _LOGGER.debug(
+            if SENSOR_DEBUG_LOGGING: _LOGGER.debug(
                 "Get max estimate: %s()%s %s st %s end %s st_i %d end_i %d res %s",
                 currentFuncName(1), '' if site is None else ' '+site, _data_field,
                 start_utc.strftime('%Y-%m-%d %H:%M:%S'),
@@ -1252,7 +1252,7 @@ class SolcastApi:
                 #self._data["weather"] = self._weather
 
                 await self.buildforecastdata()
-                self._data["version"] = _JSON_VERSION
+                self._data["version"] = JSON_VERSION
                 self._loaded_data = True
 
                 await self.serialize_data()
@@ -1489,7 +1489,7 @@ class SolcastApi:
                 _LOGGER.error("The Solcast site cannot be found, status %s returned", translate(status))
             elif status == 200:
                 d = cast(dict, resp_json)
-                if _FORECAST_DEBUG_LOGGING:
+                if FORECAST_DEBUG_LOGGING:
                     _LOGGER.debug("HTTP session returned: %s", str(d))
                 return d
         except ConnectionRefusedError as e:

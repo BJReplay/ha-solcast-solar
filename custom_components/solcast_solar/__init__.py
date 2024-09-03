@@ -26,7 +26,16 @@ from homeassistant.helpers.device_registry import async_get as device_registry
 from homeassistant.util import dt as dt_util
 
 from .const import (
+    API_QUOTA,
+    BRK_ESTIMATE,
+    BRK_ESTIMATE10,
+    BRK_ESTIMATE90,
+    BRK_SITE,
+    BRK_HALFHOURLY,
+    BRK_HOURLY,
+    CUSTOM_HOUR_SENSOR,
     DOMAIN,
+    KEY_ESTIMATE,
     SERVICE_CLEAR_DATA,
     SERVICE_UPDATE,
     SERVICE_QUERY_FORECAST_DATA,
@@ -34,45 +43,33 @@ from .const import (
     SERVICE_SET_HARD_LIMIT,
     SERVICE_REMOVE_HARD_LIMIT,
     SOLCAST_URL,
-    API_QUOTA,
-    CUSTOM_HOUR_SENSOR,
-    KEY_ESTIMATE,
-    BRK_ESTIMATE,
-    BRK_ESTIMATE10,
-    BRK_ESTIMATE90,
-    BRK_SITE,
-    BRK_HALFHOURLY,
-    BRK_HOURLY,
 )
 
 from .coordinator import SolcastUpdateCoordinator
 from .solcastapi import ConnectionOptions, SolcastApi
 
-PLATFORMS = [Platform.SENSOR, Platform.SELECT,]
-
 _LOGGER = logging.getLogger(__name__)
 
 DAMP_FACTOR = "damp_factor"
-SERVICE_DAMP_SCHEMA: Final = vol.All(
-        {
-            vol.Required(DAMP_FACTOR): cv.string,
-        }
-)
-
-HARD_LIMIT = "hard_limit"
-SERVICE_HARD_LIMIT_SCHEMA: Final = vol.All(
-        {
-            vol.Required(HARD_LIMIT): cv.Number,
-        }
-)
-
-EVENT_START_DATETIME = "start_date_time"
 EVENT_END_DATETIME = "end_date_time"
+EVENT_START_DATETIME = "start_date_time"
+HARD_LIMIT = "hard_limit"
+PLATFORMS = [Platform.SENSOR, Platform.SELECT,]
+SERVICE_DAMP_SCHEMA: Final = vol.All(
+    {
+        vol.Required(DAMP_FACTOR): cv.string,
+    }
+)
+SERVICE_HARD_LIMIT_SCHEMA: Final = vol.All(
+    {
+        vol.Required(HARD_LIMIT): cv.Number,
+    }
+)
 SERVICE_QUERY_SCHEMA: Final = vol.All(
-        {
-            vol.Required(EVENT_START_DATETIME): cv.datetime,
-            vol.Required(EVENT_END_DATETIME): cv.datetime,
-        }
+    {
+        vol.Required(EVENT_START_DATETIME): cv.datetime,
+        vol.Required(EVENT_END_DATETIME): cv.datetime,
+    }
 )
 
 

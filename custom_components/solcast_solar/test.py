@@ -13,8 +13,8 @@ from .const import SOLCAST_URL
 from .solcastapi import ConnectionOptions, SolcastApi
 
 logging.basicConfig(level=logging.DEBUG)
-_LOGGER = logging.getLogger(__name__)
 
+_LOGGER = logging.getLogger(__name__)
 
 async def test():
     """Testing..."""
