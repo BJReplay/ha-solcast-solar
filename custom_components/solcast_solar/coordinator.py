@@ -1,4 +1,4 @@
-"""The Solcast Solar coordinator"""
+"""The Solcast Solar coordinator."""
 
 # pylint: disable=C0302, C0304, C0321, E0401, R0902, R0914, W0105, W0613, W0702, W0706, W0719
 
@@ -22,11 +22,15 @@ from .solcastapi import SolcastApi
 _LOGGER = logging.getLogger(__name__)
 
 class SolcastUpdateCoordinator(DataUpdateCoordinator):
-    """Class to manage fetching data"""
+    """Class to manage fetching data."""
 
     def __init__(self, hass: HomeAssistant, solcast: SolcastApi, version: str) -> None:
-        """Initialize"""
+        """Initialisation.
+
+        Public variables at the top, protected variables (those prepended with _ after)
+        """
         self.solcast = solcast
+
         self._hass = hass
         self._previousenergy = None
         self._version = version
@@ -44,11 +48,11 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
 
     async def _async_update_data(self):
-        """Update data via library"""
+        """Update data via library."""
         return self.solcast.get_data()
 
     async def setup(self) -> None:
-        """Set up time change tracking"""
+        """Set up time change tracking."""
         d={}
         self._previousenergy = d
         self._last_day = dt.now(self.solcast.options.tz).day
@@ -60,7 +64,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
 
     async def update_integration_listeners(self, *args) -> None:
-        """Get updated sensor values"""
+        """Get updated sensor values."""
         try:
             now = dt.now().replace(microsecond=0)
             if self._updated_listeners == now: # Work around a possible HA scheduling bug
@@ -79,7 +83,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             pass
 
     async def update_utcmidnight_usage_sensor_data(self, *args) -> None:
-        """Resets tracked API usage at midnight UTC"""
+        """Resets tracked API usage at midnight UTC."""
         try:
             now = dt.now().replace(microsecond=0)
             if self._updated_usage == now: # Work around a possible HA scheduling bug
@@ -92,7 +96,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             pass
 
     async def update_midnight_spline_recalc(self, *args) -> None:
-        """Re-calculates splines at midnight local time"""
+        """Re-calculates splines at midnight local time."""
         try:
             _LOGGER.debug("Recalculating splines")
             await self.solcast.spline_moments()
@@ -101,7 +105,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Exception in update_midnight_spline_recalc(): %s", traceback.format_exc())
 
     async def service_event_update(self, *args) -> None:
-        """Get updated forecast data when requested by a service call"""
+        """Get updated forecast data when requested by a service call."""
         try:
             #await self.solcast.sites_weather()
             await self.solcast.http_data(dopast=False)
@@ -112,27 +116,27 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Exception in service_event_update(): %s", traceback.format_exc())
 
     async def service_event_delete_old_solcast_json_file(self, *args) -> None:
-        """Delete the solcast.json file when requested by a service call"""
+        """Delete the solcast.json file when requested by a service call."""
         await self.solcast.delete_solcast_file()
 
     async def service_query_forecast_data(self, *args) -> tuple:
-        """Return forecast data requested by a service call"""
+        """Return forecast data requested by a service call."""
         return await self.solcast.get_forecast_list(*args)
 
     def get_solcast_sites(self) -> dict[str, Any]:
-        """Return the active solcast sites"""
+        """Return the active solcast sites."""
         return self.solcast.sites
 
     def get_previousenergy(self) -> dict[str, Any]:
-        """Return the prior energy dictionary"""
+        """Return the prior energy dictionary."""
         return self._previousenergy
 
     def get_energy_tab_data(self) -> dict[str, Any]:
-        """Return an energy page compatible dictionary"""
+        """Return an energy page compatible dictionary."""
         return self.solcast.get_energy_data()
 
     def get_data_updated(self) -> bool:
-        """Return whether all data has updated, which will trigger all sensor values to update"""
+        """Return whether all data has updated, which will trigger all sensor values to update."""
         return self._data_updated
 
     def set_data_updated(self, updated) -> bool:
@@ -140,11 +144,11 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._data_updated = updated
 
     def get_date_changed(self) -> bool:
-        """Return whether rolled over to tomorrow, which will trigger all sensor values to update"""
+        """Return whether rolled over to tomorrow, which will trigger all sensor values to update."""
         return self._date_changed
 
     def get_sensor_value(self, key="") -> (int | dt | float | Any | str | bool | None):
-        """Return the value of a sensor"""
+        """Return the value of a sensor."""
         match key:
             case "peak_w_today":
                 return self.solcast.get_peak_w_day(0)
@@ -196,7 +200,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 return None
 
     def get_sensor_extra_attributes(self, key="") -> (Dict[str, Any] | None):
-        """Return the attributes for a sensor"""
+        """Return the attributes for a sensor."""
         match key:
             case "forecast_this_hour":
                 return self.solcast.get_forecasts_n_hour(0)
@@ -252,7 +256,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 return None
 
     def get_site_sensor_value(self, roof_id, key) -> (float | None):
-        """Get the site total for today"""
+        """Get the site total for today."""
         match key:
             case "site_data":
                 return self.solcast.get_rooftop_site_total_today(roof_id)
@@ -260,7 +264,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 return None
 
     def get_site_sensor_extra_attributes(self, roof_id, key) -> (dict[str, Any] | None):
-        """Get the attributes for a sensor"""
+        """Get the attributes for a sensor."""
         match key:
             case "site_data":
                 return self.solcast.get_rooftop_site_extra_data(roof_id)

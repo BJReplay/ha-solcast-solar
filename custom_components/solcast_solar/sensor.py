@@ -363,13 +363,16 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
     @callback
     def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
+        """Handle updated data from the coordinator.
 
-        # these sensors will pick-up the change on the next interval update (5mins)
+        Some sensors are updated periodically every five minutes (those with an update_policy of
+        SensorUpdatePolicy.EVERY_TIME_INTERVAL), while the remaining sensors update after each
+        forecast update or when the date changes.
+        """
+
         if self.update_policy == SensorUpdatePolicy.EVERY_TIME_INTERVAL and self.coordinator.get_data_updated():
             return
 
-        # these sensors update when the date changed or when there is new data
         if self.update_policy == SensorUpdatePolicy.DEFAULT and not (self.coordinator.get_date_changed() or self.coordinator.get_data_updated()) :
             return
 
@@ -388,7 +391,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
 @dataclass
 class RooftopSensorEntityDescription(SensorEntityDescription):
-    """Representation of a rooftop entity description"""
+    """Representation of a rooftop entity description."""
     key: str | None = None
     name: str | None = None
     icon: str | None = None
@@ -398,7 +401,7 @@ class RooftopSensorEntityDescription(SensorEntityDescription):
     rooftop_id: str | None = None
 
 class RooftopSensor(CoordinatorEntity, SensorEntity):
-    """Representation of a rooftop sensor device"""
+    """Representation of a rooftop sensor device."""
 
     _attr_attribution = ATTRIBUTION
 
@@ -430,7 +433,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
 
         self._attr_device_info = {
             ATTR_IDENTIFIERS: {(DOMAIN, entry.entry_id)},
-            ATTR_NAME: "Solcast PV Forecast", #entry.title,
+            ATTR_NAME: "Solcast PV Forecast",
             ATTR_MANUFACTURER: "BJReplay",
             ATTR_MODEL: "Solcast PV Forecast",
             ATTR_ENTRY_TYPE: DeviceEntryType.SERVICE,
@@ -475,7 +478,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         return False
 
     async def async_added_to_hass(self) -> None:
-        """When entity is added to hass."""
+        """Called when an entity is added to hass."""
         await super().async_added_to_hass()
         self.async_on_remove(self.coordinator.async_add_listener(self._handle_coordinator_update))
 

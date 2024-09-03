@@ -28,13 +28,11 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class PVEstimateMode(IntEnum):
-    """
-    Enumeration of pv forecasts kinds.
+    """Enumeration of pv forecast estimates.
 
-    Possible values are:
-    ESTIMATE - Default forecasts
-    ESTIMATE10 = Forecasts 10 - cloudier than expected scenario
-    ESTIMATE90 = Forecasts 90 - less cloudy than expected scenario
+    ESTIMATE: Use default forecasts
+    ESTIMATE10: Use forecasts 10 - cloudier than expected scenario
+    ESTIMATE90: Use forecasts 90 - less cloudy than expected scenario
     """
 
     ESTIMATE = 0
@@ -47,10 +45,6 @@ _MODE_TO_OPTION: dict[PVEstimateMode, str] = {
     PVEstimateMode.ESTIMATE10: "estimate10",
     PVEstimateMode.ESTIMATE90: "estimate90",
 }
-
-# _OPTION_TO_MODE: dict[str, PVEstimateMode] = {
-#     value: key for key, value in _MODE_TO_OPTION.items()
-# }
 
 ESTIMATE_MODE = SelectEntityDescription(
     key="estimate_mode",
@@ -65,7 +59,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Setup entry"""
+    """Set up the entry."""
     coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     try:
@@ -98,22 +92,18 @@ class EstimateModeEntity(SelectEntity):
         current_option: str,
         entry: ConfigEntry,
     ) -> None:
-        """Initialize the sensor."""
+        """Initialise the sensor."""
 
         self.coordinator = coordinator
-        self._entry = entry
-
         self.entity_description = entity_description
-        self._attr_unique_id = f"{entity_description.key}"
 
+        self._entry = entry
+        self._attr_unique_id = f"{entity_description.key}"
         self._attr_options = supported_options
         self._attr_current_option = current_option
-
         self._attr_entity_category = EntityCategory.CONFIG
-
         self._attributes = {}
         self._attr_extra_state_attributes = {}
-
         self._attr_device_info = {
             ATTR_IDENTIFIERS: {(DOMAIN, entry.entry_id)},
             ATTR_NAME: "Solcast PV Forecast",

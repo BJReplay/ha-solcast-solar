@@ -1,4 +1,4 @@
-"""Integration test - development only"""
+"""Integration test - development only."""
 #!/usr/bin/python3
 
 # pylint: disable=C0304, E0401, W0702
@@ -17,7 +17,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def test():
-    """testing"""
+    """Testing..."""
     print('This script is for development purposes only')
     try:
         optdamp = {}

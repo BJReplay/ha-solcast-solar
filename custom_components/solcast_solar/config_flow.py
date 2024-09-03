@@ -1,4 +1,4 @@
-"""Config flow for Solcast Solar integration"""
+"""Config flow for Solcast Solar integration."""
 
 # pylint: disable=C0304, E0401, W0702
 
@@ -92,15 +92,15 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
 
 class SolcastSolarOptionFlowHandler(OptionsFlow):
-    """Handle options"""
+    """Handle options."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:
-        """Initialize options flow"""
+        """Initialize options flow."""
         self.config_entry = config_entry
         self.options = dict(config_entry.options)
 
     async def async_step_init(self, user_input=None) -> Any:
-        """Initialise steps"""
+        """Initialise steps."""
 
         errors = {}
         if user_input is not None:
@@ -134,7 +134,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         )
 
     async def async_step_api(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Manage the API key/quota"""
+        """Manage the API key/quota."""
 
         errors = {}
         api_quota = self.config_entry.options[API_QUOTA]
@@ -170,7 +170,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         )
 
     async def async_step_dampen(self, user_input: dict[str, Any] | None = None) -> FlowResult: #user_input=None):
-        """Manage the hourly factor options"""
+        """Manage the hourly factor options."""
 
         errors = {}
 
@@ -320,7 +320,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         )
 
     async def async_step_customsensor(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Manage the custom X hour sensor option"""
+        """Manage the custom X hour sensor option."""
 
         errors = {}
 
@@ -355,7 +355,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         )
 
     async def async_step_attributes(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Manage the attributes present"""
+        """Manage the attributes present for sensors."""
 
         errors = {}
 

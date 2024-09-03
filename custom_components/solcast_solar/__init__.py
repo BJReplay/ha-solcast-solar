@@ -1,4 +1,4 @@
-"""Support for Solcast PV forecast."""
+"""Support for Solcast PV forecast, intialisation."""
 
 # pylint: disable=C0304, C0321, E0401, E1135, W0613, W0702, W0718
 
@@ -77,7 +77,17 @@ SERVICE_QUERY_SCHEMA: Final = vol.All(
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Set up solcast parameters"""
+    """Set up the integration.
+
+    - Get and sanitise options
+    - Instantiate the main class
+    - Load Solcast sites and API usage
+    - Load previously saved data
+    - Instantiate the coordinator
+    - Add unload hook on options change
+    - Trigger a forecast update for new installs (or after a 'stale' start)
+    - Set up service calls
+    """
 
     random.seed()
 
@@ -184,17 +194,17 @@ help: https://github.com/BJReplay/ha-solcast-solar/issues
             _LOGGER.error(traceback.format_exc())
 
     async def handle_service_update_forecast(call: ServiceCall):
-        """Handle service call"""
+        """Handle service call."""
         _LOGGER.info("Service call: %s", SERVICE_UPDATE)
         await coordinator.service_event_update()
 
     async def handle_service_clear_solcast_data(call: ServiceCall):
-        """Handle service call"""
+        """Handle service call."""
         _LOGGER.info("Service call: %s", SERVICE_CLEAR_DATA)
         await coordinator.service_event_delete_old_solcast_json_file()
 
     async def handle_service_get_solcast_data(call: ServiceCall) -> ServiceResponse:
-        """Handle service call"""
+        """Handle service call."""
         try:
             _LOGGER.info("Service call: %s", SERVICE_QUERY_FORECAST_DATA)
 
@@ -211,7 +221,7 @@ help: https://github.com/BJReplay/ha-solcast-solar/issues
         return None
 
     async def handle_service_set_dampening(call: ServiceCall):
-        """Handle service call"""
+        """Handle service call."""
         try:
             _LOGGER.info("Service call: %s", SERVICE_SET_DAMPENING)
 
@@ -244,7 +254,7 @@ help: https://github.com/BJReplay/ha-solcast-solar/issues
             raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: {err}") from err
 
     async def handle_service_set_hard_limit(call: ServiceCall):
-        """Handle service call"""
+        """Handle service call."""
         try:
             _LOGGER.info("Service call: %s", SERVICE_SET_HARD_LIMIT)
 
@@ -268,7 +278,7 @@ help: https://github.com/BJReplay/ha-solcast-solar/issues
             raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: {err}") from err
 
     async def handle_service_remove_hard_limit(call: ServiceCall):
-        """Handle service call"""
+        """Handle service call."""
         try:
             _LOGGER.info("Service call: %s", SERVICE_REMOVE_HARD_LIMIT)
 
@@ -306,7 +316,10 @@ help: https://github.com/BJReplay/ha-solcast-solar/issues
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Unload a config entry"""
+    """Unload a config entry.
+
+    This also removes the services available.
+    """
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id)
@@ -321,7 +334,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device) -> bool:
-    """Remove ConfigEntry device"""
+    """Remove ConfigEntry device."""
     device_registry(hass).async_remove_device(device.id)
     return True
 
@@ -330,7 +343,25 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     await hass.config_entries.async_reload(entry.entry_id)
 
 async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
-    """Migrate old entry"""
+    """Upgrade configuration.
+
+    v4: (?)       Remove option for auto-poll
+    v5: (4.0.8)   Dampening factor for each hour
+    v6: (4.0.15)  Add custom sensor for next X hours
+    v7: (4.0.16)  Selectable estimate value to use estimate, estimate10, estimate90
+    v8: (4.0.39)  Selectable attributes for sensors
+    v9: (4.1.3)   API limit (because Solcast removed an API call)
+
+    An upgrade of the integration will sequentially upgrade options to the current
+    version, with this function needing to consider all upgrade history and new defaults.
+
+    An integration downgrade must not cause any issues when future options have been
+    configured, with future options then just being unused. To be clear, the intent or
+    characteristics of an option cannot change with an upgrade. These should also be
+    re-defaulted on subsequent upgrade.
+
+    The present version (e.g. `VERSION = 9`) is specified in `config_flow.py`.
+    """
     def upgraded():
         _LOGGER.debug("Upgraded to options version %s", config_entry.version)
 
@@ -353,8 +384,6 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
             else:
                 raise
 
-    #new 4.0.8
-    #dampening factor for each hour
     if config_entry.version < 5:
         new = {**config_entry.options}
         for a in range(0,24):
@@ -370,8 +399,6 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
             else:
                 raise
 
-    #new 4.0.15
-    #custom sensor for 'next x hours'
     if config_entry.version < 6:
         new = {**config_entry.options}
         new[CUSTOM_HOUR_SENSOR] = 1
@@ -386,8 +413,6 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
             else:
                 raise
 
-    #new 4.0.16
-    #which estimate value to use for data calcs est,est10,est90
     if config_entry.version < 7:
         new = {**config_entry.options}
         new[KEY_ESTIMATE] = "estimate"
@@ -402,8 +427,6 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
             else:
                 raise
 
-    #new 4.0.39
-    #attributes to include
     if config_entry.version < 8:
         new = {**config_entry.options}
         if new.get(BRK_ESTIMATE) is None: new[BRK_ESTIMATE] = True
@@ -423,8 +446,6 @@ async def async_migrate_entry(hass: HomeAssistant, config_entry: ConfigEntry) ->
             else:
                 raise
 
-    #new 4.1.3
-    #API quota
     if config_entry.version < 9:
         new = {**config_entry.options}
         try:
