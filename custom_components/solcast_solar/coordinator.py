@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 from datetime import datetime as dt
+from datetime import timedelta
 
 from typing import Any, Dict
 
@@ -32,6 +33,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._last_day = None
         self._date_changed = False
         self._data_updated = False
+        self._updated_listeners = dt.now() - timedelta(minutes=1)
+        self._updated_usage = dt.now() - timedelta(minutes=1)
 
         super().__init__(
             hass,
@@ -59,6 +62,11 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     async def update_integration_listeners(self, *args) -> None:
         """Get updated sensor values"""
         try:
+            now = dt.now().replace(microsecond=0)
+            if self._updated_listeners == now: # Work around a possible HA scheduling bug
+                return
+            self._updated_listeners = now
+
             current_day = dt.now(self.solcast.options.tz).day
             self._date_changed = current_day != self._last_day
             if self._date_changed:
@@ -73,6 +81,11 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     async def update_utcmidnight_usage_sensor_data(self, *args) -> None:
         """Resets tracked API usage at midnight UTC"""
         try:
+            now = dt.now().replace(microsecond=0)
+            if self._updated_usage == now: # Work around a possible HA scheduling bug
+                return
+            self._updated_usage = now
+
             await self.solcast.reset_api_usage()
         except:
             #_LOGGER.error("Exception in update_utcmidnight_usage_sensor_data(): %s", traceback.format_exc())
