@@ -16,7 +16,7 @@ See [detailed](#hacs-recommended) instructions below.  Now that HACS 2.0 has bee
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BJReplay&repository=ha-solcast-solar&category=integration)
 
 > [!WARNING]  
-> This repository is **not** currently in HACS, awaiting [this PR](https://github.com/hacs/default/pull/2535) to be merged. Install using the [HACS *(recommended)*](#hacs-recommended) instructions below: 
+> This repository is **not** currently in HACS, awaiting [this PR](https://github.com/hacs/default/pull/2535) to be merged. Install using the [HACS *(recommended)*](#hacs-recommended) instructions below.
 
 > [!NOTE]
 >
@@ -44,7 +44,7 @@ This custom component integrates the Solcast Hobby PV Forecast API into Home Ass
 > [!NOTE]
 >
 > 
-> Solcast have altered their API limits for new account creators
+> Solcast have altered their API limits for new account creators.
 >
 > Solcast now only offer new account creators a limit of 10 API calls per day (used to be 50). 
 > Old account users still have 50 API calls.
