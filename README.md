@@ -577,6 +577,15 @@ series:
 
 ## Changes
 
+v4.1.5
+* Bug: Timestamp stored in usage cache was wrong by @autoSteve
+* Bug: Adding API key reset usage for first key by @autoSteve
+* Bug: Missing iterator in new sites check by @autoSteve
+* Work aound a possible HA scheduling bug by @autoSteve
+* Code style alignment to HA style guidelines by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.4...v4.1.5
+
 v4.1.4
 * Update Polish translation by @home409ca
 * Rename integration in HACS to Solcast PV Forecast by @BJReplay
