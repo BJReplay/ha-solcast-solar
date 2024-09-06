@@ -184,7 +184,7 @@ class SolcastApi:
         """Build a fully qualified site details cache filename using a simple name or separate files for more than one API key."""
         return f"{self._config_dir}/solcast-sites{'' if not self.is_multi_key() else '-' + entry_name}.json"
 
-    async def serialize_data(self):
+    async def serialize_data(self) -> bool:
         """Serialize data to file.
 
         The twin try/except blocks here are significant. If the two were combined with
@@ -215,8 +215,10 @@ class SolcastApi:
                     async with aiofiles.open(self._filename, 'w') as f:
                         await f.write(payload)
                 _LOGGER.debug("Saved forecast cache")
+                return True
             except Exception as e:
                 _LOGGER.error("Exception writing forecast data: %s", e)
+        return False
 
     async def serialise_usage(self, api_key, reset=False):
         """Serialise the usage cache file.
@@ -1251,11 +1253,13 @@ class SolcastApi:
                 self._data["last_updated"] = dt.now(timezone.utc).isoformat()
                 #self._data["weather"] = self._weather
 
-                await self.buildforecastdata()
+                b_status = await self.buildforecastdata()
                 self._data["version"] = JSON_VERSION
                 self._loaded_data = True
 
-                await self.serialize_data()
+                s_status = await self.serialize_data()
+                if b_status and s_status:
+                    _LOGGER.info("Forecast update completed successfully")
             else:
                 if sites_attempted > 0:
                     _LOGGER.error("At least one Solcast site forecast failed to fetch, so forecast has not been built")
@@ -1530,7 +1534,7 @@ class SolcastApi:
 
         return wh_hours
 
-    async def buildforecastdata(self):
+    async def buildforecastdata(self) -> bool:
         """Build data structures needed, adjusting if dampening or setting a hard limit."""
         try:
             today = dt.now(self._tz).date()
@@ -1591,9 +1595,11 @@ class SolcastApi:
             await self.spline_remaining()
 
             _LOGGER.debug("Build forecast processing took %.3f seconds", round(time.time() - st_time, 4))
+            return True
 
         except:
             _LOGGER.error("Exception in http_data(): %s", traceback.format_exc())
+            return False
 
 
     def calc_forecast_start_index(self):
