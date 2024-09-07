@@ -17,7 +17,16 @@
         "step": {
             "init": {
                 "data": {
-                    "solcast_config_action": "Action"
+                    "api_key": "API key (comma separate multiple values)",
+                    "api_quota": "API limit (optionally comma separate multiple values per key)",
+                    "customhoursensor": "Custom Next X Hour Sensor",
+                    "attr_brk_estimate10": "Enable estimate 10 sensor attributes",
+                    "attr_brk_estimate": "Enable estimate 50 sensor attributes",
+                    "attr_brk_estimate90": "Enable estimate 90 sensor attributes",
+                    "attr_brk_site": "Enable site breakdown sensor attributes",
+                    "attr_brk_halfhourly": "Enable forecast half-hourly detail attributes",
+                    "attr_brk_hourly": "Enable forecast hourly detail attributes",
+                    "config_damp": "Modify the hourly dampening factors (after clicking submit)"
                 },
                 "description": "Solcast configuration options"
             },

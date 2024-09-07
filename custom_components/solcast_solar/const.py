@@ -15,11 +15,20 @@ BRK_ESTIMATE90 = "attr_brk_estimate90"
 BRK_HALFHOURLY = "attr_brk_halfhourly"
 BRK_HOURLY = "attr_brk_hourly"
 BRK_SITE = "attr_brk_site"
+CONFIG_DAMP = "config_damp"
+'''
 CONFIG_OPTIONS = [
     selector.SelectOptionDict(value="configure_api", label="option1"),
     selector.SelectOptionDict(value="configure_dampening", label="option2"),
     selector.SelectOptionDict(value="configure_customsensor", label="option3"),
     selector.SelectOptionDict(value="configure_attributes", label="option4"),
+]
+'''
+CONFIG_OPTIONS = [
+    "configure_api",
+    "configure_dampening",
+    "configure_customsensor",
+    "configure_attributes",
 ]
 CUSTOM_HOUR_SENSOR = "customhoursensor"
 DOMAIN = "solcast_solar"
