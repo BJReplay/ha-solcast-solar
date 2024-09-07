@@ -17,16 +17,18 @@
         "step": {
             "init": {
                 "data": {
-                    "api_key": "Solcast-API-Schlüssel"
+                    "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
+                    "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)",
+                    "customhoursensor": "Nächster X-Stunden-Sensor (min=1, max=144)",
+                    "attr_brk_estimate10": "Aktivieren Sie die Schätzung von 10 Sensorattributen",
+                    "attr_brk_estimate": "Aktivieren Sie die Schätzung von 50 Sensorattributen",
+                    "attr_brk_estimate90": "Aktivieren Sie die Schätzung von 90 Sensorattributen",
+                    "attr_brk_site": "Aktivieren Sie die Attribute des Site-Aufschlüsselungssensors",
+                    "attr_brk_halfhourly": "Aktivieren Sie prognostizierte halbstündliche Detailattribute",
+                    "attr_brk_hourly": "Aktivieren Sie prognostizierte stündliche Detailattribute",
+                    "config_damp": "Ändern Sie die stündlichen Dämpfungsfaktoren (nachdem Sie auf „Senden“ geklickt haben)"
                 },
                 "description": "Dein Solcast-API-Kontoschlüssel"
-            },
-            "api": {
-                "data": {
-                    "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
-                    "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)"
-                },
-                "description": "Solcast-Kontodaten"
             },
             "dampen": {
                 "data": {
@@ -56,33 +58,6 @@
                     "damp23": "23:00"
                 },
                 "description": "Ändern Sie den stündlichen Dämpfungsfaktor"
-            },
-            "customsensor": {
-                "data": {
-                    "customhoursensor": "Nächster X-Stunden-Sensor"
-                },
-                "description": "Benutzerdefinierter Sensor für die Gesamtenergie für die nächsten X Stunden"
-            },
-            "attributes": {
-                "data": {
-                    "attr_brk_estimate10": "Aktivieren Sie die Aufschlüsselung von Kostenvoranschlag 10",
-                    "attr_brk_estimate": "Aktivieren Sie die Aufschlüsselung von Kostenvoranschlag 50",
-                    "attr_brk_estimate90": "Aktivieren Sie die Aufschlüsselung von Kostenvoranschlag 90",
-                    "attr_brk_site": "Aktivieren Sie die Site-Aufschlüsselung",
-                    "attr_brk_halfhourly": "Aktivieren Sie die halbstündliche Detailprognose",
-                    "attr_brk_hourly": "Aktivieren Sie die stündlichen Detailprognose"
-                },
-                "description": "Wählen Sie die verfügbaren Sensorattribute aus"
-            }
-        }
-    },
-    "selector": {
-        "solcast_config_action": {
-            "options": {
-                "configure_api": "Solcast-Kontodaten",
-                "configure_dampening": "Dämpfung konfigurieren",
-                "configure_customsensor": "Konfigurieren Sie einen benutzerdefinierten Stundensensor",
-                "configure_attributes": "Konfigurieren Sie verfügbare Attribute"
             }
         }
     },

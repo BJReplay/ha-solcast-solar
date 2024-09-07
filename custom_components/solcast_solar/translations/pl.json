@@ -17,16 +17,18 @@
         "step": {
             "init": {
                 "data": {
-                    "solcast_config_action": "Działanie"
+                    "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
+                    "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
+                    "customhoursensor": "Niestandardowy czujnik następnej godziny X (min.=1, maks.=144)",
+                    "attr_brk_estimate10": "Włącz oszacowanie 10 atrybutów czujnika",
+                    "attr_brk_estimate": "Włącz oszacowanie 50 atrybutów czujnika",
+                    "attr_brk_estimate90": "Włącz oszacowanie 90 atrybutów czujnika",
+                    "attr_brk_site": "Włącz atrybuty czujnika podziału witryny",
+                    "attr_brk_halfhourly": "Włącz atrybuty szczegółów prognozy półgodzinnej",
+                    "attr_brk_hourly": "Włącz atrybuty szczegółów prognozy godzinowej",
+                    "config_damp": "Zmodyfikuj godzinowe współczynniki tłumienia (po kliknięciu przycisku Prześlij)"
                 },
                 "description": "Opcje konfiguracji Solcast"
-            },
-            "api": {
-                "data": {
-                    "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
-                    "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)"
-                },
-                "description": "Dane konta Solcast"
             },
             "dampen": {
                 "data": {
@@ -56,38 +58,11 @@
                     "damp23": "23:00"
                 },
                 "description": "Zmodyfikuj godzinowy współczynnik tłumienia"
-            },
-            "customsensor": {
-                "data": {
-                    "customhoursensor": "Następny czujnik X godzin"
-                },
-                "description": "Niestandardowy czujnik całkowitej energii na następne X godzin"
-            },
-            "attributes": {
-                "data": {
-                    "attr_brk_estimate10": "Włącz podział szacunkowy 10",
-                    "attr_brk_estimate": "Włącz podział szacunkowy 50",
-                    "attr_brk_estimate90": "Włącz podział szacunkowy 90",
-                    "attr_brk_site": "Włącz podział witryny",
-                    "attr_brk_halfhourly": "Włącz szczegóły prognozy półgodzinnej",
-                    "attr_brk_hourly": "Włącz szczegółowe informacje godzinowe prognozy"
-                },
-                "description": "Wybierz atrybuty czujnika, które będą dostępne"
             }
         },
         "error": {
             "unknown": "Nieznany błąd",
             "incorrect_options_action": "Wybrano nieprawidłowe działanie"
-        }
-    },
-    "selector": {
-        "solcast_config_action": {
-            "options": {
-                "configure_api": "Dane konta Solcast",
-                "configure_dampening": "Konfiguruj tłumienie",
-                "configure_customsensor": "Konfiguruj niestandardowy czujnik godzin",
-                "configure_attributes": "Konfiguruj dostępne atrybuty"
-            }
         }
     },
     "system_health": {

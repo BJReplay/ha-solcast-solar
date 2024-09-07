@@ -7,7 +7,7 @@
             "user": {
                 "data": {
                     "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
-                    "api_quota": "Kvóta rozhrania API (viac hodnôt oddelených čiarkou)"
+                    "api_quota": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)"
                 },
                 "description": "Podrobnosti o účte Solcast"
             }
@@ -17,16 +17,18 @@
         "step": {
             "init": {
                 "data": {
-                    "solcast_config_action": "Akcia"
+                    "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
+                    "api_quota": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",
+                    "customhoursensor": "Vlastný senzor ďalších X hodín (min=1, max=144)",
+                    "attr_brk_estimate10": "Povoliť odhad 10 atribútov senzora",
+                    "attr_brk_estimate": "Povoliť odhad 50 atribútov senzora",
+                    "attr_brk_estimate90": "Povoliť odhad 90 atribútov senzora",
+                    "attr_brk_site": "Povoliť atribúty senzora rozdelenia stránok",
+                    "attr_brk_halfhourly": "Povoliť polhodinové podrobné atribúty prognózy",
+                    "attr_brk_hourly": "Povoliť hodinové podrobné atribúty prognózy",
+                    "config_damp": "Upravte hodinové faktory tlmenia (po kliknutí na odoslať)"
                 },
                 "description": "Solcast možnosti konfigurácie"
-            },
-            "api": {
-                "data": {
-                    "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
-                    "api_quota": "Kvóta rozhrania API (viac hodnôt oddelených čiarkou)"
-                },
-                "description": "Podrobnosti o účte Solcast"
             },
             "dampen": {
                 "data": {
@@ -56,38 +58,11 @@
                     "damp23": "23:00"
                 },
                 "description": "Upravte hodinový faktor tlmenia"
-            },
-            "customsensor": {
-                "data": {
-                    "customhoursensor": "Ďalší X-hodinový senzor"
-                },
-                "description": "Vlastný senzor pre celkovú energiu na ďalších X hodín"
-            },
-            "attributes": {
-                "data": {
-                    "attr_brk_estimate10": "Povoliť rozdelenie odhadu 10",
-                    "attr_brk_estimate": "Povoliť rozdelenie odhadu 50",
-                    "attr_brk_estimate90": "Povoliť rozdelenie odhadu 90",
-                    "attr_brk_site": "Povoliť rozdelenie stránok",
-                    "attr_brk_halfhourly": "Povoliť polhodinové podrobnosti predpovede",
-                    "attr_brk_hourly": "Povoliť hodinové podrobnosti prognózy"
-                },
-                "description": "Vyberte atribúty senzora, ktoré budú k dispozícii"
             }
         },
         "error": {
             "unknown": "Neznáma chyba",
             "incorrect_options_action": "Zvolená nesprávna akcia"
-        }
-    },
-    "selector": {
-        "solcast_config_action": {
-            "options": {
-                "configure_api": "Podrobnosti o účte Solcast",
-                "configure_dampening": "Konfigurácia tlmenia",
-                "configure_customsensor": "Konfigurácia vlastného snímača hodín",
-                "configure_attributes": "Konfigurácia dostupných atribútov"
-            }
         }
     },
     "system_health": {

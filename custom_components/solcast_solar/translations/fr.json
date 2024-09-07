@@ -17,16 +17,18 @@
         "step": {
             "init": {
                 "data": {
-                    "solcast_config_action": "Action"
+                    "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
+                    "api_quota": "Quota d'API (plusieurs valeurs séparées par des virgules)",
+                    "customhoursensor": "Capteur personnalisé des X prochaines heures (min=1, max=144)",
+                    "attr_brk_estimate10": "Activer l'estimation de 10 attributs de capteur",
+                    "attr_brk_estimate": "Activer l'estimation de 50 attributs de capteur",
+                    "attr_brk_estimate90": "Activer l'estimation de 90 attributs de capteur",
+                    "attr_brk_site": "Activer les attributs du capteur de panne de site",
+                    "attr_brk_halfhourly": "Activer les attributs de détail des prévisions demi-horaires",
+                    "attr_brk_hourly": "Activer les attributs de détail horaire des prévisions",
+                    "config_damp": "Modifier les facteurs d'amortissement horaires (après avoir cliqué sur soumettre)"
                 },
                 "description": "Options de configuration Solcast"
-            },
-            "api": {
-                "data": {
-                    "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
-                    "api_quota": "Quota d'API (plusieurs valeurs séparées par des virgules)"
-                },
-                "description": "Détails du compte Solcast"
             },
             "dampen": {
                 "data": {
@@ -56,38 +58,11 @@
                     "damp23": "23:00"
                 },
                 "description": "Modifier le coefficient d'amortissement horaire"
-            },
-            "customsensor": {
-                "data": {
-                    "customhoursensor": "Capteur X heures suivant"
-                },
-                "description": "Capteur personnalisé pour l'énergie totale pour les X prochaines heures"
-            },
-            "attributes": {
-                "data": {
-                    "attr_brk_estimate10": "Activer la répartition de l'estimation 10",
-                    "attr_brk_estimate": "Activer la répartition de l'estimation 50",
-                    "attr_brk_estimate90": "Activer la répartition de l'estimation 90",
-                    "attr_brk_site": "Activer la répartition du site",
-                    "attr_brk_halfhourly": "Activer les détails des prévisions demi-horaires",
-                    "attr_brk_hourly": "Activer les détails horaires des prévisions"
-                },
-                "description": "Sélectionnez les attributs du capteur qui seront disponibles"
             }
         },
         "error": {
             "unknown": "Erreur inconnue",
             "incorrect_options_action": "Action incorrecte choisie"
-        }
-    },
-    "selector": {
-        "solcast_config_action": {
-            "options": {
-                "configure_api": "Détails du compte Solcast",
-                "configure_dampening": "Configurer le coefficient",
-                "configure_customsensor": "Configure custom hours sensor",
-                "configure_attributes": "Configure available attributes"
-            }
         }
     },
     "system_health": {
