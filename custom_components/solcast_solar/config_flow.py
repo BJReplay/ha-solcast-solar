@@ -5,21 +5,14 @@
 from __future__ import annotations
 from typing import Any
 
-import logging
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import FlowResult
-from homeassistant.helpers.selector import (
-    SelectSelector,
-    SelectSelectorConfig,
-    SelectSelectorMode,
-)
 from homeassistant import config_entries
-from .const import DOMAIN, TITLE, CONFIG_OPTIONS, API_QUOTA, CUSTOM_HOUR_SENSOR, BRK_ESTIMATE, BRK_ESTIMATE10, BRK_ESTIMATE90, BRK_SITE, BRK_HALFHOURLY, BRK_HOURLY, CONFIG_DAMP
+from .const import DOMAIN, TITLE, API_QUOTA, CUSTOM_HOUR_SENSOR, BRK_ESTIMATE, BRK_ESTIMATE10, BRK_ESTIMATE90, BRK_SITE, BRK_HALFHOURLY, BRK_HOURLY, CONFIG_DAMP
 
-_LOGGER = logging.getLogger(__name__)
 
 @config_entries.HANDLERS.register(DOMAIN)
 class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
@@ -102,42 +95,6 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         self.config_entry = config_entry
         self.options = dict(config_entry.options)
 
-    '''
-    async def async_step_init(self, user_input=None) -> Any:
-        """Initialise steps."""
-
-        errors = {}
-        if user_input is not None:
-            if "solcast_config_action" in user_input:
-                next_action = user_input["solcast_config_action"]
-                if next_action == "configure_dampening":
-                    return await self.async_step_dampen()
-                elif next_action == "configure_api":
-                    return await self.async_step_api()
-                elif next_action == "configure_customsensor":
-                    return await self.async_step_customsensor()
-                elif next_action == "configure_attributes":
-                    return await self.async_step_attributes()
-                else:
-                    errors["base"] = "incorrect_options_action"
-
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema(
-                {
-                    vol.Required("solcast_config_action"): SelectSelector(
-                        SelectSelectorConfig(
-                            options=CONFIG_OPTIONS,
-                            mode=SelectSelectorMode.LIST,
-                            translation_key="solcast_config_action",
-                        )
-                    )
-                }
-            ),
-            errors=errors
-        )
-    '''
-
     async def async_step_init(self, user_input=None) -> Any:
         """Initialise steps."""
 
@@ -154,12 +111,24 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
 
         if user_input is not None:
             try:
-                api_quota = user_input[API_QUOTA]
-
                 all_config_data = {**self.config_entry.options}
-                k = user_input["api_key"].replace(" ","").strip()
-                k = ','.join([s for s in k.split(',') if s])
-                all_config_data["api_key"] = k
+
+                api_key = user_input["api_key"].replace(" ","")
+                api_key = [s for s in api_key.split(',') if s]
+                api_count = len(api_key)
+                api_key = ','.join(api_key)
+                all_config_data["api_key"] = api_key
+
+                api_quota = user_input[API_QUOTA].replace(" ","")
+                api_quota = [s for s in api_quota.split(',') if s]
+                for q in api_quota:
+                    if not q.isnumeric():
+                        return self.async_abort(reason="API limit not numeric!")
+                    if int(q) < 1:
+                        return self.async_abort(reason="API limit must be greater than 1!")
+                if len(api_quota) > api_count:
+                    return self.async_abort(reason="API limit count more than keys!")
+                api_quota = ','.join(api_quota)
                 all_config_data[API_QUOTA] = api_quota
 
                 customhoursensor = user_input[CUSTOM_HOUR_SENSOR]
@@ -186,7 +155,6 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     options=all_config_data,
                 )
 
-                _LOGGER.info(str(user_input))
                 if user_input[CONFIG_DAMP]:
                     return await self.async_step_dampen()
 
@@ -213,131 +181,6 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 }
             ),
             errors=errors
-        )
-
-    async def async_step_api(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Manage the API key/quota."""
-
-        errors = {}
-        api_quota = self.config_entry.options[API_QUOTA]
-
-        if user_input is not None:
-            try:
-                api_quota = user_input[API_QUOTA]
-
-                all_config_data = {**self.config_entry.options}
-                k = user_input["api_key"].replace(" ","").strip()
-                k = ','.join([s for s in k.split(',') if s])
-                all_config_data["api_key"] = k
-                all_config_data[API_QUOTA] = api_quota
-
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    title=TITLE,
-                    options=all_config_data,
-                )
-                return self.async_create_entry(title=TITLE, data=None)
-            except:
-                errors["base"] = "unknown"
-
-        return self.async_show_form(
-            step_id="api",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_API_KEY, default=self.config_entry.options.get(CONF_API_KEY),): str,
-                    vol.Required(API_QUOTA, default=self.config_entry.options.get(API_QUOTA),): str,
-                }
-            ),
-            errors=errors,
-        )
-
-    async def async_step_customsensor(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Manage the custom X hour sensor option."""
-
-        errors = {}
-
-        customhoursensor = self.config_entry.options[CUSTOM_HOUR_SENSOR]
-
-        if user_input is not None:
-            try:
-                customhoursensor = user_input[CUSTOM_HOUR_SENSOR]
-
-                all_config_data = {**self.config_entry.options}
-                all_config_data[CUSTOM_HOUR_SENSOR] = customhoursensor
-
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    title=TITLE,
-                    options=all_config_data,
-                )
-
-                return self.async_create_entry(title=TITLE, data=None)
-            except:
-                errors["base"] = "unknown"
-
-        return self.async_show_form(
-            step_id="customsensor",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CUSTOM_HOUR_SENSOR, description={"suggested_value": customhoursensor}):
-                            vol.All(vol.Coerce(int), vol.Range(min=1,max=144)),
-                }
-            ),
-            errors=errors,
-        )
-
-    async def async_step_attributes(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Manage the attributes present for sensors."""
-
-        errors = {}
-
-        estimate_breakdown = self.config_entry.options[BRK_ESTIMATE]
-        estimate_breakdown10 = self.config_entry.options[BRK_ESTIMATE10]
-        estimate_breakdown90 = self.config_entry.options[BRK_ESTIMATE90]
-        site_breakdown = self.config_entry.options[BRK_SITE]
-        half_hourly = self.config_entry.options[BRK_HALFHOURLY]
-        hourly = self.config_entry.options[BRK_HOURLY]
-
-        if user_input is not None:
-            try:
-                estimate_breakdown = user_input[BRK_ESTIMATE]
-                estimate_breakdown10 = user_input[BRK_ESTIMATE10]
-                estimate_breakdown90 = user_input[BRK_ESTIMATE90]
-                site_breakdown = user_input[BRK_SITE]
-                half_hourly = user_input[BRK_HALFHOURLY]
-                hourly = user_input[BRK_HOURLY]
-
-                all_config_data = {**self.config_entry.options}
-                all_config_data[BRK_ESTIMATE] = estimate_breakdown
-                all_config_data[BRK_ESTIMATE10] = estimate_breakdown10
-                all_config_data[BRK_ESTIMATE90] = estimate_breakdown90
-                all_config_data[BRK_SITE] = site_breakdown
-                all_config_data[BRK_HALFHOURLY] = half_hourly
-                all_config_data[BRK_HOURLY] = hourly
-
-                self.hass.config_entries.async_update_entry(
-                    self.config_entry,
-                    title=TITLE,
-                    options=all_config_data,
-                )
-
-                return self.async_create_entry(title=TITLE, data=None)
-            except:
-                errors["base"] = "unknown"
-
-        return self.async_show_form(
-            step_id="attributes",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(BRK_ESTIMATE10, description={"suggested_value": estimate_breakdown10}): bool,
-                    vol.Required(BRK_ESTIMATE, description={"suggested_value": estimate_breakdown}): bool,
-                    vol.Required(BRK_ESTIMATE90, description={"suggested_value": estimate_breakdown90}): bool,
-                    vol.Required(BRK_SITE, description={"suggested_value": site_breakdown}): bool,
-                    vol.Required(BRK_HALFHOURLY, description={"suggested_value": half_hourly}): bool,
-                    vol.Required(BRK_HOURLY, description={"suggested_value": hourly}): bool,
-                }
-            ),
-            errors=errors,
         )
 
     async def async_step_dampen(self, user_input: dict[str, Any] | None = None) -> FlowResult: #user_input=None):

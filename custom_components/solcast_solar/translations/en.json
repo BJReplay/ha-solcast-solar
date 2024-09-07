@@ -7,7 +7,7 @@
             "user": {
                 "data": {
                     "api_key": "API key (comma separate multiple values)",
-                    "api_quota": "API limit (optionally comma separate multiple values per key)"
+                    "api_quota": "API limit (optionally comma separate multiple values for each key)"
                 },
                 "description": "Solcast Account Details"
             }
@@ -18,8 +18,8 @@
             "init": {
                 "data": {
                     "api_key": "API key (comma separate multiple values)",
-                    "api_quota": "API limit (optionally comma separate multiple values per key)",
-                    "customhoursensor": "Custom Next X Hour Sensor",
+                    "api_quota": "API limit (optionally comma separate multiple values for each key)",
+                    "customhoursensor": "Custom Next X Hour Sensor (min=1, max=144)",
                     "attr_brk_estimate10": "Enable estimate 10 sensor attributes",
                     "attr_brk_estimate": "Enable estimate 50 sensor attributes",
                     "attr_brk_estimate90": "Enable estimate 90 sensor attributes",
@@ -29,13 +29,6 @@
                     "config_damp": "Modify the hourly dampening factors (after clicking submit)"
                 },
                 "description": "Solcast configuration options"
-            },
-            "api": {
-                "data": {
-                    "api_key": "API key (comma separate multiple values)",
-                    "api_quota": "API limit (optionally comma separate multiple values per key)"
-                },
-                "description": "Solcast Account Details"
             },
             "dampen": {
                 "data": {
@@ -65,38 +58,11 @@
                     "damp23": "23:00"
                 },
                 "description": "Modify the hourly dampening factor"
-            },
-            "customsensor": {
-                "data": {
-                    "customhoursensor": "Next X Hour Sensor"
-                },
-                "description": "Custom sensor for total energy for the next X hours"
-            },
-            "attributes": {
-                "data": {
-                    "attr_brk_estimate10": "Enable estimate 10 breakdown",
-                    "attr_brk_estimate": "Enable estimate 50 breakdown",
-                    "attr_brk_estimate90": "Enable estimate 90 breakdown",
-                    "attr_brk_site": "Enable site breakdown",
-                    "attr_brk_halfhourly": "Enable forecast half-hourly detail",
-                    "attr_brk_hourly": "Enable forecast hourly detail"
-                },
-                "description": "Select the sensor attributes that will be available"
             }
         },
         "error": {
             "unknown": "Unknown error",
             "incorrect_options_action": "Incorrect action chosen"
-        }
-    },
-    "selector": {
-        "solcast_config_action": {
-            "options": {
-                "configure_api": "Solcast account details",
-                "configure_dampening": "Configure dampening",
-                "configure_customsensor": "Configure custom hours sensor",
-                "configure_attributes": "Configure available attributes"
-            }
         }
     },
     "system_health": {
@@ -117,7 +83,7 @@
             },
         "query_forecast_data": {
             "name": "Query forecast data",
-            "description": "Return a data set or value for a given query.",
+            "description": "Return a data set for a given query.",
             "fields": {
                 "start_date_time": {
                     "name": "Start date time",
