@@ -1077,14 +1077,14 @@ class SolcastApi:
         if self.options.attr_brk_site:
             for site in self.sites:
                 variant[site['resource_id']] = {}
-                self.get_spline(variant[site['resource_id']], st, xx, self._data_forecasts, df, reducing=reducing)
+                self.get_spline(variant[site['resource_id']], st, xx, self._site_data_forecasts[site['resource_id']], df, reducing=reducing)
 
     async def spline_moments(self) -> None:
         """Build the moments splines."""
         try:
             self.build_splines(self._forecasts_moment)
-        except Exception as e:
-            _LOGGER.debug('Exception in spline_moments(): %s', e)
+        except:
+            _LOGGER.debug('Exception in spline_moments(): %s', traceback.format_exc())
 
     def get_moment(self, site, _data_field, t) -> float:
         """Get a time value from a moment spline, with times needing to be for today, and also on five-minute boundaries."""
@@ -1098,8 +1098,8 @@ class SolcastApi:
         """Build the descending splines."""
         try:
             self.build_splines(self._forecasts_remaining, reducing=True)
-        except Exception as e:
-            _LOGGER.debug('Exception in spline_remaining(): %s', e)
+        except:
+            _LOGGER.debug('Exception in spline_remaining(): %s', traceback.format_exc())
 
     def get_remaining(self, site, _data_field, t) -> float:
         """Get a time value from a reducing spline, with times needing to be for today, and also on five-minute boundaries."""
