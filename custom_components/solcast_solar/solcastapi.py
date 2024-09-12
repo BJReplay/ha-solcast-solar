@@ -1087,7 +1087,10 @@ class SolcastApi:
             _LOGGER.debug('Exception in spline_moments(): %s', traceback.format_exc())
 
     def get_moment(self, site, _data_field, t) -> float:
-        """Get a time value from a moment spline, with times needing to be for today, and also on five-minute boundaries."""
+        """Get a time value from a moment spline.
+
+        t: Minute of the day.
+        """
         try:
             return self._forecasts_moment['all' if site is None else site][self._use_data_field if _data_field is None else _data_field][int(t / 300)]
         except Exception as e:
@@ -1102,7 +1105,10 @@ class SolcastApi:
             _LOGGER.debug('Exception in spline_remaining(): %s', traceback.format_exc())
 
     def get_remaining(self, site, _data_field, t) -> float:
-        """Get a time value from a reducing spline, with times needing to be for today, and also on five-minute boundaries."""
+        """Get a time value from a reducing spline.
+
+        t: Minute of the day.
+        """
         try:
             return self._forecasts_remaining['all' if site is None else site][self._use_data_field if _data_field is None else _data_field][int(t / 300)]
         except Exception as e:
@@ -1110,7 +1116,10 @@ class SolcastApi:
             return 0
 
     def get_forecast_pv_remaining(self, start_utc, end_utc=None, site=None, _use_data_field=None) -> float:
-        """Return pv_estimates remaining for period."""
+        """Return pv_estimates remaining for period.
+
+        The start_utc and end_utc will be adjusted to the most recent five-minute period start.
+        """
         try:
             _data = self._data_forecasts if site is None else self._site_data_forecasts[site]
             _data_field = self._use_data_field if _use_data_field is None else _use_data_field
@@ -1154,18 +1163,24 @@ class SolcastApi:
             _data = self._data_forecasts if site is None else self._site_data_forecasts[site]
             _data_field = self._use_data_field if _use_data_field is None else _use_data_field
             res = 0
-            start_utc = start_utc.replace(minute = math.floor(start_utc.minute / 5) * 5)
-            end_utc = end_utc.replace(minute = math.floor(end_utc.minute / 5) * 5)
             st_i, end_i = self.get_forecast_list_slice(_data, start_utc, end_utc) # Get start and end indexes for the requested range.
-            for d in _data[st_i:end_i]:
-                res += d[_data_field]
-            if SENSOR_DEBUG_LOGGING: _LOGGER.debug(
-                "Get estimate: %s()%s %s st %s end %s st_i %d end_i %d res %s",
-                currentFuncName(1), '' if site is None else ' '+site, _data_field,
-                start_utc.strftime('%Y-%m-%d %H:%M:%S'),
-                end_utc.strftime('%Y-%m-%d %H:%M:%S'),
-                st_i, end_i, round(res,4)
-            )
+            if _data[st_i:end_i] != []:
+                for d in _data[st_i:end_i]:
+                    res += d[_data_field]
+                if SENSOR_DEBUG_LOGGING: _LOGGER.debug(
+                    "Get estimate: %s()%s%s st %s end %s st_i %d end_i %d res %s",
+                    currentFuncName(1), '' if site is None else ' '+site, '' if _data_field is None else ' '+_data_field,
+                    start_utc.strftime('%Y-%m-%d %H:%M:%S'),
+                    end_utc.strftime('%Y-%m-%d %H:%M:%S'),
+                    st_i, end_i, round(res,4)
+                )
+            else:
+                _LOGGER.warning(
+                    'No forecast data available for %s()%s%s: %s to %s',
+                    currentFuncName(1), '' if site is None else ' '+site, '' if _data_field is None else ' '+_data_field,
+                    start_utc.strftime('%Y-%m-%d %H:%M:%S'),
+                    end_utc.strftime('%Y-%m-%d %H:%M:%S')
+                )
             return res
         except Exception as e:
             _LOGGER.error("Exception in get_forecast_pv_estimates(): %s", e)
@@ -1195,18 +1210,27 @@ class SolcastApi:
         try:
             _data = self._data_forecasts if site is None else self._site_data_forecasts[site]
             _data_field = self._use_data_field if _use_data_field is None else _use_data_field
+            res = 0
             st_i, end_i = self.get_forecast_list_slice(_data, start_utc, end_utc)
-            res = _data[st_i]
-            for d in _data[st_i:end_i]:
-                if  res[_data_field] < d[_data_field]:
-                    res = d
-            if SENSOR_DEBUG_LOGGING: _LOGGER.debug(
-                "Get max estimate: %s()%s %s st %s end %s st_i %d end_i %d res %s",
-                currentFuncName(1), '' if site is None else ' '+site, _data_field,
-                start_utc.strftime('%Y-%m-%d %H:%M:%S'),
-                end_utc.strftime('%Y-%m-%d %H:%M:%S'),
-                st_i, end_i, res
-            )
+            if _data[st_i:end_i] != []:
+                res = _data[st_i]
+                for d in _data[st_i:end_i]:
+                    if  res[_data_field] < d[_data_field]:
+                        res = d
+                if SENSOR_DEBUG_LOGGING: _LOGGER.debug(
+                    "Get max estimate: %s()%s %s st %s end %s st_i %d end_i %d res %s",
+                    currentFuncName(1), '' if site is None else ' '+site, _data_field,
+                    start_utc.strftime('%Y-%m-%d %H:%M:%S'),
+                    end_utc.strftime('%Y-%m-%d %H:%M:%S'),
+                    st_i, end_i, res
+                )
+            else:
+                _LOGGER.warning(
+                    'No forecast data available for %s()%s%s: %s to %s',
+                    currentFuncName(1), '' if site is None else ' '+site, '' if _data_field is None else ' '+_data_field,
+                    start_utc.strftime('%Y-%m-%d %H:%M:%S'),
+                    end_utc.strftime('%Y-%m-%d %H:%M:%S')
+                )
             return res
         except Exception as e:
             _LOGGER.error("Exception in get_max_forecast_pv_estimate(): %s", e)
