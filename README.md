@@ -577,6 +577,12 @@ series:
 
 ## Changes
 
+v4.1.7
+* Fix issues with site breakdown for sites added at a later date by @autoSteve
+* Fix issues with site breakdown for splined sensors by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.6...v4.1.7
+
 v4.1.6
 * Simplify configure dialogue by @autoSteve
 
