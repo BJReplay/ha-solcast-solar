@@ -156,6 +156,8 @@ class SolcastApi:
         self._estimate_set = {'pv_estimate': options.attr_brk_estimate, 'pv_estimate10': options.attr_brk_estimate10, 'pv_estimate90': options.attr_brk_estimate90}
         #self._weather = ""
         self._api_cache_enabled = api_cache_enabled # For offline development.
+        self._damp_sites = None
+        self._damp_sites_file_mtime = 0
 
         _LOGGER.debug("Configuration directory is %s", self._config_dir)
 
@@ -507,6 +509,8 @@ class SolcastApi:
         if self.sites_loaded:
             await self.sites_usage()
 
+        await self.load_damp_sites_file()
+
     async def reset_api_usage(self):
         """Reset the daily API usage counter."""
         for api_key, _ in self._api_used.items():
@@ -627,6 +631,32 @@ class SolcastApi:
             _LOGGER.error("Error in sites_weather(): %s", traceback.format_exc())
     '''
 
+    async def load_damp_sites_file(self):
+        damp_file = f"{self._config_dir}/solcast-damp-sites.json"
+        mtime = 0
+        try:
+            mtime = os.path.getmtime(damp_file)
+            _LOGGER.debug(f"damp-sites file: {damp_file}, mtime: {dt.fromtimestamp(mtime, self._tz)}")
+        except FileNotFoundError:
+            pass
+        if mtime == 0:
+            # file not found
+            self._damp_sites = None
+            self._damp_sites_file_mtime = 0
+        else:
+            if mtime != self._damp_sites_file_mtime:
+                # file updated (or never loaded)
+                _LOGGER.debug(f"Loading damp-sites file...")
+                try:
+                    async with aiofiles.open(damp_file) as data_file:
+                        json_data = json.loads(await data_file.read())
+                        if type(json_data) is dict:
+                            self._damp_sites = json_data
+                            self._damp_sites_file_mtime = mtime
+                            _LOGGER.debug(f"damp-sites: {self._damp_sites}")
+                except Exception as e:
+                    _LOGGER.error("Exception in load_damp_sites_file(): %s", e)
+
     async def load_saved_data(self):
         """Load the saved solcast.json data.
 
@@ -658,6 +688,7 @@ class SolcastApi:
                             if len(ks.keys()) > 0:
                                 # Some site data does not exist yet so get it.
                                 _LOGGER.info("New site(s) have been added, so getting forecast data for them")
+                                await self.load_damp_sites_file()
                                 for a, _api_key in ks.items():
                                     await self.http_data_call(r_id=a, api=_api_key, dopast=True)
                                 await self.serialize_data()
@@ -1256,6 +1287,8 @@ class SolcastApi:
                 _LOGGER.warning(status)
                 return status
 
+            await self.load_damp_sites_file()
+
             failure = False
             sites_attempted = 0
             for site in self.sites:
@@ -1382,20 +1415,39 @@ class SolcastApi:
 
             _LOGGER.debug("Forecasts dictionary length %s", len(_fcasts_dict))
 
+            _damp = self.damp
+            if self._damp_sites is not None:
+                for k, v in self._damp_sites.items():
+                    if k in r_id:
+                        _damp = v
+                        break
+
             # Loop each site and its forecasts.
+            now = dt.now(self._tz)
             for x in _data:
-                itm = _fcasts_dict.get(x["period_start"])
+                z = x["period_start"]
+                zz = z.astimezone(self._tz)
+                dx = zz.hour
+                if len(_damp) >= 48:
+                    dx = zz.hour * 2 + (1 if zz.minute >= 30 else 0)
+                dh = _damp[dx]
+
+                itm = _fcasts_dict.get(z)
                 if itm:
-                    itm["pv_estimate"] = x["pv_estimate"]
-                    itm["pv_estimate10"] = x["pv_estimate10"]
-                    itm["pv_estimate90"] = x["pv_estimate90"]
+                    itm["pv_estimate"] = round(x["pv_estimate"] * dh, 4)
+                    itm["pv_estimate10"] = round(x["pv_estimate10"] * dh, 4)
+                    itm["pv_estimate90"] = round(x["pv_estimate90"] * dh, 4)
                 else:
-                    _fcasts_dict[x["period_start"]] = {
-                        "period_start": x["period_start"],
-                        "pv_estimate": x["pv_estimate"],
-                        "pv_estimate10": x["pv_estimate10"],
-                        "pv_estimate90": x["pv_estimate90"]
+                    _fcasts_dict[z] = {
+                        "period_start": z,
+                        "pv_estimate": round(x["pv_estimate"] * dh, 4),
+                        "pv_estimate10": round(x["pv_estimate10"] * dh, 4),
+                        "pv_estimate90": round(x["pv_estimate90"] * dh, 4)
                     }
+                    itm = _fcasts_dict.get(z)
+
+                if dh != 1 and zz.day == now.day:
+                    _LOGGER.debug(f"pv_estimate {zz} itm {itm["pv_estimate"]} x {x["pv_estimate"]} dx {dx} dh {dh}")
 
             # _fcasts_dict contains all data for the site up to 730 days worth. Delete data that is older than two years.
             pastdays = dt.now(timezone.utc).date() + timedelta(days=-730)
@@ -1560,7 +1612,7 @@ class SolcastApi:
         return wh_hours
 
     async def buildforecastdata(self) -> bool:
-        """Build data structures needed, adjusting if dampening or setting a hard limit."""
+        """Build data structures needed, adjusting if setting a hard limit."""
         try:
             today = dt.now(self._tz).date()
             yesterday = dt.now(self._tz).date() + timedelta(days=-730)
@@ -1578,21 +1630,21 @@ class SolcastApi:
                     zz = z.astimezone(self._tz)
 
                     if yesterday < zz.date() < lastday:
-                        h = f"{zz.hour}"
+
                         if zz.date() == today:
-                            tally += min(x[self._use_data_field] * 0.5 * self.damp[h], self.hard_limit)
+                            tally += min(x[self._use_data_field] * 0.5, self.hard_limit)
 
                         # Add the forecast for this site to the total.
                         itm = _fcasts_dict.get(z)
                         if itm:
-                            itm["pv_estimate"] = min(round(itm["pv_estimate"] + (x["pv_estimate"] * self.damp[h]),4), self.hard_limit)
-                            itm["pv_estimate10"] = min(round(itm["pv_estimate10"] + (x["pv_estimate10"] * self.damp[h]),4), self.hard_limit)
-                            itm["pv_estimate90"] = min(round(itm["pv_estimate90"] + (x["pv_estimate90"] * self.damp[h]),4), self.hard_limit)
+                            itm["pv_estimate"] = min(itm["pv_estimate"] + x["pv_estimate"], self.hard_limit)
+                            itm["pv_estimate10"] = min(itm["pv_estimate10"] + x["pv_estimate10"], self.hard_limit)
+                            itm["pv_estimate90"] = min(itm["pv_estimate90"] + x["pv_estimate90"], self.hard_limit)
                         else:
                             _fcasts_dict[z] = {"period_start": z,
-                                                "pv_estimate": min(round((x["pv_estimate"] * self.damp[h]),4), self.hard_limit),
-                                                "pv_estimate10": min(round((x["pv_estimate10"] * self.damp[h]),4), self.hard_limit),
-                                                "pv_estimate90": min(round((x["pv_estimate90"] * self.damp[h]),4), self.hard_limit)}
+                                                "pv_estimate": min(x["pv_estimate"], self.hard_limit),
+                                                "pv_estimate10": min(x["pv_estimate10"], self.hard_limit),
+                                                "pv_estimate90": min(x["pv_estimate90"], self.hard_limit)}
 
                         # Record the individual site forecast.
                         _site_fcasts_dict[z] = {
