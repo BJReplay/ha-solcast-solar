@@ -69,6 +69,24 @@ class DateTimeEncoder(json.JSONEncoder):
         else:
             return None
 
+class NoIndentEncoder(json.JSONEncoder):
+    """Helper to output semi-indented json."""
+    def iterencode(self, o, _one_shot=False):
+        list_lvl = 0
+        for s in super(NoIndentEncoder, self).iterencode(o, _one_shot=_one_shot):
+            if s.startswith('['):
+                list_lvl += 1
+                s = s.replace(' ','').replace('\n', '').rstrip()
+            elif list_lvl > 0:
+                s = s.replace(' ','').replace('\n', '').rstrip()
+                if s and s[-1] == ',':
+                    s = s[:-1] + self.item_separator
+                elif s and s[-1] == ':':
+                    s = s[:-1] + self.key_separator
+            if s.endswith(']'):
+                list_lvl -= 1
+            yield s
+
 class JSONDecoder(json.JSONDecoder):
     """Helper to convert ISO format dict values to datetime."""
     def __init__(self, *args, **kwargs):
@@ -149,8 +167,8 @@ class SolcastApi: # pylint: disable=R0904
         get_sites_and_usage: Get the sites and usage, and validate API key changes against the cache files in use.
         reset_api_usage: Reset the daily API usage counter.
         load_saved_data: Load the saved solcast.json data.
-        serialise_site_dampening: Serialise the site dampening file.
-        site_dampening_data: Read the current site dampening file.
+        serialise_granular_dampening: Serialise the site dampening file.
+        granular_dampening_data: Read the current site dampening file.
 
         get_last_updated_datetime: Return when the data was last updated.
         is_stale_data: Return whether the forecast was last updated some time ago (i.e. is stale).
@@ -184,7 +202,7 @@ class SolcastApi: # pylint: disable=R0904
     ):
         """Initialisation.
 
-        Public variables at the top, protected variables following (those prepended with underscore).
+        Public variables at the top, protected variables following.
 
         Arguments:
             aiohttp_session (ClientSession): The aiohttp client session provided by Home Assistant
@@ -198,32 +216,34 @@ class SolcastApi: # pylint: disable=R0904
         self.custom_hour_sensor = options.custom_hour_sensor
         self.damp = options.dampening # Re-set on recalc in __init__
         self.estimate_set = {'pv_estimate': options.attr_brk_estimate, 'pv_estimate10': options.attr_brk_estimate10, 'pv_estimate90': options.attr_brk_estimate90}
-        self.site_damp = {}
+        self.granular_dampening = {}
         self.sites = []
         self.sites_loaded = False
         self.previously_loaded = False
         self.tasks = {}
 
         self._aiohttp_session = aiohttp_session
-        self._data = {'siteinfo': {}, 'last_updated': dt.fromtimestamp(0, timezone.utc).isoformat()}
-        self._tally = {}
-        self._api_used = {}
+        self._api_cache_enabled = api_cache_enabled # For offline development.
         self._api_limit = {}
+        self._api_used = {}
         self._api_used_reset = {}
-        self._filename = options.file_path
-        self._config_dir = dirname(self._filename)
-        self._tz = options.tz
+        self._data = {'siteinfo': {}, 'last_updated': dt.fromtimestamp(0, timezone.utc).isoformat()}
         self._data_energy = {}
         self._data_forecasts = []
-        self._site_data_forecasts = {}
-        self._spline_period = list(range(0, 90000, 1800))
+        self._filename = options.file_path
         self._forecasts_moment = {}
         self._forecasts_remaining = {}
+        self._granular_dampening_mtime = 0
         self._loaded_data = False
+        self._site_data_forecasts = {}
+        self._spline_period = list(range(0, 90000, 1800))
         self._serialize_lock = asyncio.Lock()
+        self._tally = {}
+        self._tz = options.tz
         self._use_data_field = f"pv_{options.key_estimate}"
         #self._weather = ""
-        self._api_cache_enabled = api_cache_enabled # For offline development.
+
+        self._config_dir = dirname(self._filename)
 
         _LOGGER.debug("Configuration directory is %s", self._config_dir)
 
@@ -345,13 +365,19 @@ class SolcastApi: # pylint: disable=R0904
         """
         return f"{self._config_dir}/solcast-sites{'' if not self.__is_multi_key() else '-' + api_key}.json"
 
-    def __get_site_dampening_filename(self) -> str:
+    def __get_granular_dampening_filename(self, legacy=False) -> str:
         """Build a fully qualified site dampening filename.
+
+        Arguments:
+            legacy (bool): Return the name of the legacy per-site dampening file.
 
         Returns:
             str: A fully qualified cache filename.
         """
-        return f"{self._config_dir}/solcast-site-dampening.json"
+        if legacy:
+            return f"{self._config_dir}/solcast-site-dampening.json"
+        else:
+            return f"{self._config_dir}/solcast-dampening.json"
 
     async def __serialize_data(self) -> bool:
         """Serialize data to file.
@@ -378,8 +404,7 @@ class SolcastApi: # pylint: disable=R0904
                 return False
             payload = json.dumps(self._data, ensure_ascii=False, cls=DateTimeEncoder)
         except Exception as e:
-            _LOGGER.error("Exception in __serialize_data(): %s", e)
-            _LOGGER.error(traceback.format_exc())
+            _LOGGER.error("Exception in __serialize_data(): %s: %s", e, traceback.format_exc())
             serialise = False
         if serialise:
             try:
@@ -391,87 +416,6 @@ class SolcastApi: # pylint: disable=R0904
             except Exception as e:
                 _LOGGER.error("Exception writing forecast data: %s", e)
         return False
-
-    async def __serialise_usage(self, api_key, reset=False):
-        """Serialise the usage cache file.
-
-        See comment in __serialize_data.
-
-        Arguments:
-            api_key (str): An individual Solcast account API key.
-            reset (bool): Whether to reset API key usage to zero.
-        """
-        serialise = True
-        try:
-            json_file = self.__get_usage_cache_filename(api_key)
-            if reset:
-                self._api_used_reset[api_key] = self.__get_utc_previous_midnight()
-            _LOGGER.debug("Writing API usage cache file: %s", self.__redact_msg_api_key(json_file, api_key))
-            json_content = {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key], "reset": self._api_used_reset[api_key]}
-            payload = json.dumps(json_content, ensure_ascii=False, cls=DateTimeEncoder)
-        except Exception as e:
-            _LOGGER.error("Exception in __serialise_usage(): %s", e)
-            _LOGGER.error(traceback.format_exc())
-            serialise = False
-        if serialise:
-            try:
-                async with self._serialize_lock:
-                    async with aiofiles.open(json_file, 'w') as f:
-                        await f.write(payload)
-            except Exception as e:
-                _LOGGER.error("Exception writing usage cache for %s: %s", self.__redact_msg_api_key(json_file, api_key), e)
-
-    async def serialise_site_dampening(self):
-        """Serialise the site dampening file.
-
-        See comment in __serialize_data.
-        """
-        serialise = True
-        try:
-            json_file = self.__get_site_dampening_filename()
-            _LOGGER.debug("Writing site dampening file: %s", json_file)
-            payload = json.dumps(self.site_damp, ensure_ascii=False)
-        except Exception as e:
-            _LOGGER.error("Exception in serialise_site_dampening(): %s", e)
-            _LOGGER.error(traceback.format_exc())
-            serialise = False
-        if serialise:
-            try:
-                async with self._serialize_lock:
-                    async with aiofiles.open(json_file, 'w') as f:
-                        await f.write(payload)
-            except Exception as e:
-                _LOGGER.error("Exception writing site dampening for %s: %s", json_file, e)
-
-    async def site_dampening_data(self) -> bool:
-        """Read the current site dampening file.
-
-        Returns:
-            bool: Per-site dampening in use
-        """
-        ex = False
-        try:
-            json_file = self.__get_site_dampening_filename()
-            if not file_exists(json_file):
-                self.site_damp = {}
-                _LOGGER.debug('Returning False')
-                return False
-            else:
-                async with aiofiles.open(json_file) as f:
-                    resp_json = json.loads(await f.read())
-                    self.site_damp = cast(dict, resp_json)
-                    if self.site_damp:
-                        _LOGGER.debug("Site dampening: %s", str(self.site_damp))
-                        return True
-                    else:
-                        return False
-        except Exception as e:
-            _LOGGER.error("Exception in site_dampening_data(): %s: %s", e, traceback.format_exc())
-            ex = True
-            return False
-        finally:
-            if not self.previously_loaded and self.site_damp != {} and not ex:
-                _LOGGER.info("Site dampening loaded")
 
     async def __sites_data(self):
         """Request site details.
@@ -604,6 +548,34 @@ class SolcastApi: # pylint: disable=R0904
                 pass
         except Exception as e:
             _LOGGER.error("Exception in __sites_data(): %s: %s", e, traceback.format_exc())
+
+    async def __serialise_usage(self, api_key, reset=False):
+        """Serialise the usage cache file.
+
+        See comment in __serialize_data.
+
+        Arguments:
+            api_key (str): An individual Solcast account API key.
+            reset (bool): Whether to reset API key usage to zero.
+        """
+        serialise = True
+        try:
+            json_file = self.__get_usage_cache_filename(api_key)
+            if reset:
+                self._api_used_reset[api_key] = self.__get_utc_previous_midnight()
+            _LOGGER.debug("Writing API usage cache file: %s", self.__redact_msg_api_key(json_file, api_key))
+            json_content = {"daily_limit": self._api_limit[api_key], "daily_limit_consumed": self._api_used[api_key], "reset": self._api_used_reset[api_key]}
+            payload = json.dumps(json_content, ensure_ascii=False, cls=DateTimeEncoder)
+        except Exception as e:
+            _LOGGER.error("Exception in __serialise_usage(): %s: %s", e, traceback.format_exc())
+            serialise = False
+        if serialise:
+            try:
+                async with self._serialize_lock:
+                    async with aiofiles.open(json_file, 'w') as f:
+                        await f.write(payload)
+            except Exception as e:
+                _LOGGER.error("Exception writing usage cache for %s: %s", self.__redact_msg_api_key(json_file, api_key), e)
 
     async def __sites_usage(self):
         """Load api usage cache.
@@ -762,84 +734,126 @@ class SolcastApi: # pylint: disable=R0904
             self._api_used[api_key] = 0
             await self.__serialise_usage(api_key, reset=True)
 
-    '''
-    async def __sites_usage(self):
-        """Load api usage."""
+    async def serialise_granular_dampening(self):
+        """Serialise the site dampening file.
 
+        See comment in __serialize_data.
+        """
+        serialise = True
         try:
-            sp = self.options.api_key.split(",")
-
-            for spl in sp:
-                api_key = spl.strip()
-                _LOGGER.debug("Getting API limit and usage for %s", self.__redact_api_key(api_key))
-                async with async_timeout.timeout(60):
-                    cache_filename = self.__get_usage_cache_filename(api_key)
-                    _LOGGER.debug("%s", 'API usage cache ' + ('exists' if file_exists(cache_filename) else 'does not yet exist'))
-                    url = f"{self.options.host}/json/reply/GetUserUsageAllowance"
-                    params = {"api_key": api_key}
-                    retries = 3
-                    retry = retries
-                    success = False
-                    use_cache_immediate = False
-                    cache_exists = file_exists(cache_filename)
-                    while retry > 0:
-                        resp: ClientResponse = await self._aiohttp_session.get(url=url, params=params, ssl=False)
-                        status = resp.status
-                        try:
-                            resp_json = await resp.json(content_type=None)
-                        except json.decoder.JSONDecodeError:
-                            _LOGGER.error("JSONDecodeError in __sites_usage() - Solcast could be having problems")
-                        except: raise
-                        _LOGGER.debug("HTTP session returned status %s in __sites_usage()", translate(status))
-                        if status == 200:
-                            d = cast(dict, resp_json)
-                            self._api_limit[api_key] = d.get("daily_limit", None)
-                            self._api_used[api_key] = d.get("daily_limit_consumed", None)
-                            await self.__serialise_usage(api_key)
-                            retry = 0
-                            success = True
-                        else:
-                            if cache_exists:
-                                use_cache_immediate = True
-                                break
-                            _LOGGER.debug("Will retry GetUserUsageAllowance, retry %d", (retries - retry) + 1)
-                            await asyncio.sleep(5)
-                            retry -= 1
-                    if not success:
-                        if not use_cache_immediate:
-                            _LOGGER.warning("Timeout getting API usage allowance, last call result: %s, using cached data if it exists", translate(status))
-                        status = 404
-                        if cache_exists:
-                            async with aiofiles.open(cache_filename) as f:
-                                resp_json = json.loads(await f.read())
-                                status = 200
-                            d = cast(dict, resp_json)
-                            self._api_limit[api_key] = d.get("daily_limit", None)
-                            self._api_used[api_key] = d.get("daily_limit_consumed", None)
-                            if not self.previously_loaded:
-                                _LOGGER.info("Loaded API usage cache")
-                        else:
-                            _LOGGER.warning("No API usage cache found")
-
-                if status == 200:
-                    _LOGGER.debug("API counter for %s is %d/%d", self.__redact_api_key(api_key), self._api_used[api_key], self._api_limit[api_key])
-                else:
-                    self._api_limit[api_key] = 10
-                    self._api_used[api_key] = 0
-                    await self.__serialise_usage(api_key)
-                    raise Exception(f"Gathering site usage failed in __sites_usage(). Request returned Status code: {translate(status)} - Response: {resp_json}.")
-
-        except json.decoder.JSONDecodeError:
-            _LOGGER.error("JSONDecodeError in __sites_usage(): Solcast could be having problems")
-        except ConnectionRefusedError as e:
-            _LOGGER.error("Error in __sites_usage(): %s", e)
-        except ClientConnectionError as e:
-            _LOGGER.error('Connection error in __sites_usage(): %s', e)
-        except asyncio.TimeoutError:
-            _LOGGER.error("Connection error in __sites_usage(): Timed out connecting to solcast")
+            json_file = self.__get_granular_dampening_filename()
+            _LOGGER.debug("Writing granular dampening file: %s", json_file)
+            payload = json.dumps(self.granular_dampening, ensure_ascii=False, cls=NoIndentEncoder, indent=2)
         except Exception as e:
-            _LOGGER.error("Exception in __sites_usage(): %s", traceback.format_exc())
-    '''
+            _LOGGER.error("Exception in serialise_granular_dampening(): %s: %s", e, traceback.format_exc())
+            serialise = False
+        if serialise:
+            try:
+                async with self._serialize_lock:
+                    async with aiofiles.open(json_file, 'w') as f:
+                        await f.write(payload)
+                self._granular_dampening_mtime = os.path.getmtime(json_file)
+            except Exception as e:
+                _LOGGER.error("Exception writing site dampening for %s: %s", json_file, e)
+            finally:
+                _LOGGER.debug("Granular dampening file mtime: %s", dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT))
+
+    async def __migrate_granular_dampening(self) -> bool:
+        """Migrate from legacy per-site dampening to granular dampening.
+
+        Returns:
+            bool: Per-site dampening legacy file upgraded.
+        """
+        try:
+            legacy_file = self.__get_granular_dampening_filename(legacy=True)
+            if file_exists(legacy_file):
+                ex = False
+                try:
+                    _LOGGER.info('Migrating legacy per-site dampening to granular')
+                    async with aiofiles.open(legacy_file) as f:
+                        resp_json = json.loads(await f.read())
+                        self.granular_dampening = cast(dict, resp_json)
+                    for site, damp_dict in self.granular_dampening.items():
+                        self.granular_dampening[site] = [damp_dict[f"{hour}"] for hour in range(0,24)]
+                    if self.granular_dampening:
+                        _LOGGER.debug("Granular dampening: %s", str(self.granular_dampening))
+                    # Unlink legacy file here
+                except Exception as e:
+                    _LOGGER.error("Exception in __migrate_granular_dampening(): %s: %s", e, traceback.format_exc())
+                    ex = True
+                if not ex:
+                    await self.serialise_granular_dampening()
+                    return True
+        except Exception as e:
+            _LOGGER.error("Exception in __migrate_granular_dampening(): %s: %s", e, traceback.format_exc())
+            ex = True
+        return False
+
+    async def granular_dampening_data(self) -> bool:
+        """Read the current site dampening file.
+
+        Returns:
+            bool: Granular dampening in use.
+        """
+        if await self.__migrate_granular_dampening():
+            return True
+
+        ex = False
+        try:
+            json_file = self.__get_granular_dampening_filename()
+            if not file_exists(json_file):
+                self.granular_dampening = {}
+                self._granular_dampening_mtime = 0
+                return False
+            else:
+                try:
+                    async with aiofiles.open(json_file) as f:
+                        resp_json = json.loads(await f.read())
+                        self.granular_dampening = cast(dict, resp_json)
+                        if self.granular_dampening:
+                            err = False
+                            first_site_len = 0
+                            for site, damp_list in self.granular_dampening.items():
+                                if first_site_len == 0:
+                                    first_site_len = len(damp_list)
+                                else:
+                                    if len(damp_list) != first_site_len:
+                                        _LOGGER.error('Number of dampening factors for all sites must be the same in %s, dampening ignored', json_file)
+                                        self.granular_dampening = {}
+                                        return False
+                                if len(damp_list) not in (24, 48):
+                                    _LOGGER.error('Number of dampening factors for site %s must be 24 or 48 in %s, dampening ignored', site, json_file)
+                                    err = True
+                            if err:
+                                self.granular_dampening = {}
+                                return False
+                            _LOGGER.debug("Granular dampening: %s", str(self.granular_dampening))
+                            return True
+                        else:
+                            return False
+                except:
+                    raise
+                finally:
+                    self._granular_dampening_mtime = os.path.getmtime(json_file)
+        except Exception as e:
+            _LOGGER.error("Exception in granular_dampening_data(): %s: %s", e, traceback.format_exc())
+            ex = True
+            return False
+        finally:
+            if not self.previously_loaded and self.granular_dampening != {} and not ex:
+                _LOGGER.info("Granular dampening loaded")
+                _LOGGER.debug("Granular dampening file mtime: %s", dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT))
+
+    async def __refresh_granular_dampening_data(self):
+        """Loads granular dampening data if the file has changed."""
+        try:
+            mtime = os.path.getmtime(self.__get_granular_dampening_filename())
+            if mtime != self._granular_dampening_mtime:
+                self.granular_dampening_data()
+                _LOGGER.info("Granular dampening reloaded")
+                _LOGGER.debug("Granular dampening file mtime: %s", dt.fromtimestamp(mtime, self._tz).strftime(DATE_FORMAT))
+        except Exception as e:
+            _LOGGER.error("Exception in __refresh_granular_dampening_data(): %s: %s", e, traceback.format_exc())
 
     '''
     async def get_weather(self):
@@ -1155,8 +1169,7 @@ class SolcastApi: # pylint: disable=R0904
                         x3 = round((t[index]["pv_estimate90"]), 4)
                         ht.append({"period_start":t[index]["period_start"], "pv_estimate":x1, "pv_estimate10":x2, "pv_estimate90":x3})
                     except Exception as e:
-                        _LOGGER.error("Exception in get_forecast_day(): %s", e)
-                        _LOGGER.error(traceback.format_exc())
+                        _LOGGER.error("Exception in get_forecast_day(): %s: %s", e, traceback.format_exc())
             return ht
 
         start_utc = self.get_day_start_utc() + timedelta(days=futureday)
@@ -1665,8 +1678,7 @@ class SolcastApi: # pylint: disable=R0904
             )
             return res if res > 0 else 0
         except Exception as e:
-            _LOGGER.error("Exception in __get_forecast_pv_remaining(): %s", e)
-            _LOGGER.error(traceback.format_exc())
+            _LOGGER.error("Exception in __get_forecast_pv_remaining(): %s: %s", e, traceback.format_exc())
             raise
             #return 0
 
@@ -1706,8 +1718,7 @@ class SolcastApi: # pylint: disable=R0904
                 )
             return res
         except Exception as e:
-            _LOGGER.error("Exception in __get_forecast_pv_estimates(): %s", e)
-            _LOGGER.error(traceback.format_exc())
+            _LOGGER.error("Exception in __get_forecast_pv_estimates(): %s: %s", e, traceback.format_exc())
             return 0
 
     def __get_forecast_pv_moment(self, time_utc, site=None, _use_data_field=None) -> float:
@@ -1733,8 +1744,7 @@ class SolcastApi: # pylint: disable=R0904
             )
             return res
         except Exception as e:
-            _LOGGER.error("Exception in __get_forecast_pv_moment(): %s", e)
-            _LOGGER.error(traceback.format_exc())
+            _LOGGER.error("Exception in __get_forecast_pv_moment(): %s: %s", e, traceback.format_exc())
             raise
             #return 0
 
@@ -1776,8 +1786,7 @@ class SolcastApi: # pylint: disable=R0904
                 )
             return res
         except Exception as e:
-            _LOGGER.error("Exception in __get_max_forecast_pv_estimate(): %s", e)
-            _LOGGER.error(traceback.format_exc())
+            _LOGGER.error("Exception in __get_max_forecast_pv_estimate(): %s: %s", e, traceback.format_exc())
             return 0
 
     def get_energy_data(self) -> Optional[dict[str, Any]]:
@@ -1789,8 +1798,7 @@ class SolcastApi: # pylint: disable=R0904
         try:
             return self._data_energy
         except Exception as e:
-            _LOGGER.error("Exception in get_energy_data(): %s", e)
-            _LOGGER.error(traceback.format_exc())
+            _LOGGER.error("Exception in get_energy_data(): %s: %s", e, traceback.format_exc())
             return None
 
     async def get_forecast_update(self, do_past=False, force=False) -> str:
@@ -1808,6 +1816,8 @@ class SolcastApi: # pylint: disable=R0904
                 status = f"Not requesting a solar forecast because time is within one minute of last update ({self.get_last_updated_datetime().astimezone(self._tz)})"
                 _LOGGER.warning(status)
                 return status
+
+            await self.__refresh_granular_dampening_data()
 
             failure = False
             sites_attempted = 0
@@ -1976,8 +1986,7 @@ class SolcastApi: # pylint: disable=R0904
             _LOGGER.debug("HTTP data call processing took %.3f seconds", round(time.time() - st_time, 4))
             return True
         except Exception as e:
-            _LOGGER.error("Exception in __http_data_call(): %s", e)
-            _LOGGER.error(traceback.format_exc())
+            _LOGGER.error("Exception in __http_data_call(): %s: %s", e, traceback.format_exc())
         return False
 
 
@@ -2157,16 +2166,22 @@ class SolcastApi: # pylint: disable=R0904
                 tally = 0
                 _site_fcasts_dict = {}
 
+                def get_damp(site, zz):
+                    return self.granular_dampening[site][
+                        zz.hour if len(self.granular_dampening[site]) == 24 else (zz.hour + 1 if zz.minute > 0 else zz.hour)
+                    ]
+
                 for x in siteinfo['forecasts']:
                     z = x["period_start"]
                     zz = z.astimezone(self._tz)
 
                     if yesterday < zz.date() < lastday:
-                        h = f"{zz.hour}"
-                        if self.site_damp.get(site):
-                            damp = self.site_damp[site][h]
+                        if self.granular_dampening.get('all'):
+                            damp = get_damp('all', zz)
+                        elif self.granular_dampening.get(site):
+                            damp = get_damp(site, zz)
                         else:
-                            damp = self.damp[h]
+                            damp = self.damp[f"{zz.hour}"]
 
                         # Record the individual site forecast.
                         _site_fcasts_dict[z] = {

@@ -193,9 +193,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if status != '':
         raise ConfigEntryNotReady(status)
 
-    site_damp = await solcast.site_dampening_data()
+    granular_dampening = await solcast.granular_dampening_data()
     opt = {**entry.options}
-    opt[SITE_DAMP] = site_damp # Internal per-site dampening set flag. A hidden option.
+    opt[SITE_DAMP] = granular_dampening # Internal per-site dampening set flag. A hidden option.
     hass.config_entries.async_update_entry(entry, options=opt)
     hass.data[DOMAIN]['entry_options'] = entry.options
 
@@ -300,48 +300,54 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             site = call.data.get(SITE, None) # Optional site.
 
             if factors is None:
-                raise HomeAssistantError("Error processing {SERVICE_SET_DAMPENING}: No dampening factors, must be 24 comma separated float values")
+                raise HomeAssistantError("Error processing {SERVICE_SET_DAMPENING}: No dampening factors, must be a comma separated list of float values")
+            factors = factors.strip().replace(' ','')
+            if len(factors.split(',')) == 0:
+                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Empty dampening factors, must be a comma separated list of float values")
+            sp = factors.split(",")
+            if len(sp) not in (24, 48):
+                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: There are not 24 or 48 comma separated float values")
+            if site is not None:
+                site = site.lower()
+                if site not in [s['resource_id'] for s in solcast.sites]:
+                    raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Not a configured site")
             else:
-                factors = factors.strip().replace(" ","")
-                if len(factors.split(',')) == 0:
-                    raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Empty dampening factor, must be 24 comma separated float values")
-                else:
-                    sp = factors.split(",")
-                    if (len(sp)) != 24:
-                        raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: There are not 24 comma separated float values")
-                    else:
-                        if site is not None:
-                            site = site.lower()
-                            if site not in [s['resource_id'] for s in solcast.sites]:
-                                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Not a configured site")
-                        try:
-                            for i in sp:
-                                # This will fail whan outside allowed range.
-                                if float(i) < 0 or float(i) > 1:
-                                    raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Dampening factor value present that is not 0.0 to 1.0")
-                        except:
-                            raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Error parsing dampening factor comma separated float values") # pylint: disable=W0707
-                        d = {}
-                        opt = {**entry.options}
-                        if site is None:
-                            for i in range(0,24):
-                                f = float(sp[i])
-                                d.update({f"{i}": f})
-                                opt[f"damp{i:02}"] = f
-                            solcast.damp = d
-                            if solcast.site_damp:
-                                _LOGGER.debug('Clear site dampening')
-                                solcast.site_damp = {}
-                                opt['site_damp'] = False # Clear hidden option.
-                                await solcast.serialise_site_dampening()
-                        else:
-                            for i in range(0,24):
-                                d.update({f"{i}": float(sp[i])})
-                            solcast.site_damp[site] = d
-                            await solcast.serialise_site_dampening()
-                            opt['site_damp'] = True # Set hidden option.
+                if len(sp) == 48:
+                    site = 'all'
+            out_of_range = False
+            try:
+                for i in sp:
+                    # This will fail whan outside allowed range.
+                    if float(i) < 0 or float(i) > 1:
+                        out_of_range = True
+            except:
+                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Error parsing dampening factor comma separated float values") # pylint: disable=W0707
+            if out_of_range:
+                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Dampening factor value present that is not 0.0 to 1.0")
 
-                        hass.config_entries.async_update_entry(entry, options=opt)
+            opt = {**entry.options}
+
+            def update_options():
+                d = {}
+                for i in range(0,24):
+                    f = float(sp[i])
+                    d.update({f"{i}": f})
+                    opt[f"damp{i:02}"] = f
+                solcast.damp = d
+
+            if site is None:
+                update_options()
+                if solcast.granular_dampening:
+                    _LOGGER.debug('Clear granular dampening')
+                    solcast.granular_dampening = {}
+                    opt[SITE_DAMP] = False # Clear hidden option.
+                    await solcast.serialise_granular_dampening()
+            else:
+                solcast.granular_dampening[site] = [float(sp[i]) for i in range(0,len(sp))]
+                await solcast.serialise_granular_dampening()
+                opt[SITE_DAMP] = True # Set hidden option.
+
+            hass.config_entries.async_update_entry(entry, options=opt)
         except intent.IntentHandleError as e:
             raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: {e}") from e
 
@@ -513,8 +519,8 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
 
             if changed(SITE_DAMP):
                 if not entry.options[SITE_DAMP]:
-                    coordinator.solcast.site_damp = {}
-                    await coordinator.solcast.serialise_site_dampening()
+                    coordinator.solcast.granular_dampening = {}
+                    await coordinator.solcast.serialise_granular_dampening()
                 recalc = True
             if changed(HARD_LIMIT):
                 recalc = True
@@ -552,13 +558,15 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Upgrade configuration.
 
-    v4:  (?)       Remove option for auto-poll
-    v5:  (4.0.8)   Dampening factor for each hour
-    v6:  (4.0.15)  Add custom sensor for next X hours
-    v7:  (4.0.16)  Selectable estimate value to use estimate, estimate10, estimate90
-    v8:  (4.0.39)  Selectable attributes for sensors
-    v9:  (4.1.3)   API limit (because Solcast removed an API call)
-    v10: (4.1.8)   Day 1..7 detailed breakdown by site
+    v4:  (?)        Remove option for auto-poll
+    v5:  (4.0.8)    Dampening factor for each hour
+    v6:  (4.0.15)   Add custom sensor for next X hours
+    v7:  (4.0.16)   Selectable estimate value to use estimate, estimate10, estimate90
+    v8:  (4.0.39)   Selectable attributes for sensors
+    v9:  (4.1.3)    API limit (because Solcast removed an API call)
+    v10: (4.1.8)    Day 1..7 detailed breakdown by site
+    v11: (4.1.8)    Auto-update as binaries, plus add missing hard limit
+    v12: (4.1.8)    Alter auto-update to 0=off, 1=sunrise/sunset, 2=24-hour
 
     An upgrade of the integration will sequentially upgrade options to the current
     version, with this function needing to consider all upgrade history and new defaults.
