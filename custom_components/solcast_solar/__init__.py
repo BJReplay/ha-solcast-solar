@@ -309,8 +309,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: There are not 24 or 48 comma separated float values")
             if site is not None:
                 site = site.lower()
-                if site not in [s['resource_id'] for s in solcast.sites]:
-                    raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Not a configured site")
+                if site == 'all':
+                    if(len(sp)) != 48:
+                        raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Specifying a site of 'all' is not allowed with 24 factors, remove site from the request")
+                else:
+                    if site not in [s['resource_id'] for s in solcast.sites]:
+                        raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Not a configured site")
             else:
                 if len(sp) == 48:
                     site = 'all'
