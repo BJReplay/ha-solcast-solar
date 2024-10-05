@@ -734,6 +734,25 @@ class SolcastApi: # pylint: disable=R0904
             self._api_used[api_key] = 0
             await self.__serialise_usage(api_key, reset=True)
 
+    def __valid_granular_dampening(self) -> bool:
+        """Verify that the in-memory granular dampening is going to work (already checked elsewhere for 24/48 length).
+
+        Returns:
+            bool: True for a valid configuration.
+        """
+        if self.granular_dampening:
+            first_site_len = 0
+            for _, damp_list in self.granular_dampening.items():
+                if first_site_len == 0:
+                    first_site_len = len(damp_list)
+                else:
+                    if len(damp_list) != first_site_len:
+                        _LOGGER.warning('Number of dampening factors for all sites must be the same, dampening will be ignored until this is resolved')
+                        return False
+            return True
+        else:
+            return False
+
     async def serialise_granular_dampening(self):
         """Serialise the site dampening file.
 
@@ -742,8 +761,12 @@ class SolcastApi: # pylint: disable=R0904
         serialise = True
         try:
             json_file = self.__get_granular_dampening_filename()
-            _LOGGER.debug("Writing granular dampening file: %s", json_file)
-            payload = json.dumps(self.granular_dampening, ensure_ascii=False, cls=NoIndentEncoder, indent=2)
+            if self.__valid_granular_dampening():
+                _LOGGER.debug("Writing granular dampening file: %s", json_file)
+                payload = json.dumps(self.granular_dampening, ensure_ascii=False, cls=NoIndentEncoder, indent=2)
+            else:
+                _LOGGER.warning("Not writing granular dampening file: %s", json_file)
+                serialise = False
         except Exception as e:
             _LOGGER.error("Exception in serialise_granular_dampening(): %s: %s", e, traceback.format_exc())
             serialise = False
@@ -2158,6 +2181,7 @@ class SolcastApi: # pylint: disable=R0904
             today = dt.now(self._tz).date()
             yesterday = dt.now(self._tz).date() + timedelta(days=-730)
             lastday = dt.now(self._tz).date() + timedelta(days=8)
+            valid_granular_dampening = self.__valid_granular_dampening()
 
             _fcasts_dict = {}
 
@@ -2176,9 +2200,9 @@ class SolcastApi: # pylint: disable=R0904
                     zz = z.astimezone(self._tz)
 
                     if yesterday < zz.date() < lastday:
-                        if self.granular_dampening.get('all'):
+                        if self.granular_dampening.get('all') and valid_granular_dampening:
                             damp = get_damp('all', zz)
-                        elif self.granular_dampening.get(site):
+                        elif self.granular_dampening.get(site) and valid_granular_dampening:
                             damp = get_damp(site, zz)
                         else:
                             damp = self.damp[f"{zz.hour}"]
