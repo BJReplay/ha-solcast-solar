@@ -777,7 +777,7 @@ class SolcastApi: # pylint: disable=R0904
                         self.granular_dampening[site] = [damp_dict[f"{hour}"] for hour in range(0,24)]
                     if self.granular_dampening:
                         _LOGGER.debug("Granular dampening: %s", str(self.granular_dampening))
-                    # Unlink legacy file here
+                    os.remove(legacy_file)
                 except Exception as e:
                     _LOGGER.error("Exception in __migrate_granular_dampening(): %s: %s", e, traceback.format_exc())
                     ex = True
