@@ -167,8 +167,8 @@ class SolcastApi: # pylint: disable=R0904
         get_sites_and_usage: Get the sites and usage, and validate API key changes against the cache files in use.
         reset_api_usage: Reset the daily API usage counter.
         load_saved_data: Load the saved solcast.json data.
-        serialise_granular_dampening: Serialise the site dampening file.
-        granular_dampening_data: Read the current site dampening file.
+        serialise_granular_dampening: Serialise the granular dampening file.
+        granular_dampening_data: Read the current granular dampening file.
 
         get_last_updated_datetime: Return when the data was last updated.
         is_stale_data: Return whether the forecast was last updated some time ago (i.e. is stale).
@@ -821,7 +821,7 @@ class SolcastApi: # pylint: disable=R0904
         return False
 
     async def granular_dampening_data(self) -> bool:
-        """Read the current site dampening file.
+        """Read the current granular dampening file.
 
         Returns:
             bool: Granular dampening in use.
