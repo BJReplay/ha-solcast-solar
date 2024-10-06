@@ -332,7 +332,7 @@ If per-site dampening is configured for a single site in a multi-site set up the
 
 There are quite a few sensor attributes that can be used as a data source for template sensors, charts, etc., including a per-site breakdown, estimate 10/50/90 values, and per-hour and half hour detailed breakdown for each forecast day.
 
-Many users will not use these attributes, so to cut the clutter (especially in the UI) and also long-term statistics (LTS) generation all of these can be disabled if they are not needed.
+Many users will not use these attributes, so to cut the clutter (especially in the UI and also database statistics storage) generation all of these can be disabled if they are not needed.
 
 By default, all of them are enabled, with the exception of per-site detailedForecast and detailedHourly. (All hourly and half-hourly detail attributes are excluded from being sent to the recorder (the LTS), as these attributes are very large, would result in excessive database growth, and are of little use when considered long-term.)
 
