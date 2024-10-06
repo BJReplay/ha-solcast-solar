@@ -30,9 +30,9 @@ DOMAIN = "solcast_solar"
 ENTRY_TYPE_SERVICE: Final = "service"
 HARD_LIMIT = "hard_limit"
 INIT_MSG = """This is a custom integration. When troubleshooting a problem, after
-reviewing open and closed issues, and the discussions, check the
-required automation is functioning correctly and try enabling debug
-logging to see more. Troubleshooting tips available at:
+reviewing open and closed issues, and the discussions, check any
+automation is functioning correctly (unless auto-update is
+enabled). Troubleshooting tips available at:
 https://github.com/BJReplay/ha-solcast-solar/discussions/38
 
 Beta versions may also have addressed issues so look at those.
