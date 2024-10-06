@@ -117,6 +117,14 @@
                 "end_date_time": {
                     "name": "Data i godzina zakończenia",
                     "description": "Pobierz dane prognoz do określonej daty i godziny."
+                },
+                "undampened": {
+                    "name": "Nietłumiony",
+                    "description": "Opcjonalna wartość logiczna umożliwiająca pobranie niezakłóconej prognozy"
+                },
+                "site": {
+                    "name": "Identyfikator witryny",
+                    "description": "Opcjonalna lokalizacja do pobrania prognozy dla jednej lokalizacji"
                 }
             }
         },
@@ -126,11 +134,11 @@
             "fields": {
                 "damp_factor": {
                     "name": "Ciąg tłumienia",
-                    "description": "Ciąg wartości współczynnika tłumienia godzinowego, oddzielany przecinkiem."
+                    "description": "Ciąg wartości współczynnika tłumienia oddzielony przecinkami (24 lub 48 wartości)."
                 },
                 "site": {
                     "name": "Identyfikator witryny",
-                    "description": "Opcjonalny identyfikator miejsca w celu rozbicia tłumienia. (Uwaga: pominięcie miejsca spowoduje usunięcie wszystkich zawilgoceń poszczególnych miejsc.)"
+                    "description": "Opcjonalne miejsce do ustawienia tłumienia dla każdego miejsca. (Uwaga: pominięcie miejsca czyści tłumienie w poszczególnych miejscach, chyba że jest to 48 wartości.)"
                 }
             }
         },

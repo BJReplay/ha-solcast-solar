@@ -117,6 +117,14 @@
                 "end_date_time": {
                     "name": "Enddatum und /-uhrzeit",
                     "description": "Endzeitpunkt der Prognosedaten."
+                },
+                "undampened": {
+                    "name": "Ungedämpft",
+                    "description": "Optionaler boolescher Wert zum Abrufen einer ungedämpften Prognose"
+                },
+                "site": {
+                    "name": "Site-ID",
+                    "description": "Optionale Site zum Abrufen einer Site-Prognose"
                 }
             }
         },
@@ -126,11 +134,11 @@
             "fields": {
                 "damp_factor": {
                     "name": "Dämpfungssaite",
-                    "description": "Zeichenfolge mit stündlichen Dämpfungsfaktorwerten, durch Kommas getrennt."
+                    "description": "Zeichenfolge mit durch Kommas getrennten Dämpfungsfaktorwerten (24 oder 48 Werte)."
                 },
                 "site": {
                     "name": "Site-ID",
-                    "description": "Optionale Standort-ID zur Aufschlüsselung der Dämpfung. (Hinweis: Wenn Sie „Site“ weglassen, werden alle einzelnen Site-Dämpfungen gelöscht.)"
+                    "description": "Optionaler Standort zum Einstellen der Dämpfung pro Standort. (Hinweis: Durch Weglassen der Site wird die Dämpfung pro Site gelöscht, es sei denn, es liegen 48 Werte vor.)"
                 }
             }
         },

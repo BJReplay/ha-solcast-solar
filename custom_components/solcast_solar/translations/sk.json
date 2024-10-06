@@ -117,6 +117,14 @@
                 "end_date_time": {
                     "name": "Dátum ukončenia čas",
                     "description": "Dopytujte udalosti predpovede údajov o aktuálnom čase."
+                },
+                "undampened": {
+                    "name": "Netlmené",
+                    "description": "Voliteľná booleovská hodnota na získanie netlmenej predpovede"
+                },
+                "site": {
+                    "name": "ID lokality",
+                    "description": "Voliteľná lokalita na získanie prognózy jednej lokality"
                 }
             }
         },
@@ -126,11 +134,11 @@
             "fields": {
                 "damp_factor": {
                     "name": "Tlmiaci reťazec",
-                    "description": "Reťazec hodnôt hodinového faktora tlmenia oddelený čiarkou."
+                    "description": "Reťazec hodnôt tlmiaceho faktora oddelený čiarkou (24 alebo 48 hodnôt)."
                 },
                 "site": {
                     "name": "ID lokality",
-                    "description": "Voliteľný identifikátor lokality na nastavenie rozdelenia. (Poznámka: Vynechaním lokality sa vymažú všetky tlmenia jednotlivých lokalít.)"
+                    "description": "Voliteľné miesto na nastavenie tlmenia na mieste. (Poznámka: Vynechaním lokality sa vymaže tlmenie pre jednotlivé lokality, pokiaľ nie sú hodnoty 48.)"
                 }
             }
         },

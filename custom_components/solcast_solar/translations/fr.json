@@ -117,6 +117,14 @@
                 "end_date_time": {
                     "name": "Date et heure de fin",
                     "description": "Date et heure de fin des données de prévision."
+                },
+                "undampened": {
+                    "name": "Non amorti",
+                    "description": "Booléen facultatif pour récupérer les prévisions non amorties"
+                },
+                "site": {
+                    "name": "Identifiant du site",
+                    "description": "Site facultatif pour récupérer les prévisions d'un site"
                 }
             }
         },
@@ -126,11 +134,11 @@
             "fields": {
                 "damp_factor": {
                     "name": "Chaîne de coefficient d'amortissement",
-                    "description": "Chaîne de valeurs horaires du facteur d'amortissement séparées par des virgules."
+                    "description": "Chaîne de valeurs de facteur d'amortissement séparées par des virgules (24 ou 48 valeurs)."
                 },
                 "site": {
                     "name": "Identifiant du site",
-                    "description": "ID de site facultatif pour décomposer l'amortissement. (Remarque : l'omission du site supprimera tous les amortissements de sites individuels.)"
+                    "description": "Site facultatif pour définir l’amortissement par site. (Remarque : l'omission du site supprime l'amortissement par site, sauf si les valeurs sont 48.)"
                 }
             }
         },
