@@ -526,11 +526,6 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
             if recalc:
                 coordinator.solcast.damp = d
 
-            if changed(SITE_DAMP):
-                if not entry.options[SITE_DAMP]:
-                    coordinator.solcast.granular_dampening = {}
-                    await coordinator.solcast.serialise_granular_dampening()
-                recalc = True
             if changed(HARD_LIMIT):
                 recalc = True
             # Attribute changes, which will need a recalulation of splines

@@ -879,11 +879,12 @@ class SolcastApi: # pylint: disable=R0904
     async def __refresh_granular_dampening_data(self):
         """Loads granular dampening data if the file has changed."""
         try:
-            mtime = os.path.getmtime(self.__get_granular_dampening_filename())
-            if mtime != self._granular_dampening_mtime:
-                await self.granular_dampening_data()
-                _LOGGER.info("Granular dampening reloaded")
-                _LOGGER.debug("Granular dampening file mtime: %s", dt.fromtimestamp(mtime, self._tz).strftime(DATE_FORMAT))
+            if file_exists(self.__get_granular_dampening_filename()):
+                mtime = os.path.getmtime(self.__get_granular_dampening_filename())
+                if mtime != self._granular_dampening_mtime:
+                    await self.granular_dampening_data()
+                    _LOGGER.info("Granular dampening reloaded")
+                    _LOGGER.debug("Granular dampening file mtime: %s", dt.fromtimestamp(mtime, self._tz).strftime(DATE_FORMAT))
         except Exception as e:
             _LOGGER.error("Exception in __refresh_granular_dampening_data(): %s: %s", e, traceback.format_exc())
 
@@ -2048,7 +2049,7 @@ class SolcastApi: # pylint: disable=R0904
             def get_dampening_factor(site: str, z: dt):
                 """Retrieve a granular dampening factor."""
                 return self.granular_dampening[site][
-                    z.hour if len(self.granular_dampening[site]) == 24 else ((z.hour*2) + 1 if z.minute > 0 else 0)
+                    z.hour if len(self.granular_dampening[site]) == 24 else ((z.hour*2) + (1 if z.minute > 0 else 0))
                 ]
 
             valid_granular_dampening = self.__valid_granular_dampening()
