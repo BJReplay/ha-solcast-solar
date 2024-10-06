@@ -305,13 +305,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             site = call.data.get(SITE, None) # Optional site.
 
             if factors is None:
-                raise HomeAssistantError("Error processing {SERVICE_SET_DAMPENING}: No dampening factors, must be a comma separated list of float values")
+                raise HomeAssistantError("Error processing {SERVICE_SET_DAMPENING}: No dampening factors, must be a comma separated list of numbers between 0.0 to 1.0")
             factors = factors.strip().replace(' ','')
             if len(factors.split(',')) == 0:
-                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Empty dampening factors, must be a comma separated list of float values")
+                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Empty dampening factors, must be a comma separated list of numbers between 0.0 to 1.0")
             sp = factors.split(",")
             if len(sp) not in (24, 48):
-                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: There are not 24 or 48 comma separated float values")
+                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: There are not 24 or 48 comma separated numbers between 0.0 to 1.0")
             if site is not None:
                 site = site.lower()
                 if site == 'all':
@@ -330,7 +330,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     if float(i) < 0 or float(i) > 1:
                         out_of_range = True
             except:
-                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Error parsing dampening factor comma separated float values") # pylint: disable=W0707
+                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Error parsing dampening factor comma separated numbers") # pylint: disable=W0707
             if out_of_range:
                 raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Dampening factor value present that is not 0.0 to 1.0")
 
