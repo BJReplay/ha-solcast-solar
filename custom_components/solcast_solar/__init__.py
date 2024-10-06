@@ -57,6 +57,7 @@ _LOGGER = logging.getLogger(__name__)
 
 DAMP_FACTOR = "damp_factor"
 SITE = "site"
+UNDAMPENED = "undampened"
 EVENT_END_DATETIME = "end_date_time"
 EVENT_START_DATETIME = "start_date_time"
 PLATFORMS = [Platform.SENSOR, Platform.SELECT,]
@@ -75,6 +76,8 @@ SERVICE_QUERY_SCHEMA: Final = vol.All(
     {
         vol.Required(EVENT_START_DATETIME): cv.datetime,
         vol.Required(EVENT_END_DATETIME): cv.datetime,
+        vol.Optional(UNDAMPENED): cv.boolean,
+        vol.Optional(SITE): cv.string,
     }
 )
 
@@ -261,7 +264,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         """Handle service call.
 
         Arguments:
-            call (ServiceCall): The data to act on: an optional start date/time, and an optional end date/time, defaults to now.
+            call (ServiceCall): The data to act on: a start and optional end date/time (defaults to now), optional dampened/undampened, optional site.
 
         Raises:
             HomeAssistantError: Notify Home Assistant that an error has occurred.
@@ -274,8 +277,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
             start = call.data.get(EVENT_START_DATETIME, dt_util.now())
             end = call.data.get(EVENT_END_DATETIME, dt_util.now())
+            site = call.data.get(SITE, 'all')
+            undampened = call.data.get(UNDAMPENED, False)
 
-            d = await coordinator.service_query_forecast_data(dt_util.as_utc(start), dt_util.as_utc(end))
+            d = await coordinator.service_query_forecast_data(dt_util.as_utc(start), dt_util.as_utc(end), site, undampened)
         except intent.IntentHandleError as e:
             raise HomeAssistantError(f"Error processing {SERVICE_QUERY_FORECAST_DATA}: {e}") from e
 

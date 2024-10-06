@@ -117,6 +117,14 @@
                 "end_date_time": {
                     "name": "End date time",
                     "description": "Query forecast data events up to date time."
+                },
+                "undampened": {
+                    "name": "Undampened",
+                    "description": "Optional boolean to retrieve undampened forecast"
+                },
+                "site": {
+                    "name": "Site ID",
+                    "description": "Optional site to retrieve one site forecast"
                 }
             }
         },
@@ -126,11 +134,11 @@
             "fields": {
                 "damp_factor": {
                     "name": "Dampening string",
-                    "description": "String of hourly dampening factor values comma seperated."
+                    "description": "String of dampening factor values comma separated (24 or 48 values)."
                 },
                 "site": {
                     "name": "Site ID",
-                    "description": "Optional site ID to break down dampening. (Note: Omitting site will clear all individual site dampening.)"
+                    "description": "Optional site to set per-site dampening. (Note: Omitting site clears per-site dampening unless 48 values.)"
                 }
             }
         },

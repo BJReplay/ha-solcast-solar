@@ -210,16 +210,16 @@ class SolcastApi: # pylint: disable=R0904
             api_cache_enabled (bool): Utilise cached data instead of getting updates from Solcast (default: {False}).
         """
 
-        self.hass = None
-        self.options = options
-        self.hard_limit = options.hard_limit
         self.custom_hour_sensor = options.custom_hour_sensor
         self.damp = options.dampening # Re-set on recalc in __init__
         self.estimate_set = {'pv_estimate': options.attr_brk_estimate, 'pv_estimate10': options.attr_brk_estimate10, 'pv_estimate90': options.attr_brk_estimate90}
         self.granular_dampening = {}
+        self.hard_limit = options.hard_limit
+        self.hass = None
+        self.options = options
+        self.previously_loaded = False
         self.sites = []
         self.sites_loaded = False
-        self.previously_loaded = False
         self.tasks = {}
 
         self._aiohttp_session = aiohttp_session
@@ -230,21 +230,25 @@ class SolcastApi: # pylint: disable=R0904
         self._data = {'siteinfo': {}, 'last_updated': dt.fromtimestamp(0, timezone.utc).isoformat()}
         self._data_energy = {}
         self._data_forecasts = []
+        self._data_forecasts_undampened = []
+        self._data_undampened = self._data
         self._filename = options.file_path
+        file_name, extension = os.path.splitext(options.file_path)
+        self._filename_undampened = f"{file_name}-undampened{extension}"
         self._forecasts_moment = {}
         self._forecasts_remaining = {}
         self._granular_dampening_mtime = 0
         self._loaded_data = False
         self._site_data_forecasts = {}
+        self._site_data_forecasts_undampened = {}
         self._spline_period = list(range(0, 90000, 1800))
-        self._serialize_lock = asyncio.Lock()
+        self._serialise_lock = asyncio.Lock()
         self._tally = {}
         self._tz = options.tz
         self._use_data_field = f"pv_{options.key_estimate}"
         #self._weather = ""
 
         self._config_dir = dirname(self._filename)
-
         _LOGGER.debug("Configuration directory is %s", self._config_dir)
 
     async def set_options(self, options: dict):
@@ -379,7 +383,7 @@ class SolcastApi: # pylint: disable=R0904
         else:
             return f"{self._config_dir}/solcast-dampening.json"
 
-    async def __serialize_data(self) -> bool:
+    async def __serialise_data(self, data, filename) -> bool:
         """Serialize data to file.
 
         The twin try/except blocks here are significant. If the two were combined with
@@ -387,31 +391,35 @@ class SolcastApi: # pylint: disable=R0904
         then should an exception occur during conversion from dict to JSON string it
         would result in an empty file.
 
+        Arguments:
+            data (dict): The data to serialise.
+            filename (str): The name of the file
+
         Returns:
             bool: Success or failure.
         """
         serialise = True
         try:
             if not self._loaded_data:
-                _LOGGER.debug("Not saving forecast cache in __serialize_data() as no data has been loaded yet")
+                _LOGGER.debug("Not saving forecast cache in __serialise_data() as no data has been loaded yet")
                 return False
             """
             If the _loaded_data flag is True, yet last_updated is 1/1/1970 then data has not been loaded
             properly for some reason, or no forecast has been received since startup so abort the save.
             """
-            if self._data['last_updated'] == dt.fromtimestamp(0, timezone.utc).isoformat():
-                _LOGGER.error("Internal error: Forecast cache last updated date has not been set, not saving data")
+            if data['last_updated'] == dt.fromtimestamp(0, timezone.utc).isoformat():
+                _LOGGER.error("Internal error: Forecast cache %s last updated date has not been set, not saving data", filename)
                 return False
-            payload = json.dumps(self._data, ensure_ascii=False, cls=DateTimeEncoder)
+            payload = json.dumps(data, ensure_ascii=False, cls=DateTimeEncoder)
         except Exception as e:
-            _LOGGER.error("Exception in __serialize_data(): %s: %s", e, traceback.format_exc())
+            _LOGGER.error("Exception in __serialise_data(): %s: %s", e, traceback.format_exc())
             serialise = False
         if serialise:
             try:
-                async with self._serialize_lock:
-                    async with aiofiles.open(self._filename, 'w') as f:
+                async with self._serialise_lock:
+                    async with aiofiles.open(filename, 'w') as f:
                         await f.write(payload)
-                _LOGGER.debug("Saved forecast cache")
+                _LOGGER.debug("Saved forecast cache %s", filename)
                 return True
             except Exception as e:
                 _LOGGER.error("Exception writing forecast data: %s", e)
@@ -463,7 +471,7 @@ class SolcastApi: # pylint: disable=R0904
                             if status == 200:
                                 if resp_json['total_records'] > 0:
                                     _LOGGER.debug("Writing sites cache")
-                                    async with self._serialize_lock:
+                                    async with self._serialise_lock:
                                         async with aiofiles.open(cache_filename, 'w') as f:
                                             await f.write(json.dumps(resp_json, ensure_ascii=False))
                                     success = True
@@ -552,7 +560,7 @@ class SolcastApi: # pylint: disable=R0904
     async def __serialise_usage(self, api_key, reset=False):
         """Serialise the usage cache file.
 
-        See comment in __serialize_data.
+        See comment in __serialise_data.
 
         Arguments:
             api_key (str): An individual Solcast account API key.
@@ -571,7 +579,7 @@ class SolcastApi: # pylint: disable=R0904
             serialise = False
         if serialise:
             try:
-                async with self._serialize_lock:
+                async with self._serialise_lock:
                     async with aiofiles.open(json_file, 'w') as f:
                         await f.write(payload)
             except Exception as e:
@@ -756,7 +764,7 @@ class SolcastApi: # pylint: disable=R0904
     async def serialise_granular_dampening(self):
         """Serialise the site dampening file.
 
-        See comment in __serialize_data.
+        See comment in __serialise_data.
         """
         serialise = True
         try:
@@ -772,7 +780,7 @@ class SolcastApi: # pylint: disable=R0904
             serialise = False
         if serialise:
             try:
-                async with self._serialize_lock:
+                async with self._serialise_lock:
                     async with aiofiles.open(json_file, 'w') as f:
                         await f.write(payload)
                 self._granular_dampening_mtime = os.path.getmtime(json_file)
@@ -851,6 +859,7 @@ class SolcastApi: # pylint: disable=R0904
                                 self.granular_dampening = {}
                                 return False
                             _LOGGER.debug("Granular dampening: %s", str(self.granular_dampening))
+                            _LOGGER.debug("Valid granular dampening: %s", self.__valid_granular_dampening())
                             return True
                         else:
                             return False
@@ -872,7 +881,7 @@ class SolcastApi: # pylint: disable=R0904
         try:
             mtime = os.path.getmtime(self.__get_granular_dampening_filename())
             if mtime != self._granular_dampening_mtime:
-                self.granular_dampening_data()
+                await self.granular_dampening_data()
                 _LOGGER.info("Granular dampening reloaded")
                 _LOGGER.debug("Granular dampening file mtime: %s", dt.fromtimestamp(mtime, self._tz).strftime(DATE_FORMAT))
         except Exception as e:
@@ -925,71 +934,86 @@ class SolcastApi: # pylint: disable=R0904
         try:
             status = ''
             if len(self.sites) > 0:
-                if file_exists(self._filename):
-                    async with aiofiles.open(self._filename) as data_file:
-                        json_data = json.loads(await data_file.read(), cls=JSONDecoder)
-                        json_version = json_data.get("version", 1)
-                        #self._weather = json_data.get("weather", "unknown")
-                        _LOGGER.debug("Data cache exists, file type is %s", type(json_data))
-                        if json_version == JSON_VERSION:
-                            self._data = json_data
-                            self._loaded_data = True
-                        else:
-                            _LOGGER.warning('solcast.json version is not latest (%d vs. %d), upgrading', json_version, JSON_VERSION)
-                            # Future: If the file structure changes then upgrade it
-                            if json_version < 4:
-                                json_data['version'] = 4
-                                json_version = 4
-                                self.__serialize_data()
-                            #if json_version < 5:
-                            #    upgrade...
-                            #    json_data['version'] = 5
-                            #    json_version = 5
-                            #    self.__serialize_data()
 
-                    # Check for any new API keys so no sites data yet for those.
-                    ks = {}
-                    try:
-                        cache_sites = list(json_data['siteinfo'].keys())
-                        for d in self.sites:
-                            if d['resource_id'] not in cache_sites:
-                                ks[d['resource_id']] = d['apikey']
-                    except Exception  as e:
-                        raise f"Exception while adding new sites: {e}"
+                async def load_data(filename, set_loaded=True, fetch_added_sites=True) -> dict:
+                    if file_exists(filename):
+                        async with aiofiles.open(filename) as data_file:
+                            json_data = json.loads(await data_file.read(), cls=JSONDecoder)
+                            json_version = json_data.get("version", 1)
+                            #self._weather = json_data.get("weather", "unknown")
+                            _LOGGER.debug("Data cache %s exists, file type is %s", filename, type(json_data))
+                            data = json_data
+                            if json_version != JSON_VERSION:
+                                _LOGGER.warning('%s version is not latest (%d vs. %d), upgrading', filename, json_version, JSON_VERSION)
+                                # Future: If the file structure changes then upgrade it
+                                if json_version < 4:
+                                    data['version'] = 4
+                                    json_version = 4
+                                    self.__serialise_data(data, filename)
+                                #if json_version < 5:
+                                #    upgrade in future...
+                                #    data['version'] = 5
+                                #    json_version = 5
+                                #    self.__serialise_data(data, filename)
+                            if set_loaded:
+                                self._loaded_data = True
 
-                    if len(ks.keys()) > 0:
-                        # Some site data does not exist yet so get it.
-                        _LOGGER.info("New site(s) have been added, so getting forecast data for them")
-                        for site, api_key in ks.items():
-                            await self.__http_data_call(site=site, api_key=api_key, do_past=True)
-                        await self.__serialize_data()
+                        # Check for any new API keys so no sites data yet for those.
+                        ks = {}
+                        try:
+                            cache_sites = list(data['siteinfo'].keys())
+                            for d in self.sites:
+                                if d['resource_id'] not in cache_sites:
+                                    ks[d['resource_id']] = d['apikey']
+                        except Exception  as e:
+                            raise f"Exception while adding new sites: {e}"
 
-                    # Check for sites that need to be removed.
-                    l = []
-                    try:
-                        configured_sites = [s['resource_id'] for s in self.sites]
-                        for s in cache_sites:
-                            if s not in configured_sites:
-                                _LOGGER.warning("Site resource id %s is no longer configured, removing saved data from cached file", s)
-                                l.append(s)
-                    except Exception  as e:
-                        raise f"Exception while removing stale sites: {e}"
+                        if fetch_added_sites:
+                            if len(ks.keys()) > 0:
+                                # Some site data does not exist yet so get it.
+                                _LOGGER.info("New site(s) have been added, so getting forecast data for them")
+                                for site, api_key in ks.items():
+                                    await self.__http_data_call(site=site, api_key=api_key, do_past=True)
+                                await self.__serialise_data(data, filename)
 
-                    for ll in l:
-                        del json_data['siteinfo'][ll]
-                    if len(l) > 0:
-                        await self.__serialize_data()
+                        # Check for sites that need to be removed.
+                        l = []
+                        try:
+                            configured_sites = [s['resource_id'] for s in self.sites]
+                            for s in cache_sites:
+                                if s not in configured_sites:
+                                    if set_loaded:
+                                        _LOGGER.warning("Site resource id %s is no longer configured, removing saved data from cached file", s)
+                                    l.append(s)
+                        except Exception  as e:
+                            raise f"Exception while removing stale sites: {e}"
 
-                    # Create an up to date forecast.
-                    await self.build_forecast_data()
-                    if not self.previously_loaded:
-                        _LOGGER.info("Data loaded")
+                        for ll in l:
+                            del data['siteinfo'][ll]
+                        if len(l) > 0:
+                            await self.__serialise_data(data, filename)
+
+                        if not self.previously_loaded:
+                            _LOGGER.info("%s data loaded", filename)
+                        return data
+                    else:
+                        return None
+
+                dampened_data = await load_data(self._filename)
+                if dampened_data:
+                    self._data = dampened_data
+                undampened_data = await load_data(self._filename_undampened, set_loaded=False, fetch_added_sites=False)
+                if undampened_data:
+                    self._data_undampened = undampened_data
 
                 if not self._loaded_data:
                     # No file to load.
                     _LOGGER.warning("There is no solcast.json to load, so fetching solar forecast, including past forecasts")
                     # Could be a brand new install of the integation, or the file has been removed. Poll once now...
                     status = await self.get_forecast_update(do_past=True)
+                else:
+                    # Create an up to date forecast.
+                    await self.build_forecast_data()
             else:
                 _LOGGER.error("Site count is zero in load_saved_data(); the get sites must have failed, and there is no sites cache")
                 status = 'Site count is zero, add sites'
@@ -1012,12 +1036,17 @@ class SolcastApi: # pylint: disable=R0904
         """
         _LOGGER.debug("Service event to delete old solcast.json file")
         try:
+            if file_exists(self._filename_undampened):
+                os.remove(self._filename_undampened)
+            else:
+                _LOGGER.warning("There is no solcast-undampened.json to delete")
             if file_exists(self._filename):
                 os.remove(self._filename)
-                await self.get_sites_and_usage()
-                await self.load_saved_data()
             else:
                 _LOGGER.warning("There is no solcast.json to delete")
+                return
+            await self.get_sites_and_usage()
+            await self.load_saved_data()
         except Exception:
             _LOGGER.error("Service event to delete old solcast.json file failed")
 
@@ -1025,7 +1054,7 @@ class SolcastApi: # pylint: disable=R0904
         """Service event to get forecasts.
 
         Arguments:
-            args (list): [0] = from timestamp, [1] = to timestamp.
+            args (list): [0] (dt) = from timestamp, [1] (dt) = to timestamp, [2] = site, [3] (bool) = dampened or undampened.
 
         Returns:
             tuple(dict, ...): Forecasts representing the range specified.
@@ -1033,12 +1062,16 @@ class SolcastApi: # pylint: disable=R0904
         try:
             st_time = time.time()
 
-            st_i, end_i = self.__get_forecast_list_slice(self._data_forecasts, args[0], args[1], search_past=True)
-            h = self._data_forecasts[st_i:end_i]
+            if args[2] == 'all':
+                data_forecasts = self._data_forecasts if not args[3] else self._data_forecasts_undampened
+            else:
+                data_forecasts = self._site_data_forecasts[args[2]] if not args[3] else self._site_data_forecasts_undampened[args[2]]
+            st_i, end_i = self.__get_forecast_list_slice(data_forecasts, args[0], args[1], search_past=True)
+            h = data_forecasts[st_i:end_i]
 
             if SENSOR_DEBUG_LOGGING: _LOGGER.debug(
-                "Get forecast list: (%ss) st %s end %s st_i %d end_i %d h.len %d",
-                round(time.time()-st_time,4), args[0].strftime(DATE_FORMAT_UTC), args[1].strftime(DATE_FORMAT_UTC), st_i, end_i, len(h)
+                "Get forecast list: (%ss) st %s end %s st_i %d end_i %d h.len %d site %s undamp %s",
+                round(time.time()-st_time,4), args[0].strftime(DATE_FORMAT_UTC), args[1].strftime(DATE_FORMAT_UTC), st_i, end_i, len(h), args[2], args[3]
             )
 
             return tuple( {**d, "period_start": d["period_start"].astimezone(self._tz)} for d in h )
@@ -1862,13 +1895,16 @@ class SolcastApi: # pylint: disable=R0904
 
             if sites_attempted > 0 and not failure:
                 self._data["last_updated"] = dt.now(timezone.utc).isoformat()
+                self._data_undampened["last_updated"] = dt.now(timezone.utc).isoformat()
                 #self._data["weather"] = self._weather
 
                 b_status = await self.build_forecast_data()
                 self._data["version"] = JSON_VERSION
+                self._data_undampened["version"] = JSON_VERSION
                 self._loaded_data = True
 
-                s_status = await self.__serialize_data()
+                s_status = await self.__serialise_data(self._data, self._filename)
+                await self.__serialise_data(self._data_undampened, self._filename_undampened)
                 if b_status and s_status:
                     _LOGGER.info("Forecast update completed successfully")
             else:
@@ -1899,12 +1935,15 @@ class SolcastApi: # pylint: disable=R0904
             numhours = math.ceil((lastday - self.get_now_utc()).total_seconds() / 3600)
             _LOGGER.debug('Polling API for site %s lastday %s numhours %d', site, lastday.strftime('%Y-%m-%d'), numhours)
 
-            _data = []
-            _data2 = []
+            new_data = []
+
+            """
+            Fetch past data.
+
+            Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.
+            """
 
             if do_past:
-                # Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.
-                ae = None
                 self.tasks['fetch'] = asyncio.create_task(self.__fetch_data(168, path="estimated_actuals", site=site, api_key=api_key, cachedname="actuals", force=force))
                 await self.tasks['fetch']
                 resp_dict = self.tasks['fetch'].result()
@@ -1913,30 +1952,33 @@ class SolcastApi: # pylint: disable=R0904
                     _LOGGER.error('No data was returned for estimated_actuals so this WILL cause issues. Your API limit may be exhaused, or Solcast has a problem...')
                     raise TypeError(f"API did not return a json object. Returned {resp_dict}")
 
-                ae = resp_dict.get("estimated_actuals", None)
+                estimate_actuals = resp_dict.get("estimated_actuals", None)
 
-                if not isinstance(ae, list):
-                    raise TypeError(f"Estimated actuals must be a list, not {type(ae)}")
+                if not isinstance(estimate_actuals, list):
+                    raise TypeError(f"Estimated actuals must be a list, not {type(estimate_actuals)}")
 
-                oldest = dt.now(self._tz).replace(hour=0,minute=0,second=0,microsecond=0) - timedelta(days=6)
-                oldest = oldest.astimezone(timezone.utc)
+                oldest = (dt.now(self._tz).replace(hour=0,minute=0,second=0,microsecond=0) - timedelta(days=6)).astimezone(timezone.utc)
 
-                for x in ae:
-                    z = parse_datetime(x["period_end"]).astimezone(timezone.utc)
+                for estimate_actual in estimate_actuals:
+                    z = parse_datetime(estimate_actual["period_end"]).astimezone(timezone.utc)
                     z = z.replace(second=0, microsecond=0) - timedelta(minutes=30)
                     if z.minute not in {0, 30}:
                         raise ValueError(
                             f"period_start minute is not 0 or 30. {z.minute}"
                         )
                     if z > oldest:
-                        _data2.append(
+                        new_data.append(
                             {
                                 "period_start": z,
-                                "pv_estimate": x["pv_estimate"],
+                                "pv_estimate": estimate_actual["pv_estimate"],
                                 "pv_estimate10": 0,
                                 "pv_estimate90": 0,
                             }
                         )
+
+            """
+            Fetch latest data.
+            """
 
             self.tasks['fetch'] = asyncio.create_task(self.__fetch_data(numhours, path="forecasts", site=site, api_key=api_key, cachedname="forecasts", force=force))
             await self.tasks['fetch']
@@ -1948,63 +1990,102 @@ class SolcastApi: # pylint: disable=R0904
             if not isinstance(resp_dict, dict):
                 raise TypeError(f"API did not return a json object. Returned {resp_dict}")
 
-            af = resp_dict.get("forecasts", None)
-            if not isinstance(af, list):
-                raise TypeError(f"forecasts must be a list, not {type(af)}")
+            latest_forecasts = resp_dict.get("forecasts", None)
+            if not isinstance(latest_forecasts, list):
+                raise TypeError(f"forecasts must be a list, not {type(latest_forecasts)}")
 
-            _LOGGER.debug("%d records returned", len(af))
+            _LOGGER.debug("%d records returned", len(latest_forecasts))
 
             st_time = time.time()
-            for x in af:
-                z = parse_datetime(x["period_end"]).astimezone(timezone.utc)
+            for forecast in latest_forecasts:
+                z = parse_datetime(forecast["period_end"]).astimezone(timezone.utc)
                 z = z.replace(second=0, microsecond=0) - timedelta(minutes=30)
                 if z.minute not in {0, 30}:
                     raise ValueError(
                         f"period_start minute is not 0 or 30. {z.minute}"
                     )
                 if z < lastday:
-                    _data2.append(
+                    new_data.append(
                         {
                             "period_start": z,
-                            "pv_estimate": x["pv_estimate"],
-                            "pv_estimate10": x["pv_estimate10"],
-                            "pv_estimate90": x["pv_estimate90"],
+                            "pv_estimate": forecast["pv_estimate"],
+                            "pv_estimate10": forecast["pv_estimate10"],
+                            "pv_estimate90": forecast["pv_estimate90"],
                         }
                     )
 
-            _data = sorted(_data2, key=itemgetter("period_start"))
-            _fcasts_dict = {}
+            """
+            Add or update forecasts with the latest data.
+            """
 
+            # Load the forecast history.
+            forecasts = {}
             try:
-                for x in self._data['siteinfo'][site]['forecasts']:
-                    _fcasts_dict[x["period_start"]] = x
+                #for forecast in self._data['siteinfo'][site]['forecasts']:
+                #    forecasts[forecast["period_start"]] = forecast
+                forecasts = {forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts']}
             except:
                 pass
+            _LOGGER.debug("Forecasts dictionary length %s", len(forecasts))
+            forecasts_undampened = {}
+            try:
+                #for forecast in self._data_undampened['siteinfo'][site]['forecasts']:
+                #    forecasts_undampened[forecast["period_start"]] = forecast
+                forecasts_undampened = {forecast["period_start"]: forecast for forecast in self._data_undampened['siteinfo'][site]['forecasts']}
+            except:
+                pass
+            _LOGGER.debug("Undampened forecasts dictionary length %s", len(forecasts_undampened))
 
-            _LOGGER.debug("Forecasts dictionary length %s", len(_fcasts_dict))
+            def update_forecast(forecasts: dict, period_start: dt, extant: dict, pv: float, pv10: float, pv90: float):
+                """Update an individual forecast entry."""
+                if extant: # Update existing.
+                    extant["pv_estimate"] = pv
+                    extant["pv_estimate10"] = pv10
+                    extant["pv_estimate90"] = pv90
+                else: # New forecast.
+                    forecasts[period_start] = {"period_start": period_start, "pv_estimate": pv, "pv_estimate10": pv10, "pv_estimate90": pv90}
 
-            # Loop each site and its forecasts.
-            for x in _data:
-                itm = _fcasts_dict.get(x["period_start"])
-                if itm:
-                    itm["pv_estimate"] = x["pv_estimate"]
-                    itm["pv_estimate10"] = x["pv_estimate10"]
-                    itm["pv_estimate90"] = x["pv_estimate90"]
+            def get_dampening_factor(site: str, z: dt):
+                """Retrieve a granular dampening factor."""
+                return self.granular_dampening[site][
+                    z.hour if len(self.granular_dampening[site]) == 24 else ((z.hour*2) + 1 if z.minute > 0 else 0)
+                ]
+
+            valid_granular_dampening = self.__valid_granular_dampening()
+
+            for forecast in sorted(new_data, key=itemgetter("period_start")):
+                period_start = forecast["period_start"]
+                pv = round(forecast["pv_estimate"], 4)
+                pv10 = round(forecast["pv_estimate10"], 4)
+                pv90 = round(forecast["pv_estimate90"], 4)
+
+                # Retrieve the dampening factor for the period, and dampen the estimates.
+                z = period_start.astimezone(self._tz)
+                if self.granular_dampening.get('all') and valid_granular_dampening:
+                    dampening_factor = get_dampening_factor('all', z)
+                elif self.granular_dampening.get(site) and valid_granular_dampening:
+                    dampening_factor = get_dampening_factor(site, z)
                 else:
-                    _fcasts_dict[x["period_start"]] = {
-                        "period_start": x["period_start"],
-                        "pv_estimate": x["pv_estimate"],
-                        "pv_estimate10": x["pv_estimate10"],
-                        "pv_estimate90": x["pv_estimate90"]
-                    }
+                    dampening_factor = self.damp[f"{z.hour}"]
+                pv_dampened = round(pv * dampening_factor, 4)
+                pv10_dampened = round(pv10 * dampening_factor, 4)
+                pv90_dampened = round(pv90 * dampening_factor, 4)
 
-            # _fcasts_dict contains all data for the site up to 730 days worth. Delete data that is older than two years.
-            pastdays = dt.now(timezone.utc).date() + timedelta(days=-730)
-            _forecasts = list(filter(lambda x: x["period_start"].date() >= pastdays, _fcasts_dict.values()))
+                # Add or update the new entries.
+                extant = forecasts.get(period_start)
+                update_forecast(forecasts, period_start, extant, pv_dampened, pv10_dampened, pv90_dampened)
+                extant_undampened = forecasts_undampened.get(period_start)
+                update_forecast(forecasts_undampened, period_start, extant_undampened, pv, pv10, pv90)
 
-            _forecasts = sorted(_forecasts, key=itemgetter("period_start"))
+            # Forecasts contains up to 730 days of period data for each site. Convert dictionary to list, retain the past two years, sort by period start.
+            pastdays = dt.now(timezone.utc).date() - timedelta(days=730)
+            forecasts = sorted(list(filter(lambda forecast: forecast["period_start"].date() >= pastdays, forecasts.values())), key=itemgetter("period_start"))
+            self._data['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts)}})
 
-            self._data['siteinfo'].update({site:{'forecasts': copy.deepcopy(_forecasts)}})
+            # Undampened forecasts contains up to 22 days of period data for each site (14 days of history, today, and 7 days of future).
+            pastdays = dt.now(timezone.utc).date() - timedelta(days=22)
+            forecasts_undampened = sorted(list(filter(lambda forecast: forecast["period_start"].date() >= pastdays, forecasts_undampened.values())), key=itemgetter("period_start"))
+            self._data_undampened['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts_undampened)}})
 
             _LOGGER.debug("HTTP data call processing took %.3f seconds", round(time.time() - st_time, 4))
             return True
@@ -2099,7 +2180,7 @@ class SolcastApi: # pylint: disable=R0904
                             resp_json = await resp.json(content_type=None)
 
                             if self._api_cache_enabled:
-                                async with self._serialize_lock:
+                                async with self._serialise_lock:
                                     async with aiofiles.open(api_cache_filename, 'w') as f:
                                         await f.write(json.dumps(resp_json, ensure_ascii=False))
                         elif status == 998: # Exceeded API limit.
@@ -2178,68 +2259,64 @@ class SolcastApi: # pylint: disable=R0904
             bool: A flag indicating success or failure.
         """
         try:
-            today = dt.now(self._tz).date()
-            yesterday = dt.now(self._tz).date() + timedelta(days=-730)
-            lastday = dt.now(self._tz).date() + timedelta(days=8)
-            valid_granular_dampening = self.__valid_granular_dampening()
-
-            _fcasts_dict = {}
-
             st_time = time.time()
-            for site, siteinfo in self._data['siteinfo'].items():
-                tally = 0
-                _site_fcasts_dict = {}
 
-                def get_damp(site, zz):
-                    return self.granular_dampening[site][
-                        zz.hour if len(self.granular_dampening[site]) == 24 else (zz.hour + 1 if zz.minute > 0 else zz.hour)
-                    ]
+            today = dt.now(self._tz).date()
+            commencing = dt.now(self._tz).date() - timedelta(days=730)
+            commencing_undampened = dt.now(self._tz).date() - timedelta(days=14)
+            lastday = dt.now(self._tz).date() + timedelta(days=8)
 
-                for x in siteinfo['forecasts']:
-                    z = x["period_start"]
-                    zz = z.astimezone(self._tz)
+            forecasts = {}
+            forecasts_undampened = {}
 
-                    if yesterday < zz.date() < lastday:
-                        if self.granular_dampening.get('all') and valid_granular_dampening:
-                            damp = get_damp('all', zz)
-                        elif self.granular_dampening.get(site) and valid_granular_dampening:
-                            damp = get_damp(site, zz)
-                        else:
-                            damp = self.damp[f"{zz.hour}"]
+            def build_data(data: list, commencing: dt, forecasts: dict, site_data_forecasts: list, update_tally: bool=False):
+                for site, siteinfo in data['siteinfo'].items():
+                    if update_tally:
+                        tally = 0
+                    site_forecasts = {}
 
-                        # Record the individual site forecast.
-                        _site_fcasts_dict[z] = {
-                            "period_start": z,
-                            "pv_estimate": min(round(x["pv_estimate"],4) * damp, self.hard_limit),
-                            "pv_estimate10": min(round(x["pv_estimate10"],4) * damp, self.hard_limit),
-                            "pv_estimate90": min(round(x["pv_estimate90"],4) * damp, self.hard_limit),
-                        }
+                    for forecast in siteinfo['forecasts']:
+                        z = forecast["period_start"]
+                        zz = z.astimezone(self._tz)
 
-                        if zz.date() == today:
-                            tally += min(x[self._use_data_field] * damp * 0.5, self.hard_limit)
+                        if commencing < zz.date() < lastday:
 
-                        # Add the forecast for this site to the total.
-                        itm = _fcasts_dict.get(z)
-                        if itm:
-                            itm["pv_estimate"] = min(round(itm["pv_estimate"] + _site_fcasts_dict[z]["pv_estimate"], 4), self.hard_limit)
-                            itm["pv_estimate10"] = min(round(itm["pv_estimate10"] + _site_fcasts_dict[z]["pv_estimate10"], 4), self.hard_limit)
-                            itm["pv_estimate90"] = min(round(itm["pv_estimate90"] + _site_fcasts_dict[z]["pv_estimate90"], 4), self.hard_limit)
-                        else:
-                            _fcasts_dict[z] = {"period_start": z,
-                                                "pv_estimate": min(_site_fcasts_dict[z]["pv_estimate"], self.hard_limit),
-                                                "pv_estimate10": min(_site_fcasts_dict[z]["pv_estimate10"], self.hard_limit),
-                                                "pv_estimate90": min(_site_fcasts_dict[z]["pv_estimate90"], self.hard_limit)}
+                            # Record the individual site forecast.
+                            site_forecasts[z] = {
+                                "period_start": z,
+                                "pv_estimate": min(forecast["pv_estimate"], self.hard_limit),
+                                "pv_estimate10": min(forecast["pv_estimate10"], self.hard_limit),
+                                "pv_estimate90": min(forecast["pv_estimate90"], self.hard_limit),
+                            }
 
-                self._site_data_forecasts[site] = sorted(_site_fcasts_dict.values(), key=itemgetter("period_start"))
-                siteinfo['tally'] = round(tally, 4)
-                self._tally[site] = siteinfo['tally']
+                            if update_tally and zz.date() == today:
+                                tally += min(forecast[self._use_data_field] * 0.5, self.hard_limit)
 
-            self._data_forecasts = sorted(_fcasts_dict.values(), key=itemgetter("period_start"))
+                            # Add the forecast for this site to the total.
+                            extant = forecasts.get(z)
+                            if extant:
+                                extant["pv_estimate"] = min(round(extant["pv_estimate"] + site_forecasts[z]["pv_estimate"], 4), self.hard_limit)
+                                extant["pv_estimate10"] = min(round(extant["pv_estimate10"] + site_forecasts[z]["pv_estimate10"], 4), self.hard_limit)
+                                extant["pv_estimate90"] = min(round(extant["pv_estimate90"] + site_forecasts[z]["pv_estimate90"], 4), self.hard_limit)
+                            else:
+                                forecasts[z] = {"period_start": z,
+                                                    "pv_estimate": min(site_forecasts[z]["pv_estimate"], self.hard_limit),
+                                                    "pv_estimate10": min(site_forecasts[z]["pv_estimate10"], self.hard_limit),
+                                                    "pv_estimate90": min(site_forecasts[z]["pv_estimate90"], self.hard_limit)}
 
+                    site_data_forecasts[site] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
+                    if update_tally:
+                        siteinfo['tally'] = round(tally, 4)
+                        self._tally[site] = siteinfo['tally']
+
+            build_data(self._data, commencing, forecasts, self._site_data_forecasts, update_tally=True)
+            self._data_forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
             self._data_energy = {"wh_hours": self.__make_energy_dict()}
 
-            await self.__check_data_records()
+            build_data(self._data_undampened, commencing_undampened, forecasts_undampened, self._site_data_forecasts_undampened)
+            self._data_forecasts_undampened = sorted(forecasts_undampened.values(), key=itemgetter("period_start"))
 
+            await self.__check_data_records()
             await self.recalculate_splines()
 
             _LOGGER.debug("Build forecast processing took %.3f seconds", round(time.time() - st_time, 4))
