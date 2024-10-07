@@ -31,7 +31,9 @@
                     "attr_brk_halfhourly": "Aktivieren Sie prognostizierte halbstündliche Detailattribute",
                     "attr_brk_hourly": "Aktivieren Sie prognostizierte stündliche Detailattribute",
                     "attr_brk_detailed": "Aktivieren Sie die Site-Aufschlüsselung für halbstündliche/stündliche Detailattribute (diese werden nicht in Datenbankstatusattributen gespeichert)",
-                    "config_damp": "Ändern Sie die stündlichen Dämpfungsfaktoren (nachdem Sie auf „Senden“ geklickt haben)"
+                    "config_damp": "Ändern Sie die stündlichen Dämpfungsfaktoren (nachdem Sie auf „Senden“ geklickt haben)",
+                    "site_damp": "Die granulare Dämpfung ist eingestellt: Löschen, um zur stündlichen Gesamtdämpfung zurückzukehren"
+
                 },
                 "description": "Dein Solcast-API-Kontoschlüssel"
             },

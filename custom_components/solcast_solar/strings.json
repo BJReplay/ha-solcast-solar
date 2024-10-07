@@ -31,7 +31,8 @@
                     "attr_brk_halfhourly": "Enable forecast half-hourly detail attributes",
                     "attr_brk_hourly": "Enable forecast hourly detail attributes",
                     "attr_brk_detailed": "Enable site breakdown for half-hourly/hourly detail attributes (these will not be saved to database state attributes)",
-                    "config_damp": "Modify the hourly dampening factors (after clicking submit)"
+                    "config_damp": "Modify the hourly dampening factors (after clicking submit)",
+                    "site_damp": "Granular dampening is set: Clear to revert to overall hourly dampening"
                 },
                 "description": "Solcast configuration options"
             },

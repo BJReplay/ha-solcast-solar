@@ -293,7 +293,11 @@ Select `Forecast Production` and select the `Solcast Solar` option. Click `SAVE`
 
 ### Dampening configuration
 
-It is possible to configure periodic dampening values to account for shading. This may be configured by automation or the integration configuration for total dampening (hourly dampening only in configuration). Per-site and per-half hour dampening is also possible by using service calls (but not in the itegration `CONFIGURE` dialogue).
+It is possible to configure periodic dampening values to account for shading. This may be configured by automation or the integration configuration for total dampening (overall hourly dampening only in configuration).
+
+Dampening is applied to future forecasts whenever a forecast is fetched, so forecast history retains the dampening that had been applied at the time. (Note that this method of applying dampening to keep historical dampening levels is introduced in v4.1.9.)
+
+Per-site and per-half hour dampening is possible only by using service calls or modifying a dampening configration file. See below.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png)
 
@@ -313,32 +317,31 @@ You can change the dampening factor value for any hour. Values from 0.0 - 1.0 ar
 
 #### Granular dampening
 
-Setting dampening for individual Solcast sites, or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` service, or creation/modification of a file in the Home Assistant config folder `solcast-dampening.json`.
+Setting dampening for individual Solcast sites, or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` service, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
 
-This service call accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly, 48.
+The service call accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the service creates or updates the file `solcast-dampening.json` when either a site is specified, or 48 factor values are specified.
 
 ```
 action: solcast_solar.set_dampening
 data:
   damp_factor: 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-  site: 1234-5678-9012-3456
+  #site: 1234-5678-9012-3456
 ```
 
-If a site is not specified, and 24 dampening values are given then granular dampening will be removed, and the overall configured dampening will apply to all sites.
+If a site is not specified, and 24 dampening values are given then granular dampening will be removed, and the overall configured hourly dampening will apply to all sites. (Granular dampening may also be disabled using the integration `CONFIGURE` dialogue.)
 
-If granular dampening is configured for a single site in a multi-site set up then dampening will only apply to the forecasts for that site. Other sites will not be dampened, assuming overall dampening has not been set.
-
-(A corner case exists that may cause unexpected results. If the total hourly dampening has values other than 1.0 then these will be applied to sites that do not specify granular dampening. Should 48 values be set for a single site only in a multi-site setup then total dampening of 1.0 will be used beyond the total 24 values. So when using granular dampening it is advisable to set total dampening to 1.0 for all hours before using granular dampening in this way.)
+If granular dampening is configured for a single site in a multi-site set up then that dampening will only apply to the forecasts for that site. Other sites will not be dampened.
 
 Dampening for all individual sites may of course be set, and when this is the case all sites must specify the same number of dampening values, either 24 or 48.
 
-#### Per-site dampening file examples
+#### Granular dampening file examples
 
 <details><summary><i>Click for examples of dampening files</i></summary>
 
-The following examples can be used as a starter for the format for file-based dampening.  Make sure that you use your own site IDs rather than the examples.  As noted above, the file should be saved in the Home Assistant config folder and named `solcast-dampening.json`.
+The following examples can be used as a starter for the format for file-based granular dampening. Make sure that you use your own site IDs rather than the examples. The file should be saved in the Home Assistant config folder and named `solcast-dampening.json`.
 
 Example of hourly dampening for two sites:
+
 ```
 {
   "1111-aaaa-bbbb-2222": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0],

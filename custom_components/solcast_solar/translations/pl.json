@@ -31,7 +31,9 @@
                     "attr_brk_halfhourly": "Włącz atrybuty szczegółów prognozy półgodzinnej",
                     "attr_brk_hourly": "Włącz atrybuty szczegółów prognozy godzinowej",
                     "attr_brk_detailed": "Włącz podział witryny dla atrybutów szczegółów półgodzinnych/godzinnych (nie zostaną one zapisane w atrybutach stanu bazy danych)",
-                    "config_damp": "Zmodyfikuj godzinowe współczynniki tłumienia (po kliknięciu przycisku Prześlij)"
+                    "config_damp": "Zmodyfikuj godzinowe współczynniki tłumienia (po kliknięciu przycisku Prześlij)",
+                    "site_damp": "Ustawiono tłumienie ziarniste: Wyczyść, aby powrócić do ogólnego tłumienia godzinowego"
+
                 },
                 "description": "Opcje konfiguracji Solcast"
             },

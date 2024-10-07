@@ -157,6 +157,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options)
 
+    solcast.entry = entry
+    solcast.entry_options = {**entry.options}
     solcast.hass = hass
 
     if not hass.data.get(DOMAIN):
@@ -348,9 +350,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 update_options()
                 if solcast.granular_dampening:
                     _LOGGER.debug('Clear granular dampening')
-                    solcast.granular_dampening = {}
                     opt[SITE_DAMP] = False # Clear hidden option.
-                    await solcast.serialise_granular_dampening()
             else:
                 solcast.granular_dampening[site] = [float(sp[i]) for i in range(0,len(sp))]
                 await solcast.serialise_granular_dampening()
@@ -532,6 +532,15 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
             if not recalc:
                 respline = changed(BRK_ESTIMATE) or changed(BRK_ESTIMATE10) or changed(BRK_ESTIMATE90) or changed(BRK_SITE) or changed(KEY_ESTIMATE)
 
+            if changed(SITE_DAMP):
+                if not entry.options[SITE_DAMP]:
+                    if coordinator.solcast.allow_granular_dampening_reset():
+                        coordinator.solcast.granular_dampening = {}
+                        await coordinator.solcast.serialise_granular_dampening()
+                        _LOGGER.debug('Granular dampening file reset')
+                    else:
+                        _LOGGER.debug('Granular dampening file not reset')
+
         if reload:
             determination = 'The integration will reload'
         elif recalc:
@@ -550,7 +559,9 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
             coordinator.set_data_updated(False)
 
             hass.data[DOMAIN]['entry_options'] = entry.options
+            coordinator.solcast.entry_options = entry.options
         else:
+            # Reload
             tasks_cancel()
             await hass.config_entries.async_reload(entry.entry_id)
     except:

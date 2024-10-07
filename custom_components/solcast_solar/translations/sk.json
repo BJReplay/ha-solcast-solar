@@ -31,7 +31,9 @@
                     "attr_brk_halfhourly": "Povoliť polhodinové podrobné atribúty prognózy",
                     "attr_brk_hourly": "Povoliť hodinové podrobné atribúty prognózy",
                     "attr_brk_detailed": "Povoliť rozdelenie stránok pre polhodinové/hodinové atribúty podrobností (tieto sa neuložia do atribútov stavu databázy)",
-                    "config_damp": "Upravte hodinové faktory tlmenia (po kliknutí na odoslať)"
+                    "config_damp": "Upravte hodinové faktory tlmenia (po kliknutí na odoslať)",
+                    "site_damp": "Granulované tlmenie je nastavené: Clear pre návrat k celkovému hodinovému tlmeniu"
+
                 },
                 "description": "Solcast možnosti konfigurácie"
             },

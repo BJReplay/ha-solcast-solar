@@ -46,6 +46,7 @@ from .const import (
     HARD_LIMIT,
     KEY_ESTIMATE,
     SENSOR_DEBUG_LOGGING,
+    SITE_DAMP,
     SPLINE_DEBUG_LOGGING,
 )
 
@@ -212,6 +213,8 @@ class SolcastApi: # pylint: disable=R0904
 
         self.custom_hour_sensor = options.custom_hour_sensor
         self.damp = options.dampening # Re-set on recalc in __init__
+        self.entry = None
+        self.entry_options = {}
         self.estimate_set = {'pv_estimate': options.attr_brk_estimate, 'pv_estimate10': options.attr_brk_estimate10, 'pv_estimate90': options.attr_brk_estimate90}
         self.granular_dampening = {}
         self.hard_limit = options.hard_limit
@@ -237,6 +240,7 @@ class SolcastApi: # pylint: disable=R0904
         self._filename_undampened = f"{file_name}-undampened{extension}"
         self._forecasts_moment = {}
         self._forecasts_remaining = {}
+        self._granular_allow_reset = True
         self._granular_dampening_mtime = 0
         self._loaded_data = False
         self._site_data_forecasts = {}
@@ -759,7 +763,7 @@ class SolcastApi: # pylint: disable=R0904
                         return False
             return True
         else:
-            return False
+            return True
 
     async def serialise_granular_dampening(self):
         """Serialise the site dampening file.
@@ -820,8 +824,11 @@ class SolcastApi: # pylint: disable=R0904
             ex = True
         return False
 
-    async def granular_dampening_data(self) -> bool:
+    async def granular_dampening_data(self, info_suppression=False) -> bool:
         """Read the current granular dampening file.
+
+        Arguments:
+            info_suppression (bool): Suppress the output of INFO level log messages
 
         Returns:
             bool: Granular dampening in use.
@@ -829,13 +836,29 @@ class SolcastApi: # pylint: disable=R0904
         if await self.__migrate_granular_dampening():
             return True
 
+        def option_off():
+            try:
+                if self.entry_options[SITE_DAMP]:
+                    self.entry_options[SITE_DAMP] = False
+                    self.hass.config_entries.async_update_entry(self.entry, options=self.entry_options)
+            except:
+                pass
+
+        def option_on():
+            try:
+                if not self.entry_options[SITE_DAMP]:
+                    self.entry_options[SITE_DAMP] = True
+                    self.hass.config_entries.async_update_entry(self.entry, options=self.entry_options)
+            except:
+                pass
+
         ex = False
         try:
             json_file = self.__get_granular_dampening_filename()
             if not file_exists(json_file):
                 self.granular_dampening = {}
                 self._granular_dampening_mtime = 0
-                return False
+                option_off()
             else:
                 try:
                     async with aiofiles.open(json_file) as f:
@@ -851,17 +874,25 @@ class SolcastApi: # pylint: disable=R0904
                                     if len(damp_list) != first_site_len:
                                         _LOGGER.error('Number of dampening factors for all sites must be the same in %s, dampening ignored', json_file)
                                         self.granular_dampening = {}
+                                        self._granular_allow_reset = False
+                                        option_off()
                                         return False
                                 if len(damp_list) not in (24, 48):
                                     _LOGGER.error('Number of dampening factors for site %s must be 24 or 48 in %s, dampening ignored', site, json_file)
                                     err = True
                             if err:
                                 self.granular_dampening = {}
+                                self._granular_allow_reset = False
+                                option_off()
                                 return False
                             _LOGGER.debug("Granular dampening: %s", str(self.granular_dampening))
                             _LOGGER.debug("Valid granular dampening: %s", self.__valid_granular_dampening())
+                            self._granular_allow_reset = True
+                            option_on()
                             return True
                         else:
+                            self._granular_allow_reset = False
+                            option_off()
                             return False
                 except:
                     raise
@@ -870,11 +901,13 @@ class SolcastApi: # pylint: disable=R0904
         except Exception as e:
             _LOGGER.error("Exception in granular_dampening_data(): %s: %s", e, traceback.format_exc())
             ex = True
+            option_off()
             return False
         finally:
-            if not self.previously_loaded and self.granular_dampening != {} and not ex:
-                _LOGGER.info("Granular dampening loaded")
-                _LOGGER.debug("Granular dampening file mtime: %s", dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT))
+            if not self.previously_loaded and not ex:
+                if len(self.granular_dampening) > 0 and not info_suppression:
+                    _LOGGER.info("Granular dampening loaded")
+                    _LOGGER.debug("Granular dampening file mtime: %s", dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT))
 
     async def __refresh_granular_dampening_data(self):
         """Loads granular dampening data if the file has changed."""
@@ -882,11 +915,15 @@ class SolcastApi: # pylint: disable=R0904
             if file_exists(self.__get_granular_dampening_filename()):
                 mtime = os.path.getmtime(self.__get_granular_dampening_filename())
                 if mtime != self._granular_dampening_mtime:
-                    await self.granular_dampening_data()
+                    await self.granular_dampening_data(info_suppression=True)
                     _LOGGER.info("Granular dampening reloaded")
                     _LOGGER.debug("Granular dampening file mtime: %s", dt.fromtimestamp(mtime, self._tz).strftime(DATE_FORMAT))
         except Exception as e:
             _LOGGER.error("Exception in __refresh_granular_dampening_data(): %s: %s", e, traceback.format_exc())
+
+    def allow_granular_dampening_reset(self):
+        """Allow options change to reset the granular dampening file to an empty dictionary."""
+        return self._granular_allow_reset
 
     '''
     async def get_weather(self):
@@ -1033,7 +1070,7 @@ class SolcastApi: # pylint: disable=R0904
         really be called an integration reset.
 
         Arguments:
-            args (list): Not used.
+            args (tuple): Not used.
         """
         _LOGGER.debug("Service event to delete old solcast.json file")
         try:
@@ -1055,7 +1092,7 @@ class SolcastApi: # pylint: disable=R0904
         """Service event to get forecasts.
 
         Arguments:
-            args (list): [0] (dt) = from timestamp, [1] (dt) = to timestamp, [2] = site, [3] (bool) = dampened or undampened.
+            args (tuple): [0] (dt) = from timestamp, [1] (dt) = to timestamp, [2] = site, [3] (bool) = dampened or undampened.
 
         Returns:
             tuple(dict, ...): Forecasts representing the range specified.
@@ -2062,12 +2099,15 @@ class SolcastApi: # pylint: disable=R0904
 
                 # Retrieve the dampening factor for the period, and dampen the estimates.
                 z = period_start.astimezone(self._tz)
-                if self.granular_dampening.get('all') and valid_granular_dampening:
-                    dampening_factor = get_dampening_factor('all', z)
-                elif self.granular_dampening.get(site) and valid_granular_dampening:
-                    dampening_factor = get_dampening_factor(site, z)
+                if self.entry_options[SITE_DAMP]:
+                    if self.granular_dampening.get('all') and valid_granular_dampening:
+                        dampening_factor = get_dampening_factor('all', z)
+                    elif self.granular_dampening.get(site) and valid_granular_dampening:
+                        dampening_factor = get_dampening_factor(site, z)
+                    else:
+                        dampening_factor = 1.0
                 else:
-                    dampening_factor = self.damp.get(f"{z.hour}", 1)
+                    dampening_factor = self.damp.get(f"{z.hour}", 1.0)
                 pv_dampened = round(pv * dampening_factor, 4)
                 pv10_dampened = round(pv10 * dampening_factor, 4)
                 pv90_dampened = round(pv90 * dampening_factor, 4)
