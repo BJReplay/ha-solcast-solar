@@ -620,6 +620,7 @@ series:
 
 v4.1.9
 * Granular dampening to dampen per half hour period by @autoSteve and @isorin
+* Dampening applied at forecast fetch and not to forecast history @autoSteve and @isorin
 * Retrieve undampened forecast values using service call by @autoSteve
 
 v4.1.8
