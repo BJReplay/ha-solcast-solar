@@ -2084,7 +2084,7 @@ class SolcastApi: # pylint: disable=R0904
             self._data['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts)}})
 
             # Undampened forecasts contains up to 22 days of period data for each site (14 days of history, today, and 7 days of future).
-            pastdays = dt.now(timezone.utc).date() - timedelta(days=22)
+            pastdays = dt.now(timezone.utc).date() - timedelta(days=14)
             forecasts_undampened = sorted(list(filter(lambda forecast: forecast["period_start"].date() >= pastdays, forecasts_undampened.values())), key=itemgetter("period_start"))
             self._data_undampened['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts_undampened)}})
 
