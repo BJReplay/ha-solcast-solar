@@ -235,7 +235,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 site_detailed = user_input[BRK_SITE_DETAILED]
                 all_config_data[BRK_SITE_DETAILED] = site_detailed
 
-                if all_config_data.get(SITE_DAMP) is not None:
+                if user_input.get(SITE_DAMP) is not None:
                     all_config_data[SITE_DAMP] = user_input[SITE_DAMP]
 
                 self.hass.config_entries.async_update_entry(
