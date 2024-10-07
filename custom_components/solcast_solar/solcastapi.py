@@ -2067,7 +2067,7 @@ class SolcastApi: # pylint: disable=R0904
                 elif self.granular_dampening.get(site) and valid_granular_dampening:
                     dampening_factor = get_dampening_factor(site, z)
                 else:
-                    dampening_factor = self.damp[f"{z.hour}"]
+                    dampening_factor = self.damp.get(f"{z.hour}", 1)
                 pv_dampened = round(pv * dampening_factor, 4)
                 pv10_dampened = round(pv10 * dampening_factor, 4)
                 pv90_dampened = round(pv90 * dampening_factor, 4)
