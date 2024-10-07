@@ -200,7 +200,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     granular_dampening = await solcast.granular_dampening_data()
     opt = {**entry.options}
-    opt[SITE_DAMP] = granular_dampening # Internal per-site dampening set flag. A hidden option.
+    opt[SITE_DAMP] = granular_dampening # Internal per-site dampening set flag. A hidden option until set.
     hass.config_entries.async_update_entry(entry, options=opt)
     hass.data[DOMAIN]['entry_options'] = entry.options
 
@@ -350,11 +350,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 update_options()
                 if solcast.granular_dampening:
                     _LOGGER.debug('Clear granular dampening')
-                    opt[SITE_DAMP] = False # Clear hidden option.
+                    opt[SITE_DAMP] = False # Clear "hidden" option.
             else:
                 solcast.granular_dampening[site] = [float(sp[i]) for i in range(0,len(sp))]
                 await solcast.serialise_granular_dampening()
-                opt[SITE_DAMP] = True # Set hidden option.
+                opt[SITE_DAMP] = True # Set "hidden" option.
 
             hass.config_entries.async_update_entry(entry, options=opt)
         except intent.IntentHandleError as e:
