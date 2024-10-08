@@ -2076,7 +2076,7 @@ class SolcastApi: # pylint: disable=R0904
                             }
                             _LOGGER.debug('Migrating %d forecast entries to undampened forecasts', len(migrate))
                             forecasts_undampened = {**migrate, **forecasts_undampened}
-                except Exception:
+                except:
                     _LOGGER.debug(traceback.format_exc())
                     raise
             except:
