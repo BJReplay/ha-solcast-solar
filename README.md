@@ -319,7 +319,7 @@ You can change the dampening factor value for any hour. Values from 0.0 - 1.0 ar
 
 Setting dampening for individual Solcast sites, or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` service, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
 
-The service call accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the service creates or updates the file `solcast-dampening.json` when either a site is specified, or 48 factor values are specified.
+The service call accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the service creates or updates the file `solcast-dampening.json` when either a site is specified, or 48 factor values are specified. If setting overall dampening with 48 factors then an optional 'all' site may be specified (or simply omitted for this use case).
 
 ```
 action: solcast_solar.set_dampening
@@ -364,6 +364,12 @@ Example of half-hourly dampening for two sites:
   "8888-gggg-hhhh-9999": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0],
   "0000-iiii-jjjj-1111": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
 }
+
+Example of half-hourly dampening for all sites:
+
+{
+  "all": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+}
 ```
 </details>
 
@@ -376,10 +382,10 @@ This is possible by using the service call `solcast_solar.query_forecast_data`, 
 ```
 action: solcast_solar.query_forecast_data
 data:
-  start_date_time: 2024-10-07T12:00:00+11:00
-  end_date_time: 2024-10-07T19:00:00+11:00
+  start_date_time: 2024-10-08T12:00:00+11:00
+  end_date_time: 2024-10-08T19:00:00+11:00
   undampened: true
-  #site: 83d5-ab72-2a9a-2397
+  #site: 1111-aaaa-bbbb-2222
 ```
 
 Undampened forecast history is retained for just 14 days.
