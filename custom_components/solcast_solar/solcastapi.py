@@ -909,7 +909,7 @@ class SolcastApi: # pylint: disable=R0904
                     _LOGGER.info("Granular dampening loaded")
                     _LOGGER.debug("Granular dampening file mtime: %s", dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT))
 
-    async def __refresh_granular_dampening_data(self):
+    async def refresh_granular_dampening_data(self):
         """Loads granular dampening data if the file has changed."""
         try:
             if file_exists(self.__get_granular_dampening_filename()):
@@ -919,7 +919,7 @@ class SolcastApi: # pylint: disable=R0904
                     _LOGGER.info("Granular dampening reloaded")
                     _LOGGER.debug("Granular dampening file mtime: %s", dt.fromtimestamp(mtime, self._tz).strftime(DATE_FORMAT))
         except Exception as e:
-            _LOGGER.error("Exception in __refresh_granular_dampening_data(): %s: %s", e, traceback.format_exc())
+            _LOGGER.error("Exception in refresh_granular_dampening_data(): %s: %s", e, traceback.format_exc())
 
     def allow_granular_dampening_reset(self):
         """Allow options change to reset the granular dampening file to an empty dictionary."""
@@ -1043,7 +1043,6 @@ class SolcastApi: # pylint: disable=R0904
                 undampened_data = await load_data(self._filename_undampened, set_loaded=False, fetch_added_sites=False)
                 if undampened_data:
                     self._data_undampened = undampened_data
-
                 if not self._loaded_data:
                     # No file to load.
                     _LOGGER.warning("There is no solcast.json to load, so fetching solar forecast, including past forecasts")
@@ -1911,7 +1910,7 @@ class SolcastApi: # pylint: disable=R0904
                 _LOGGER.warning(status)
                 return status
 
-            await self.__refresh_granular_dampening_data()
+            await self.refresh_granular_dampening_data()
 
             failure = False
             sites_attempted = 0
@@ -2059,17 +2058,26 @@ class SolcastApi: # pylint: disable=R0904
             # Load the forecast history.
             forecasts = {}
             try:
-                #for forecast in self._data['siteinfo'][site]['forecasts']:
-                #    forecasts[forecast["period_start"]] = forecast
                 forecasts = {forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts']}
             except:
                 pass
             _LOGGER.debug("Forecasts dictionary length %s", len(forecasts))
             forecasts_undampened = {}
             try:
-                #for forecast in self._data_undampened['siteinfo'][site]['forecasts']:
-                #    forecasts_undampened[forecast["period_start"]] = forecast
                 forecasts_undampened = {forecast["period_start"]: forecast for forecast in self._data_undampened['siteinfo'][site]['forecasts']}
+                try:
+                    # Migrate forecast history if undampened data does not yet exist
+                    startday = self._data_undampened['siteinfo'][site]['forecasts'][0]['period_start']
+                    pastdays = self.get_day_start_utc() - timedelta(days=14)
+                    if (len(forecasts_undampened) == 0 or startday > pastdays) and len(forecasts_undampened) < len(forecasts):
+                        migrate = {
+                            forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts'] if pastdays < forecast["period_start"] < startday
+                        }
+                        _LOGGER.debug('Migrating %d forecast entries to undampened forecasts', len(migrate))
+                        forecasts_undampened = {**migrate, **forecasts_undampened}
+                except Exception:
+                    _LOGGER.debug(traceback.format_exc())
+                    raise
             except:
                 pass
             _LOGGER.debug("Undampened forecasts dictionary length %s", len(forecasts_undampened))
@@ -2119,13 +2127,13 @@ class SolcastApi: # pylint: disable=R0904
                 update_forecast(forecasts_undampened, period_start, extant_undampened, pv, pv10, pv90)
 
             # Forecasts contains up to 730 days of period data for each site. Convert dictionary to list, retain the past two years, sort by period start.
-            pastdays = dt.now(timezone.utc).date() - timedelta(days=730)
-            forecasts = sorted(list(filter(lambda forecast: forecast["period_start"].date() >= pastdays, forecasts.values())), key=itemgetter("period_start"))
+            pastdays = self.get_day_start_utc() - timedelta(days=730)
+            forecasts = sorted(list(filter(lambda forecast: forecast["period_start"] >= pastdays, forecasts.values())), key=itemgetter("period_start"))
             self._data['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts)}})
 
             # Undampened forecasts contains up to 22 days of period data for each site (14 days of history, today, and 7 days of future).
-            pastdays = dt.now(timezone.utc).date() - timedelta(days=14)
-            forecasts_undampened = sorted(list(filter(lambda forecast: forecast["period_start"].date() >= pastdays, forecasts_undampened.values())), key=itemgetter("period_start"))
+            pastdays = self.get_day_start_utc() - timedelta(days=14)
+            forecasts_undampened = sorted(list(filter(lambda forecast: forecast["period_start"] >= pastdays, forecasts_undampened.values())), key=itemgetter("period_start"))
             self._data_undampened['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts_undampened)}})
 
             _LOGGER.debug("HTTP data call processing took %.3f seconds", round(time.time() - st_time, 4))

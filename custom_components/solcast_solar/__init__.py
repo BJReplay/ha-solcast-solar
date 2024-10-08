@@ -352,6 +352,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     _LOGGER.debug('Clear granular dampening')
                     opt[SITE_DAMP] = False # Clear "hidden" option.
             else:
+                await solcast.refresh_granular_dampening_data() # Ensure latest file content gets updated
                 solcast.granular_dampening[site] = [float(sp[i]) for i in range(0,len(sp))]
                 await solcast.serialise_granular_dampening()
                 opt[SITE_DAMP] = True # Set "hidden" option.
