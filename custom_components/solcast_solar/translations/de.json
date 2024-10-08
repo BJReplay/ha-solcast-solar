@@ -130,9 +130,13 @@
                 }
             }
         },
+        "get_dampening": {
+            "name": "Erhalten Sie dämpfende Prognosen",
+            "description": "Erhalten Sie die prognostizierten Dämpfungsfaktoren."
+        },
         "set_dampening": {
             "name": "Setzen Sie dämpfende Prognosen",
-            "description": "Stellen Sie den prognostizierten Dämpfungsfaktor pro Stunde ein.",
+            "description": "Legen Sie prognostizierte Dämpfungsfaktoren fest.",
             "fields": {
                 "damp_factor": {
                     "name": "Dämpfungssaite",

@@ -130,9 +130,13 @@
                 }
             }
         },
+        "get_dampening": {
+            "name": "Uzyskaj prognozy tłumienia",
+            "description": "Uzyskaj prognozowane współczynniki tłumienia."
+        },
         "set_dampening": {
             "name": "Ustaw tłumienie prognoz",
-            "description": "Ustaw godzinowy współczynnik tłumienia prognoz.",
+            "description": "Ustaw prognozowane współczynniki tłumienia.",
             "fields": {
                 "damp_factor": {
                     "name": "Ciąg tłumienia",

@@ -129,9 +129,13 @@
                 }
             }
         },
+        "get_dampening": {
+            "name": "Obtenez des prévisions amorties",
+            "description": "Obtenez les facteurs d’amortissement prévus."
+        },
         "set_dampening": {
             "name": "Définir le coefficient des prévisions",
-            "description": "Définissez le facteur horaire d'amortissement des prévisions.",
+            "description": "Définissez les facteurs d’amortissement des prévisions.",
             "fields": {
                 "damp_factor": {
                     "name": "Chaîne de coefficient d'amortissement",

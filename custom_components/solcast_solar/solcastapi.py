@@ -175,6 +175,7 @@ class SolcastApi: # pylint: disable=R0904
         is_stale_data: Return whether the forecast was last updated some time ago (i.e. is stale).
         get_api_limit: Return API polling limit for this UTC 24hr period (minimum of all API keys).
         get_api_used_count: Return API polling count for this UTC 24hr period (minimum of all API keys).
+        get_dampening: Return the currently set dampening factors for a service call.
 
         get_rooftop_site_total_today: Return total kW for today for a site.
         get_rooftop_site_extra_data: Return information about a site.
@@ -924,6 +925,41 @@ class SolcastApi: # pylint: disable=R0904
     def allow_granular_dampening_reset(self):
         """Allow options change to reset the granular dampening file to an empty dictionary."""
         return self._granular_allow_reset
+
+    async def get_dampening(self, site: str) -> list:
+        """Retrieve the currently set dampening factors.
+
+        Arguments:
+            site (str): An optional site.
+
+        Returns:
+            (list): The service call response for the presently set dampening factors.
+        """
+        try:
+            if not site:
+                sites = [s['resource_id'] for s in self.sites]
+            else:
+                sites = [site]
+            if self.entry_options.get(SITE_DAMP):
+                all_set = self.granular_dampening.get('all') is not None
+                if site:
+                    if not all_set:
+                        return [{'site': s, 'damp_factor': ','.join(str(f) for f in self.granular_dampening[s])} for s in sites if self.granular_dampening.get(s)]
+                    else:
+                        _LOGGER.warning('There is dampening for site %s, but it is being overriden by an all sites entry', site)
+                        return [','.join(str(f) for f in self.granular_dampening['all'])]
+                else:
+                    if all_set:
+                        return [','.join(str(f) for f in self.granular_dampening['all'])]
+                    else:
+                        raise Exception("There is no site specififed, yet granular dampening is enabled.")
+            else:
+                if not site:
+                    return [','.join(str(f) for f in self.damp)]
+                else:
+                    raise f"Site dampening is not set for {site}"
+        except Exception as e:
+            _LOGGER.error("Exception in get_dampening(): %s: %s", e, traceback.format_exc())
 
     '''
     async def get_weather(self):

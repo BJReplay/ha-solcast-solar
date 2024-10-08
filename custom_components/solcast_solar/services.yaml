@@ -37,6 +37,13 @@ set_dampening:
     site:
       example: "1234-5678-9012-3456"
 
+get_dampening:
+  name: Get forecasts dampening
+  description: Get the forecast dampening factors
+  fields:
+    site:
+      example: "1234-5678-9012-3456"
+
 set_hard_limit:
   name: Set inverter forecast hard limit
   description: Prevent forcast values being higher than the inverter can produce

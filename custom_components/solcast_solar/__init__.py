@@ -41,6 +41,7 @@ from .const import (
     KEY_ESTIMATE,
     SERVICE_CLEAR_DATA,
     SERVICE_FORCE_UPDATE,
+    SERVICE_GET_DAMPENING,
     SERVICE_QUERY_FORECAST_DATA,
     SERVICE_SET_DAMPENING,
     SERVICE_SET_HARD_LIMIT,
@@ -64,6 +65,11 @@ PLATFORMS = [Platform.SENSOR, Platform.SELECT,]
 SERVICE_DAMP_SCHEMA: Final = vol.All(
     {
         vol.Required(DAMP_FACTOR): cv.string,
+        vol.Optional(SITE): cv.string,
+    }
+)
+SERVICE_DAMP_GET_SCHEMA: Final = vol.All(
+    {
         vol.Optional(SITE): cv.string,
     }
 )
@@ -361,6 +367,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except intent.IntentHandleError as e:
             raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: {e}") from e
 
+    async def handle_service_get_dampening(call: ServiceCall):
+        """Handle service call.
+
+        Arguments:
+            call (ServiceCall): The data to act on: an optional site.
+        """
+        try:
+            _LOGGER.info("Service call: %s", SERVICE_GET_DAMPENING)
+
+            site = call.data.get(SITE, None) # Optional site.
+            d = await solcast.get_dampening(site)
+        except intent.IntentHandleError as e:
+            raise HomeAssistantError(f"Error processing {SERVICE_GET_DAMPENING}: {e}") from e
+
+        if call.return_response:
+            return {"data": d}
+
+        return None
+
     async def handle_service_set_hard_limit(call: ServiceCall):
         """Handle service call.
 
@@ -429,6 +454,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.services.async_register(
         DOMAIN, SERVICE_SET_DAMPENING, handle_service_set_dampening, SERVICE_DAMP_SCHEMA
+    )
+
+    hass.services.async_register(
+        DOMAIN, SERVICE_GET_DAMPENING, handle_service_get_dampening, SERVICE_DAMP_GET_SCHEMA, SupportsResponse.ONLY
     )
 
     hass.services.async_register(

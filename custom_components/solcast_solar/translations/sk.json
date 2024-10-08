@@ -130,9 +130,13 @@
                 }
             }
         },
+        "get_dampening": {
+            "name": "Získajte tlmenie predpovedí",
+            "description": "Získajte predpovedané tlmiace faktory."
+        },
         "set_dampening": {
             "name": "Nastavte tlmenie predpovedí",
-            "description": "Nastavte hodinový faktor tlmenia predpovede.",
+            "description": "Nastavte faktory tlmenia prognózy.",
             "fields": {
                 "damp_factor": {
                     "name": "Tlmiaci reťazec",

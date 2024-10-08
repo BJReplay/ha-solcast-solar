@@ -129,9 +129,13 @@
                 }
             }
         },
+        "get_dampening": {
+            "name": "Get forecasts dampening",
+            "description": "Get the forecast dampening factors."
+        },
         "set_dampening": {
             "name": "Set forecasts dampening",
-            "description": "Set forecast dampening hourly factor.",
+            "description": "Set forecast dampening factors.",
             "fields": {
                 "damp_factor": {
                     "name": "Dampening string",
