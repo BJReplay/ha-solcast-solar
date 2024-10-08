@@ -2067,14 +2067,15 @@ class SolcastApi: # pylint: disable=R0904
                 forecasts_undampened = {forecast["period_start"]: forecast for forecast in self._data_undampened['siteinfo'][site]['forecasts']}
                 try:
                     # Migrate forecast history if undampened data does not yet exist
-                    startday = self._data_undampened['siteinfo'][site]['forecasts'][0]['period_start']
-                    pastdays = self.get_day_start_utc() - timedelta(days=14)
-                    if (len(forecasts_undampened) == 0 or startday > pastdays) and len(forecasts_undampened) < len(forecasts):
-                        migrate = {
-                            forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts'] if pastdays < forecast["period_start"] < startday
-                        }
-                        _LOGGER.debug('Migrating %d forecast entries to undampened forecasts', len(migrate))
-                        forecasts_undampened = {**migrate, **forecasts_undampened}
+                    if len(forecasts_undampened) > 0 and len(forecasts) > len(forecasts_undampened):
+                        startday = self._data_undampened['siteinfo'][site]['forecasts'][0]['period_start']
+                        pastdays = self.get_day_start_utc() - timedelta(days=14)
+                        if startday > pastdays:
+                            migrate = {
+                                forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts'] if pastdays < forecast["period_start"] < startday
+                            }
+                            _LOGGER.debug('Migrating %d forecast entries to undampened forecasts', len(migrate))
+                            forecasts_undampened = {**migrate, **forecasts_undampened}
                 except Exception:
                     _LOGGER.debug(traceback.format_exc())
                     raise
