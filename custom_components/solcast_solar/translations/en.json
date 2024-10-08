@@ -131,7 +131,14 @@
         },
         "get_dampening": {
             "name": "Get forecasts dampening",
-            "description": "Get the forecast dampening factors."
+            "description": "Get the forecast dampening factors.",
+            "fields": {
+                "site": {
+                    "name": "Site ID",
+                    "description": "Optional site to get dampening. (Note: Will not work if granular dampening is not enabled.)"
+                }
+            }
+
         },
         "set_dampening": {
             "name": "Set forecasts dampening",

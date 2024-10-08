@@ -131,7 +131,14 @@
         },
         "get_dampening": {
             "name": "Obtenez des prévisions amorties",
-            "description": "Obtenez les facteurs d’amortissement prévus."
+            "description": "Obtenez les facteurs d’amortissement prévus.",
+            "fields": {
+                "site": {
+                    "name": "Identifiant du site",
+                    "description": "Site facultatif pour obtenir un amortissement. (Remarque : ne fonctionnera pas si l'amortissement granulaire n'est pas activé.)"
+                }
+            }
+
         },
         "set_dampening": {
             "name": "Définir le coefficient des prévisions",

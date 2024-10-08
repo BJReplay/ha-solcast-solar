@@ -132,7 +132,14 @@
         },
         "get_dampening": {
             "name": "Erhalten Sie dämpfende Prognosen",
-            "description": "Erhalten Sie die prognostizierten Dämpfungsfaktoren."
+            "description": "Erhalten Sie die prognostizierten Dämpfungsfaktoren.",
+            "fields": {
+                "site": {
+                    "name": "Site-ID",
+                    "description": "Optionaler Standort zur Dämpfung. (Hinweis: Funktioniert nicht, wenn die granulare Dämpfung nicht aktiviert ist.)"
+                }
+            }
+
         },
         "set_dampening": {
             "name": "Setzen Sie dämpfende Prognosen",

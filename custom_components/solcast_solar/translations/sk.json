@@ -132,7 +132,14 @@
         },
         "get_dampening": {
             "name": "Získajte tlmenie predpovedí",
-            "description": "Získajte predpovedané tlmiace faktory."
+            "description": "Získajte predpovedané tlmiace faktory.",
+            "fields": {
+                "site": {
+                    "name": "ID lokality",
+                    "description": "Voliteľné miesto na tlmenie. (Poznámka: Nebude fungovať, ak nie je povolené granulárne tlmenie.)"
+                }
+            }
+
         },
         "set_dampening": {
             "name": "Nastavte tlmenie predpovedí",

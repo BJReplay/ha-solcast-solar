@@ -132,7 +132,14 @@
         },
         "get_dampening": {
             "name": "Uzyskaj prognozy tłumienia",
-            "description": "Uzyskaj prognozowane współczynniki tłumienia."
+            "description": "Uzyskaj prognozowane współczynniki tłumienia.",
+            "fields": {
+                "site": {
+                    "name": "Identyfikator witryny",
+                    "description": "Opcjonalne miejsce do tłumienia. (Uwaga: nie będzie działać, jeśli nie jest włączone tłumienie ziarniste.)"
+                }
+            }
+
         },
         "set_dampening": {
             "name": "Ustaw tłumienie prognoz",
