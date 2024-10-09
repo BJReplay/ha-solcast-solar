@@ -30,6 +30,8 @@ from aiohttp import ClientConnectionError, ClientSession # type: ignore
 from aiohttp.client_reqrep import ClientResponse # type: ignore
 from isodate import parse_datetime # type: ignore
 
+from homeassistant.exceptions import ServiceValidationError # type: ignore
+
 from .spline import cubic_interp
 from .const import (
     BRK_ESTIMATE,
@@ -946,22 +948,32 @@ class SolcastApi: # pylint: disable=R0904
                 all_set = self.granular_dampening.get('all') is not None
                 if site:
                     if not all_set:
-                        return [{'site': s, 'damp_factor': ','.join(str(f) for f in self.granular_dampening[s])} for s in sites if self.granular_dampening.get(s)]
+                        if site in self.granular_dampening.keys():
+                            return [{'site': s, 'damp_factor': ','.join(str(f) for f in self.granular_dampening[s])} for s in sites if self.granular_dampening.get(s)]
+                        else:
+                            raise ServiceValidationError(f"Site dampening is not set for {site}.")
                     else:
-                        _LOGGER.warning('There is dampening for site %s, but it is being overriden by an all sites entry', site)
-                        return [','.join(str(f) for f in self.granular_dampening['all'])]
+                        if site != 'all':
+                            if site in self.granular_dampening.keys():
+                                _LOGGER.warning("There is dampening for site %s, but it is being overriden by an all sites entry, returning the 'all' entries instead", site)
+                            else:
+                                _LOGGER.warning("There is no dampening set for site %s, but it is being overriden by an all sites entry, returning the 'all' entries instead", site)
+                        return [{'site': 'all', 'damp_factor': ','.join(str(f) for f in self.granular_dampening['all'])}]
                 else:
                     if all_set:
-                        return [','.join(str(f) for f in self.granular_dampening['all'])]
+                        return [{'site': 'all', 'damp_factor': ','.join(str(f) for f in self.granular_dampening['all'])}]
                     else:
-                        raise Exception("There is no site specififed, yet granular dampening is enabled.")
+                        return [{'site': s, 'damp_factor': ','.join(str(f) for f in self.granular_dampening[s])} for s in sites if self.granular_dampening.get(s)]
             else:
                 if not site or site == 'all':
-                    return [','.join(str(f) for _, f in self.damp.items())]
+                    return [{'site': 'all', 'damp_factor': ','.join(str(f) for _, f in self.damp.items())}]
                 else:
-                    raise f"Site dampening is not set for {site}"
+                    raise ServiceValidationError(f"Site dampening is not set for {site}, 'all' is the only available site parameter for the service call.")
         except Exception as e:
-            _LOGGER.error("Exception in get_dampening(): %s: %s", e, traceback.format_exc())
+            if not isinstance(e, ServiceValidationError):
+                _LOGGER.error("Exception in get_dampening(): %s: %s", e, traceback.format_exc())
+            else:
+                raise e
 
     '''
     async def get_weather(self):
