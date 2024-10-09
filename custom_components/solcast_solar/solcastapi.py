@@ -1086,6 +1086,8 @@ class SolcastApi: # pylint: disable=R0904
                     # Could be a brand new install of the integation, or the file has been removed. Poll once now...
                     status = await self.get_forecast_update(do_past=True)
                 else:
+                    # Migrate undampened history data to the undampened cache
+                    await self.__migrate_undampened_history()
                     # Create an up to date forecast.
                     await self.build_forecast_data()
             else:
@@ -1993,6 +1995,45 @@ class SolcastApi: # pylint: disable=R0904
             _LOGGER.error(traceback.format_exc())
         return status
 
+    async def __migrate_undampened_history(self):
+        """Migrate undampened forecasts if solcast-undampened.json does not exist"""
+        try:
+            if file_exists(self._filename_undampened):
+                return
+            _LOGGER.info('Migrating undampened history to %s', self._filename_undampened)
+            for s in self.sites:
+                site = s['resource_id']
+                # Load the forecast history.
+                try:
+                    forecasts = {forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts']}
+                except:
+                    forecasts = {}
+                forecasts_undampened = {}
+                try:
+                    try:
+                        # Migrate forecast history if undampened data does not yet exist
+                        pastdays = self.get_day_start_utc() - timedelta(days=14)
+                        if len(forecasts) > len(forecasts_undampened):
+                            migrate = {
+                                forecast["period_start"]: forecast
+                                    for forecast in self._data['siteinfo'][site]['forecasts']
+                                        if pastdays < forecast["period_start"] < dt.now(timezone.utc) + timedelta(days=8)
+                            }
+                            _LOGGER.debug('Migrating %d forecast entries to undampened forecasts for site %s', len(migrate), site)
+                            forecasts_undampened = {**migrate, **forecasts_undampened}
+                    except:
+                        _LOGGER.debug(traceback.format_exc())
+                        raise
+                except:
+                    pass
+                forecasts_undampened = sorted(list(forecasts_undampened.values()), key=itemgetter("period_start"))
+                self._data_undampened['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts_undampened)}})
+
+            self._data_undampened["last_updated"] = dt.now(timezone.utc).isoformat()
+            await self.__serialise_data(self._data_undampened, self._filename_undampened)
+        except Exception as e:
+            _LOGGER.error("Exception in __migrate_undampened_history(): %s: %s", e, traceback.format_exc())
+
     async def __http_data_call(self, site=None, api_key=None, do_past=False, force=False) -> bool:
         """Request forecast data via the Solcast API.
 
@@ -2095,31 +2136,15 @@ class SolcastApi: # pylint: disable=R0904
             """
 
             # Load the forecast history.
-            forecasts = {}
             try:
                 forecasts = {forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts']}
             except:
-                pass
+                forecasts = {}
             _LOGGER.debug("Forecasts dictionary length %s", len(forecasts))
-            forecasts_undampened = {}
             try:
                 forecasts_undampened = {forecast["period_start"]: forecast for forecast in self._data_undampened['siteinfo'][site]['forecasts']}
-                try:
-                    # Migrate forecast history if undampened data does not yet exist
-                    if len(forecasts_undampened) > 0 and len(forecasts) > len(forecasts_undampened):
-                        startday = self._data_undampened['siteinfo'][site]['forecasts'][0]['period_start']
-                        pastdays = self.get_day_start_utc() - timedelta(days=14)
-                        if startday > pastdays:
-                            migrate = {
-                                forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts'] if pastdays < forecast["period_start"] < startday
-                            }
-                            _LOGGER.debug('Migrating %d forecast entries to undampened forecasts', len(migrate))
-                            forecasts_undampened = {**migrate, **forecasts_undampened}
-                except:
-                    _LOGGER.debug(traceback.format_exc())
-                    raise
             except:
-                pass
+                forecasts_undampened = {}
             _LOGGER.debug("Undampened forecasts dictionary length %s", len(forecasts_undampened))
 
             def update_forecast(forecasts: dict, period_start: dt, extant: dict, pv: float, pv10: float, pv90: float):
@@ -2147,7 +2172,7 @@ class SolcastApi: # pylint: disable=R0904
 
                 # Retrieve the dampening factor for the period, and dampen the estimates.
                 z = period_start.astimezone(self._tz)
-                if self.entry_options[SITE_DAMP]:
+                if self.entry_options.get(SITE_DAMP):
                     if self.granular_dampening.get('all') and valid_granular_dampening:
                         dampening_factor = get_dampening_factor('all', z)
                     elif self.granular_dampening.get(site) and valid_granular_dampening:
