@@ -2045,7 +2045,8 @@ class SolcastApi: # pylint: disable=R0904
                         period_start = forecast["period_start"]
                         dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), valid_granular_dampening)
                         self.__forecast_entry_update(
-                            forecasts[site], forecast, period_start,
+                            forecasts[site],
+                            period_start,
                             round(round(forecast["pv_estimate"], 4) * dampening_factor, 4),
                             round(round(forecast["pv_estimate10"], 4) * dampening_factor, 4),
                             round(round(forecast["pv_estimate90"], 4) * dampening_factor, 4))
@@ -2056,8 +2057,9 @@ class SolcastApi: # pylint: disable=R0904
         except Exception as e:
             _LOGGER.error("Exception in __migrate_undampened_history(): %s: %s", e, traceback.format_exc())
 
-    def __forecast_entry_update(self, forecasts: dict, extant: dict, period_start: dt, pv: float, pv10: float, pv90: float):
+    def __forecast_entry_update(self, forecasts: dict, period_start: dt, pv: float, pv10: float, pv90: float):
         """Update an individual forecast entry."""
+        extant = forecasts.get(period_start)
         if extant: # Update existing.
             extant["pv_estimate"] = pv
             extant["pv_estimate10"] = pv10
@@ -2211,8 +2213,8 @@ class SolcastApi: # pylint: disable=R0904
                 pv90_dampened = round(pv90 * dampening_factor, 4)
 
                 # Add or update the new entries.
-                self.__forecast_entry_update(forecasts, forecasts.get(period_start), period_start, pv_dampened, pv10_dampened, pv90_dampened)
-                self.__forecast_entry_update(forecasts_undampened, forecasts_undampened.get(period_start), period_start, pv, pv10, pv90)
+                self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
+                self.__forecast_entry_update(forecasts_undampened, period_start, pv, pv10, pv90)
 
             # Forecasts contains up to 730 days of period history data for each site. Convert dictionary to list, retain the past two years, sort by period start.
             pastdays = self.get_day_start_utc() - timedelta(days=730)
