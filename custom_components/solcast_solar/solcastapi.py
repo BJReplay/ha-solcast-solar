@@ -231,7 +231,7 @@ class SolcastApi: # pylint: disable=R0904
         self._api_limit = {}
         self._api_used = {}
         self._api_used_reset = {}
-        self._data = {'siteinfo': {}, 'last_updated': dt.fromtimestamp(0, timezone.utc).isoformat()}
+        self._data = {'siteinfo': {}, 'last_updated': dt.fromtimestamp(0, timezone.utc).isoformat(), 'version': JSON_VERSION}
         self._data_energy = {}
         self._data_forecasts = []
         self._data_forecasts_undampened = []
@@ -895,6 +895,7 @@ class SolcastApi: # pylint: disable=R0904
                         else:
                             self._granular_allow_reset = False
                             option_off()
+                            _LOGGER.debug('Using legacy hourly dampening')
                             return False
                 except:
                     raise
@@ -1024,12 +1025,12 @@ class SolcastApi: # pylint: disable=R0904
                                 if json_version < 4:
                                     data['version'] = 4
                                     json_version = 4
-                                    self.__serialise_data(data, filename)
+                                    await self.__serialise_data(data, filename)
                                 #if json_version < 5:
                                 #    upgrade in future...
                                 #    data['version'] = 5
                                 #    json_version = 5
-                                #    self.__serialise_data(data, filename)
+                                #    await self.__serialise_data(data, filename)
                             if set_loaded:
                                 self._loaded_data = True
 
@@ -2001,19 +2002,20 @@ class SolcastApi: # pylint: disable=R0904
             if file_exists(self._filename_undampened):
                 return
             _LOGGER.info('Migrating undampened history to %s', self._filename_undampened)
+            forecasts = {}
             for s in self.sites:
                 site = s['resource_id']
                 # Load the forecast history.
                 try:
-                    forecasts = {forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts']}
+                    forecasts[site] = {forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts']}
                 except:
-                    forecasts = {}
+                    forecasts[site] = {}
                 forecasts_undampened = {}
                 try:
                     try:
-                        # Migrate forecast history if undampened data does not yet exist
+                        # Migrate forecast history if undampened data does not yet exist.
                         pastdays = self.get_day_start_utc() - timedelta(days=14)
-                        if len(forecasts) > len(forecasts_undampened):
+                        if len(forecasts[site]) > len(forecasts_undampened):
                             migrate = {
                                 forecast["period_start"]: forecast
                                     for forecast in self._data['siteinfo'][site]['forecasts']
@@ -2031,8 +2033,55 @@ class SolcastApi: # pylint: disable=R0904
 
             self._data_undampened["last_updated"] = dt.now(timezone.utc).isoformat()
             await self.__serialise_data(self._data_undampened, self._filename_undampened)
+
+            _LOGGER.info('Dampening forecasts for today onwards')
+            valid_granular_dampening = self.__valid_granular_dampening()
+            for s in self.sites:
+                site = s['resource_id']
+                day_start = self.get_day_start_utc()
+                for interval, forecast in forecasts[site].items():
+                    if interval >= day_start:
+                        # Apply dampening to the existing data (today onwards only).
+                        period_start = forecast["period_start"]
+                        dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), valid_granular_dampening)
+                        self.__forecast_entry_update(
+                            forecasts[site], forecast, period_start,
+                            round(round(forecast["pv_estimate"], 4) * dampening_factor, 4),
+                            round(round(forecast["pv_estimate10"], 4) * dampening_factor, 4),
+                            round(round(forecast["pv_estimate90"], 4) * dampening_factor, 4))
+                forecasts[site] = sorted(list(forecasts[site].values()), key=itemgetter("period_start"))
+                self._data['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts[site])}})
+
+            await self.__serialise_data(self._data, self._filename)
         except Exception as e:
             _LOGGER.error("Exception in __migrate_undampened_history(): %s: %s", e, traceback.format_exc())
+
+    def __forecast_entry_update(self, forecasts: dict, extant: dict, period_start: dt, pv: float, pv10: float, pv90: float):
+        """Update an individual forecast entry."""
+        if extant: # Update existing.
+            extant["pv_estimate"] = pv
+            extant["pv_estimate10"] = pv10
+            extant["pv_estimate90"] = pv90
+        else: # New forecast.
+            forecasts[period_start] = {"period_start": period_start, "pv_estimate": pv, "pv_estimate10": pv10, "pv_estimate90": pv90}
+
+    def __get_dampening_granular_factor(self, site: str, z: dt):
+        """Retrieve a granular dampening factor."""
+        return self.granular_dampening[site][
+            z.hour if len(self.granular_dampening[site]) == 24 else ((z.hour*2) + (1 if z.minute > 0 else 0))
+        ]
+
+    def __get_dampening_factor(self, site: str, z: int, valid_granular_dampening: bool) -> float:
+        """Retrieve either a traditional or granular dampening factor."""
+        if self.entry_options.get(SITE_DAMP):
+            if self.granular_dampening.get('all') and valid_granular_dampening:
+                return self.__get_dampening_granular_factor('all', z)
+            elif self.granular_dampening.get(site) and valid_granular_dampening:
+                return self.__get_dampening_granular_factor(site, z)
+            else:
+                return 1.0
+        else:
+            return self.damp.get(f"{z.hour}", 1.0)
 
     async def __http_data_call(self, site=None, api_key=None, do_past=False, force=False) -> bool:
         """Request forecast data via the Solcast API.
@@ -2147,23 +2196,8 @@ class SolcastApi: # pylint: disable=R0904
                 forecasts_undampened = {}
             _LOGGER.debug("Undampened forecasts dictionary length %s", len(forecasts_undampened))
 
-            def update_forecast(forecasts: dict, period_start: dt, extant: dict, pv: float, pv10: float, pv90: float):
-                """Update an individual forecast entry."""
-                if extant: # Update existing.
-                    extant["pv_estimate"] = pv
-                    extant["pv_estimate10"] = pv10
-                    extant["pv_estimate90"] = pv90
-                else: # New forecast.
-                    forecasts[period_start] = {"period_start": period_start, "pv_estimate": pv, "pv_estimate10": pv10, "pv_estimate90": pv90}
-
-            def get_dampening_factor(site: str, z: dt):
-                """Retrieve a granular dampening factor."""
-                return self.granular_dampening[site][
-                    z.hour if len(self.granular_dampening[site]) == 24 else ((z.hour*2) + (1 if z.minute > 0 else 0))
-                ]
-
+            # Apply dampening to the new data
             valid_granular_dampening = self.__valid_granular_dampening()
-
             for forecast in sorted(new_data, key=itemgetter("period_start")):
                 period_start = forecast["period_start"]
                 pv = round(forecast["pv_estimate"], 4)
@@ -2171,32 +2205,21 @@ class SolcastApi: # pylint: disable=R0904
                 pv90 = round(forecast["pv_estimate90"], 4)
 
                 # Retrieve the dampening factor for the period, and dampen the estimates.
-                z = period_start.astimezone(self._tz)
-                if self.entry_options.get(SITE_DAMP):
-                    if self.granular_dampening.get('all') and valid_granular_dampening:
-                        dampening_factor = get_dampening_factor('all', z)
-                    elif self.granular_dampening.get(site) and valid_granular_dampening:
-                        dampening_factor = get_dampening_factor(site, z)
-                    else:
-                        dampening_factor = 1.0
-                else:
-                    dampening_factor = self.damp.get(f"{z.hour}", 1.0)
+                dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), valid_granular_dampening)
                 pv_dampened = round(pv * dampening_factor, 4)
                 pv10_dampened = round(pv10 * dampening_factor, 4)
                 pv90_dampened = round(pv90 * dampening_factor, 4)
 
                 # Add or update the new entries.
-                extant = forecasts.get(period_start)
-                update_forecast(forecasts, period_start, extant, pv_dampened, pv10_dampened, pv90_dampened)
-                extant_undampened = forecasts_undampened.get(period_start)
-                update_forecast(forecasts_undampened, period_start, extant_undampened, pv, pv10, pv90)
+                self.__forecast_entry_update(forecasts, forecasts.get(period_start), period_start, pv_dampened, pv10_dampened, pv90_dampened)
+                self.__forecast_entry_update(forecasts_undampened, forecasts_undampened.get(period_start), period_start, pv, pv10, pv90)
 
-            # Forecasts contains up to 730 days of period data for each site. Convert dictionary to list, retain the past two years, sort by period start.
+            # Forecasts contains up to 730 days of period history data for each site. Convert dictionary to list, retain the past two years, sort by period start.
             pastdays = self.get_day_start_utc() - timedelta(days=730)
             forecasts = sorted(list(filter(lambda forecast: forecast["period_start"] >= pastdays, forecasts.values())), key=itemgetter("period_start"))
             self._data['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts)}})
 
-            # Undampened forecasts contains up to 22 days of period data for each site (14 days of history, today, and 7 days of future).
+            # Undampened forecasts contains up to 14 days of period history data for each site.
             pastdays = self.get_day_start_utc() - timedelta(days=14)
             forecasts_undampened = sorted(list(filter(lambda forecast: forecast["period_start"] >= pastdays, forecasts_undampened.values())), key=itemgetter("period_start"))
             self._data_undampened['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts_undampened)}})

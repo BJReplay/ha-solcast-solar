@@ -202,15 +202,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         ('\n\n' + init_msg) if init_msg != '' else '',('\n' + '-'*67) if init_msg != '' else '',
     )
 
-    status = await solcast.load_saved_data()
-    if status != '':
-        raise ConfigEntryNotReady(status)
-
     granular_dampening = await solcast.granular_dampening_data()
     opt = {**entry.options}
     opt[SITE_DAMP] = granular_dampening # Internal per-site dampening set flag. A hidden option until set.
     hass.config_entries.async_update_entry(entry, options=opt)
     hass.data[DOMAIN]['entry_options'] = entry.options
+
+    status = await solcast.load_saved_data()
+    if status != '':
+        raise ConfigEntryNotReady(status)
 
     coordinator = SolcastUpdateCoordinator(hass, solcast, version)
 
