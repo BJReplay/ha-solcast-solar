@@ -133,7 +133,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         except asyncio.CancelledError:
                             _LOGGER.debug('Cancelled next scheduled update')
                         finally:
-                            self.tasks.pop('pending_update')
+                            if self.tasks.get('pending_update') is not None:
+                                self.tasks.pop('pending_update')
                     self.tasks['pending_update'] = asyncio.create_task(wait_for_fetch())
         except:
             _LOGGER.error("Exception in __check_forecast_fetch(): %s", traceback.format_exc())

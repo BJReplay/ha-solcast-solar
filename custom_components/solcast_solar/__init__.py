@@ -10,6 +10,8 @@ import json
 from typing import Final, Dict, Any
 import aiofiles # type: ignore
 
+import asyncio
+
 import voluptuous as vol # type: ignore
 from homeassistant import loader # type: ignore
 from homeassistant.config_entries import ConfigEntry # type: ignore
@@ -523,15 +525,21 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     coordinator = hass.data[DOMAIN][entry.entry_id]
 
     def tasks_cancel():
-        # Terminate coordinator tasks in progress
-        for task, cancel in coordinator.tasks.items():
-            _LOGGER.debug('Cancelled coordinator task %s', task)
-            cancel()
-        coordinator.tasks = {}
-        # Terminate solcastapi tasks in progress
-        for task, cancel in coordinator.solcast.tasks.items():
-            _LOGGER.debug('Cancelled solcastapi task %s', task)
-            cancel()
+        try:
+            # Terminate coordinator tasks in progress
+            for task, cancel in coordinator.tasks.items():
+                _LOGGER.debug('Cancelling coordinator task %s', task)
+                if isinstance(cancel, asyncio.Task):
+                    cancel.cancel()
+                else:
+                    cancel()
+            coordinator.tasks = {}
+            # Terminate solcastapi tasks in progress
+            for task, cancel in coordinator.solcast.tasks.items():
+                _LOGGER.debug('Cancelling solcastapi task %s', task)
+                cancel.cancel()
+        except Exception as e:
+            _LOGGER.error('Cancelling tasks failed: %s: %s', e, traceback.format_exc())
         coordinator.solcast.tasks = {}
 
     try:

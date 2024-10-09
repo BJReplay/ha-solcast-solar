@@ -170,12 +170,12 @@ class SolcastApi: # pylint: disable=R0904
         load_saved_data: Load the saved solcast.json data.
         serialise_granular_dampening: Serialise the granular dampening file.
         granular_dampening_data: Read the current granular dampening file.
+        get_dampening: Return the currently set dampening factors for a service call.
 
         get_last_updated_datetime: Return when the data was last updated.
         is_stale_data: Return whether the forecast was last updated some time ago (i.e. is stale).
         get_api_limit: Return API polling limit for this UTC 24hr period (minimum of all API keys).
         get_api_used_count: Return API polling count for this UTC 24hr period (minimum of all API keys).
-        get_dampening: Return the currently set dampening factors for a service call.
 
         get_rooftop_site_total_today: Return total kW for today for a site.
         get_rooftop_site_extra_data: Return information about a site.
@@ -736,7 +736,8 @@ class SolcastApi: # pylint: disable=R0904
 
         self.tasks['sites_load'] = asyncio.create_task(self.__sites_data())
         await self.tasks['sites_load']
-        self.tasks.pop('sites_load')
+        if self.tasks.get('sites_load') is not None:
+            self.tasks.pop('sites_load')
         if self.sites_loaded:
             await self.__sites_usage()
 
@@ -936,11 +937,11 @@ class SolcastApi: # pylint: disable=R0904
             (list): The service call response for the presently set dampening factors.
         """
         try:
-            if not site:
-                sites = [s['resource_id'] for s in self.sites]
-            else:
-                sites = [site]
             if self.entry_options.get(SITE_DAMP):
+                if not site:
+                    sites = [s['resource_id'] for s in self.sites]
+                else:
+                    sites = [site]
                 all_set = self.granular_dampening.get('all') is not None
                 if site:
                     if not all_set:
@@ -954,8 +955,8 @@ class SolcastApi: # pylint: disable=R0904
                     else:
                         raise Exception("There is no site specififed, yet granular dampening is enabled.")
             else:
-                if not site:
-                    return [','.join(str(f) for f in self.damp)]
+                if not site or site == 'all':
+                    return [','.join(str(f) for _, f in self.damp.items())]
                 else:
                     raise f"Site dampening is not set for {site}"
         except Exception as e:
@@ -2020,7 +2021,8 @@ class SolcastApi: # pylint: disable=R0904
                 self.tasks['fetch'] = asyncio.create_task(self.__fetch_data(168, path="estimated_actuals", site=site, api_key=api_key, cachedname="actuals", force=force))
                 await self.tasks['fetch']
                 resp_dict = self.tasks['fetch'].result()
-                self.tasks.pop('fetch')
+                if self.tasks.get('fetch') is not None:
+                    self.tasks.pop('fetch')
                 if not isinstance(resp_dict, dict):
                     _LOGGER.error('No data was returned for estimated_actuals so this WILL cause issues. Your API limit may be exhaused, or Solcast has a problem...')
                     raise TypeError(f"API did not return a json object. Returned {resp_dict}")
@@ -2056,7 +2058,8 @@ class SolcastApi: # pylint: disable=R0904
             self.tasks['fetch'] = asyncio.create_task(self.__fetch_data(numhours, path="forecasts", site=site, api_key=api_key, cachedname="forecasts", force=force))
             await self.tasks['fetch']
             resp_dict = self.tasks['fetch'].result()
-            self.tasks.pop('fetch')
+            if self.tasks.get('fetch') is not None:
+                self.tasks.pop('fetch')
             if resp_dict is None:
                 return False
 
