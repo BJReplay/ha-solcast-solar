@@ -394,7 +394,7 @@ Undampened forecast history is retained for just 14 days.
 
 The currently set dampening factors may be retrieved using the service call "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
 
-If granular dampening is set to specify both individual site factors and an 'all' factors, then attempting retrieval of a individual site factors will result in the 'all' factors being returned, with that "site" being noted in the response. This is because an 'all' set of factors overrides the individual site settings in this circumstance.
+If granular dampening is set to specify both individual site factors and an 'all' factors, then attempting retrieval of an individual site factors will result in the 'all' factors being returned, with the 'all' site being noted in the response. This is because an 'all' set of factors overrides the individual site settings in this circumstance.
 
 Example call:
 
