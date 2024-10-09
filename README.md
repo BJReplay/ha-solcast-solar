@@ -686,7 +686,9 @@ series:
 v4.1.9
 * Granular dampening to dampen per half hour period by @autoSteve and @isorin
 * Dampening applied at forecast fetch and not to forecast history @autoSteve and @isorin
-* Retrieve undampened forecast values using service call by @autoSteve
+* Retrieve un-dampened forecast values using service call by @autoSteve (thanks @Nilogax)
+* Get presently set dampening factors using service call by @autoSteve (thanks @Nilogax)
+* Migration of un-dampened forecast to un-dampened cache on startup by @autoSteve
 
 v4.1.8
 * Automated forecast updates that do not require an automation by @autoSteve and @BJReplay
