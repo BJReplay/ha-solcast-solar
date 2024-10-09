@@ -390,6 +390,29 @@ data:
 
 Undampened forecast history is retained for just 14 days.
 
+#### Reading dampening values
+
+The currently set dampening factors may be retrieved using the service call "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
+
+If granular dampening is set to specify both individual site factors and an 'all' factors, then attempting retrieval of a individual site factors will result in the 'all' factors being returned, with that "site" being noted in the response. This is because an 'all' set of factors overrides the individual site settings in this circumstance.
+
+Example call:
+
+```
+action: solcast_solar.get_dampening
+data:
+  site: b68d-c05a-c2b3-2cf9
+```
+
+Example response:
+
+```
+data:
+  - site: b68d-c05a-c2b3-2cf9
+    damp_factor: >-
+      1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+```
+
 ### Sensor attributes configuration
 
 There are quite a few sensor attributes that can be used as a data source for template sensors, charts, etc., including a per-site breakdown, estimate 10/50/90 values, and per-hour and half hour detailed breakdown for each forecast day.
@@ -439,7 +462,8 @@ These are the services for this integration: ([Configuration](#configuration))
 | `solcast_solar.force_update_forecasts` | Force updates the forecast data (performs an update regardless of API usage tracking or auto-update setting) |
 | `solcast_solar.clear_all_solcast_data` | Deletes the `solcast.json` cached file |
 | `solcast_solar.query_forecast_data` | Returns a list of forecast data using a datetime range start - end |
-| `solcast_solar.set_dampening` | Updates the hourly dampening factors |
+| `solcast_solar.set_dampening` | Updates the dampening factors |
+| `solcast_solar.get_dampening` | Get the currently set dampening factors |
 | `solcast_solar.set_hard_limit` | Set inverter forecast hard limit |
 | `solcast_solar.remove_hard_limit` | Remove inverter forecast hard limit |
 
