@@ -198,5 +198,40 @@
         "select": {
             "estimate_mode" : {"name": "Utiliser le champ de prévision"}
         }
+    },
+    "exceptions": {
+        "auto_use_force": {
+            "message": "La mise à jour automatique est activée, ignorant l'événement de service pour la mise à jour des prévisions, utilisez plutôt Forcer la mise à jour."
+        },
+        "damp_not_for_site": {
+            "message": "L'amortissement du site n'est pas défini pour {site}."
+        },
+        "damp_use_all": {
+            "message": "L'amortissement du site n'est pas défini pour {site}, « all » (tout) est le seul paramètre de site disponible pour l'appel de service.."
+        },
+        "damp_no_factors": {
+            "message": "Aucun facteur atténuant, doit être une liste de nombres séparés par des virgules entre 0,0 et 1,0."
+        },
+        "damp_count_not_correct": {
+            "message": "Il n’y a pas 24 ou 48 nombres séparés par des virgules entre 0,0 et 1,0."
+        },
+        "damp_no_all_24": {
+            "message": "Spécifier un site parmi « all » (tous) n'est pas autorisé avec 24 facteurs, supprimez le site de la demande."
+        },
+        "damp_not_site": {
+            "message": "Pas un site configuré."
+        },
+        "damp_error_parsing": {
+            "message": "Erreur lors de l'analyse des nombres séparés par des virgules du facteur d'amortissement."
+        },
+        "damp_ouside_range": {
+            "message": "Valeur du facteur d'amortissement présente qui n'est pas comprise entre 0,0 et 1,0."
+        },
+        "hard_empty": {
+            "message": "Valeur limite stricte vide."
+        },
+        "hard_not_positive_number": {
+            "message": "La valeur limite stricte n’est pas un nombre positif."
+        }
     }
 }

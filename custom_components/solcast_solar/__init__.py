@@ -20,7 +20,7 @@ from homeassistant.core import (HomeAssistant, # type: ignore
                                 ServiceCall,
                                 ServiceResponse,
                                 SupportsResponse,)
-from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError # type: ignore
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError, ServiceValidationError # type: ignore
 from homeassistant.helpers import config_validation as cv # type: ignore
 from homeassistant.helpers import aiohttp_client, intent # type: ignore
 from homeassistant.helpers.device_registry import async_get as device_registry # type: ignore
@@ -307,6 +307,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         Raises:
             HomeAssistantError: Notify Home Assistant that an error has occurred.
+            ServiceValidationError: Notify Home Assistant that an error has occurred, with translation.
         """
         try:
             _LOGGER.info("Service call: %s", SERVICE_SET_DAMPENING)
@@ -315,21 +316,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             site = call.data.get(SITE, None) # Optional site.
 
             if factors is None:
-                raise HomeAssistantError("Error processing {SERVICE_SET_DAMPENING}: No dampening factors, must be a comma separated list of numbers between 0.0 to 1.0")
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_no_factors")
             factors = factors.strip().replace(' ','')
             if len(factors.split(',')) == 0:
-                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Empty dampening factors, must be a comma separated list of numbers between 0.0 to 1.0")
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_no_factors")
             sp = factors.split(",")
             if len(sp) not in (24, 48):
-                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: There are not 24 or 48 comma separated numbers between 0.0 to 1.0")
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_count_not_correct")
             if site is not None:
                 site = site.lower()
                 if site == 'all':
                     if(len(sp)) != 48:
-                        raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Specifying a site of 'all' is not allowed with 24 factors, remove site from the request")
+                        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_no_all_24")
                 else:
                     if site not in [s['resource_id'] for s in solcast.sites]:
-                        raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Not a configured site")
+                        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_not_site")
             else:
                 if len(sp) == 48:
                     site = 'all'
@@ -340,9 +341,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                     if float(i) < 0 or float(i) > 1:
                         out_of_range = True
             except:
-                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Error parsing dampening factor comma separated numbers") # pylint: disable=W0707
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_error_parsing") #pylint: disable=W0707
             if out_of_range:
-                raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: Dampening factor value present that is not 0.0 to 1.0")
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_ouside_range")
 
             opt = {**entry.options}
 
@@ -396,6 +397,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         Raises:
             HomeAssistantError: Notify Home Assistant that an error has occurred.
+            ServiceValidationError: Notify Home Assistant that an error has occurred, with translation.
         """
         try:
             _LOGGER.info("Service call: %s", SERVICE_SET_HARD_LIMIT)
@@ -404,18 +406,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
             if hl is None:
-                raise HomeAssistantError(f"Error processing {SERVICE_SET_HARD_LIMIT}: Empty hard limit value")
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_empty")
             else:
                 val = int(hl)
                 if val < 0:  # If not a positive int print message and ask for input again.
-                    raise HomeAssistantError(f"Error processing {SERVICE_SET_HARD_LIMIT}: Hard limit value is not a positive number")
+                    raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_not_positive_number")
 
                 opt = {**entry.options}
                 opt[HARD_LIMIT] = val
                 hass.config_entries.async_update_entry(entry, options=opt)
 
         except ValueError as e:
-            raise HomeAssistantError(f"Error processing {SERVICE_SET_HARD_LIMIT}: Hard limit value is not a positive number") from e
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_not_positive_number") from e
         except intent.IntentHandleError as e:
             raise HomeAssistantError(f"Error processing {SERVICE_SET_HARD_LIMIT}: {e}") from e
 

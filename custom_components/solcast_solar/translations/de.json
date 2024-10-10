@@ -199,5 +199,40 @@
         "select": {
             "estimate_mode" : {"name": "Verwenden Sie das Prognosefeld"}
         }
+    },
+    "exceptions": {
+        "auto_use_force": {
+            "message": "Die automatische Aktualisierung ist aktiviert und ignoriert Serviceereignisse für die Prognoseaktualisierung. Verwenden Sie stattdessen „Aktualisierung erzwingen“."
+        },
+        "damp_not_for_site": {
+            "message": "Die Site-Dämpfung ist für {site} nicht festgelegt."
+        },
+        "damp_use_all": {
+            "message": "Die Standortdämpfung ist für {site} nicht festgelegt, „all“ ist der einzige verfügbare Standortparameter für den Serviceaufruf."
+        },
+        "damp_no_factors": {
+            "message": "Keine Dämpfungsfaktoren, es muss eine durch Kommas getrennte Liste von Zahlen zwischen 0,0 und 1,0 sein."
+        },
+        "damp_count_not_correct": {
+            "message": "Es gibt keine 24 oder 48 durch Kommas getrennten Zahlen zwischen 0,0 und 1,0."
+        },
+        "damp_no_all_24": {
+            "message": "Bei 24 Faktoren ist die Angabe einer Site „all“ (alle) nicht zulässig. Entfernen Sie die Site aus der Anfrage."
+        },
+        "damp_not_site": {
+            "message": "Keine konfigurierte Site."
+        },
+        "damp_error_parsing": {
+            "message": "Fehler beim Parsen der durch Kommas getrennten Zahlen des Dämpfungsfaktors."
+        },
+        "damp_ouside_range": {
+            "message": "Es liegt ein Wert des Dämpfungsfaktors vor, der nicht zwischen 0,0 und 1,0 liegt."
+        },
+        "hard_empty": {
+            "message": "Leerer harter Grenzwert."
+        },
+        "hard_not_positive_number": {
+            "message": "Der harte Grenzwert ist keine positive Zahl."
+        }
     }
 }

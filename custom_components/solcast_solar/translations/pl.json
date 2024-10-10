@@ -199,5 +199,40 @@
         "select": {
             "estimate_mode" : {"name": "Użyj pola prognozy"}
         }
+    },
+    "exceptions": {
+        "auto_use_force": {
+            "message": "Automatyczna aktualizacja jest włączona. Zdarzenie serwisowe jest ignorowane przy aktualizacji prognozy. Zamiast tego użyj opcji Wymuś aktualizację."
+        },
+        "damp_not_for_site": {
+            "message": "Tłumienie witryny nie jest ustawione dla {site}."
+        },
+        "damp_use_all": {
+            "message": "Tłumienie witryny nie jest ustawione dla {site}, „all” jest jedynym dostępnym parametrem witryny dla zgłoszenia serwisowego."
+        },
+        "damp_no_factors": {
+            "message": "Żadnych współczynników tłumienia. Musi to być lista liczb oddzielonych przecinkami z zakresu od 0,0 do 1,0."
+        },
+        "damp_count_not_correct": {
+            "message": "Między 0,0 a 1,0 nie ma 24 ani 48 liczb oddzielonych przecinkami."
+        },
+        "damp_no_all_24": {
+            "message": "Określenie witryny „wszystko” jest niedozwolone w przypadku 24 czynników. Usuń witrynę z żądania."
+        },
+        "damp_not_site": {
+            "message": "Nie skonfigurowana witryna."
+        },
+        "damp_error_parsing": {
+            "message": "Błąd podczas analizy współczynnika tłumienia liczb oddzielonych przecinkami."
+        },
+        "damp_ouside_range": {
+            "message": "Występuje wartość współczynnika tłumienia, która nie mieści się w przedziale od 0,0 do 1,0."
+        },
+        "hard_empty": {
+            "message": "Pusta wartość twardego limitu."
+        },
+        "hard_not_positive_number": {
+            "message": "Wartość twardego limitu nie jest liczbą dodatnią."
+        }
     }
 }

@@ -44,6 +44,7 @@ from .const import (
     CUSTOM_HOUR_SENSOR,
     DATE_FORMAT,
     DATE_FORMAT_UTC,
+    DOMAIN,
     FORECAST_DEBUG_LOGGING,
     HARD_LIMIT,
     KEY_ESTIMATE,
@@ -951,7 +952,11 @@ class SolcastApi: # pylint: disable=R0904
                         if site in self.granular_dampening.keys():
                             return [{'site': s, 'damp_factor': ','.join(str(f) for f in self.granular_dampening[s])} for s in sites if self.granular_dampening.get(s)]
                         else:
-                            raise ServiceValidationError(f"Site dampening is not set for {site}.")
+                            raise ServiceValidationError(
+                                translation_domain=DOMAIN,
+                                translation_key="damp_not_for_site",
+                                translation_placeholders={"site": site}
+                            )
                     else:
                         if site != 'all':
                             if site in self.granular_dampening.keys():
@@ -968,7 +973,11 @@ class SolcastApi: # pylint: disable=R0904
                 if not site or site == 'all':
                     return [{'site': 'all', 'damp_factor': ','.join(str(f) for _, f in self.damp.items())}]
                 else:
-                    raise ServiceValidationError(f"Site dampening is not set for {site}, 'all' is the only available site parameter for the service call.")
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key="damp_use_all",
+                        translation_placeholders={"site": site}
+                    )
         except Exception as e:
             if not isinstance(e, ServiceValidationError):
                 _LOGGER.error("Exception in get_dampening(): %s: %s", e, traceback.format_exc())

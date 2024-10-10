@@ -197,5 +197,40 @@
         "select": {
             "estimate_mode" : {"name": "Use Forecast Field"}
         }
+    },
+    "exceptions": {
+        "auto_use_force": {
+            "message": "Auto-update is enabled, ignoring service event for forecast update, use Force Update instead."
+        },
+        "damp_not_for_site": {
+            "message": "Site dampening is not set for {site}."
+        },
+        "damp_use_all": {
+            "message": "Site dampening is not set for {site}, 'all' is the only available site parameter for the service call."
+        },
+        "damp_no_factors": {
+            "message": "No dampening factors, must be a comma separated list of numbers between 0.0 and 1.0."
+        },
+        "damp_count_not_correct": {
+            "message": "There are not 24 or 48 comma separated numbers between 0.0 and 1.0."
+        },
+        "damp_no_all_24": {
+            "message": "Specifying a site of 'all' is not allowed with 24 factors, remove site from the request."
+        },
+        "damp_not_site": {
+            "message": "Not a configured site."
+        },
+        "damp_error_parsing": {
+            "message": "Error parsing dampening factor comma separated numbers."
+        },
+        "damp_ouside_range": {
+            "message": "Dampening factor value present that is not between 0.0 and 1.0."
+        },
+        "hard_empty": {
+            "message": "Empty hard limit value."
+        },
+        "hard_not_positive_number": {
+            "message": "Hard limit value is not a positive number."
+        }
     }
 }

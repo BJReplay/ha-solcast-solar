@@ -205,9 +205,9 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     if not q.isnumeric():
                         return self.async_abort(reason="API limit not numeric!")
                     if int(q) < 1:
-                        return self.async_abort(reason="API limit must be greater than 1!")
+                        return self.async_abort(reason="API limit must be one  or greater!")
                 if len(api_quota) > api_count:
-                    return self.async_abort(reason="API limit count more than keys!")
+                    return self.async_abort(reason="There are more API limit counts entered than keys!")
                 api_quota = ','.join(api_quota)
                 all_config_data[API_QUOTA] = api_quota
 
