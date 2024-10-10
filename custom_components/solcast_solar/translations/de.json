@@ -30,8 +30,10 @@
                     "attr_brk_site": "Aktivieren Sie die Attribute des Site-Aufschlüsselungssensors",
                     "attr_brk_halfhourly": "Aktivieren Sie prognostizierte halbstündliche Detailattribute",
                     "attr_brk_hourly": "Aktivieren Sie prognostizierte stündliche Detailattribute",
-                    "attr_brk_detailed": "Standortaufschlüsselung für halbstündliche/stündliche Detailattribute aktivieren (Diese werden nicht in der Langzeitstatistik des Rekorders gespeichert)",
-                    "config_damp": "Ändern Sie die stündlichen Dämpfungsfaktoren (nachdem Sie auf „Senden“ geklickt haben)"
+                    "attr_brk_detailed": "Aktivieren Sie die Site-Aufschlüsselung für halbstündliche/stündliche Detailattribute (diese werden nicht in Datenbankstatusattributen gespeichert)",
+                    "config_damp": "Ändern Sie die stündlichen Dämpfungsfaktoren (nachdem Sie auf „Senden“ geklickt haben)",
+                    "site_damp": "Die granulare Dämpfung ist eingestellt: Löschen, um zur stündlichen Gesamtdämpfung zurückzukehren"
+
                 },
                 "description": "Dein Solcast-API-Kontoschlüssel"
             },
@@ -117,20 +119,39 @@
                 "end_date_time": {
                     "name": "Enddatum und /-uhrzeit",
                     "description": "Endzeitpunkt der Prognosedaten."
-                }
-            }
-        },
-        "set_dampening": {
-            "name": "Setzen Sie dämpfende Prognosen",
-            "description": "Stellen Sie den prognostizierten Dämpfungsfaktor pro Stunde ein.",
-            "fields": {
-                "damp_factor": {
-                    "name": "Dämpfungssaite",
-                    "description": "Zeichenfolge mit stündlichen Dämpfungsfaktorwerten, durch Kommas getrennt."
+                },
+                "undampened": {
+                    "name": "Ungedämpft",
+                    "description": "Optionaler boolescher Wert zum Abrufen einer ungedämpften Prognose"
                 },
                 "site": {
                     "name": "Site-ID",
-                    "description": "Optionale Standort-ID zur Aufschlüsselung der Dämpfung. (Hinweis: Wenn Sie „Site“ weglassen, werden alle einzelnen Site-Dämpfungen gelöscht.)"
+                    "description": "Optionale Site zum Abrufen einer Site-Prognose"
+                }
+            }
+        },
+        "get_dampening": {
+            "name": "Erhalten Sie dämpfende Prognosen",
+            "description": "Erhalten Sie die prognostizierten Dämpfungsfaktoren.",
+            "fields": {
+                "site": {
+                    "name": "Site-ID",
+                    "description": "Optionaler Standort zur Dämpfung. (Hinweis: Funktioniert nicht, wenn die granulare Dämpfung nicht aktiviert ist.)"
+                }
+            }
+
+        },
+        "set_dampening": {
+            "name": "Setzen Sie dämpfende Prognosen",
+            "description": "Legen Sie prognostizierte Dämpfungsfaktoren fest.",
+            "fields": {
+                "damp_factor": {
+                    "name": "Dämpfungssaite",
+                    "description": "Zeichenfolge mit durch Kommas getrennten Dämpfungsfaktorwerten (24 oder 48 Werte)."
+                },
+                "site": {
+                    "name": "Site-ID",
+                    "description": "Optionaler Standort zum Einstellen der Dämpfung pro Standort. (Hinweis: Durch Weglassen der Site wird die Dämpfung pro Site gelöscht, es sei denn, es liegen 48 Werte vor.)"
                 }
             }
         },
@@ -177,6 +198,41 @@
         },
         "select": {
             "estimate_mode" : {"name": "Verwenden Sie das Prognosefeld"}
+        }
+    },
+    "exceptions": {
+        "auto_use_force": {
+            "message": "Die automatische Aktualisierung ist aktiviert und ignoriert Serviceereignisse für die Prognoseaktualisierung. Verwenden Sie stattdessen „Aktualisierung erzwingen“."
+        },
+        "damp_not_for_site": {
+            "message": "Die Site-Dämpfung ist für {site} nicht festgelegt."
+        },
+        "damp_use_all": {
+            "message": "Die Standortdämpfung ist für {site} nicht festgelegt, „all“ ist der einzige verfügbare Standortparameter für den Serviceaufruf."
+        },
+        "damp_no_factors": {
+            "message": "Keine Dämpfungsfaktoren, es muss eine durch Kommas getrennte Liste von Zahlen zwischen 0,0 und 1,0 sein."
+        },
+        "damp_count_not_correct": {
+            "message": "Es gibt keine 24 oder 48 durch Kommas getrennten Zahlen zwischen 0,0 und 1,0."
+        },
+        "damp_no_all_24": {
+            "message": "Bei 24 Faktoren ist die Angabe einer Site „all“ (alle) nicht zulässig. Entfernen Sie die Site aus der Anfrage."
+        },
+        "damp_not_site": {
+            "message": "Keine konfigurierte Site."
+        },
+        "damp_error_parsing": {
+            "message": "Fehler beim Parsen der durch Kommas getrennten Zahlen des Dämpfungsfaktors."
+        },
+        "damp_ouside_range": {
+            "message": "Es liegt ein Wert des Dämpfungsfaktors vor, der nicht zwischen 0,0 und 1,0 liegt."
+        },
+        "hard_empty": {
+            "message": "Leerer harter Grenzwert."
+        },
+        "hard_not_positive_number": {
+            "message": "Der harte Grenzwert ist keine positive Zahl."
         }
     }
 }

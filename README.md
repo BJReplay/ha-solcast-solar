@@ -293,7 +293,11 @@ Select `Forecast Production` and select the `Solcast Solar` option. Click `SAVE`
 
 ### Dampening configuration
 
-It is possible to configure hourly dampening values to account for shading. This may be configured by automation or the integration configuration for total dampening. Per-site dampening is possible by using service calls (but not in the itegration `CONFIGURE` dialogue).
+It is possible to configure periodic dampening values to account for shading. This may be configured by automation or the integration configuration for total dampening (overall hourly dampening only in configuration).
+
+Dampening is applied to future forecasts whenever a forecast is fetched, so forecast history retains the dampening that had been applied at the time. (Note that this method of applying dampening to keep historical dampening levels is introduced in v4.1.9.)
+
+Per-site and per-half hour dampening is possible only by using service calls or modifying a dampening configration file. See below.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png)
 
@@ -311,28 +315,109 @@ You can change the dampening factor value for any hour. Values from 0.0 - 1.0 ar
 > 
 > Factors causing dampening to be appropriate might be when different degrees of shading occur at the start or end of a day in Winter only, where the sun is closer to the horizon and might cause nearby buildings or trees to cast a longer shadow than in other seasons.
 
-#### Per-site dampening
+#### Granular dampening
 
-Setting dampening for individual Solcast sites requires use of the `solcast_solar.set_dampening` service.
+Setting dampening for individual Solcast sites, or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` service, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
 
-This service call accepts a string of hourly dampening factors, and also an optional site identifier.
+The service call accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the service creates or updates the file `solcast-dampening.json` when either a site is specified, or 48 factor values are specified. If setting overall dampening with 48 factors then an optional 'all' site may be specified (or simply omitted for this use case).
 
 ```
 action: solcast_solar.set_dampening
 data:
-  site: 1234-5678-9012-3456
   damp_factor: 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+  #site: 1234-5678-9012-3456
 ```
 
-If a site is not specified then per-site dampening will be removed, and the overall configured dampening will apply to all sites.
+If a site is not specified, and 24 dampening values are given then granular dampening will be removed, and the overall configured hourly dampening will apply to all sites. (Granular dampening may also be disabled using the integration `CONFIGURE` dialogue.)
 
-If per-site dampening is configured for a single site in a multi-site set up then dampening will only apply to the forecasts for that site. Other sites will not be dampened. Dampening for all individual sites may of course be set.
+If granular dampening is configured for a single site in a multi-site set up then that dampening will only apply to the forecasts for that site. Other sites will not be dampened.
+
+Dampening for all individual sites may of course be set, and when this is the case all sites must specify the same number of dampening values, either 24 or 48.
+
+#### Granular dampening file examples
+
+<details><summary><i>Click for examples of dampening files</i></summary>
+
+The following examples can be used as a starter for the format for file-based granular dampening. Make sure that you use your own site IDs rather than the examples. The file should be saved in the Home Assistant config folder and named `solcast-dampening.json`.
+
+Example of hourly dampening for two sites:
+
+```
+{
+  "1111-aaaa-bbbb-2222": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0],
+  "cccc-4444-5555-dddd": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+}
+```
+
+Example of hourly dampening for a single site:
+
+```
+{
+  "eeee-6666-7777-ffff": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+}
+```
+
+Example of half-hourly dampening for two sites:
+
+```
+{
+  "8888-gggg-hhhh-9999": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0],
+  "0000-iiii-jjjj-1111": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+}
+
+Example of half-hourly dampening for all sites:
+
+{
+  "all": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+}
+```
+</details>
+
+#### Reading forecast values in an automation
+
+When calculating dampening using an automation it may be beneficial to use undampened forecast values as input.
+
+This is possible by using the service call `solcast_solar.query_forecast_data`, and including `undampened: true` in the call. If calculating dampening by individual site then the site may also be included in the call.
+
+```
+action: solcast_solar.query_forecast_data
+data:
+  start_date_time: 2024-10-08T12:00:00+11:00
+  end_date_time: 2024-10-08T19:00:00+11:00
+  undampened: true
+  #site: 1111-aaaa-bbbb-2222
+```
+
+Undampened forecast history is retained for just 14 days.
+
+#### Reading dampening values
+
+The currently set dampening factors may be retrieved using the service call "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
+
+If granular dampening is set to specify both individual site factors and an 'all' factors, then attempting retrieval of an individual site factors will result in the 'all' factors being returned, with the 'all' site being noted in the response. This is because an 'all' set of factors overrides the individual site settings in this circumstance.
+
+Example call:
+
+```
+action: solcast_solar.get_dampening
+data:
+  site: b68d-c05a-c2b3-2cf9
+```
+
+Example response:
+
+```
+data:
+  - site: b68d-c05a-c2b3-2cf9
+    damp_factor: >-
+      1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+```
 
 ### Sensor attributes configuration
 
 There are quite a few sensor attributes that can be used as a data source for template sensors, charts, etc., including a per-site breakdown, estimate 10/50/90 values, and per-hour and half hour detailed breakdown for each forecast day.
 
-Many users will not use these attributes, so to cut the clutter (especially in the UI) and also long-term statistics (LTS) generation all of these can be disabled if they are not needed.
+Many users will not use these attributes, so to cut the clutter (especially in the UI and also database statistics storage) generation all of these can be disabled if they are not needed.
 
 By default, all of them are enabled, with the exception of per-site detailedForecast and detailedHourly. (All hourly and half-hourly detail attributes are excluded from being sent to the recorder (the LTS), as these attributes are very large, would result in excessive database growth, and are of little use when considered long-term.)
 
@@ -377,7 +462,8 @@ These are the services for this integration: ([Configuration](#configuration))
 | `solcast_solar.force_update_forecasts` | Force updates the forecast data (performs an update regardless of API usage tracking or auto-update setting) |
 | `solcast_solar.clear_all_solcast_data` | Deletes the `solcast.json` cached file |
 | `solcast_solar.query_forecast_data` | Returns a list of forecast data using a datetime range start - end |
-| `solcast_solar.set_dampening` | Updates the hourly dampening factors |
+| `solcast_solar.set_dampening` | Updates the dampening factors |
+| `solcast_solar.get_dampening` | Get the currently set dampening factors |
 | `solcast_solar.set_hard_limit` | Set inverter forecast hard limit |
 | `solcast_solar.remove_hard_limit` | Remove inverter forecast hard limit |
 
@@ -596,6 +682,13 @@ series:
 * None
 
 ## Changes
+
+v4.1.9
+* Granular dampening to dampen per half hour period by @autoSteve and @isorin
+* Dampening applied at forecast fetch and not to forecast history @autoSteve and @isorin
+* Retrieve un-dampened forecast values using service call by @autoSteve (thanks @Nilogax)
+* Get presently set dampening factors using service call by @autoSteve (thanks @Nilogax)
+* Migration of un-dampened forecast to un-dampened cache on startup by @autoSteve
 
 v4.1.8
 * Automated forecast updates that do not require an automation by @autoSteve and @BJReplay

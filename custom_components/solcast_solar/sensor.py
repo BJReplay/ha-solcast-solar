@@ -73,7 +73,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
         name="Peak Time Today",
         icon="mdi:clock",
         device_class=SensorDeviceClass.TIMESTAMP,
-        #suggested_display_precision=0,
     ),
     "forecast_this_hour": SensorEntityDescription(
         key="forecast_this_hour",
@@ -119,6 +118,7 @@ SENSORS: dict[str, SensorEntityDescription] = {
         name="Forecast Tomorrow",
         icon="mdi:solar-power",
         suggested_display_precision=2,
+        state_class=SensorStateClass.TOTAL,
     ),
     "peak_w_tomorrow": SensorEntityDescription(
         key="peak_w_tomorrow",
@@ -135,7 +135,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
         name="Peak Time Tomorrow",
         icon="mdi:clock",
         device_class=SensorDeviceClass.TIMESTAMP,
-        # suggested_display_precision=0,
     ),
     "api_counter": SensorEntityDescription(
         key="api_counter",
@@ -174,6 +173,7 @@ SENSORS: dict[str, SensorEntityDescription] = {
         name="Forecast D3",
         icon="mdi:solar-power",
         suggested_display_precision=2,
+        state_class=SensorStateClass.TOTAL,
     ),
     "total_kwh_forecast_d4": SensorEntityDescription(
         key="total_kwh_forecast_d4",
@@ -183,6 +183,7 @@ SENSORS: dict[str, SensorEntityDescription] = {
         name="Forecast D4",
         icon="mdi:solar-power",
         suggested_display_precision=2,
+        state_class=SensorStateClass.TOTAL,
     ),
     "total_kwh_forecast_d5": SensorEntityDescription(
         key="total_kwh_forecast_d5",
@@ -192,6 +193,7 @@ SENSORS: dict[str, SensorEntityDescription] = {
         name="Forecast D5",
         icon="mdi:solar-power",
         suggested_display_precision=2,
+        state_class=SensorStateClass.TOTAL,
     ),
     "total_kwh_forecast_d6": SensorEntityDescription(
         key="total_kwh_forecast_d6",
@@ -201,6 +203,7 @@ SENSORS: dict[str, SensorEntityDescription] = {
         name="Forecast D6",
         icon="mdi:solar-power",
         suggested_display_precision=2,
+        state_class=SensorStateClass.TOTAL,
     ),
     "total_kwh_forecast_d7": SensorEntityDescription(
         key="total_kwh_forecast_d7",
@@ -210,6 +213,7 @@ SENSORS: dict[str, SensorEntityDescription] = {
         name="Forecast D7",
         icon="mdi:solar-power",
         suggested_display_precision=2,
+        state_class=SensorStateClass.TOTAL,
     ),
     "power_now": SensorEntityDescription(
         key="power_now",

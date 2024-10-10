@@ -1,6 +1,6 @@
 """Config flow for Solcast Solar integration."""
 
-# pylint: disable=C0304, E0401, W0702
+# pylint: disable=C0304, E0401, W0702, W0703
 
 from __future__ import annotations
 from typing import Any
@@ -187,6 +187,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         half_hourly = self.config_entry.options[BRK_HALFHOURLY]
         hourly = self.config_entry.options[BRK_HOURLY]
         site_detailed = self.config_entry.options[BRK_SITE_DETAILED]
+        granular_dampening = self.config_entry.options[SITE_DAMP]
 
         if user_input is not None:
             try:
@@ -204,9 +205,9 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     if not q.isnumeric():
                         return self.async_abort(reason="API limit not numeric!")
                     if int(q) < 1:
-                        return self.async_abort(reason="API limit must be greater than 1!")
+                        return self.async_abort(reason="API limit must be one  or greater!")
                 if len(api_quota) > api_count:
-                    return self.async_abort(reason="API limit count more than keys!")
+                    return self.async_abort(reason="There are more API limit counts entered than keys!")
                 api_quota = ','.join(api_quota)
                 all_config_data[API_QUOTA] = api_quota
 
@@ -234,18 +235,21 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 site_detailed = user_input[BRK_SITE_DETAILED]
                 all_config_data[BRK_SITE_DETAILED] = site_detailed
 
+                if user_input.get(SITE_DAMP) is not None:
+                    all_config_data[SITE_DAMP] = user_input[SITE_DAMP]
+
                 self.hass.config_entries.async_update_entry(
                     self.config_entry,
                     title=TITLE,
                     options=all_config_data,
                 )
 
-                if user_input[CONFIG_DAMP]:
+                if user_input.get(CONFIG_DAMP):
                     return await self.async_step_dampen()
 
                 return self.async_create_entry(title=TITLE, data=None)
-            except:
-                errors["base"] = "unknown"
+            except Exception as e:
+                errors["base"] = str(e)
 
         update: list[SelectOptionDict] = [
             SelectOptionDict(label="none", value="0"),
@@ -280,7 +284,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     vol.Optional(BRK_HALFHOURLY, default=half_hourly): bool,
                     vol.Optional(BRK_HOURLY, default=hourly): bool,
                     vol.Optional(BRK_SITE_DETAILED, default=site_detailed): bool,
-                    vol.Optional(CONFIG_DAMP, default=False): bool,
+                    (vol.Optional(CONFIG_DAMP, default=False) if not granular_dampening else vol.Optional(SITE_DAMP, default=granular_dampening)): bool,
                 }
             ),
             errors=errors

@@ -30,8 +30,10 @@
                     "attr_brk_site": "Povoliť atribúty senzora rozdelenia stránok",
                     "attr_brk_halfhourly": "Povoliť polhodinové podrobné atribúty prognózy",
                     "attr_brk_hourly": "Povoliť hodinové podrobné atribúty prognózy",
-                    "attr_brk_detailed": "Povoliť rozdelenie stránok pre polhodinové/hodinové atribúty podrobností (tieto sa neuložia do dlhodobých štatistík)",
-                    "config_damp": "Upravte hodinové faktory tlmenia (po kliknutí na odoslať)"
+                    "attr_brk_detailed": "Povoliť rozdelenie stránok pre polhodinové/hodinové atribúty podrobností (tieto sa neuložia do atribútov stavu databázy)",
+                    "config_damp": "Upravte hodinové faktory tlmenia (po kliknutí na odoslať)",
+                    "site_damp": "Granulované tlmenie je nastavené: Clear pre návrat k celkovému hodinovému tlmeniu"
+
                 },
                 "description": "Solcast možnosti konfigurácie"
             },
@@ -117,20 +119,39 @@
                 "end_date_time": {
                     "name": "Dátum ukončenia čas",
                     "description": "Dopytujte udalosti predpovede údajov o aktuálnom čase."
-                }
-            }
-        },
-        "set_dampening": {
-            "name": "Nastavte tlmenie predpovedí",
-            "description": "Nastavte hodinový faktor tlmenia predpovede.",
-            "fields": {
-                "damp_factor": {
-                    "name": "Tlmiaci reťazec",
-                    "description": "Reťazec hodnôt hodinového faktora tlmenia oddelený čiarkou."
+                },
+                "undampened": {
+                    "name": "Netlmené",
+                    "description": "Voliteľná booleovská hodnota na získanie netlmenej predpovede"
                 },
                 "site": {
                     "name": "ID lokality",
-                    "description": "Voliteľný identifikátor lokality na nastavenie rozdelenia. (Poznámka: Vynechaním lokality sa vymažú všetky tlmenia jednotlivých lokalít.)"
+                    "description": "Voliteľná lokalita na získanie prognózy jednej lokality"
+                }
+            }
+        },
+        "get_dampening": {
+            "name": "Získajte tlmenie predpovedí",
+            "description": "Získajte predpovedané tlmiace faktory.",
+            "fields": {
+                "site": {
+                    "name": "ID lokality",
+                    "description": "Voliteľné miesto na tlmenie. (Poznámka: Nebude fungovať, ak nie je povolené granulárne tlmenie.)"
+                }
+            }
+
+        },
+        "set_dampening": {
+            "name": "Nastavte tlmenie predpovedí",
+            "description": "Nastavte faktory tlmenia prognózy.",
+            "fields": {
+                "damp_factor": {
+                    "name": "Tlmiaci reťazec",
+                    "description": "Reťazec hodnôt tlmiaceho faktora oddelený čiarkou (24 alebo 48 hodnôt)."
+                },
+                "site": {
+                    "name": "ID lokality",
+                    "description": "Voliteľné miesto na nastavenie tlmenia na mieste. (Poznámka: Vynechaním lokality sa vymaže tlmenie pre jednotlivé lokality, pokiaľ nie sú hodnoty 48.)"
                 }
             }
         },
@@ -177,6 +198,41 @@
         },
         "select": {
             "estimate_mode" : {"name": "Použiť pole predpovede"}
+        }
+    },
+    "exceptions": {
+        "auto_use_force": {
+            "message": "Automatická aktualizácia je povolená, pri aktualizácii prognózy sa ignoruje udalosť služby, namiesto toho použite vynútenie aktualizácie."
+        },
+        "damp_not_for_site": {
+            "message": "Tlmenie stránok nie je nastavené pre {site}."
+        },
+        "damp_use_all": {
+            "message": "Tlmenie stránky nie je nastavené pre {site}, 'all' je jediný dostupný parameter stránky pre servisné volanie."
+        },
+        "damp_no_factors": {
+            "message": "Žiadne tlmiace faktory, musí to byť čiarkami oddelený zoznam čísel medzi 0,0 a 1,0."
+        },
+        "damp_count_not_correct": {
+            "message": "Medzi 0,0 a 1,0 nie je 24 alebo 48 čiarkami oddelených čísel."
+        },
+        "damp_no_all_24": {
+            "message": "Zadanie stránky „všetky“ nie je povolené s 24 faktormi, odstráňte stránku zo žiadosti."
+        },
+        "damp_not_site": {
+            "message": "Nie je to nakonfigurovaná lokalita."
+        },
+        "damp_error_parsing": {
+            "message": "Chyba pri analýze tlmiaceho faktora oddelených čiarkami."
+        },
+        "damp_ouside_range": {
+            "message": "Prítomná hodnota faktora tlmenia, ktorá nie je medzi 0,0 a 1,0."
+        },
+        "hard_empty": {
+            "message": "Prázdna hodnota pevného limitu."
+        },
+        "hard_not_positive_number": {
+            "message": "Hodnota pevného limitu nie je kladné číslo."
         }
     }
 }

@@ -15,7 +15,7 @@ import asyncio
 
 from homeassistant.core import HomeAssistant # type: ignore
 from homeassistant.helpers.event import async_track_utc_time_change # type: ignore
-from homeassistant.exceptions import HomeAssistantError # type: ignore
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError # type: ignore
 from homeassistant.helpers.sun import get_astral_event_next # type: ignore
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator # type: ignore
@@ -53,6 +53,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._data_updated: bool = False
         self._sunrise: dt = None
         self._sunset: dt = None
+        self._sunrise_tomorrow: dt = None
+        self._sunset_tomorrow: dt = None
         self._intervals: list[dt] = []
 
         super().__init__(hass, _LOGGER, name=DOMAIN)
@@ -81,20 +83,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         except:
             _LOGGER.error("Exception in coordinator setup: %s", traceback.format_exc())
 
-    async def __restart_time_track_midnight_update(self):
-        """Cancel and restart UTC time change tracker"""
-        try:
-            _LOGGER.warning('Restarting midnight UTC timer')
-            try:
-                self.tasks['midnight_update']() # Cancel the tracker
-                _LOGGER.debug('Cancelled coodinator task midnight_update')
-            except:
-                pass
-            self.tasks['midnight_update'] = async_track_utc_time_change(self._hass, self.__update_utcmidnight_usage_sensor_data,  hour=0, minute=0, second=0)
-            _LOGGER.debug('Started coordinator task midnight_update')
-        except:
-            _LOGGER.error("Exception in __restart_time_track_midnight_update(): %s", traceback.format_exc())
-
     async def update_integration_listeners(self, *args):
         """Get updated sensor values."""
         try:
@@ -113,6 +101,20 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             #_LOGGER.error("Exception in update_integration_listeners(): %s", traceback.format_exc())
             pass
 
+    async def __restart_time_track_midnight_update(self):
+        """Cancel and restart UTC time change tracker"""
+        try:
+            _LOGGER.warning('Restarting midnight UTC timer')
+            try:
+                self.tasks['midnight_update']() # Cancel the tracker
+                _LOGGER.debug('Cancelled coodinator task midnight_update')
+            except:
+                pass
+            self.tasks['midnight_update'] = async_track_utc_time_change(self._hass, self.__update_utcmidnight_usage_sensor_data,  hour=0, minute=0, second=0)
+            _LOGGER.debug('Started coordinator task midnight_update')
+        except:
+            _LOGGER.error("Exception in __restart_time_track_midnight_update(): %s", traceback.format_exc())
+
     async def __check_forecast_fetch(self, *args):
         """Check for an auto forecast update event."""
         try:
@@ -127,13 +129,14 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         try:
                             await asyncio.sleep(update_in)
                             self._intervals = self._intervals[1:]
-                            await self.forecast_update()
+                            await self.__forecast_update()
                             if len(self._intervals) > 0:
                                 _LOGGER.debug('Next forecast update scheduled for %s', self._intervals[0].astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
                         except asyncio.CancelledError:
                             _LOGGER.debug('Cancelled next scheduled update')
                         finally:
-                            self.tasks.pop('pending_update')
+                            if self.tasks.get('pending_update') is not None:
+                                self.tasks.pop('pending_update')
                     self.tasks['pending_update'] = asyncio.create_task(wait_for_fetch())
         except:
             _LOGGER.error("Exception in __check_forecast_fetch(): %s", traceback.format_exc())
@@ -164,7 +167,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     self.__calculate_forecast_updates(init=init)
                 case 2:
                     self._sunrise = self.solcast.get_day_start_utc()
-                    self._sunset = self.solcast.get_day_start_utc() + timedelta(hours=24)
+                    self._sunset = self._sunrise + timedelta(hours=24)
+                    self._sunrise_tomorrow = self._sunset
+                    self._sunset_tomorrow = self._sunrise_tomorrow + timedelta(hours=24)
                     self.__calculate_forecast_updates(init=init)
                 case _:
                     pass
@@ -172,9 +177,15 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Exception in __auto_update_setup(): %s", traceback.format_exc())
 
     def __get_sun_rise_set(self):
-        """Get the sunrise and sunset times today"""
-        self._sunrise = get_astral_event_next(self._hass, "sunrise", self.solcast.get_day_start_utc()).replace(microsecond=0)
-        self._sunset = get_astral_event_next(self._hass, "sunset", self.solcast.get_day_start_utc()).replace(microsecond=0)
+        """Get the sunrise and sunset times for today and tomorrow."""
+
+        def sun_rise_set(daystart):
+            sunrise = get_astral_event_next(self._hass, "sunrise", daystart).replace(microsecond=0)
+            sunset = get_astral_event_next(self._hass, "sunset", daystart).replace(microsecond=0)
+            return sunrise, sunset
+
+        self._sunrise, self._sunset = sun_rise_set(self.solcast.get_day_start_utc())
+        self._sunrise_tomorrow, self._sunset_tomorrow = sun_rise_set(self.solcast.get_day_start_utc() + timedelta(hours=24))
         _LOGGER.debug('Sunrise today: %s', self._sunrise.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
         _LOGGER.debug('Sunset today: %s', self._sunset.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
 
@@ -184,21 +195,32 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         This is an even spread between sunrise and sunset.
         """
         try:
-            seconds = int((self._sunset - self._sunrise).total_seconds())
             divisions = int(self.solcast.get_api_limit() / round(len(self.solcast.sites) / len(self.solcast.options.api_key.split(",")), 0))
-            interval = int(seconds / divisions)
-            self._intervals = [(self._sunrise + timedelta(seconds=interval) * i) for i in range(0,divisions)]
-            self._intervals = [i for i in self._intervals if i > self.solcast.get_now_utc()]
-            _LOGGER.debug('Auto update: Total seconds %d, divisions: %d updates, interval: %d seconds', seconds, divisions, interval)
-            if init:
-                _LOGGER.info('Auto-update will update forecasts %d times %s', divisions, 'over 24 hours' if self.solcast.options.auto_update > 1 else 'between sunrise and sunset')
-            for i in self._intervals:
-                _LOGGER.debug('Scheduled forecast update at %s', i.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
+
+            def get_intervals(sunrise: dt, sunset: dt, log=True):
+                seconds = int((sunset - sunrise).total_seconds())
+                interval = int(seconds / divisions)
+                intervals = [(sunrise + timedelta(seconds=interval) * i) for i in range(0, divisions)]
+                intervals = [i for i in intervals if i > self.solcast.get_now_utc()]
+                if log:
+                    _LOGGER.debug('Auto update: Total seconds %d, divisions: %d updates, interval: %d seconds', seconds, divisions, interval)
+                    if init:
+                        _LOGGER.info('Auto-update will update forecasts %d times %s', divisions, 'over 24 hours' if self.solcast.options.auto_update > 1 else 'between sunrise and sunset')
+                return len(intervals), intervals
+
+            count_today, self._intervals = get_intervals(self._sunrise, self._sunset)
+            count_tomorrow, intervals_tomorrow = get_intervals(self._sunrise_tomorrow, self._sunset_tomorrow, log=False)
+
+            for idx, i in enumerate(self._intervals + intervals_tomorrow):
+                _LOGGER.info('Auto-scheduled forecast update at %s', i.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
+                if idx == min(count_today + count_tomorrow, divisions) - 1:
+                    break
         except:
             _LOGGER.error("Exception in __calculate_forecast_updates(): %s", traceback.format_exc())
 
-    async def forecast_update(self, force=False):
+    async def __forecast_update(self, force=False):
         """Get updated forecast data."""
+
         _LOGGER.debug('Checking for stale usage cache')
         if self.solcast.is_stale_usage_cache():
             _LOGGER.warning('Usage cache reset time is stale, last reset was more than 24-hours ago, resetting API usage')
@@ -212,16 +234,24 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._data_updated = False
 
     async def service_event_update(self, *args):
-        """Get updated forecast data when requested by a service call."""
+        """Get updated forecast data when requested by a service call.
+
+        Raises:
+            ServiceValidationError: Notify Home Assistant that an error has occurred, with translation.
+        """
         if self.solcast.options.auto_update > 0:
-            raise HomeAssistantError("Auto-update is enabled, ignoring service event for forecast update, use Solcast PV Forecast: Force Update instead.")
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_force")
         else:
-            await self.forecast_update()
+            await self.__forecast_update()
 
     async def service_event_force_update(self, *args):
-        """Force the update of forecast data when requested by a service call. Ignores API usage/limit counts."""
+        """Force the update of forecast data when requested by a service call. Ignores API usage/limit counts.
+
+        Raises:
+            HomeAssistantError: Notify Home Assistant that an error has occurred.
+        """
         try:
-            await self.forecast_update(force=True)
+            await self.__forecast_update(force=True)
         except Exception as e:
             _LOGGER.error("Exception in service_event_force_update(): %s", traceback.format_exc())
             raise HomeAssistantError(f"Force update failed: {e}.") from e

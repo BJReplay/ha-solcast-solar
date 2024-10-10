@@ -30,9 +30,9 @@ DOMAIN = "solcast_solar"
 ENTRY_TYPE_SERVICE: Final = "service"
 HARD_LIMIT = "hard_limit"
 INIT_MSG = """This is a custom integration. When troubleshooting a problem, after
-reviewing open and closed issues, and the discussions, check the
-required automation is functioning correctly and try enabling debug
-logging to see more. Troubleshooting tips available at:
+reviewing open and closed issues, and the discussions, check any
+automation is functioning correctly (unless auto-update is
+enabled). Troubleshooting tips available at:
 https://github.com/BJReplay/ha-solcast-solar/discussions/38
 
 Beta versions may also have addressed issues so look at those.
@@ -43,6 +43,7 @@ KEY_ESTIMATE = "key_estimate"
 MANUFACTURER = "BJReplay"
 SERVICE_CLEAR_DATA = "clear_all_solcast_data"
 SERVICE_FORCE_UPDATE = "force_update_forecasts"
+SERVICE_GET_DAMPENING = "get_dampening"
 SERVICE_QUERY_FORECAST_DATA = "query_forecast_data"
 SERVICE_REMOVE_HARD_LIMIT = "remove_hard_limit"
 SERVICE_SET_DAMPENING = "set_dampening"
