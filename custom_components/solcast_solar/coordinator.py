@@ -175,13 +175,15 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Exception in __auto_update_setup(): %s", traceback.format_exc())
 
     def __get_sun_rise_set(self):
-        """Get the sunrise and sunset times today"""
-        self._sunrise = get_astral_event_next(self._hass, "sunrise", self.solcast.get_day_start_utc()).replace(microsecond=0)
-        self._sunset = get_astral_event_next(self._hass, "sunset", self.solcast.get_day_start_utc()).replace(microsecond=0)
+        """Get the sunrise and sunset times for today and tomorrow."""
 
-        self._sunrise_tomorrow = get_astral_event_next(self._hass, "sunrise", self.solcast.get_day_start_utc() + timedelta(hours=24)).replace(microsecond=0)
-        self._sunset_tomorrow = get_astral_event_next(self._hass, "sunset", self.solcast.get_day_start_utc() + timedelta(hours=24)).replace(microsecond=0)
+        def sun_rise_set(daystart):
+            sunrise = get_astral_event_next(self._hass, "sunrise", daystart).replace(microsecond=0)
+            sunset = get_astral_event_next(self._hass, "sunset", daystart).replace(microsecond=0)
+            return sunrise, sunset
 
+        self._sunrise, self._sunset = sun_rise_set(self.solcast.get_day_start_utc())
+        self._sunrise_tomorrow, self._sunset_tomorrow = sun_rise_set(self.solcast.get_day_start_utc() + timedelta(hours=24))
         _LOGGER.debug('Sunrise today: %s', self._sunrise.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
         _LOGGER.debug('Sunset today: %s', self._sunset.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
 
@@ -216,6 +218,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     async def __forecast_update(self, force=False):
         """Get updated forecast data."""
+
         _LOGGER.debug('Checking for stale usage cache')
         if self.solcast.is_stale_usage_cache():
             _LOGGER.warning('Usage cache reset time is stale, last reset was more than 24-hours ago, resetting API usage')
