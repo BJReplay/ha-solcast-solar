@@ -53,6 +53,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._data_updated: bool = False
         self._sunrise: dt = None
         self._sunset: dt = None
+        self._sunrise_tomorrow: dt = None
+        self._sunset_tomorrow: dt = None
         self._intervals: list[dt] = []
 
         super().__init__(hass, _LOGGER, name=DOMAIN)
@@ -176,6 +178,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """Get the sunrise and sunset times today"""
         self._sunrise = get_astral_event_next(self._hass, "sunrise", self.solcast.get_day_start_utc()).replace(microsecond=0)
         self._sunset = get_astral_event_next(self._hass, "sunset", self.solcast.get_day_start_utc()).replace(microsecond=0)
+
+        self._sunrise_tomorrow = get_astral_event_next(self._hass, "sunrise", self.solcast.get_day_start_utc() + timedelta(hours=24)).replace(microsecond=0)
+        self._sunset_tomorrow = get_astral_event_next(self._hass, "sunset", self.solcast.get_day_start_utc() + timedelta(hours=24)).replace(microsecond=0)
+
         _LOGGER.debug('Sunrise today: %s', self._sunrise.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
         _LOGGER.debug('Sunset today: %s', self._sunset.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
 
@@ -185,16 +191,26 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         This is an even spread between sunrise and sunset.
         """
         try:
-            seconds = int((self._sunset - self._sunrise).total_seconds())
             divisions = int(self.solcast.get_api_limit() / round(len(self.solcast.sites) / len(self.solcast.options.api_key.split(",")), 0))
-            interval = int(seconds / divisions)
-            self._intervals = [(self._sunrise + timedelta(seconds=interval) * i) for i in range(0,divisions)]
-            self._intervals = [i for i in self._intervals if i > self.solcast.get_now_utc()]
-            _LOGGER.debug('Auto update: Total seconds %d, divisions: %d updates, interval: %d seconds', seconds, divisions, interval)
-            if init:
-                _LOGGER.info('Auto-update will update forecasts %d times %s', divisions, 'over 24 hours' if self.solcast.options.auto_update > 1 else 'between sunrise and sunset')
-            for i in self._intervals:
+
+            def get_intervals(sunrise: dt, sunset: dt, log=True):
+                seconds = int((sunset - sunrise).total_seconds())
+                interval = int(seconds / divisions)
+                intervals = [(sunrise + timedelta(seconds=interval) * i) for i in range(0, divisions)]
+                intervals = [i for i in intervals if i > self.solcast.get_now_utc()]
+                if log:
+                    _LOGGER.debug('Auto update: Total seconds %d, divisions: %d updates, interval: %d seconds', seconds, divisions, interval)
+                    if init:
+                        _LOGGER.info('Auto-update will update forecasts %d times %s', divisions, 'over 24 hours' if self.solcast.options.auto_update > 1 else 'between sunrise and sunset')
+                return len(intervals), intervals
+
+            count_today, self._intervals = get_intervals(self._sunrise, self._sunset)
+            count_tomorrow, intervals_tomorrow = get_intervals(self._sunrise_tomorrow, self._sunset_tomorrow, log=False)
+
+            for idx, i in enumerate(self._intervals + intervals_tomorrow):
                 _LOGGER.debug('Scheduled forecast update at %s', i.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
+                if idx == max(count_today + count_tomorrow, divisions) - 1:
+                    break
         except:
             _LOGGER.error("Exception in __calculate_forecast_updates(): %s", traceback.format_exc())
 
