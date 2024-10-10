@@ -212,7 +212,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             count_tomorrow, intervals_tomorrow = get_intervals(self._sunrise_tomorrow, self._sunset_tomorrow, log=False)
 
             for idx, i in enumerate(self._intervals + intervals_tomorrow):
-                _LOGGER.debug('Scheduled forecast update at %s', i.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
+                _LOGGER.info('Auto-scheduled forecast update at %s', i.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
                 if idx == min(count_today + count_tomorrow, divisions) - 1:
                     break
         except:
