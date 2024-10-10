@@ -167,7 +167,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     self.__calculate_forecast_updates(init=init)
                 case 2:
                     self._sunrise = self.solcast.get_day_start_utc()
-                    self._sunset = self.solcast.get_day_start_utc() + timedelta(hours=24)
+                    self._sunset = self._sunrise + timedelta(hours=24)
+                    self._sunrise_tomorrow = self._sunset
+                    self._sunset_tomorrow = self._sunrise_tomorrow + timedelta(hours=24)
                     self.__calculate_forecast_updates(init=init)
                 case _:
                     pass
@@ -211,7 +213,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
             for idx, i in enumerate(self._intervals + intervals_tomorrow):
                 _LOGGER.debug('Scheduled forecast update at %s', i.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
-                if idx == max(count_today + count_tomorrow, divisions) - 1:
+                if idx == min(count_today + count_tomorrow, divisions) - 1:
                     break
         except:
             _LOGGER.error("Exception in __calculate_forecast_updates(): %s", traceback.format_exc())
