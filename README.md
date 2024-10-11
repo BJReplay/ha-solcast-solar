@@ -150,10 +150,7 @@ Make sure you use your `API Key` and not your rooftop id created in Solcast. You
 ### Auto-update of forecasts
 Using auto-update will get forecast updates that are automatically spread across hours when the sun is up, or alternatively over a 24-hour period. It calculates the number of daily updates that will occur according to the number of Solcast sites and the API limit that is configured.
 
-> [!NOTE]
-> Only available in v4.1.8 pre-release
-> 
-> Note that auto-update of forecasts is only available in v4.1.8 or later releases and is currently **only available in pre-release**. 
+_Note that auto-update of forecasts is only available in v4.1.8 or later (currently only available in pre-release)._
 
 Should it be desired to fetch an update ouside of these hours, then the API limit in the integration configuration may be reduced, and an automation may then be set up to call the service `solcast_solar.force_update_forecasts` at the desired time of day. (Note that calling the service `solcast_solar.update_forecasts` will be refused if auto-update is enabled, so use force update instead.)
 
@@ -322,7 +319,7 @@ You can change the dampening factor value for any hour. Values from 0.0 - 1.0 ar
 
 #### Granular dampening
 
-*Note that granular dampening is only available in v4.1.9 or later (currently only available in pre-release).*
+_Note that granular dampening is only available in v4.1.9 or later (currently only available in pre-release)._
 
 Setting dampening for individual Solcast sites, or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` service, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
 
@@ -382,7 +379,7 @@ Example of half-hourly dampening for all sites:
 
 #### Reading forecast values in an automation
 
-*Note that getting undampened forecasts and granular dampening is only available in v4.1.9 or later  (currently only available in pre-release).*
+_Note that getting undampened forecasts and granular dampening is only available in v4.1.9 or later  (currently only available in pre-release)._
 
 When calculating dampening using an automation it may be beneficial to use undampened forecast values as input.
 
@@ -401,7 +398,7 @@ Undampened forecast history is retained for just 14 days.
 
 #### Reading dampening values
 
-*Note that this service call is only available in v4.1.9 or later (currently only available in pre-release).*
+_Note that this service call is only available in v4.1.9 or later (currently only available in pre-release)._
 
 The currently set dampening factors may be retrieved using the service call "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
 
@@ -430,7 +427,7 @@ There are quite a few sensor attributes that can be used as a data source for te
 
 Many users will not use these attributes, so to cut the clutter (especially in the UI and also database statistics storage) generation all of these can be disabled if they are not needed.
 
-By default, all of them are enabled, with the exception of per-site detailedForecast and detailedHourly. (All hourly and half-hourly detail attributes are excluded from being sent to the recorder (the LTS), as these attributes are very large, would result in excessive database growth, and are of little use when considered long-term.)
+By default, all of them are enabled, with the exception of per-site detailedForecast and detailedHourly. (All hourly and half-hourly detail attributes are excluded from being sent to the Home Assistant recorder, as these attributes are very large, would result in excessive database growth, and are of little use when considered long-term.)
 
 > [!NOTE]
 >
@@ -694,14 +691,24 @@ series:
 
 ## Changes
 
-v4.1.9
+v4.2.0
+* Generally available release of v4.1.8 and v4.1.9 pre-release features
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.7...v4.2.0
+
+Most recent changes: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.9...v4.2.0
+
+
+v4.1.9 pre-release
 * Granular dampening to dampen per half hour period by @autoSteve and @isorin
 * Dampening applied at forecast fetch and not to forecast history @autoSteve and @isorin
 * Retrieve un-dampened forecast values using service call by @autoSteve (thanks @Nilogax)
 * Get presently set dampening factors using service call by @autoSteve (thanks @Nilogax)
 * Migration of un-dampened forecast to un-dampened cache on startup by @autoSteve
 
-v4.1.8
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.9...v4.1.9
+
+v4.1.8 pre-release
 * Automated forecast updates that do not require an automation by @autoSteve and @BJReplay
 * Add per-site dampening by @autoSteve
 * Add site breakdown option for detailed forecasts by @autoSteve
@@ -721,7 +728,7 @@ v4.1.6
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.5...v4.1.6
 
-v4.1.5
+v4.1.5 pre-release
 * Bug: Timestamp stored in usage cache was wrong by @autoSteve
 * Bug: Adding API key reset usage for first key by @autoSteve
 * Bug: Missing iterator in new sites check by @autoSteve
@@ -730,7 +737,7 @@ v4.1.5
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.4...v4.1.5
 
-v4.1.4
+v4.1.4 pre-release
 * Update Polish translation by @home409ca
 * Rename integration in HACS to Solcast PV Forecast by @BJReplay
 * Reduce aiofiles version requirement to >=23.2.0 by @autoSteve
@@ -781,7 +788,7 @@ v4.1
 
 Release Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.31...v4.1.0
 
-Most Recent Changes: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.43...v4.1.0
+Most recent changes: https://github.com/BJReplay/ha-solcast-solar/compare/v4.0.43...v4.1.0
 
 ### Prior changes
 <details><summary><i>Click here for changes back to v3.0</i></summary>
