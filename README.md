@@ -317,6 +317,8 @@ You can change the dampening factor value for any hour. Values from 0.0 - 1.0 ar
 
 #### Granular dampening
 
+*Note that granular dampening is only available in v4.1.9 or later (currently only available in pre-release).*
+
 Setting dampening for individual Solcast sites, or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` service, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
 
 The service call accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the service creates or updates the file `solcast-dampening.json` when either a site is specified, or 48 factor values are specified. If setting overall dampening with 48 factors then an optional 'all' site may be specified (or simply omitted for this use case).
@@ -375,9 +377,11 @@ Example of half-hourly dampening for all sites:
 
 #### Reading forecast values in an automation
 
+*Note that getting undampened forecasts and granular dampening is only available in v4.1.9 or later  (currently only available in pre-release).*
+
 When calculating dampening using an automation it may be beneficial to use undampened forecast values as input.
 
-This is possible by using the service call `solcast_solar.query_forecast_data`, and including `undampened: true` in the call. If calculating dampening by individual site then the site may also be included in the call.
+This is possible by using the service call `solcast_solar.query_forecast_data`, and including `undampened: true` in the call. If using granular dampening then the site may also be included in the call.
 
 ```
 action: solcast_solar.query_forecast_data
@@ -391,6 +395,8 @@ data:
 Undampened forecast history is retained for just 14 days.
 
 #### Reading dampening values
+
+*Note that this service call is only available in v4.1.9 or later (currently only available in pre-release).*
 
 The currently set dampening factors may be retrieved using the service call "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
 
