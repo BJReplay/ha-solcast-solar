@@ -186,8 +186,11 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         self._sunrise, self._sunset = sun_rise_set(self.solcast.get_day_start_utc())
         self._sunrise_tomorrow, self._sunset_tomorrow = sun_rise_set(self.solcast.get_day_start_utc() + timedelta(hours=24))
-        _LOGGER.debug('Sunrise today: %s', self._sunrise.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
-        _LOGGER.debug('Sunset today: %s', self._sunset.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
+        _LOGGER.debug(
+            'Sun rise / set today: %s / %s',
+            self._sunrise.astimezone(self.solcast.options.tz).strftime('%H:%M:%S'),
+            self._sunset.astimezone(self.solcast.options.tz).strftime('%H:%M:%S')
+        )
 
     def __calculate_forecast_updates(self, init=False):
         """Calculate all automated forecast update UTC events for the day.
@@ -206,15 +209,19 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     _LOGGER.debug('Auto update: Total seconds %d, divisions: %d updates, interval: %d seconds', seconds, divisions, interval)
                     if init:
                         _LOGGER.info('Auto-update will update forecasts %d times %s', divisions, 'over 24 hours' if self.solcast.options.auto_update > 1 else 'between sunrise and sunset')
-                return len(intervals), intervals
+                return intervals
 
-            count_today, self._intervals = get_intervals(self._sunrise, self._sunset)
-            count_tomorrow, intervals_tomorrow = get_intervals(self._sunrise_tomorrow, self._sunset_tomorrow, log=False)
+            self._intervals = get_intervals(self._sunrise, self._sunset)
 
-            for idx, i in enumerate(self._intervals + intervals_tomorrow):
-                _LOGGER.info('Auto-scheduled forecast update at %s', i.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
-                if idx == min(count_today + count_tomorrow, divisions) - 1:
-                    break
+            def format_intervals(intervals):
+                return [i.astimezone(self.solcast.options.tz).strftime('%H:%M') if len(intervals) > 5 else i.astimezone(self.solcast.options.tz).strftime('%H:%M:%S') for i in intervals]
+
+            intervals_today = format_intervals(self._intervals)
+            if len(intervals_today) > 0:
+                _LOGGER.info('Auto-scheduled forecast update for today at %s', ', '.join(intervals_today))
+            if len(intervals_today) < divisions: # Only log tomorrow if part-way though today, or today has no more updates
+                intervals_tomorrow = format_intervals(get_intervals(self._sunrise_tomorrow, self._sunset_tomorrow, log=False))
+                _LOGGER.info('Auto-scheduled forecast update for tomorrow at %s', ', '.join(intervals_tomorrow))
         except:
             _LOGGER.error("Exception in __calculate_forecast_updates(): %s", traceback.format_exc())
 
