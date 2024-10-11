@@ -213,11 +213,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         raise ConfigEntryNotReady(status)
 
     coordinator = SolcastUpdateCoordinator(hass, solcast, version)
-
     await coordinator.setup()
-
     await coordinator.async_config_entry_first_refresh()
-
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -232,16 +229,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data[DOMAIN]['has_loaded'] = True
 
-    # Schedule sunrise/sunset update at midnight, and also execute it now
-
-    # If the integration has been failed for some time and then is restarted retrieve forecasts (i.e Home Assistant down).
+    # If the integration has been failed for some time and then is restarted retrieve forecasts (i.e Home Assistant down for a while).
     if solcast.is_stale_data():
         try:
             _LOGGER.info('First start, or integration has been failed for some time, retrieving forecasts (or your update automation has not been running - see readme)')
             await coordinator.service_event_force_update()
         except Exception as e:
-            _LOGGER.error("Exception force fetching data on stale/initial start: %s", e)
-            _LOGGER.error(traceback.format_exc())
+            _LOGGER.error("Exception force fetching data on stale/initial start: %s: %s", e, traceback.format_exc())
+            _LOGGER.warning("Continuing...")
 
     async def handle_service_update_forecast(call: ServiceCall):
         """Handle service call.

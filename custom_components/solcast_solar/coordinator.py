@@ -72,16 +72,16 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """Set up time change tracking."""
         self._last_day = dt.now(self.solcast.options.tz).day
         try:
+            self.__auto_update_setup(init=True)
+            await self.__check_forecast_fetch()
+
             self.tasks['listeners'] = async_track_utc_time_change(self._hass, self.update_integration_listeners, minute=range(0, 60, 5), second=0)
             self.tasks['check_fetch'] = async_track_utc_time_change(self._hass, self.__check_forecast_fetch, minute=range(0, 60, 5), second=0)
             self.tasks['midnight_update'] = async_track_utc_time_change(self._hass, self.__update_utcmidnight_usage_sensor_data,  hour=0, minute=0, second=0)
             for timer, _ in self.tasks.items():
-                _LOGGER.debug('Started coordinator task %s', timer)
-
-            self.__auto_update_setup(init=True)
-            await self.__check_forecast_fetch()
+                _LOGGER.debug('Started task %s', timer)
         except:
-            _LOGGER.error("Exception in coordinator setup: %s", traceback.format_exc())
+            _LOGGER.error("Exception in setup: %s", traceback.format_exc())
 
     async def update_integration_listeners(self, *args):
         """Get updated sensor values."""
@@ -107,11 +107,11 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.warning('Restarting midnight UTC timer')
             try:
                 self.tasks['midnight_update']() # Cancel the tracker
-                _LOGGER.debug('Cancelled coodinator task midnight_update')
+                _LOGGER.debug('Cancelled task midnight_update')
             except:
                 pass
             self.tasks['midnight_update'] = async_track_utc_time_change(self._hass, self.__update_utcmidnight_usage_sensor_data,  hour=0, minute=0, second=0)
-            _LOGGER.debug('Started coordinator task midnight_update')
+            _LOGGER.debug('Started task midnight_update')
         except:
             _LOGGER.error("Exception in __restart_time_track_midnight_update(): %s", traceback.format_exc())
 
@@ -120,14 +120,16 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         try:
             if self.solcast.options.auto_update:
                 if len(self._intervals) > 0 and self._intervals[0] < self.solcast.get_now_utc() + timedelta(minutes=5):
+                    update_in = (self._intervals[0] - self.solcast.get_now_utc()).total_seconds()
                     if self.tasks.get('pending_update') is not None:
                         # An update is already tasked
+                        _LOGGER.debug('Update already tasked. Updating in %d seconds', update_in)
                         return
-                    update_in = (self._intervals[0] - self.solcast.get_now_utc()).total_seconds()
                     _LOGGER.debug('Forecast will update in %d seconds', update_in)
                     async def wait_for_fetch():
                         try:
                             await asyncio.sleep(update_in)
+                            # Proceed with forecast update if not cancelled
                             self._intervals = self._intervals[1:]
                             await self.__forecast_update()
                             if len(self._intervals) > 0:
