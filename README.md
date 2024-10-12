@@ -150,8 +150,6 @@ Make sure you use your `API Key` and not your rooftop id created in Solcast. You
 ### Auto-update of forecasts
 Using auto-update will get forecast updates that are automatically spread across hours when the sun is up, or alternatively over a 24-hour period. It calculates the number of daily updates that will occur according to the number of Solcast sites and the API limit that is configured.
 
-_Note that auto-update of forecasts is only available in v4.1.8 or later._
-
 Should it be desired to fetch an update ouside of these hours, then the API limit in the integration configuration may be reduced, and an automation may then be set up to call the service `solcast_solar.force_update_forecasts` at the desired time of day. (Note that calling the service `solcast_solar.update_forecasts` will be refused if auto-update is enabled, so use force update instead.)
 
 For example, to update just after midnight, as well as take advantage of auto-update, create the desired automation to force update, then reduce the API limit configured in the automation accordingly. (For this exmple, if the API key has ten total calls allowed per day and two rooftop sites, reduce the API limit to eight because two updates will be used when the automation runs.)
@@ -319,8 +317,6 @@ You can change the dampening factor value for any hour. Values from 0.0 - 1.0 ar
 
 #### Granular dampening
 
-_Note that granular dampening is only available in v4.1.9 or later._
-
 Setting dampening for individual Solcast sites, or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` service, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
 
 The service call accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the service creates or updates the file `solcast-dampening.json` when either a site is specified, or 48 factor values are specified. If setting overall dampening with 48 factors then an optional 'all' site may be specified (or simply omitted for this use case).
@@ -379,8 +375,6 @@ Example of half-hourly dampening for all sites:
 
 #### Reading forecast values in an automation
 
-_Note that getting undampened forecasts and granular dampening is only available in v4.1.9 or later._
-
 When calculating dampening using an automation it may be beneficial to use undampened forecast values as input.
 
 This is possible by using the service call `solcast_solar.query_forecast_data`, and including `undampened: true` in the call. If using granular dampening then the site may also be included in the call.
@@ -397,8 +391,6 @@ data:
 Undampened forecast history is retained for just 14 days.
 
 #### Reading dampening values
-
-_Note that this service call is only available in v4.1.9 or later._
 
 The currently set dampening factors may be retrieved using the service call "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
 
