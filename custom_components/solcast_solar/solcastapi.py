@@ -309,7 +309,7 @@ class SolcastApi: # pylint: disable=R0904
         Returns:
             bool: True for stale, False if updated recently.
         """
-        return self.get_api_used_count() == 0 and self.get_last_updated_datetime() < self.get_day_start_utc() - timedelta(days=1)
+        return self.get_last_updated_datetime() < self.get_day_start_utc() - timedelta(days=1)
 
     def is_stale_usage_cache(self) -> bool:
         """Return whether the usage cache was last reset over 24-hours ago (i.e. is stale).
