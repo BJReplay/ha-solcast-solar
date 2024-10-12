@@ -262,7 +262,7 @@ class SolcastApi: # pylint: disable=R0904
     async def set_options(self, options: dict):
         """Set the class option variables (used by __init__ to avoid an integration reload).
 
-        Args:
+        Arguments:
             options (dict): The data field to use for sensor values
         """
         self.damp = {str(i): options[f"damp{i:02}"] for i in range(0,24)}
@@ -1693,7 +1693,6 @@ class SolcastApi: # pylint: disable=R0904
             _data_field (str): The forecast type to sanitise, pv_forecast, pv_forecast10 or pv_forecast90.
             xx (list): Seconds intervals of the day, one for each 5-minute interval (plus another hours worth).
             y (list): The period momentary or reducing input data used for the spline calculation.
-            _data (list): The data structure used to build the spline, either total data or site breakdown data.
             reducing (bool): A flag to indicate whether the spline is momentary power, or reducing energy, default momentary.
         """
         for j in xx:
