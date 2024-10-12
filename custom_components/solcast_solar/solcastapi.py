@@ -2058,7 +2058,8 @@ class SolcastApi: # pylint: disable=R0904
                             period_start,
                             round(round(forecast["pv_estimate"], 4) * dampening_factor, 4),
                             round(round(forecast["pv_estimate10"], 4) * dampening_factor, 4),
-                            round(round(forecast["pv_estimate90"], 4) * dampening_factor, 4))
+                            round(round(forecast["pv_estimate90"], 4) * dampening_factor, 4)
+                        )
                 forecasts[site] = sorted(list(forecasts[site].values()), key=itemgetter("period_start"))
                 self._data['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts[site])}})
 
@@ -2113,11 +2114,8 @@ class SolcastApi: # pylint: disable=R0904
             new_data = []
 
             """
-            Fetch past data.
-
-            Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.
+            Fetch past data. (Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.)
             """
-
             if do_past:
                 self.tasks['fetch'] = asyncio.create_task(self.__fetch_data(168, path="estimated_actuals", site=site, api_key=api_key, cachedname="actuals", force=force))
                 await self.tasks['fetch']
@@ -2155,7 +2153,6 @@ class SolcastApi: # pylint: disable=R0904
             """
             Fetch latest data.
             """
-
             self.tasks['fetch'] = asyncio.create_task(self.__fetch_data(numhours, path="forecasts", site=site, api_key=api_key, cachedname="forecasts", force=force))
             await self.tasks['fetch']
             resp_dict = self.tasks['fetch'].result()
@@ -2194,7 +2191,6 @@ class SolcastApi: # pylint: disable=R0904
             """
             Add or update forecasts with the latest data.
             """
-
             # Load the forecast history.
             try:
                 forecasts = {forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts']}
@@ -2448,10 +2444,12 @@ class SolcastApi: # pylint: disable=R0904
                                 extant["pv_estimate10"] = min(round(extant["pv_estimate10"] + site_forecasts[z]["pv_estimate10"], 4), self.hard_limit)
                                 extant["pv_estimate90"] = min(round(extant["pv_estimate90"] + site_forecasts[z]["pv_estimate90"], 4), self.hard_limit)
                             else:
-                                forecasts[z] = {"period_start": z,
-                                                    "pv_estimate": min(site_forecasts[z]["pv_estimate"], self.hard_limit),
-                                                    "pv_estimate10": min(site_forecasts[z]["pv_estimate10"], self.hard_limit),
-                                                    "pv_estimate90": min(site_forecasts[z]["pv_estimate90"], self.hard_limit)}
+                                forecasts[z] = {
+                                    "period_start": z,
+                                    "pv_estimate": min(site_forecasts[z]["pv_estimate"], self.hard_limit),
+                                    "pv_estimate10": min(site_forecasts[z]["pv_estimate10"], self.hard_limit),
+                                    "pv_estimate90": min(site_forecasts[z]["pv_estimate90"], self.hard_limit),
+                                }
 
                     site_data_forecasts[site] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
                     if update_tally:
