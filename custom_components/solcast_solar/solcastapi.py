@@ -394,11 +394,6 @@ class SolcastApi: # pylint: disable=R0904
     async def __serialise_data(self, data, filename) -> bool:
         """Serialize data to file.
 
-        The twin try/except blocks here are significant. If the two were combined with
-        `await f.write(json.dumps(self._data, ensure_ascii=False, cls=DateTimeEncoder))`
-        then should an exception occur during conversion from dict to JSON string it
-        would result in an empty file.
-
         Arguments:
             data (dict): The data to serialise.
             filename (str): The name of the file
@@ -407,6 +402,10 @@ class SolcastApi: # pylint: disable=R0904
             bool: Success or failure.
         """
         serialise = True
+        # The twin try/except blocks here are significant. If the two were combined with
+        # `await f.write(json.dumps(self._data, ensure_ascii=False, cls=DateTimeEncoder))`
+        # then should an exception occur during conversion from dict to JSON string it
+        # would result in an empty file.
         try:
             if not self._loaded_data:
                 _LOGGER.debug("Not saving forecast cache in __serialise_data() as no data has been loaded yet")
@@ -568,8 +567,6 @@ class SolcastApi: # pylint: disable=R0904
     async def __serialise_usage(self, api_key, reset=False):
         """Serialise the usage cache file.
 
-        See comment in __serialise_data.
-
         Arguments:
             api_key (str): An individual Solcast account API key.
             reset (bool): Whether to reset API key usage to zero.
@@ -602,7 +599,6 @@ class SolcastApi: # pylint: disable=R0904
 
         The limit is specified by the user in integration configuration.
         """
-
         try:
             if not self.sites_loaded:
                 _LOGGER.error("Internal error. Sites must be loaded before __sites_usage() is called")
@@ -2024,6 +2020,7 @@ class SolcastApi: # pylint: disable=R0904
                 return
             _LOGGER.info('Migrating undampened history to %s', self._filename_undampened)
             forecasts = {}
+            pastdays = self.get_day_start_utc() - timedelta(days=14)
             for s in self.sites:
                 site = s['resource_id']
                 # Load the forecast history.
@@ -2033,23 +2030,15 @@ class SolcastApi: # pylint: disable=R0904
                     forecasts[site] = {}
                 forecasts_undampened = {}
                 try:
-                    try:
-                        # Migrate forecast history if undampened data does not yet exist.
-                        pastdays = self.get_day_start_utc() - timedelta(days=14)
-                        if len(forecasts[site]) > len(forecasts_undampened):
-                            migrate = {
-                                forecast["period_start"]: forecast
-                                    for forecast in self._data['siteinfo'][site]['forecasts']
-                                        if pastdays < forecast["period_start"] < dt.now(timezone.utc) + timedelta(days=8)
-                            }
-                            _LOGGER.debug('Migrating %d forecast entries to undampened forecasts for site %s', len(migrate), site)
-                            forecasts_undampened = {**migrate, **forecasts_undampened}
-                    except:
-                        _LOGGER.debug(traceback.format_exc())
-                        raise
+                    # Migrate forecast history if undampened data does not yet exist.
+                    if len(forecasts[site]) > 0:
+                        forecasts_undampened = sorted(list({
+                            forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts'] if forecast["period_start"] >= pastdays
+                        }.values()), key=itemgetter("period_start"))
+                        _LOGGER.debug('Migrating %d forecast entries to undampened forecasts for site %s', len(forecasts_undampened), site)
                 except:
-                    pass
-                forecasts_undampened = sorted(list(forecasts_undampened.values()), key=itemgetter("period_start"))
+                    _LOGGER.debug(traceback.format_exc())
+                    raise
                 self._data_undampened['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts_undampened)}})
 
             self._data_undampened["last_updated"] = dt.now(timezone.utc).isoformat()
@@ -2257,17 +2246,6 @@ class SolcastApi: # pylint: disable=R0904
     async def __fetch_data(self, hours, path="error", site="", api_key="", cachedname="forecasts", force=False) -> Optional[dict[str, Any]]:
         """Fetch forecast data.
         
-        One site is fetched, and retries ensure that the site is actually fetched.
-        Occasionally the Solcast API is busy, and returns a 429 status, which is a
-        request to try again later. (It could also indicate that the API limit for
-        the day has been exceeded, and this is catered for by examining additional
-        status.)
-
-        The retry mechanism is a "back-off", where the interval between attempted
-        fetches is increased each time. All attempts possible span a maximum of
-        fifteen minutes, and this is also the timeout limit set for the entire
-        async operation.
-
         Arguments:
             hours (int): Number of hours to fetch, normally 168, or seven days.
             path (str): The path to follow. "forecast" or "estimated actuals". Omitting this parameter will result in an error.
@@ -2279,6 +2257,18 @@ class SolcastApi: # pylint: disable=R0904
             dict: Raw forecast data points, or None if unsuccessful.
         """
         try:
+            """
+            One site is fetched, and retries ensure that the site is actually fetched.
+            Occasionally the Solcast API is busy, and returns a 429 status, which is a
+            request to try again later. (It could also indicate that the API limit for
+            the day has been exceeded, and this is catered for by examining additional
+            status.)
+
+            The retry mechanism is a "back-off", where the interval between attempted
+            fetches is increased each time. All attempts possible span a maximum of
+            fifteen minutes, and this is also the timeout limit set for the entire
+            async operation.
+            """
             async with async_timeout.timeout(900):
                 if self._api_cache_enabled:
                     api_cache_filename = self._config_dir + '/' + cachedname + "_" + site + ".json"
