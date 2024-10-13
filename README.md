@@ -302,9 +302,13 @@ Select `Forecast Production` and select the `Solcast Solar` option. Click `SAVE`
 
 It is possible to configure periodic dampening values to account for shading. This may be configured by automation or the integration configuration for total dampening (overall hourly dampening only in configuration).
 
-Dampening is applied to future forecasts whenever a forecast is fetched, so forecast history retains the dampening that had been applied at the time. (Note that this method of applying dampening to keep historical dampening levels is introduced in v4.1.9.)
+Dampening is applied to future forecasts whenever a forecast is fetched, so forecast history retains the dampening that had been applied at the time.
 
-Per-site and per-half hour dampening is possible only by using service calls or modifying a dampening configration file. See below.
+> [!NOTE]
+>
+> Retained dampened historical forecasts is a recent change, and may require automation modification to read undampened forecast history instead. See [Reading forecast values in an automation](#reading-forecast-values-in-an-automation) and [Changes](#changes) below.
+
+Per-site and per-half hour dampening is possible only by using service calls or modifying a dampening configration file. See [Granular dampening](#granular-dampening) below.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png)
 
@@ -446,7 +450,7 @@ The hard limit may be set in the integration configuration, or set via a service
 ## Key Solcast concepts
 
 Solcast will produce a forecast of solar PV generation for today, tomorrow, the day after (day 3), ... up to day 7.
-Each of these forecasts will be in a separate sensor (see below) and the sensor value will be the total predicted solar generation for your Solcast account for each day.
+Each of these forecasts will be in a separate sensor (see [Sensors](#sensors) below) and the sensor value will be the total predicted solar generation for your Solcast account for each day.
 Separate sensors contain peak solar generation power, peak solar generation time, and various forecasts of next hour, 30 minutes, etc.
 
 If you have multiple arrays on different roof orientations, these can be configured in Solcast as separate 'sites' with differing azimuth, tilt and generation, to a maximum of two sites for a free hobbyist account.
@@ -696,7 +700,6 @@ v4.2.0
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.7...v4.2.0
 
 Most recent changes: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.9...v4.2.0
-
 
 v4.1.9 pre-release
 * Granular dampening to dampen per half hour period by @autoSteve and @isorin
