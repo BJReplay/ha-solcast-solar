@@ -154,6 +154,13 @@ Should it be desired to fetch an update ouside of these hours, then the API limi
 
 For example, to update just after midnight, as well as take advantage of auto-update, create the desired automation to force update, then reduce the API limit configured in the automation accordingly. (For this exmple, if the API key has ten total calls allowed per day and two rooftop sites, reduce the API limit to eight because two updates will be used when the automation runs.)
 
+> [!NOTE]
+> _Transitioning to auto-update from using an automation:_
+>
+> If currently using the recommended automation, which spreads updates fairly evenly between sunrise and sunset, turning on auto-update from sunrise to sunset should not cause unexpeced forecast fetch failures due to API limit exhaustion. The recommended automation is not identical to auto-update, but is fairly close in timing.
+>
+> If implementing a reduced API limit, plus a futher forced update at a different time of day (like midnight), then a 24-hour period of adjustment may be needed, which could possibly see API use exhaustion (even if the acutal API usage has not actually been exhausted). These errors will clear within 24 hours.
+
 ### Using an HA automation to poll for data
 If auto-update is not enabled then create a new automation (or automations) and set up your prefered trigger times to poll for new Solcast forecast data. Use the service `solcast_solar.update_forecasts`. Examples are provided, so alter these or create your own to fit your needs.
 
