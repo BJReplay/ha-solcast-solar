@@ -204,6 +204,9 @@
         "auto_use_force": {
             "message": "Die automatische Aktualisierung ist aktiviert und ignoriert Serviceereignisse für die Prognoseaktualisierung. Verwenden Sie stattdessen „Aktualisierung erzwingen“."
         },
+        "auto_use_normal": {
+            "message": "Die automatische Aktualisierung ist nicht aktiviert. Dienstereignisse werden ignoriert, um eine Prognoseaktualisierung zu erzwingen. Verwenden Sie stattdessen „Aktualisierung“."
+        },
         "damp_not_for_site": {
             "message": "Die Site-Dämpfung ist für {site} nicht festgelegt."
         },

@@ -203,6 +203,9 @@
         "auto_use_force": {
             "message": "La mise à jour automatique est activée, ignorant l'événement de service pour la mise à jour des prévisions, utilisez plutôt Forcer la mise à jour."
         },
+        "auto_use_normal": {
+            "message": "La mise à jour automatique n'est pas activée, ignorant l'événement de service pour forcer la mise à jour des prévisions, utilisez plutôt Update."
+        },
         "damp_not_for_site": {
             "message": "L'amortissement du site n'est pas défini pour {site}."
         },

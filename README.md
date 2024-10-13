@@ -154,6 +154,8 @@ Should it be desired to fetch an update ouside of these hours, then the API limi
 
 For example, to update just after midnight, as well as take advantage of auto-update, create the desired automation to force update, then reduce the API limit configured in the automation accordingly. (For this exmple, if the API key has ten total calls allowed per day and two rooftop sites, reduce the API limit to eight because two updates will be used when the automation runs.)
 
+Using force update will not increment the API use counter, which is by design.
+
 > [!NOTE]
 > _Transitioning to auto-update from using an automation:_
 >
@@ -470,7 +472,7 @@ These are the services for this integration: ([Configuration](#configuration))
 | Service | Action |
 | --- | --- |
 | `solcast_solar.update_forecasts` | Updates the forecast data (refused if auto-update is enabled) |
-| `solcast_solar.force_update_forecasts` | Force updates the forecast data (performs an update regardless of API usage tracking or auto-update setting) |
+| `solcast_solar.force_update_forecasts` | Force updates the forecast data (performs an update regardless of API usage tracking or auto-update setting, and does not increment the API use counter) |
 | `solcast_solar.clear_all_solcast_data` | Deletes the `solcast.json` cached file |
 | `solcast_solar.query_forecast_data` | Returns a list of forecast data using a datetime range start - end |
 | `solcast_solar.set_dampening` | Updates the dampening factors |

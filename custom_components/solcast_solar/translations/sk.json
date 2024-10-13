@@ -204,6 +204,9 @@
         "auto_use_force": {
             "message": "Automatická aktualizácia je povolená, pri aktualizácii prognózy sa ignoruje udalosť služby, namiesto toho použite vynútenie aktualizácie."
         },
+        "auto_use_normal": {
+            "message": "Automatická aktualizácia nie je povolená, pri vynútenej aktualizácii prognózy ignorujete udalosť služby, namiesto toho použite Aktualizovať."
+        },
         "damp_not_for_site": {
             "message": "Tlmenie stránok nie je nastavené pre {site}."
         },

@@ -2318,10 +2318,12 @@ class SolcastApi: # pylint: disable=R0904
                         if status == 200:
                             _LOGGER.debug("Fetch successful")
 
-                            _LOGGER.debug("API returned data, API counter incremented from %d to %d", self._api_used[api_key], self._api_used[api_key] + 1)
-                            self._api_used[api_key] += 1
-                            await self.__serialise_usage(api_key)
-
+                            if not force:
+                                _LOGGER.debug("API returned data, API counter incremented from %d to %d", self._api_used[api_key], self._api_used[api_key] + 1)
+                                self._api_used[api_key] += 1
+                                await self.__serialise_usage(api_key)
+                            else:
+                                _LOGGER.debug("API returned data, using force fetch so not incrementing API counter")
                             resp_json = await resp.json(content_type=None)
 
                             if self._api_cache_enabled:

@@ -233,9 +233,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if solcast.is_stale_data():
         try:
             _LOGGER.info('First start, or integration has been failed for some time, retrieving forecasts (or your update automation has not been running - see readme)')
-            await coordinator.service_event_force_update()
+            await coordinator.service_event_update()
         except Exception as e:
-            _LOGGER.error("Exception force fetching data on stale/initial start: %s: %s", e, traceback.format_exc())
+            _LOGGER.error("Exception fetching data on stale/initial start: %s: %s", e, traceback.format_exc())
             _LOGGER.warning("Continuing...")
 
     async def handle_service_update_forecast(call: ServiceCall):

@@ -203,6 +203,9 @@
         "auto_use_force": {
             "message": "Auto-update is enabled, ignoring service event for forecast update, use Force Update instead."
         },
+        "auto_use_normal": {
+            "message": "Auto-update is not enabled, ignoring service event for force forecast update, use Update instead."
+        },
         "damp_not_for_site": {
             "message": "Site dampening is not set for {site}."
         },

@@ -257,13 +257,12 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """Force the update of forecast data when requested by a service call. Ignores API usage/limit counts.
 
         Raises:
-            HomeAssistantError: Notify Home Assistant that an error has occurred.
+            ServiceValidationError: Notify Home Assistant that an error has occurred, with translation.
         """
-        try:
+        if self.solcast.options.auto_update == 0:
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_normal")
+        else:
             await self.__forecast_update(force=True)
-        except Exception as e:
-            _LOGGER.error("Exception in service_event_force_update(): %s", traceback.format_exc())
-            raise HomeAssistantError(f"Force update failed: {e}.") from e
 
     async def service_event_delete_old_solcast_json_file(self, *args):
         """Delete the solcast.json file when requested by a service call."""

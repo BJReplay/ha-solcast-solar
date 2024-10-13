@@ -204,6 +204,9 @@
         "auto_use_force": {
             "message": "Automatyczna aktualizacja jest włączona. Zdarzenie serwisowe jest ignorowane przy aktualizacji prognozy. Zamiast tego użyj opcji Wymuś aktualizację."
         },
+        "auto_use_normal": {
+            "message": "Automatyczna aktualizacja nie jest włączona. Zdarzenie serwisowe jest ignorowane w celu wymuszenia aktualizacji prognozy. Zamiast tego użyj opcji Aktualizuj."
+        },
         "damp_not_for_site": {
             "message": "Tłumienie witryny nie jest ustawione dla {site}."
         },
