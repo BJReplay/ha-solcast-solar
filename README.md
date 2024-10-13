@@ -698,6 +698,7 @@ series:
 
 v4.2.0
 * Generally available release of v4.1.8 and v4.1.9 pre-release features
+* Translations of service call error responses by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.7...v4.2.0
 
