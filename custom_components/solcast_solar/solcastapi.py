@@ -238,7 +238,7 @@ class SolcastApi: # pylint: disable=R0904
         self._data_energy = {}
         self._data_forecasts = []
         self._data_forecasts_undampened = []
-        self._data_undampened = self._data
+        self._data_undampened = copy.deepcopy(self._data)
         self._filename = options.file_path
         file_name, extension = os.path.splitext(options.file_path)
         self._filename_undampened = f"{file_name}-undampened{extension}"
@@ -476,6 +476,8 @@ class SolcastApi: # pylint: disable=R0904
                                 raise
 
                             if status == 200:
+                                for i in resp_json['sites']:
+                                    i['api_key'] = api_key
                                 if resp_json['total_records'] > 0:
                                     _LOGGER.debug("Writing sites cache")
                                     async with self._serialise_lock:
@@ -507,13 +509,18 @@ class SolcastApi: # pylint: disable=R0904
                                 async with aiofiles.open(cache_filename) as f:
                                     resp_json = json.loads(await f.read())
                                     status = 200
+                                    for i in resp_json['sites']:
+                                        if i.get('api_key') not in sp:
+                                            status = 429
+                                            _LOGGER.debug('API key has changed so sites cache is invalid, not loading cached data')
+                                            break
                             else:
                                 _LOGGER.error("Cached sites are not yet available for %s to cope with API call failure", self.__redact_api_key(api_key))
                                 _LOGGER.error("At least one successful API 'get sites' call is needed, so the integration will not function correctly")
 
                 if status == 200:
                     d = cast(dict, resp_json)
-                    _LOGGER.debug("Sites data: %s", redact_lat_lon(str(d)))
+                    _LOGGER.debug("Sites data: %s", self.__redact_msg_api_key(redact_lat_lon(str(d)), api_key))
                     for i in d['sites']:
                         i['apikey'] = api_key
                         i.pop('longitude', None)
@@ -548,6 +555,7 @@ class SolcastApi: # pylint: disable=R0904
                                 i['apikey'] = api_key
                                 i.pop('longitude', None)
                                 i.pop('latitude', None)
+                                i['api_key'] = None
                             self.sites = self.sites + d['sites']
                             self.sites_loaded = True
                             self._api_used_reset[api_key] = None
@@ -1028,7 +1036,7 @@ class SolcastApi: # pylint: disable=R0904
             status = ''
             if len(self.sites) > 0:
 
-                async def load_data(filename, set_loaded=True, fetch_added_sites=True) -> dict:
+                async def load_data(filename, set_loaded=True) -> dict:
                     if file_exists(filename):
                         async with aiofiles.open(filename) as data_file:
                             json_data = json.loads(await data_file.read(), cls=JSONDecoder)
@@ -1050,62 +1058,79 @@ class SolcastApi: # pylint: disable=R0904
                                 #    await self.__serialise_data(data, filename)
                             if set_loaded:
                                 self._loaded_data = True
-
-                        # Check for any new API keys so no sites data yet for those.
-                        ks = {}
-                        try:
-                            cache_sites = list(data['siteinfo'].keys())
-                            for d in self.sites:
-                                if d['resource_id'] not in cache_sites:
-                                    ks[d['resource_id']] = d['apikey']
-                        except Exception  as e:
-                            raise f"Exception while adding new sites: {e}"
-
-                        if fetch_added_sites:
-                            if len(ks.keys()) > 0:
-                                # Some site data does not exist yet so get it.
-                                _LOGGER.info("New site(s) have been added, so getting forecast data for them")
-                                for site, api_key in ks.items():
-                                    await self.__http_data_call(site=site, api_key=api_key, do_past=True)
-                                await self.__serialise_data(data, filename)
-
-                        # Check for sites that need to be removed.
-                        l = []
-                        try:
-                            configured_sites = [s['resource_id'] for s in self.sites]
-                            for s in cache_sites:
-                                if s not in configured_sites:
-                                    if set_loaded:
-                                        _LOGGER.warning("Site resource id %s is no longer configured, removing saved data from cached file", s)
-                                    l.append(s)
-                        except Exception  as e:
-                            raise f"Exception while removing stale sites: {e}"
-
-                        for ll in l:
-                            del data['siteinfo'][ll]
-                        if len(l) > 0:
-                            await self.__serialise_data(data, filename)
-
                         if not self.previously_loaded:
                             _LOGGER.info("%s data loaded", filename)
                         return data
                     else:
                         return None
 
+                async def adds_moves_changes():
+                    # Check for any new API keys so no sites data yet for those.
+                    serialise = False
+                    ks = {}
+                    try:
+                        cache_sites = list(self._data['siteinfo'].keys())
+                        for d in self.sites:
+                            if d['resource_id'] not in cache_sites:
+                                ks[d['resource_id']] = d['apikey']
+                    except Exception  as e:
+                        raise f"Exception while adding new sites: {e}"
+
+                    if len(ks.keys()) > 0:
+                        # Some site data does not exist yet so get it.
+                        _LOGGER.info("New site(s) have been added, so getting forecast data for them")
+                        for site, api_key in ks.items():
+                            await self.__http_data_call(site=site, api_key=api_key, do_past=True)
+
+                        self._data["last_updated"] = dt.now(timezone.utc).isoformat()
+                        self._data_undampened["last_updated"] = dt.now(timezone.utc).isoformat()
+                        self._data["version"] = JSON_VERSION
+                        self._data_undampened["version"] = JSON_VERSION
+                        serialise = True
+
+                        self._loaded_data = True
+
+                    # Check for sites that need to be removed.
+                    l = []
+                    try:
+                        configured_sites = [s['resource_id'] for s in self.sites]
+                        for s in cache_sites:
+                            if s not in configured_sites:
+                                _LOGGER.warning("Site resource id %s is no longer configured, removing saved data from cached files %s, %s", s, self._filename, self._filename_undampened)
+                                l.append(s)
+                    except Exception  as e:
+                        raise f"Exception while removing stale sites for {self._filename}, {self._filename_undampened}: {e}"
+
+                    for ll in l:
+                        try:
+                            del self._data['siteinfo'][ll]
+                            del self._data_undampened['siteinfo'][ll] # May not yet exist.
+                        except:
+                            pass
+                    if len(l) > 0:
+                        serialise = True
+
+                    if serialise:
+                        await self.__serialise_data(self._data, self._filename)
+                        await self.__serialise_data(self._data_undampened, self._filename_undampened)
+
                 dampened_data = await load_data(self._filename)
                 if dampened_data:
                     self._data = dampened_data
-                undampened_data = await load_data(self._filename_undampened, set_loaded=False, fetch_added_sites=False)
+                    # Check for sites changes.
+                    await adds_moves_changes()
+                    # Migrate undampened history data to the undampened cache.
+                    await self.__migrate_undampened_history()
+                undampened_data = await load_data(self._filename_undampened, set_loaded=False)
                 if undampened_data:
                     self._data_undampened = undampened_data
+
                 if not self._loaded_data:
                     # No file to load.
                     _LOGGER.warning("There is no solcast.json to load, so fetching solar forecast, including past forecasts")
                     # Could be a brand new install of the integation, or the file has been removed. Poll once now...
                     status = await self.get_forecast_update(do_past=True)
                 else:
-                    # Migrate undampened history data to the undampened cache
-                    await self.__migrate_undampened_history()
                     # Create an up to date forecast.
                     await self.build_forecast_data()
             else:
@@ -2013,15 +2038,18 @@ class SolcastApi: # pylint: disable=R0904
         return status
 
     async def __migrate_undampened_history(self):
-        """Migrate undampened forecasts if solcast-undampened.json does not exist"""
+        """Migrate undampened forecasts if undampened data for a site does not exist."""
+        apply_dampening = []
         try:
-            if file_exists(self._filename_undampened):
-                return
-            _LOGGER.info('Migrating undampened history to %s', self._filename_undampened)
             forecasts = {}
             pastdays = self.get_day_start_utc() - timedelta(days=14)
             for s in self.sites:
                 site = s['resource_id']
+                if not self._data_undampened['siteinfo'].get(site):
+                    _LOGGER.info('Migrating undampened history to %s for %s', self._filename_undampened, site)
+                    apply_dampening.append(site)
+                else:
+                    continue
                 # Load the forecast history.
                 try:
                     forecasts[site] = {forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts']}
@@ -2040,13 +2068,17 @@ class SolcastApi: # pylint: disable=R0904
                     raise
                 self._data_undampened['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts_undampened)}})
 
-            self._data_undampened["last_updated"] = dt.now(timezone.utc).isoformat()
-            await self.__serialise_data(self._data_undampened, self._filename_undampened)
+            if len(apply_dampening) > 0:
+                self._data_undampened["last_updated"] = dt.now(timezone.utc).isoformat()
+                await self.__serialise_data(self._data_undampened, self._filename_undampened)
 
-            _LOGGER.info('Dampening forecasts for today onwards')
             valid_granular_dampening = self.__valid_granular_dampening()
             for s in self.sites:
                 site = s['resource_id']
+                if site in apply_dampening:
+                    _LOGGER.info('Dampening forecasts for today onwards for site %s', site)
+                else:
+                    continue
                 day_start = self.get_day_start_utc()
                 for interval, forecast in forecasts[site].items():
                     if interval >= day_start:
@@ -2063,7 +2095,8 @@ class SolcastApi: # pylint: disable=R0904
                 forecasts[site] = sorted(list(forecasts[site].values()), key=itemgetter("period_start"))
                 self._data['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts[site])}})
 
-            await self.__serialise_data(self._data, self._filename)
+            if len(apply_dampening) > 0:
+                await self.__serialise_data(self._data, self._filename)
         except Exception as e:
             _LOGGER.error("Exception in __migrate_undampened_history(): %s: %s", e, traceback.format_exc())
 
@@ -2196,12 +2229,10 @@ class SolcastApi: # pylint: disable=R0904
                 forecasts = {forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts']}
             except:
                 forecasts = {}
-            _LOGGER.debug("Forecasts dictionary length %s", len(forecasts))
             try:
                 forecasts_undampened = {forecast["period_start"]: forecast for forecast in self._data_undampened['siteinfo'][site]['forecasts']}
             except:
                 forecasts_undampened = {}
-            _LOGGER.debug("Undampened forecasts dictionary length %s", len(forecasts_undampened))
 
             # Apply dampening to the new data
             valid_granular_dampening = self.__valid_granular_dampening()
@@ -2231,6 +2262,8 @@ class SolcastApi: # pylint: disable=R0904
             forecasts_undampened = sorted(list(filter(lambda forecast: forecast["period_start"] >= pastdays, forecasts_undampened.values())), key=itemgetter("period_start"))
             self._data_undampened['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts_undampened)}})
 
+            _LOGGER.debug("Forecasts dictionary length %s", len(forecasts))
+            _LOGGER.debug("Undampened forecasts dictionary length %s", len(forecasts_undampened))
             _LOGGER.debug("HTTP data call processing took %.3f seconds", round(time.time() - st_time, 4))
             return True
         except Exception as e:
