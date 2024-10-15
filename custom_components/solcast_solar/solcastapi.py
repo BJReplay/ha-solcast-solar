@@ -31,6 +31,7 @@ from aiohttp.client_reqrep import ClientResponse # type: ignore
 from isodate import parse_datetime # type: ignore
 
 from homeassistant.exceptions import ServiceValidationError # type: ignore
+from homeassistant.const import CONF_API_KEY # type: ignore
 
 from .spline import cubic_interp
 from .const import (
@@ -1065,21 +1066,34 @@ class SolcastApi: # pylint: disable=R0904
                         return None
 
                 async def adds_moves_changes():
-                    # Check for any new API keys so no sites data yet for those.
+                    # Check for any new API keys so no sites data yet for those, and for API key change.
+                    # Users having multiple API keys where one key changes will have all usage reset.
                     serialise = False
-                    ks = {}
+                    new_sites = {}
                     try:
                         cache_sites = list(self._data['siteinfo'].keys())
+                        old_api_keys = self.hass.data[DOMAIN].get('old_api_key', self.hass.data[DOMAIN]['entry_options'].get(CONF_API_KEY, '')).split(',')
+                        reset_usage = False
                         for d in self.sites:
-                            if d['resource_id'] not in cache_sites:
-                                ks[d['resource_id']] = d['apikey']
+                            site = d['resource_id']
+                            api_key = d['apikey']
+                            if site not in cache_sites:
+                                new_sites[site] = api_key
+                            else:
+                                if len(self._data['siteinfo'][site].get('forecasts', [])) == 0: # Empty forecast data.
+                                    new_sites[site] = api_key
+                            if api_key not in old_api_keys:
+                                reset_usage = True
+                        if reset_usage:
+                            _LOGGER.info('An API key has changed, resetting usage')
+                            await self.reset_api_usage()
                     except Exception  as e:
                         raise f"Exception while adding new sites: {e}"
 
-                    if len(ks.keys()) > 0:
+                    if len(new_sites.keys()) > 0:
                         # Some site data does not exist yet so get it.
                         _LOGGER.info("New site(s) have been added, so getting forecast data for them")
-                        for site, api_key in ks.items():
+                        for site, api_key in new_sites.items():
                             await self.__http_data_call(site=site, api_key=api_key, do_past=True)
 
                         self._data["last_updated"] = dt.now(timezone.utc).isoformat()
@@ -1119,11 +1133,12 @@ class SolcastApi: # pylint: disable=R0904
                     self._data = dampened_data
                     # Check for sites changes.
                     await adds_moves_changes()
-                    # Migrate undampened history data to the undampened cache.
+                    # Load the undampened history
+                    undampened_data = await load_data(self._filename_undampened, set_loaded=False)
+                    if undampened_data:
+                        self._data_undampened = undampened_data
+                    # Migrate undampened history data to the undampened cache if needed.
                     await self.__migrate_undampened_history()
-                undampened_data = await load_data(self._filename_undampened, set_loaded=False)
-                if undampened_data:
-                    self._data_undampened = undampened_data
 
                 if not self._loaded_data:
                     # No file to load.
@@ -2045,7 +2060,7 @@ class SolcastApi: # pylint: disable=R0904
             pastdays = self.get_day_start_utc() - timedelta(days=14)
             for s in self.sites:
                 site = s['resource_id']
-                if not self._data_undampened['siteinfo'].get(site):
+                if not self._data_undampened['siteinfo'].get(site) or len(self._data_undampened['siteinfo'][site].get('forecasts', [])) == 0:
                     _LOGGER.info('Migrating undampened history to %s for %s', self._filename_undampened, site)
                     apply_dampening.append(site)
                 else:

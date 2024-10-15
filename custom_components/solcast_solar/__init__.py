@@ -548,6 +548,8 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
             return hass.data[DOMAIN]['entry_options'].get(config) != entry.options.get(config)
 
         # Config changes, which when changed will cause a reload.
+        if changed(CONF_API_KEY):
+            hass.data[DOMAIN]['old_api_key'] = hass.data[DOMAIN]['entry_options'].get(CONF_API_KEY)
         reload = changed(CONF_API_KEY) or changed(API_QUOTA) or changed(AUTO_UPDATE)
 
         # Config changes, which when changed will cause a forecast recalculation only, without reload.
