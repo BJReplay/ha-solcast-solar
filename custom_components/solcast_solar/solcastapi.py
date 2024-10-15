@@ -23,6 +23,7 @@ from pathlib import Path
 from os.path import exists as file_exists
 from os.path import dirname
 from typing import Optional, Any, Dict, Tuple, cast
+from collections import OrderedDict
 
 import async_timeout # type: ignore
 import aiofiles # type: ignore
@@ -2551,15 +2552,37 @@ class SolcastApi: # pylint: disable=R0904
 
 
     async def __check_data_records(self):
-        """Verify that all records are present for each day."""
-        for i in range(0, 8):
-            start_utc = self.get_day_start_utc() + timedelta(days=i)
-            end_utc = start_utc + timedelta(days=1)
-            st_i, end_i = self.__get_forecast_list_slice(self._data_forecasts, start_utc, end_utc)
-            num_rec = end_i - st_i
+        """Log whether all records are present for each day."""
+        try:
+            contiguous_start_date = None
+            contiguous_end_date = None
+            all_records = True
+            interval_assessment = {}
 
-            da = dt.now(self._tz).date() + timedelta(days=i)
-            if num_rec == 48:
-                _LOGGER.debug("Data for %s contains all 48 records", da.strftime('%Y-%m-%d'))
-            else:
-                _LOGGER.debug("Data for %s contains only %d of 48 records and may produce inaccurate forecast data", da.strftime('%Y-%m-%d'), num_rec)
+            for future in range(0, 8):
+                start_utc = self.get_day_start_utc() + timedelta(days=future)
+                end_utc = start_utc + timedelta(days=1)
+                st_i, end_i = self.__get_forecast_list_slice(self._data_forecasts, start_utc, end_utc)
+                intervals = end_i - st_i
+
+                interval_date = dt.now(self._tz).date() + timedelta(days=future)
+                if future == 0 and intervals == 48:
+                    contiguous_start_date = interval_date
+                if intervals == 48:
+                    if all_records:
+                        contiguous_end_date = interval_date
+                    else:
+                        interval_assessment[interval_date] = 48
+                else:
+                    all_records = False
+                    interval_assessment[interval_date] = intervals
+            if contiguous_start_date and contiguous_end_date:
+                _LOGGER.debug("Forecast data from %s to %s contains all 48 intervals", contiguous_start_date.strftime('%Y-%m-%d'), contiguous_end_date.strftime('%Y-%m-%d'))
+            if len(interval_assessment.keys()) > 0:
+                for day, intervals in OrderedDict(sorted(interval_assessment.items(), key=lambda k:k[0])).items():
+                    if intervals == 48:
+                        _LOGGER.debug("Forecast data for %s contains all 48 intervals", day.strftime('%Y-%m-%d'))
+                    else:
+                        _LOGGER.debug("Forecast data for %s contains only %d of 48 intervals and may produce inaccurate forecast data", day.strftime('%Y-%m-%d'), intervals)
+        except Exception as e:
+            _LOGGER.error('Exception in __check_data_records(): %s: %s', e, traceback.format_exc())
