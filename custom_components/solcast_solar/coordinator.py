@@ -210,7 +210,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 if log:
                     _LOGGER.debug('Auto update: Total seconds %d, divisions: %d updates, interval: %d seconds', seconds, divisions, interval)
                     if init:
-                        _LOGGER.info('Auto-update will update forecasts %d times %s', divisions, 'over 24 hours' if self.solcast.options.auto_update > 1 else 'between sunrise and sunset')
+                        _LOGGER.debug('Auto-update will update forecasts %d times %s', divisions, 'over 24 hours' if self.solcast.options.auto_update > 1 else 'between sunrise and sunset')
                 return intervals
 
             self._intervals = get_intervals(self._sunrise, self._sunset)
