@@ -1069,11 +1069,11 @@ class SolcastApi: # pylint: disable=R0904
                     # Check for any new API keys so no sites data yet for those, and for API key change.
                     # Users having multiple API keys where one key changes will have all usage reset.
                     serialise = False
+                    reset_usage = False
                     new_sites = {}
                     try:
                         cache_sites = list(self._data['siteinfo'].keys())
                         old_api_keys = self.hass.data[DOMAIN].get('old_api_key', self.hass.data[DOMAIN]['entry_options'].get(CONF_API_KEY, '')).split(',')
-                        reset_usage = False
                         for d in self.sites:
                             site = d['resource_id']
                             api_key = d['apikey']
@@ -1082,13 +1082,18 @@ class SolcastApi: # pylint: disable=R0904
                             else:
                                 if len(self._data['siteinfo'][site].get('forecasts', [])) == 0: # Empty forecast data.
                                     new_sites[site] = api_key
-                            if api_key not in old_api_keys:
+                            if api_key not in old_api_keys: # If a new site is seen in conjunction with an API key change then reset the usage.
                                 reset_usage = True
-                        if reset_usage:
-                            _LOGGER.info('An API key has changed, resetting usage')
-                            await self.reset_api_usage()
                     except Exception  as e:
                         raise f"Exception while adding new sites: {e}"
+                    try:
+                        del self.hass.data[DOMAIN]['old_api_key']
+                    except:
+                        pass
+
+                    if reset_usage:
+                        _LOGGER.info('An API key has changed, resetting usage')
+                        await self.reset_api_usage()
 
                     if len(new_sites.keys()) > 0:
                         # Some site data does not exist yet so get it.
@@ -1105,23 +1110,23 @@ class SolcastApi: # pylint: disable=R0904
                         self._loaded_data = True
 
                     # Check for sites that need to be removed.
-                    l = []
+                    remove_sites = []
                     try:
                         configured_sites = [s['resource_id'] for s in self.sites]
                         for s in cache_sites:
                             if s not in configured_sites:
-                                _LOGGER.warning("Site resource id %s is no longer configured, removing saved data from cached files %s, %s", s, self._filename, self._filename_undampened)
-                                l.append(s)
+                                _LOGGER.warning("Site resource id %s is no longer configured, will remove saved data from cached files %s, %s", s, self._filename, self._filename_undampened)
+                                remove_sites.append(s)
                     except Exception  as e:
-                        raise f"Exception while removing stale sites for {self._filename}, {self._filename_undampened}: {e}"
+                        raise f"Exception while determining stale sites for {self._filename}, {self._filename_undampened}: {e}"
 
-                    for ll in l:
+                    for site in remove_sites:
                         try:
-                            del self._data['siteinfo'][ll]
-                            del self._data_undampened['siteinfo'][ll] # May not yet exist.
+                            del self._data['siteinfo'][site]
+                            del self._data_undampened['siteinfo'][site] # May not yet exist.
                         except:
                             pass
-                    if len(l) > 0:
+                    if len(remove_sites) > 0:
                         serialise = True
 
                     if serialise:
