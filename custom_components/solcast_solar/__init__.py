@@ -252,7 +252,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         Arguments:
             call (ServiceCall): Not used.
         """
-        _LOGGER.info("Service call: %s", SERVICE_UPDATE)
+        _LOGGER.info("Service call: %s", SERVICE_FORCE_UPDATE)
         await coordinator.service_event_force_update()
 
     async def handle_service_clear_solcast_data(call: ServiceCall):
