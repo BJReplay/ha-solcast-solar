@@ -847,21 +847,10 @@ class SolcastApi: # pylint: disable=R0904
         if await self.__migrate_granular_dampening():
             return True
 
-        def option_off():
-            try:
-                if self.entry_options[SITE_DAMP]:
-                    self.entry_options[SITE_DAMP] = False
-                    self.hass.config_entries.async_update_entry(self.entry, options=self.entry_options)
-            except:
-                pass
-
-        def option_on():
-            try:
-                if not self.entry_options[SITE_DAMP]:
-                    self.entry_options[SITE_DAMP] = True
-                    self.hass.config_entries.async_update_entry(self.entry, options=self.entry_options)
-            except:
-                pass
+        def option(enable: bool):
+            if enable ^ self.entry_options.get(SITE_DAMP, False):
+                self.entry_options[SITE_DAMP] = enable
+                self.hass.config_entries.async_update_entry(self.entry, options=self.entry_options)
 
         ex = False
         try:
@@ -869,7 +858,7 @@ class SolcastApi: # pylint: disable=R0904
             if not file_exists(json_file):
                 self.granular_dampening = {}
                 self._granular_dampening_mtime = 0
-                option_off()
+                option(False)
             else:
                 try:
                     async with aiofiles.open(json_file) as f:
@@ -886,7 +875,7 @@ class SolcastApi: # pylint: disable=R0904
                                         _LOGGER.error("Number of dampening factors for all sites must be the same in %s, dampening ignored", json_file)
                                         self.granular_dampening = {}
                                         self._granular_allow_reset = False
-                                        option_off()
+                                        option(False)
                                         return False
                                 if len(damp_list) not in (24, 48):
                                     _LOGGER.error("Number of dampening factors for site %s must be 24 or 48 in %s, dampening ignored", site, json_file)
@@ -894,16 +883,16 @@ class SolcastApi: # pylint: disable=R0904
                             if err:
                                 self.granular_dampening = {}
                                 self._granular_allow_reset = False
-                                option_off()
+                                option(False)
                                 return False
                             _LOGGER.debug("Granular dampening: %s", str(self.granular_dampening))
                             _LOGGER.debug("Valid granular dampening: %s", self.__valid_granular_dampening())
                             self._granular_allow_reset = True
-                            option_on()
+                            option(True)
                             return True
                         else:
                             self._granular_allow_reset = False
-                            option_off()
+                            option(False)
                             _LOGGER.debug("Using legacy hourly dampening")
                             return False
                 except:
@@ -913,7 +902,7 @@ class SolcastApi: # pylint: disable=R0904
         except Exception as e:
             _LOGGER.error("Exception in granular_dampening_data(): %s: %s", e, traceback.format_exc())
             ex = True
-            option_off()
+            option(False)
             return False
         finally:
             if not self.previously_loaded and not ex:
