@@ -8,9 +8,8 @@ import random
 import os
 import json
 from typing import Final, Dict, Any
-import aiofiles # type: ignore
-
 import asyncio
+import aiofiles # type: ignore
 
 import voluptuous as vol # type: ignore
 from homeassistant import loader # type: ignore
@@ -157,11 +156,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         entry.options.get(BRK_HOURLY, True),
         entry.options.get(BRK_SITE_DETAILED, False),
     )
-    _LOGGER.debug('Auto-update options: %s', {k: v for k, v in entry.options.items() if k.startswith('auto_')})
-    _LOGGER.debug('Estimate to use options: %s', {k: v for k, v in entry.options.items() if k.startswith('key_est')})
-    _LOGGER.debug('Attribute options: %s', {k: v for k, v in entry.options.items() if k.startswith('attr_')})
-    _LOGGER.debug('Custom sensor options: %s', {k: v for k, v in entry.options.items() if k.startswith('custom')})
-    _LOGGER.debug('Hard limit: %s', {k: v for k, v in entry.options.items() if k.startswith('hard_')})
+    _LOGGER.debug("Auto-update options: %s", {k: v for k, v in entry.options.items() if k.startswith('auto_')})
+    _LOGGER.debug("Estimate to use options: %s", {k: v for k, v in entry.options.items() if k.startswith('key_est')})
+    _LOGGER.debug("Attribute options: %s", {k: v for k, v in entry.options.items() if k.startswith('attr_')})
+    _LOGGER.debug("Custom sensor options: %s", {k: v for k, v in entry.options.items() if k.startswith('custom')})
+    _LOGGER.debug("Hard limit: %s", {k: v for k, v in entry.options.items() if k.startswith('hard_')})
 
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options)
 
@@ -193,10 +192,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if not solcast.sites_loaded:
         raise ConfigEntryNotReady('Sites data could not be retrieved')
 
-    _LOGGER.debug('Successful init')
+    _LOGGER.debug("Successful init")
 
     _LOGGER.info(
-        '%sSolcast integration version: %s%s%s',
+        "%sSolcast integration version: %s%s%s",
         ('\n' + '-'*67 + '\n') if init_msg != '' else '',
         version,
         ('\n\n' + init_msg) if init_msg != '' else '',('\n' + '-'*67) if init_msg != '' else '',
@@ -232,7 +231,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # If the integration has been failed for some time and then is restarted retrieve forecasts (i.e Home Assistant down for a while).
     if solcast.is_stale_data():
         try:
-            _LOGGER.info('First start, or integration has been failed for some time, retrieving forecasts (or your update automation has not been running - see readme)')
+            _LOGGER.info("First start, or integration has been failed for some time, retrieving forecasts (or your update automation has not been running - see readme)")
             await coordinator.service_event_update()
         except Exception as e:
             _LOGGER.error("Exception fetching data on stale/initial start: %s: %s", e, traceback.format_exc())
@@ -353,7 +352,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             if site is None:
                 update_options()
                 if solcast.granular_dampening:
-                    _LOGGER.debug('Clear granular dampening')
+                    _LOGGER.debug("Clear granular dampening")
                     opt[SITE_DAMP] = False # Clear "hidden" option.
             else:
                 await solcast.refresh_granular_dampening_data() # Ensure latest file content gets updated
@@ -525,7 +524,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
         try:
             # Terminate coordinator tasks in progress
             for task, cancel in coordinator.tasks.items():
-                _LOGGER.debug('Cancelling coordinator task %s', task)
+                _LOGGER.debug("Cancelling coordinator task %s", task)
                 if isinstance(cancel, asyncio.Task):
                     cancel.cancel()
                 else:
@@ -533,10 +532,10 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
             coordinator.tasks = {}
             # Terminate solcastapi tasks in progress
             for task, cancel in coordinator.solcast.tasks.items():
-                _LOGGER.debug('Cancelling solcastapi task %s', task)
+                _LOGGER.debug("Cancelling solcastapi task %s", task)
                 cancel.cancel()
         except Exception as e:
-            _LOGGER.error('Cancelling tasks failed: %s: %s', e, traceback.format_exc())
+            _LOGGER.error("Cancelling tasks failed: %s: %s", e, traceback.format_exc())
         coordinator.solcast.tasks = {}
 
     try:
@@ -574,9 +573,9 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
                     if coordinator.solcast.allow_granular_dampening_reset():
                         coordinator.solcast.granular_dampening = {}
                         await coordinator.solcast.serialise_granular_dampening()
-                        _LOGGER.debug('Granular dampening file reset')
+                        _LOGGER.debug("Granular dampening file reset")
                     else:
-                        _LOGGER.debug('Granular dampening file not reset')
+                        _LOGGER.debug("Granular dampening file not reset")
 
         if reload:
             determination = 'The integration will reload'
@@ -584,7 +583,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
             determination = 'Recalculate forecasts and refresh sensors'
         else:
             determination = 'Refresh sensors only' + (' (with spline recalc)' if respline else '')
-        _LOGGER.debug('Options updated, action: %s', determination)
+        _LOGGER.debug("Options updated, action: %s", determination)
         if not reload:
             await coordinator.solcast.set_options(entry.options)
             if recalc:
@@ -733,7 +732,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 default.append(str(usage['daily_limit']))
             default = ','.join(default)
         except Exception as e:
-            _LOGGER.warning('Could not load API usage cached limit while upgrading config, using default: %s', e)
+            _LOGGER.warning("Could not load API usage cached limit while upgrading config, using default of ten: %s", e)
             default = '10'
         if new.get(API_QUOTA) is None: new[API_QUOTA] = default
         try:

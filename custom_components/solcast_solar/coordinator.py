@@ -15,7 +15,7 @@ import asyncio
 
 from homeassistant.core import HomeAssistant # type: ignore
 from homeassistant.helpers.event import async_track_utc_time_change # type: ignore
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError # type: ignore
+from homeassistant.exceptions import ServiceValidationError # type: ignore
 from homeassistant.helpers.sun import get_astral_event_next # type: ignore
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator # type: ignore
@@ -79,7 +79,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             self.tasks['check_fetch'] = async_track_utc_time_change(self._hass, self.__check_forecast_fetch, minute=range(0, 60, 5), second=0)
             self.tasks['midnight_update'] = async_track_utc_time_change(self._hass, self.__update_utcmidnight_usage_sensor_data,  hour=0, minute=0, second=0)
             for timer, _ in self.tasks.items():
-                _LOGGER.debug('Started task %s', timer)
+                _LOGGER.debug("Started task %s", timer)
         except:
             _LOGGER.error("Exception in setup: %s", traceback.format_exc())
 
@@ -87,7 +87,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """Get updated sensor values."""
         try:
             if SENSOR_DEBUG_LOGGING:
-                _LOGGER.debug('Update listeners')
+                _LOGGER.debug("Update listeners")
 
             current_day = dt.now(self.solcast.options.tz).day
             self._date_changed = current_day != self._last_day
@@ -104,14 +104,14 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     async def __restart_time_track_midnight_update(self):
         """Cancel and restart UTC time change tracker"""
         try:
-            _LOGGER.warning('Restarting midnight UTC timer')
+            _LOGGER.warning("Restarting midnight UTC timer")
             try:
                 self.tasks['midnight_update']() # Cancel the tracker
-                _LOGGER.debug('Cancelled task midnight_update')
+                _LOGGER.debug("Cancelled task midnight_update")
             except:
                 pass
             self.tasks['midnight_update'] = async_track_utc_time_change(self._hass, self.__update_utcmidnight_usage_sensor_data,  hour=0, minute=0, second=0)
-            _LOGGER.debug('Started task midnight_update')
+            _LOGGER.debug("Started task midnight_update")
         except:
             _LOGGER.error("Exception in __restart_time_track_midnight_update(): %s", traceback.format_exc())
 
@@ -123,9 +123,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     update_in = (self._intervals[0] - self.solcast.get_now_utc()).total_seconds()
                     if self.tasks.get('pending_update') is not None:
                         # An update is already tasked
-                        _LOGGER.debug('Update already tasked. Updating in %d seconds', update_in)
+                        _LOGGER.debug("Update already tasked. Updating in %d seconds", update_in)
                         return
-                    _LOGGER.debug('Forecast will update in %d seconds', update_in)
+                    _LOGGER.debug("Forecast will update in %d seconds", update_in)
                     async def wait_for_fetch():
                         try:
                             await asyncio.sleep(update_in)
@@ -133,9 +133,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                             self._intervals = self._intervals[1:]
                             await self.__forecast_update()
                             if len(self._intervals) > 0:
-                                _LOGGER.debug('Next forecast update scheduled for %s', self._intervals[0].astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
+                                _LOGGER.debug("Next forecast update scheduled for %s", self._intervals[0].astimezone(self.solcast.options.tz).strftime(DATE_FORMAT))
                         except asyncio.CancelledError:
-                            _LOGGER.debug('Cancelled next scheduled update')
+                            _LOGGER.debug("Cancelled next scheduled update")
                         finally:
                             if self.tasks.get('pending_update') is not None:
                                 self.tasks.pop('pending_update')
@@ -189,7 +189,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._sunrise, self._sunset = sun_rise_set(self.solcast.get_day_start_utc())
         self._sunrise_tomorrow, self._sunset_tomorrow = sun_rise_set(self.solcast.get_day_start_utc() + timedelta(hours=24))
         _LOGGER.debug(
-            'Sun rise / set today: %s / %s',
+            "Sun rise / set today: %s / %s",
             self._sunrise.astimezone(self.solcast.options.tz).strftime('%H:%M:%S'),
             self._sunset.astimezone(self.solcast.options.tz).strftime('%H:%M:%S')
         )
@@ -208,9 +208,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 intervals = [(sunrise + timedelta(seconds=interval) * i) for i in range(0, divisions)]
                 intervals = [i for i in intervals if i > self.solcast.get_now_utc()]
                 if log:
-                    _LOGGER.debug('Auto update: Total seconds %d, divisions: %d updates, interval: %d seconds', seconds, divisions, interval)
+                    _LOGGER.debug("Auto update: Total seconds %d, divisions: %d updates, interval: %d seconds", seconds, divisions, interval)
                     if init:
-                        _LOGGER.debug('Auto-update will update forecasts %d times %s', divisions, 'over 24 hours' if self.solcast.options.auto_update > 1 else 'between sunrise and sunset')
+                        _LOGGER.debug("Auto-update will update forecasts %d times %s", divisions, "over 24 hours" if self.solcast.options.auto_update > 1 else "between sunrise and sunset")
                 return intervals
 
             self._intervals = get_intervals(self._sunrise, self._sunset)
@@ -220,19 +220,19 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
             intervals_today = format_intervals(self._intervals)
             if len(intervals_today) > 0:
-                _LOGGER.info('Auto-scheduled forecast update for today at %s', ', '.join(intervals_today))
+                _LOGGER.info("Auto-scheduled forecast update for today at %s", ', '.join(intervals_today))
             if len(intervals_today) < divisions: # Only log tomorrow if part-way though today, or today has no more updates
                 intervals_tomorrow = format_intervals(get_intervals(self._sunrise_tomorrow, self._sunset_tomorrow, log=False))
-                _LOGGER.info('Auto-scheduled forecast update for tomorrow at %s', ', '.join(intervals_tomorrow))
+                _LOGGER.info("Auto-scheduled forecast update for tomorrow at %s", ', '.join(intervals_tomorrow))
         except:
             _LOGGER.error("Exception in __calculate_forecast_updates(): %s", traceback.format_exc())
 
     async def __forecast_update(self, force=False):
         """Get updated forecast data."""
 
-        _LOGGER.debug('Checking for stale usage cache')
+        _LOGGER.debug("Checking for stale usage cache")
         if self.solcast.is_stale_usage_cache():
-            _LOGGER.warning('Usage cache reset time is stale, last reset was more than 24-hours ago, resetting API usage')
+            _LOGGER.warning("Usage cache reset time is stale, last reset was more than 24-hours ago, resetting API usage")
             await self.solcast.reset_usage_cache()
             await self.__restart_time_track_midnight_update()
 

@@ -428,7 +428,7 @@ class SolcastApi: # pylint: disable=R0904
                 async with self._serialise_lock:
                     async with aiofiles.open(filename, 'w') as f:
                         await f.write(payload)
-                _LOGGER.debug("Saved forecast cache %s", filename)
+                _LOGGER.debug("Saved %s forecast cache", "dampened" if filename == self._filename else "undampened")
                 return True
             except Exception as e:
                 _LOGGER.error("Exception writing forecast data: %s", e)
@@ -449,7 +449,7 @@ class SolcastApi: # pylint: disable=R0904
                 api_key = spl.strip()
                 async with async_timeout.timeout(60):
                     cache_filename = self.__get_sites_cache_filename(api_key)
-                    _LOGGER.debug("%s", 'Sites cache ' + ('exists' if file_exists(cache_filename) else 'does not yet exist'))
+                    _LOGGER.debug("%s", "Sites cache " + ("exists" if file_exists(cache_filename) else "does not yet exist"))
                     if self._api_cache_enabled and file_exists(cache_filename):
                         _LOGGER.debug("Loading cached sites data")
                         status = 404
@@ -469,7 +469,7 @@ class SolcastApi: # pylint: disable=R0904
                             resp: ClientResponse = await self._aiohttp_session.get(url=url, params=params, ssl=False)
 
                             status = resp.status
-                            _LOGGER.debug("HTTP session returned status %s in __sites_data()%s", translate(status), ', trying cache' if status != 200 else '')
+                            _LOGGER.debug("HTTP session returned status %s in __sites_data()%s", translate(status), ", trying cache" if status != 200 else "")
                             try:
                                 resp_json = await resp.json(content_type=None)
                             except json.decoder.JSONDecodeError:
@@ -488,14 +488,14 @@ class SolcastApi: # pylint: disable=R0904
                                     success = True
                                     break
                                 else:
-                                    _LOGGER.error('No sites for the API key %s are configured at solcast.com', self.__redact_api_key(api_key))
+                                    _LOGGER.error("No sites for the API key %s are configured at solcast.com", self.__redact_api_key(api_key))
                                     break
                             else:
                                 if cache_exists:
                                     use_cache_immediate = True
                                     break
                                 if status == 404:
-                                    _LOGGER.error('Error getting sites for the API key %s, is the key correct?', self.__redact_api_key(api_key))
+                                    _LOGGER.error("Error getting sites for the API key %s, is the key correct?", self.__redact_api_key(api_key))
                                     break
                                 if retry > 0:
                                     _LOGGER.debug("Will retry get sites, retry %d", (retries - retry) + 1)
@@ -514,7 +514,7 @@ class SolcastApi: # pylint: disable=R0904
                                     for i in resp_json['sites']:
                                         if i.get('api_key') not in sp:
                                             status = 429
-                                            _LOGGER.debug('API key has changed so sites cache is invalid, not loading cached data')
+                                            _LOGGER.debug("API key has changed so sites cache is invalid, not loading cached data")
                                             break
                             else:
                                 _LOGGER.error("Cached sites are not yet available for %s to cope with API call failure", self.__redact_api_key(api_key))
@@ -531,14 +531,14 @@ class SolcastApi: # pylint: disable=R0904
                     self.sites_loaded = True
                     self._api_used_reset[api_key] = None
                     if not self.previously_loaded:
-                        _LOGGER.info("Sites loaded for %s", self.__redact_api_key(api_key))
+                        _LOGGER.info("Sites loaded%s", (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "")
                 else:
                     _LOGGER.error("%s HTTP status error %s in __sites_data() while gathering sites", self.options.host, translate(status))
                     raise Exception("HTTP __sites_data() error: gathering sites")
         except ConnectionRefusedError as e:
             _LOGGER.error("Connection refused in __sites_data(): %s", e)
         except ClientConnectionError as e:
-            _LOGGER.error('Connection error in __sites_data(): %s', e)
+            _LOGGER.error("Connection error in __sites_data(): %s", e)
         except asyncio.TimeoutError:
             try:
                 _LOGGER.warning("Retrieving sites timed out, attempting to continue")
@@ -562,7 +562,7 @@ class SolcastApi: # pylint: disable=R0904
                             self.sites_loaded = True
                             self._api_used_reset[api_key] = None
                             if not self.previously_loaded:
-                                _LOGGER.info("Sites loaded for %s", self.__redact_api_key(api_key))
+                                _LOGGER.info("Sites loaded%s", (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "")
                     else:
                         error = True
                         _LOGGER.error("Cached sites are not yet available for %s to cope with API call failure", self.__redact_api_key(api_key))
@@ -629,7 +629,7 @@ class SolcastApi: # pylint: disable=R0904
             for spl in sp:
                 api_key = spl.strip()
                 cache_filename = self.__get_usage_cache_filename(api_key)
-                _LOGGER.debug("%s for %s", 'Usage cache ' + ('exists' if file_exists(cache_filename) else 'does not yet exist'), self.__redact_api_key(api_key))
+                _LOGGER.debug("%s for %s", "Usage cache " + ("exists" if file_exists(cache_filename) else "does not yet exist"), self.__redact_api_key(api_key))
                 cache = True
                 if file_exists(cache_filename):
                     async with aiofiles.open(cache_filename) as f:
@@ -652,7 +652,7 @@ class SolcastApi: # pylint: disable=R0904
                             _LOGGER.info("Usage loaded and cache updated with new limit")
                         else:
                             if not self.previously_loaded:
-                                _LOGGER.info("Usage loaded for %s", self.__redact_api_key(api_key))
+                                _LOGGER.info("Usage loaded%s", (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "")
                         if self._api_used_reset[api_key] is not None and self.__get_real_now_utc() > self._api_used_reset[api_key] + timedelta(hours=24):
                             _LOGGER.warning("Resetting usage for %s, last reset was more than 24-hours ago", self.__redact_api_key(api_key))
                             self._api_used[api_key] = 0
@@ -699,10 +699,10 @@ class SolcastApi: # pylint: disable=R0904
                 with file1 either being renamed, should file2 not exist), or otherwise be removed.
             """
             if file_exists(file1) and not file_exists(file2):
-                _LOGGER.info('Renaming %s to %s', self.__redact_msg_api_key(file1, sp[0]), self.__redact_msg_api_key(file2, sp[0]))
+                _LOGGER.info("Renaming %s to %s", self.__redact_msg_api_key(file1, sp[0]), self.__redact_msg_api_key(file2, sp[0]))
                 os.rename(file1, file2)
             if file_exists(file1) and file_exists(file2):
-                _LOGGER.warning('Removing orphaned %s', self.__redact_msg_api_key(file1, sp[0]))
+                _LOGGER.warning("Removing orphaned %s", self.__redact_msg_api_key(file1, sp[0]))
                 os.remove(file1)
 
         def remove_orphans(all_a, multi_a):
@@ -718,7 +718,7 @@ class SolcastApi: # pylint: disable=R0904
             for s in all_a:
                 if s not in multi_a:
                     red = re.match('(.+-)(.+)([0-9a-zA-Z]{6}.json)', s)
-                    _LOGGER.warning('Removing orphaned %s', red.group(1)+'******'+red.group(3))
+                    _LOGGER.warning("Removing orphaned %s", red.group(1)+"******"+red.group(3))
                     os.remove(s)
 
         try:
@@ -752,7 +752,7 @@ class SolcastApi: # pylint: disable=R0904
 
     async def reset_api_usage(self):
         """Reset the daily API usage counter."""
-        _LOGGER.debug('Reset API usage')
+        _LOGGER.debug("Reset API usage")
         for api_key, _ in self._api_used.items():
             self._api_used[api_key] = 0
             await self.__serialise_usage(api_key, reset=True)
@@ -770,7 +770,7 @@ class SolcastApi: # pylint: disable=R0904
                     first_site_len = len(damp_list)
                 else:
                     if len(damp_list) != first_site_len:
-                        _LOGGER.warning('Number of dampening factors for all sites must be the same, dampening will be ignored until this is resolved')
+                        _LOGGER.warning("Number of dampening factors for all sites must be the same, dampening will be ignored until this is resolved")
                         return False
             return True
         else:
@@ -815,7 +815,7 @@ class SolcastApi: # pylint: disable=R0904
             if file_exists(legacy_file):
                 ex = False
                 try:
-                    _LOGGER.info('Migrating legacy per-site dampening to granular')
+                    _LOGGER.info("Migrating legacy per-site dampening to granular")
                     async with aiofiles.open(legacy_file) as f:
                         resp_json = json.loads(await f.read())
                         self.granular_dampening = cast(dict, resp_json)
@@ -883,13 +883,13 @@ class SolcastApi: # pylint: disable=R0904
                                     first_site_len = len(damp_list)
                                 else:
                                     if len(damp_list) != first_site_len:
-                                        _LOGGER.error('Number of dampening factors for all sites must be the same in %s, dampening ignored', json_file)
+                                        _LOGGER.error("Number of dampening factors for all sites must be the same in %s, dampening ignored", json_file)
                                         self.granular_dampening = {}
                                         self._granular_allow_reset = False
                                         option_off()
                                         return False
                                 if len(damp_list) not in (24, 48):
-                                    _LOGGER.error('Number of dampening factors for site %s must be 24 or 48 in %s, dampening ignored', site, json_file)
+                                    _LOGGER.error("Number of dampening factors for site %s must be 24 or 48 in %s, dampening ignored", site, json_file)
                                     err = True
                             if err:
                                 self.granular_dampening = {}
@@ -904,7 +904,7 @@ class SolcastApi: # pylint: disable=R0904
                         else:
                             self._granular_allow_reset = False
                             option_off()
-                            _LOGGER.debug('Using legacy hourly dampening')
+                            _LOGGER.debug("Using legacy hourly dampening")
                             return False
                 except:
                     raise
@@ -1047,7 +1047,7 @@ class SolcastApi: # pylint: disable=R0904
                             _LOGGER.debug("Data cache %s exists, file type is %s", filename, type(json_data))
                             data = json_data
                             if json_version != JSON_VERSION:
-                                _LOGGER.warning('%s version is not latest (%d vs. %d), upgrading', filename, json_version, JSON_VERSION)
+                                _LOGGER.warning("%s version is not latest (%d vs. %d), upgrading", filename, json_version, JSON_VERSION)
                                 # Future: If the file structure changes then upgrade it
                                 if json_version < 4:
                                     data['version'] = 4
@@ -1061,7 +1061,7 @@ class SolcastApi: # pylint: disable=R0904
                             if set_loaded:
                                 self._loaded_data = True
                         if not self.previously_loaded:
-                            _LOGGER.info("%s data loaded", filename)
+                            _LOGGER.info("%s data loaded", "Dampened" if filename == self._filename else "Undampened")
                         return data
                     else:
                         return None
@@ -1093,7 +1093,7 @@ class SolcastApi: # pylint: disable=R0904
                         pass
 
                     if reset_usage:
-                        _LOGGER.info('An API key has changed, resetting usage')
+                        _LOGGER.info("An API key has changed, resetting usage")
                         await self.reset_api_usage()
 
                     if len(new_sites.keys()) > 0:
@@ -1790,14 +1790,14 @@ class SolcastApi: # pylint: disable=R0904
         try:
             self.__build_splines(self._forecasts_moment)
         except:
-            _LOGGER.error('Exception in __spline_moments(): %s', traceback.format_exc())
+            _LOGGER.error("Exception in __spline_moments(): %s", traceback.format_exc())
 
     async def __spline_remaining(self):
         """Build the descending splines."""
         try:
             self.__build_splines(self._forecasts_remaining, reducing=True)
         except:
-            _LOGGER.error('Exception in __spline_remaining(): %s', traceback.format_exc())
+            _LOGGER.error("Exception in __spline_remaining(): %s", traceback.format_exc())
 
     async def recalculate_splines(self):
         """Recalculate both the moment and remaining splines"""
@@ -1906,7 +1906,7 @@ class SolcastApi: # pylint: disable=R0904
                 )
             else:
                 _LOGGER.error(
-                    'No forecast data available for %s()%s%s: %s to %s',
+                    "No forecast data available for %s()%s%s: %s to %s",
                     currentFuncName(1), '' if site is None else ' '+site, '' if _data_field is None else ' '+_data_field,
                     start_utc.strftime(DATE_FORMAT_UTC),
                     end_utc.strftime(DATE_FORMAT_UTC)
@@ -1974,7 +1974,7 @@ class SolcastApi: # pylint: disable=R0904
                 )
             else:
                 _LOGGER.error(
-                    'No forecast data available for %s()%s%s: %s to %s',
+                    "No forecast data available for %s()%s%s: %s to %s",
                     currentFuncName(1), '' if site is None else ' '+site, '' if _data_field is None else ' '+_data_field,
                     start_utc.strftime(DATE_FORMAT_UTC),
                     end_utc.strftime(DATE_FORMAT_UTC)
@@ -2024,11 +2024,11 @@ class SolcastApi: # pylint: disable=R0904
                     failure = True
                     if len(self.sites) > 1:
                         if sites_attempted < len(self.sites):
-                            _LOGGER.warning('Forecast update for site %s failed so not getting remaining sites%s', site['resource_id'], ' - API use count may be odd' if len(self.sites) > 2 else '')
+                            _LOGGER.warning("Forecast update for site %s failed so not getting remaining sites%s", site['resource_id'], " - API use count may be odd" if len(self.sites) > 2 else "")
                         else:
-                            _LOGGER.warning('Forecast update for the last site queued failed (%s) so not getting remaining sites - API use count may be odd', site['resource_id'])
+                            _LOGGER.warning("Forecast update for the last site queued failed (%s) so not getting remaining sites - API use count may be odd", site['resource_id'])
                     else:
-                        _LOGGER.warning('Forecast update for site %s failed', site['resource_id'])
+                        _LOGGER.warning("Forecast update for site %s failed", site['resource_id'])
                     status = 'At least one site forecast get failed'
                     break
 
@@ -2067,7 +2067,7 @@ class SolcastApi: # pylint: disable=R0904
             for s in self.sites:
                 site = s['resource_id']
                 if not self._data_undampened['siteinfo'].get(site) or len(self._data_undampened['siteinfo'][site].get('forecasts', [])) == 0:
-                    _LOGGER.info('Migrating undampened history to %s for %s', self._filename_undampened, site)
+                    _LOGGER.info("Migrating undampened history to %s for %s", self._filename_undampened, site)
                     apply_dampening.append(site)
                 else:
                     continue
@@ -2083,7 +2083,7 @@ class SolcastApi: # pylint: disable=R0904
                         forecasts_undampened = sorted(list({
                             forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts'] if forecast["period_start"] >= pastdays
                         }.values()), key=itemgetter("period_start"))
-                        _LOGGER.debug('Migrating %d forecast entries to undampened forecasts for site %s', len(forecasts_undampened), site)
+                        _LOGGER.debug("Migrating %d forecast entries to undampened forecasts for site %s", len(forecasts_undampened), site)
                 except:
                     _LOGGER.debug(traceback.format_exc())
                     raise
@@ -2097,7 +2097,7 @@ class SolcastApi: # pylint: disable=R0904
             for s in self.sites:
                 site = s['resource_id']
                 if site in apply_dampening:
-                    _LOGGER.info('Dampening forecasts for today onwards for site %s', site)
+                    _LOGGER.info("Dampening forecasts for today onwards for site %s", site)
                 else:
                     continue
                 day_start = self.get_day_start_utc()
@@ -2163,7 +2163,7 @@ class SolcastApi: # pylint: disable=R0904
         try:
             lastday = self.get_day_start_utc() + timedelta(days=8)
             numhours = math.ceil((lastday - self.get_now_utc()).total_seconds() / 3600)
-            _LOGGER.debug('Polling API for site %s lastday %s numhours %d', site, lastday.strftime('%Y-%m-%d'), numhours)
+            _LOGGER.debug("Polling API for site %s lastday %s numhours %d", site, lastday.strftime('%Y-%m-%d'), numhours)
 
             new_data = []
 
@@ -2177,7 +2177,7 @@ class SolcastApi: # pylint: disable=R0904
                 if self.tasks.get('fetch') is not None:
                     self.tasks.pop('fetch')
                 if not isinstance(resp_dict, dict):
-                    _LOGGER.error('No data was returned for estimated_actuals so this WILL cause issues. Your API limit may be exhaused, or Solcast has a problem...')
+                    _LOGGER.error("No data was returned for estimated_actuals so this WILL cause issues. Your API limit may be exhaused, or Solcast has a problem...")
                     raise TypeError(f"API did not return a json object. Returned {resp_dict}")
 
                 estimate_actuals = resp_dict.get("estimated_actuals", None)
@@ -2585,4 +2585,4 @@ class SolcastApi: # pylint: disable=R0904
                     else:
                         _LOGGER.debug("Forecast data for %s contains only %d of 48 intervals and may produce inaccurate forecast data", day.strftime('%Y-%m-%d'), intervals)
         except Exception as e:
-            _LOGGER.error('Exception in __check_data_records(): %s: %s', e, traceback.format_exc())
+            _LOGGER.error("Exception in __check_data_records(): %s: %s", e, traceback.format_exc())
