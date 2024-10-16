@@ -139,7 +139,6 @@
                     "description": "Opcjonalne miejsce do tłumienia. (Uwaga: nie będzie działać, jeśli nie jest włączone tłumienie ziarniste.)"
                 }
             }
-
         },
         "set_dampening": {
             "name": "Ustaw tłumienie prognoz",

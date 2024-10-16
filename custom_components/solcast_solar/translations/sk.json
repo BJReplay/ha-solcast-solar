@@ -139,7 +139,6 @@
                     "description": "Voliteľné miesto na tlmenie. (Poznámka: Nebude fungovať, ak nie je povolené granulárne tlmenie.)"
                 }
             }
-
         },
         "set_dampening": {
             "name": "Nastavte tlmenie predpovedí",
