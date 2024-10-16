@@ -443,7 +443,7 @@ By default, all of them are enabled, with the exception of per-site detailedFore
 
 There is an option to set a "hard limit" for projected inverter output, and this limit will 'clip' the Solcast forecasts to a maximum value.
 
-The scenario requiring use of this limit is straightforward, but note that hardly any PV installations will need to do so. (And if you have micro-inverters, or one inverter per string then definitely not. The same goes for all panels with identical orentation in a single Solcast site.)
+The scenario requiring use of this limit is straightforward, but note that hardly any PV installations will need to do so. (And if you have micro-inverters, or one inverter per string then definitely not. The same goes for all panels with identical orientation in a single Solcast site.)
 
 Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may in fact be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
 
