@@ -138,7 +138,6 @@
                     "description": "Site facultatif pour obtenir un amortissement. (Remarque : ne fonctionnera pas si l'amortissement granulaire n'est pas activé.)"
                 }
             }
-
         },
         "set_dampening": {
             "name": "Définir le coefficient des prévisions",

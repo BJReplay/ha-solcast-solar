@@ -391,7 +391,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
                         exclude.append('detailedHourly-' + s['resource_id'])
                 self._state_info["unrecorded_attributes"] = self._state_info["unrecorded_attributes"] | frozenset(exclude)
         except Exception as e:
-            _LOGGER.error('Exception setting excluded attributes: %s', e)
+            _LOGGER.error("Exception setting excluded attributes: %s", e)
             _LOGGER.error(traceback.format_exc())
 
     @property
