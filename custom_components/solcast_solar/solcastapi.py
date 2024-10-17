@@ -2144,7 +2144,7 @@ class SolcastApi: # pylint: disable=R0904
             do_past (bool): A optional flag to indicate that past actual forecasts should be retrieved.
 
         Returns:
-            bool: A flag incicating success or failure
+            bool: A flag indicating success or failure
         """
         try:
             lastday = self.get_day_start_utc() + timedelta(days=8)
