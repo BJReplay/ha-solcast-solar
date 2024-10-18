@@ -2410,6 +2410,8 @@ class SolcastApi: # pylint: disable=R0904
                 if FORECAST_DEBUG_LOGGING:
                     _LOGGER.debug("HTTP session returned: %s", str(d))
                 return d
+        except asyncio.exceptions.CancelledError:
+            _LOGGER.debug('Fetch cancelled')
         except ConnectionRefusedError as e:
             _LOGGER.error("Connection error in __fetch_data(), connection refused: %s", e)
         except ClientConnectionError as e:
