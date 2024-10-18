@@ -1338,8 +1338,8 @@ class SolcastApi: # pylint: disable=R0904
 
         def build_hourly(t) -> list[Dict[str, Any]]:
             ht = []
-            for index in range(0,len(tup),2):
-                if len(tup) > 0:
+            for index in range(0,len(t),2):
+                if len(t) > 0:
                     try:
                         x1 = round((t[index]["pv_estimate"] + t[index+1]["pv_estimate"]) / 2, 4)
                         x2 = round((t[index]["pv_estimate10"] + t[index+1]["pv_estimate10"]) / 2, 4)
