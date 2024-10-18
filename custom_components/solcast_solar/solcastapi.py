@@ -629,6 +629,7 @@ class SolcastApi: # pylint: disable=R0904
                 _LOGGER.warning("Could not interpret API limit configuration string (%s), using default of 10", self.options.api_quota)
                 quota = {s: 10 for s in sp}
 
+            earliest_reset = self.__get_utc_previous_midnight()
             for spl in sp:
                 api_key = spl.strip()
                 cache_filename = self.__get_usage_cache_filename(api_key)
@@ -647,8 +648,10 @@ class SolcastApi: # pylint: disable=R0904
                     if cache:
                         self._api_limit[api_key] = usage.get("daily_limit", None)
                         self._api_used[api_key] = usage.get("daily_limit_consumed", None)
-                        self._api_used_reset[api_key] = usage.get("reset", None)
+                        self._api_used_reset[api_key] = usage.get("reset", self.__get_utc_previous_midnight())
                         _LOGGER.debug("Usage cache for %s last reset %s", self.__redact_api_key(api_key), self._api_used_reset[api_key].astimezone(self._tz).strftime(DATE_FORMAT))
+                        if self._api_used_reset[api_key] < earliest_reset:
+                            earliest_reset = self._api_used_reset[api_key]
                         if usage['daily_limit'] != quota[api_key]: # Limit has been adjusted, so rewrite the cache.
                             self._api_limit[api_key] = quota[api_key]
                             await self.__serialise_usage(api_key)
@@ -668,6 +671,14 @@ class SolcastApi: # pylint: disable=R0904
                     self._api_used[api_key] = 0
                     await self.__serialise_usage(api_key, reset=True)
                 _LOGGER.debug("API counter for %s is %d/%d", self.__redact_api_key(api_key), self._api_used[api_key], self._api_limit[api_key])
+            # Check for last reset disagreement
+            for spl in sp:
+                api_key = spl.strip()
+                if self._api_used_reset[api_key] > earliest_reset:
+                    _LOGGER.warning("Disagreement in earliest reset time for API keys, so aligning")
+                    self._api_used_reset[api_key] = earliest_reset
+                    await self.__serialise_usage(api_key)
+
         except Exception as e:
             _LOGGER.error("Exception in __sites_usage(): %s: %s", e, traceback.format_exc())
 
