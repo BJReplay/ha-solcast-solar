@@ -2027,7 +2027,7 @@ class SolcastApi: # pylint: disable=R0904
                             )
                         else:
                             _LOGGER.warning(
-                                "Forecast update for the last site queued failed (%s) so not getting remaining sites%s", site['resource_id'],
+                                "Forecast update for the last site queued failed (%s)%s", site['resource_id'],
                                 " - API use count may be odd" if not force else ""
                             )
                     else:
