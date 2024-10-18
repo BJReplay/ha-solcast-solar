@@ -698,6 +698,8 @@ series:
 
 v4.2.1
 * Fix an issue that causes changing Solcast accounts to fail by @autoSteve
+* Fix an issue with multi-API key where API usage reset was not handled correctly by @autoSteve
+* Fix an issue with enabled detailed site breakdown for hourly attributes by @autoSteve
 * Code clean-up and some refactoring by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.0...v4.2.1
