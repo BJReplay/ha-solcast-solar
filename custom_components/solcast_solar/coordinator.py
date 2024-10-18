@@ -251,7 +251,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         if self.solcast.options.auto_update > 0:
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_force")
         else:
-            await self.__forecast_update()
+            self.tasks['forecast_update'] = asyncio.create_task(self.__forecast_update())
 
     async def service_event_force_update(self, *args):
         """Force the update of forecast data when requested by a service call. Ignores API usage/limit counts.
@@ -262,7 +262,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         if self.solcast.options.auto_update == 0:
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_normal")
         else:
-            await self.__forecast_update(force=True)
+            self.tasks['forecast_update'] = asyncio.create_task(self.__forecast_update(force=True))
 
     async def service_event_delete_old_solcast_json_file(self, *args):
         """Delete the solcast.json file when requested by a service call."""

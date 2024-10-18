@@ -472,7 +472,7 @@ class SolcastApi: # pylint: disable=R0904
                             resp: ClientResponse = await self._aiohttp_session.get(url=url, params=params, ssl=False)
 
                             status = resp.status
-                            _LOGGER.debug("HTTP session returned status %s in __sites_data()%s", translate(status), ", trying cache" if status != 200 else "")
+                            _LOGGER.warning("HTTP session returned status %s in __sites_data()%s", translate(status), ", trying cache" if status != 200 else "")
                             try:
                                 resp_json = await resp.json(content_type=None)
                             except json.decoder.JSONDecodeError:
