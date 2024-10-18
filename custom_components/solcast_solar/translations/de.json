@@ -139,7 +139,6 @@
                     "description": "Optionaler Standort zur Dämpfung. (Hinweis: Funktioniert nicht, wenn die granulare Dämpfung nicht aktiviert ist.)"
                 }
             }
-
         },
         "set_dampening": {
             "name": "Setzen Sie dämpfende Prognosen",
