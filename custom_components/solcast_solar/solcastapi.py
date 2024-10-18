@@ -646,8 +646,8 @@ class SolcastApi: # pylint: disable=R0904
                             _LOGGER.error("Load usage cache exception %s for %s, re-creating cache with zero usage", e, self.__redact_api_key(api_key))
                             cache = False
                     if cache:
-                        self._api_limit[api_key] = usage.get("daily_limit", None)
-                        self._api_used[api_key] = usage.get("daily_limit_consumed", None)
+                        self._api_limit[api_key] = usage.get("daily_limit", 10)
+                        self._api_used[api_key] = usage.get("daily_limit_consumed", 0)
                         self._api_used_reset[api_key] = usage.get("reset", self.__get_utc_previous_midnight())
                         _LOGGER.debug("Usage cache for %s last reset %s", self.__redact_api_key(api_key), self._api_used_reset[api_key].astimezone(self._tz).strftime(DATE_FORMAT))
                         if self._api_used_reset[api_key] < earliest_reset:
