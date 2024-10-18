@@ -1123,14 +1123,14 @@ class SolcastApi: # pylint: disable=R0904
                 dampened_data = await load_data(self._filename)
                 if dampened_data:
                     self._data = dampened_data
-                    # Check for sites changes.
-                    await adds_moves_changes()
                     # Load the undampened history
                     undampened_data = await load_data(self._filename_undampened, set_loaded=False)
                     if undampened_data:
                         self._data_undampened = undampened_data
                     # Migrate undampened history data to the undampened cache if needed.
                     await self.__migrate_undampened_history()
+                    # Check for sites changes.
+                    await adds_moves_changes()
 
                 if not self._loaded_data:
                     # No file to load.
