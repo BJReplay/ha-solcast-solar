@@ -2021,9 +2021,15 @@ class SolcastApi: # pylint: disable=R0904
                     failure = True
                     if len(self.sites) > 1:
                         if sites_attempted < len(self.sites):
-                            _LOGGER.warning("Forecast update for site %s failed so not getting remaining sites%s", site['resource_id'], " - API use count may be odd" if len(self.sites) > 2 else "")
+                            _LOGGER.warning(
+                                "Forecast update for site %s failed so not getting remaining sites%s", site['resource_id'],
+                                " - API use count may be odd" if len(self.sites) > 2 and not force else ""
+                            )
                         else:
-                            _LOGGER.warning("Forecast update for the last site queued failed (%s) so not getting remaining sites - API use count may be odd", site['resource_id'])
+                            _LOGGER.warning(
+                                "Forecast update for the last site queued failed (%s) so not getting remaining sites%s", site['resource_id'],
+                                " - API use count may be odd" if not force else ""
+                            )
                     else:
                         _LOGGER.warning("Forecast update for site %s failed", site['resource_id'])
                     status = 'At least one site forecast get failed'
