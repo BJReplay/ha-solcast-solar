@@ -2367,7 +2367,7 @@ class SolcastApi: # pylint: disable=R0904
                                     break
                                 # Solcast is busy, so delay (15 seconds * counter), plus a random number of seconds between zero and 15.
                                 delay = (counter * backoff) + random.randrange(0,15)
-                                _LOGGER.warning("The API is busy, pausing %d seconds before retry", delay)
+                                _LOGGER.warning("API returned 'try later' (status 429), pausing %d seconds before retry", delay)
                                 await asyncio.sleep(delay)
                             else:
                                 break
