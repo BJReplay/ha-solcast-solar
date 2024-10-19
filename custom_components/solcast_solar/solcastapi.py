@@ -862,7 +862,8 @@ class SolcastApi: # pylint: disable=R0904
             return True
 
         def option(enable: bool, set_allow_reset: bool = False):
-            if enable ^ self.entry_options.get(SITE_DAMP, False):
+            site_damp = self.entry_options.get(SITE_DAMP, False) if self.entry_options.get(SITE_DAMP) is not None else False
+            if enable ^ site_damp:
                 self.entry_options[SITE_DAMP] = enable
                 if set_allow_reset:
                     self._granular_allow_reset = enable
