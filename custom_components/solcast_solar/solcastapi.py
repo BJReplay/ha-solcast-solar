@@ -515,6 +515,8 @@ class SolcastApi: # pylint: disable=R0904
                                     resp_json = json.loads(await f.read())
                                     status = 200
                                     for i in resp_json['sites']:
+                                        if i.get('api_key') is None:
+                                            continue
                                         if i.get('api_key') not in sp:
                                             status = 429
                                             _LOGGER.debug("API key has changed so sites cache is invalid, not loading cached data")
