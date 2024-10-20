@@ -263,7 +263,7 @@ mode: single
 >
 > Log capture instructions are in the Bug Issue Template - you will see them if you start creating a new issue - make sure you include these logs if you want the assistance of the repository constributors.
 >
-> An example of busy messages and a successful retry are shown below (with debug logging enabled). In this case there is no issue, as the retry succeeds. Should ten consecutive attempts fail, then the forecast retrieval will end with an `ERROR`. If that happens, manually trigger another `solcast_solar.update_forecasts` action call (or if auto-update is enabled use `solcast_solar.force_update_forecasts`), or wait for the next scheduled update.
+> An example of busy messages and a successful retry are shown below (with debug logging enabled). In this case there is no issue, as the retry succeeds. Should ten consecutive attempts fail, then the forecast retrieval will end with an `ERROR`. If that happens, manually trigger another `solcast_solar.update_forecasts` action (or if auto-update is enabled use `solcast_solar.force_update_forecasts`), or wait for the next scheduled update.
 >
 > Should the load of sites data on integration startup be the call that has failed with 429/Too busy, then the integration cannot start correctly, and it will retry continuously.
 
@@ -309,7 +309,7 @@ Dampening is applied to future forecasts whenever a forecast is fetched, so fore
 >
 > Retained dampened historical forecasts is a recent change, and may require automation modification to read undampened forecast history instead. See [Reading forecast values in an automation](#reading-forecast-values-in-an-automation) and [Changes](#changes) below.
 
-Per-site and per-half hour dampening is possible only by using action calls or modifying a dampening configration file. See [Granular dampening](#granular-dampening) below.
+Per-site and per-half hour dampening is possible only by using the integration action or modifying a dampening configration file. See [Granular dampening](#granular-dampening) below.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png)
 
@@ -331,7 +331,7 @@ You can change the dampening factor value for any hour. Values from 0.0 - 1.0 ar
 
 Setting dampening for individual Solcast sites, or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` action, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
 
-The action call accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the action creates or updates the file `solcast-dampening.json` when either a site is specified, or 48 factor values are specified. If setting overall dampening with 48 factors then an optional 'all' site may be specified (or simply omitted for this use case).
+The action accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the action creates or updates the file `solcast-dampening.json` when either a site is specified, or 48 factor values are specified. If setting overall dampening with 48 factors then an optional 'all' site may be specified (or simply omitted for this use case).
 
 ```
 action: solcast_solar.set_dampening
@@ -389,7 +389,7 @@ Example of half-hourly dampening for all sites:
 
 When calculating dampening using an automation it may be beneficial to use undampened forecast values as input.
 
-This is possible by using the action call `solcast_solar.query_forecast_data`, and including `undampened: true` in the call. If using granular dampening then the site may also be included in the call.
+This is possible by using the action `solcast_solar.query_forecast_data`, and including `undampened: true` in the parameters. If using granular dampening then the site may also be included in the action.
 
 ```
 action: solcast_solar.query_forecast_data
@@ -404,7 +404,7 @@ Undampened forecast history is retained for just 14 days.
 
 #### Reading dampening values
 
-The currently set dampening factors may be retrieved using the action call "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
+The currently set dampening factors may be retrieved using the action "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
 
 If granular dampening is set to specify both individual site factors and an 'all' factors, then attempting retrieval of an individual site factors will result in the 'all' factors being returned, with the 'all' site being noted in the response. This is because an 'all' set of factors overrides the individual site settings in this circumstance.
 
@@ -446,7 +446,7 @@ The scenario requiring use of this limit is straightforward, but note that hardl
 
 Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may in fact be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
 
-The hard limit may be set in the integration configuration, or set via an action call in `Developer Tools`.
+The hard limit may be set in the integration configuration, or set via manually invoking the Action in `Developer Tools`.
 
 ## Key Solcast concepts
 
@@ -695,6 +695,9 @@ series:
 
 ## Changes
 
+v4.2.3
+* Change automations to HA 2024.10 notation, replace references to 'services' to 'actions' by @gcoan
+
 v4.2.1
 * Fix an issue that causes changing Solcast accounts to fail by @autoSteve
 * Fix an issue with multi-API key where API usage reset was not handled correctly by @autoSteve
@@ -705,7 +708,7 @@ Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.0...v4
 
 v4.2.0
 * Generally available release of v4.1.8 and v4.1.9 pre-release features
-* Translations of actions call error responses by @autoSteve
+* Translations of services call error responses by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.7...v4.2.0
 
@@ -714,8 +717,8 @@ Most recent changes: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.9
 v4.1.9 pre-release
 * Granular dampening to dampen per half hour period by @autoSteve and @isorin
 * Dampening applied at forecast fetch and not to forecast history @autoSteve and @isorin
-* Retrieve un-dampened forecast values using action call by @autoSteve (thanks @Nilogax)
-* Get presently set dampening factors using action call by @autoSteve (thanks @Nilogax)
+* Retrieve un-dampened forecast values using service call by @autoSteve (thanks @Nilogax)
+* Get presently set dampening factors using service call by @autoSteve (thanks @Nilogax)
 * Migration of un-dampened forecast to un-dampened cache on startup by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.9...v4.1.9
@@ -987,7 +990,7 @@ v4.0.21
 v4.0.20
 - fixed the info error for `solcast_pv_forecast_forecast_today (<class 'custom_components.solcast_solar.sensor.SolcastSensor'>) is using state class 'measurement' which is impossible considering device class ('energy')`
 - removed the midnight UTC fetch and replaced with set to zero to reduce the polling on Solcast system
-⚠️ To help reduce impact on the Solcast backend, Solcast have asked that users set their automations for polling with a random min and sec timing.. if you are polling at say 10:00 set it to 10:04:10 for instance so that everyone is not polling the actions at the same time
+⚠️ To help reduce impact on the Solcast backend, Solcast have asked that users set their automations for polling with a random min and sec timing.. if you are polling at say 10:00 set it to 10:04:10 for instance so that everyone is not polling the services at the same time
 
 v4.0.19
 - fix resetting api limit/usage not updating HA UI
@@ -1032,7 +1035,7 @@ v4.0.10
 - fixes for changing API key once one has previously been set
 
 v4.0.9
-- new action to update forecast hourly dampening factors
+- new service to update forecast hourly dampening factors
 
 v4.0.8
 - added Polish translation thanks to @home409ca
@@ -1051,7 +1054,7 @@ v4.0.5
 - fixed `Download diagnostic` data throwing an error when clicked
 
 v4.0.4
-- finished off the action call `query_forecast_data` to query the forecast data. Returns a list of forecast data using a datetime range start - end
+- finished off the service call `query_forecast_data` to query the forecast data. Returns a list of forecast data using a datetime range start - end
 - and thats all.. unless HA makes breaking changes or there is a major bug in v4.0.4, this is the last update
 
 v4.0.3
@@ -1077,7 +1080,7 @@ v4.0.1
 - no more auto polling.. its now up to every one to create an automation to poll for data when you want. This is due to so many users now only have 10 api calls a day
 - striped out saving UTC time changing and keeping solcast data as it is so timezone data can be changed when needed
 - history items went missing due to the sensor renamed. no longer using the HA history and instead just dtoring the data in the solcast.json file
-- removed update actuals action.. actuals data from solcast is no longer polled (it is used on the first install to get past data so the integration works and i dont get issue reports because solcast do not give full day data, only data from when you call)
+- removed update actuals service.. actuals data from solcast is no longer polled (it is used on the first install to get past data so the integration works and i dont get issue reports because solcast do not give full day data, only data from when you call)
 - lots of the logging messages have been updated to be debug,info,warning or errors
 - some sensors **COULD** possibly no longer have extra attribute values or attribute values may have been renamed or have changed to the data storaged within
 - greater in depth diagnostic data to share when needed to help debug any issues
@@ -1118,12 +1121,12 @@ v3.0.43
 - do not install :) just for testing
 
 v3.0.42
-- fixed using the action to update forecasts from calling twice
+- fixed using the service to update forecasts from calling twice
 
 v3.0.41
 - recoded logging. Re-worded. More debug vs info vs error logging.
 - API usage counter was not recorded when reset to zero at UTC midnight
-- added a new action where you can call to update the Solcast Actuals data for the forecasts
+- added a new service where you can call to update the Solcast Actuals data for the forecasts
 - added the version info to the intergation UI
 
 v3.0.40
@@ -1146,7 +1149,7 @@ v3.0.35 - PRE RELEASE
 - extended the internet connection timeout to 60s
 
 v3.0.34 - PRE RELEASE
-- added action to clear old solcast.json file to have a clean start
+- added service to clear old solcast.json file to have a clean start
 - return empty energy graph data if there is an error generating info
 
 v3.0.33
@@ -1171,7 +1174,7 @@ v3.0.29
 v3.0.27
 - changed unit for peak measurement #86 tbanks Ivesvdf
 - some other minor text changes for logs
-- changed action call thanks 696GrocuttT
+- changed service call thanks 696GrocuttT
 - including fix for issue #83
 
 v3.0.26
@@ -1186,7 +1189,7 @@ v3.0.24
 
 v3.0.23
 - added more debug log code
-- added the action to update forecast
+- added the service to update forecast
 
 v3.0.22
 - added more debug log code
