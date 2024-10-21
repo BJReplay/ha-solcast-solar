@@ -40,6 +40,7 @@ from .const import (
     HARD_LIMIT,
     INIT_MSG,
     KEY_ESTIMATE,
+    MANUFACTURER,
     SERVICE_CLEAR_DATA,
     SERVICE_FORCE_UPDATE,
     SERVICE_GET_DAMPENING,
@@ -183,6 +184,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         version = str(integration.version)
     except loader.IntegrationNotFound:
         pass
+
+    solcast.headers = {
+        'Accept': 'application/json',
+        'User-Agent': MANUFACTURER+' Integration/'+version.replace('v','')[:version.rfind('.')-1]
+    }
+    _LOGGER.debug("Session headers: %s", solcast.headers)
 
     try:
         await solcast.get_sites_and_usage()

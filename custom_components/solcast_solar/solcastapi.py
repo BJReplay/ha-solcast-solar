@@ -228,6 +228,7 @@ class SolcastApi: # pylint: disable=R0904
         self.granular_dampening = {}
         self.hard_limit = options.hard_limit
         self.hass = None
+        self.headers = {}
         self.options = options
         self.previously_loaded = False
         self.sites = []
@@ -469,11 +470,7 @@ class SolcastApi: # pylint: disable=R0904
                         use_cache_immediate = False
                         cache_exists = file_exists(cache_filename)
                         while retry >= 0:
-                            headers = {
-                                'Accept': 'application/json',
-                                'User-Agent': 'Mozilla/5.0'
-                            }
-                            resp: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=headers, ssl=False)
+                            resp: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
 
                             status = resp.status
                             (_LOGGER.info if status == 200 else _LOGGER.warning)("HTTP session returned status %s in __sites_data()%s", translate(status), ", trying cache" if status != 200 else "")
@@ -1006,11 +1003,7 @@ class SolcastApi: # pylint: disable=R0904
                 params = {"resourceId": rid, "api_key": sp[0]}
                 _LOGGER.debug("Get weather byline")
                 async with async_timeout.timeout(60):
-                    headers = {
-                        'Accept': 'application/json',
-                        'User-Agent': 'Mozilla/5.0'
-                    }
-                    resp: ClientResponse = await self._aiohttp_session.get(url=url, params=params, ssl=False, headers=headers)
+                    resp: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
                     resp_json = await resp.json(content_type=None)
                     status = resp.status
 
@@ -2352,11 +2345,7 @@ class SolcastApi: # pylint: disable=R0904
                         while True:
                             _LOGGER.debug("Fetching forecast")
                             counter += 1
-                            headers = {
-                                'Accept': 'application/json',
-                                'User-Agent': 'Mozilla/5.0'
-                            }
-                            resp: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=headers, ssl=False)
+                            resp: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
                             status = resp.status
                             if status == 200:
                                 break
