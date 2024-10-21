@@ -132,9 +132,9 @@ You probably **do not** want to do this! Use the HACS method above unless you kn
  [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/Setupanewintegration.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/Setupanewintegration.png)
 
 1. Enter your `Solcast API Key`, `API limit`, desired auto-update choice and click `Submit`. If you have more than one Solcast account because you have more than two rooftop setups, enter both account API keys separated by a comma `xxxxxxxx-xxxxx-xxxx,yyyyyyyy-yyyyy-yyyy` (_Note: this goes against Solcast T&C's by having more than one account_). If the API limit is the same for multiple accounts then enter a single value for that, or both values separated by a comma.
-1. If an auto-update option was not chosen then create your own automation to call the service `solcast_solar.update_forecasts` at the times you would like to update the solar forecast.
+1. If an auto-update option was not chosen then create your own automation to call the action `solcast_solar.update_forecasts` at the times you would like to update the solar forecast.
 1. Set up the Home Assistant Energy dashboard settings.
-1. To change other configuration options after installation, select the integration in `Devices & services` then `CONFIGURE`.
+1. To change other configuration options after installation, select the integration in `Devices & Services` then `CONFIGURE`.
 
 Make sure you use your `API Key` and not your rooftop id created in Solcast. You can find your API key here [api key](https://toolkit.solcast.com.au/account).
 
@@ -150,7 +150,7 @@ Make sure you use your `API Key` and not your rooftop id created in Solcast. You
 ### Auto-update of forecasts
 Using auto-update will get forecast updates that are automatically spread across hours when the sun is up, or alternatively over a 24-hour period. It calculates the number of daily updates that will occur according to the number of Solcast sites and the API limit that is configured.
 
-Should it be desired to fetch an update ouside of these hours, then the API limit in the integration configuration may be reduced, and an automation may then be set up to call the service `solcast_solar.force_update_forecasts` at the desired time of day. (Note that calling the service `solcast_solar.update_forecasts` will be refused if auto-update is enabled, so use force update instead.)
+Should it be desired to fetch an update ouside of these hours, then the API limit in the integration configuration may be reduced, and an automation may then be set up to call the action `solcast_solar.force_update_forecasts` at the desired time of day. (Note that calling the action `solcast_solar.update_forecasts` will be refused if auto-update is enabled, so use force update instead.)
 
 For example, to update just after midnight, as well as take advantage of auto-update, create the desired automation to force update, then reduce the API limit configured in the automation accordingly. (For this exmple, if the API key has ten total calls allowed per day and two rooftop sites, reduce the API limit to eight because two updates will be used when the automation runs.)
 
@@ -164,7 +164,7 @@ Using force update will not increment the API use counter, which is by design.
 > If implementing a reduced API limit, plus a futher forced update at a different time of day (like midnight), then a 24-hour period of adjustment may be needed, which could possibly see API exhaustion reported even if the Solcast API usage count has not actually been exhausted. These errors will clear within 24 hours.
 
 ### Using an HA automation to poll for data
-If auto-update is not enabled then create a new automation (or automations) and set up your prefered trigger times to poll for new Solcast forecast data. Use the service `solcast_solar.update_forecasts`. Examples are provided, so alter these or create your own to fit your needs.
+If auto-update is not enabled then create a new automation (or automations) and set up your prefered trigger times to poll for new Solcast forecast data. Use the action `solcast_solar.update_forecasts`. Examples are provided, so alter these or create your own to fit your needs.
 
 <details><summary><i>Click here for the examples</i><p/></summary>
 
@@ -175,8 +175,8 @@ This automation bases execution times on sunrise and sunset, which differ around
 ```yaml
 alias: Solcast update
 description: ""
-trigger:
-  - platform: template
+triggers:
+  - trigger: template
     value_template: >-
       {% set nr = as_datetime(state_attr('sun.sun','next_rising')) | as_local %}
       {% set ns = as_datetime(state_attr('sun.sun','next_setting')) | as_local %}
@@ -194,14 +194,14 @@ trigger:
         {% endif %}
       {% endfor %}
       {{ ns.match }}
-condition:
+conditions:
   - condition: sun
     before: sunset
     after: sunrise
-action:
+actions:
   - delay:
       seconds: "{{ range(30, 360)|random|int }}"
-  - service: solcast_solar.update_forecasts
+  - action: solcast_solar.update_forecasts
     data: {}
 mode: single
 ```
@@ -216,17 +216,17 @@ The next automation also includes a randomisation so that calls aren't made at p
 ```yaml
 alias: Solcast_update
 description: New API call Solcast
-trigger:
- - platform: time_pattern
+triggers:
+ - trigger: time_pattern
    hours: /4
-condition:
+conditions:
  - condition: sun
    before: sunset
    after: sunrise
-action:
+actions:
  - delay:
      seconds: "{{ range(30, 360)|random|int }}"
- - service: solcast_solar.update_forecasts
+ - action: solcast_solar.update_forecasts
    data: {}
 mode: single
 ```
@@ -236,18 +236,17 @@ The next automation triggers at 4am, 10am and 4pm, with a random delay.
 ```yaml
 alias: Solcast update
 description: ""
-trigger:
-  - platform: time
-    at: "4:00:00"
-  - platform: time
-    at: "10:00:00"
-  - platform: time
-    at: "16:00:00"
-condition: []
-action:
+triggers:
+  - trigger: time
+    at:
+      - "4:00:00"
+      - "10:00:00"
+      - "16:00:00"
+conditions: []
+actions:
   - delay:
       seconds: "{{ range(30, 360)|random|int }}"
-  - service: solcast_solar.update_forecasts
+  - action: solcast_solar.update_forecasts
     data: {}
 mode: single
 ```
@@ -264,7 +263,7 @@ mode: single
 >
 > Log capture instructions are in the Bug Issue Template - you will see them if you start creating a new issue - make sure you include these logs if you want the assistance of the repository constributors.
 >
-> An example of busy messages and a successful retry are shown below (with debug logging enabled). In this case there is no issue, as the retry succeeds. Should ten consecutive attempts fail, then the forecast retrieval will end with an `ERROR`. If that happens, manually trigger another `solcast_solar.update_forecasts` service call (or if auto-update is enabled use `solcast_solar.force_update_forecasts`), or wait for the next scheduled update.
+> An example of busy messages and a successful retry are shown below (with debug logging enabled). In this case there is no issue, as the retry succeeds. Should ten consecutive attempts fail, then the forecast retrieval will end with an `ERROR`. If that happens, manually trigger another `solcast_solar.update_forecasts` action (or if auto-update is enabled use `solcast_solar.force_update_forecasts`), or wait for the next scheduled update.
 >
 > Should the load of sites data on integration startup be the call that has failed with 429/Too busy, then the integration cannot start correctly, and it will retry continuously.
 
@@ -310,7 +309,7 @@ Dampening is applied to future forecasts whenever a forecast is fetched, so fore
 >
 > Retained dampened historical forecasts is a recent change, and may require automation modification to read undampened forecast history instead. See [Reading forecast values in an automation](#reading-forecast-values-in-an-automation) and [Changes](#changes) below.
 
-Per-site and per-half hour dampening is possible only by using service calls or modifying a dampening configration file. See [Granular dampening](#granular-dampening) below.
+Per-site and per-half hour dampening is possible only by using the `solcast_solar.set_dampening` action or modifying a dampening configration file. See [Granular dampening](#granular-dampening) below.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png)
 
@@ -323,16 +322,16 @@ You can change the dampening factor value for any hour. Values from 0.0 - 1.0 ar
 > [!TIP]
 >
 > 
-> Most users of dampening configuration do not enter values in the configuration settings directly. Rather, they build automations to set values that are appropriate for their location at different days or seasons, and these call the `solcast_solar.set_dampening` service.
+> Most users of dampening configuration do not enter values in the configuration settings directly. Rather, they build automations to set values that are appropriate for their location at different days or seasons, and these call the `solcast_solar.set_dampening` action.
 >
 > 
 > Factors causing dampening to be appropriate might be when different degrees of shading occur at the start or end of a day in Winter only, where the sun is closer to the horizon and might cause nearby buildings or trees to cast a longer shadow than in other seasons.
 
 #### Granular dampening
 
-Setting dampening for individual Solcast sites, or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` service, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
+Setting dampening for individual Solcast sites, or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` action, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
 
-The service call accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the service creates or updates the file `solcast-dampening.json` when either a site is specified, or 48 factor values are specified. If setting overall dampening with 48 factors then an optional 'all' site may be specified (or simply omitted for this use case).
+The action accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the action creates or updates the file `solcast-dampening.json` when either a site is specified, or 48 factor values are specified. If setting overall dampening with 48 factors then an optional 'all' site may be specified (or simply omitted for this use case).
 
 ```
 action: solcast_solar.set_dampening
@@ -390,7 +389,7 @@ Example of half-hourly dampening for all sites:
 
 When calculating dampening using an automation it may be beneficial to use undampened forecast values as input.
 
-This is possible by using the service call `solcast_solar.query_forecast_data`, and including `undampened: true` in the call. If using granular dampening then the site may also be included in the call.
+This is possible by using the action `solcast_solar.query_forecast_data`, and including `undampened: true` in the parameters. If using granular dampening then the site may also be included in the action parameters:
 
 ```
 action: solcast_solar.query_forecast_data
@@ -405,7 +404,7 @@ Undampened forecast history is retained for just 14 days.
 
 #### Reading dampening values
 
-The currently set dampening factors may be retrieved using the service call "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
+The currently set dampening factors may be retrieved using the action "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
 
 If granular dampening is set to specify both individual site factors and an 'all' factors, then attempting retrieval of an individual site factors will result in the 'all' factors being returned, with the 'all' site being noted in the response. This is because an 'all' set of factors overrides the individual site settings in this circumstance.
 
@@ -447,7 +446,7 @@ The scenario requiring use of this limit is straightforward, but note that hardl
 
 Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may in fact be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
 
-The hard limit may be set in the integration configuration, or set via a service call in `Developer Tools`.
+The hard limit may be set in the integration configuration, or set via manually invoking the action in `Developer Tools`.
 
 ## Key Solcast concepts
 
@@ -464,12 +463,12 @@ Three solar PV generation estimates are produced by the Solcast integration:
 
 The detail of these different forecast estimates can be found in sensor attributes, broken down by 30 minute and hourly invervals across the day. Separate attributes sum the different estimates for each day.
 
-## Services, sensors, configuration, diagnostic
+## Actions, sensors, configuration, diagnostic
 
-### Services
-These are the services for this integration: ([Configuration](#configuration))
+### Actions
+These are the actions for this integration: ([Configuration](#configuration))
 
-| Service | Action |
+| Action | Description |
 | --- | --- |
 | `solcast_solar.update_forecasts` | Updates the forecast data (refused if auto-update is enabled) |
 | `solcast_solar.force_update_forecasts` | Force updates the forecast data (performs an update regardless of API usage tracking or auto-update setting, and does not increment the API use counter) |
@@ -548,7 +547,7 @@ These are the services for this integration: ([Configuration](#configuration))
 | `API Last Polled` | date/time | N |  | Date/time when the API data was polled |
 | `API Limit` | number | N | `integer` | Total times the API can been called in a 24 hour period[^1] |
 | `API used` | number | N | `integer` | Total times the API has been called today (API counter resets to zero at midnight UTC)[^1] |  
-| `Hard Limit Set` |  | N |  | `False` is not set, else set integer value in `watts`. Can only be set or removed by service ([services](#services))|
+| `Hard Limit Set` |  | N |  | `False` is not set, else set integer value in `watts`. Can only be set or removed by ([action](#actions))|
 | `Rooftop(s) name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the solcast rooftop setup)[^2] |
 
 [^1]: API usage information is directly read from Solcast
