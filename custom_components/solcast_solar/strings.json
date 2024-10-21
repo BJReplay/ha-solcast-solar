@@ -22,7 +22,7 @@
                     "api_quota": "API limit (optionally comma separate multiple values for each key)",
                     "auto_update": "Auto-update (if no auto-update then an automation must be used instead)",
                     "customhoursensor": "Custom next X hours sensor (min=1, max=144)",
-                    "hard_limit": "Inverter hard limit in Watts (see integration documentation)",
+                    "hard_limit_api": "Inverter hard limit in kW (see integration documentation)",
                     "key_estimate": "Preferred forecast likelihood to use for sensors",
                     "attr_brk_estimate10": "Enable estimate 10 sensor attributes",
                     "attr_brk_estimate": "Enable estimate 50 sensor attributes",
@@ -192,7 +192,8 @@
             "total_kwh_forecast_d7": {"name": "Forecast Day 7"},
             "power_now": {"name": "Power Now"},
             "weather_description": {"name": "Weather"},
-            "hard_limit": {"name": "Hard Limit Set"}
+            "hard_limit": {"name": "Hard Limit Set"},
+            "hard_limit_api": {"name": "Hard Limit Set {api_key}"}
         },
         "select": {
             "estimate_mode" : {"name": "Use Forecast Field"}

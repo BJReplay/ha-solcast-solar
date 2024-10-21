@@ -22,7 +22,7 @@
                     "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)",
                     "auto_update": "Automatische Aktualisierung (wenn keine automatische Aktualisierung vorhanden ist, muss stattdessen eine Automatisierung verwendet werden)",
                     "customhoursensor": "Nächster X-Stunden-Sensor (min=1, max=144)",
-                    "hard_limit": "Harter Grenzwert des Wechselrichters in Watt (siehe Integrationsdokumentation)",
+                    "hard_limit": "Harter Grenzwert des Wechselrichters in kW (siehe Integrationsdokumentation)",
                     "key_estimate": "Bevorzugte Prognosewahrscheinlichkeit für Sensoren",
                     "attr_brk_estimate10": "Aktivieren Sie die Schätzung von 10 Sensorattributen",
                     "attr_brk_estimate": "Aktivieren Sie die Schätzung von 50 Sensorattributen",
@@ -193,7 +193,8 @@
             "total_kwh_forecast_d7": {"name": "Prognose Tag 7"},
             "power_now": {"name": "Aktuelle Leistung"},
             "weather_description": {"name": "Wetter"},
-            "hard_limit": {"name": "Fester Grenzwert eingestellt"}
+            "hard_limit": {"name": "Fester Grenzwert eingestellt"},
+            "hard_limit_api": {"name": "Fester Grenzwert eingestellt {api_key}"}
         },
         "select": {
             "estimate_mode" : {"name": "Verwenden Sie das Prognosefeld"}

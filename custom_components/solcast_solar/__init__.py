@@ -38,6 +38,7 @@ from .const import (
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
     HARD_LIMIT,
+    HARD_LIMIT_API,
     INIT_MSG,
     KEY_ESTIMATE,
     SERVICE_CLEAR_DATA,
@@ -76,7 +77,7 @@ SERVICE_DAMP_GET_SCHEMA: Final = vol.All(
 )
 SERVICE_HARD_LIMIT_SCHEMA: Final = vol.All(
     {
-        vol.Required(HARD_LIMIT): cv.Number,
+        vol.Required(HARD_LIMIT): cv.string,
     }
 )
 SERVICE_QUERY_SCHEMA: Final = vol.All(
@@ -99,7 +100,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     * Instantiate the coordinator.
     * Add unload hook on options change.
     * Trigger a forecast update for new installs (or after a 'stale' start).
-    * Set up service calls.
+    * Set up actions.
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
@@ -147,7 +148,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         optdamp,
         entry.options.get(CUSTOM_HOUR_SENSOR, 1),
         entry.options.get(KEY_ESTIMATE, "estimate"),
-        entry.options.get(HARD_LIMIT,100000) / 1000,
+        entry.options.get(HARD_LIMIT_API,'100.0'),
         entry.options.get(BRK_ESTIMATE, True),
         entry.options.get(BRK_ESTIMATE10, True),
         entry.options.get(BRK_ESTIMATE90, True),
@@ -223,8 +224,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug("UTC times are converted to %s", hass.config.time_zone)
 
     if not solcast.previously_loaded:
-        if options.hard_limit < 100:
-            _LOGGER.info("Inverter hard limit value has been set. If the forecasts and graphs are not as you expect, remove this setting")
+        if solcast.hard_limit_set():
+            _LOGGER.info("Inverter hard limit value is set to limit maximum forecast values")
 
     hass.data[DOMAIN]['has_loaded'] = True
 
@@ -237,35 +238,35 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.error("Exception fetching data on stale/initial start: %s: %s", e, traceback.format_exc())
             _LOGGER.warning("Continuing...")
 
-    async def handle_service_update_forecast(call: ServiceCall):
-        """Handle service call.
+    async def action_call_update_forecast(call: ServiceCall):
+        """Handle action.
 
         Arguments:
             call (ServiceCall): Not used.
         """
-        _LOGGER.info("Service call: %s", SERVICE_UPDATE)
+        _LOGGER.info("Action: %s", SERVICE_UPDATE)
         await coordinator.service_event_update()
 
-    async def handle_service_force_update_forecast(call: ServiceCall):
-        """Handle service call.
+    async def action_call_force_update_forecast(call: ServiceCall):
+        """Handle action.
 
         Arguments:
             call (ServiceCall): Not used.
         """
-        _LOGGER.info("Service call: %s", SERVICE_FORCE_UPDATE)
+        _LOGGER.info("Action: %s", SERVICE_FORCE_UPDATE)
         await coordinator.service_event_force_update()
 
-    async def handle_service_clear_solcast_data(call: ServiceCall):
-        """Handle service call.
+    async def action_call_clear_solcast_data(call: ServiceCall):
+        """Handle action.
 
         Arguments:
             call (ServiceCall): Not used.
         """
-        _LOGGER.info("Service call: %s", SERVICE_CLEAR_DATA)
+        _LOGGER.info("Action: %s", SERVICE_CLEAR_DATA)
         await coordinator.service_event_delete_old_solcast_json_file()
 
-    async def handle_service_get_solcast_data(call: ServiceCall) -> (Dict[str, Any] | None):
-        """Handle service call.
+    async def action_call_get_solcast_data(call: ServiceCall) -> (Dict[str, Any] | None):
+        """Handle action.
 
         Arguments:
             call (ServiceCall): The data to act on: a start and optional end date/time (defaults to now), optional dampened/undampened, optional site.
@@ -277,7 +278,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             Dict[str, Any] | None: The Solcast data from start to end date/times.
         """
         try:
-            _LOGGER.info("Service call: %s", SERVICE_QUERY_FORECAST_DATA)
+            _LOGGER.info("Action: %s", SERVICE_QUERY_FORECAST_DATA)
 
             start = call.data.get(EVENT_START_DATETIME, dt_util.now())
             end = call.data.get(EVENT_END_DATETIME, dt_util.now())
@@ -293,8 +294,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         return None
 
-    async def handle_service_set_dampening(call: ServiceCall):
-        """Handle service call.
+    async def action_call_set_dampening(call: ServiceCall):
+        """Handle action.
 
         Arguments:
             call (ServiceCall): The data to act on: a set of dampening values, and an optional site.
@@ -304,7 +305,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ServiceValidationError: Notify Home Assistant that an error has occurred, with translation.
         """
         try:
-            _LOGGER.info("Service call: %s", SERVICE_SET_DAMPENING)
+            _LOGGER.info("Action: %s", SERVICE_SET_DAMPENING)
 
             factors = call.data.get(DAMP_FACTOR, None)
             site = call.data.get(SITE, None) # Optional site.
@@ -364,14 +365,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except intent.IntentHandleError as e:
             raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: {e}") from e
 
-    async def handle_service_get_dampening(call: ServiceCall):
-        """Handle service call.
+    async def action_call_get_dampening(call: ServiceCall):
+        """Handle action.
 
         Arguments:
             call (ServiceCall): The data to act on: an optional site.
         """
         try:
-            _LOGGER.info("Service call: %s", SERVICE_GET_DAMPENING)
+            _LOGGER.info("Action: %s", SERVICE_GET_DAMPENING)
 
             site = call.data.get(SITE, None) # Optional site.
             d = await solcast.get_dampening(site)
@@ -383,8 +384,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         return None
 
-    async def handle_service_set_hard_limit(call: ServiceCall):
-        """Handle service call.
+    async def action_call_set_hard_limit(call: ServiceCall):
+        """Handle action.
 
         Arguments:
             call (ServiceCall): The data to act on: a hard limit.
@@ -394,20 +395,26 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             ServiceValidationError: Notify Home Assistant that an error has occurred, with translation.
         """
         try:
-            _LOGGER.info("Service call: %s", SERVICE_SET_HARD_LIMIT)
+            _LOGGER.info("Action: %s", SERVICE_SET_HARD_LIMIT)
 
-            hl = call.data.get(HARD_LIMIT, 100000)
+            hl = call.data.get(HARD_LIMIT, '100.0')
 
 
             if hl is None:
                 raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_empty")
             else:
-                val = int(hl)
-                if val < 0:  # If not a positive int print message and ask for input again.
-                    raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_not_positive_number")
+                to_set = []
+                for h in hl.split(','):
+                    h = h.strip()
+                    if not h.replace('.','',1).isdigit():
+                        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_not_positive_number")
+                    val = float(h)
+                    if val < 0:  # If not a positive int print message and ask for input again.
+                        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_not_positive_number")
+                    to_set.append(f"{val:.1f}")
 
                 opt = {**entry.options}
-                opt[HARD_LIMIT] = val
+                opt[HARD_LIMIT_API] = ','.join(to_set)
                 hass.config_entries.async_update_entry(entry, options=opt)
 
         except ValueError as e:
@@ -415,8 +422,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except intent.IntentHandleError as e:
             raise HomeAssistantError(f"Error processing {SERVICE_SET_HARD_LIMIT}: {e}") from e
 
-    async def handle_service_remove_hard_limit(call: ServiceCall):
-        """Handle service call.
+    async def action_call_remove_hard_limit(call: ServiceCall):
+        """Handle action.
 
         Arguments:
             call (ServiceCall): Not used.
@@ -425,45 +432,45 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             HomeAssistantError: Notify Home Assistant that an error has occurred.
         """
         try:
-            _LOGGER.info("Service call: %s", SERVICE_REMOVE_HARD_LIMIT)
+            _LOGGER.info("Action: %s", SERVICE_REMOVE_HARD_LIMIT)
 
             opt = {**entry.options}
-            opt[HARD_LIMIT] = 100000
+            opt[HARD_LIMIT_API] = '100.0'
             hass.config_entries.async_update_entry(entry, options=opt)
 
         except intent.IntentHandleError as e:
             raise HomeAssistantError(f"Error processing {SERVICE_REMOVE_HARD_LIMIT}: {e}") from e
 
     hass.services.async_register(
-        DOMAIN, SERVICE_UPDATE, handle_service_update_forecast
+        DOMAIN, SERVICE_UPDATE, action_call_update_forecast
     )
 
     hass.services.async_register(
-        DOMAIN, SERVICE_FORCE_UPDATE, handle_service_force_update_forecast
+        DOMAIN, SERVICE_FORCE_UPDATE, action_call_force_update_forecast
     )
 
     hass.services.async_register(
-        DOMAIN, SERVICE_CLEAR_DATA, handle_service_clear_solcast_data
+        DOMAIN, SERVICE_CLEAR_DATA, action_call_clear_solcast_data
     )
 
     hass.services.async_register(
-        DOMAIN, SERVICE_QUERY_FORECAST_DATA, handle_service_get_solcast_data, SERVICE_QUERY_SCHEMA, SupportsResponse.ONLY,
+        DOMAIN, SERVICE_QUERY_FORECAST_DATA, action_call_get_solcast_data, SERVICE_QUERY_SCHEMA, SupportsResponse.ONLY,
     )
 
     hass.services.async_register(
-        DOMAIN, SERVICE_SET_DAMPENING, handle_service_set_dampening, SERVICE_DAMP_SCHEMA
+        DOMAIN, SERVICE_SET_DAMPENING, action_call_set_dampening, SERVICE_DAMP_SCHEMA
     )
 
     hass.services.async_register(
-        DOMAIN, SERVICE_GET_DAMPENING, handle_service_get_dampening, SERVICE_DAMP_GET_SCHEMA, SupportsResponse.ONLY
+        DOMAIN, SERVICE_GET_DAMPENING, action_call_get_dampening, SERVICE_DAMP_GET_SCHEMA, SupportsResponse.ONLY
     )
 
     hass.services.async_register(
-        DOMAIN, SERVICE_SET_HARD_LIMIT, handle_service_set_hard_limit, SERVICE_HARD_LIMIT_SCHEMA
+        DOMAIN, SERVICE_SET_HARD_LIMIT, action_call_set_hard_limit, SERVICE_HARD_LIMIT_SCHEMA
     )
 
     hass.services.async_register(
-        DOMAIN, SERVICE_REMOVE_HARD_LIMIT, handle_service_remove_hard_limit
+        DOMAIN, SERVICE_REMOVE_HARD_LIMIT, action_call_remove_hard_limit
     )
 
     return True
@@ -485,9 +492,11 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id)
 
     hass.services.async_remove(DOMAIN, SERVICE_UPDATE)
+    hass.services.async_remove(DOMAIN, SERVICE_FORCE_UPDATE)
     hass.services.async_remove(DOMAIN, SERVICE_CLEAR_DATA)
     hass.services.async_remove(DOMAIN, SERVICE_QUERY_FORECAST_DATA)
     hass.services.async_remove(DOMAIN, SERVICE_SET_DAMPENING)
+    hass.services.async_remove(DOMAIN, SERVICE_GET_DAMPENING)
     hass.services.async_remove(DOMAIN, SERVICE_SET_HARD_LIMIT)
     hass.services.async_remove(DOMAIN, SERVICE_REMOVE_HARD_LIMIT)
 
@@ -549,7 +558,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
         # Config changes, which when changed will cause a reload.
         if changed(CONF_API_KEY):
             hass.data[DOMAIN]['old_api_key'] = hass.data[DOMAIN]['entry_options'].get(CONF_API_KEY)
-        reload = changed(CONF_API_KEY) or changed(API_QUOTA) or changed(AUTO_UPDATE)
+        reload = changed(CONF_API_KEY) or changed(API_QUOTA) or changed(AUTO_UPDATE) or changed(HARD_LIMIT_API)
 
         # Config changes, which when changed will cause a forecast recalculation only, without reload.
         # Dampening must be the first check with the code as-is...
@@ -562,8 +571,6 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
             if recalc:
                 coordinator.solcast.damp = d
 
-            if changed(HARD_LIMIT):
-                recalc = True
             # Attribute changes, which will need a recalulation of splines
             if not recalc:
                 respline = changed(BRK_ESTIMATE) or changed(BRK_ESTIMATE10) or changed(BRK_ESTIMATE90) or changed(BRK_SITE) or changed(KEY_ESTIMATE)
@@ -788,6 +795,23 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         except Exception as e:
             if "unexpected keyword argument 'version'" in e:
                 entry.version = 12
+                hass.config_entries.async_update_entry(entry, options=new)
+                upgraded()
+            else:
+                raise
+
+    if entry.version < 14:
+        new = {**entry.options}
+        if new.get(HARD_LIMIT_API) is None:
+            hard_limit = new.get(HARD_LIMIT,100000) / 1000
+            new[HARD_LIMIT_API] = f"{hard_limit:.1f}"
+            new.pop(HARD_LIMIT)
+        try:
+            hass.config_entries.async_update_entry(entry, options=new, version=14)
+            upgraded()
+        except Exception as e:
+            if "unexpected keyword argument 'version'" in e:
+                entry.version = 14
                 hass.config_entries.async_update_entry(entry, options=new)
                 upgraded()
             else:

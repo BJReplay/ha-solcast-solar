@@ -29,6 +29,7 @@ DATE_FORMAT_UTC = '%Y-%m-%d %H:%M:%S UTC'
 DOMAIN = "solcast_solar"
 ENTRY_TYPE_SERVICE: Final = "service"
 HARD_LIMIT = "hard_limit"
+HARD_LIMIT_API = "hard_limit_api"
 INIT_MSG = """This is a custom integration. When troubleshooting a problem, after
 reviewing open and closed issues, and the discussions, check any
 automation is functioning correctly (unless auto-update is

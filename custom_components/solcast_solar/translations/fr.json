@@ -22,7 +22,7 @@
                     "api_quota": "Quota d'API (plusieurs valeurs séparées par des virgules)",
                     "auto_update": "Mise à jour automatique (s'il n'y a pas de mise à jour automatique, une automatisation doit être utilisée à la place)",
                     "customhoursensor": "Capteur personnalisé des X prochaines heures (min=1, max=144)",
-                    "hard_limit": "Limite stricte de l'onduleur en Watts (voir la documentation d'intégration)",
+                    "hard_limit": "Limite stricte de l'onduleur en kW (voir la documentation d'intégration)",
                     "key_estimate": "Probabilité de prévision préférée à utiliser pour les capteurs",
                     "attr_brk_estimate10": "Activer l'estimation de 10 attributs de capteur",
                     "attr_brk_estimate": "Activer l'estimation de 50 attributs de capteur",
@@ -192,7 +192,8 @@
             "total_kwh_forecast_d7": {"name": "Prévision jour 7"},
             "power_now": {"name": "Puissance maintenant"},
             "weather_description": {"name": "Météo"},
-            "hard_limit": {"name": "Ensemble de limites strictes"}
+            "hard_limit": {"name": "Ensemble de limites strictes"},
+            "hard_limit_api": {"name": "Ensemble de limites strictes {api_key}"}
         },
         "select": {
             "estimate_mode" : {"name": "Utiliser le champ de prévision"}

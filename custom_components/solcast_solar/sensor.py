@@ -158,13 +158,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
         icon="mdi:clock",
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
-    "hard_limit": SensorEntityDescription(
-        key="hard_limit",
-        translation_key="hard_limit",
-        name="Hard Limit Set",
-        icon="mdi:speedometer",
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
     "total_kwh_forecast_d3": SensorEntityDescription(
         key="total_kwh_forecast_d3",
         device_class=SensorDeviceClass.ENERGY,
@@ -299,6 +292,33 @@ async def async_setup_entry(
     for sensor_types, _ in SENSORS.items():
         sen = SolcastSensor(coordinator, SENSORS[sensor_types], entry)
         entities.append(sen)
+
+    api_keys = coordinator.solcast.options.api_key.split(',')
+    hard_limits = coordinator.solcast.options.hard_limit.split(',')
+    if len(hard_limits) == 1:
+        k = SensorEntityDescription(
+            key="hard_limit",
+            translation_key="hard_limit",
+            name="Hard Limit Set",
+            icon="mdi:speedometer",
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+        sen = SolcastSensor(coordinator, k, entry)
+        entities.append(sen)
+    else:
+        for api_key in api_keys:
+            k = SensorEntityDescription(
+                key="hard_limit_" + api_key[-6:],
+                translation_key="hard_limit_api",
+                translation_placeholders={
+                    'api_key': '*'*6 + api_key[-6:],
+                },
+                name="Hard Limit Set",
+                icon="mdi:speedometer",
+                entity_category=EntityCategory.DIAGNOSTIC,
+            )
+            sen = SolcastSensor(coordinator, k, entry)
+            entities.append(sen)
 
     for site in coordinator.get_solcast_sites():
         k = RooftopSensorEntityDescription(

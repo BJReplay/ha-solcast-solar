@@ -22,7 +22,7 @@
                     "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
                     "auto_update": "Automatyczna aktualizacja (jeśli nie ma automatycznej aktualizacji, zamiast tego należy zastosować automatyzację)",
                     "customhoursensor": "Niestandardowy czujnik następnej godziny X (min.=1, maks.=144)",
-                    "hard_limit": "Twardy limit falownika w watach (patrz dokumentacja integracji)",
+                    "hard_limit": "Twardy limit falownika w kilowaty (patrz dokumentacja integracji)",
                     "key_estimate": "Preferowane prawdopodobieństwo zastosowania prognozy w przypadku czujników",
                     "attr_brk_estimate10": "Włącz oszacowanie 10 atrybutów czujnika",
                     "attr_brk_estimate": "Włącz oszacowanie 50 atrybutów czujnika",
@@ -193,7 +193,8 @@
             "total_kwh_forecast_d7": {"name": "Prognoza na dzień 7"},
             "power_now": {"name": "Aktualna moc"},
             "weather_description": {"name": "Pogoda"},
-            "hard_limit": {"name": "Ustawiony twardy limit"}
+            "hard_limit": {"name": "Ustawiony twardy limit"},
+            "hard_limit_api": {"name": "Ustawiony twardy limit {api_key}"}
         },
         "select": {
             "estimate_mode" : {"name": "Użyj pola prognozy"}
