@@ -309,7 +309,7 @@ Dampening is applied to future forecasts whenever a forecast is fetched, so fore
 >
 > Retained dampened historical forecasts is a recent change, and may require automation modification to read undampened forecast history instead. See [Reading forecast values in an automation](#reading-forecast-values-in-an-automation) and [Changes](#changes) below.
 
-Per-site and per-half hour dampening is possible only by using the integration action or modifying a dampening configration file. See [Granular dampening](#granular-dampening) below.
+Per-site and per-half hour dampening is possible only by using the `solcast_solar.set_dampening` action or modifying a dampening configration file. See [Granular dampening](#granular-dampening) below.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png)
 
@@ -389,7 +389,7 @@ Example of half-hourly dampening for all sites:
 
 When calculating dampening using an automation it may be beneficial to use undampened forecast values as input.
 
-This is possible by using the action `solcast_solar.query_forecast_data`, and including `undampened: true` in the parameters. If using granular dampening then the site may also be included in the action.
+This is possible by using the action `solcast_solar.query_forecast_data`, and including `undampened: true` in the parameters. If using granular dampening then the site may also be included in the action parameters:
 
 ```
 action: solcast_solar.query_forecast_data
@@ -446,7 +446,7 @@ The scenario requiring use of this limit is straightforward, but note that hardl
 
 Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may in fact be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
 
-The hard limit may be set in the integration configuration, or set via manually invoking the Action in `Developer Tools`.
+The hard limit may be set in the integration configuration, or set via manually invoking the action in `Developer Tools`.
 
 ## Key Solcast concepts
 
@@ -695,9 +695,6 @@ series:
 
 ## Changes
 
-v4.2.3
-* Change automations to HA 2024.10 notation, replace references to 'services' to 'actions' by @gcoan
-
 v4.2.1
 * Fix an issue that causes changing Solcast accounts to fail by @autoSteve
 * Fix an issue with multi-API key where API usage reset was not handled correctly by @autoSteve
@@ -708,7 +705,7 @@ Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.0...v4
 
 v4.2.0
 * Generally available release of v4.1.8 and v4.1.9 pre-release features
-* Translations of services call error responses by @autoSteve
+* Translations of service call error responses by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.7...v4.2.0
 
