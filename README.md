@@ -700,6 +700,8 @@ v4.2.4
 * Add user-agent header to API calls by @autoSteve
 * Refer to action instead of service call by @gcoan
 
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.3...v4.2.4
+
 v4.2.3
 * Fix an issue that causes changing Solcast accounts to fail by @autoSteve
 * Fix an issue with multi-API key where API usage reset was not handled correctly by @autoSteve
