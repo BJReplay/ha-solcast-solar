@@ -698,6 +698,7 @@ series:
 
 v4.2.4
 * Add user-agent header to API calls by @autoSteve
+* Refer to action instead of service call by @gcoan
 
 v4.2.3
 * Fix an issue that causes changing Solcast accounts to fail by @autoSteve
