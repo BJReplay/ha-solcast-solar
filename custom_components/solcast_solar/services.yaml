@@ -45,11 +45,11 @@ get_dampening:
       example: "1234-5678-9012-3456"
 
 set_hard_limit:
-  name: Set inverter forecast hard limit
+  name: Set inverter forecast hard limit in kW
   description: Prevent forcast values being higher than the inverter can produce
   fields:
     hard_limit:
-      example: "5000"
+      example: "6.0"
 
 remove_hard_limit:
   name: Remove inverter forecast hard limit

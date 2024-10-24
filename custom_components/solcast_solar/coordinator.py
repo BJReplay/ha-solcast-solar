@@ -314,6 +314,14 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     def get_sensor_value(self, key="") -> (int | dt | float | Any | str | bool | None):
         """Return the value of a sensor."""
+        def unit_adjusted(hard_limit):
+            if hard_limit >= 1000000:
+                return f"{round(hard_limit/1000000, 1)} GW"
+            if hard_limit >= 1000:
+                return f"{round(hard_limit/1000, 1)} MW"
+            else:
+                return f"{round(hard_limit, 1)} kW"
+
         match key:
             case "peak_w_today":
                 return self.solcast.get_peak_w_day(0)
@@ -358,18 +366,23 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             case "lastupdated":
                 return self.solcast.get_last_updated_datetime()
             case "hard_limit":
-                if self.solcast.hard_limit == 100:
+                hard_limit = float(self.solcast.hard_limit.split(',')[0])
+                if hard_limit == 100:
                     return False
                 else:
-                    if self.solcast.hard_limit >= 1000000:
-                        return f"{round(self.solcast.hard_limit/1000000, 1)} GW"
-                    if self.solcast.hard_limit >= 1000:
-                        return f"{round(self.solcast.hard_limit/1000, 1)} MW"
-                    else:
-                        return f"{round(self.solcast.hard_limit, 1)} kW"
+                    return unit_adjusted(hard_limit)
             # case "weather_description":
             #     return self.solcast.get_weather_description()
             case _:
+                api_keys = self.solcast.options.api_key
+                i = 0
+                for api_key in api_keys.split(','):
+                    if key == "hard_limit_" + api_key[-6:]:
+                        hard_limit = float(self.solcast.hard_limit.split(',')[i])
+                        if hard_limit == 100:
+                            return False
+                        else:
+                            return unit_adjusted(hard_limit)
                 return None
 
     def get_sensor_extra_attributes(self, key="") -> (Dict[str, Any] | None):

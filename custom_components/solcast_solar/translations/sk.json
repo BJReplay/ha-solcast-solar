@@ -22,7 +22,7 @@
                     "api_quota": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",
                     "auto_update": "Automatická aktualizácia (ak nie je automatická aktualizácia, musíte namiesto nej použiť automatizáciu)",
                     "customhoursensor": "Vlastný senzor ďalších X hodín (min=1, max=144)",
-                    "hard_limit": "Pevný limit meniča vo wattoch (pozri integračnú dokumentáciu)",
+                    "hard_limit": "Pevný limit meniča vo kilowattov (pozri integračnú dokumentáciu)",
                     "key_estimate": "Preferovaná pravdepodobnosť použitia pre senzory",
                     "attr_brk_estimate10": "Povoliť odhad 10 atribútov senzora",
                     "attr_brk_estimate": "Povoliť odhad 50 atribútov senzora",
@@ -74,9 +74,7 @@
     },
     "system_health": {
         "info": {
-            "can_reach_server": "Solcast server pripojenie",
-            "used_requests": "Zostávajúce požiadavky API",
-            "rooftop_site_count": "Počet miest na streche"
+            "can_reach_server": "Solcast server pripojenie"
         }
     },
     "selector": {
@@ -193,7 +191,8 @@
             "total_kwh_forecast_d7": {"name": "Predpoveď deň 7"},
             "power_now": {"name": "Výkon teraz"},
             "weather_description": {"name": "Počasie"},
-            "hard_limit": {"name": "Tvrdý limit nastavený"}
+            "hard_limit": {"name": "Tvrdý limit nastavený"},
+            "hard_limit_api": {"name": "Tvrdý limit nastavený {api_key}"}
         },
         "select": {
             "estimate_mode" : {"name": "Použiť pole predpovede"}

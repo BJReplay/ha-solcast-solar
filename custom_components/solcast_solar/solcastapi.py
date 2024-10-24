@@ -23,7 +23,7 @@ from pathlib import Path
 from os.path import exists as file_exists
 from os.path import dirname
 from typing import Optional, Any, Dict, Tuple, cast
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 import async_timeout # type: ignore
 import aiofiles # type: ignore
@@ -48,7 +48,7 @@ from .const import (
     DATE_FORMAT_UTC,
     DOMAIN,
     FORECAST_DEBUG_LOGGING,
-    HARD_LIMIT,
+    HARD_LIMIT_API,
     KEY_ESTIMATE,
     SENSOR_DEBUG_LOGGING,
     SITE_DAMP,
@@ -77,6 +77,25 @@ class DateTimeEncoder(json.JSONEncoder):
             return o.isoformat()
         else:
             return None
+
+class DateKeyEncoder(json.JSONEncoder):
+    """Helper to convert datetime dict keys and values to ISO format."""
+    def _preprocess_date(self, o):
+        if isinstance(o, dt):
+            return str(o)
+        elif isinstance(o, dict):
+            return {self._preprocess_date(k): self._preprocess_date(v) for k,v in o.items()}
+        elif isinstance(o, list):
+            return [self._preprocess_date(i) for i in o]
+        return o
+
+    def default(self, o):
+        if isinstance(o, dt):
+            return str(o)
+        return super().default(o)
+
+    def iterencode(self, o, _one_shot=False):
+        return super().iterencode(self._preprocess_date(o))
 
 class NoIndentEncoder(json.JSONEncoder):
     """Helper to output semi-indented json."""
@@ -153,7 +172,7 @@ class ConnectionOptions:
     dampening: dict
     custom_hour_sensor: int
     key_estimate: str
-    hard_limit: int
+    hard_limit: str
     attr_brk_estimate: bool
     attr_brk_estimate10: bool
     attr_brk_estimate90: bool
@@ -235,6 +254,8 @@ class SolcastApi: # pylint: disable=R0904
         self.sites_loaded = False
         self.tasks = {}
 
+        file_name, extension = os.path.splitext(options.file_path)
+
         self._aiohttp_session = aiohttp_session
         self._api_cache_enabled = api_cache_enabled # For offline development.
         self._api_limit = {}
@@ -246,7 +267,6 @@ class SolcastApi: # pylint: disable=R0904
         self._data_forecasts_undampened = []
         self._data_undampened = copy.deepcopy(self._data)
         self._filename = options.file_path
-        file_name, extension = os.path.splitext(options.file_path)
         self._filename_undampened = f"{file_name}-undampened{extension}"
         self._forecasts_moment = {}
         self._forecasts_remaining = {}
@@ -255,6 +275,8 @@ class SolcastApi: # pylint: disable=R0904
         self._loaded_data = False
         self._site_data_forecasts = {}
         self._site_data_forecasts_undampened = {}
+        self._sites_hard_limit = defaultdict(dict)
+        self._sites_hard_limit_undampened = defaultdict(dict)
         self._spline_period = list(range(0, 90000, 1800))
         self._serialise_lock = asyncio.Lock()
         self._tally = {}
@@ -284,7 +306,7 @@ class SolcastApi: # pylint: disable=R0904
             self.damp,
             options[CUSTOM_HOUR_SENSOR],
             options.get(KEY_ESTIMATE, self.options.key_estimate),
-            options.get(HARD_LIMIT, 100000) / 1000,
+            options.get(HARD_LIMIT_API, '100.0'),
             options[BRK_ESTIMATE],
             options[BRK_ESTIMATE10],
             options[BRK_ESTIMATE90],
@@ -516,9 +538,9 @@ class SolcastApi: # pylint: disable=R0904
                                     resp_json = json.loads(await f.read())
                                     status = 200
                                     for i in resp_json['sites']:
-                                        if i.get('api_key') is None:
-                                            continue
-                                        if i.get('api_key') not in sp:
+                                        if i.get('api_key') is None: # If the API key is not in the site then assume the key has not changed
+                                            i['api_key'] = api_key
+                                        if i['api_key'] not in sp:
                                             status = 429
                                             _LOGGER.debug("API key has changed so sites cache is invalid, not loading cached data")
                                             break
@@ -563,7 +585,6 @@ class SolcastApi: # pylint: disable=R0904
                                 i['apikey'] = api_key
                                 i.pop('longitude', None)
                                 i.pop('latitude', None)
-                                i['api_key'] = None
                             self.sites = self.sites + d['sites']
                             self.sites_loaded = True
                             self._api_used_reset[api_key] = None
@@ -945,7 +966,7 @@ class SolcastApi: # pylint: disable=R0904
             site (str): An optional site.
 
         Returns:
-            (list): The service call response for the presently set dampening factors.
+            (list): The action response for the presently set dampening factors.
         """
         try:
             if self.entry_options.get(SITE_DAMP):
@@ -1167,7 +1188,7 @@ class SolcastApi: # pylint: disable=R0904
         return status
 
     async def delete_solcast_file(self, *args): # pylint: disable=W0613
-        """Service event to delete the solcast.json file.
+        """Action to delete the solcast.json file.
 
         Note: This will immediately trigger a forecast get with history, so this should
         really be called an integration reset.
@@ -1175,7 +1196,7 @@ class SolcastApi: # pylint: disable=R0904
         Arguments:
             args (tuple): Not used.
         """
-        _LOGGER.debug("Service event to delete old solcast.json file")
+        _LOGGER.debug("Action to delete old solcast.json file")
         try:
             if file_exists(self._filename_undampened):
                 os.remove(self._filename_undampened)
@@ -1189,10 +1210,10 @@ class SolcastApi: # pylint: disable=R0904
             await self.get_sites_and_usage()
             await self.load_saved_data()
         except Exception:
-            _LOGGER.error("Service event to delete old solcast.json file failed")
+            _LOGGER.error("Action to delete old solcast.json file failed")
 
     async def get_forecast_list(self, *args) -> Optional[Tuple[Dict[Any], ...]]:
-        """Service event to get forecasts.
+        """Action to get forecasts.
 
         Arguments:
             args (tuple): [0] (dt) = from timestamp, [1] (dt) = to timestamp, [2] = site, [3] (bool) = dampened or undampened.
@@ -1218,7 +1239,7 @@ class SolcastApi: # pylint: disable=R0904
             return tuple( {**d, "period_start": d["period_start"].astimezone(self._tz)} for d in h )
 
         except Exception:
-            _LOGGER.error("Service event to get list of forecasts failed")
+            _LOGGER.error("Action to get list of forecasts failed")
             return None
 
     def get_api_used_count(self) -> int:
@@ -1424,7 +1445,7 @@ class SolcastApi: # pylint: disable=R0904
 
         Arguments:
             n_hour (int): An hour into the future, or the current hour (0 = current and 1 = next hour are used).
-            site (str): An optional Solcast site ID, used to build site breakdown attributes (used).
+            site (str): An optional Solcast site ID, used to build site breakdown attributes.
             _used_data_field (str): An optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
 
         Returns:
@@ -1533,7 +1554,7 @@ class SolcastApi: # pylint: disable=R0904
 
         Arguments:
             n_day (int): A number representing a day (0 = today, 1 = tomorrow, etc., with a maxiumum of day 7).
-            site (str): An optional Solcast site ID, used to build site breakdown attributes (used).
+            site (str): An optional Solcast site ID, used to build site breakdown attributes.
             _used_data_field (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
 
         Returns:
@@ -1571,7 +1592,7 @@ class SolcastApi: # pylint: disable=R0904
 
         Arguments:
             n_day (int): A number representing a day (0 = today, 1 = tomorrow, etc., with a maxiumum of day 7).
-            site (str): An optional Solcast site ID, used to build site breakdown attributes (used).
+            site (str): An optional Solcast site ID, used to build site breakdown attributes.
             _used_data_field (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
 
         Returns:
@@ -1607,7 +1628,7 @@ class SolcastApi: # pylint: disable=R0904
         """Return remaining forecasted production for today.
 
         Arguments:
-            site (str): An optional Solcast site ID, used to build site breakdown attributes (used).
+            site (str): An optional Solcast site ID, used to build site breakdown attributes.
             _used_data_field (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
 
         Returns:
@@ -1641,7 +1662,7 @@ class SolcastApi: # pylint: disable=R0904
 
         Arguments:
             n_day (int): A day (0 = today, 1 = tomorrow, etc., with a maxiumum of day 7).
-            site (str): An optional Solcast site ID, used to build site breakdown attributes (used).
+            site (str): An optional Solcast site ID, used to build site breakdown attributes.
             _used_data_field (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
 
         Returns:
@@ -2156,6 +2177,50 @@ class SolcastApi: # pylint: disable=R0904
         else:
             return self.damp.get(f"{z.hour}", 1.0)
 
+    async def reapply_forward_dampening(self):
+        """Re-apply dampening to forward forecasts."""
+        if not self.__valid_granular_dampening():
+            _LOGGER.warning("Invalid dampening configuration, so not re-appying dampening to future forecasts")
+            return
+        _LOGGER.debug("Re-applying future dampening")
+        for site in self.sites:
+            site = site['resource_id']
+
+            # Load the forecast history.
+            try:
+                forecasts_undampened_future = [
+                    forecast for forecast in self._data_undampened['siteinfo'][site]['forecasts'] if forecast['period_start'] >= dt.now(timezone.utc)
+                ]
+            except:
+                forecasts_undampened_future = {}
+            if forecasts_undampened_future == {}:
+                return
+            try:
+                forecasts = {forecast["period_start"]: forecast for forecast in self._data['siteinfo'][site]['forecasts']}
+            except:
+                forecasts = {}
+            if forecasts == {}:
+                return
+
+            # Apply dampening to the new data
+            for forecast in sorted(forecasts_undampened_future, key=itemgetter("period_start")):
+                period_start = forecast["period_start"]
+                pv = round(forecast["pv_estimate"], 4)
+                pv10 = round(forecast["pv_estimate10"], 4)
+                pv90 = round(forecast["pv_estimate90"], 4)
+
+                # Retrieve the dampening factor for the period, and dampen the estimates.
+                dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), True)
+                pv_dampened = round(pv * dampening_factor, 4)
+                pv10_dampened = round(pv10 * dampening_factor, 4)
+                pv90_dampened = round(pv90 * dampening_factor, 4)
+
+                # Add or update the new entries.
+                self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
+
+            forecasts = sorted(list(forecasts.values()), key=itemgetter("period_start"))
+            self._data['siteinfo'].update({site:{'forecasts': copy.deepcopy(forecasts)}})
+
     async def __http_data_call(self, site=None, api_key=None, do_past=False, force=False) -> bool:
         """Request forecast data via the Solcast API.
 
@@ -2462,15 +2527,39 @@ class SolcastApi: # pylint: disable=R0904
 
         return wh_hours
 
+    def __site_api_key(self, site: str):
+        for s in self.sites:
+            if s['resource_id'] == site:
+                return s['api_key']
+        return None
+
+    def hard_limit_set(self):
+        """Returns True if a hard limit is set"""
+        limit_set = False
+        hard_limit = self.hard_limit.split(',')
+        multi_key = len(hard_limit) > 1
+        for h in hard_limit:
+            if h != '100.0':
+                limit_set = True
+        return limit_set, multi_key
+
+    def __hard_limit_for_key(self, api_key):
+        hard_limit = self.hard_limit.split(',')
+        if len(hard_limit) == 1:
+            return float(hard_limit[0])
+        i = 0
+        for key in self.options.api_key.split(','):
+            if key == api_key:
+                return float(hard_limit[i])
+            i += 1
+
     async def build_forecast_data(self) -> bool:
-        """Build data structures needed, adjusting if dampening or setting a hard limit.
+        """Build data structures needed, adjusting if setting a hard limit.
 
         Returns:
             bool: A flag indicating success or failure.
         """
         try:
-            st_time = time.time()
-
             today = dt.now(self._tz).date()
             commencing = dt.now(self._tz).date() - timedelta(days=730)
             commencing_undampened = dt.now(self._tz).date() - timedelta(days=14)
@@ -2479,8 +2568,68 @@ class SolcastApi: # pylint: disable=R0904
             forecasts = {}
             forecasts_undampened = {}
 
-            def build_data(data: list, commencing: dt, forecasts: dict, site_data_forecasts: list, update_tally: bool=False):
+            async def build_data(data: list, commencing: dt, forecasts: dict, site_data_forecasts: list, sites_hard_limit: defaultdict, update_tally: bool=False):
+                """
+                Build per-site hard limit.
+                The API key hard limit for each site is calculated as proportion of the site contribution for the account.  
+                """
+                st_time = time.time()
+                hard_limit_set, multi_key = self.hard_limit_set()
+                if hard_limit_set:
+                    api_key_sites = defaultdict(dict)
+                    for s in self.sites:
+                        api_key_sites[s['api_key'] if multi_key else 'all'][s['resource_id']] = {
+                            'earliest_period': data['siteinfo'][s['resource_id']]['forecasts'][0]['period_start'],
+                            'last_period': data['siteinfo'][s['resource_id']]['forecasts'][-1]['period_start']
+                        }
+                    if update_tally:
+                        _LOGGER.debug('Hard limit for individual API keys: %s', multi_key)
+                    for api_key, sites in api_key_sites.items():
+                        hard_limit = self.__hard_limit_for_key(api_key)
+                        _LOGGER.debug("Hard limit for API key %s: %s", self.__redact_api_key(api_key) if multi_key else 'all', hard_limit)
+                        siteinfo = {site: {forecast['period_start']: forecast for forecast in data['siteinfo'][site]['forecasts']} for site in sites}
+                        earliest = dt.now(self._tz)
+                        latest = None
+                        for site, limits in sites.items():
+                            if len(sites_hard_limit[api_key]) == 0:
+                                _LOGGER.debug('Build hard limit period values from scratch for %s', 'dampened' if update_tally else 'un-dampened')
+                                if limits['earliest_period'] < earliest:
+                                    earliest = limits['earliest_period']
+                            else:
+                                earliest = self.get_day_start_utc() # Past hard limits done, so re-calculate from today onwards
+                            latest = limits['last_period']
+                        _LOGGER.debug(
+                            "Earliest period: %s, latest period: %s",
+                            dt.strftime(earliest.astimezone(self._tz), DATE_FORMAT),
+                            dt.strftime(latest.astimezone(self._tz), DATE_FORMAT)
+                        )
+                        periods = [earliest + timedelta(minutes=30 * x) for x in range(int((latest - earliest).total_seconds() / 1800))]
+                        for pv_estimate in ['pv_estimate', 'pv_estimate10', 'pv_estimate90']:
+                            sites_hard_limit[api_key][pv_estimate] = {}
+                        for period in periods:
+                            for pv_estimate in ['pv_estimate', 'pv_estimate10', 'pv_estimate90']:
+                                estimate = {site: siteinfo[site].get(period, {}).get(pv_estimate) for site in sites}
+                                total_estimate = sum(estimate[site] for site in sites if estimate[site] is not None)
+                                if estimate is not None and total_estimate is not None:
+                                    if total_estimate == 0:
+                                        continue
+                                    sites_hard_limit[api_key][pv_estimate][period] = {site: estimate[site] / total_estimate * hard_limit for site in sites if estimate[site] is not None}
+                    _LOGGER.debug("Build hard limit processing took %.3f seconds for %s", round(time.time() - st_time, 4), 'dampened' if update_tally else 'un-dampened')
+                else:
+                    if multi_key:
+                        for api_key in self.options.api_key.split(','):
+                            for pv_estimate in ['pv_estimate', 'pv_estimate10', 'pv_estimate90']:
+                                sites_hard_limit[api_key][pv_estimate] = {}
+                    else:
+                        for pv_estimate in ['pv_estimate', 'pv_estimate10', 'pv_estimate90']:
+                            sites_hard_limit['all'][pv_estimate] = {}
+
+                """
+                Build per-site and total forecasts with proportionate hard limit applied.
+                """
+                st_time = time.time()
                 for site, siteinfo in data['siteinfo'].items():
+                    api_key = self.__site_api_key(site) if multi_key else 'all'
                     if update_tally:
                         tally = 0
                     site_forecasts = {}
@@ -2494,50 +2643,48 @@ class SolcastApi: # pylint: disable=R0904
                             # Record the individual site forecast.
                             site_forecasts[z] = {
                                 "period_start": z,
-                                "pv_estimate": min(forecast["pv_estimate"], self.hard_limit),
-                                "pv_estimate10": min(forecast["pv_estimate10"], self.hard_limit),
-                                "pv_estimate90": min(forecast["pv_estimate90"], self.hard_limit),
+                                "pv_estimate": round(min(forecast["pv_estimate"], sites_hard_limit[api_key]["pv_estimate"].get(z, {}).get(site, 100)), 4),
+                                "pv_estimate10": round(min(forecast["pv_estimate10"], sites_hard_limit[api_key]["pv_estimate10"].get(z, {}).get(site, 100)), 4),
+                                "pv_estimate90": round(min(forecast["pv_estimate90"], sites_hard_limit[api_key]["pv_estimate90"].get(z, {}).get(site, 100)), 4),
                             }
 
                             if update_tally and zz.date() == today:
-                                tally += min(forecast[self._use_data_field] * 0.5, self.hard_limit)
+                                tally += min(forecast[self._use_data_field], sites_hard_limit[api_key][self._use_data_field].get(z, {}).get(site, 100)) * 0.5
 
                             # Add the forecast for this site to the total.
                             extant = forecasts.get(z)
                             if extant:
-                                extant["pv_estimate"] = min(round(extant["pv_estimate"] + site_forecasts[z]["pv_estimate"], 4), self.hard_limit)
-                                extant["pv_estimate10"] = min(round(extant["pv_estimate10"] + site_forecasts[z]["pv_estimate10"], 4), self.hard_limit)
-                                extant["pv_estimate90"] = min(round(extant["pv_estimate90"] + site_forecasts[z]["pv_estimate90"], 4), self.hard_limit)
+                                extant["pv_estimate"] = round(extant["pv_estimate"] + site_forecasts[z]["pv_estimate"], 4)
+                                extant["pv_estimate10"] = round(extant["pv_estimate10"] + site_forecasts[z]["pv_estimate10"], 4)
+                                extant["pv_estimate90"] = round(extant["pv_estimate90"] + site_forecasts[z]["pv_estimate90"], 4)
                             else:
                                 forecasts[z] = {
                                     "period_start": z,
-                                    "pv_estimate": min(site_forecasts[z]["pv_estimate"], self.hard_limit),
-                                    "pv_estimate10": min(site_forecasts[z]["pv_estimate10"], self.hard_limit),
-                                    "pv_estimate90": min(site_forecasts[z]["pv_estimate90"], self.hard_limit),
+                                    "pv_estimate": site_forecasts[z]["pv_estimate"],
+                                    "pv_estimate10": site_forecasts[z]["pv_estimate10"],
+                                    "pv_estimate90": site_forecasts[z]["pv_estimate90"],
                                 }
-
                     site_data_forecasts[site] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
                     if update_tally:
                         siteinfo['tally'] = round(tally, 4)
                         self._tally[site] = siteinfo['tally']
+                _LOGGER.debug("Build per-site and total processing took %.3f seconds for %s", round(time.time() - st_time, 4), 'dampened' if update_tally else 'un-dampened')
 
-            build_data(self._data, commencing, forecasts, self._site_data_forecasts, update_tally=True)
+            await build_data(self._data, commencing, forecasts, self._site_data_forecasts, self._sites_hard_limit, update_tally=True)
             self._data_forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
             self._data_energy = {"wh_hours": self.__make_energy_dict()}
 
-            build_data(self._data_undampened, commencing_undampened, forecasts_undampened, self._site_data_forecasts_undampened)
+            await build_data(self._data_undampened, commencing_undampened, forecasts_undampened, self._site_data_forecasts_undampened, self._sites_hard_limit_undampened)
             self._data_forecasts_undampened = sorted(forecasts_undampened.values(), key=itemgetter("period_start"))
 
             await self.__check_data_records()
             await self.recalculate_splines()
 
-            _LOGGER.debug("Build forecast processing took %.3f seconds", round(time.time() - st_time, 4))
             return True
 
         except:
             _LOGGER.error("Exception in get_forecast_update(): %s", traceback.format_exc())
             return False
-
 
     def __calc_forecast_start_index(self, _data) -> int:
         """Get the start of forecasts as-at just before midnight.
@@ -2592,6 +2739,6 @@ class SolcastApi: # pylint: disable=R0904
                     if intervals == 48:
                         _LOGGER.debug("Forecast data for %s contains all 48 intervals", day.strftime('%Y-%m-%d'))
                     else:
-                        _LOGGER.debug("Forecast data for %s contains only %d of 48 intervals and may produce inaccurate forecast data", day.strftime('%Y-%m-%d'), intervals)
+                        _LOGGER.debug("Forecast data for %s contains %d of 48 intervals and may produce inaccurate forecast data", day.strftime('%Y-%m-%d'), intervals)
         except Exception as e:
             _LOGGER.error("Exception in __check_data_records(): %s: %s", e, traceback.format_exc())

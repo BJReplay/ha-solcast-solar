@@ -4,14 +4,17 @@
 
 from __future__ import annotations
 
+#import logging
+#import traceback
 from typing import Any
 
 from homeassistant.components import system_health # type: ignore
 from homeassistant.core import HomeAssistant, callback # type: ignore
 
-from .const import DOMAIN, SOLCAST_URL
-from .coordinator import SolcastUpdateCoordinator
+from .const import SOLCAST_URL # , DOMAIN
+#from .coordinator import SolcastUpdateCoordinator
 
+#_LOGGER = logging.getLogger(__name__)
 
 @callback
 def async_register(
@@ -23,11 +26,10 @@ def async_register(
 
 async def system_health_info(hass: HomeAssistant) -> dict[str, Any]:
     """Get info for the info page."""
-    coordinator: SolcastUpdateCoordinator =list(hass.data[DOMAIN].values())[0]
-    used_requests = coordinator.solcast.get_api_used_count()
+    #for v in hass.data[DOMAIN].values():
+    #    if isinstance(v, SolcastUpdateCoordinator):
+    #        coordinator: SolcastUpdateCoordinator = v
 
     return {
         "can_reach_server": system_health.async_check_can_reach_url(hass, SOLCAST_URL),
-        "used_requests": used_requests,
-        "rooftop_site_count": len(coordinator.solcast.sites),
     }

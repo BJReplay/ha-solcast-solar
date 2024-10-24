@@ -442,6 +442,8 @@ By default, all of them are enabled, with the exception of per-site detailedFore
 
 There is an option to set a "hard limit" for projected inverter output, and this limit will 'clip' the Solcast forecasts to a maximum value.
 
+The hard limit may be set as an "overall" value (applying to all sites in all Solcast accounts configured), or it may be set by Solcast account with a separate hard limit value for each API key. (In the latter case, comma-separate the desired hard limit values.)
+
 The scenario requiring use of this limit is straightforward, but note that hardly any PV installations will need to do so. (And if you have micro-inverters, or one inverter per string then definitely not. The same goes for all panels with identical orientation in a single Solcast site.)
 
 Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may in fact be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
@@ -695,6 +697,15 @@ series:
 
 ## Changes
 
+v4.2.5
+* Add multi-API key hard limit by @autoSteve
+* Proportionally limit site breakdowns by @autoSteve
+* Calculate daily site tally correctly based on hard limit by @autoSteve
+* Immediate application of dampening to future forecasts by @autoSteve
+* Fix system health output exception by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.4...v4.2.5
+
 v4.2.4
 * Add user-agent header to API calls by @autoSteve
 * Refer to action instead of service call by @gcoan
@@ -707,7 +718,7 @@ v4.2.3
 * Fix an issue with enabled detailed site breakdown for hourly attributes by @autoSteve
 * Code clean-up and some refactoring by @autoSteve
 
-Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.0...v4.2.1
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.0...v4.2.3
 
 v4.2.2
 * Release pulled due to an issue

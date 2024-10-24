@@ -32,7 +32,7 @@ from .const import (
     CONFIG_DAMP,
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
-    HARD_LIMIT,
+    HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE_DAMP,
     TITLE,
@@ -51,8 +51,9 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
     # 10 unreleased
     # 11 unreleased
     # 12 started 4.1.8
+    # 14 started 4.2.4????
 
-    VERSION = 12
+    VERSION = 14
 
     @staticmethod
     @callback
@@ -117,7 +118,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     "damp22": 1.0,
                     "damp23": 1.0,
                     "customhoursensor": 1,
-                    HARD_LIMIT: 100000,
+                    HARD_LIMIT_API: '100.0',
                     KEY_ESTIMATE: "estimate",
                     BRK_ESTIMATE: True,
                     BRK_ESTIMATE10: True,
@@ -178,7 +179,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         api_quota = self.config_entry.options[API_QUOTA]
         auto_update = self.config_entry.options[AUTO_UPDATE]
         customhoursensor = self.config_entry.options[CUSTOM_HOUR_SENSOR]
-        hard_limit = self.config_entry.options.get(HARD_LIMIT, 100000) # Has a get with default because may not feature in an existing user entry config.
+        hard_limit = self.config_entry.options.get(HARD_LIMIT_API)
         key_estimate = self.config_entry.options.get(KEY_ESTIMATE, "estimate")
         estimate_breakdown = self.config_entry.options[BRK_ESTIMATE]
         estimate_breakdown10 = self.config_entry.options[BRK_ESTIMATE10]
@@ -203,7 +204,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 api_quota = [s for s in api_quota.split(',') if s]
                 for q in api_quota:
                     if not q.isnumeric():
-                        return self.async_abort(reason="API limit not numeric!")
+                        return self.async_abort(reason="API limit is not a number")
                     if int(q) < 1:
                         return self.async_abort(reason="API limit must be one  or greater!")
                 if len(api_quota) > api_count:
@@ -218,10 +219,18 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     return self.async_abort(reason="Custom sensor not between 1 and 144")
                 all_config_data[CUSTOM_HOUR_SENSOR] = customhoursensor
 
-                hard_limit = user_input[HARD_LIMIT]
-                if hard_limit < 1:
-                    return self.async_abort(reason="Hard limit must be a positive number")
-                all_config_data[HARD_LIMIT] = hard_limit
+                hard_limit = user_input[HARD_LIMIT_API]
+                to_set = []
+                for h in hard_limit.split(','):
+                    h = h.strip()
+                    if not h.replace('.','',1).isdigit():
+                        return self.async_abort(reason="Hard limit is not a positive number")
+                    val = float(h)
+                    if val < 0:
+                        return self.async_abort(reason="Hard limit is not a positive number")
+                    to_set.append(f"{val:.1f}")
+                hard_limit = ','.join(to_set)
+                all_config_data[HARD_LIMIT_API] = hard_limit
 
                 all_config_data[KEY_ESTIMATE] = user_input[KEY_ESTIMATE]
 
@@ -276,7 +285,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                         SelectSelectorConfig(options=forecasts, mode=SelectSelectorMode.DROPDOWN, translation_key="key_estimate")
                     ),
                     vol.Required(CUSTOM_HOUR_SENSOR, default=customhoursensor): int,
-                    vol.Required(HARD_LIMIT, default=hard_limit): int,
+                    vol.Required(HARD_LIMIT_API, default=hard_limit): str,
                     vol.Optional(BRK_ESTIMATE10, default=estimate_breakdown10): bool,
                     vol.Optional(BRK_ESTIMATE, default=estimate_breakdown): bool,
                     vol.Optional(BRK_ESTIMATE90, default=estimate_breakdown90): bool,
