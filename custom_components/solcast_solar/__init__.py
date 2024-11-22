@@ -290,22 +290,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     """
     random.seed()
 
-    def find_others() -> list[str]:
-        path = Path(Path(__file__).parent, "..")
-        return list(path.rglob("solcastapi.py"))
+    # def find_others() -> list[str]:
+    #    path = Path(Path(__file__).parent, "..")
+    #    return list(path.rglob("solcastapi.py"))
 
-    us = str(Path(__file__).parent).rsplit("/", maxsplit=1)[-1]
-    _LOGGER.debug("Integration path: %s", us)
-    others = await hass.async_add_executor_job(find_others)
-    for sol in others:
-        parent = str(Path(sol).parent)
-        folder = parent.rsplit("/", maxsplit=1)[-1]
-        if folder != us:
-            async with aiofiles.open(Path(parent, "manifest.json")) as file:
-                manifest = json.loads(await file.read())
-                if manifest.get("domain") == folder:
-                    _LOGGER.error("Conflicting integration found in %s, which must be resolved", folder)
-                    raise ConfigEntryNotReady(f"Load failed: Conflicting integration found: {folder}")
+    # us = str(Path(__file__).parent).rsplit("/", maxsplit=1)[-1]
+    # _LOGGER.debug("Integration path: %s", us)
+    # others = await hass.async_add_executor_job(find_others)
+    # for sol in others:
+    #    parent = str(Path(sol).parent)
+    #    folder = parent.rsplit("/", maxsplit=1)[-1]
+    #    if folder != us:
+    #        async with aiofiles.open(Path(parent, "manifest.json")) as file:
+    #            manifest = json.loads(await file.read())
+    #            if manifest.get("domain") == folder:
+    #                _LOGGER.error("Conflicting integration found in %s, which must be resolved", folder)
+    #                raise ConfigEntryNotReady(f"Load failed: Conflicting integration found: {folder}")
 
     version = await __get_version(hass)
     options = await __get_options(hass, entry)
