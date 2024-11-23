@@ -183,7 +183,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 for key in api_key:
                     if re.match(r"^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$", key):
                         return self.async_abort(reason="API key looks like a site ID")
-                    if not re.match(r"^[a-zA-Z0-9,-]+$", api_key):
+                    if not re.match(r"^[a-zA-Z0-9,-]+$", key):
                         return self.async_abort(reason="API key contains invalid character")
                 api_count = len(api_key)
                 api_key = ",".join(api_key)
