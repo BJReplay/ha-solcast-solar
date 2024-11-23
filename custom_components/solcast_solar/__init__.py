@@ -236,7 +236,7 @@ async def __conflicting_integration(hass: HomeAssistant) -> tuple[bool, str]:
         try:
             parent = str(Path(sol).parent)
             folder = parent.rsplit("/", maxsplit=1)[-1]
-            if folder != us:
+            if folder != us and Path(parent, "manifest.json").is_file():
                 async with aiofiles.open(Path(parent, "manifest.json")) as file:
                     manifest = json.loads(await file.read())
                     if manifest.get("domain") == folder:
