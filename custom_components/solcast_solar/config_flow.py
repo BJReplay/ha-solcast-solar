@@ -102,11 +102,15 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                         manifest = json.loads(await file.read())
                         if manifest.get("domain") == folder:
                             _LOGGER.warning("Conflicting integration found in %s, code owners: %s", folder, manifest.get("codeowners"))
-                            services = self.hass.services.async_services_for_domain(folder)
-                            if len(services) > 0:
+                            entities = self.hass.states.async_entity_ids(None)
+                            _LOGGER.debug("Entities: %s", entities)
+                            found = [e for e in entities if e.startswith("sensor.solcast_")]
+                            if len(found) > 0:
                                 _LOGGER.error("Conflicting integration is running")
                                 failed = True
                                 conflict = folder
+                            else:
+                                _LOGGER.warning("Conflicting integration is present but not running")
             except Exception as e:  # noqa: BLE001
                 _LOGGER.warning("Conflict check failed testing '%s': %s", str(sol), e)
         return failed, conflict
