@@ -216,38 +216,6 @@ async def __get_granular_dampening(hass: HomeAssistant, entry: ConfigEntry, solc
     hass.data[DOMAIN]["entry_options"] = entry.options
 
 
-async def __conflicting_integration(hass: HomeAssistant) -> tuple[bool, str]:
-    """Search for other integrations installed having a solcastapi.py file and a viable manifest."""
-
-    def find_others() -> list[str]:
-        path = Path(Path(__file__).parent).parent
-        return list(path.rglob("solcastapi.py"))
-
-    us = str(Path(__file__).parent).rsplit("/", maxsplit=1)[-1]
-    _LOGGER.debug("Integration path: %s", us)
-    failed = False
-    conflict = ""
-    try:
-        others = await hass.async_add_executor_job(find_others)
-    except Exception as e:  # noqa: BLE001
-        _LOGGER.warning("Conflict check failed: %s", e)
-        others = []
-    for sol in others:
-        try:
-            parent = str(Path(sol).parent)
-            folder = parent.rsplit("/", maxsplit=1)[-1]
-            if folder != us and Path(parent, "manifest.json").is_file():
-                async with aiofiles.open(Path(parent, "manifest.json")) as file:
-                    manifest = json.loads(await file.read())
-                    if manifest.get("domain") == folder:
-                        _LOGGER.error("Conflicting integration found in %s, code owners: %s", folder, manifest.get("codeowners"))
-                        failed = True
-                        conflict = folder
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.warning("Conflict check failed testing '%s': %s", str(sol), e)
-    return failed, conflict
-
-
 async def __check_stale_start(coordinator: SolcastUpdateCoordinator):
     """Check whether the integration has been failed for some time and then is restarted, and if so update forecast."""
     if coordinator.solcast.is_stale_data():
@@ -321,10 +289,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
     """
     random.seed()
-
-    failed, conflict = await __conflicting_integration(hass)
-    if failed:
-        raise ConfigEntryNotReady(f"Load failed: Conflicting integration found: {conflict}")
 
     version = await __get_version(hass)
     options = await __get_options(hass, entry)

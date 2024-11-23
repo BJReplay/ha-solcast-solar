@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import logging
 from pathlib import Path
 import re
 from typing import Any
 
+import aiofiles
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -75,6 +77,40 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         """
         return SolcastSolarOptionFlowHandler(config_entry)
 
+    async def __conflicting_integration(self) -> tuple[bool, str]:
+        """Search for other integrations installed having a solcastapi.py file and a viable manifest."""
+
+        def find_others() -> list[str]:
+            path = Path(Path(__file__).parent).parent
+            return list(path.rglob("solcastapi.py"))
+
+        us = str(Path(__file__).parent).rsplit("/", maxsplit=1)[-1]
+        _LOGGER.debug("Integration path: %s", us)
+        failed = False
+        conflict = ""
+        try:
+            others = await self.hass.async_add_executor_job(find_others)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.warning("Conflict check failed: %s", e)
+            others = []
+        for sol in others:
+            try:
+                parent = str(Path(sol).parent)
+                folder = parent.rsplit("/", maxsplit=1)[-1]
+                if folder != us and Path(parent, "manifest.json").is_file():
+                    async with aiofiles.open(Path(parent, "manifest.json")) as file:
+                        manifest = json.loads(await file.read())
+                        if manifest.get("domain") == folder:
+                            _LOGGER.warning("Conflicting integration found in %s, code owners: %s", folder, manifest.get("codeowners"))
+                            services = self.hass.services.async_services_for_domain(folder)
+                            if len(services) > 0:
+                                _LOGGER.error("Conflicting integration is running")
+                                failed = True
+                                conflict = folder
+            except Exception as e:  # noqa: BLE001
+                _LOGGER.warning("Conflict check failed testing '%s': %s", str(sol), e)
+        return failed, conflict
+
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle a flow initiated by the user.
 
@@ -87,6 +123,9 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         """
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
+        failed, conflict = await self.__conflicting_integration()
+        if failed:
+            return self.async_abort(reason="Conflicting integration found: " + conflict)
 
         if user_input is not None:
             api_key = user_input[CONF_API_KEY].replace(" ", "")
