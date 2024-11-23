@@ -151,6 +151,24 @@ API_KEY_SITES = {
         ],
         "counter": 0,
     },
+    "aaaa-aaaa": {
+        "sites": [
+            {
+                "resource_id": "7777-7777-7777-7777",
+                "name": "Seventh Site",
+                "latitude": -11.11111,
+                "longitude": 111.1111,
+                "install_date": "2024-01-01T00:00:00+00:00",
+                "loss_factor": 0.99,
+                "capacity": 3.0,
+                "capacity_dc": 3.5,
+                "azimuth": 90,
+                "tilt": 30,
+                "location": "Downunder",
+            },
+        ],
+        "counter": 0,
+    },
 }
 BOMB_429 = [0]
 ERROR_KEY_REQUIRED = "KeyRequired"
