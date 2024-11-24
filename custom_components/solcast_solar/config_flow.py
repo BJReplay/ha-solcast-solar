@@ -44,6 +44,8 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+LIKE_SITE_ID = r"^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$"
+
 
 @config_entries.HANDLERS.register(DOMAIN)
 class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
@@ -132,10 +134,16 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="Conflicting integration found: " + conflict)
 
         if user_input is not None:
+            # Validate API key
             api_key = user_input[CONF_API_KEY].replace(" ", "")
-            if not re.match("^[a-zA-Z0-9,]+$", api_key):
-                return self.async_abort(reason="API key contains invalid character")
-            api_count = len(api_key.split(","))
+            api_key = [s for s in api_key.split(",") if s]
+            for key in api_key:
+                if re.match(LIKE_SITE_ID, key):
+                    return self.async_abort(reason="API key looks like a site ID")
+            api_count = len(api_key)
+            api_key = ",".join(api_key)
+
+            # Validate API limit
             api_quota = user_input[API_QUOTA].replace(" ", "")
             api_quota = [s for s in api_quota.split(",") if s]
             for q in api_quota:
@@ -146,6 +154,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             if len(api_quota) > api_count:
                 return self.async_abort(reason="There are more API limit counts entered than keys!")
             api_quota = ",".join(api_quota)
+
             options = {
                 CONF_API_KEY: api_key,
                 API_QUOTA: api_quota,
@@ -224,10 +233,8 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 api_key = user_input[CONF_API_KEY].replace(" ", "")
                 api_key = [s for s in api_key.split(",") if s]
                 for key in api_key:
-                    if re.match(r"^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$", key):
+                    if re.match(LIKE_SITE_ID, key):
                         return self.async_abort(reason="API key looks like a site ID")
-                    if not re.match(r"^[a-zA-Z0-9,-]+$", key):
-                        return self.async_abort(reason="API key contains invalid character")
                 api_count = len(api_key)
                 api_key = ",".join(api_key)
                 all_config_data[CONF_API_KEY] = api_key
