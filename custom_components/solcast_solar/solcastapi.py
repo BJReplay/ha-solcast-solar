@@ -57,6 +57,14 @@ from .const import (
 from .spline import cubic_interp
 
 
+class DataCallStatus(Enum):
+    """The result of a data call."""
+
+    SUCCESS = 0
+    FAIL = 1
+    ABORT = 2
+
+
 class Api(Enum):
     """The APIs at Solcast."""
 
@@ -2447,27 +2455,34 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     do_past=do_past,
                     force=force,
                 )
-                if not result:
+                if result == DataCallStatus.FAIL:
                     failure = True
-                    if len(self.sites) > 1:
-                        if sites_attempted < len(self.sites):
-                            _LOGGER.warning(
-                                "Forecast update for site %s failed so not getting remaining sites%s",
-                                site["resource_id"],
-                                " - API use count may be odd" if len(self.sites) > 2 and sites_succeeded and not force else "",
-                            )
+                    if self.hass.data[DOMAIN].get(self.entry.entry_id) is not None:
+                        if len(self.sites) > 1:
+                            if sites_attempted < len(self.sites):
+                                _LOGGER.warning(
+                                    "Forecast update for site %s failed so not getting remaining sites%s%s",
+                                    site["resource_id"],
+                                    " - API use count may be odd" if len(self.sites) > 2 and sites_succeeded and not force else "",
+                                    next_update(),
+                                )
+                            else:
+                                _LOGGER.warning(
+                                    "Forecast update for the last site queued failed (%s)%s%s",
+                                    site["resource_id"],
+                                    " - API use count may be odd" if sites_succeeded and not force else "",
+                                    next_update(),
+                                )
+                            status = "At least one site forecast get failed"
                         else:
-                            _LOGGER.warning(
-                                "Forecast update for the last site queued failed (%s)%s",
-                                site["resource_id"],
-                                " - API use count may be odd" if sites_succeeded and not force else "",
-                            )
-                        status = "At least one site forecast get failed"
+                            _LOGGER.warning("Forecast update failed%s", next_update())
+                            status = "Forecast get failed"
                     else:
-                        _LOGGER.warning("Forecast update failed%s", next_update())
-                        status = "Forecast get failed"
+                        status = "KILLED"
                     break
-                if result:
+                if result == DataCallStatus.ABORT:
+                    return ""
+                if result == DataCallStatus.SUCCESS:
                     sites_succeeded += 1
 
             if sites_attempted > 0 and not failure:
@@ -2489,11 +2504,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _LOGGER.info("Forecast update completed successfully%s", next_update())
             else:
                 if sites_attempted > 0:
-                    _LOGGER.error(
-                        "%site failed to fetch, so forecast has not been built%s",
-                        "At least one s" if len(self.sites) > 1 else "S",
-                        next_update(),
-                    )
+                    if status != "KILLED":
+                        _LOGGER.error(
+                            "%site failed to fetch, so forecast has not been built%s",
+                            "At least one s" if len(self.sites) > 1 else "S",
+                            next_update(),
+                        )
                 else:
                     _LOGGER.error("Internal error, there is no sites data so forecast has not been built")
                 status = "At least one site forecast get failed"
@@ -2683,7 +2699,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         api_key: str | None = None,
         do_past: bool = False,
         force: bool = False,
-    ) -> bool:
+    ) -> DataCallStatus:
         """Request forecast data via the Solcast API.
 
         Arguments:
@@ -2693,7 +2709,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             force (bool): A forced update, which does not update the internal API use counter.
 
         Returns:
-            bool: A flag indicating success or failure
+            DataCallStatus: A flag indicating success, failure or abort
 
         """
         try:
@@ -2713,7 +2729,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if do_past:
                 if self.tasks.get("fetch") is not None:
                     _LOGGER.error("Internal error: A fetch task is already running, so aborting get past actuals")
-                    return False
+                    return DataCallStatus.FAIL
                 self.tasks["fetch"] = asyncio.create_task(
                     self.__fetch_data(
                         168,
@@ -2723,17 +2739,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         force=force,
                     )
                 )
+                response = None
                 await self.tasks["fetch"]
-                response = self.tasks["fetch"].result()
-
                 if self.tasks.get("fetch") is not None:
+                    response = self.tasks["fetch"].result()
                     self.tasks.pop("fetch")
+                if response is None:
+                    return DataCallStatus.FAIL
                 if not isinstance(response, dict):
                     _LOGGER.error(
-                        "No data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
+                        "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
                     )
                     _LOGGER.error("API did not return a json object, returned %s", response)
-                    return False
+                    return DataCallStatus.FAIL
 
                 estimate_actuals = response.get("estimated_actuals", None)
 
@@ -2742,7 +2760,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         "Estimated actuals must be a list, not %s",
                         type(estimate_actuals),
                     )
-                    return False
+                    return DataCallStatus.FAIL
 
                 oldest = (dt.now(self._tz).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)).astimezone(datetime.UTC)
 
@@ -2755,7 +2773,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             "Got a period_start minute that is not 0 or 30, period_start: %d",
                             period_start.minute,
                         )
-                        return False
+                        return DataCallStatus.FAIL
                     if period_start > oldest:
                         new_data.append(
                             {
@@ -2770,7 +2788,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             if self.tasks.get("fetch") is not None:
                 _LOGGER.warning("A fetch task is already running, so aborting forecast update")
-                return False
+                return DataCallStatus.ABORT
             self.tasks["fetch"] = asyncio.create_task(
                 self.__fetch_data(
                     hours,
@@ -2780,21 +2798,22 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     force=force,
                 )
             )
+            response = None
             await self.tasks["fetch"]
-            response = self.tasks["fetch"].result()
             if self.tasks.get("fetch") is not None:
+                response = self.tasks["fetch"].result()
                 self.tasks.pop("fetch")
             if response is None:
-                return False
+                return DataCallStatus.FAIL
 
             if not isinstance(response, dict):
                 _LOGGER.error("API did not return a json object. Returned %s", response)
-                return False
+                return DataCallStatus.FAIL
 
             latest_forecasts = response.get("forecasts", None)
             if not isinstance(latest_forecasts, list):
                 _LOGGER.error("Forecasts must be a list, not %s", type(latest_forecasts))
-                return False
+                return DataCallStatus.FAIL
 
             _LOGGER.debug("%d records returned", len(latest_forecasts))
 
@@ -2808,7 +2827,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         "Got a period_start minute that is not 0 or 30, period_start: %d",
                         period_start.minute,
                     )
-                    return False
+                    return DataCallStatus.FAIL
                 if period_start < last_day:
                     new_data.append(
                         {
@@ -2880,11 +2899,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 round(time.time() - start_time, 4),
             )
         except InvalidStateError:
-            return False
+            return DataCallStatus.FAIL
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Exception in __http_data_call(): %s: %s", e, traceback.format_exc())
-            return False
-        return True
+            return DataCallStatus.FAIL
+        return DataCallStatus.SUCCESS
 
     async def __fetch_data(  # noqa: C901
         self,
@@ -2986,7 +3005,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         # Solcast is in a possibly recoverable state, so delay (15 seconds * counter), plus a random number of seconds between zero and 15.
                         delay = (counter * backoff) + random.randrange(0, 15)
                         _LOGGER.warning(
-                            "API returned %s, pausing %d seconds before retry",
+                            "Call status %s, pausing %d seconds before retry",
                             self.__translate(status),
                             delay,
                         )
@@ -3020,7 +3039,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         return None
                     else:
                         _LOGGER.error(
-                            "API returned status %s, API used is %d/%d",
+                            "Call status %s, API used is %d/%d",
                             self.__translate(status),
                             self._api_used[api_key],
                             self._api_limit[api_key],

@@ -589,6 +589,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
+        # Terminate all tasks
+        await tasks_cancel(hass, entry)
+
+        # Remove all actions
         for action in hass.services.async_services_for_domain(DOMAIN):
             _LOGGER.debug("Remove action: %s.%s", DOMAIN, action)
             hass.services.async_remove(DOMAIN, action)
@@ -616,6 +620,28 @@ async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEnt
     return True
 
 
+async def tasks_cancel(hass: HomeAssistant, entry: ConfigEntry):
+    """Cancel all tasks."""
+    try:
+        coordinator = hass.data[DOMAIN][entry.entry_id]
+        # Terminate solcastapi tasks in progress
+        for task, cancel in coordinator.solcast.tasks.items():
+            _LOGGER.debug("Cancelling solcastapi task %s", task)
+            cancel.cancel()
+        coordinator.solcast.tasks = {}
+        # Terminate coordinator tasks in progress
+        for task, cancel in coordinator.tasks.items():
+            _LOGGER.debug("Cancelling coordinator task %s", task)
+            if isinstance(cancel, asyncio.Task):
+                cancel.cancel()
+            else:
+                cancel()
+        coordinator.tasks = {}
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.error("Cancelling tasks failed: %s: %s", e, traceback.format_exc())
+    coordinator.solcast.tasks = {}
+
+
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
     """Reconfigure the integration when options get updated.
 
@@ -629,25 +655,6 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
 
     """
     coordinator = hass.data[DOMAIN][entry.entry_id]
-
-    def tasks_cancel():
-        try:
-            # Terminate solcastapi tasks in progress
-            for task, cancel in coordinator.solcast.tasks.items():
-                _LOGGER.debug("Cancelling solcastapi task %s", task)
-                cancel.cancel()
-            coordinator.solcast.tasks = {}
-            # Terminate coordinator tasks in progress
-            for task, cancel in coordinator.tasks.items():
-                _LOGGER.debug("Cancelling coordinator task %s", task)
-                if isinstance(cancel, asyncio.Task):
-                    cancel.cancel()
-                else:
-                    cancel()
-            coordinator.tasks = {}
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error("Cancelling tasks failed: %s: %s", e, traceback.format_exc())
-        coordinator.solcast.tasks = {}
 
     try:
         reload = False
@@ -722,12 +729,12 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
             coordinator.solcast.entry_options = entry.options
         else:
             # Reload
-            tasks_cancel()
+            await tasks_cancel(hass, entry)
             await hass.config_entries.async_reload(entry.entry_id)
     except:  # noqa: E722
         _LOGGER.debug(traceback.format_exc())
         # Restart on exception
-        tasks_cancel()
+        await tasks_cancel(hass, entry)
         await hass.config_entries.async_reload(entry.entry_id)
 
 
