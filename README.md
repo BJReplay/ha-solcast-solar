@@ -779,6 +779,13 @@ series:
 
 ## Changes
 
+v4.2.7
+* Fix an issue with API key validation by @autoSteve
+* Fix an issue preventing clean integration removal by @autoSteve
+* Improve check for conflicting integration by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.6...v4.2.7
+
 v4.2.6
 * Fix an issue that was preventing new installs by @autoSteve
 * Fix an issue calculating auto-update interval for multi-API key by @autoSteve
