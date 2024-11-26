@@ -3075,7 +3075,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _LOGGER.debug("HTTP session returned: %s", str(response))
                 return response
         except asyncio.exceptions.CancelledError:
-            _LOGGER.debug("Fetch cancelled")
+            _LOGGER.info("Fetch cancelled")
         except ConnectionRefusedError as e:
             _LOGGER.error("Connection error in __fetch_data(), connection refused: %s", e)
         except ClientConnectionError as e:
