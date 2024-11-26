@@ -7,7 +7,7 @@ from __future__ import annotations
 import math
 
 
-def cubic_interp(x0: list, x: list, y: list):
+def cubic_interp(x0: list, x: list, y: list) -> list:
     """Build a cubic spline.
 
     Arguments:

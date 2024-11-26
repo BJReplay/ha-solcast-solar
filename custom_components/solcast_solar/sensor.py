@@ -381,7 +381,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
         self._attr_device_info = {
             ATTR_IDENTIFIERS: {(DOMAIN, entry.entry_id)},
-            ATTR_NAME: "Solcast PV Forecast",  # entry.title,
+            ATTR_NAME: "Solcast PV Forecast",
             ATTR_MANUFACTURER: MANUFACTURER,
             ATTR_MODEL: "Solcast PV Forecast",
             ATTR_ENTRY_TYPE: DeviceEntryType.SERVICE,

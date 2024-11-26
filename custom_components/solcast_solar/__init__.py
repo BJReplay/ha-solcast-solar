@@ -5,7 +5,6 @@ import contextlib
 from datetime import timedelta
 import json
 import logging
-from pathlib import Path
 import random
 import traceback
 from typing import Any, Final
@@ -218,14 +217,15 @@ async def __get_granular_dampening(hass: HomeAssistant, entry: ConfigEntry, solc
 
 async def __check_stale_start(coordinator: SolcastUpdateCoordinator):
     """Check whether the integration has been failed for some time and then is restarted, and if so update forecast."""
+    _LOGGER.debug("Checking for stale start")
     if coordinator.solcast.is_stale_data():
         try:
             if coordinator.solcast.options.auto_update == 0:
                 _LOGGER.warning("The update automation has not been running, updating forecast")
-                await coordinator.service_event_update()
+                await coordinator.service_event_update(completion="Completed task stale_update")
             else:
                 _LOGGER.warning("Many auto updates have been missed, updating forecast")
-                await coordinator.service_event_update(ignore_auto_enabled=True)
+                await coordinator.service_event_update(ignore_auto_enabled=True, completion="Completed task stale_update")
         except Exception as e:  # noqa: BLE001
             _LOGGER.error(
                 "Exception fetching data on stale start: %s: %s",
@@ -237,6 +237,7 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator):
 
 async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator):
     """Check whether an auto-update has been missed, and if so update forecast."""
+    _LOGGER.debug("Checking for missed auto update")
     if coordinator.solcast.options.auto_update > 0:
         if coordinator.solcast.get_data()["auto_updated"]:
             _LOGGER.debug("Checking whether auto update forecast is stale")
@@ -244,14 +245,14 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator):
                 if (
                     coordinator.interval_just_passed is not None
                     and coordinator.solcast.get_data()["auto_updated"]
-                    and coordinator.solcast.get_data()["last_attempt"] < coordinator.interval_just_passed - timedelta(minutes=1)
+                    and coordinator.solcast.get_data()["last_attempt"] < coordinator.interval_just_passed
                 ):
                     _LOGGER.info(
                         "Last auto update forecast recorded (%s) is older than expected, should be (%s), updating forecast",
                         coordinator.solcast.get_data()["last_attempt"].astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
                         coordinator.interval_just_passed.astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
                     )
-                    await coordinator.service_event_update(ignore_auto_enabled=True)
+                    await coordinator.service_event_update(ignore_auto_enabled=True, completion="Completed task update_missed")
                 else:
                     _LOGGER.debug("Auto update forecast is fresh")
             except TypeError:
@@ -325,6 +326,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     await __check_auto_update_missed(coordinator)
     hass.data[DOMAIN]["has_loaded"] = True
 
+    # Testing of options migration. Used to validate the upgrade process when the options version changes.
     # await __test_options_migration(hass, entry)
     # __log_entry_options(entry)
     # pass  # <<< Set breakpoint here, then "step over" once.
