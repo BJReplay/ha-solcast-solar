@@ -344,19 +344,24 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     async def __forecast_update(self, force: bool = False, completion: str = ""):
         """Get updated forecast data."""
 
-        _LOGGER.debug("Started task %s", "update" if completion == "" else completion.replace("Completed task ", ""))
-        _LOGGER.debug("Checking for stale usage cache")
-        if self.solcast.is_stale_usage_cache():
-            _LOGGER.warning("Usage cache reset time is stale, last reset was more than 24-hours ago, resetting API usage")
-            await self.solcast.reset_usage_cache()
-            await self.__restart_time_track_midnight_update()
+        try:
+            _LOGGER.debug("Started task %s", "update" if completion == "" else completion.replace("Completed task ", ""))
+            _LOGGER.debug("Checking for stale usage cache")
+            if self.solcast.is_stale_usage_cache():
+                _LOGGER.warning("Usage cache reset time is stale, last reset was more than 24-hours ago, resetting API usage")
+                await self.solcast.reset_usage_cache()
+                await self.__restart_time_track_midnight_update()
 
-        # await self.solcast.get_weather()
-        await self.solcast.get_forecast_update(do_past=False, force=force)
-        self._data_updated = True
-        await self.update_integration_listeners()
-        self._data_updated = False
-        _LOGGER.debug(completion)
+            # await self.solcast.get_weather()
+            await self.solcast.get_forecast_update(do_past=False, force=force)
+            self._data_updated = True
+            await self.update_integration_listeners()
+            self._data_updated = False
+            _LOGGER.debug(completion)
+        finally:
+            with contextlib.suppress(Exception):
+                # Clean up a task created by a service call action
+                self.tasks.pop("forecast_update")
 
     async def service_event_update(self, **kwargs):
         """Get updated forecast data when requested by a service call.
