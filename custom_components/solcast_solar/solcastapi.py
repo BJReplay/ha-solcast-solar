@@ -2595,7 +2595,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             period_start.astimezone(self._tz),
                             valid_granular_dampening,
                         )
-                        self.__forecast_entry_update(
+                        await self.__async_forecast_entry_update(
                             forecasts[site],
                             period_start,
                             round(forecast["pv_estimate"] * dampening_factor, 4),
@@ -2614,7 +2614,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 traceback.format_exc(),
             )
 
-    def __forecast_entry_update(self, forecasts: dict, period_start: dt, pv: float, pv10: float, pv90: float):
+    async def __async_forecast_entry_update(self, forecasts: dict, period_start: dt, pv: float, pv10: float, pv90: float):
         """Update an individual forecast entry."""
         extant = forecasts.get(period_start)
         if extant:  # Update existing.
@@ -2688,7 +2688,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 pv90_dampened = round(pv90 * dampening_factor, 4)
 
                 # Add or update the new entries.
-                self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
+                await self.__async_forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
 
             forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
             self._data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts)}})
@@ -2853,50 +2853,58 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 forecasts_undampened = {}
 
             # Apply dampening to the new data
-            valid_granular_dampening = self.__valid_granular_dampening()
-            for forecast in sorted(new_data, key=itemgetter("period_start")):
-                period_start = forecast["period_start"]
-                pv = round(forecast["pv_estimate"], 4)
-                pv10 = round(forecast["pv_estimate10"], 4)
-                pv90 = round(forecast["pv_estimate90"], 4)
+            async def apply_dampening(forecasts, forecasts_undampened):
+                valid_granular_dampening = self.__valid_granular_dampening()
+                for forecast in sorted(new_data, key=itemgetter("period_start")):
+                    period_start = forecast["period_start"]
+                    pv = round(forecast["pv_estimate"], 4)
+                    pv10 = round(forecast["pv_estimate10"], 4)
+                    pv90 = round(forecast["pv_estimate90"], 4)
 
-                # Retrieve the dampening factor for the period, and dampen the estimates.
-                dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), valid_granular_dampening)
-                pv_dampened = round(pv * dampening_factor, 4)
-                pv10_dampened = round(pv10 * dampening_factor, 4)
-                pv90_dampened = round(pv90 * dampening_factor, 4)
+                    # Retrieve the dampening factor for the period, and dampen the estimates.
+                    dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), valid_granular_dampening)
+                    pv_dampened = round(pv * dampening_factor, 4)
+                    pv10_dampened = round(pv10 * dampening_factor, 4)
+                    pv90_dampened = round(pv90 * dampening_factor, 4)
 
-                # Add or update the new entries.
-                self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
-                self.__forecast_entry_update(forecasts_undampened, period_start, pv, pv10, pv90)
+                    # Add or update the new entries.
+                    await self.__async_forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
+                    await self.__async_forecast_entry_update(forecasts_undampened, period_start, pv, pv10, pv90)
 
-            # Forecasts contains up to 730 days of period history data for each site. Convert dictionary to list, retain the past two years, sort by period start.
-            past_days = self.get_day_start_utc(future=-730)
-            forecasts = sorted(
-                filter(
-                    lambda forecast: forecast["period_start"] >= past_days,
-                    forecasts.values(),
-                ),
-                key=itemgetter("period_start"),
-            )
-            self._data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts)}})
+            _apply = asyncio.create_task(apply_dampening(forecasts, forecasts_undampened))
+            await _apply
 
-            # Un-dampened forecasts contains up to 14 days of period history data for each site.
-            past_days = self.get_day_start_utc(future=-14)
-            forecasts_undampened = sorted(
-                filter(
-                    lambda forecast: forecast["period_start"] >= past_days,
-                    forecasts_undampened.values(),
-                ),
-                key=itemgetter("period_start"),
-            )
-            self._data_undampened["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts_undampened)}})
+            async def sort_and_prune(forecasts, forecasts_undampened):
+                # Forecasts contains up to 730 days of period history data for each site. Convert dictionary to list, retain the past two years, sort by period start.
+                past_days = self.get_day_start_utc(future=-730)
+                forecasts = sorted(
+                    filter(
+                        lambda forecast: forecast["period_start"] >= past_days,
+                        forecasts.values(),
+                    ),
+                    key=itemgetter("period_start"),
+                )
+                self._data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts)}})
+
+                # Un-dampened forecasts contains up to 14 days of period history data for each site.
+                past_days = self.get_day_start_utc(future=-14)
+                forecasts_undampened = sorted(
+                    filter(
+                        lambda forecast: forecast["period_start"] >= past_days,
+                        forecasts_undampened.values(),
+                    ),
+                    key=itemgetter("period_start"),
+                )
+                self._data_undampened["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts_undampened)}})
+
+            _sort = asyncio.create_task(sort_and_prune(forecasts, forecasts_undampened))
+            await _sort
 
             _LOGGER.debug("Forecasts dictionary length %s", len(forecasts))
             _LOGGER.debug("Un-dampened forecasts dictionary length %s", len(forecasts_undampened))
             _LOGGER.debug(
                 "HTTP data call processing took %.3f seconds",
-                round(time.time() - start_time, 4),
+                time.time() - start_time,
             )
         except InvalidStateError:
             return DataCallStatus.FAIL
@@ -3233,7 +3241,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     }
                     _LOGGER.debug(
                         "Build hard limit processing took %.3f seconds for %s",
-                        round(time.time() - start_time, 4),
+                        time.time() - start_time,
                         "dampened" if update_tally else "un-dampened",
                     )
                 elif multi_key:
@@ -3329,7 +3337,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         self._tally[site] = siteinfo["tally"]
                 _LOGGER.debug(
                     "Build per-site and total processing took %.3f seconds for %s",
-                    round(time.time() - start_time, 4),
+                    time.time() - start_time,
                     "dampened" if update_tally else "un-dampened",
                 )
 
