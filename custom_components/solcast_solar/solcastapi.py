@@ -2595,7 +2595,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             period_start.astimezone(self._tz),
                             valid_granular_dampening,
                         )
-                        await self.__async_forecast_entry_update(
+                        self.__forecast_entry_update(
                             forecasts[site],
                             period_start,
                             round(forecast["pv_estimate"] * dampening_factor, 4),
@@ -2614,7 +2614,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 traceback.format_exc(),
             )
 
-    async def __async_forecast_entry_update(self, forecasts: dict, period_start: dt, pv: float, pv10: float, pv90: float):
+    def __forecast_entry_update(self, forecasts: dict, period_start: dt, pv: float, pv10: float, pv90: float):
         """Update an individual forecast entry."""
         extant = forecasts.get(period_start)
         if extant:  # Update existing.
@@ -2688,7 +2688,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 pv90_dampened = round(pv90 * dampening_factor, 4)
 
                 # Add or update the new entries.
-                await self.__async_forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
+                self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
 
             forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
             self._data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts)}})
@@ -2855,7 +2855,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Task load_new_data took %.3f seconds", time.time() - start_time)
 
             # Apply dampening to the new data
-            async def apply_dampening(forecasts, forecasts_undampened):
+            def apply_dampening(forecasts, forecasts_undampened):
                 start_time = time.time()
                 valid_granular_dampening = self.__valid_granular_dampening()
                 for forecast in sorted(new_data, key=itemgetter("period_start")):
@@ -2871,18 +2871,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     pv90_dampened = round(pv90 * dampening_factor, 4)
 
                     # Add or update the new entries.
-                    await self.__async_forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
-                    await self.__async_forecast_entry_update(forecasts_undampened, period_start, pv, pv10, pv90)
+                    self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
+                    self.__forecast_entry_update(forecasts_undampened, period_start, pv, pv10, pv90)
 
                 _LOGGER.debug(
                     "Task apply_dampening took %.3f seconds",
                     time.time() - start_time,
                 )
 
-            _apply = asyncio.create_task(apply_dampening(forecasts, forecasts_undampened))
-            await _apply
-
-            async def sort_and_prune(forecasts, forecasts_undampened):
+            def sort_and_prune(forecasts, forecasts_undampened):
                 start_time = time.time()
                 # Forecasts contains up to 730 days of period history data for each site. Convert dictionary to list, retain the past two years, sort by period start.
                 past_days = self.get_day_start_utc(future=-730)
@@ -2911,8 +2908,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     time.time() - start_time,
                 )
 
-            _sort = asyncio.create_task(sort_and_prune(forecasts, forecasts_undampened))
-            await _sort
+            apply_dampening(forecasts, forecasts_undampened)
+            sort_and_prune(forecasts, forecasts_undampened)
 
             _LOGGER.debug(
                 "HTTP data call processing took %.3f seconds",
@@ -3193,7 +3190,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             forecasts = {}
             forecasts_undampened = {}
 
-            async def build_data(
+            def build_data(
                 data: list,
                 commencing: dt,
                 forecasts: dict,
@@ -3201,6 +3198,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 sites_hard_limit: defaultdict,
                 update_tally: bool = False,
             ):
+                start_time = time.time()
+
                 # Build per-site hard limit.
                 # The API key hard limit for each site is calculated as proportion of the site contribution for the account.
                 start_time = time.time()
@@ -3287,8 +3286,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         sites_hard_limit["all"][pv_estimate] = {}
 
                 # Build per-site and total forecasts with proportionate hard limit applied.
-
-                start_time = time.time()
                 for site, siteinfo in data["siteinfo"].items():
                     api_key = self.__site_api_key(site) if multi_key else "all"
                     if update_tally:
@@ -3367,7 +3364,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     "dampened" if update_tally else "un-dampened",
                 )
 
-            await build_data(
+            build_data(
                 self._data,
                 commencing,
                 forecasts,
@@ -3375,17 +3372,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 self._sites_hard_limit,
                 update_tally=True,
             )
-            self._data_forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
-            self._data_energy_dashboard = self.__make_energy_dict()
-
-            await build_data(
+            build_data(
                 self._data_undampened,
                 commencing_undampened,
                 forecasts_undampened,
                 self._site_data_forecasts_undampened,
                 self._sites_hard_limit_undampened,
             )
+            self._data_forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
             self._data_forecasts_undampened = sorted(forecasts_undampened.values(), key=itemgetter("period_start"))
+            self._data_energy_dashboard = self.__make_energy_dict()
 
             await self.check_data_records()
             await self.recalculate_splines()
