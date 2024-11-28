@@ -2852,8 +2852,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             except:  # noqa: E722
                 forecasts_undampened = {}
 
+            _LOGGER.debug("Task load_new_data took %.3f seconds", time.time() - start_time)
+
             # Apply dampening to the new data
             async def apply_dampening(forecasts, forecasts_undampened):
+                start_time = time.time()
                 valid_granular_dampening = self.__valid_granular_dampening()
                 for forecast in sorted(new_data, key=itemgetter("period_start")):
                     period_start = forecast["period_start"]
@@ -2871,10 +2874,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     await self.__async_forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
                     await self.__async_forecast_entry_update(forecasts_undampened, period_start, pv, pv10, pv90)
 
+                _LOGGER.debug(
+                    "Task apply_dampening took %.3f seconds",
+                    time.time() - start_time,
+                )
+
             _apply = asyncio.create_task(apply_dampening(forecasts, forecasts_undampened))
             await _apply
 
             async def sort_and_prune(forecasts, forecasts_undampened):
+                start_time = time.time()
                 # Forecasts contains up to 730 days of period history data for each site. Convert dictionary to list, retain the past two years, sort by period start.
                 past_days = self.get_day_start_utc(future=-730)
                 forecasts = sorted(
@@ -2897,15 +2906,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 self._data_undampened["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts_undampened)}})
 
+                _LOGGER.debug(
+                    "Task sort_and_prune took %.3f seconds",
+                    time.time() - start_time,
+                )
+
             _sort = asyncio.create_task(sort_and_prune(forecasts, forecasts_undampened))
             await _sort
 
-            _LOGGER.debug("Forecasts dictionary length %s", len(forecasts))
-            _LOGGER.debug("Un-dampened forecasts dictionary length %s", len(forecasts_undampened))
             _LOGGER.debug(
                 "HTTP data call processing took %.3f seconds",
                 time.time() - start_time,
             )
+            _LOGGER.debug("Forecasts dictionary length %s", len(forecasts))
+            _LOGGER.debug("Un-dampened forecasts dictionary length %s", len(forecasts_undampened))
         except InvalidStateError:
             return DataCallStatus.FAIL
         except Exception as e:  # noqa: BLE001
@@ -2945,6 +2959,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             # fetches is increased each time. All attempts possible span a maximum of
             # fifteen minutes, and this is also the timeout limit set for the entire
             # async operation.
+
+            start_time = time.time()
 
             async with asyncio.timeout(900):
                 if self._api_used[api_key] < self._api_limit[api_key] or force:
@@ -3079,6 +3095,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
             elif status == 200:
                 response = cast(dict, response_json)
+                _LOGGER.debug(
+                    "Task fetch_data took %.3f seconds",
+                    time.time() - start_time,
+                )
                 if FORECAST_DEBUG_LOGGING:
                     _LOGGER.debug("HTTP session returned: %s", str(response))
                 return response
@@ -3125,20 +3145,26 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         return {"wh_hours": forecast_generation}
 
-    def __site_api_key(self, site: str):
+    def __site_api_key(self, site: str) -> str | None:
         for _site in self.sites:
             if _site["resource_id"] == site:
                 return _site["api_key"]
         return None
 
-    def hard_limit_set(self):
-        """Determine whether a hard limit is set."""
+    def hard_limit_set(self) -> tuple[bool, bool]:
+        """Determine whether a hard limit is set.
+
+        Returns:
+            tuple: A flag indicating whether a hard limit is set, and whether multiple keys are in use.
+
+        """
         limit_set = False
         hard_limit = self.hard_limit.split(",")
         multi_key = len(hard_limit) > 1
         for limit in hard_limit:
             if limit != "100.0":
                 limit_set = True
+                break
         return limit_set, multi_key
 
     def __hard_limit_for_key(self, api_key: str) -> float:

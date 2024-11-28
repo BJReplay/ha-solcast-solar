@@ -237,7 +237,6 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator):
 
 async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator):
     """Check whether an auto-update has been missed, and if so update forecast."""
-    _LOGGER.debug("Checking for missed auto update")
     if coordinator.solcast.options.auto_update > 0:
         if coordinator.solcast.get_data()["auto_updated"]:
             _LOGGER.debug("Checking whether auto update forecast is stale")
