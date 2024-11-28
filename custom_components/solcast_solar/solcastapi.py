@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 from asyncio import InvalidStateError
 from collections import OrderedDict, defaultdict
+from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import copy
 from dataclasses import dataclass
@@ -2818,6 +2819,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("%d records returned", len(latest_forecasts))
 
             start_time = time.time()
+            overall_start_time = start_time
             for forecast in latest_forecasts:
                 period_start = parse_datetime(forecast["period_end"]).astimezone(datetime.UTC).replace(second=0, microsecond=0) - timedelta(
                     minutes=30
@@ -2855,34 +2857,31 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Task load_new_data took %.3f seconds", time.time() - start_time)
 
             # Apply dampening to the new data
-            def apply_dampening(forecasts, forecasts_undampened):
-                start_time = time.time()
-                valid_granular_dampening = self.__valid_granular_dampening()
-                for forecast in sorted(new_data, key=itemgetter("period_start")):
-                    period_start = forecast["period_start"]
-                    pv = round(forecast["pv_estimate"], 4)
-                    pv10 = round(forecast["pv_estimate10"], 4)
-                    pv90 = round(forecast["pv_estimate90"], 4)
+            start_time = time.time()
+            valid_granular_dampening = self.__valid_granular_dampening()
+            for forecast in sorted(new_data, key=itemgetter("period_start")):
+                period_start = forecast["period_start"]
+                pv = round(forecast["pv_estimate"], 4)
+                pv10 = round(forecast["pv_estimate10"], 4)
+                pv90 = round(forecast["pv_estimate90"], 4)
 
-                    # Retrieve the dampening factor for the period, and dampen the estimates.
-                    dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), valid_granular_dampening)
-                    pv_dampened = round(pv * dampening_factor, 4)
-                    pv10_dampened = round(pv10 * dampening_factor, 4)
-                    pv90_dampened = round(pv90 * dampening_factor, 4)
+                # Retrieve the dampening factor for the period, and dampen the estimates.
+                dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), valid_granular_dampening)
+                pv_dampened = round(pv * dampening_factor, 4)
+                pv10_dampened = round(pv10 * dampening_factor, 4)
+                pv90_dampened = round(pv90 * dampening_factor, 4)
 
-                    # Add or update the new entries.
-                    self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
-                    self.__forecast_entry_update(forecasts_undampened, period_start, pv, pv10, pv90)
+                # Add or update the new entries.
+                self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
+                self.__forecast_entry_update(forecasts_undampened, period_start, pv, pv10, pv90)
+            _LOGGER.debug(
+                "Task apply_dampening took %.3f seconds",
+                time.time() - start_time,
+            )
 
-                _LOGGER.debug(
-                    "Task apply_dampening took %.3f seconds",
-                    time.time() - start_time,
-                )
-
-            def sort_and_prune(forecasts, forecasts_undampened):
-                start_time = time.time()
-                # Forecasts contains up to 730 days of period history data for each site. Convert dictionary to list, retain the past two years, sort by period start.
-                past_days = self.get_day_start_utc(future=-730)
+            def sort_and_prune(data, past_days, forecasts):
+                # start_time = time.time()
+                past_days = self.get_day_start_utc(future=past_days * -1)
                 forecasts = sorted(
                     filter(
                         lambda forecast: forecast["period_start"] >= past_days,
@@ -2890,30 +2889,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     ),
                     key=itemgetter("period_start"),
                 )
-                self._data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts)}})
+                data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts)}})
+                # _LOGGER.debug("Task sort_and_prune forecast took %.3f seconds", time.time() - start_time)
 
-                # Un-dampened forecasts contains up to 14 days of period history data for each site.
-                past_days = self.get_day_start_utc(future=-14)
-                forecasts_undampened = sorted(
-                    filter(
-                        lambda forecast: forecast["period_start"] >= past_days,
-                        forecasts_undampened.values(),
-                    ),
-                    key=itemgetter("period_start"),
-                )
-                self._data_undampened["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts_undampened)}})
-
-                _LOGGER.debug(
-                    "Task sort_and_prune took %.3f seconds",
-                    time.time() - start_time,
-                )
-
-            apply_dampening(forecasts, forecasts_undampened)
-            sort_and_prune(forecasts, forecasts_undampened)
+            start_time = time.time()
+            with ThreadPoolExecutor() as ex:
+                ex.submit(sort_and_prune, self._data, 730, forecasts)
+                ex.submit(sort_and_prune, self._data_undampened, 14, forecasts_undampened)
+            _LOGGER.debug("Task sort_and_prune took %.3f seconds", time.time() - start_time)
 
             _LOGGER.debug(
                 "HTTP data call processing took %.3f seconds",
-                time.time() - start_time,
+                time.time() - overall_start_time,
             )
             _LOGGER.debug("Forecasts dictionary length %s", len(forecasts))
             _LOGGER.debug("Un-dampened forecasts dictionary length %s", len(forecasts_undampened))
@@ -3198,7 +3185,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 sites_hard_limit: defaultdict,
                 update_tally: bool = False,
             ):
-                start_time = time.time()
+                # start_time = time.time()
 
                 # Build per-site hard limit.
                 # The API key hard limit for each site is calculated as proportion of the site contribution for the account.
@@ -3358,29 +3345,36 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if update_tally:
                         siteinfo["tally"] = round(tally, 4)
                         self._tally[site] = siteinfo["tally"]
-                _LOGGER.debug(
-                    "Build per-site and total processing took %.3f seconds for %s",
-                    time.time() - start_time,
-                    "dampened" if update_tally else "un-dampened",
-                )
+                if update_tally:
+                    self._data_forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
+                else:
+                    self._data_forecasts_undampened = sorted(forecasts.values(), key=itemgetter("period_start"))
+                # _LOGGER.debug(
+                #    "Build per-site and total processing took %.3f seconds for %s",
+                #    time.time() - start_time,
+                #    "dampened" if update_tally else "un-dampened",
+                # )
 
-            build_data(
-                self._data,
-                commencing,
-                forecasts,
-                self._site_data_forecasts,
-                self._sites_hard_limit,
-                update_tally=True,
-            )
-            build_data(
-                self._data_undampened,
-                commencing_undampened,
-                forecasts_undampened,
-                self._site_data_forecasts_undampened,
-                self._sites_hard_limit_undampened,
-            )
-            self._data_forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
-            self._data_forecasts_undampened = sorted(forecasts_undampened.values(), key=itemgetter("period_start"))
+            start_time = time.time()
+            with ThreadPoolExecutor() as ex:
+                ex.submit(
+                    build_data,
+                    self._data,
+                    commencing,
+                    forecasts,
+                    self._site_data_forecasts,
+                    self._sites_hard_limit,
+                    update_tally=True,
+                )
+                ex.submit(
+                    build_data,
+                    self._data_undampened,
+                    commencing_undampened,
+                    forecasts_undampened,
+                    self._site_data_forecasts_undampened,
+                    self._sites_hard_limit_undampened,
+                )
+            _LOGGER.debug("Task build_data took %.3f seconds", time.time() - start_time)
             self._data_energy_dashboard = self.__make_energy_dict()
 
             await self.check_data_records()
