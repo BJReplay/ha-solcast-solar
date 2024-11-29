@@ -2130,9 +2130,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     async def recalculate_splines(self):
         """Recalculate both the moment and remaining splines."""
-        _LOGGER.debug("Calculating splines")
+        start_time = time.time()
         await self.__spline_moments()
         await self.__spline_remaining()
+        _LOGGER.debug("Task recalculate_splines took %.3f seconds", time.time() - start_time)
 
     def __get_moment(self, site: str, forecast_confidence: str, n_min: int) -> float:
         """Get a time value from a moment spline.
@@ -2816,7 +2817,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.error("Forecasts must be a list, not %s", type(latest_forecasts))
                 return DataCallStatus.FAIL
 
-            _LOGGER.debug("%d records returned", len(latest_forecasts))
+            _LOGGER.debug(
+                "%d records returned (%s)",
+                len(latest_forecasts),
+                "as expected" if len(latest_forecasts) / 2 == hours else "which is not what was requested",
+            )
 
             start_time = time.time()
             overall_start_time = start_time
@@ -2898,12 +2903,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 ex.submit(sort_and_prune, self._data_undampened, 14, forecasts_undampened)
             _LOGGER.debug("Task sort_and_prune took %.3f seconds", time.time() - start_time)
 
-            _LOGGER.debug(
-                "HTTP data call processing took %.3f seconds",
-                time.time() - overall_start_time,
-            )
-            _LOGGER.debug("Forecasts dictionary length %s", len(forecasts))
-            _LOGGER.debug("Un-dampened forecasts dictionary length %s", len(forecasts_undampened))
+            # _LOGGER.debug(
+            #    "HTTP data call processing took %.3f seconds",
+            #    time.time() - overall_start_time,
+            # )
+            _LOGGER.debug("Forecasts dictionary length %s (%s un-dampened)", len(forecasts), len(forecasts_undampened))
         except InvalidStateError:
             return DataCallStatus.FAIL
         except Exception as e:  # noqa: BLE001
@@ -3020,8 +3024,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         await asyncio.sleep(delay)
 
                     if status == 200:
-                        _LOGGER.debug("Fetch successful")
-
                         if not force:
                             _LOGGER.debug(
                                 "API returned data, API counter incremented from %d to %d",
@@ -3062,7 +3064,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
                     return None
 
-                _LOGGER.debug("HTTP session returned data type %s", type(response_json))
+                if type(response_json) is not dict:
+                    _LOGGER.warning("HTTP session return is not dict: type %s", type(response_json))
                 _LOGGER.debug("HTTP session status %s", self.__translate(status))
 
             if status == 429:

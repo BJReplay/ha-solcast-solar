@@ -233,6 +233,8 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator):
                 traceback.format_exc(),
             )
             _LOGGER.warning("Continuing... ")
+    else:
+        _LOGGER.debug("Start is not stale")
 
 
 async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator):
