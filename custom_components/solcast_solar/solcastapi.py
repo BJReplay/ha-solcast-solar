@@ -2817,14 +2817,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.error("Forecasts must be a list, not %s", type(latest_forecasts))
                 return DataCallStatus.FAIL
 
-            _LOGGER.debug(
-                "%d records returned (%s)",
-                len(latest_forecasts),
-                "as expected" if len(latest_forecasts) / 2 == hours else "which is not what was requested",
-            )
+            _LOGGER.debug("%d records returned", len(latest_forecasts))
 
             start_time = time.time()
-            overall_start_time = start_time
             for forecast in latest_forecasts:
                 period_start = parse_datetime(forecast["period_end"]).astimezone(datetime.UTC).replace(second=0, microsecond=0) - timedelta(
                     minutes=30
