@@ -2859,28 +2859,31 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             # Apply dampening to the new data
             start_time = time.time()
             valid_granular_dampening = self.__valid_granular_dampening()
-            for forecast in sorted(new_data, key=itemgetter("period_start")):
+            for forecast in new_data:
                 period_start = forecast["period_start"]
-                pv = round(forecast["pv_estimate"], 4)
-                pv10 = round(forecast["pv_estimate10"], 4)
-                pv90 = round(forecast["pv_estimate90"], 4)
-
-                # Retrieve the dampening factor for the period, and dampen the estimates.
                 dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), valid_granular_dampening)
-                pv_dampened = round(pv * dampening_factor, 4)
-                pv10_dampened = round(pv10 * dampening_factor, 4)
-                pv90_dampened = round(pv90 * dampening_factor, 4)
 
                 # Add or update the new entries.
-                self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
-                self.__forecast_entry_update(forecasts_undampened, period_start, pv, pv10, pv90)
+                self.__forecast_entry_update(
+                    forecasts,
+                    period_start,
+                    round(forecast["pv_estimate"] * dampening_factor, 4),
+                    round(forecast["pv_estimate10"] * dampening_factor, 4),
+                    round(forecast["pv_estimate90"] * dampening_factor, 4),
+                )
+                self.__forecast_entry_update(
+                    forecasts_undampened,
+                    period_start,
+                    round(forecast["pv_estimate"], 4),
+                    round(forecast["pv_estimate10"], 4),
+                    round(forecast["pv_estimate90"], 4),
+                )
             _LOGGER.debug(
                 "Task apply_dampening took %.3f seconds",
                 time.time() - start_time,
             )
 
             def sort_and_prune(data, past_days, forecasts):
-                # start_time = time.time()
                 past_days = self.get_day_start_utc(future=past_days * -1)
                 forecasts = sorted(
                     filter(
@@ -2890,7 +2893,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     key=itemgetter("period_start"),
                 )
                 data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts)}})
-                # _LOGGER.debug("Task sort_and_prune forecast took %.3f seconds", time.time() - start_time)
 
             start_time = time.time()
             with ThreadPoolExecutor() as ex:
@@ -2898,10 +2900,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 ex.submit(sort_and_prune, self._data_undampened, 14, forecasts_undampened)
             _LOGGER.debug("Task sort_and_prune took %.3f seconds", time.time() - start_time)
 
-            # _LOGGER.debug(
-            #    "HTTP data call processing took %.3f seconds",
-            #    time.time() - overall_start_time,
-            # )
             _LOGGER.debug("Forecasts dictionary length %s (%s un-dampened)", len(forecasts), len(forecasts_undampened))
         except InvalidStateError:
             return DataCallStatus.FAIL
