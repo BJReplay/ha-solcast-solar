@@ -6,6 +6,7 @@ import asyncio
 import contextlib
 from datetime import datetime as dt, timedelta
 import logging
+import time
 import traceback
 from typing import Any
 
@@ -15,7 +16,13 @@ from homeassistant.helpers.event import async_track_utc_time_change
 from homeassistant.helpers.sun import get_astral_event_next
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DATE_FORMAT, DOMAIN, SENSOR_DEBUG_LOGGING, TIME_FORMAT
+from .const import (
+    DATE_FORMAT,
+    DOMAIN,
+    SENSOR_DEBUG_LOGGING,
+    SENSOR_UPDATE_LOGGING,
+    TIME_FORMAT,
+)
 from .solcastapi import SolcastApi
 
 _LOGGER = logging.getLogger(__name__)
@@ -124,6 +131,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     async def update_integration_listeners(self, *args):
         """Get updated sensor values."""
+        if SENSOR_UPDATE_LOGGING:
+            start_time = time.time()
         try:
             if SENSOR_DEBUG_LOGGING:
                 _LOGGER.debug("Update listeners")
@@ -140,6 +149,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         except:  # noqa: E722
             # _LOGGER.error("Exception in update_integration_listeners(): %s", traceback.format_exc())
             pass
+        if SENSOR_UPDATE_LOGGING:
+            _LOGGER.debug("Update listeners took %.3f seconds", time.time() - start_time)
 
     async def __restart_time_track_midnight_update(self):
         """Cancel and restart UTC time change tracker."""
