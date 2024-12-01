@@ -33,7 +33,13 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ATTR_ENTRY_TYPE, ATTRIBUTION, DOMAIN, MANUFACTURER
+from .const import (
+    ATTR_ENTRY_TYPE,
+    ATTRIBUTION,
+    DOMAIN,
+    MANUFACTURER,
+    SENSOR_UPDATE_LOGGING,
+)
 from .coordinator import SolcastUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -214,7 +220,7 @@ SENSORS: dict[str, SensorEntityDescription] = {
         device_class=SensorDeviceClass.POWER,
         native_unit_of_measurement=UnitOfPower.WATT,
         translation_key="power_now_30m",
-        # name="Power in 30 Minutes",
+        name="Power in 30 Minutes",
         suggested_display_precision=0,
         state_class=SensorStateClass.MEASUREMENT,
     ),
@@ -223,7 +229,7 @@ SENSORS: dict[str, SensorEntityDescription] = {
         device_class=SensorDeviceClass.POWER,
         native_unit_of_measurement=UnitOfPower.WATT,
         translation_key="power_now_1hr",
-        # name="Power in 1 Hour",
+        name="Power in 1 Hour",
         suggested_display_precision=0,
         state_class=SensorStateClass.MEASUREMENT,
     ),
@@ -241,7 +247,7 @@ class SensorUpdatePolicy(Enum):
 def get_sensor_update_policy(key: str) -> SensorUpdatePolicy:
     """Get the sensor update policy.
 
-    Many sensors update every five minutes (EVERY_TIME_INTERVAL), while others only update on startup or forecast fetch.
+    Some sensors update every five minutes (EVERY_TIME_INTERVAL), while others only update on startup or forecast fetch.
 
     Arguments:
         key (str): The sensor name.
@@ -287,7 +293,6 @@ async def async_setup_entry(
         sen = SolcastSensor(coordinator, sensor, entry)
         entities.append(sen)
 
-    api_keys = coordinator.solcast.options.api_key.split(",")
     hard_limits = coordinator.solcast.options.hard_limit.split(",")
     if len(hard_limits) == 1:
         k = SensorEntityDescription(
@@ -300,7 +305,7 @@ async def async_setup_entry(
         sen = SolcastSensor(coordinator, k, entry)
         entities.append(sen)
     else:
-        for api_key in api_keys:
+        for api_key in coordinator.solcast.options.api_key.split(","):
             k = SensorEntityDescription(
                 key="hard_limit_" + api_key[-6:],
                 translation_key="hard_limit_api",
@@ -461,6 +466,8 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
             self._sensor_data = None
+        if SENSOR_UPDATE_LOGGING:
+            _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
 
         if self._sensor_data is None:
             self._attr_available = False
@@ -595,13 +602,17 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
     async def async_added_to_hass(self):
         """Entity is added to Home Assistant."""
         await super().async_added_to_hass()
-        self.async_on_remove(self._coordinator.async_add_listener(self._handle_coordinator_update))
+        # self.async_on_remove(self._coordinator.async_add_listener(self._handle_coordinator_update))
 
     @callback
     def _handle_coordinator_update(self):
         """Handle updated data from the coordinator."""
+        if not (self._coordinator.get_date_changed() or self._coordinator.get_data_updated()):
+            return
         try:
             self._sensor_data = self._coordinator.get_site_sensor_value(self._rooftop_id, self._key)
+            if SENSOR_UPDATE_LOGGING:
+                _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
             self._sensor_data = None

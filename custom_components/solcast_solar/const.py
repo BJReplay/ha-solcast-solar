@@ -7,6 +7,7 @@ from typing import Final
 # Development flags
 FORECAST_DEBUG_LOGGING: Final = False
 SENSOR_DEBUG_LOGGING: Final = False
+SENSOR_UPDATE_LOGGING: Final = False
 SPLINE_DEBUG_LOGGING: Final = False
 
 # Integration constants
