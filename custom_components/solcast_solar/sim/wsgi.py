@@ -396,7 +396,7 @@ def get_site_forecasts(site_id):
                 "pv_estimate90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
                 "period": "PT30M",
             }
-            for minute in range(_hours * 2)
+            for minute in range(_hours * 2 + 1)  # Solcast usually returns one more forecast, not an even number of intervals
         ],
     }
     # _LOGGER.info(response)
@@ -474,7 +474,7 @@ def get_site_forecasts_advanced():
                 "pv_power_advanced90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
                 "period": "PT30M",
             }
-            for minute in range(_hours * 2)
+            for minute in range(_hours * 2 + 1)  # Solcast usually returns one more forecast, not an even number of intervals
         ],
     }
     # _LOGGER.info(response)
@@ -495,9 +495,9 @@ def get_time_zone():
 if __name__ == "__main__":
     get_time_zone()
     random.seed()
-    _LOGGER.info("Starting Solcast hobbyist API simulator, will listen on localhost:443")
+    _LOGGER.info("Starting Solcast API simulator, will listen on localhost:443")
     _LOGGER.info("Time zone: %s", TIMEZONE)
-    _LOGGER.info("Simulator originally written by @autoSteve")
+    _LOGGER.info("Originally written by @autoSteve")
     _LOGGER.info("Integration issues raised regarding this script will be closed without response because it is a development tool")
 
     parser = argparse.ArgumentParser()
