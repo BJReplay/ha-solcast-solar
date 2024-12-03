@@ -141,7 +141,7 @@ Once you've restarted, follow along at [Configuration](#configuration) to contin
 More info [here](https://hacs.xyz/docs/faq/custom_repositories/)
 
 1. (If using it, remove oziee/ha-solcast-solar in HACS)
-1. Add custom repository (three vertical dots menu, top right) `https://github.com/BJReplay/ha-solcast-solar` as an ```integration```
+1. Add custom repository (three vertical dots menu, top right) `https://github.com/BJReplay/ha-solcast-solar` as an `integration`
 1. Search for 'Solcast' in HACS, open it and click the `Download` button
 1. See [Configuration](#configuration) below
 
@@ -193,7 +193,7 @@ Make sure you use your `API Key` and not your rooftop ID created in Solcast. You
 
 The default for new installations is automatic scheduled forecast update.
 
-Using auto-update will get forecast updates that are automatically spread across hours when the sun is up, or alternatively over a 24-hour period. It calculates the number of daily updates that will occur according to the number of Solcast sites and the API limit that is configured.
+Using auto-update will get forecast updates that are automatically spread across hours when the sun is up, or alternatively over a 24-hour period. It calculates the number of daily updates that will occur according to the number of Solcast sites and the API limit that is configured (or lowest limit in the case of multiple API keys).
 
 Should it be desired to fetch an update outside of these hours, then the API limit in the integration configuration may be reduced, and an automation may then be set up to call the action `solcast_solar.force_update_forecasts` at the desired time of day. (Note that calling the action `solcast_solar.update_forecasts` will be refused if auto-update is enabled, so use force update instead.)
 
@@ -330,7 +330,7 @@ DEBUG (MainThread) [custom_components.solcast_solar.solcastapi] HTTP session sta
 
 Go to `Settings`, `Dashboards`, `Energy`
 
-Edit the `Solar Panels` `Solar production` item you have previously created (or will create now). Do not add a separate `Solar production` item, or things will just get weird.
+Edit the `Solar Panels` `Solar production` item you have previously created (or will create now). Do not add a separate `Solar production` item as things will just get weird.
 
 > [!IMPORTANT]  
 > If you do not have a solar generation sensor in your system then this integration will not work in the Energy dashboard. The graph and adding the forecast integration rely on there being a generation sensor set up.
@@ -371,13 +371,13 @@ You can change the dampening factor value for any hour. Values from 0.0 - 1.0 ar
 > Most users of dampening configuration do not enter values in the configuration settings directly. Rather, they build automations to set values that are appropriate for their location at different days or seasons, and these call the `solcast_solar.set_dampening` action.
 >
 > 
-> Factors causing dampening to be appropriate might be when different degrees of shading occur at the start or end of a day in Winter only, where the sun is closer to the horizon and might cause nearby buildings or trees to cast a longer shadow than in other seasons.
+> Factors causing dampening to be appropriate might be when different degrees of shading occur at the start or end of a day in different seasons, when the sun is close to the horizon and might cause nearby buildings or trees to cast a long shadow.
 
 #### Granular dampening
 
 Setting dampening for individual Solcast sites or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` action, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
 
-The action accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the action creates or updates the file `solcast-dampening.json` when either a site is specified, or 48 factor values are specified. If setting overall dampening with 48 factors, then an optional 'all' site may be specified (or simply omitted for this use case).
+The action accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the action creates or updates the file `solcast-dampening.json` when either a site or 48 factor values are specified. If setting overall dampening with 48 factors, then an optional 'all' site may be specified (or simply omitted for this use case).
 
 ```
 action: solcast_solar.set_dampening
@@ -388,7 +388,7 @@ data:
 
 If a site is not specified, and 24 dampening values are given then granular dampening will be removed, and the overall configured hourly dampening will apply to all sites. (Granular dampening may also be disabled using the integration `CONFIGURE` dialogue.)
 
-The action need not be called. The file itself may be updated directly, and if modified will be read and used.
+The action need not be called. The file itself may be updated directly, and if modified will be read on forecast update and used.
 
 If granular dampening is configured for a single site in a multi-site set up then that dampening will only apply to the forecasts for that site. Other sites will not be dampened.
 
@@ -435,7 +435,7 @@ Example of half-hourly dampening for all sites:
 
 When calculating dampening using an automation it may be beneficial to use un-dampened forecast values as input.
 
-This is possible by using the action `solcast_solar.query_forecast_data`, and including `undampened: true` in the parameters. If using granular dampening then the site may also be included in the action parameters:
+This is possible by using the action `solcast_solar.query_forecast_data`, and including `undampened: true` in the parameters. The site may also be included in the action parameters if a breakdown is desired.
 
 ```
 action: solcast_solar.query_forecast_data
@@ -492,9 +492,9 @@ The hard limit may be set as an "overall" value (applying to all sites in all So
 
 The scenario requiring use of this limit is straightforward but note that hardly any PV installations will need to do so. (And if you have micro-inverters, or one inverter per string then definitely not. The same goes for all panels with identical orientation in a single Solcast site.)
 
-Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may in fact be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
+Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
 
-The hard limit may be set in the integration configuration or set via manually invoking the action in `Developer Tools`.
+The hard limit may be set in the integration configuration or set via manually invoking an action in `Developer Tools`.
 
 ## Interacting
 
@@ -597,7 +597,7 @@ Utilise the Solcast Developer Tools to examine exposed attributes, as their stru
 
 A potential desire is to combine the forecast data for multiple sites common to a Solcast account, enabling visualisation of individual account detailed data in an Apex chart.
 
-This code is an example of how to do so by using template sensors, which sum all pv50 forecast intervals to give a daily account total, plus build a detailedForecast attribute of all combined interval data to use in a visualisation.
+This code is an example of how to do so by using template sensors, which sums all pv50 forecast intervals to give a daily account total, plus builds a detailedForecast attribute of all combined interval data to use in a visualisation.
 
 **Reveal code**
 <details><summary><i>Click here</i></summary>
