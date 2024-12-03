@@ -25,7 +25,7 @@ The integration is not currently in the HACS database, but this is planned. [Thi
 > [!NOTE]
 >
 > 
-> Beta versions may be available that fix issues. Check https://github.com/BJReplay/ha-solcast-solar/releases to see if an issue has already been resolved. If so, enable the `Solcast PV Pre-release` entity to enable beta upgrade (or for HACS v1 turn on ```Show beta versions``` when re-downloading). Your feedback from testing betas is most welcome in the repository discussions at https://github.com/BJReplay/ha-solcast-solar/discussions.
+> Beta versions may be available that fix issues. Check https://github.com/BJReplay/ha-solcast-solar/releases to see if an issue has already been resolved. If so, enable the `Solcast PV Pre-release` entity to enable beta upgrade (or for HACS v1 turn on `Show beta versions` when re-downloading). Your feedback from testing betas is most welcome in the repository discussions at https://github.com/BJReplay/ha-solcast-solar/discussions.
 
 > [!NOTE]
 >
@@ -104,7 +104,7 @@ Copy the API key for use with this integration (See [Configuration](#Configurati
 
 Install as a Custom Repository using HACS. More info about HACS can be found [here](https://hacs.xyz/).  If you haven't installed HACS yet, go do it first!
 
-The easiest way to install the integration is to click the button below (you will be prompted for your Home Assistant URL if you've never used this type of button before) to open this page in your Home Assistant HACS page.
+The easiest way to install the integration is to click the button below to open this page in your Home Assistant HACS page (you will be prompted for your Home Assistant URL if you've never used this type of button before).
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BJReplay&repository=ha-solcast-solar&category=integration)
 
@@ -379,7 +379,7 @@ Setting dampening for individual Solcast sites or using half-hour intervals is p
 
 The action accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the action creates or updates the file `solcast-dampening.json` when either a site or 48 factor values are specified. If setting overall dampening with 48 factors, then an optional 'all' site may be specified (or simply omitted for this use case).
 
-```
+```yaml
 action: solcast_solar.set_dampening
 data:
   damp_factor: 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
@@ -400,7 +400,7 @@ The following examples can be used as a starter for the format for file-based gr
 
 Example of hourly dampening for two sites:
 
-```
+```yaml
 {
   "1111-aaaa-bbbb-2222": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0],
   "cccc-4444-5555-dddd": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
@@ -409,7 +409,7 @@ Example of hourly dampening for two sites:
 
 Example of hourly dampening for a single site:
 
-```
+```yaml
 {
   "eeee-6666-7777-ffff": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
 }
@@ -417,14 +417,16 @@ Example of hourly dampening for a single site:
 
 Example of half-hourly dampening for two sites:
 
-```
+```yaml
 {
   "8888-gggg-hhhh-9999": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0],
   "0000-iiii-jjjj-1111": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
 }
+```
 
 Example of half-hourly dampening for all sites:
 
+```yaml
 {
   "all": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
 }
@@ -437,7 +439,7 @@ When calculating dampening using an automation it may be beneficial to use un-da
 
 This is possible by using the action `solcast_solar.query_forecast_data`, and including `undampened: true` in the parameters. The site may also be included in the action parameters if a breakdown is desired.
 
-```
+```yaml
 action: solcast_solar.query_forecast_data
 data:
   start_date_time: 2024-10-08T12:00:00+11:00
@@ -456,7 +458,7 @@ If granular dampening is set to specify both individual site factors and an 'all
 
 Example call:
 
-```
+```yaml
 action: solcast_solar.get_dampening
 data:
   site: b68d-c05a-c2b3-2cf9
@@ -464,7 +466,7 @@ data:
 
 Example response:
 
-```
+```yaml
 data:
   - site: b68d-c05a-c2b3-2cf9
     damp_factor: >-
@@ -565,7 +567,7 @@ Utilise the Solcast Developer Tools to examine exposed attributes, as their stru
 > The values for `Next Hour` and `Forecast Next X Hours` may be different if the custom X hour setting is 1. This has a simple explanation.
 >
 > 
-> They are calculated using a different start and end time. One is from the start of this hour, i.e. in the past, e.g. 14:00:00 to 15:00:00. The custom sensor is from now() on five minute boundaries, e.g. 14:20:00 to 15:20:00 using interpolated values.
+> They are calculated using a different start and end time. One is from the start of this hour, i.e. in the past, e.g. 14:00:00 to 15:00:00. The custom sensor is from "now" on five minute boundaries, e.g. 14:20:00 to 15:20:00 using interpolated values.
 >
 > 
 > This will likely yield a different result, depending on the time the value is requested, so it is not wrong. It's just different.
