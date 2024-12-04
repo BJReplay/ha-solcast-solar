@@ -16,7 +16,9 @@ This custom component integrates the Solcast PV Forecast for hobbyists into Home
 
 It allows forecast visualisation in the Energy dashboard, and supports flexible forecast dampening, the application of a hard limit for over-sized PV systems, a comprehensive set of sensor and configuration entities, along with sensor attributes containing full forecast detail to support automation and visualisation.
 
-It is a mature integration with an active community, and responsive developers. This integration is not created by, maintained, endorsed nor approved by Solcast.
+It is a mature integration with an active community, and responsive developers.
+
+This integration is not created by, maintained, endorsed nor approved by Solcast.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/solar_production.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/solar_production.png)
 
