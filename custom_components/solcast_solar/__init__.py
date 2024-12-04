@@ -2,14 +2,13 @@
 
 import asyncio
 import contextlib
-from datetime import timedelta
 import json
 import logging
 import random
 import traceback
 from typing import Any, Final
 
-import aiofiles  # type: ignore  # noqa: PGH003
+import aiofiles
 import voluptuous as vol
 
 from homeassistant import loader
@@ -771,7 +770,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     An integration downgrade must not cause any issues when future options have been
     configured, with future options then just being unused. To be clear, the intent or
     characteristics of an option cannot change with an upgrade, so if an intent does change
-    then an new option must be used (for example, HARD_LIMIT to HARD_LIMIT_API). Prior
+    then a new option must be used (for example, HARD_LIMIT to HARD_LIMIT_API). Prior
     versions must cope with the absence of an option should one be deleted.
 
     The present version (e.g. `VERSION = 14`) is specified in `config_flow.py`.

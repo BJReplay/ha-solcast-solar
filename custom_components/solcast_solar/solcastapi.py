@@ -26,10 +26,10 @@ import time
 import traceback
 from typing import Any, Final, cast
 
-import aiofiles  # type: ignore  # noqa: PGH003
+import aiofiles
 from aiohttp import ClientConnectionError, ClientSession
 from aiohttp.client_reqrep import ClientResponse
-from isodate import parse_datetime  # type: ignore  # noqa: PGH003
+from isodate import parse_datetime
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY
