@@ -87,25 +87,79 @@ async def test_create_entry(hass: HomeAssistant) -> None:
     assert result["options"][BRK_SITE_DETAILED] is False
 
 
+async def api_key(step, expect):
+    """Test that valid/invalid API key is handled."""
+    user_input = {CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"}
+    result = await step(user_input)
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "API key looks like a site ID"
+
+    user_input = {CONF_API_KEY: KEY1 + "," + KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}
+    result = await step(user_input)
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "Duplicate API key specified"
+
+    user_input = {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "0"}
+    result = await step(user_input)
+    assert result["type"] == expect
+
+    user_input = {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}
+    result = await step(user_input)
+    assert result["type"] == expect
+
+    user_input = {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "2"}
+    result = await step(user_input)
+    assert result["type"] == expect
+
+    user_input = {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "0", AUTO_UPDATE: "2"}
+    result = await step(user_input)
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "API limit must be one or greater"
+
+
+async def api_quota(hass: HomeAssistant, step, expect):
+    """Test that valid/invalid API quota is handled."""
+    user_input = copy.deepcopy(DEFAULT_INPUT1)
+    user_input[API_QUOTA] = "invalid"
+    result = await step(user_input)
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "API limit is not a number"
+
+    user_input[API_QUOTA] = "0"
+    result = await step(user_input)
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "API limit must be one or greater"
+
+    user_input[API_QUOTA] = "10,10"
+    result = await step(user_input)
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "There are more API limit counts entered than keys"
+
+    user_input[API_QUOTA] = "10"
+    result = await step(user_input)
+    assert result["type"] == expect
+
+    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY2)
+    flow.hass = hass
+    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
+    user_input = copy.deepcopy(DEFAULT_INPUT2)
+
+    user_input[HARD_LIMIT_API] = "10,10"
+    result = await step(user_input)
+    assert result["type"] == expect
+
+    user_input[HARD_LIMIT_API] = "10"
+    result = await step(user_input)
+    assert result["type"] == expect
+
+
 async def test_api_key(hass: HomeAssistant) -> None:
     """Test that valid/invalid API key is handled."""
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
     flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
 
-    user_input = {CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"}
-    result = await flow.async_step_user(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "API key looks like a site ID"
-
-    user_input = {CONF_API_KEY: KEY1 + "," + KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}
-    result = await flow.async_step_user(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "Duplicate API key specified"
-
-    user_input = {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}
-    result = await flow.async_step_user(user_input)
-    assert result["type"] == FlowResultType.CREATE_ENTRY
+    await api_key(flow.async_step_user, FlowResultType.CREATE_ENTRY)
 
 
 async def test_api_quota(hass: HomeAssistant) -> None:
@@ -114,24 +168,7 @@ async def test_api_quota(hass: HomeAssistant) -> None:
     flow.hass = hass
     flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
 
-    user_input = {CONF_API_KEY: KEY1, API_QUOTA: "invalid", AUTO_UPDATE: "1"}
-    result = await flow.async_step_user(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "API limit is not a number"
-
-    user_input = {CONF_API_KEY: KEY1, API_QUOTA: "0", AUTO_UPDATE: "1"}
-    result = await flow.async_step_user(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "API limit must be one or greater"
-
-    user_input = {CONF_API_KEY: KEY1, API_QUOTA: "10,10", AUTO_UPDATE: "1"}
-    result = await flow.async_step_user(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "There are more API limit counts entered than keys"
-
-    user_input = {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}
-    result = await flow.async_step_user(user_input)
-    assert result["type"] == FlowResultType.CREATE_ENTRY
+    await api_quota(hass, flow.async_step_user, FlowResultType.CREATE_ENTRY)
 
 
 async def test_option_api_key(hass: HomeAssistant) -> None:
@@ -140,19 +177,7 @@ async def test_option_api_key(hass: HomeAssistant) -> None:
     flow.hass = hass
     flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
 
-    user_input = {CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"}
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "API key looks like a site ID"
-
-    user_input[CONF_API_KEY] = KEY1 + "," + KEY1
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "Duplicate API key specified"
-
-    user_input[CONF_API_KEY] = KEY1
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.FORM
+    await api_key(flow.async_step_init, FlowResultType.FORM)
 
 
 async def test_option_custom_hour_sensor(hass: HomeAssistant) -> None:
@@ -183,38 +208,7 @@ async def test_option_api_quota(hass: HomeAssistant) -> None:
     flow.hass = hass
     flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
 
-    user_input = copy.deepcopy(DEFAULT_INPUT1)
-    user_input[API_QUOTA] = "invalid"
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "API limit is not a number"
-
-    user_input[API_QUOTA] = "0"
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "API limit must be one or greater"
-
-    user_input[API_QUOTA] = "10,10"
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "There are more API limit counts entered than keys"
-
-    user_input[API_QUOTA] = "10"
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.FORM
-
-    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY2)
-    flow.hass = hass
-    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
-    user_input = copy.deepcopy(DEFAULT_INPUT2)
-
-    user_input[HARD_LIMIT_API] = "10,10"
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.FORM
-
-    user_input[HARD_LIMIT_API] = "10"
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.FORM
+    await api_key(flow.async_step_init, FlowResultType.FORM)
 
 
 async def test_option_hard_limit(hass: HomeAssistant) -> None:
