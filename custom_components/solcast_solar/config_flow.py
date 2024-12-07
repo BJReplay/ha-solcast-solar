@@ -34,6 +34,7 @@ from .const import (
     BRK_SITE,
     BRK_SITE_DETAILED,
     CONFIG_DAMP,
+    CONFIG_VERSION,
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
     HARD_LIMIT_API,
@@ -61,7 +62,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
     # 12 started 4.1.8
     # 14 started 4.2.4
 
-    VERSION = 14
+    VERSION = CONFIG_VERSION
 
     @staticmethod
     @callback
@@ -275,7 +276,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     if val < 0:
                         return self.async_abort(reason="Hard limit is not a positive number")
                     to_set.append(f"{val:.1f}")
-                if len(hard_limit) > api_count:
+                if len(to_set) > api_count:
                     return self.async_abort(reason="There are more hard limits entered than keys")
                 hard_limit = ",".join(to_set)
                 all_config_data[HARD_LIMIT_API] = hard_limit
