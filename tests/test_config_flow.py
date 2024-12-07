@@ -180,6 +180,15 @@ async def test_option_api_key(hass: HomeAssistant) -> None:
     await api_key(flow.async_step_init, FlowResultType.FORM)
 
 
+async def test_option_api_quota(hass: HomeAssistant) -> None:
+    """Test that valid/invalid API quota is handled."""
+    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
+    flow.hass = hass
+    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
+
+    await api_key(flow.async_step_init, FlowResultType.FORM)
+
+
 async def test_option_custom_hour_sensor(hass: HomeAssistant) -> None:
     """Test that valid/invalid custom hour sensor is handled."""
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
@@ -200,15 +209,6 @@ async def test_option_custom_hour_sensor(hass: HomeAssistant) -> None:
     user_input[CUSTOM_HOUR_SENSOR] = 8
     result = await flow.async_step_init(user_input)
     assert result["type"] == FlowResultType.FORM
-
-
-async def test_option_api_quota(hass: HomeAssistant) -> None:
-    """Test that valid/invalid API quota is handled."""
-    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
-    flow.hass = hass
-    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
-
-    await api_key(flow.async_step_init, FlowResultType.FORM)
 
 
 async def test_option_hard_limit(hass: HomeAssistant) -> None:
