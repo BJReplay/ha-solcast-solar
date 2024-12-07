@@ -4,7 +4,6 @@ Install:
 
 * This script runs in a Home Assistant DevContainer
 * Modify /etc/hosts (need sudo): 127.0.0.1 localhost api.solcast.com.au
-* pip install Flask
 * Script start: python3 -m wsgi
 
 Optional run arguments:
@@ -26,9 +25,9 @@ Theory of operation:
 
 SSL certificate:
 
-* The integration does not care whether the api.solcast.com.au certificate is valid, so a self-signed certificate is used by this simulator.
-* To generate a new self-signed certificate run in this folder: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 3650
-* The DevContainer will already have openssl installed.
+* The integration does not care whether the api.solcast.com.au certificate is valid, so a self-signed certificate is created by this simulator.
+* To generate a new self-signed certificate run in this folder: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 3650,
+* or simply delete *.pem files and restart the simulator to generate new ones. The DevContainer will already have openssl installed.
 
 Integration issues raised regarding the simulator will be closed without response.
 Raise a pull request instead, suggesting a fix for whatever is wrong, or to add additional functionality.
@@ -45,14 +44,58 @@ import datetime
 from datetime import datetime as dt, timedelta
 import json
 from logging.config import dictConfig
+import os
 from pathlib import Path
 import random
+import subprocess
 import sys
+import traceback
 from zoneinfo import ZoneInfo
 
-from flask import Flask, jsonify, request
-from flask.json.provider import DefaultJSONProvider
-import isodate
+
+def restart():
+    """Restarts the sim."""
+
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
+    sys.exit()
+
+
+need_restart = False
+try:
+    from flask import Flask, jsonify, request
+    from flask.json.provider import DefaultJSONProvider
+except (ModuleNotFoundError, ImportError):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "flask"])
+    need_restart = True
+try:
+    import isodate
+except (ModuleNotFoundError, ImportError):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "isodate"])
+    need_restart = True
+
+if need_restart:
+    restart()
+
+if not (Path("cert.pem").exists() and Path("key.pem").exists()):
+    subprocess.check_call(
+        [
+            "/usr/bin/openssl",
+            "req",
+            "-x509",
+            "-newkey",
+            "rsa:4096",
+            "-nodes",
+            "-out",
+            "cert.pem",
+            "-keyout",
+            "key.pem",
+            "-days",
+            "3650",
+            "-subj",
+            "/C=AU/ST=Victoria/L=Melbourne/O=Solcast/OU=Solcast/CN=api.solcast.com.au",
+        ]
+    )
 
 TIMEZONE = ZoneInfo("Australia/Melbourne")
 
@@ -268,6 +311,17 @@ app = Flask(__name__)
 app.json = DtJSONProvider(app)
 _LOGGER = app.logger
 counter_last_reset = dt.now(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)  # Previous UTC midnight
+
+try:
+    with Path.open(Path("/etc/hosts")) as file:
+        hosts = file.read()
+        if "api.solcast.com.au" not in hosts:
+            _LOGGER.error("Hosts file contains:\n\n%s", hosts)
+            _LOGGER.error("Please add api.solcast.com.au as /etc/hosts localhost alias")
+            app = None
+            sys.exit()
+except Exception as e:  # noqa: BLE001
+    _LOGGER.error("%s: %s", e, traceback.format_exc())
 
 
 def get_period(period, delta):

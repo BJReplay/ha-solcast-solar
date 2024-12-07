@@ -186,7 +186,7 @@ class JSONDecoder(json.JSONDecoder):
         """Initialise the decoder."""
         json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)  # noqa: B026
 
-    def object_hook(self, o: Any) -> dict:  # pylint: disable=method-hidden
+    def object_hook(self, o: Any) -> dict:
         """Return converted datetimes."""
         result = {}
         for key, value in o.items():
