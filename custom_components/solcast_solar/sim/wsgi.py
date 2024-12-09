@@ -403,18 +403,16 @@ def pv_interval(site_capacity, estimate, period_end, minute):
     )
 
 
-@app.route("/rooftop_sites/<site_id>/estimated_actuals", methods=["GET"])
-def get_site_estimated_actuals(site_id):
+def raw_get_site_estimated_actuals(site_id, api_key, hours):
     """Return simulated estimated actials for a site."""
 
     api_key = request.args.get("api_key")
-    _hours = int(request.args.get("hours"))
-    period_end = get_period(dt.now(datetime.UTC), timedelta(hours=_hours) * -1)
     response_code, issue, site = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue), response_code
 
-    return jsonify(
+    period_end = get_period(dt.now(datetime.UTC), timedelta(hours=hours) * -1)
+    return (
         {
             "estimated_actuals": [
                 {
@@ -424,24 +422,33 @@ def get_site_estimated_actuals(site_id):
                     "pv_estimate90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
                     "period": "PT30M",
                 }
-                for minute in range((_hours + 1) * 2)
+                for minute in range((hours + 1) * 2)
             ],
         },
-    ), 200
+    )
 
 
-@app.route("/rooftop_sites/<site_id>/forecasts", methods=["GET"])
-def get_site_forecasts(site_id):
-    """Return simulated forecasts for a site."""
+@app.route("/rooftop_sites/<site_id>/estimated_actuals", methods=["GET"])
+def get_site_estimated_actuals(site_id):
+    """Return simulated estimated actials for a site."""
 
     api_key = request.args.get("api_key")
-    _hours = int(request.args.get("hours"))
-    period_end = get_period(dt.now(datetime.UTC), timedelta(minutes=30))
     response_code, issue, site = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue), response_code
 
-    response = {
+    return jsonify(raw_get_site_estimated_actuals(site_id, api_key, int(request.args.get("hours")))), 200
+
+
+def raw_get_site_forecasts(site_id, api_key, hours):
+    """Return simulated forecasts for a site."""
+
+    response_code, issue, site = validate_call(api_key, site_id)
+    if response_code != 200:
+        return jsonify(issue), response_code
+
+    period_end = get_period(dt.now(datetime.UTC), timedelta(minutes=30))
+    return {
         "forecasts": [
             {
                 "period_end": period_end + timedelta(minutes=minute * 30),
@@ -450,11 +457,20 @@ def get_site_forecasts(site_id):
                 "pv_estimate90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
                 "period": "PT30M",
             }
-            for minute in range(_hours * 2 + 1)  # Solcast usually returns one more forecast, not an even number of intervals
+            for minute in range(hours * 2 + 1)  # Solcast usually returns one more forecast, not an even number of intervals
         ],
     }
-    # _LOGGER.info(response)
-    return jsonify(response), 200
+
+
+@app.route("/rooftop_sites/<site_id>/forecasts", methods=["GET"])
+def get_site_forecasts(site_id):
+    """Return simulated forecasts for a site."""
+
+    api_key = request.args.get("api_key")
+    response_code, issue, site = validate_call(api_key, site_id)
+    if response_code != 200:
+        return jsonify(issue), response_code
+    return jsonify(raw_get_site_forecasts(site_id, api_key, int(request.args.get("hours")))), 200
 
 
 @app.route("/data/historic/advanced_pv_power", methods=["GET"])
