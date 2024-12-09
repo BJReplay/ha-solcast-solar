@@ -34,6 +34,7 @@ from .const import (
     BRK_SITE,
     BRK_SITE_DETAILED,
     CONFIG_DAMP,
+    CONFIG_VERSION,
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
     HARD_LIMIT_API,
@@ -61,7 +62,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
     # 12 started 4.1.8
     # 14 started 4.2.4
 
-    VERSION = 14
+    VERSION = CONFIG_VERSION
 
     @staticmethod
     @callback
@@ -137,9 +138,12 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             # Validate API key
             api_key = user_input[CONF_API_KEY].replace(" ", "")
             api_key = [s for s in api_key.split(",") if s]
-            for key in api_key:
+            for index, key in enumerate(api_key):
                 if re.match(LIKE_SITE_ID, key):
                     return self.async_abort(reason="API key looks like a site ID")
+                for i, k in enumerate(api_key):
+                    if index != i and key == k:
+                        return self.async_abort(reason="Duplicate API key specified")
             api_count = len(api_key)
             api_key = ",".join(api_key)
 
@@ -150,9 +154,9 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 if not q.isnumeric():
                     return self.async_abort(reason="API limit is not a number")
                 if int(q) < 1:
-                    return self.async_abort(reason="API limit must be one  or greater!")
+                    return self.async_abort(reason="API limit must be one or greater")
             if len(api_quota) > api_count:
-                return self.async_abort(reason="There are more API limit counts entered than keys!")
+                return self.async_abort(reason="There are more API limit counts entered than keys")
             api_quota = ",".join(api_quota)
 
             options = {
@@ -232,9 +236,12 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 # Validate API key
                 api_key = user_input[CONF_API_KEY].replace(" ", "")
                 api_key = [s for s in api_key.split(",") if s]
-                for key in api_key:
+                for index, key in enumerate(api_key):
                     if re.match(LIKE_SITE_ID, key):
                         return self.async_abort(reason="API key looks like a site ID")
+                    for i, k in enumerate(api_key):
+                        if index != i and key == k:
+                            return self.async_abort(reason="Duplicate API key specified")
                 api_count = len(api_key)
                 api_key = ",".join(api_key)
                 all_config_data[CONF_API_KEY] = api_key
@@ -269,6 +276,8 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     if val < 0:
                         return self.async_abort(reason="Hard limit is not a positive number")
                     to_set.append(f"{val:.1f}")
+                if len(to_set) > api_count:
+                    return self.async_abort(reason="There are more hard limits entered than keys")
                 hard_limit = ",".join(to_set)
                 all_config_data[HARD_LIMIT_API] = hard_limit
 

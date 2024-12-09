@@ -4,7 +4,6 @@ Install:
 
 * This script runs in a Home Assistant DevContainer
 * Modify /etc/hosts (need sudo): 127.0.0.1 localhost api.solcast.com.au
-* pip install Flask
 * Script start: python3 -m wsgi
 
 Optional run arguments:
@@ -26,9 +25,9 @@ Theory of operation:
 
 SSL certificate:
 
-* The integration does not care whether the api.solcast.com.au certificate is valid, so a self-signed certificate is used by this simulator.
-* To generate a new self-signed certificate run in this folder: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 3650
-* The DevContainer will already have openssl installed.
+* The integration does not care whether the api.solcast.com.au certificate is valid, so a self-signed certificate is created by this simulator.
+* To generate a new self-signed certificate run in this folder: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 3650,
+* or simply delete *.pem files and restart the simulator to generate new ones. The DevContainer will already have openssl installed.
 
 Integration issues raised regarding the simulator will be closed without response.
 Raise a pull request instead, suggesting a fix for whatever is wrong, or to add additional functionality.
@@ -45,14 +44,58 @@ import datetime
 from datetime import datetime as dt, timedelta
 import json
 from logging.config import dictConfig
+import os
 from pathlib import Path
 import random
+import subprocess
 import sys
+import traceback
 from zoneinfo import ZoneInfo
 
-from flask import Flask, jsonify, request
-from flask.json.provider import DefaultJSONProvider
-import isodate
+
+def restart():
+    """Restarts the sim."""
+
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
+    sys.exit()
+
+
+need_restart = False
+try:
+    from flask import Flask, jsonify, request
+    from flask.json.provider import DefaultJSONProvider
+except (ModuleNotFoundError, ImportError):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "flask"])
+    need_restart = True
+try:
+    import isodate
+except (ModuleNotFoundError, ImportError):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "isodate"])
+    need_restart = True
+
+if need_restart:
+    restart()
+
+if not (Path("cert.pem").exists() and Path("key.pem").exists()):
+    subprocess.check_call(
+        [
+            "/usr/bin/openssl",
+            "req",
+            "-x509",
+            "-newkey",
+            "rsa:4096",
+            "-nodes",
+            "-out",
+            "cert.pem",
+            "-keyout",
+            "key.pem",
+            "-days",
+            "3650",
+            "-subj",
+            "/C=AU/ST=Victoria/L=Melbourne/O=Solcast/OU=Solcast/CN=api.solcast.com.au",
+        ]
+    )
 
 TIMEZONE = ZoneInfo("Australia/Melbourne")
 
@@ -269,6 +312,17 @@ app.json = DtJSONProvider(app)
 _LOGGER = app.logger
 counter_last_reset = dt.now(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)  # Previous UTC midnight
 
+try:
+    with Path.open(Path("/etc/hosts")) as file:
+        hosts = file.read()
+        if "api.solcast.com.au" not in hosts:
+            _LOGGER.error("Hosts file contains:\n\n%s", hosts)
+            _LOGGER.error("Please add api.solcast.com.au as /etc/hosts localhost alias")
+            app = None
+            sys.exit()
+except Exception as e:  # noqa: BLE001
+    _LOGGER.error("%s: %s", e, traceback.format_exc())
+
 
 def get_period(period, delta):
     """Return the start period and factors for the current time."""
@@ -349,18 +403,16 @@ def pv_interval(site_capacity, estimate, period_end, minute):
     )
 
 
-@app.route("/rooftop_sites/<site_id>/estimated_actuals", methods=["GET"])
-def get_site_estimated_actuals(site_id):
+def raw_get_site_estimated_actuals(site_id, api_key, hours):
     """Return simulated estimated actials for a site."""
 
     api_key = request.args.get("api_key")
-    _hours = int(request.args.get("hours"))
-    period_end = get_period(dt.now(datetime.UTC), timedelta(hours=_hours) * -1)
     response_code, issue, site = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue), response_code
 
-    return jsonify(
+    period_end = get_period(dt.now(datetime.UTC), timedelta(hours=hours) * -1)
+    return (
         {
             "estimated_actuals": [
                 {
@@ -370,24 +422,33 @@ def get_site_estimated_actuals(site_id):
                     "pv_estimate90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
                     "period": "PT30M",
                 }
-                for minute in range((_hours + 1) * 2)
+                for minute in range((hours + 1) * 2)
             ],
         },
-    ), 200
+    )
 
 
-@app.route("/rooftop_sites/<site_id>/forecasts", methods=["GET"])
-def get_site_forecasts(site_id):
-    """Return simulated forecasts for a site."""
+@app.route("/rooftop_sites/<site_id>/estimated_actuals", methods=["GET"])
+def get_site_estimated_actuals(site_id):
+    """Return simulated estimated actials for a site."""
 
     api_key = request.args.get("api_key")
-    _hours = int(request.args.get("hours"))
-    period_end = get_period(dt.now(datetime.UTC), timedelta(minutes=30))
     response_code, issue, site = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue), response_code
 
-    response = {
+    return jsonify(raw_get_site_estimated_actuals(site_id, api_key, int(request.args.get("hours")))), 200
+
+
+def raw_get_site_forecasts(site_id, api_key, hours):
+    """Return simulated forecasts for a site."""
+
+    response_code, issue, site = validate_call(api_key, site_id)
+    if response_code != 200:
+        return jsonify(issue), response_code
+
+    period_end = get_period(dt.now(datetime.UTC), timedelta(minutes=30))
+    return {
         "forecasts": [
             {
                 "period_end": period_end + timedelta(minutes=minute * 30),
@@ -396,11 +457,20 @@ def get_site_forecasts(site_id):
                 "pv_estimate90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
                 "period": "PT30M",
             }
-            for minute in range(_hours * 2 + 1)  # Solcast usually returns one more forecast, not an even number of intervals
+            for minute in range(hours * 2 + 1)  # Solcast usually returns one more forecast, not an even number of intervals
         ],
     }
-    # _LOGGER.info(response)
-    return jsonify(response), 200
+
+
+@app.route("/rooftop_sites/<site_id>/forecasts", methods=["GET"])
+def get_site_forecasts(site_id):
+    """Return simulated forecasts for a site."""
+
+    api_key = request.args.get("api_key")
+    response_code, issue, site = validate_call(api_key, site_id)
+    if response_code != 200:
+        return jsonify(issue), response_code
+    return jsonify(raw_get_site_forecasts(site_id, api_key, int(request.args.get("hours")))), 200
 
 
 @app.route("/data/historic/advanced_pv_power", methods=["GET"])
