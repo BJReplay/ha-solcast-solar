@@ -1459,7 +1459,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 if self._loaded_data:
                     # Create an up to date forecast.
-                    await self.build_forecast_data()
+                    if not await self.build_forecast_data():
+                        status = "Failed to build forecast data (corrupt config/solcast.json?)"
             else:
                 _LOGGER.error("Site count is zero in load_saved_data(); the get sites must have failed, and there is no sites cache")
                 status = "Site count is zero, add sites"
@@ -3373,8 +3374,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Task build_data took %.3f seconds", time.time() - start_time)
             self._data_energy_dashboard = self.__make_energy_dict()
 
-            await self.check_data_records()
-            await self.recalculate_splines()
+            if await self.check_data_records():
+                await self.recalculate_splines()
+            else:
+                return False
         except:  # noqa: E722
             _LOGGER.error("Exception in get_forecast_update(): %s", traceback.format_exc())
             return False
@@ -3401,8 +3404,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         #    _LOGGER.debug("Calc forecast start index midnight: %s, index %d, len %d", midnight_utc.strftime(DATE_FORMAT_UTC), index, len(data))
         return index
 
-    async def check_data_records(self):
-        """Log whether all records are present for each day."""
+    async def check_data_records(self) -> bool:
+        """Log whether all records are present for each day.
+
+        Returns:
+            bool: A flag indicating success or failure.
+
+        """
         try:
             contiguous = 0
             contiguous_start_date = None
@@ -3475,5 +3483,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 assessment["expected_intervals"],
                                 ", which may be expected" if contiguous == 7 else ", so is missing forecast data",
                             )
+            return True  # noqa: TRY300
+        except UnboundLocalError:
+            _LOGGER.error("UnboundLocalError in check_data_records()")
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Exception in check_data_records(): %s: %s", e, traceback.format_exc())
+        return False
