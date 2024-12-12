@@ -1724,11 +1724,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         end_utc = self.get_day_start_utc(future=future_day + 1)
         start_index, end_index = self.__get_forecast_list_slice(self._data_forecasts, start_utc, end_utc)
         forecast_slice = self._data_forecasts[start_index:end_index]
-        if self.options.attr_brk_halfhourly:
-            if self.options.attr_brk_site_detailed:
-                site_data_forecast = {}
-                for site in self.sites:
-                    site_data_forecast[site["resource_id"]] = self._site_data_forecasts[site["resource_id"]][start_index:end_index]
+        if self.options.attr_brk_site_detailed:
+            site_data_forecast = {}
+            for site in self.sites:
+                site_data_forecast[site["resource_id"]] = self._site_data_forecasts[site["resource_id"]][start_index:end_index]
 
         if SENSOR_DEBUG_LOGGING:
             _LOGGER.debug(
