@@ -62,6 +62,7 @@ def restart():
 
 
 need_restart = False
+
 try:
     from flask import Flask, jsonify, request
     from flask.json.provider import DefaultJSONProvider
@@ -77,25 +78,26 @@ except (ModuleNotFoundError, ImportError):
 if need_restart:
     restart()
 
-if not (Path("cert.pem").exists() and Path("key.pem").exists()):
-    subprocess.check_call(
-        [
-            "/usr/bin/openssl",
-            "req",
-            "-x509",
-            "-newkey",
-            "rsa:4096",
-            "-nodes",
-            "-out",
-            "cert.pem",
-            "-keyout",
-            "key.pem",
-            "-days",
-            "3650",
-            "-subj",
-            "/C=AU/ST=Victoria/L=Melbourne/O=Solcast/OU=Solcast/CN=api.solcast.com.au",
-        ]
-    )
+if "PYTEST_CURRENT_TEST" in os.environ:  # Don't create certificate if running tests
+    if not (Path("cert.pem").exists() and Path("key.pem").exists()):
+        subprocess.check_call(
+            [
+                "/usr/bin/openssl",
+                "req",
+                "-x509",
+                "-newkey",
+                "rsa:4096",
+                "-nodes",
+                "-out",
+                "cert.pem",
+                "-keyout",
+                "key.pem",
+                "-days",
+                "3650",
+                "-subj",
+                "/C=AU/ST=Victoria/L=Melbourne/O=Solcast/OU=Solcast/CN=api.solcast.com.au",
+            ]
+        )
 
 TIMEZONE = ZoneInfo("Australia/Melbourne")
 
@@ -368,6 +370,18 @@ def validate_call(api_key, site_id=None, counter=True):
     return 200, None, site
 
 
+def raw_get_sites(api_key):
+    """Return sites for an API key."""
+
+    sites = API_KEY_SITES[api_key]
+    meta = {
+        "page_count": 1,
+        "current_page": 1,
+        "total_records": 1,
+    }
+    return sites | meta
+
+
 @app.route("/rooftop_sites", methods=["GET"])
 def get_sites():
     """Return sites for an API key."""
@@ -378,14 +392,7 @@ def get_sites():
     if response_code != 200:
         return jsonify(issue), response_code
 
-    # Simulate different responses based on the API key
-    sites = API_KEY_SITES[api_key]
-    meta = {
-        "page_count": 1,
-        "current_page": 1,
-        "total_records": 1,
-    }
-    return jsonify(sites | meta), 200
+    return jsonify(raw_get_sites(api_key)), 200
 
 
 def pv_interval(site_capacity, estimate, period_end, minute):
@@ -404,28 +411,26 @@ def pv_interval(site_capacity, estimate, period_end, minute):
 
 
 def raw_get_site_estimated_actuals(site_id, api_key, hours):
-    """Return simulated estimated actials for a site."""
+    """Return simulated estimated actials for a site.
 
-    api_key = request.args.get("api_key")
-    response_code, issue, site = validate_call(api_key, site_id)
-    if response_code != 200:
-        return jsonify(issue), response_code
+    The real Solcast API does not return values for estimate 10/90, but the simulator does.
+    This is to enable unit testing of the integration.
+    """
 
+    site = next((site for site in API_KEY_SITES[api_key]["sites"] if site["resource_id"] == site_id), None)
     period_end = get_period(dt.now(datetime.UTC), timedelta(hours=hours) * -1)
-    return (
-        {
-            "estimated_actuals": [
-                {
-                    "period_end": period_end + timedelta(minutes=minute * 30),
-                    "pv_estimate": pv_interval(site["capacity"], FORECAST, period_end, minute),
-                    "pv_estimate10": pv_interval(site["capacity"], FORECAST_10, period_end, minute),
-                    "pv_estimate90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
-                    "period": "PT30M",
-                }
-                for minute in range((hours + 1) * 2)
-            ],
-        },
-    )
+    return {
+        "estimated_actuals": [
+            {
+                "period_end": (period_end + timedelta(minutes=minute * 30)).isoformat(),
+                "pv_estimate": pv_interval(site["capacity"], FORECAST, period_end, minute),
+                "pv_estimate10": pv_interval(site["capacity"], FORECAST_10, period_end, minute),
+                "pv_estimate90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
+                "period": "PT30M",
+            }
+            for minute in range((hours + 1) * 2)
+        ],
+    }
 
 
 @app.route("/rooftop_sites/<site_id>/estimated_actuals", methods=["GET"])
@@ -433,7 +438,7 @@ def get_site_estimated_actuals(site_id):
     """Return simulated estimated actials for a site."""
 
     api_key = request.args.get("api_key")
-    response_code, issue, site = validate_call(api_key, site_id)
+    response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue), response_code
 
@@ -443,15 +448,12 @@ def get_site_estimated_actuals(site_id):
 def raw_get_site_forecasts(site_id, api_key, hours):
     """Return simulated forecasts for a site."""
 
-    response_code, issue, site = validate_call(api_key, site_id)
-    if response_code != 200:
-        return jsonify(issue), response_code
-
+    site = next((site for site in API_KEY_SITES[api_key]["sites"] if site["resource_id"] == site_id), None)
     period_end = get_period(dt.now(datetime.UTC), timedelta(minutes=30))
     return {
         "forecasts": [
             {
-                "period_end": period_end + timedelta(minutes=minute * 30),
+                "period_end": (period_end + timedelta(minutes=minute * 30)).isoformat(),
                 "pv_estimate": pv_interval(site["capacity"], FORECAST, period_end, minute),
                 "pv_estimate10": pv_interval(site["capacity"], FORECAST_10, period_end, minute),
                 "pv_estimate90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
@@ -467,7 +469,7 @@ def get_site_forecasts(site_id):
     """Return simulated forecasts for a site."""
 
     api_key = request.args.get("api_key")
-    response_code, issue, site = validate_call(api_key, site_id)
+    response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue), response_code
     return jsonify(raw_get_site_forecasts(site_id, api_key, int(request.args.get("hours")))), 200
@@ -510,10 +512,8 @@ def get_site_estimated_actuals_advanced():
     response = {
         "estimated_actuals": [
             {
-                "period_end": period_end + timedelta(minutes=minute * 30),
+                "period_end": (period_end + timedelta(minutes=minute * 30)).isoformat(),
                 "pv_power_advanced": pv_interval(site["capacity"], FORECAST, period_end, minute),
-                "pv_power_advanced10": pv_interval(site["capacity"], FORECAST_10, period_end, minute),
-                "pv_power_advanced90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
                 "period": "PT30M",
             }
             for minute in range(_hours * 2)
@@ -538,7 +538,7 @@ def get_site_forecasts_advanced():
     response = {
         "forecasts": [
             {
-                "period_end": period_end + timedelta(minutes=minute * 30),
+                "period_end": (period_end + timedelta(minutes=minute * 30)).isoformat(),
                 "pv_power_advanced": pv_interval(site["capacity"], FORECAST, period_end, minute),
                 "pv_power_advanced10": pv_interval(site["capacity"], FORECAST_10, period_end, minute),
                 "pv_power_advanced90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
@@ -553,13 +553,21 @@ def get_site_forecasts_advanced():
 
 def get_time_zone():
     """Attempt to read time zone from Home Assistant config."""
+
     global TIMEZONE
     try:
-        with Path.open(Path(Path.cwd(), "../../../.storage/core.config")) as file:
-            config = json.loads(file.read())
+        with Path.open(Path(Path.cwd(), "../../../.storage/core.config")) as f:
+            config = json.loads(f.read())
             TIMEZONE = ZoneInfo(config["data"]["time_zone"])
     except:  # noqa: E722
         pass
+
+
+def set_time_zone(time_zone):
+    """Set the time zone."""
+
+    global TIMEZONE
+    TIMEZONE = time_zone
 
 
 if __name__ == "__main__":
