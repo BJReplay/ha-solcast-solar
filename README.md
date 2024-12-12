@@ -785,6 +785,7 @@ series:
 
 v4.2.8
 * Catch duplicate API key being specified by @autoSteve
+* Fix an issue when half-hourly breakdown is disabled but hourly is enabled by @autoSteve
 
 v4.2.7
 * Fix an issue with API key validation by @autoSteve

@@ -1742,17 +1742,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             )
 
         _tuple = tuple({**forecast, "period_start": forecast["period_start"].astimezone(self._tz)} for forecast in forecast_slice)
-        if self.options.attr_brk_halfhourly:
-            if self.options.attr_brk_site_detailed:
-                tuples = {}
-                for site in self.sites:
-                    tuples[site["resource_id"]] = tuple(
-                        {
-                            **forecast,
-                            "period_start": forecast["period_start"].astimezone(self._tz),
-                        }
-                        for forecast in site_data_forecast[site["resource_id"]]
-                    )
+        if self.options.attr_brk_site_detailed:
+            tuples = {}
+            for site in self.sites:
+                tuples[site["resource_id"]] = tuple(
+                    {
+                        **forecast,
+                        "period_start": forecast["period_start"].astimezone(self._tz),
+                    }
+                    for forecast in site_data_forecast[site["resource_id"]]
+                )
 
         if len(_tuple) < 48:
             no_data_error = False
