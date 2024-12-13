@@ -18,6 +18,7 @@ import json
 import logging
 import math
 from operator import itemgetter
+import os
 from pathlib import Path
 import random
 import re
@@ -499,6 +500,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             bool: Success or failure.
 
         """
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            return True  # Do not write to file during testing
+
         serialise = True
         # The twin try/except blocks here are significant. If the two were combined with
         # `await file.write(json.dumps(self._data, ensure_ascii=False, cls=DateTimeEncoder))`
@@ -727,6 +731,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             reset (bool): Whether to reset API key usage to zero.
 
         """
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            return  # Do not write to file during testing
+
         serialise = True
         try:
             filename = self.__get_usage_cache_filename(api_key)
@@ -1000,6 +1007,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         See comment in __serialise_data.
         """
+        if "PYTEST_CURRENT_TEST" in os.environ:
+            return  # Do not write to file during testing
+
         serialise = True
         try:
             filename = self.__get_granular_dampening_filename()

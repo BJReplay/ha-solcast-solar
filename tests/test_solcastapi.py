@@ -62,7 +62,7 @@ DEFAULT_INPUT1 = {
     BRK_SITE: True,
     BRK_HALFHOURLY: True,
     BRK_HOURLY: True,
-    BRK_SITE_DETAILED: True,
+    BRK_SITE_DETAILED: False,
     SITE_DAMP: False,
 }
 SITE_DAMP = {f"damp{factor:02d}": 1.0 for factor in range(24)}
@@ -70,9 +70,11 @@ SITE_DAMP = {f"damp{factor:02d}": 1.0 for factor in range(24)}
 DEFAULT_INPUT2 = copy.deepcopy(DEFAULT_INPUT1)
 DEFAULT_INPUT2[CONF_API_KEY] = KEY1 + "," + KEY2
 DEFAULT_INPUT2[API_QUOTA] = "10,50"
+DEFAULT_INPUT2[AUTO_UPDATE] = 2
 DEFAULT_INPUT2[BRK_HALFHOURLY] = False
 DEFAULT_INPUT2[BRK_ESTIMATE] = False
 DEFAULT_INPUT2[BRK_ESTIMATE90] = False
+DEFAULT_INPUT2[BRK_SITE_DETAILED] = True
 
 MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1 | SITE_DAMP)
 MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2 | SITE_DAMP)
@@ -581,8 +583,8 @@ async def test_get_forecast_remaining_today(hass: HomeAssistant) -> None:
 async def test_get_forecast_day(hass: HomeAssistant) -> None:
     """Test get_forecast_day."""
 
-    for _, solcast in MOCK.items():
-        for day in range(8):
+    for solcast in MOCK.values():
+        for day in range(7):  # Range of seven because the eighth day can be partially unavailable
             data = solcast.get_forecast_day(day)
             assert data.get("dataCorrect", False) is True
             if solcast.options.attr_brk_halfhourly:
