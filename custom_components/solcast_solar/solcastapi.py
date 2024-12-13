@@ -18,7 +18,7 @@ import json
 import logging
 import math
 from operator import itemgetter
-import os
+from os import environ as environment_variables
 from pathlib import Path
 import random
 import re
@@ -281,7 +281,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.entry = entry
         self.entry_options = {**entry.options}
         self.estimate_set = self.__get_estimate_set(options)
-
         self.granular_dampening = {}
         self.hard_limit = options.hard_limit
         self.hass = hass
@@ -309,6 +308,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._forecasts_remaining = {}
         self._granular_allow_reset = True
         self._granular_dampening_mtime = 0
+        self._is_being_unit_tested = "PYTEST_CURRENT_TEST" in environment_variables
         self._loaded_data = False
         self._next_update = None
         self._site_data_forecasts = {}
@@ -500,7 +500,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             bool: Success or failure.
 
         """
-        if "PYTEST_CURRENT_TEST" in os.environ:
+        if self._is_being_unit_tested:
             return True  # Do not write to file during testing
 
         serialise = True
@@ -731,7 +731,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             reset (bool): Whether to reset API key usage to zero.
 
         """
-        if "PYTEST_CURRENT_TEST" in os.environ:
+        if self._is_being_unit_tested:
             return  # Do not write to file during testing
 
         serialise = True
@@ -1007,7 +1007,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         See comment in __serialise_data.
         """
-        if "PYTEST_CURRENT_TEST" in os.environ:
+        if self._is_being_unit_tested:
             return  # Do not write to file during testing
 
         serialise = True
