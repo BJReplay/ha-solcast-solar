@@ -29,7 +29,7 @@ from config.custom_components.solcast_solar.const import (
     KEY_ESTIMATE,
     SITE_DAMP,
 )
-from config.custom_components.solcast_solar.sim.wsgi import (
+from config.custom_components.solcast_solar.sim.simulate import (
     raw_get_site_estimated_actuals,
     raw_get_site_forecasts,
     raw_get_sites,
