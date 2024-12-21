@@ -4,7 +4,6 @@ Install:
 
 * This script runs in a Home Assistant DevContainer
 * Modify /etc/hosts (need sudo): 127.0.0.1 localhost api.solcast.com.au
-* pip install Flask
 * Script start: python3 -m wsgi
 
 Optional run arguments:
@@ -26,9 +25,9 @@ Theory of operation:
 
 SSL certificate:
 
-* The integration does not care whether the api.solcast.com.au certificate is valid, so a self-signed certificate is used by this simulator.
-* To generate a new self-signed certificate run in this folder: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 3650
-* The DevContainer will already have openssl installed.
+* The integration does not care whether the api.solcast.com.au certificate is valid, so a self-signed certificate is created by this simulator.
+* To generate a new self-signed certificate run in this folder: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 3650,
+* or simply delete *.pem files and restart the simulator to generate new ones. The DevContainer will already have openssl installed.
 
 Integration issues raised regarding the simulator will be closed without response.
 Raise a pull request instead, suggesting a fix for whatever is wrong, or to add additional functionality.
@@ -45,131 +44,70 @@ import datetime
 from datetime import datetime as dt, timedelta
 import json
 from logging.config import dictConfig
+import os
 from pathlib import Path
 import random
+import subprocess
 import sys
+import traceback
 from zoneinfo import ZoneInfo
 
-from flask import Flask, jsonify, request
-from flask.json.provider import DefaultJSONProvider
-import isodate
+from simulate import (
+    API_KEY_SITES,
+    TIMEZONE,
+    get_period,
+    raw_get_site_estimated_actuals,
+    raw_get_site_forecasts,
+    raw_get_sites,
+)
 
-TIMEZONE = ZoneInfo("Australia/Melbourne")
+
+def restart():
+    """Restarts the sim."""
+
+    python = sys.executable
+    os.execl(python, python, *sys.argv)
+    sys.exit()
+
+
+need_restart = False
+
+try:
+    from flask import Flask, jsonify, request
+    from flask.json.provider import DefaultJSONProvider
+except (ModuleNotFoundError, ImportError):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "flask"])
+    need_restart = True
+try:
+    import isodate
+except (ModuleNotFoundError, ImportError):
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "isodate"])
+    need_restart = True
+
+if need_restart:
+    restart()
+
+if not (Path("cert.pem").exists() and Path("key.pem").exists()):
+    subprocess.check_call(
+        [
+            "/usr/bin/openssl",
+            "req",
+            "-x509",
+            "-newkey",
+            "rsa:4096",
+            "-nodes",
+            "-out",
+            "cert.pem",
+            "-keyout",
+            "key.pem",
+            "-days",
+            "3650",
+            "-subj",
+            "/C=AU/ST=Victoria/L=Melbourne/O=Solcast/OU=Solcast/CN=api.solcast.com.au",
+        ]
+    )
 
 API_LIMIT = 50
-API_KEY_SITES = {
-    "1": {
-        "sites": [
-            {
-                "resource_id": "1111-1111-1111-1111",
-                "name": "First Site",
-                "latitude": -11.11111,
-                "longitude": 111.1111,
-                "install_date": "2024-01-01T00:00:00+00:00",
-                "loss_factor": 0.99,
-                "capacity": 5.0,
-                "capacity_dc": 6.2,
-                "azimuth": 90,
-                "tilt": 30,
-                "location": "Downunder",
-            },
-            {
-                "resource_id": "2222-2222-2222-2222",
-                "name": "Second Site",
-                "latitude": -11.11111,
-                "longitude": 111.1111,
-                "install_date": "2024-01-01T00:00:00+00:00",
-                "loss_factor": 0.99,
-                "capacity": 3.0,
-                "capacity_dc": 4.2,
-                "azimuth": 90,
-                "tilt": 30,
-                "location": "Downunder",
-            },
-        ],
-        "counter": 0,
-    },
-    "2": {
-        "sites": [
-            {
-                "resource_id": "3333-3333-3333-3333",
-                "name": "Third Site",
-                "latitude": -11.11111,
-                "longitude": 111.1111,
-                "install_date": "2024-01-01T00:00:00+00:00",
-                "loss_factor": 0.99,
-                "capacity": 3.0,
-                "capacity_dc": 3.5,
-                "azimuth": 90,
-                "tilt": 30,
-                "location": "Downunder",
-            },
-        ],
-        "counter": 0,
-    },
-    "3": {
-        "sites": [
-            {
-                "resource_id": "4444-4444-4444-4444",
-                "name": "Fourth Site",
-                "latitude": -11.11111,
-                "longitude": 111.1111,
-                "install_date": "2024-01-01T00:00:00+00:00",
-                "loss_factor": 0.99,
-                "capacity": 4.5,
-                "capacity_dc": 5.0,
-                "azimuth": 90,
-                "tilt": 30,
-                "location": "Downunder",
-            },
-            {
-                "resource_id": "5555-5555-5555-5555",
-                "name": "Fifth Site",
-                "latitude": -11.11111,
-                "longitude": 111.1111,
-                "install_date": "2024-01-01T00:00:00+00:00",
-                "loss_factor": 0.99,
-                "capacity": 3.2,
-                "capacity_dc": 3.7,
-                "azimuth": 90,
-                "tilt": 30,
-                "location": "Downunder",
-            },
-            {
-                "resource_id": "6666-6666-6666-6666",
-                "name": "Sixth Site",
-                "latitude": -11.11111,
-                "longitude": 111.1111,
-                "install_date": "2024-01-01T00:00:00+00:00",
-                "loss_factor": 0.99,
-                "capacity": 4.2,
-                "capacity_dc": 4.8,
-                "azimuth": 90,
-                "tilt": 30,
-                "location": "Downunder",
-            },
-        ],
-        "counter": 0,
-    },
-    "aaaa-aaaa": {
-        "sites": [
-            {
-                "resource_id": "7777-7777-7777-7777",
-                "name": "Seventh Site",
-                "latitude": -11.11111,
-                "longitude": 111.1111,
-                "install_date": "2024-01-01T00:00:00+00:00",
-                "loss_factor": 0.99,
-                "capacity": 3.0,
-                "capacity_dc": 3.5,
-                "azimuth": 90,
-                "tilt": 30,
-                "location": "Downunder",
-            },
-        ],
-        "counter": 0,
-    },
-}
 BOMB_429 = [0]
 ERROR_KEY_REQUIRED = "KeyRequired"
 ERROR_INVALID_KEY = "InvalidKey"
@@ -181,61 +119,8 @@ ERROR_MESSAGE = {
     ERROR_TOO_MANY_REQUESTS: {"message": "You have exceeded your free daily limit.", "status": 429},
     ERROR_SITE_NOT_FOUND: {"message": "The specified site cannot be found.", "status": 404},
 }
-FORECAST = 0.9
-FORECAST_10 = 0.75
-FORECAST_90 = 1.0
 GENERATE_418 = False
 GENERATE_429 = True
-GENERATION_FACTOR = [
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0.01,
-    0.025,
-    0.04,
-    0.075,
-    0.11,
-    0.17,
-    0.26,
-    0.38,
-    0.52,
-    0.65,
-    0.8,
-    0.9,
-    0.97,
-    1,
-    1,
-    0.97,
-    0.9,
-    0.8,
-    0.65,
-    0.52,
-    0.38,
-    0.26,
-    0.17,
-    0.11,
-    0.075,
-    0.04,
-    0.025,
-    0.01,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-    0,
-]
 
 dictConfig(  # Logger configuration
     {
@@ -269,10 +154,16 @@ app.json = DtJSONProvider(app)
 _LOGGER = app.logger
 counter_last_reset = dt.now(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)  # Previous UTC midnight
 
-
-def get_period(period, delta):
-    """Return the start period and factors for the current time."""
-    return period.replace(minute=(int(period.minute / 30) * 30), second=0, microsecond=0) + delta
+try:
+    with Path.open(Path("/etc/hosts")) as file:
+        hosts = file.read()
+        if "api.solcast.com.au" not in hosts:
+            _LOGGER.error("Hosts file contains:\n\n%s", hosts)
+            _LOGGER.error("Please add api.solcast.com.au as /etc/hosts localhost alias")
+            app = None
+            sys.exit()
+except Exception as e:  # noqa: BLE001
+    _LOGGER.error("%s: %s", e, traceback.format_exc())
 
 
 def validate_call(api_key, site_id=None, counter=True):
@@ -324,29 +215,7 @@ def get_sites():
     if response_code != 200:
         return jsonify(issue), response_code
 
-    # Simulate different responses based on the API key
-    sites = API_KEY_SITES[api_key]
-    meta = {
-        "page_count": 1,
-        "current_page": 1,
-        "total_records": 1,
-    }
-    return jsonify(sites | meta), 200
-
-
-def pv_interval(site_capacity, estimate, period_end, minute):
-    """Calculate value for a single interval."""
-    return round(
-        site_capacity
-        * estimate
-        * GENERATION_FACTOR[
-            int(
-                (period_end + timedelta(minutes=minute * 30)).astimezone(TIMEZONE).hour * 2
-                + (period_end + timedelta(minutes=minute * 30)).astimezone(TIMEZONE).minute / 30
-            )
-        ],
-        4,
-    )
+    return jsonify(raw_get_sites(api_key)), 200
 
 
 @app.route("/rooftop_sites/<site_id>/estimated_actuals", methods=["GET"])
@@ -354,26 +223,11 @@ def get_site_estimated_actuals(site_id):
     """Return simulated estimated actials for a site."""
 
     api_key = request.args.get("api_key")
-    _hours = int(request.args.get("hours"))
-    period_end = get_period(dt.now(datetime.UTC), timedelta(hours=_hours) * -1)
-    response_code, issue, site = validate_call(api_key, site_id)
+    response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue), response_code
 
-    return jsonify(
-        {
-            "estimated_actuals": [
-                {
-                    "period_end": period_end + timedelta(minutes=minute * 30),
-                    "pv_estimate": pv_interval(site["capacity"], FORECAST, period_end, minute),
-                    "pv_estimate10": pv_interval(site["capacity"], FORECAST_10, period_end, minute),
-                    "pv_estimate90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
-                    "period": "PT30M",
-                }
-                for minute in range((_hours + 1) * 2)
-            ],
-        },
-    ), 200
+    return jsonify(raw_get_site_estimated_actuals(site_id, api_key, int(request.args.get("hours")))), 200
 
 
 @app.route("/rooftop_sites/<site_id>/forecasts", methods=["GET"])
@@ -381,26 +235,10 @@ def get_site_forecasts(site_id):
     """Return simulated forecasts for a site."""
 
     api_key = request.args.get("api_key")
-    _hours = int(request.args.get("hours"))
-    period_end = get_period(dt.now(datetime.UTC), timedelta(minutes=30))
-    response_code, issue, site = validate_call(api_key, site_id)
+    response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue), response_code
-
-    response = {
-        "forecasts": [
-            {
-                "period_end": period_end + timedelta(minutes=minute * 30),
-                "pv_estimate": pv_interval(site["capacity"], FORECAST, period_end, minute),
-                "pv_estimate10": pv_interval(site["capacity"], FORECAST_10, period_end, minute),
-                "pv_estimate90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
-                "period": "PT30M",
-            }
-            for minute in range(_hours * 2 + 1)  # Solcast usually returns one more forecast, not an even number of intervals
-        ],
-    }
-    # _LOGGER.info(response)
-    return jsonify(response), 200
+    return jsonify(raw_get_site_forecasts(site_id, api_key, int(request.args.get("hours")))), 200
 
 
 @app.route("/data/historic/advanced_pv_power", methods=["GET"])
@@ -437,20 +275,7 @@ def get_site_estimated_actuals_advanced():
     if response_code != 200:
         return jsonify(issue), response_code
 
-    response = {
-        "estimated_actuals": [
-            {
-                "period_end": period_end + timedelta(minutes=minute * 30),
-                "pv_power_advanced": pv_interval(site["capacity"], FORECAST, period_end, minute),
-                "pv_power_advanced10": pv_interval(site["capacity"], FORECAST_10, period_end, minute),
-                "pv_power_advanced90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
-                "period": "PT30M",
-            }
-            for minute in range(_hours * 2)
-        ],
-    }
-    _LOGGER.info(response)
-    return jsonify(response), 200
+    return jsonify(raw_get_site_estimated_actuals(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200
 
 
 @app.route("/data/forecast/advanced_pv_power", methods=["GET"])
@@ -465,28 +290,16 @@ def get_site_forecasts_advanced():
     if response_code != 200:
         return jsonify(issue), response_code
 
-    response = {
-        "forecasts": [
-            {
-                "period_end": period_end + timedelta(minutes=minute * 30),
-                "pv_power_advanced": pv_interval(site["capacity"], FORECAST, period_end, minute),
-                "pv_power_advanced10": pv_interval(site["capacity"], FORECAST_10, period_end, minute),
-                "pv_power_advanced90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
-                "period": "PT30M",
-            }
-            for minute in range(_hours * 2 + 1)  # Solcast usually returns one more forecast, not an even number of intervals
-        ],
-    }
-    # _LOGGER.info(response)
-    return jsonify(response), 200
+    return jsonify(raw_get_site_forecasts(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200
 
 
 def get_time_zone():
     """Attempt to read time zone from Home Assistant config."""
+
     global TIMEZONE
     try:
-        with Path.open(Path(Path.cwd(), "../../../.storage/core.config")) as file:
-            config = json.loads(file.read())
+        with Path.open(Path(Path.cwd(), "../../../.storage/core.config")) as f:
+            config = json.loads(f.read())
             TIMEZONE = ZoneInfo(config["data"]["time_zone"])
     except:  # noqa: E722
         pass

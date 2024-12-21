@@ -18,6 +18,7 @@ import json
 import logging
 import math
 from operator import itemgetter
+from os import environ as environment_variables
 from pathlib import Path
 import random
 import re
@@ -186,7 +187,7 @@ class JSONDecoder(json.JSONDecoder):
         """Initialise the decoder."""
         json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)  # noqa: B026
 
-    def object_hook(self, o: Any) -> dict:  # pylint: disable=method-hidden
+    def object_hook(self, o: Any) -> dict:
         """Return converted datetimes."""
         result = {}
         for key, value in o.items():
@@ -280,7 +281,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.entry = entry
         self.entry_options = {**entry.options}
         self.estimate_set = self.__get_estimate_set(options)
-
         self.granular_dampening = {}
         self.hard_limit = options.hard_limit
         self.hass = hass
@@ -308,6 +308,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._forecasts_remaining = {}
         self._granular_allow_reset = True
         self._granular_dampening_mtime = 0
+        self._is_being_unit_tested = "PYTEST_CURRENT_TEST" in environment_variables
         self._loaded_data = False
         self._next_update = None
         self._site_data_forecasts = {}
@@ -499,6 +500,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             bool: Success or failure.
 
         """
+        if self._is_being_unit_tested:
+            return True  # Do not write to file during testing
+
         serialise = True
         # The twin try/except blocks here are significant. If the two were combined with
         # `await file.write(json.dumps(self._data, ensure_ascii=False, cls=DateTimeEncoder))`
@@ -727,6 +731,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             reset (bool): Whether to reset API key usage to zero.
 
         """
+        if self._is_being_unit_tested:
+            return  # Do not write to file during testing
+
         serialise = True
         try:
             filename = self.__get_usage_cache_filename(api_key)
@@ -787,7 +794,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 quota = {api_key.strip(): 10 for api_key in api_keys}
 
-            earliest_reset = self.__get_utc_previous_midnight()
             for api_key in api_keys:
                 api_key = api_key.strip()
                 cache_filename = self.__get_usage_cache_filename(api_key)
@@ -823,7 +829,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             self.__redact_api_key(api_key),
                             self._api_used_reset[api_key].astimezone(self._tz).strftime(DATE_FORMAT),
                         )
-                        earliest_reset = min(earliest_reset, self._api_used_reset[api_key])
                         if usage["daily_limit"] != quota[api_key]:  # Limit has been adjusted, so rewrite the cache.
                             self._api_limit[api_key] = quota[api_key]
                             await self.__serialise_usage(api_key)
@@ -858,13 +863,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     self._api_used[api_key],
                     self._api_limit[api_key],
                 )
-            # Check for last reset disagreement
-            for api_key in api_keys:
-                api_key = api_key.strip()
-                if self._api_used_reset[api_key] > earliest_reset:
-                    _LOGGER.warning("Disagreement in earliest reset time for API keys, so aligning")
-                    self._api_used_reset[api_key] = earliest_reset
-                    await self.__serialise_usage(api_key)
 
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Exception in __sites_usage(): %s: %s", e, traceback.format_exc())
@@ -1000,6 +998,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         See comment in __serialise_data.
         """
+        if self._is_being_unit_tested:
+            return  # Do not write to file during testing
+
         serialise = True
         try:
             filename = self.__get_granular_dampening_filename()
@@ -1459,7 +1460,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 if self._loaded_data:
                     # Create an up to date forecast.
-                    await self.build_forecast_data()
+                    if not await self.build_forecast_data():
+                        status = "Failed to build forecast data (corrupt config/solcast.json?)"
             else:
                 _LOGGER.error("Site count is zero in load_saved_data(); the get sites must have failed, and there is no sites cache")
                 status = "Site count is zero, add sites"
@@ -1657,7 +1659,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return dt.now(self._tz).astimezone(datetime.UTC)
 
-    def __get_hour_start_utc(self) -> dt:
+    def get_hour_start_utc(self) -> dt:
         """Datetime helper.
 
         Returns:
@@ -1723,11 +1725,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         end_utc = self.get_day_start_utc(future=future_day + 1)
         start_index, end_index = self.__get_forecast_list_slice(self._data_forecasts, start_utc, end_utc)
         forecast_slice = self._data_forecasts[start_index:end_index]
-        if self.options.attr_brk_halfhourly:
-            if self.options.attr_brk_site_detailed:
-                site_data_forecast = {}
-                for site in self.sites:
-                    site_data_forecast[site["resource_id"]] = self._site_data_forecasts[site["resource_id"]][start_index:end_index]
+        if self.options.attr_brk_site_detailed:
+            site_data_forecast = {}
+            for site in self.sites:
+                site_data_forecast[site["resource_id"]] = self._site_data_forecasts[site["resource_id"]][start_index:end_index]
 
         if SENSOR_DEBUG_LOGGING:
             _LOGGER.debug(
@@ -1741,17 +1742,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             )
 
         _tuple = tuple({**forecast, "period_start": forecast["period_start"].astimezone(self._tz)} for forecast in forecast_slice)
-        if self.options.attr_brk_halfhourly:
-            if self.options.attr_brk_site_detailed:
-                tuples = {}
-                for site in self.sites:
-                    tuples[site["resource_id"]] = tuple(
-                        {
-                            **forecast,
-                            "period_start": forecast["period_start"].astimezone(self._tz),
-                        }
-                        for forecast in site_data_forecast[site["resource_id"]]
-                    )
+        if self.options.attr_brk_site_detailed:
+            tuples = {}
+            for site in self.sites:
+                tuples[site["resource_id"]] = tuple(
+                    {
+                        **forecast,
+                        "period_start": forecast["period_start"].astimezone(self._tz),
+                    }
+                    for forecast in site_data_forecast[site["resource_id"]]
+                )
 
         if len(_tuple) < 48:
             no_data_error = False
@@ -1790,13 +1790,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Arguments:
             n_hour (int): An hour into the future, or the current hour (0 = current and 1 = next hour are used).
             site (str): An optional Solcast site ID, used to build site breakdown attributes.
-            forecast_confidence (str): An optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
+            forecast_confidence (str): An optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
         Returns:
             int - A forecast for an hour period as Wh (either used for a sensor or its attributes).
 
         """
-        start_utc = self.__get_hour_start_utc() + timedelta(hours=n_hour)
+        start_utc = self.get_hour_start_utc() + timedelta(hours=n_hour)
         end_utc = start_utc + timedelta(hours=1)
         return round(500 * self.__get_forecast_pv_estimates(start_utc, end_utc, site=site, forecast_confidence=forecast_confidence))
 
@@ -1811,7 +1811,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Arguments:
             n_hours (int): A number of hours into the future.
             site (str): An optional Solcast site ID, used to build site breakdown attributes.
-            forecast_confidence (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
+            forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
         Returns:
             int - A forecast for a multiple hour period as Wh (either used for a sensor or its attributes).
@@ -1840,7 +1840,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Arguments:
             n_mins (int): A number of minutes into the future.
             site (str): An optional Solcast site ID, used to build site breakdown attributes.
-            forecast_confidence (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
+            forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
         Returns:
             int: A power forecast in N minutes as W (either used for a sensor or its attributes).
@@ -1860,7 +1860,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Arguments:
             n_day (int): A number representing a day (0 = today, 1 = tomorrow, etc., with a maximum of day 7).
             site (str): An optional Solcast site ID, used to build site breakdown attributes.
-            forecast_confidence (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
+            forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
         Returns:
             int: An expected peak generation for a given day as Watts.
@@ -1883,7 +1883,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Arguments:
             n_day (int): A number representing a day (0 = today, 1 = tomorrow, etc., with a maximum of day 7).
             site (str): An optional Solcast site ID, used to build site breakdown attributes.
-            forecast_confidence (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
+            forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
         Returns:
             datetime: The date and time of expected peak generation for a given day.
@@ -1900,7 +1900,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Arguments:
             n (int): Not used.
             site (str): An optional Solcast site ID, used to build site breakdown attributes.
-            forecast_confidence (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
+            forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
         Returns:
             float: The expected remaining solar generation for the current day as kWh.
@@ -1929,7 +1929,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Arguments:
             n_day (int): A day (0 = today, 1 = tomorrow, etc., with a maximum of day 7).
             site (str): An optional Solcast site ID, used to build site breakdown attributes.
-            forecast_confidence (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
+            forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
         Returns:
             float: The forecast total solar generation for a given day as kWh.
@@ -2021,7 +2021,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             start (int): The starting index of the data slice.
             xx (list): Seconds intervals of the day, one for each 5-minute interval (plus another hours worth).
             data (list): The data structure used to build the spline, either total data or site breakdown data.
-            confidences (list): The forecast types to build, pv_forecast, pv_forecast10 or pv_forecast90.
+            confidences (list): The forecast types to build, pv_estimate, pv_estimate10 or pv_estimate90.
             reducing (bool): A flag to indicate whether a momentary power spline should be built, or a reducing energy spline, default momentary.
 
         """
@@ -2050,7 +2050,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         Arguments:
             spline (dict): The data structure to sanitise.
-            forecast_confidence (str): The forecast type to sanitise, pv_forecast, pv_forecast10 or pv_forecast90.
+            forecast_confidence (str): The forecast type to sanitise, pv_estimate, pv_estimate10 or pv_estimate90.
             xx (list): Seconds intervals of the day, one for each 5-minute interval (plus another hours worth).
             y (list): The period momentary or reducing input data used for the spline calculation.
             reducing (bool): A flag to indicate whether the spline is momentary power, or reducing energy, default momentary.
@@ -2087,11 +2087,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
         df = [self._use_forecast_confidence]
-        if self._use_forecast_confidence != self.options.attr_brk_estimate:
+        if self.options.attr_brk_estimate and "pv_estimate" not in df:
             df.append("pv_estimate")
-        if self._use_forecast_confidence != self.options.attr_brk_estimate10:
+        if self.options.attr_brk_estimate10 and "pv_estimate10" not in df:
             df.append("pv_estimate10")
-        if self._use_forecast_confidence != self.options.attr_brk_estimate90:
+        if self.options.attr_brk_estimate90 and "pv_estimate90" not in df:
             df.append("pv_estimate90")
         xx = list(range(0, 1800 * len(self._spline_period), 300))
 
@@ -2140,7 +2140,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         Arguments:
             site (str): A Solcast site ID.
-            forecast_confidence (str): The forecast type, pv_forecast, pv_forecast10 or pv_forecast90.
+            forecast_confidence (str): The forecast type, pv_estimate, pv_estimate10 or pv_estimate90.
             n_min (int): Minute of the day.
 
         Returns:
@@ -2160,7 +2160,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         Arguments:
             site (str): A Solcast site ID.
-            forecast_confidence (str): The forecast type, pv_forecast, pv_forecast10 or pv_forecast90.
+            forecast_confidence (str): The forecast type, pv_estimate, pv_estimate10 or pv_estimate90.
             n_min (int): The minute of the day.
 
         Returns:
@@ -2191,7 +2191,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             start_utc (datetime): Start of time period in UTC.
             end_utc (datetime): Optional end of time period in UTC. If omitted then a result for the start_utc only is returned.
             site (str): Optional Solcast site ID, used to provide site breakdown.
-            forecast_confidence (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
+            forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
         Returns:
             float: Energy forecast to be remaining for a period as kWh.
@@ -2260,7 +2260,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             start_utc (datetime): Start of time period datetime in UTC.
             end_utc (datetime): End of time period datetime in UTC.
             site (str): Optional Solcast site ID, used to provide site breakdown.
-            forecast_confidence (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
+            forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
         Returns:
             float: Energy forecast total for a period as kWh.
@@ -2314,7 +2314,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Arguments:
             time_utc (datetime): A moment in UTC to return.
             site (str): Optional Solcast site ID, used to provide site breakdown.
-            forecast_confidence (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
+            forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
         Returns:
             float: Forecast power for a point in time as kW (from splined data).
@@ -2358,7 +2358,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             start_utc (datetime): Start of time period datetime in UTC.
             end_utc (datetime): End of time period datetime in UTC.
             site (str): Optional Solcast site ID, used to provide site breakdown.
-            forecast_confidence (str): A optional forecast type, used to select the pv_forecast, pv_forecast10 or pv_forecast90 returned.
+            forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
         Returns:
             float: The maximum forecast power for a period as kW.
@@ -2451,7 +2451,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for site in self.sites:
                 sites_attempted += 1
                 _LOGGER.info("Getting forecast update for site %s%s", site["resource_id"], ", including past data" if do_past else "")
-                result = await self.__http_data_call(
+                result, reason = await self.__http_data_call(
                     site=site["resource_id"],
                     api_key=site["apikey"],
                     do_past=do_past,
@@ -2514,7 +2514,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         )
                 else:
                     _LOGGER.error("Internal error, there is no sites data so forecast has not been built")
-                status = "At least one site forecast get failed"
+                status = f"At least one site forecast get failed: {reason}"
         except Exception as e:  # noqa: BLE001
             status = f"Exception in get_forecast_update(): {e} - Forecast has not been built{next_update()}"
             _LOGGER.error(status)
@@ -2701,7 +2701,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         api_key: str | None = None,
         do_past: bool = False,
         force: bool = False,
-    ) -> DataCallStatus:
+    ) -> tuple[DataCallStatus, str]:
         """Request forecast data via the Solcast API.
 
         Arguments:
@@ -2711,7 +2711,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             force (bool): A forced update, which does not update the internal API use counter.
 
         Returns:
-            DataCallStatus: A flag indicating success, failure or abort
+            tuple[DataCallStatus, str]: A flag indicating success, failure or abort, and a reason for failure.
 
         """
         try:
@@ -2731,9 +2731,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if do_past:
                 if self.tasks.get("fetch") is not None:
                     _LOGGER.error("Internal error: A fetch task is already running, so aborting get past actuals")
-                    return DataCallStatus.FAIL
+                    return DataCallStatus.FAIL, "Fetch already running"
                 self.tasks["fetch"] = asyncio.create_task(
-                    self.__fetch_data(
+                    self.fetch_data(
                         168,
                         path="estimated_actuals",
                         site=site,
@@ -2747,13 +2747,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     response = self.tasks["fetch"].result()
                     self.tasks.pop("fetch")
                 if response is None:
-                    return DataCallStatus.FAIL
+                    _LOGGER.error("No data was returned for estimated_actuals")
+                    return DataCallStatus.FAIL, "No data returned for estimated_actuals"
                 if not isinstance(response, dict):
                     _LOGGER.error(
                         "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
                     )
                     _LOGGER.error("API did not return a json object, returned %s", response)
-                    return DataCallStatus.FAIL
+                    return DataCallStatus.FAIL, "No valid json returned"
 
                 estimate_actuals = response.get("estimated_actuals", None)
 
@@ -2762,7 +2763,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         "Estimated actuals must be a list, not %s",
                         type(estimate_actuals),
                     )
-                    return DataCallStatus.FAIL
+                    return DataCallStatus.FAIL, "Estimated actuals not a list"
 
                 oldest = (dt.now(self._tz).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)).astimezone(datetime.UTC)
 
@@ -2775,14 +2776,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             "Got a period_start minute that is not 0 or 30, period_start: %d",
                             period_start.minute,
                         )
-                        return DataCallStatus.FAIL
+                        return DataCallStatus.FAIL, "Invalid period start minute"
                     if period_start > oldest:
                         new_data.append(
                             {
                                 "period_start": period_start,
                                 "pv_estimate": estimate_actual[FORECAST],
-                                "pv_estimate10": 0,
-                                "pv_estimate90": 0,
+                                "pv_estimate10": estimate_actual.get(FORECAST10, 0),  # Only the simulator returns 10/90 for past actuals
+                                "pv_estimate90": estimate_actual.get(FORECAST90, 0),
                             }
                         )
 
@@ -2790,9 +2791,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             if self.tasks.get("fetch") is not None:
                 _LOGGER.warning("A fetch task is already running, so aborting forecast update")
-                return DataCallStatus.ABORT
+                return DataCallStatus.ABORT, "Fetch already running"
             self.tasks["fetch"] = asyncio.create_task(
-                self.__fetch_data(
+                self.fetch_data(
                     hours,
                     path="forecasts",
                     site=site,
@@ -2806,16 +2807,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 response = self.tasks["fetch"].result()
                 self.tasks.pop("fetch")
             if response is None:
-                return DataCallStatus.FAIL
+                _LOGGER.error("No data was returned for forecasts")
+                return DataCallStatus.FAIL, "No data returned for forecasts"
 
             if not isinstance(response, dict):
                 _LOGGER.error("API did not return a json object. Returned %s", response)
-                return DataCallStatus.FAIL
+                return DataCallStatus.FAIL, "No valid json returned"
 
             latest_forecasts = response.get("forecasts", None)
             if not isinstance(latest_forecasts, list):
                 _LOGGER.error("Forecasts must be a list, not %s", type(latest_forecasts))
-                return DataCallStatus.FAIL
+                return DataCallStatus.FAIL, "Forecasts not a list"
 
             _LOGGER.debug("%d records returned", len(latest_forecasts))
 
@@ -2829,7 +2831,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         "Got a period_start minute that is not 0 or 30, period_start: %d",
                         period_start.minute,
                     )
-                    return DataCallStatus.FAIL
+                    return DataCallStatus.FAIL, "Invalid period start minute"
                 if period_start < last_day:
                     new_data.append(
                         {
@@ -2902,13 +2904,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             _LOGGER.debug("Forecasts dictionary length %s (%s un-dampened)", len(forecasts), len(forecasts_undampened))
         except InvalidStateError:
-            return DataCallStatus.FAIL
+            return DataCallStatus.FAIL, "Invalid state error"
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Exception in __http_data_call(): %s: %s", e, traceback.format_exc())
-            return DataCallStatus.FAIL
-        return DataCallStatus.SUCCESS
+            return DataCallStatus.FAIL, f"Exception {traceback.format_exc()}"  # ZZZZ
+        return DataCallStatus.SUCCESS, ""
 
-    async def __fetch_data(  # noqa: C901
+    async def fetch_data(  # noqa: C901
         self,
         hours: int,
         path: str = "error",
@@ -3085,13 +3087,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         except asyncio.exceptions.CancelledError:
             _LOGGER.info("Fetch cancelled")
         except ConnectionRefusedError as e:
-            _LOGGER.error("Connection error in __fetch_data(), connection refused: %s", e)
+            _LOGGER.error("Connection error in fetch_data(), connection refused: %s", e)
         except ClientConnectionError as e:
-            _LOGGER.error("Connection error in __fetch_data(): %s", e)
+            _LOGGER.error("Connection error in fetch_data(): %s", e)
         except TimeoutError:
-            _LOGGER.error("Connection error in __fetch_data(): Timed out connecting to server")
-        except:  # noqa: E722
-            _LOGGER.error("Exception in __fetch_data(): %s", traceback.format_exc())
+            _LOGGER.error("Connection error in fetch_data(): Timed out connecting to server")
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error("Exception in fetch_data(): %s, %s", e, traceback.format_exc())
 
         return None
 
@@ -3373,10 +3375,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Task build_data took %.3f seconds", time.time() - start_time)
             self._data_energy_dashboard = self.__make_energy_dict()
 
-            await self.check_data_records()
-            await self.recalculate_splines()
-        except:  # noqa: E722
-            _LOGGER.error("Exception in get_forecast_update(): %s", traceback.format_exc())
+            if await self.check_data_records():
+                await self.recalculate_splines()
+            else:
+                return False
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error("Exception in build_forecast_data(): %s: %s", e, traceback.format_exc())
             return False
         return True
 
@@ -3401,8 +3405,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         #    _LOGGER.debug("Calc forecast start index midnight: %s, index %d, len %d", midnight_utc.strftime(DATE_FORMAT_UTC), index, len(data))
         return index
 
-    async def check_data_records(self):
-        """Log whether all records are present for each day."""
+    async def check_data_records(self) -> bool:
+        """Log whether all records are present for each day.
+
+        Returns:
+            bool: A flag indicating success or failure.
+
+        """
         try:
             contiguous = 0
             contiguous_start_date = None
@@ -3475,5 +3484,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 assessment["expected_intervals"],
                                 ", which may be expected" if contiguous == 7 else ", so is missing forecast data",
                             )
+            return True  # noqa: TRY300
+        except UnboundLocalError:
+            _LOGGER.error("UnboundLocalError in check_data_records()")
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Exception in check_data_records(): %s: %s", e, traceback.format_exc())
+        return False

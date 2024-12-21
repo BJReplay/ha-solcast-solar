@@ -23,6 +23,7 @@ BRK_HOURLY: Final = "attr_brk_hourly"
 BRK_SITE: Final = "attr_brk_site"
 BRK_SITE_DETAILED: Final = "attr_brk_detailed"
 CONFIG_DAMP: Final = "config_damp"
+CONFIG_VERSION: Final = 14
 CUSTOM_HOUR_SENSOR: Final = "customhoursensor"
 TIME_FORMAT: Final = "%H:%M:%S"
 DATE_FORMAT: Final = "%Y-%m-%d %H:%M:%S"
