@@ -794,7 +794,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 quota = {api_key.strip(): 10 for api_key in api_keys}
 
-            earliest_reset = self.__get_utc_previous_midnight()
             for api_key in api_keys:
                 api_key = api_key.strip()
                 cache_filename = self.__get_usage_cache_filename(api_key)
@@ -830,7 +829,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             self.__redact_api_key(api_key),
                             self._api_used_reset[api_key].astimezone(self._tz).strftime(DATE_FORMAT),
                         )
-                        earliest_reset = min(earliest_reset, self._api_used_reset[api_key])
                         if usage["daily_limit"] != quota[api_key]:  # Limit has been adjusted, so rewrite the cache.
                             self._api_limit[api_key] = quota[api_key]
                             await self.__serialise_usage(api_key)
@@ -865,13 +863,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     self._api_used[api_key],
                     self._api_limit[api_key],
                 )
-            # Check for last reset disagreement
-            for api_key in api_keys:
-                api_key = api_key.strip()
-                if self._api_used_reset[api_key] > earliest_reset:
-                    _LOGGER.warning("Disagreement in earliest reset time for API keys, so aligning")
-                    self._api_used_reset[api_key] = earliest_reset
-                    await self.__serialise_usage(api_key)
 
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Exception in __sites_usage(): %s: %s", e, traceback.format_exc())
