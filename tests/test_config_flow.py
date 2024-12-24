@@ -4,12 +4,14 @@ import copy
 import logging
 from unittest.mock import AsyncMock
 
+from homeassistant.components.recorder import Recorder
+
 # As a core component, these imports would be homeassistant.components.solcast_solar and not config.custom_components.solcast_solar
-from config.custom_components.solcast_solar.config_flow import (
+from homeassistant.components.solcast_solar.config_flow import (
     SolcastSolarFlowHandler,
     SolcastSolarOptionFlowHandler,
 )
-from config.custom_components.solcast_solar.const import (
+from homeassistant.components.solcast_solar.const import (
     API_QUOTA,
     AUTO_UPDATE,
     BRK_ESTIMATE,
@@ -21,15 +23,22 @@ from config.custom_components.solcast_solar.const import (
     BRK_SITE_DETAILED,
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
+    HARD_LIMIT,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE_DAMP,
     TITLE,
 )
-
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
+
+from . import (
+    DEFAULT_INPUT1,
+    DEFAULT_INPUT2,
+    async_cleanup_integration_tests,
+    async_init_integration,
+)
 
 from tests.common import MockConfigEntry
 
@@ -37,32 +46,20 @@ _LOGGER = logging.getLogger(__name__)
 
 KEY1 = "65sa6d46-sadf876_sd54"
 KEY2 = "65sa6946-glad876_pf69"
-DEFAULT_INPUT1 = {
-    CONF_API_KEY: KEY1,
-    API_QUOTA: "10",
-    AUTO_UPDATE: "1",
-    CUSTOM_HOUR_SENSOR: 1,
-    HARD_LIMIT_API: "100.0",
-    KEY_ESTIMATE: "estimate",
-    BRK_ESTIMATE: True,
-    BRK_ESTIMATE10: True,
-    BRK_ESTIMATE90: True,
-    BRK_SITE: True,
-    BRK_HALFHOURLY: True,
-    BRK_HOURLY: True,
-    BRK_SITE_DETAILED: False,
-    SITE_DAMP: False,
-}
-SITE_DAMP = {f"damp{factor:02d}": 1.0 for factor in range(24)}
-DEFAULT_INPUT2 = copy.deepcopy(DEFAULT_INPUT1)
+
+DEFAULT_INPUT1 = copy.deepcopy(DEFAULT_INPUT1)
+DEFAULT_INPUT1[CONF_API_KEY] = KEY1
+
+DEFAULT_INPUT2 = copy.deepcopy(DEFAULT_INPUT2)
 DEFAULT_INPUT2[CONF_API_KEY] = KEY1 + "," + KEY2
 
-MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1 | SITE_DAMP)
-MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2 | SITE_DAMP)
+MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1)
+MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2)
 
 
 async def test_create_entry(hass: HomeAssistant) -> None:
     """Test that a valid user input creates an entry."""
+
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
     flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
@@ -89,6 +86,7 @@ async def test_create_entry(hass: HomeAssistant) -> None:
 
 async def api_key(step, expect):
     """Test that valid/invalid API key is handled."""
+
     user_input = {CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"}
     result = await step(user_input)
     assert result["type"] == FlowResultType.ABORT
@@ -119,8 +117,9 @@ async def api_key(step, expect):
 
 async def api_quota(hass: HomeAssistant, step, expect):
     """Test that valid/invalid API quota is handled."""
+
     user_input = copy.deepcopy(DEFAULT_INPUT1)
-    user_input[API_QUOTA] = "invalid"
+    user_input[API_QUOTA] = "1nvalid"
     result = await step(user_input)
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] == "API limit is not a number"
@@ -144,17 +143,23 @@ async def api_quota(hass: HomeAssistant, step, expect):
     flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
     user_input = copy.deepcopy(DEFAULT_INPUT2)
 
-    user_input[HARD_LIMIT_API] = "10,10"
+    user_input[API_QUOTA] = "10,10"
     result = await step(user_input)
     assert result["type"] == expect
 
-    user_input[HARD_LIMIT_API] = "10"
+    user_input[API_QUOTA] = "10,10,10"
+    result = await step(user_input)
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "There are more API limit counts entered than keys"
+
+    user_input[API_QUOTA] = "10"
     result = await step(user_input)
     assert result["type"] == expect
 
 
 async def test_api_key(hass: HomeAssistant) -> None:
     """Test that valid/invalid API key is handled."""
+
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
     flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
@@ -164,6 +169,7 @@ async def test_api_key(hass: HomeAssistant) -> None:
 
 async def test_api_quota(hass: HomeAssistant) -> None:
     """Test that valid/invalid API quota is handled."""
+
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
     flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
@@ -173,6 +179,7 @@ async def test_api_quota(hass: HomeAssistant) -> None:
 
 async def test_option_api_key(hass: HomeAssistant) -> None:
     """Test that valid/invalid API key is handled."""
+
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
     flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
@@ -182,6 +189,7 @@ async def test_option_api_key(hass: HomeAssistant) -> None:
 
 async def test_option_api_quota(hass: HomeAssistant) -> None:
     """Test that valid/invalid API quota is handled."""
+
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
     flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
@@ -191,6 +199,7 @@ async def test_option_api_quota(hass: HomeAssistant) -> None:
 
 async def test_option_custom_hour_sensor(hass: HomeAssistant) -> None:
     """Test that valid/invalid custom hour sensor is handled."""
+
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
     flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
@@ -213,6 +222,7 @@ async def test_option_custom_hour_sensor(hass: HomeAssistant) -> None:
 
 async def test_option_hard_limit(hass: HomeAssistant) -> None:
     """Test that valid/invalid hard limit is handled."""
+
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
     flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
@@ -249,3 +259,48 @@ async def test_option_hard_limit(hass: HomeAssistant) -> None:
     user_input[HARD_LIMIT_API] = "6"
     result = await flow.async_step_init(user_input)
     assert result["type"] == FlowResultType.FORM
+
+
+async def test_entry_options_upgrade(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+) -> None:
+    """Test that entry options are upgraded as expected."""
+
+    START_VERSION = 3
+    FINAL_VERSION = 14
+    options = {
+        CONF_API_KEY: "1",
+        "const_disableautopoll": False,
+    }
+    entry = await async_init_integration(hass, options, version=START_VERSION)
+    assert hass.data[DOMAIN].get("has_loaded", False) is True
+
+    assert entry.version == FINAL_VERSION
+    # V4
+    assert entry.options.get("const_disableautopoll") is None
+    # V5
+    for a in range(24):
+        assert entry.options.get(f"damp{a:02d}") == 1.0
+    # V6
+    assert entry.options.get(CUSTOM_HOUR_SENSOR) == 1
+    # V7
+    assert entry.options.get(KEY_ESTIMATE) == "estimate"
+    # V8
+    assert entry.options.get(BRK_ESTIMATE) is True
+    assert entry.options.get(BRK_ESTIMATE10) is True
+    assert entry.options.get(BRK_ESTIMATE90) is True
+    assert entry.options.get(BRK_SITE) is True
+    assert entry.options.get(BRK_HALFHOURLY) is True
+    assert entry.options.get(BRK_HOURLY) is True
+    # V9
+    assert entry.options.get(API_QUOTA) == "10"
+    # V12
+    assert entry.options.get(AUTO_UPDATE) == 0
+    assert entry.options.get(BRK_SITE_DETAILED) is False
+    assert entry.options.get(SITE_DAMP) is False  # "Hidden"-ish option
+    # V14
+    assert entry.options.get(HARD_LIMIT) is None
+    assert entry.options.get(HARD_LIMIT_API) == "100.0"
+
+    assert await async_cleanup_integration_tests(hass, hass.data[DOMAIN][entry.entry_id].solcast._config_dir)

@@ -231,6 +231,9 @@
         "hard_empty": {
             "message": "Valeur limite stricte vide."
         },
+        "hard_too_many": {
+            "message": "Plus de limites strictes sont spécifiées qu'il n'y a de clés API."
+        },
         "hard_not_positive_number": {
             "message": "La valeur limite stricte n’est pas un nombre positif."
         },

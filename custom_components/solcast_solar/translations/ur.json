@@ -232,6 +232,9 @@
         "hard_empty": {
             "message": "خالی سخت حد کی قدر۔"
         },
+        "hard_too_many": {
+            "message": "چابیاں سے زیادہ سخت حدود متعین ہیں۔"
+        },
         "hard_not_positive_number": {
             "message": "سخت حد کی قدر کوئی مثبت نمبر نہیں ہے۔"
         },

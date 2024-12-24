@@ -232,6 +232,9 @@
         "hard_empty": {
             "message": "Prázdna hodnota pevného limitu."
         },
+        "hard_too_many": {
+            "message": "Je špecifikovaných viac tvrdých limitov, ako existuje kľúčov API."
+        },
         "hard_not_positive_number": {
             "message": "Hodnota pevného limitu nie je kladné číslo."
         },

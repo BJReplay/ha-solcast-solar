@@ -232,6 +232,9 @@
         "hard_empty": {
             "message": "Pusta wartość twardego limitu."
         },
+        "hard_too_many": {
+            "message": "Określono więcej twardych limitów niż jest kluczy API."
+        },
         "hard_not_positive_number": {
             "message": "Wartość twardego limitu nie jest liczbą dodatnią."
         },

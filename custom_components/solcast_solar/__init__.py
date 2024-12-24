@@ -20,8 +20,12 @@ from homeassistant.exceptions import (
     HomeAssistantError,
     ServiceValidationError,
 )
-from homeassistant.helpers import aiohttp_client, config_validation as cv, intent
-import homeassistant.helpers.device_registry as dr
+from homeassistant.helpers import (
+    aiohttp_client,
+    config_validation as cv,
+    device_registry as dr,
+    intent,
+)
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -35,8 +39,11 @@ from .const import (
     BRK_SITE,
     BRK_SITE_DETAILED,
     CUSTOM_HOUR_SENSOR,
+    DAMP_FACTOR,
     DATE_FORMAT,
     DOMAIN,
+    EVENT_END_DATETIME,
+    EVENT_START_DATETIME,
     HARD_LIMIT,
     HARD_LIMIT_API,
     INIT_MSG,
@@ -49,17 +56,14 @@ from .const import (
     SERVICE_SET_DAMPENING,
     SERVICE_SET_HARD_LIMIT,
     SERVICE_UPDATE,
+    SITE,
     SITE_DAMP,
     SOLCAST_URL,
+    UNDAMPENED,
 )
 from .coordinator import SolcastUpdateCoordinator
 from .solcastapi import ConnectionOptions, SolcastApi
 
-DAMP_FACTOR: Final = "damp_factor"
-SITE: Final = "site"
-UNDAMPENED: Final = "undampened"
-EVENT_END_DATETIME: Final = "end_date_time"
-EVENT_START_DATETIME: Final = "start_date_time"
 PLATFORMS: Final = [
     Platform.SELECT,
     Platform.SENSOR,
@@ -326,11 +330,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     await __check_auto_update_missed(coordinator)
     hass.data[DOMAIN]["has_loaded"] = True
 
-    # Testing of options migration. Used to validate the upgrade process when the options version changes.
-    # await __test_options_migration(hass, entry)
-    # __log_entry_options(entry)
-    # pass  # <<< Set breakpoint here, then "step over" once.
-
     async def action_call_update_forecast(call: ServiceCall):
         """Handle action.
 
@@ -514,6 +513,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
                         translation_key="hard_not_positive_number",
                     )
                 to_set.append(f"{val:.1f}")
+            if len(to_set) > len(entry.options["api_key"].split(",")):
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_too_many")
 
             opt = {**entry.options}
             opt[HARD_LIMIT_API] = ",".join(to_set)
@@ -608,7 +609,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok and tasks_cancel_ok
 
 
-async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device) -> bool:
+async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device: dr.DeviceEntry) -> bool:
     """Remove a device.
 
     Arguments:
@@ -692,7 +693,6 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
                 if changed(f"damp{i:02}"):
                     recalculate_and_refresh = True
                     damp_changed = True
-                    break
             if recalculate_and_refresh:
                 coordinator.solcast.damp = damp_factors
 
@@ -773,7 +773,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     then a new option must be used (for example, HARD_LIMIT to HARD_LIMIT_API). Prior
     versions must cope with the absence of an option should one be deleted.
 
-    The present version (e.g. `VERSION = 14`) is specified in `config_flow.py`.
+    The present version is specified in CONFIG_VERSION (`const.py`).
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
@@ -805,134 +805,68 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 else:
                     raise
 
-    if entry.version < 4:
-        await upgrade_to(4, entry, __v4)
-    if entry.version < 5:
-        await upgrade_to(5, entry, __v5)
-    if entry.version < 6:
-        await upgrade_to(6, entry, __v6)
-    if entry.version < 7:
-        await upgrade_to(7, entry, __v7)
-    if entry.version < 8:
-        await upgrade_to(8, entry, __v8)
-    if entry.version < 9:
-        await upgrade_to(9, entry, __v9)
-    if entry.version < 12:
-        await upgrade_to(12, entry, __v12)
-    if entry.version < 14:
-        await upgrade_to(14, entry, __v14)
+    async def __v4(hass: HomeAssistant, new_options):
+        with contextlib.suppress(Exception):
+            new_options.pop("const_disableautopoll", None)
+
+    async def __v5(hass: HomeAssistant, new_options):
+        for a in range(24):
+            new_options[f"damp{str(a).zfill(2)}"] = 1.0
+
+    async def __v6(hass: HomeAssistant, new_options):
+        new_options[CUSTOM_HOUR_SENSOR] = 1
+
+    async def __v7(hass: HomeAssistant, new_options):
+        new_options[KEY_ESTIMATE] = "estimate"
+
+    async def __v8(hass: HomeAssistant, new_options):
+        new_options[BRK_ESTIMATE] = True
+        new_options[BRK_ESTIMATE10] = True
+        new_options[BRK_ESTIMATE90] = True
+        new_options[BRK_SITE] = True
+        new_options[BRK_HALFHOURLY] = True
+        new_options[BRK_HOURLY] = True
+
+    async def __v9(hass: HomeAssistant, new_options):
+        try:
+            default = []
+            for api_key in new_options[CONF_API_KEY].split(","):
+                api_cache_filename = f"{hass.config.config_dir}/solcast-usage{'' if len(new_options[CONF_API_KEY].split(',')) < 2 else '-' + api_key.strip()}.json"
+                async with aiofiles.open(api_cache_filename) as f:
+                    usage = json.loads(await f.read())
+                default.append(str(usage["daily_limit"]))
+            default = ",".join(default)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.warning(
+                "Could not load API usage cached limit while upgrading config, using default of ten: %s",
+                e,
+            )
+            default = "10"
+        new_options[API_QUOTA] = default
+
+    async def __v12(hass: HomeAssistant, new_options):
+        new_options[AUTO_UPDATE] = int(new_options.get(AUTO_UPDATE, 0))
+        new_options[BRK_SITE_DETAILED] = False
+        if new_options.get(HARD_LIMIT) is None:  # May already exist.
+            new_options[HARD_LIMIT] = 100000
+
+    async def __v14(hass: HomeAssistant, new_options):
+        hard_limit = new_options.get(HARD_LIMIT, 100000) / 1000
+        new_options[HARD_LIMIT_API] = f"{hard_limit:.1f}"
+        with contextlib.suppress(Exception):
+            new_options.pop(HARD_LIMIT)
+
+    for upgrade in (
+        {"version": 4, "function": __v4},
+        {"version": 5, "function": __v5},
+        {"version": 6, "function": __v6},
+        {"version": 7, "function": __v7},
+        {"version": 8, "function": __v8},
+        {"version": 9, "function": __v9},
+        {"version": 12, "function": __v12},
+        {"version": 14, "function": __v14},
+    ):
+        if entry.version < upgrade["version"]:
+            await upgrade_to(upgrade["version"], entry, upgrade["function"])
 
     return True
-
-
-async def __v4(hass: HomeAssistant, new_options):
-    with contextlib.suppress(Exception):
-        new_options.pop("const_disableautopoll", None)
-
-
-async def __v5(hass: HomeAssistant, new_options):
-    for a in range(24):
-        new_options[f"damp{str(a).zfill(2)}"] = 1.0
-
-
-async def __v6(hass: HomeAssistant, new_options):
-    new_options[CUSTOM_HOUR_SENSOR] = 1
-
-
-async def __v7(hass: HomeAssistant, new_options):
-    new_options[KEY_ESTIMATE] = "estimate"
-
-
-async def __v8(hass: HomeAssistant, new_options):
-    new_options[BRK_ESTIMATE] = True
-    new_options[BRK_ESTIMATE10] = True
-    new_options[BRK_ESTIMATE90] = True
-    new_options[BRK_SITE] = True
-    new_options[BRK_HALFHOURLY] = True
-    new_options[BRK_HOURLY] = True
-
-
-async def __v9(hass: HomeAssistant, new_options):
-    try:
-        default = []
-        for api_key in new_options[CONF_API_KEY].split(","):
-            api_cache_filename = f"{hass.config.config_dir}/solcast-usage{'' if len(new_options[CONF_API_KEY].split(',')) < 2 else '-' + api_key.strip()}.json"
-            async with aiofiles.open(api_cache_filename) as f:
-                usage = json.loads(await f.read())
-            default.append(str(usage["daily_limit"]))
-        default = ",".join(default)
-    except Exception as e:  # noqa: BLE001
-        _LOGGER.warning(
-            "Could not load API usage cached limit while upgrading config, using default of ten: %s",
-            e,
-        )
-        default = "10"
-    new_options[API_QUOTA] = default
-
-
-async def __v12(hass: HomeAssistant, new_options):
-    new_options[AUTO_UPDATE] = int(new_options.get(AUTO_UPDATE, 0))
-    new_options[BRK_SITE_DETAILED] = False
-    if new_options.get(HARD_LIMIT) is None:  # May already exist.
-        new_options[HARD_LIMIT] = 100000
-
-
-async def __v14(hass: HomeAssistant, new_options):
-    hard_limit = new_options.get(HARD_LIMIT, 100000) / 1000
-    new_options[HARD_LIMIT_API] = f"{hard_limit:.1f}"
-    with contextlib.suppress(Exception):
-        new_options.pop(HARD_LIMIT)
-
-
-async def __test_options_migration(hass: HomeAssistant, entry: ConfigEntry):
-    """Test entry options upgrade.
-
-    Doing this test will result in the integration repeatedlty restarting,
-    upgrading the options from V4 onwards at every start. Do not do this
-    outside of a dev environment with the ability to set a code breakboint
-    after calling the function.
-
-    Un-comment the call in async_setup_entry().
-    """
-
-    new_options = {**entry.options}
-    # Not sure of version.
-    if new_options.get(HARD_LIMIT):
-        new_options.pop(HARD_LIMIT)
-    # V5
-    for a in range(24):
-        f = f"damp{str(a).zfill(2)}"
-        if new_options.get(f):
-            new_options.pop(f)
-    # V6
-    if new_options.get(CUSTOM_HOUR_SENSOR):
-        new_options.pop(CUSTOM_HOUR_SENSOR)
-    # V7
-    if new_options.get(KEY_ESTIMATE):
-        new_options.pop(KEY_ESTIMATE)
-    # V8
-    if new_options.get(BRK_ESTIMATE):
-        new_options.pop(BRK_ESTIMATE)
-    if new_options.get(BRK_ESTIMATE10):
-        new_options.pop(BRK_ESTIMATE10)
-    if new_options.get(BRK_ESTIMATE90):
-        new_options.pop(BRK_ESTIMATE90)
-    if new_options.get(BRK_SITE):
-        new_options.pop(BRK_SITE)
-    if new_options.get(BRK_HALFHOURLY):
-        new_options.pop(BRK_HALFHOURLY)
-    if new_options.get(BRK_HOURLY):
-        new_options.pop(BRK_HOURLY)
-    # V9
-    if new_options.get(API_QUOTA):
-        new_options.pop(API_QUOTA)
-    # V12
-    if new_options.get(AUTO_UPDATE):
-        new_options.pop(AUTO_UPDATE)
-    if new_options.get(BRK_SITE_DETAILED):
-        new_options.pop(BRK_SITE_DETAILED)
-    # V14
-    if new_options.get(HARD_LIMIT_API):
-        new_options.pop(HARD_LIMIT_API)
-    hass.config_entries.async_update_entry(entry, options=new_options, version=4)
-    await async_migrate_entry(hass, entry)

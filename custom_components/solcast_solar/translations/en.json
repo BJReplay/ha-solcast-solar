@@ -231,6 +231,9 @@
         "hard_empty": {
             "message": "Empty hard limit value."
         },
+        "hard_too_many": {
+            "message": "More hard limits are specified than there are API keys."
+        },
         "hard_not_positive_number": {
             "message": "Hard limit value is not a positive number."
         },

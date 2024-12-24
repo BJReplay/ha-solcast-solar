@@ -232,6 +232,9 @@
         "hard_empty": {
             "message": "Leerer harter Grenzwert."
         },
+        "hard_too_many": {
+            "message": "Es werden mehr harte Limits angegeben als API-Schlüssel vorhanden sind."
+        },
         "hard_not_positive_number": {
             "message": "Der harte Grenzwert ist keine positive Zahl."
         },

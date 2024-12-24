@@ -1,121 +1,46 @@
 """Test the Solcast API."""
 
+# pylint: disable=global-statement
+
 import copy
-import datetime
 from datetime import datetime as dt
 import logging
 from zoneinfo import ZoneInfo
 
-# As a core component, these imports would be homeassistant.components.solcast_solar and not config.custom_components.solcast_solar
-from config.custom_components.solcast_solar.__init__ import (
+import pytest
+
+from homeassistant.components.solcast_solar.__init__ import (
     __get_options,
     __get_session_headers,
     __get_version,
     __setup_storage,
 )
-from config.custom_components.solcast_solar.const import (
-    API_QUOTA,
-    AUTO_UPDATE,
-    BRK_ESTIMATE,
-    BRK_ESTIMATE10,
-    BRK_ESTIMATE90,
-    BRK_HALFHOURLY,
-    BRK_HOURLY,
-    BRK_SITE,
-    BRK_SITE_DETAILED,
-    CUSTOM_HOUR_SENSOR,
-    DOMAIN,
-    HARD_LIMIT_API,
-    KEY_ESTIMATE,
-    SITE_DAMP,
-)
-from config.custom_components.solcast_solar.sim.simulate import (
-    raw_get_site_estimated_actuals,
-    raw_get_site_forecasts,
+from homeassistant.components.solcast_solar.const import DOMAIN
+from homeassistant.components.solcast_solar.sim.simulate import (
     raw_get_sites,
     set_time_zone,
 )
-from config.custom_components.solcast_solar.solcastapi import FRESH_DATA, SolcastApi
-import pytest
-
-from homeassistant.const import CONF_API_KEY
+from homeassistant.components.solcast_solar.solcastapi import FRESH_DATA, SolcastApi
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import aiohttp_client
+
+from . import (
+    CUSTOM_HOURS,
+    DEFAULT_INPUT1,
+    DEFAULT_INPUT2,
+    ZONE_RAW,
+    async_cleanup_integration_tests,
+)
 
 from tests.common import MockConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
-KEY1 = "1"
-KEY2 = "2"
-CUSTOM_HOURS = 2
-DEFAULT_INPUT1 = {
-    CONF_API_KEY: KEY1,
-    API_QUOTA: "10",
-    AUTO_UPDATE: 1,
-    CUSTOM_HOUR_SENSOR: CUSTOM_HOURS,
-    HARD_LIMIT_API: "100.0",
-    KEY_ESTIMATE: "estimate",
-    BRK_ESTIMATE: True,
-    BRK_ESTIMATE10: True,
-    BRK_ESTIMATE90: True,
-    BRK_SITE: True,
-    BRK_HALFHOURLY: True,
-    BRK_HOURLY: True,
-    BRK_SITE_DETAILED: False,
-    SITE_DAMP: False,
-}
-SITE_DAMP = {f"damp{factor:02d}": 1.0 for factor in range(24)}
+MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1)
+MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2)
 
-DEFAULT_INPUT2 = copy.deepcopy(DEFAULT_INPUT1)
-DEFAULT_INPUT2[CONF_API_KEY] = KEY1 + "," + KEY2
-DEFAULT_INPUT2[API_QUOTA] = "10,50"
-DEFAULT_INPUT2[AUTO_UPDATE] = 2
-DEFAULT_INPUT2[BRK_HALFHOURLY] = False
-DEFAULT_INPUT2[BRK_ESTIMATE] = False
-DEFAULT_INPUT2[BRK_ESTIMATE90] = False
-DEFAULT_INPUT2[BRK_SITE_DETAILED] = True
-
-MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1 | SITE_DAMP)
-MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2 | SITE_DAMP)
-
-ZONE_RAW = "Australia/Brisbane"  # Somewhere without daylight saving time
 ZONE = ZoneInfo(ZONE_RAW)
 set_time_zone(ZONE)
-
-
-async def fetch_data(self, hours: int, path: str = "error", site: str = "", api_key: str = "", force: bool = False) -> dict | None:
-    """Mock fetch data call, always returns a valid data structure."""
-
-    if path == "estimated_actuals":
-        return raw_get_site_estimated_actuals(site, api_key, 168)
-    if path == "forecasts":
-        return raw_get_site_forecasts(site, api_key, hours)
-    return None
-
-
-def get_now_utc(self) -> dt:
-    """Mock get_now_utc, spoof middle-of-the-day-ish."""
-
-    return dt.now(self._tz).replace(hour=12, minute=27, second=0, microsecond=0).astimezone(datetime.UTC)
-
-
-def get_real_now_utc(self) -> dt:
-    """Mock get_real_now_utc, spoof middle-of-the-day-ish."""
-
-    return dt.now(self._tz).replace(hour=12, minute=27, second=27, microsecond=27272).astimezone(datetime.UTC)
-
-
-def get_hour_start_utc(self) -> dt:
-    """Mock get_hour_start_utc, spoof middle-of-the-day-ish."""
-
-    return dt.now(self._tz).replace(hour=12, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
-
-
-SolcastApi.fetch_data = fetch_data
-SolcastApi.get_now_utc = get_now_utc
-SolcastApi.get_real_now_utc = get_real_now_utc
-SolcastApi.get_hour_start_utc = get_hour_start_utc
 
 
 async def __get_solcast(hass: HomeAssistant, entry: MockConfigEntry) -> SolcastApi:
@@ -134,15 +59,13 @@ async def __get_solcast(hass: HomeAssistant, entry: MockConfigEntry) -> SolcastA
     return solcast
 
 
-MOCK_SOLCAST1 = None
-MOCK_SOLCAST2 = None
 MOCK = {}
 
 
 async def test_forecast_update(hass: HomeAssistant) -> None:
     """Test fetch forecast including past actuals."""
 
-    global MOCK, MOCK_SOLCAST1, MOCK_SOLCAST2  # noqa: PLW0603
+    global MOCK  # noqa: PLW0603 A global is used to store the SolcastApi instances for later performant testing.
 
     # Forecast fetch with past actuals, one API key, two sites.
     solcast = await __get_solcast(hass, MOCK_ENTRY1)
@@ -151,7 +74,7 @@ async def test_forecast_update(hass: HomeAssistant) -> None:
     assert await solcast.get_forecast_update(do_past=True, force=False) == ""
 
     await solcast.recalculate_splines()
-    MOCK_SOLCAST1 = solcast
+    mock_solcast1 = solcast
 
     # Check rapid update refused, and that auto_updated is set, one API key, two sites.
     assert (await solcast.get_forecast_update(do_past=False, force=True)).startswith("Not requesting a solar forecast because time") is True
@@ -161,7 +84,7 @@ async def test_forecast_update(hass: HomeAssistant) -> None:
     user_input = copy.deepcopy(DEFAULT_INPUT1)
     user_input["auto_update"] = 0
     solcast = None
-    solcast = await __get_solcast(hass, MockConfigEntry(domain=DOMAIN, data={}, options=user_input | SITE_DAMP))
+    solcast = await __get_solcast(hass, MockConfigEntry(domain=DOMAIN, data={}, options=user_input))
     assert await solcast.get_forecast_update(do_past=False, force=False) == ""
     assert solcast._data["auto_updated"] is False
 
@@ -170,14 +93,11 @@ async def test_forecast_update(hass: HomeAssistant) -> None:
     assert await solcast.get_forecast_update(do_past=True, force=False) == ""
 
     await solcast.recalculate_splines()
-    MOCK_SOLCAST2 = solcast
 
     MOCK = {
-        "mock1": MOCK_SOLCAST1,
-        "mock2": MOCK_SOLCAST2,
+        "mock1": mock_solcast1,
+        "mock2": solcast,
     }
-
-    # Other Solcast API responses must be tested with the simulator.
 
 
 def __available_estimates(solcast):
@@ -591,13 +511,16 @@ async def test_get_forecast_day(hass: HomeAssistant) -> None:
                 assert len(data.get("detailedForecast", {})) == 48
                 for f in data["detailedForecast"]:
                     assert f.get("period_start") is not None
-                    assert type(f.get("pv_estimate")) is float
-                    assert type(f.get("pv_estimate10")) is float
-                    assert type(f.get("pv_estimate90")) is float
+                    for estimate in ["pv_estimate", "pv_estimate10", "pv_estimate90"]:
+                        assert type(f.get(estimate)) is float
             if solcast.options.attr_brk_hourly:
                 assert len(data.get("detailedHourly", {})) == 24
                 for f in data["detailedHourly"]:
                     assert f.get("period_start") is not None
-                    assert type(f.get("pv_estimate")) is float
-                    assert type(f.get("pv_estimate10")) is float
-                    assert type(f.get("pv_estimate90")) is float
+                    for estimate in ["pv_estimate", "pv_estimate10", "pv_estimate90"]:
+                        assert type(f.get(estimate)) is float
+
+
+async def test_cleanup(hass: HomeAssistant) -> None:
+    """Clean up."""
+    assert await async_cleanup_integration_tests(hass, MOCK["mock1"]._config_dir)

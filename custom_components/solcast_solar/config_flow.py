@@ -12,10 +12,14 @@ import aiofiles
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigEntry, ConfigFlow, OptionsFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
-from homeassistant.data_entry_flow import FlowResult
 from homeassistant.helpers.selector import (
     SelectOptionDict,
     SelectSelector,
@@ -118,7 +122,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 _LOGGER.warning("Conflict check failed testing '%s': %s", str(sol), e)
         return failed, conflict
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a flow initiated by the user.
 
         Arguments:
@@ -217,7 +221,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         self._entry = config_entry
         self._options = config_entry.options
 
-    async def async_step_init(self, user_input: dict | None = None) -> Any:
+    async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
         """Initialise main options flow step.
 
         Arguments:
@@ -349,7 +353,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             errors=errors,
         )
 
-    async def async_step_dampen(self, user_input: dict[str, Any] | None = None) -> FlowResult:  # user_input=None):
+    async def async_step_dampen(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Manage the hourly dampening factors sub-option.
 
         Note that the config option "site_damp" is not exposed in any way to the user. This is a
