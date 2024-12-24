@@ -653,7 +653,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         self.__redact_msg_api_key(redact_lat_lon(str(sites_data)), api_key),
                     )
                     for site in sites_data["sites"]:
-                        site["apikey"] = api_key
+                        site["api_key"] = api_key
                         site.pop("longitude", None)
                         site.pop("latitude", None)
                     self.sites = self.sites + sites_data["sites"]
@@ -689,7 +689,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             sites_data = cast(dict, response_json)
                             _LOGGER.debug("Sites data: %s", redact_lat_lon(str(sites_data)))
                             for site in sites_data["sites"]:
-                                site["apikey"] = api_key
+                                site["api_key"] = api_key
                                 site.pop("longitude", None)
                                 site.pop("latitude", None)
                             self.sites = self.sites + sites_data["sites"]
@@ -1361,7 +1361,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             .split(",")
                         )
                         for site in self.sites:
-                            api_key = site["apikey"]
+                            api_key = site["api_key"]
                             site = site["resource_id"]
                             if site not in cache_sites or len(self._data["siteinfo"][site].get("forecasts", [])) == 0:
                                 new_sites[site] = api_key
@@ -2442,7 +2442,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.info("Getting forecast update for site %s%s", site["resource_id"], ", including past data" if do_past else "")
                 result, reason = await self.__http_data_call(
                     site=site["resource_id"],
-                    api_key=site["apikey"],
+                    api_key=site["api_key"],
                     do_past=do_past,
                     force=force,
                 )
@@ -3119,7 +3119,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     def __site_api_key(self, site: str) -> str | None:
         for _site in self.sites:
             if _site["resource_id"] == site:
-                return _site["apikey"]
+                return _site["api_key"]
         return None
 
     def hard_limit_set(self) -> tuple[bool, bool]:
@@ -3180,7 +3180,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if hard_limit_set:
                         api_key_sites = defaultdict(dict)
                         for site in self.sites:
-                            api_key_sites[site["apikey"] if multi_key else "all"][site["resource_id"]] = {
+                            api_key_sites[site["api_key"] if multi_key else "all"][site["resource_id"]] = {
                                 "earliest_period": data["siteinfo"][site["resource_id"]]["forecasts"][0]["period_start"],
                                 "last_period": data["siteinfo"][site["resource_id"]]["forecasts"][-1]["period_start"],
                             }

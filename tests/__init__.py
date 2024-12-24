@@ -84,7 +84,7 @@ async def get_sites_and_usage(self):
 
     for api_key in self.options.api_key.split(","):
         _sites = raw_get_sites(api_key)
-        self.sites += [site | {"apikey": api_key} for site in _sites["sites"]]
+        self.sites += [site | {"api_key": api_key} for site in _sites["sites"]]
         self._api_limit[api_key] = 10
         self._api_used[api_key] = 0
         self._api_used_reset[api_key] = self.get_day_start_utc()

@@ -51,7 +51,7 @@ async def __get_solcast(hass: HomeAssistant, entry: MockConfigEntry) -> SolcastA
     solcast.headers = __get_session_headers(version)
     for api_key in options.api_key.split(","):
         _sites = raw_get_sites(api_key)
-        solcast.sites += [site | {"apikey": api_key} for site in _sites["sites"]]
+        solcast.sites += [site | {"api_key": api_key} for site in _sites["sites"]]
     solcast._api_used = {api_key: 0 for api_key in options.api_key.split(",")}
     solcast._api_limit = {api_key: 10 for api_key in options.api_key.split(",")}
     solcast._tz = ZONE
