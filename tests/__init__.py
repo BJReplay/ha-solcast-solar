@@ -5,7 +5,7 @@ import datetime
 from datetime import datetime as dt
 import logging
 from pathlib import Path
-from typing import Final
+from typing import Any, Final
 from zoneinfo import ZoneInfo
 
 from homeassistant.components.solcast_solar import SolcastApi
@@ -27,6 +27,7 @@ from homeassistant.components.solcast_solar.const import (
     SITE_DAMP,
 )
 from homeassistant.components.solcast_solar.sim.simulate import (
+    API_KEY_SITES,
     raw_get_site_estimated_actuals,
     raw_get_site_forecasts,
     raw_get_sites,
@@ -69,8 +70,6 @@ DEFAULT_INPUT2[CONF_API_KEY] = KEY1 + "," + KEY2
 DEFAULT_INPUT2[API_QUOTA] = "10,10"
 DEFAULT_INPUT2[AUTO_UPDATE] = 2
 DEFAULT_INPUT2[BRK_HALFHOURLY] = False
-DEFAULT_INPUT2[BRK_ESTIMATE] = False
-DEFAULT_INPUT2[BRK_ESTIMATE90] = False
 DEFAULT_INPUT2[BRK_SITE_DETAILED] = True
 
 ZONE = ZoneInfo(ZONE_RAW)
@@ -79,21 +78,27 @@ set_time_zone(ZONE)
 _LOGGER = logging.getLogger(__name__)
 
 
-async def get_sites_and_usage(self):
-    """Mock get_sites_and_usage, returns the simulated sites and zero API call usage."""
+async def get_sites_api_request(self, url: str, params: dict, headers: dict, ssl: bool) -> Any:
+    """Mock get_sites_api_request, returns a valid response."""
 
-    for api_key in self.options.api_key.split(","):
-        _sites = raw_get_sites(api_key)
-        self.sites += [site | {"api_key": api_key} for site in _sites["sites"]]
-        self._api_limit[api_key] = 10
-        self._api_used[api_key] = 0
-        self._api_used_reset[api_key] = self.get_day_start_utc()
+    class Response:
+        status = 200
 
-    _LOGGER.debug("Mock get sites: %s", self.sites)
-    _LOGGER.debug("Mock get usage: %s/%s", self._api_used, self._api_limit)
+        async def json(**kwargs):
+            api_key = params["api_key"]
+            return raw_get_sites(api_key)
 
-    self._tz = ZONE
-    self.sites_loaded = True
+    class BadResponse:
+        status = 401
+
+        async def json(**kwargs):
+            return {}
+
+    _LOGGER.info("Mock get sites API request: %s", params["api_key"])
+    if API_KEY_SITES.get(params["api_key"]) is None:
+        return BadResponse
+
+    return Response
 
 
 async def fetch_data(self, hours: int, path: str = "error", site: str = "", api_key: str = "", force: bool = False) -> dict | None:
@@ -130,7 +135,7 @@ SolcastApi.fetch_data = fetch_data
 SolcastApi.get_now_utc = get_now_utc
 SolcastApi.get_real_now_utc = get_real_now_utc
 SolcastApi.get_hour_start_utc = get_hour_start_utc
-SolcastApi.get_sites_and_usage = get_sites_and_usage
+SolcastApi.get_sites_api_request = get_sites_api_request
 
 
 async def async_init_integration(hass: HomeAssistant, input: dict, version: int = CONFIG_VERSION) -> MockConfigEntry:

@@ -532,6 +532,23 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 return False
         return True
 
+    async def get_sites_api_request(self, url: str, params: dict, headers: dict, ssl: bool) -> ClientResponse:
+        """Get the sites API request.
+
+        Separate method to allow for mocking in tests.
+
+        Arguments:
+            url (str): The URL to call.
+            params (dict): The parameters to send.
+            headers (dict): The headers to send.
+            ssl (bool): Whether to use SSL.
+
+        Returns:
+            ClientResponse: The response.
+
+        """
+        return await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
+
     async def __sites_data(self):  # noqa: C901
         """Request site details.
 
@@ -569,7 +586,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     use_cache_immediate = False
                     cache_exists = Path(cache_filename).is_file()
                     while retry >= 0:
-                        response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
+                        response: ClientResponse = await self.get_sites_api_request(url, params, self.headers, False)
+                        # response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
 
                         status = response.status
                         (_LOGGER.debug if status == 200 else _LOGGER.warning)(
@@ -848,6 +866,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
                     self._api_limit[api_key] = quota[api_key]
                     self._api_used[api_key] = 0
+                    self._api_used_reset[api_key] = self.__get_utc_previous_midnight()
                     await self.__serialise_usage(api_key, reset=True)
                 _LOGGER.debug(
                     "API counter for %s is %d/%d",
@@ -1483,6 +1502,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             else:
                 _LOGGER.warning("There is no solcast.json to delete")
                 return False
+            self._loaded_data = False
             await self.load_saved_data()
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Action failed deleting old solcast.json file: %s: %s", e, traceback.format_exc())
