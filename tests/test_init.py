@@ -75,7 +75,7 @@ async def test_init(
     config_dir = hass.data[DOMAIN][entry.entry_id].solcast._config_dir
     coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     solcast: SolcastApi = coordinator.solcast
-    # assert "Creating usage cache for" in caplog.text
+    assert "Creating usage cache for" in caplog.text
     assert solcast.sites_loaded is True
     assert solcast._loaded_data is True
     assert "Dampening factors corrupt or not found, setting to 1.0" not in caplog.text
@@ -208,6 +208,7 @@ async def test_remaining_actions(
         assert "Removing orphaned" in caplog.text
         assert "Site resource id 3333-3333-3333-3333 is no longer configured" in caplog.text
         assert len(solcast.sites) == 2
+        assert "Build hard limit period values from scratch for dampened" not in caplog.text
 
         # Test set/get dampening factors
         dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)

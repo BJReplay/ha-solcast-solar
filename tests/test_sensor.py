@@ -22,17 +22,15 @@ from . import (
 _LOGGER = logging.getLogger(__name__)
 
 
+# Site breakdown for 2222-2222-2222-2222 and 3333-3333-3333-3333 are identical. Added later.
+# Site breakdown for 1111-1111-1111-1111 and 2222-2222-2222-2222 are identical for the first api key. Added later.
 SENSORS: dict[str, dict] = {
     "forecast_today": {
         "state": {"1": "42.552", "2": "58.509"},
         "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
         "state_class": SensorStateClass.TOTAL,
         "attributes": {
-            "1": {
-                "estimate": 42.552,
-                "estimate10": 35.46,
-                "estimate90": 47.28,
-            },
+            "1": {"estimate": 42.552, "estimate10": 35.46, "estimate90": 47.28},
             "2": {
                 "1111-1111-1111-1111": 26.595,
                 "estimate-1111-1111-1111-1111": 26.595,
@@ -42,10 +40,6 @@ SENSORS: dict[str, dict] = {
                 "estimate-2222-2222-2222-2222": 15.957,
                 "estimate10-2222-2222-2222-2222": 13.2975,
                 "estimate90-2222-2222-2222-2222": 17.73,
-                "3333-3333-3333-3333": 15.957,
-                "estimate-3333-3333-3333-3333": 15.957,
-                "estimate10-3333-3333-3333-3333": 13.2975,
-                "estimate90-3333-3333-3333-3333": 17.73,
                 "estimate": 58.509,
                 "estimate10": 48.7575,
                 "estimate90": 65.01,
@@ -57,11 +51,7 @@ SENSORS: dict[str, dict] = {
         "unit_of_measurement": UnitOfPower.WATT,
         "state_class": SensorStateClass.MEASUREMENT,
         "attributes": {
-            "1": {
-                "estimate": 7200,
-                "estimate10": 6000,
-                "estimate90": 8000,
-            },
+            "1": {"estimate": 7200, "estimate10": 6000, "estimate90": 8000},
             "2": {
                 "1111-1111-1111-1111": 4500,
                 "estimate-1111-1111-1111-1111": 4500,
@@ -71,10 +61,6 @@ SENSORS: dict[str, dict] = {
                 "estimate-2222-2222-2222-2222": 2700,
                 "estimate10-2222-2222-2222-2222": 2250,
                 "estimate90-2222-2222-2222-2222": 3000,
-                "3333-3333-3333-3333": 2700,
-                "estimate-3333-3333-3333-3333": 2700,
-                "estimate10-3333-3333-3333-3333": 2250,
-                "estimate90-3333-3333-3333-3333": 3000,
                 "estimate": 9900,
                 "estimate10": 8250,
                 "estimate90": 11000,
@@ -98,10 +84,6 @@ SENSORS: dict[str, dict] = {
                 "estimate-2222-2222-2222-2222": "2024-01-01T02:00:00+00:00",
                 "estimate10-2222-2222-2222-2222": "2024-01-01T02:00:00+00:00",
                 "estimate90-2222-2222-2222-2222": "2024-01-01T02:00:00+00:00",
-                "3333-3333-3333-3333": "2024-01-01T02:00:00+00:00",
-                "estimate-3333-3333-3333-3333": "2024-01-01T02:00:00+00:00",
-                "estimate10-3333-3333-3333-3333": "2024-01-01T02:00:00+00:00",
-                "estimate90-3333-3333-3333-3333": "2024-01-01T02:00:00+00:00",
                 "estimate": "2024-01-01T02:00:00+00:00",
                 "estimate10": "2024-01-01T02:00:00+00:00",
                 "estimate90": "2024-01-01T02:00:00+00:00",
@@ -112,11 +94,7 @@ SENSORS: dict[str, dict] = {
         "state": {"1": "7200", "2": "9900"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
-            "1": {
-                "estimate": 7200,
-                "estimate10": 6000,
-                "estimate90": 8000,
-            },
+            "1": {"estimate": 7200, "estimate10": 6000, "estimate90": 8000},
             "2": {
                 "1111-1111-1111-1111": 4500,
                 "estimate-1111-1111-1111-1111": 4500,
@@ -126,10 +104,6 @@ SENSORS: dict[str, dict] = {
                 "estimate-2222-2222-2222-2222": 2700,
                 "estimate10-2222-2222-2222-2222": 2250,
                 "estimate90-2222-2222-2222-2222": 3000,
-                "3333-3333-3333-3333": 2700,
-                "estimate-3333-3333-3333-3333": 2700,
-                "estimate10-3333-3333-3333-3333": 2250,
-                "estimate90-3333-3333-3333-3333": 3000,
                 "estimate": 9900,
                 "estimate10": 8250,
                 "estimate90": 11000,
@@ -140,11 +114,7 @@ SENSORS: dict[str, dict] = {
         "state": {"1": "23.6817", "2": "32.5624"},
         "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
         "attributes": {
-            "1": {
-                "estimate": 23.6817,
-                "estimate10": 19.7348,
-                "estimate90": 26.313,
-            },
+            "1": {"estimate": 23.6817, "estimate10": 19.7348, "estimate90": 26.313},
             "2": {
                 "1111-1111-1111-1111": 14.8011,
                 "estimate-1111-1111-1111-1111": 14.8011,
@@ -154,10 +124,6 @@ SENSORS: dict[str, dict] = {
                 "estimate-2222-2222-2222-2222": 8.8807,
                 "estimate10-2222-2222-2222-2222": 7.4005,
                 "estimate90-2222-2222-2222-2222": 9.8674,
-                "3333-3333-3333-3333": 8.8807,
-                "estimate-3333-3333-3333-3333": 8.8807,
-                "estimate10-3333-3333-3333-3333": 7.4005,
-                "estimate90-3333-3333-3333-3333": 9.8674,
                 "estimate": 32.5624,
                 "estimate10": 27.1353,
                 "estimate90": 36.1804,
@@ -168,11 +134,7 @@ SENSORS: dict[str, dict] = {
         "state": {"1": "6732", "2": "9256"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
-            "1": {
-                "estimate": 6732,
-                "estimate10": 5610,
-                "estimate90": 7480,
-            },
+            "1": {"estimate": 6732, "estimate10": 5610, "estimate90": 7480},
             "2": {
                 "1111-1111-1111-1111": 4208,
                 "estimate-1111-1111-1111-1111": 4208,
@@ -182,10 +144,6 @@ SENSORS: dict[str, dict] = {
                 "estimate-2222-2222-2222-2222": 2524,
                 "estimate10-2222-2222-2222-2222": 2104,
                 "estimate90-2222-2222-2222-2222": 2805,
-                "3333-3333-3333-3333": 2524,
-                "estimate-3333-3333-3333-3333": 2524,
-                "estimate10-3333-3333-3333-3333": 2104,
-                "estimate90-3333-3333-3333-3333": 2805,
                 "estimate": 9256,
                 "estimate10": 7714,
                 "estimate90": 10285,
@@ -196,11 +154,7 @@ SENSORS: dict[str, dict] = {
         "state": {"1": "13748", "2": "18904"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
-            "1": {
-                "estimate": 13748,
-                "estimate10": 11457,
-                "estimate90": 15276,
-            },
+            "1": {"estimate": 13748, "estimate10": 11457, "estimate90": 15276},
             "2": {
                 "1111-1111-1111-1111": 8593,
                 "estimate-1111-1111-1111-1111": 8593,
@@ -210,10 +164,6 @@ SENSORS: dict[str, dict] = {
                 "estimate-2222-2222-2222-2222": 5156,
                 "estimate10-2222-2222-2222-2222": 4296,
                 "estimate90-2222-2222-2222-2222": 5728,
-                "3333-3333-3333-3333": 5156,
-                "estimate-3333-3333-3333-3333": 5156,
-                "estimate10-3333-3333-3333-3333": 4296,
-                "estimate90-3333-3333-3333-3333": 5728,
                 "estimate": 18904,
                 "estimate10": 15753,
                 "estimate90": 21004,
@@ -224,11 +174,7 @@ SENSORS: dict[str, dict] = {
         "state": {"1": "7200", "2": "9900"},
         "unit_of_measurement": UnitOfPower.WATT,
         "attributes": {
-            "1": {
-                "estimate": 7200,
-                "estimate10": 6000,
-                "estimate90": 8000,
-            },
+            "1": {"estimate": 7200, "estimate10": 6000, "estimate90": 8000},
             "2": {
                 "1111-1111-1111-1111": 4500,
                 "estimate-1111-1111-1111-1111": 4500,
@@ -238,10 +184,6 @@ SENSORS: dict[str, dict] = {
                 "estimate-2222-2222-2222-2222": 2700,
                 "estimate10-2222-2222-2222-2222": 2250,
                 "estimate90-2222-2222-2222-2222": 3000,
-                "3333-3333-3333-3333": 2700,
-                "estimate-3333-3333-3333-3333": 2700,
-                "estimate10-3333-3333-3333-3333": 2250,
-                "estimate90-3333-3333-3333-3333": 3000,
                 "estimate": 9900,
                 "estimate10": 8250,
                 "estimate90": 11000,
@@ -265,10 +207,6 @@ SENSORS: dict[str, dict] = {
                 "estimate-2222-2222-2222-2222": "2024-01-01T02:00:00+00:00",
                 "estimate10-2222-2222-2222-2222": "2024-01-01T02:00:00+00:00",
                 "estimate90-2222-2222-2222-2222": "2024-01-01T02:00:00+00:00",
-                "3333-3333-3333-3333": "2024-01-01T02:00:00+00:00",
-                "estimate-3333-3333-3333-3333": "2024-01-01T02:00:00+00:00",
-                "estimate10-3333-3333-3333-3333": "2024-01-01T02:00:00+00:00",
-                "estimate90-3333-3333-3333-3333": "2024-01-01T02:00:00+00:00",
                 "estimate": "2024-01-01T02:00:00+00:00",
                 "estimate10": "2024-01-01T02:00:00+00:00",
                 "estimate90": "2024-01-01T02:00:00+00:00",
@@ -280,11 +218,7 @@ SENSORS: dict[str, dict] = {
         "unit_of_measurement": UnitOfPower.WATT,
         "state_class": SensorStateClass.MEASUREMENT,
         "attributes": {
-            "1": {
-                "estimate": 7221,
-                "estimate10": 6017,
-                "estimate90": 8023,
-            },
+            "1": {"estimate": 7221, "estimate10": 6017, "estimate90": 8023},
             "2": {
                 "1111-1111-1111-1111": 4513,
                 "estimate-1111-1111-1111-1111": 4513,
@@ -294,10 +228,6 @@ SENSORS: dict[str, dict] = {
                 "estimate-2222-2222-2222-2222": 2708,
                 "estimate10-2222-2222-2222-2222": 2256,
                 "estimate90-2222-2222-2222-2222": 3009,
-                "3333-3333-3333-3333": 2708,
-                "estimate-3333-3333-3333-3333": 2708,
-                "estimate10-3333-3333-3333-3333": 2256,
-                "estimate90-3333-3333-3333-3333": 3009,
                 "estimate": 9928,
                 "estimate10": 8274,
                 "estimate90": 11032,
@@ -309,11 +239,7 @@ SENSORS: dict[str, dict] = {
         "unit_of_measurement": UnitOfPower.WATT,
         "state_class": SensorStateClass.MEASUREMENT,
         "attributes": {
-            "1": {
-                "estimate": 7158,
-                "estimate10": 5965,
-                "estimate90": 7953,
-            },
+            "1": {"estimate": 7158, "estimate10": 5965, "estimate90": 7953},
             "2": {
                 "1111-1111-1111-1111": 4474,
                 "estimate-1111-1111-1111-1111": 4474,
@@ -323,10 +249,6 @@ SENSORS: dict[str, dict] = {
                 "estimate-2222-2222-2222-2222": 2684,
                 "estimate10-2222-2222-2222-2222": 2237,
                 "estimate90-2222-2222-2222-2222": 2982,
-                "3333-3333-3333-3333": 2684,
-                "estimate-3333-3333-3333-3333": 2684,
-                "estimate10-3333-3333-3333-3333": 2237,
-                "estimate90-3333-3333-3333-3333": 2982,
                 "estimate": 9842,
                 "estimate10": 8201,
                 "estimate90": 10935,
@@ -338,11 +260,7 @@ SENSORS: dict[str, dict] = {
         "unit_of_measurement": UnitOfPower.WATT,
         "state_class": SensorStateClass.MEASUREMENT,
         "attributes": {
-            "1": {
-                "estimate": 6842,
-                "estimate10": 5702,
-                "estimate90": 7603,
-            },
+            "1": {"estimate": 6842, "estimate10": 5702, "estimate90": 7603},
             "2": {
                 "1111-1111-1111-1111": 4276,
                 "estimate-1111-1111-1111-1111": 4276,
@@ -352,10 +270,6 @@ SENSORS: dict[str, dict] = {
                 "estimate-2222-2222-2222-2222": 2566,
                 "estimate10-2222-2222-2222-2222": 2138,
                 "estimate90-2222-2222-2222-2222": 2851,
-                "3333-3333-3333-3333": 2566,
-                "estimate-3333-3333-3333-3333": 2566,
-                "estimate10-3333-3333-3333-3333": 2138,
-                "estimate90-3333-3333-3333-3333": 2851,
                 "estimate": 9408,
                 "estimate10": 7840,
                 "estimate90": 10454,
@@ -370,6 +284,13 @@ SENSORS: dict[str, dict] = {
 
 for attrs in SENSORS.values():
     if "attributes" in attrs:
+        for attribute in (
+            "2222-2222-2222-2222",
+            "estimate-2222-2222-2222-2222",
+            "estimate10-2222-2222-2222-2222",
+            "estimate90-2222-2222-2222-2222",
+        ):
+            attrs["attributes"]["2"][attribute.replace("2", "3")] = attrs["attributes"]["2"][attribute]
         if attrs["attributes"]["2"].get("1111-1111-1111-1111"):
             for attribute in (
                 "1111-1111-1111-1111",
