@@ -253,7 +253,7 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator):
                         coordinator.interval_just_passed.astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
                     )
                     await coordinator.service_event_update(ignore_auto_enabled=True, completion="Completed task update_missed")
-                else:
+                else:  # pragma: no cover, time-of-day dependent
                     _LOGGER.debug("Auto update forecast is fresh")
             except TypeError:  # pragma: no cover, catch unexpected exceptions
                 _LOGGER.warning("Auto update freshness could not be determined")
