@@ -1345,7 +1345,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             data = json_data
                             if set_loaded:
                                 self._loaded_data = True
-                            if not self.previously_loaded:
+                            if not self.previously_loaded:  # pragma: no cover, not reached in tests
                                 _LOGGER.info(
                                     "%s data loaded",
                                     "Dampened" if filename == self._filename else "Un-dampened",

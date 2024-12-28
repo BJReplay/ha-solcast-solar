@@ -129,9 +129,6 @@ async def test_init(
             assert Path(f"{config_dir}/solcast-usage-1.json").is_file()
             assert Path(f"{config_dir}/solcast-usage-2.json").is_file()
             assert not Path(f"{config_dir}/solcast-usage.json").is_file()
-            # Will exist from the prior test
-            assert f"Data cache {config_dir}/solcast.json exists" in caplog.text
-            assert f"Data cache {config_dir}/solcast-undampened.json exists" in caplog.text
 
         # Test coordinator tasks are created
         assert len(coordinator.tasks.keys()) == 3
@@ -220,11 +217,13 @@ async def test_init(
         await hass.async_block_till_done()
 
     finally:
-        # Do not clean up caches, as cahed data is loaded in the next test
-        # assert await async_cleanup_integration_tests(hass, config_dir)
-
-        if options == DEFAULT_INPUT2:
-            granular_dampening_file.unlink()
+        assert await async_cleanup_integration_tests(
+            hass,
+            config_dir,
+            solcast_dampening=options != DEFAULT_INPUT1,
+            solcast_sites=options != DEFAULT_INPUT1,
+            solcast_usage=options != DEFAULT_INPUT1,
+        )
 
 
 async def test_remaining_actions(
@@ -234,6 +233,13 @@ async def test_remaining_actions(
 ) -> None:
     """Test remaining actions."""
 
+    # Start with two API keys and three sites
+    entry = await async_init_integration(hass, DEFAULT_INPUT2)
+    assert hass.data[DOMAIN].get("has_loaded") is True
+    assert await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+    # Switch to one API key and two sites to assert the initial clean-up
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
     coordinator = hass.data[DOMAIN][entry.entry_id]
     solcast: SolcastApi = coordinator.solcast
@@ -251,6 +257,8 @@ async def test_remaining_actions(
         # Test logs for cache load
         assert "Sites cache exists" in caplog.text
         assert "Usage cache exists" in caplog.text
+        assert f"Data cache {config_dir}/solcast.json exists, file type is <class 'dict'>" in caplog.text
+        assert f"Data cache {config_dir}/solcast-undampened.json exists, file type is <class 'dict'>" in caplog.text
         occurs_in_log("Renaming", 2)
         occurs_in_log("Removing orphaned", 2)
 

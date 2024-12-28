@@ -10,7 +10,7 @@ from homeassistant.components.recorder import Recorder
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.components.solcast_solar.const import DOMAIN
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.const import STATE_UNAVAILABLE, UnitOfEnergy, UnitOfPower
+from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
 
 from . import (
@@ -393,13 +393,12 @@ async def test_sensor_states(
         assert await async_cleanup_integration_tests(hass, hass.data[DOMAIN][entry.entry_id].solcast._config_dir)
 
 
-'''
-def get_sensor_value(self, key: str): # TODO: Presently never returns None
+def get_sensor_value(self, key: str):  # TODO: Presently never returns None
     """Raise an exception getting the value of a sensor."""
-    return 0 / 1
+    return 1 / 0
 
 
-async def test_sensor_unavailable(
+async def test_sensor_unknown(
     recorder_mock: Recorder,
     hass: HomeAssistant,
 ) -> None:
@@ -408,13 +407,20 @@ async def test_sensor_unavailable(
     SolcastUpdateCoordinator.get_sensor_value = get_sensor_value
     SolcastUpdateCoordinator.get_sensor_extra_attributes = get_sensor_value
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
+    coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     try:
         for sensor in SENSORS:
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
             assert state
-            assert state.state == STATE_UNAVAILABLE
+            assert state.state == STATE_UNKNOWN
+
+        coordinator._data_updated = True
+        coordinator.async_update_listeners()
+
+        for sensor in SENSORS:
+            state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
+            assert state.state == STATE_UNKNOWN
 
     finally:
         assert await async_cleanup_integration_tests(hass, hass.data[DOMAIN][entry.entry_id].solcast._config_dir)
-'''

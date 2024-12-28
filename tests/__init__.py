@@ -305,7 +305,7 @@ async def async_init_integration(
     return entry
 
 
-async def async_cleanup_integration_tests(hass: HomeAssistant, config_dir: str) -> None:
+async def async_cleanup_integration_tests(hass: HomeAssistant, config_dir: str, **kwargs) -> None:
     """Clean up the Solcast Solar integration caches."""
 
     def list_files() -> list[str]:
@@ -314,6 +314,12 @@ async def async_cleanup_integration_tests(hass: HomeAssistant, config_dir: str) 
     try:
         caches = await hass.async_add_executor_job(list_files)
         for cache in caches:
+            if not kwargs.get("solcast_dampening", True) and "solcast-dampening" in cache:
+                continue
+            if not kwargs.get("solcast_sites", True) and "solcast-sites" in cache:
+                continue
+            if not kwargs.get("solcast_usage", True) and "solcast-usage" in cache:
+                continue
             _LOGGER.debug("Removing cache file: %s", cache)
             Path(cache).unlink()
     except Exception as e:  # noqa: BLE001

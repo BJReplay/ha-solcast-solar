@@ -369,7 +369,11 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         self._attributes = {}
         self._attr_extra_state_attributes = {}
 
-        self._sensor_data = self._coordinator.get_sensor_value(entity_description.key)
+        try:
+            self._sensor_data = self._coordinator.get_sensor_value(self.entity_description.key)
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
+            _LOGGER.error("Unable to get sensor value: %s", e)
+            self._sensor_data = None
 
         if self._sensor_data is None:
             self._attr_available = False
@@ -409,7 +413,11 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             dict[str, Any] | None: The current attributes of a sensor.
 
         """
-        return self._coordinator.get_sensor_extra_attributes(self.entity_description.key)
+        try:
+            return self._coordinator.get_sensor_extra_attributes(self.entity_description.key)
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
+            _LOGGER.error("Unable to get sensor attributes: %s", e)
+            return None
 
     @property
     def native_value(self) -> int | dt | float | str | bool | None:
@@ -509,7 +517,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         try:
             self._sensor_data = coordinator.get_site_sensor_value(self._rooftop_id, key)
         except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
-            _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
+            _LOGGER.error("Unable to get sensor value: %s", e)
             self._sensor_data = None
 
         self._attr_device_info = {
@@ -545,7 +553,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         return f"solcast_{self._unique_id}"
 
     @property
-    def extra_state_attributes(self):
+    def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return the state extra attributes of the sensor."""
         try:
             return self._coordinator.get_site_sensor_extra_attributes(self._rooftop_id, self._key)
