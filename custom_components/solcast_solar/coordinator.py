@@ -109,37 +109,31 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     async def setup(self) -> bool:
         """Set up time change tracking."""
         self._last_day = dt.now(self.solcast.options.tz).day
-        try:
-            self.__auto_update_setup(init=True)
-            await self.__check_forecast_fetch()
+        self.__auto_update_setup(init=True)
+        await self.__check_forecast_fetch()
 
-            self.tasks["listeners"] = async_track_utc_time_change(
-                self.hass, self.update_integration_listeners, minute=range(0, 60, 5), second=0
-            )
-            self.tasks["check_fetch"] = async_track_utc_time_change(
-                self.hass, self.__check_forecast_fetch, minute=range(0, 60, 5), second=0
-            )
-            self.tasks["midnight_update"] = async_track_utc_time_change(
-                self.hass, self.__update_utc_midnight_usage_sensor_data, hour=0, minute=0, second=0
-            )
-            for timer in sorted(self.tasks):
-                _LOGGER.debug("Running task %s", timer)
-        except:  # noqa: E722
-            _LOGGER.error("Exception in setup: %s", traceback.format_exc())
-            return False
+        self.tasks["listeners"] = async_track_utc_time_change(
+            self.hass, self.update_integration_listeners, minute=range(0, 60, 5), second=0
+        )
+        self.tasks["check_fetch"] = async_track_utc_time_change(self.hass, self.__check_forecast_fetch, minute=range(0, 60, 5), second=0)
+        self.tasks["midnight_update"] = async_track_utc_time_change(
+            self.hass, self.__update_utc_midnight_usage_sensor_data, hour=0, minute=0, second=0
+        )
+        for timer in sorted(self.tasks):
+            _LOGGER.debug("Running task %s", timer)
         return True
 
     async def update_integration_listeners(self, *args):
         """Get updated sensor values."""
-        if SENSOR_UPDATE_LOGGING:
+        if SENSOR_UPDATE_LOGGING:  # pragma: no cover, debugging only
             start_time = time.time()
         try:
-            if SENSOR_DEBUG_LOGGING:
+            if SENSOR_DEBUG_LOGGING:  # pragma: no cover, debugging only
                 _LOGGER.debug("Update listeners")
 
             current_day = dt.now(self.solcast.options.tz).day
             self._date_changed = current_day != self._last_day
-            if self._date_changed:
+            if self._date_changed:  # pragma: no cover, testing only possible when running
                 _LOGGER.debug("Date has changed, recalculate splines and set up auto-updates")
                 self._last_day = current_day
                 await self.__update_midnight_spline_recalculate()
@@ -149,26 +143,21 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         except:  # noqa: E722
             # _LOGGER.error("Exception in update_integration_listeners(): %s", traceback.format_exc())
             pass
-        if SENSOR_UPDATE_LOGGING:
+        if SENSOR_UPDATE_LOGGING:  # pragma: no cover, debugging only
             _LOGGER.debug("Update listeners took %.3f seconds", time.time() - start_time)
 
     async def __restart_time_track_midnight_update(self):
         """Cancel and restart UTC time change tracker."""
-        try:
-            _LOGGER.warning("Restarting midnight UTC timer")
-            try:
-                self.tasks["midnight_update"]()  # Cancel the tracker
-                _LOGGER.debug("Cancelled task midnight_update")
-            except:  # noqa: E722
-                pass
-            self.tasks["midnight_update"] = async_track_utc_time_change(
-                self.hass, self.__update_utc_midnight_usage_sensor_data, hour=0, minute=0, second=0
-            )
-            _LOGGER.debug("Started task midnight_update")
-        except:  # noqa: E722
-            _LOGGER.error("Exception in __restart_time_track_midnight_update(): %s", traceback.format_exc())
+        _LOGGER.warning("Restarting midnight UTC timer")
+        if self.tasks.get("midnight_update"):
+            self.tasks["midnight_update"]()  # Cancel the tracker
+        _LOGGER.debug("Cancelled task midnight_update")
+        self.tasks["midnight_update"] = async_track_utc_time_change(
+            self.hass, self.__update_utc_midnight_usage_sensor_data, hour=0, minute=0, second=0
+        )
+        _LOGGER.debug("Started task midnight_update")
 
-    async def __check_forecast_fetch(self, *args):
+    async def __check_forecast_fetch(self, *args):  # pragma: no cover, testing only possible when running
         """Check for an auto forecast update event."""
         try:
             if self.solcast.options.auto_update:
@@ -227,7 +216,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         except:  # noqa: E722
             _LOGGER.error("Exception in __check_forecast_fetch(): %s", traceback.format_exc())
 
-    async def __update_utc_midnight_usage_sensor_data(self, *args):
+    async def __update_utc_midnight_usage_sensor_data(self, *args):  # pragma: no cover, testing only possible when running
         """Reset tracked API usage at midnight UTC."""
         try:
             await self.solcast.reset_api_usage()
@@ -237,7 +226,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         except:  # noqa: E722
             _LOGGER.error("Exception in __update_utc_midnight_usage_sensor_data(): %s", traceback.format_exc())
 
-    async def __update_midnight_spline_recalculate(self):
+    async def __update_midnight_spline_recalculate(self):  # pragma: no cover
         """Re-calculates splines at midnight local time."""
         try:
             await self.solcast.check_data_records()
@@ -262,7 +251,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     self.__calculate_forecast_updates(init=init)
                 case _:
                     pass
-        except:  # noqa: E722
+        except:  # noqa: E722 # pragma: no cover, catch unexpected exceptions
             _LOGGER.error("Exception in __auto_update_setup(): %s", traceback.format_exc())
 
     def __get_sun_rise_set(self):
@@ -319,7 +308,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         )
                 if sunrise == self._sunrise:
                     if self.interval_just_passed in intervals_yesterday:
-                        just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT)
+                        just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(
+                            DATE_FORMAT
+                        )  # pragma: no cover, testing only possible when running
                     else:
                         just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
                     _LOGGER.debug("Previous auto update would have been at %s", just_passed)
@@ -349,7 +340,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     "s" if len(intervals_tomorrow) > 1 else "",
                     ", ".join(format_intervals(intervals_tomorrow)),
                 )
-        except:  # noqa: E722
+        except:  # noqa: E722 # pragma: no cover, catch unexpected exceptions
             _LOGGER.error("Exception in __calculate_forecast_updates(): %s", traceback.format_exc())
 
     async def __forecast_update(self, force: bool = False, completion: str = ""):

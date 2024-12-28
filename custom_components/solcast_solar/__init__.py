@@ -109,10 +109,7 @@ def __log_init_message(version: str, solcast: SolcastApi):
 
 
 async def __get_version(hass: HomeAssistant) -> str:
-    try:
-        return str((await loader.async_get_integration(hass, DOMAIN)).version)
-    except loader.IntegrationNotFound:
-        return ""
+    return str((await loader.async_get_integration(hass, DOMAIN)).version)
 
 
 def __setup_storage(hass: HomeAssistant):
@@ -120,7 +117,7 @@ def __setup_storage(hass: HomeAssistant):
         hass.data[DOMAIN] = {}
 
 
-async def __get_time_zone(hass: HomeAssistant):
+async def __get_time_zone(hass: HomeAssistant):  # pragma: no cover, handle compatibility with earlier HA versions
     # async_get_time_zone() mandated in HA core 2024.6.0
     try:
         dt_util.async_get_time_zone  # pylint: disable=W0104  # noqa: B018
@@ -191,13 +188,12 @@ def __log_entry_options(entry: ConfigEntry):
 
 
 def __log_hard_limit_set(solcast: SolcastApi):
-    if not solcast.previously_loaded:
-        hard_limit_set, _ = solcast.hard_limit_set()
-        if hard_limit_set:
-            _LOGGER.info(
-                "Hard limit is set to limit peak forecast values (%s)",
-                ", ".join(f"{limit}kW" for limit in solcast.hard_limit.split(",")),
-            )
+    hard_limit_set, _ = solcast.hard_limit_set()
+    if hard_limit_set:
+        _LOGGER.info(
+            "Hard limit is set to limit peak forecast values (%s)",
+            ", ".join(f"{limit}kW" for limit in solcast.hard_limit.split(",")),
+        )
 
 
 def __get_session_headers(version: str):
@@ -229,7 +225,7 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator):
             else:
                 _LOGGER.warning("Many auto updates have been missed, updating forecast")
                 await coordinator.service_event_update(ignore_auto_enabled=True, completion="Completed task stale_update")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, catch unexpected exceptions
             _LOGGER.error(
                 "Exception fetching data on stale start: %s: %s",
                 e,
@@ -259,9 +255,9 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator):
                     await coordinator.service_event_update(ignore_auto_enabled=True, completion="Completed task update_missed")
                 else:
                     _LOGGER.debug("Auto update forecast is fresh")
-            except TypeError:
+            except TypeError:  # pragma: no cover, catch unexpected exceptions
                 _LOGGER.warning("Auto update freshness could not be determined")
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001 # pragma: no cover, catch unexpected exceptions
                 _LOGGER.error(
                     "Auto update freshness could not be determined: %s: %s",
                     e,
@@ -304,7 +300,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
     try:
         await solcast.get_sites_and_usage()
-    except Exception as e:
+    except Exception as e:  # pragma: no cover, catch unexpected exceptions
         raise ConfigEntryNotReady(f"Getting sites data failed: {e}") from e
     if not solcast.sites_loaded:
         raise ConfigEntryNotReady("Sites data could not be retrieved")
@@ -318,7 +314,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
     coordinator = SolcastUpdateCoordinator(hass, solcast, version)
     if not await coordinator.setup():
-        raise ConfigEntryNotReady("Internal error: Coordinator setup failed")
+        raise ConfigEntryNotReady("Internal error: Coordinator setup failed")  # pragma: no cover, handle unexpected exceptions
     await coordinator.async_config_entry_first_refresh()
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
@@ -366,9 +362,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         Arguments:
             call (ServiceCall): The data to act on: a start and optional end date/time (defaults to now), optional dampened/undampened, optional site.
 
-        Raises:
-            HomeAssistantError: Notify Home Assistant that an error has occurred.
-
         Returns:
             dict[str, Any] | None: The Solcast data from start to end date/times.
 
@@ -381,13 +374,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
                 call.data.get(SITE, "all"),
                 call.data.get(UNDAMPENED, False),
             )
-        except intent.IntentHandleError as e:
+        except intent.IntentHandleError as e:  # pragma: no cover, catch unexpected exceptions
             raise HomeAssistantError(f"Error processing {SERVICE_QUERY_FORECAST_DATA}: {e}") from e
 
         if call.return_response:
             return {"data": data}
 
-        return None
+        return None  # pragma: no cover, handle unexpected exceptions
 
     async def action_call_set_dampening(call: ServiceCall):
         """Handle action.
@@ -406,12 +399,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
             factors = call.data.get(DAMP_FACTOR, None)
             site = call.data.get(SITE, None)  # Optional site.
 
-            if factors is None:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_no_factors")
             factors = factors.strip().replace(" ", "")
-            if len(factors.split(",")) == 0:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_no_factors")
             factors = factors.split(",")
+            if factors[0] == "":
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_no_factors")
             if len(factors) not in (24, 48):
                 raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_count_not_correct")
             if site is not None:
@@ -445,6 +436,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
                 if solcast.granular_dampening:
                     _LOGGER.debug("Clear granular dampening")
                     opt[SITE_DAMP] = False  # Clear "hidden" option.
+                    solcast.set_allow_granular_dampening_reset(True)
             else:
                 await solcast.refresh_granular_dampening_data()  # Ensure latest file content gets updated
                 solcast.granular_dampening[site] = [float(factors[i]) for i in range(len(factors))]
@@ -459,7 +451,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
                     coordinator.set_data_updated(False)
 
             hass.config_entries.async_update_entry(entry, options=opt)
-        except intent.IntentHandleError as e:
+        except intent.IntentHandleError as e:  # pragma: no cover, catch unexpected exceptions
             raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: {e}") from e
 
     async def action_call_get_dampening(call: ServiceCall):
@@ -468,18 +460,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         Arguments:
             call (ServiceCall): The data to act on: an optional site.
 
+        Raises:
+            HomeAssistantError: Notify Home Assistant that an error has occurred.
+
         """
         try:
             _LOGGER.info("Action: Get dampening")
 
             data = await solcast.get_dampening(call.data.get(SITE, None))  # Optional site.
-        except intent.IntentHandleError as e:
+
+            if call.return_response:
+                return {"data": data}
+
+        except intent.IntentHandleError as e:  # pragma: no cover, handle unexpected exception
             raise HomeAssistantError(f"Error processing {SERVICE_GET_DAMPENING}: {e}") from e
 
-        if call.return_response:
-            return {"data": data}
-
-        return None
+        return None  # pragma: no cover, handle unexpected exceptions
 
     async def action_call_set_hard_limit(call: ServiceCall):
         """Handle action.
@@ -496,8 +492,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
             _LOGGER.info("Action: Set hard limit")
 
             hard_limit = call.data.get(HARD_LIMIT, "100.0")
-            if hard_limit is None:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_empty")
             to_set = []
             for limit in hard_limit.split(","):
                 limit = limit.strip()
@@ -506,23 +500,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
                         translation_domain=DOMAIN,
                         translation_key="hard_not_positive_number",
                     )
-                val = float(limit)
-                if val < 0:  # If not a positive int print message and ask for input again.
-                    raise ServiceValidationError(
-                        translation_domain=DOMAIN,
-                        translation_key="hard_not_positive_number",
-                    )
-                to_set.append(f"{val:.1f}")
+                to_set.append(f"{float(limit):.1f}")
             if len(to_set) > len(entry.options["api_key"].split(",")):
                 raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_too_many")
 
             opt = {**entry.options}
             opt[HARD_LIMIT_API] = ",".join(to_set)
             hass.config_entries.async_update_entry(entry, options=opt)
-
-        except ValueError as e:
+        except ValueError as e:  # pragma: no cover, handle unexpected exceptions
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_not_positive_number") from e
-        except intent.IntentHandleError as e:
+        except intent.IntentHandleError as e:  # pragma: no cover, handle unexpected exceptions
             raise HomeAssistantError(f"Error processing {SERVICE_SET_HARD_LIMIT}: {e}") from e
 
     async def action_call_remove_hard_limit(call: ServiceCall):
@@ -542,7 +529,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
             opt[HARD_LIMIT_API] = "100.0"
             hass.config_entries.async_update_entry(entry, options=opt)
 
-        except intent.IntentHandleError as e:
+        except intent.IntentHandleError as e:  # pragma: no cover, handle unexpected exceptions
             raise HomeAssistantError(f"Error processing {SERVICE_REMOVE_HARD_LIMIT}: {e}") from e
 
     service_actions = {
@@ -591,9 +578,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     """
     # Terminate all tasks
-    tasks_cancel_ok = await tasks_cancel(hass, entry)
-    if not tasks_cancel_ok:
-        _LOGGER.error("Tasks cancel failed")
+    await tasks_cancel(hass, entry)
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
@@ -604,12 +589,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
         hass.data[DOMAIN].pop(entry.entry_id)
     else:
-        _LOGGER.error("Unload failed")
+        _LOGGER.error("Unload failed")  # pragma: no cover, never called in tests
 
-    return unload_ok and tasks_cancel_ok
+    return unload_ok
 
 
-async def async_remove_config_entry_device(hass: HomeAssistant, entry: ConfigEntry, device: dr.DeviceEntry) -> bool:
+async def async_remove_config_entry_device(
+    hass: HomeAssistant, entry: ConfigEntry, device: dr.DeviceEntry
+) -> bool:  # pragma: no cover, never called in tests
     """Remove a device.
 
     Arguments:
@@ -645,13 +632,9 @@ async def tasks_cancel(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 cancel.cancel()
             else:
                 cancel()
-    except Exception as e:  # noqa: BLE001
-        _LOGGER.error("Cancelling tasks failed: %s: %s", e, traceback.format_exc())
-        return False
     finally:
         coordinator.solcast.tasks = {}
         coordinator.tasks = {}
-    return True
 
 
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
@@ -713,7 +696,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
                         coordinator.solcast.granular_dampening = {}
                         await coordinator.solcast.serialise_granular_dampening()
                         _LOGGER.debug("Granular dampening file reset")
-                    else:
+                    else:  # pragma: no cover, replicating is difficult under test conditions and it's only a debug message
                         _LOGGER.debug("Granular dampening file not reset")
             if damp_changed:
                 recalculate_and_refresh = True
@@ -742,7 +725,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
             # Reload
             await tasks_cancel(hass, entry)
             await hass.config_entries.async_reload(entry.entry_id)
-    except:  # noqa: E722
+    except:  # noqa: E722 # pragma: no cover, catch unexpected exceptions
         _LOGGER.debug(traceback.format_exc())
         # Restart on exception
         await tasks_cancel(hass, entry)
@@ -794,16 +777,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if entry.version < version:
             new_options = {**entry.options}
             await upgrade_function(hass, new_options)
-            try:
-                hass.config_entries.async_update_entry(entry, options=new_options, version=version)
-                upgraded()
-            except Exception as e:
-                if "unexpected keyword argument 'version'" in e:
-                    entry.version = version
-                    hass.config_entries.async_update_entry(entry, options=new_options)
-                    upgraded()
-                else:
-                    raise
+            hass.config_entries.async_update_entry(entry, options=new_options, version=version)
+            upgraded()
 
     async def __v4(hass: HomeAssistant, new_options):
         with contextlib.suppress(Exception):

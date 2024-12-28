@@ -52,6 +52,53 @@ _LOGGER = logging.getLogger(__name__)
 LIKE_SITE_ID = r"^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$"
 
 
+def validate_api_key(user_input: dict[str, Any]) -> tuple[str, int, str | None]:
+    """Validate the API key.
+
+    Arguments:
+        user_input (dict[str, Any]): The user input.
+
+    Returns:
+        tuple[str, int, str | None]: The API key, API count, and abort result.
+
+    """
+    api_key = user_input[CONF_API_KEY].replace(" ", "")
+    api_key = [s for s in api_key.split(",") if s]
+    for index, key in enumerate(api_key):
+        if re.match(LIKE_SITE_ID, key):
+            return "", 0, "API key looks like a site ID"
+        for i, k in enumerate(api_key):
+            if index != i and key == k:
+                return "", 0, "Duplicate API key specified"
+    api_count = len(api_key)
+    api_key = ",".join(api_key)
+    return api_key, api_count, None
+
+
+def validate_api_limit(user_input: dict[str, Any], api_count: int) -> tuple[str, str | None]:
+    """Validate the API limit.
+
+    Arguments:
+        user_input (dict[str, Any]): The user input.
+        api_count (int): The number of API keys.
+
+    Returns:
+        tuple[str, str | None]: The API limit, and abort result.
+
+    """
+    api_quota = user_input[API_QUOTA].replace(" ", "")
+    api_quota = [s for s in api_quota.split(",") if s]
+    for q in api_quota:
+        if not q.isnumeric():
+            return "", "API limit is not a number"
+        if int(q) < 1:
+            return "", "API limit must be one or greater"
+    if len(api_quota) > api_count:
+        return "", "There are more API limit counts entered than keys"
+    api_quota = ",".join(api_quota)
+    return api_quota, None
+
+
 @config_entries.HANDLERS.register(DOMAIN)
 class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
     """Handle the config flow."""
@@ -82,45 +129,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             SolcastSolarOptionFlowHandler: The config flow handler instance.
 
         """
-        return SolcastSolarOptionFlowHandler(config_entry)
-
-    async def __conflicting_integration(self) -> tuple[bool, str]:
-        """Search for other integrations installed having a solcastapi.py file and a viable manifest."""
-
-        def find_others() -> list[str]:
-            path = Path(Path(__file__).parent).parent
-            return list(path.rglob("solcastapi.py"))
-
-        us = str(Path(__file__).parent).rsplit("/", maxsplit=1)[-1]
-        _LOGGER.debug("Integration path: %s", us)
-        failed = False
-        conflict = ""
-        try:
-            others = await self.hass.async_add_executor_job(find_others)
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.warning("Conflict check failed: %s", e)
-            others = []
-        for sol in others:
-            try:
-                parent = str(Path(sol).parent)
-                folder = parent.rsplit("/", maxsplit=1)[-1]
-                if folder != us and Path(parent, "manifest.json").is_file():
-                    async with aiofiles.open(Path(parent, "manifest.json")) as file:
-                        manifest = json.loads(await file.read())
-                        if manifest.get("domain") == folder:
-                            _LOGGER.warning("Conflicting integration found in %s, code owners: %s", folder, manifest.get("codeowners"))
-                            entities = self.hass.states.async_entity_ids(None)
-                            _LOGGER.debug("Entities: %s", entities)
-                            found = [e for e in entities if e.startswith("sensor.solcast_")]
-                            if len(found) > 0:
-                                _LOGGER.error("Conflicting integration is running")
-                                failed = True
-                                conflict = folder
-                            else:
-                                _LOGGER.warning("Conflicting integration is present but not running")
-            except Exception as e:  # noqa: BLE001
-                _LOGGER.warning("Conflict check failed testing '%s': %s", str(sol), e)
-        return failed, conflict
+        return SolcastSolarOptionFlowHandler(config_entry)  # pragma: no cover, never called by tests
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a flow initiated by the user.
@@ -134,34 +143,15 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         """
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
-        failed, conflict = await self.__conflicting_integration()
-        if failed:
-            return self.async_abort(reason="Conflicting integration found: " + conflict)
 
         if user_input is not None:
-            # Validate API key
-            api_key = user_input[CONF_API_KEY].replace(" ", "")
-            api_key = [s for s in api_key.split(",") if s]
-            for index, key in enumerate(api_key):
-                if re.match(LIKE_SITE_ID, key):
-                    return self.async_abort(reason="API key looks like a site ID")
-                for i, k in enumerate(api_key):
-                    if index != i and key == k:
-                        return self.async_abort(reason="Duplicate API key specified")
-            api_count = len(api_key)
-            api_key = ",".join(api_key)
+            api_key, api_count, abort = validate_api_key(user_input)
+            if abort is not None:
+                return self.async_abort(reason=abort)
 
-            # Validate API limit
-            api_quota = user_input[API_QUOTA].replace(" ", "")
-            api_quota = [s for s in api_quota.split(",") if s]
-            for q in api_quota:
-                if not q.isnumeric():
-                    return self.async_abort(reason="API limit is not a number")
-                if int(q) < 1:
-                    return self.async_abort(reason="API limit must be one or greater")
-            if len(api_quota) > api_count:
-                return self.async_abort(reason="There are more API limit counts entered than keys")
-            api_quota = ",".join(api_quota)
+            api_quota, abort = validate_api_limit(user_input, api_count)
+            if abort is not None:
+                return self.async_abort(reason=abort)
 
             options = {
                 CONF_API_KEY: api_key,
@@ -220,6 +210,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         """
         self._entry = config_entry
         self._options = config_entry.options
+        self._all_config_data = None
 
     async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
         """Initialise main options flow step.
@@ -237,31 +228,13 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             try:
                 all_config_data = {**self._options}
 
-                # Validate API key
-                api_key = user_input[CONF_API_KEY].replace(" ", "")
-                api_key = [s for s in api_key.split(",") if s]
-                for index, key in enumerate(api_key):
-                    if re.match(LIKE_SITE_ID, key):
-                        return self.async_abort(reason="API key looks like a site ID")
-                    for i, k in enumerate(api_key):
-                        if index != i and key == k:
-                            return self.async_abort(reason="Duplicate API key specified")
-                api_count = len(api_key)
-                api_key = ",".join(api_key)
-                all_config_data[CONF_API_KEY] = api_key
+                all_config_data[CONF_API_KEY], api_count, abort = validate_api_key(user_input)
+                if abort is not None:
+                    return self.async_abort(reason=abort)
 
-                # Validate API limit
-                api_quota = user_input[API_QUOTA].replace(" ", "")
-                api_quota = [s for s in api_quota.split(",") if s]
-                for q in api_quota:
-                    if not q.isnumeric():
-                        return self.async_abort(reason="API limit is not a number")
-                    if int(q) < 1:
-                        return self.async_abort(reason="API limit must be one or greater")
-                if len(api_quota) > api_count:
-                    return self.async_abort(reason="There are more API limit counts entered than keys")
-                api_quota = ",".join(api_quota)
-                all_config_data[API_QUOTA] = api_quota
+                all_config_data[API_QUOTA], abort = validate_api_limit(user_input, api_count)
+                if abort is not None:
+                    return self.async_abort(reason=abort)
 
                 # Validate the custom hours sensor
                 custom_hour_sensor = user_input[CUSTOM_HOUR_SENSOR]
@@ -277,8 +250,6 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     if not h.replace(".", "", 1).isdigit():
                         return self.async_abort(reason="Hard limit is not a positive number")
                     val = float(h)
-                    if val < 0:
-                        return self.async_abort(reason="Hard limit is not a positive number")
                     to_set.append(f"{val:.1f}")
                 if len(to_set) > api_count:
                     return self.async_abort(reason="There are more hard limits entered than keys")
@@ -301,12 +272,14 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 site_detailed = user_input[BRK_SITE_DETAILED]
                 all_config_data[BRK_SITE_DETAILED] = site_detailed
 
-                self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
+                self._all_config_data = all_config_data
 
                 if user_input.get(CONFIG_DAMP):
                     return await self.async_step_dampen()
 
-                return self.async_create_entry(title=TITLE, data=None)
+                self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
+
+                return self.async_create_entry(title=TITLE, data=None)  # pragma: no cover, works at runtime never called by tests
             except Exception as e:  # noqa: BLE001
                 errors["base"] = str(e)
 
@@ -356,10 +329,6 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
     async def async_step_dampen(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Manage the hourly dampening factors sub-option.
 
-        Note that the config option "site_damp" is not exposed in any way to the user. This is a
-        hidden option in this options flow used to trigger reset of per-site dampening should the
-        overall dampening be set.
-
         Arguments:
             user_input (dict[str, Any] | None): The input provided by the user. Defaults to None.
 
@@ -369,17 +338,20 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         """
 
         errors = {}
-        extant = {f"damp{factor:02d}": self._options[f"damp{factor:02d}"] for factor in range(24)}
+        if self._all_config_data is None:
+            all_config_data = {**self._options}
+        else:
+            all_config_data = self._all_config_data
+        extant = {f"damp{factor:02d}": all_config_data[f"damp{factor:02d}"] for factor in range(24)}
 
         if user_input is not None:
             try:
-                all_config_data = {**self._options}
                 for factor in range(24):
                     all_config_data[f"damp{factor:02d}"] = user_input[f"damp{factor:02d}"]
                 all_config_data[SITE_DAMP] = False
 
                 self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
-                return self.async_create_entry(title=TITLE, data=None)
+                return self.async_create_entry(title=TITLE, data=None)  # pragma: no cover, works at runtime never called by tests
             except:  # noqa: E722
                 errors["base"] = "unknown"
 

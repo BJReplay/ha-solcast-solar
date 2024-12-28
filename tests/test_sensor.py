@@ -9,6 +9,7 @@ import pytest
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.components.solcast_solar.const import DOMAIN
+from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.const import STATE_UNAVAILABLE, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
 
@@ -346,6 +347,7 @@ async def test_sensor_states(
     """Test state and attributes of sensors including expected state class and unit of measurement."""
 
     entry = await async_init_integration(hass, settings)
+    coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
     try:
         assert len(hass.states.async_all("sensor")) == len(SENSORS) + (3 if key == "1" else 4)
@@ -377,5 +379,42 @@ async def test_sensor_states(
             if "state_class" in attrs:
                 assert state.attributes["state_class"] == attrs["state_class"]
 
+        coordinator._data_updated = False
+        await coordinator.update_integration_listeners()
+        coordinator._data_updated = True
+        await coordinator.update_integration_listeners()
+
+        assert coordinator.get_sensor_value("badkey") is None
+        assert coordinator.get_sensor_extra_attributes("badkey") is None
+        assert coordinator.get_site_sensor_value("badroof", "badkey") is None
+        assert coordinator.get_site_sensor_extra_attributes("badroof", "badkey") is None
+
     finally:
         assert await async_cleanup_integration_tests(hass, hass.data[DOMAIN][entry.entry_id].solcast._config_dir)
+
+
+'''
+def get_sensor_value(self, key: str): # TODO: Presently never returns None
+    """Raise an exception getting the value of a sensor."""
+    return 0 / 1
+
+
+async def test_sensor_unavailable(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+) -> None:
+    """Test state and attributes of sensors including expected state class and unit of measurement."""
+
+    SolcastUpdateCoordinator.get_sensor_value = get_sensor_value
+    SolcastUpdateCoordinator.get_sensor_extra_attributes = get_sensor_value
+    entry = await async_init_integration(hass, DEFAULT_INPUT1)
+
+    try:
+        for sensor in SENSORS:
+            state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
+            assert state
+            assert state.state == STATE_UNAVAILABLE
+
+    finally:
+        assert await async_cleanup_integration_tests(hass, hass.data[DOMAIN][entry.entry_id].solcast._config_dir)
+'''

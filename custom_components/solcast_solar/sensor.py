@@ -362,10 +362,6 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         """
         super().__init__(coordinator)
 
-        # No longer used. Was used to alter the custom X hour sensor friendly name.
-        # if entity_description.key == "forecast_custom_hours":
-        #    self._attr_translation_placeholders = {"forecast_custom_hours": f"{coordinator.solcast.custom_hour_sensor}"}
-
         self.entity_description = entity_description
         self._coordinator = coordinator
         self._update_policy = get_sensor_update_policy(entity_description.key)
@@ -373,11 +369,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         self._attributes = {}
         self._attr_extra_state_attributes = {}
 
-        try:
-            self._sensor_data = self._coordinator.get_sensor_value(entity_description.key)
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
-            self._sensor_data = None
+        self._sensor_data = self._coordinator.get_sensor_value(entity_description.key)
 
         if self._sensor_data is None:
             self._attr_available = False
@@ -394,24 +386,20 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             ATTR_CONFIGURATION_URL: "https://toolkit.solcast.com.au/",
         }
 
-    async def async_added_to_hass(self):
+    async def async_added_to_hass(self) -> None:
         """Entity about to be added to hass, so set recorder excluded attributes."""
         await super().async_added_to_hass()
-        try:
-            if (
-                self.entity_id.startswith("sensor.solcast_pv_forecast_forecast_today")
-                or self.entity_id.startswith("sensor.solcast_pv_forecast_forecast_tomorrow")
-                or self.entity_id.startswith("sensor.solcast_pv_forecast_forecast_day")
-            ):
-                exclude = ["detailedForecast", "detailedHourly"]
-                if self._coordinator.solcast.options.attr_brk_site_detailed:
-                    for s in self._coordinator.solcast.sites:
-                        exclude.append("detailedForecast-" + s["resource_id"])
-                        exclude.append("detailedHourly-" + s["resource_id"])
-                self._state_info["unrecorded_attributes"] = self._state_info["unrecorded_attributes"] | frozenset(exclude)
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error("Exception setting excluded attributes: %s", e)
-            _LOGGER.error(traceback.format_exc())
+        if (
+            self.entity_id.startswith("sensor.solcast_pv_forecast_forecast_today")
+            or self.entity_id.startswith("sensor.solcast_pv_forecast_forecast_tomorrow")
+            or self.entity_id.startswith("sensor.solcast_pv_forecast_forecast_day")
+        ):
+            exclude = ["detailedForecast", "detailedHourly"]
+            if self._coordinator.solcast.options.attr_brk_site_detailed:
+                for s in self._coordinator.solcast.sites:
+                    exclude.append("detailedForecast-" + s["resource_id"])
+                    exclude.append("detailedHourly-" + s["resource_id"])
+            self._state_info["unrecorded_attributes"] = self._state_info["unrecorded_attributes"] | frozenset(exclude)
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
@@ -421,11 +409,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             dict[str, Any] | None: The current attributes of a sensor.
 
         """
-        try:
-            return self._coordinator.get_sensor_extra_attributes(self.entity_description.key)
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
-            return None
+        return self._coordinator.get_sensor_extra_attributes(self.entity_description.key)
 
     @property
     def native_value(self) -> int | dt | float | str | bool | None:
@@ -463,7 +447,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
         try:
             self._sensor_data = self._coordinator.get_sensor_value(self.entity_description.key)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
             _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
             self._sensor_data = None
         if SENSOR_UPDATE_LOGGING:
@@ -524,7 +508,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
 
         try:
             self._sensor_data = coordinator.get_site_sensor_value(self._rooftop_id, key)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
             _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
             self._sensor_data = None
 
@@ -541,7 +525,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         self._unique_id = f"solcast_api_{entity_description.name}"
 
     @property
-    def name(self):
+    def name(self) -> str:
         """Return the name of the device.
 
         Returns:
@@ -551,17 +535,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         return f"{self.entity_description.name}"
 
     @property
-    def friendly_name(self):
-        """Return the friendly name of the device.
-
-        Returns:
-            str: The device friendly name, which is the same as device name.
-
-        """
-        return self.entity_description.name
-
-    @property
-    def unique_id(self):
+    def unique_id(self) -> str | None:
         """Return the unique ID of the sensor.
 
         Returns:
@@ -575,7 +549,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         """Return the state extra attributes of the sensor."""
         try:
             return self._coordinator.get_site_sensor_extra_attributes(self._rooftop_id, self._key)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
             _LOGGER.error("Unable to get sensor attributes: %s: %s", e, traceback.format_exc())
             return None
 
@@ -599,7 +573,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         """
         return False
 
-    async def async_added_to_hass(self):
+    async def async_added_to_hass(self) -> None:
         """Entity is added to Home Assistant."""
         await super().async_added_to_hass()
         # self.async_on_remove(self._coordinator.async_add_listener(self._handle_coordinator_update))
@@ -613,7 +587,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
             self._sensor_data = self._coordinator.get_site_sensor_value(self._rooftop_id, self._key)
             if SENSOR_UPDATE_LOGGING:
                 _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
             _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
             self._sensor_data = None
         self.async_write_ha_state()

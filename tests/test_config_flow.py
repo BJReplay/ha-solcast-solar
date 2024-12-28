@@ -1,13 +1,17 @@
 """Test the Solcast Solar config flow."""
 
 import copy
+import json
 import logging
+from pathlib import Path
 from unittest.mock import AsyncMock
 
+from homeassistant import config_entries
 from homeassistant.components.recorder import Recorder
 
 # As a core component, these imports would be homeassistant.components.solcast_solar and not config.custom_components.solcast_solar
 from homeassistant.components.solcast_solar.config_flow import (
+    CONFIG_DAMP,
     SolcastSolarFlowHandler,
     SolcastSolarOptionFlowHandler,
 )
@@ -57,12 +61,23 @@ MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1)
 MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2)
 
 
+async def test_single_instance(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+) -> None:
+    """Test allow a single config only."""
+    MockConfigEntry(domain=DOMAIN).add_to_hass(hass)
+
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
+    assert result["type"] is FlowResultType.ABORT
+    assert result["reason"] == "single_instance_allowed"
+
+
 async def test_create_entry(hass: HomeAssistant) -> None:
     """Test that a valid user input creates an entry."""
 
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
-    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
 
     user_input = {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}
     result = await flow.async_step_user(user_input)
@@ -140,7 +155,6 @@ async def api_quota(hass: HomeAssistant, step, expect):
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY2)
     flow.hass = hass
-    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
     user_input = copy.deepcopy(DEFAULT_INPUT2)
 
     user_input[API_QUOTA] = "10,10"
@@ -162,7 +176,10 @@ async def test_api_key(hass: HomeAssistant) -> None:
 
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
-    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
+
+    result = await flow.async_step_user()
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "user"
 
     await api_key(flow.async_step_user, FlowResultType.CREATE_ENTRY)
 
@@ -172,7 +189,6 @@ async def test_api_quota(hass: HomeAssistant) -> None:
 
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
-    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
 
     await api_quota(hass, flow.async_step_user, FlowResultType.CREATE_ENTRY)
 
@@ -182,7 +198,6 @@ async def test_option_api_key(hass: HomeAssistant) -> None:
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
-    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
 
     await api_key(flow.async_step_init, FlowResultType.FORM)
 
@@ -192,7 +207,6 @@ async def test_option_api_quota(hass: HomeAssistant) -> None:
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
-    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
 
     await api_key(flow.async_step_init, FlowResultType.FORM)
 
@@ -202,7 +216,6 @@ async def test_option_custom_hour_sensor(hass: HomeAssistant) -> None:
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
-    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
 
     user_input = copy.deepcopy(DEFAULT_INPUT1)
     user_input[CUSTOM_HOUR_SENSOR] = 0
@@ -225,7 +238,6 @@ async def test_option_hard_limit(hass: HomeAssistant) -> None:
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
-    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
     user_input = copy.deepcopy(DEFAULT_INPUT1)
 
     user_input[HARD_LIMIT_API] = "invalid"
@@ -249,7 +261,6 @@ async def test_option_hard_limit(hass: HomeAssistant) -> None:
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY2)
     flow.hass = hass
-    flow.__conflicting_integration = AsyncMock(return_value=(False, ""))
     user_input = copy.deepcopy(DEFAULT_INPUT2)
 
     user_input[HARD_LIMIT_API] = "6,6.0"
@@ -261,6 +272,42 @@ async def test_option_hard_limit(hass: HomeAssistant) -> None:
     assert result["type"] == FlowResultType.FORM
 
 
+async def test_step_to_dampen(hass: HomeAssistant) -> None:
+    """Test opening the dampening step."""
+
+    user_input = copy.deepcopy(DEFAULT_INPUT1)
+    # user_input[SITE_DAMP] = True
+    user_input[CONFIG_DAMP] = True
+
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options=user_input)
+    flow = SolcastSolarOptionFlowHandler(entry)
+    flow.hass = hass
+
+    result = await flow.async_step_init(user_input)
+    await hass.async_block_till_done()
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "dampen"
+
+
+async def test_dampen(hass: HomeAssistant) -> None:
+    """Test dampening step."""
+
+    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
+    flow.hass = hass
+
+    result = await flow.async_step_dampen()
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "dampen"
+
+    user_input = {f"damp{factor:02d}": 1.0 for factor in range(24)}
+    result = await flow.async_step_dampen(user_input)
+    assert result["type"] == FlowResultType.FORM
+
+    user_input = {f"damp{factor:02d}": 0.0 for factor in range(24)}
+    result = await flow.async_step_dampen(user_input)
+    assert result["type"] == FlowResultType.FORM
+
+
 async def test_entry_options_upgrade(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -269,38 +316,56 @@ async def test_entry_options_upgrade(
 
     START_VERSION = 3
     FINAL_VERSION = 14
-    options = {
+    V3OPTIONS = {
         CONF_API_KEY: "1",
         "const_disableautopoll": False,
     }
-    entry = await async_init_integration(hass, options, version=START_VERSION)
+    entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
     assert hass.data[DOMAIN].get("has_loaded", False) is True
+    config_dir = hass.data[DOMAIN][entry.entry_id].solcast._config_dir
 
-    assert entry.version == FINAL_VERSION
-    # V4
-    assert entry.options.get("const_disableautopoll") is None
-    # V5
-    for a in range(24):
-        assert entry.options.get(f"damp{a:02d}") == 1.0
-    # V6
-    assert entry.options.get(CUSTOM_HOUR_SENSOR) == 1
-    # V7
-    assert entry.options.get(KEY_ESTIMATE) == "estimate"
-    # V8
-    assert entry.options.get(BRK_ESTIMATE) is True
-    assert entry.options.get(BRK_ESTIMATE10) is True
-    assert entry.options.get(BRK_ESTIMATE90) is True
-    assert entry.options.get(BRK_SITE) is True
-    assert entry.options.get(BRK_HALFHOURLY) is True
-    assert entry.options.get(BRK_HOURLY) is True
-    # V9
-    assert entry.options.get(API_QUOTA) == "10"
-    # V12
-    assert entry.options.get(AUTO_UPDATE) == 0
-    assert entry.options.get(BRK_SITE_DETAILED) is False
-    assert entry.options.get(SITE_DAMP) is False  # "Hidden"-ish option
-    # V14
-    assert entry.options.get(HARD_LIMIT) is None
-    assert entry.options.get(HARD_LIMIT_API) == "100.0"
+    try:
+        assert entry.version == FINAL_VERSION
+        # V4
+        assert entry.options.get("const_disableautopoll") is None
+        # V5
+        for a in range(24):
+            assert entry.options.get(f"damp{a:02d}") == 1.0
+        # V6
+        assert entry.options.get(CUSTOM_HOUR_SENSOR) == 1
+        # V7
+        assert entry.options.get(KEY_ESTIMATE) == "estimate"
+        # V8
+        assert entry.options.get(BRK_ESTIMATE) is True
+        assert entry.options.get(BRK_ESTIMATE10) is True
+        assert entry.options.get(BRK_ESTIMATE90) is True
+        assert entry.options.get(BRK_SITE) is True
+        assert entry.options.get(BRK_HALFHOURLY) is True
+        assert entry.options.get(BRK_HOURLY) is True
+        # V9
+        assert entry.options.get(API_QUOTA) == "10"
+        # V12
+        assert entry.options.get(AUTO_UPDATE) == 0
+        assert entry.options.get(BRK_SITE_DETAILED) is False
+        assert entry.options.get(SITE_DAMP) is False  # "Hidden"-ish option
+        # V14
+        assert entry.options.get(HARD_LIMIT) is None
+        assert entry.options.get(HARD_LIMIT_API) == "100.0"
 
-    assert await async_cleanup_integration_tests(hass, hass.data[DOMAIN][entry.entry_id].solcast._config_dir)
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Test API limit gets imported from existing cache in upgrade to V9
+        data_file = Path(f"{config_dir}/solcast-usage.json")
+        data_file.write_text(
+            json.dumps({"daily_limit": 50, "daily_limit_consumed": 34, "reset": "2024-01-01T00:00:00+00:00"}), encoding="utf-8"
+        )
+        entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
+        assert hass.data[DOMAIN].get("has_loaded", False) is True
+        assert entry.options.get(API_QUOTA) == "50"
+
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+    finally:
+        assert await async_cleanup_integration_tests(hass, config_dir)

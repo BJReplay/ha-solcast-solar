@@ -80,7 +80,7 @@ if API == Api.HOBBYIST:
     FORECAST10: Final = "pv_estimate10"
     FORECAST90: Final = "pv_estimate90"
 
-if API == Api.ADVANCED:
+if API == Api.ADVANCED:  # pragma: no cover, possible future use
     FORECAST: Final = "pv_power_advanced"
     FORECAST10: Final = "pv_power_advanced10"
     FORECAST90: Final = "pv_power_advanced90"
@@ -124,7 +124,7 @@ _LOGGER = logging.getLogger(__name__)
 FunctionName = lambda n=0: sys._getframe(n + 1).f_code.co_name  # noqa: E731, SLF001
 
 
-class DateTimeEncoder(json.JSONEncoder):
+class DateTimeEncoder(json.JSONEncoder):  # pragma: no cover
     """Helper to convert datetime dict values to ISO format."""
 
     def default(self, o: Any) -> str | Any:
@@ -134,7 +134,7 @@ class DateTimeEncoder(json.JSONEncoder):
         return None
 
 
-class DateKeyEncoder(json.JSONEncoder):
+class DateKeyEncoder(json.JSONEncoder):  # pragma: no cover
     """Helper to convert datetime dict keys and values to ISO format."""
 
     def _preprocess_date(self, o: Any):
@@ -158,7 +158,7 @@ class DateKeyEncoder(json.JSONEncoder):
         return super().iterencode(self._preprocess_date(o))
 
 
-class NoIndentEncoder(json.JSONEncoder):
+class NoIndentEncoder(json.JSONEncoder):  # pragma: no cover
     """Helper to output semi-indented json."""
 
     def iterencode(self, o: Any, _one_shot: bool = False):
@@ -504,19 +504,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         # then should an exception occur during conversion from dict to JSON string it
         # will result in an empty file.
         try:
-            if not self._loaded_data:
+            if not self._loaded_data:  # pragma: no cover, avoids corrupting the cache file due to unexpected exceptions
                 _LOGGER.debug("Not saving forecast cache in __serialise_data() as no data has been loaded yet")
                 return False
             # If the _loaded_data flag is True, yet last_updated is 1/1/1970 then data has not been loaded
             # properly for some reason, or no forecast has been received since startup so abort the save.
-            if data["last_updated"] == dt.fromtimestamp(0, datetime.UTC):
+            if data["last_updated"] == dt.fromtimestamp(
+                0, datetime.UTC
+            ):  # pragma: no cover, avoids corrupting the cache file due to unexpected exceptions
                 _LOGGER.error(
                     "Internal error: Forecast cache %s last updated date has not been set, not saving data",
                     filename,
                 )
                 return False
             payload = json.dumps(data, ensure_ascii=False, cls=DateTimeEncoder)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in __serialise_data(): %s: %s", e, traceback.format_exc())
             serialise = False
         if serialise:
@@ -527,12 +529,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     "Saved %s forecast cache",
                     "dampened" if filename == self._filename else "un-dampened",
                 )
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
                 _LOGGER.error("Exception writing forecast data: %s", e)
                 return False
         return True
 
-    async def get_sites_api_request(self, url: str, params: dict, headers: dict, ssl: bool) -> ClientResponse:
+    async def get_sites_api_request(
+        self, url: str, params: dict, headers: dict, ssl: bool
+    ) -> ClientResponse:  # pragma: no cover, replaced during testing
         """Get the sites API request.
 
         Separate method to allow for mocking in tests.
@@ -597,9 +601,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         )
                         try:
                             response_json = await response.json(content_type=None)
-                        except json.decoder.JSONDecodeError:
+                        except json.decoder.JSONDecodeError:  # pragma: no cover, handle unexpected exceptions
                             _LOGGER.error("JSONDecodeError in __sites_data(): Solcast could be having problems")
-                        except:
+                        except:  # pragma: no cover, handle unexpected exceptions
                             raise
 
                         if status == 200:
@@ -614,12 +618,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     await file.write(json.dumps(response_json, ensure_ascii=False))
                                 success = True
                                 break
-                            _LOGGER.error(
+                            _LOGGER.error(  # pragma: no cover, simulator always returns sites
                                 "No sites for the API key %s are configured at solcast.com",
                                 self.__redact_api_key(api_key),
                             )
-                            break
-                        if cache_exists:
+                            break  # pragma: no cover, simulator always returns sites
+                        if cache_exists:  # pragma: no cover, simulator always returns sites
                             use_cache_immediate = True
                             break
                         if status == 401:
@@ -628,16 +632,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 self.__redact_api_key(api_key),
                             )
                             break
-                        if retry > 0:
+                        if retry > 0:  # pragma nocover, simulator always returns sites
                             _LOGGER.debug(
                                 "Will retry get sites, retry %d",
                                 (retries - retry) + 1,
                             )
                             await asyncio.sleep(5)
-                        retry -= 1
+                        retry -= 1  # pragma nocover, simulator always returns sites
                     if status == 401 and not use_cache_immediate:
                         continue
-                    if not success:
+                    if not success:  # pragma nocover, simulator always returns sites
                         if not use_cache_immediate:
                             _LOGGER.warning(
                                 "Retries exhausted gathering sites, last call result: %s, using cached data if it exists",
@@ -682,14 +686,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             "Sites loaded%s",
                             (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
                         )
-                else:
+                else:  # pragma nocover, simulator always returns sites
                     _LOGGER.error(
                         "%s HTTP status error %s in __sites_data() while gathering sites",
                         self.options.host,
                         self.__translate(status),
                     )
                     raise Exception("HTTP __sites_data() error: gathering sites")  # noqa: TRY002, TRY301
-        except (ClientConnectionError, ConnectionRefusedError, TimeoutError) as e:
+        except (ClientConnectionError, ConnectionRefusedError, TimeoutError) as e:  # pragma: no cover, handle unexpected exceptions
             try:
                 _LOGGER.warning("Error retrieving sites, attempting to continue: %s", e)
                 error = False
@@ -733,7 +737,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
             except:  # noqa: E722
                 pass
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in __sites_data(): %s: %s", e, traceback.format_exc())
 
     async def __serialise_usage(self, api_key: str, reset: bool = False):
@@ -759,14 +763,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 "reset": self._api_used_reset[api_key],
             }
             payload = json.dumps(json_content, ensure_ascii=False, cls=DateTimeEncoder)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in __serialise_usage(): %s: %s", e, traceback.format_exc())
             serialise = False
         if serialise:
             try:
                 async with self._serialise_lock, aiofiles.open(filename, "w") as file:
                     await file.write(payload)
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
                 _LOGGER.error(
                     "Exception writing usage cache for %s: %s",
                     self.__redact_msg_api_key(filename, api_key),
@@ -783,7 +787,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         The limit is specified by the user in integration configuration.
         """
         try:
-            if not self.sites_loaded:
+            if not self.sites_loaded:  # pragma nocover, simulator always returns sites
                 _LOGGER.error("Internal error. Sites must be loaded before __sites_usage() is called")
                 return
 
@@ -796,7 +800,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if len(api_quota) < index + 1:
                         api_quota.append(api_quota[index - 1])
                 quota = {api_keys[index].strip(): int(api_quota[index].strip()) for index in range(len(api_quota))}
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
                 _LOGGER.error("Exception in __sites_usage(): %s", e)
                 _LOGGER.warning(
                     "Could not interpret API limit configuration string (%s), using default of 10",
@@ -817,13 +821,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     async with aiofiles.open(cache_filename) as file:
                         try:
                             usage = json.loads(await file.read(), cls=JSONDecoder)
-                        except json.decoder.JSONDecodeError:
+                        except json.decoder.JSONDecodeError:  # pragma: no cover, handle unexpected exceptions
                             _LOGGER.error(
                                 "The usage cache for %s is corrupt, re-creating cache with zero usage",
                                 self.__redact_api_key(api_key),
                             )
                             cache = False
-                        except Exception as e:  # noqa: BLE001
+                        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
                             _LOGGER.error(
                                 "Load usage cache exception %s for %s, re-creating cache with zero usage",
                                 e,
@@ -875,7 +879,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     self._api_limit[api_key],
                 )
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in __sites_usage(): %s: %s", e, traceback.format_exc())
 
     async def reset_usage_cache(self):
@@ -914,13 +918,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 async with aiofiles.open(single_sites) as file:
                     try:
                         single_api_key = json.loads(await file.read(), cls=JSONDecoder)["sites"][0]["api_key"]
-                    except json.decoder.JSONDecodeError:
+                    except json.decoder.JSONDecodeError:  # pragma: no cover, handle unexpected exceptions
                         _LOGGER.error(
                             "The usage cache for %s is corrupt",
                             single_sites,
                         )
                         return
-                    except Exception:  # noqa: BLE001
+                    except Exception:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
                         _LOGGER.warning("Could not find API key in sites cache, so assuming first API key, which may be wrong")
                         single_api_key = api_keys[0]
                 multi_sites = f"{self._config_dir}/solcast-sites-{single_api_key}.json"
@@ -964,7 +968,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             all_sites, all_usage = await self.hass.async_add_executor_job(list_files)
             remove_orphans(all_sites, multi_sites)
             remove_orphans(all_usage, multi_usage)
-        except:  # noqa: E722
+        except:  # noqa: E722 # pragma: no cover, handle unexpected exceptions
             _LOGGER.debug(traceback.format_exc())
 
         self.tasks["sites_load"] = asyncio.create_task(self.__sites_data())
@@ -974,9 +978,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if self.sites_loaded:
             await self.__sites_usage()
 
-    async def reset_api_usage(self):
-        """Reset the daily API usage counter."""
-        if self.is_stale_usage_cache():
+    async def reset_api_usage(self, force: bool = False):
+        """Reset the daily API usage counter.
+
+        Arguments:
+            force (bool): Force the reset even if the cache is not stale.
+
+        """
+        if force or self.is_stale_usage_cache():
             _LOGGER.debug("Reset API usage")
             for api_key in self._api_used:
                 self._api_used[api_key] = 0
@@ -996,9 +1005,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for damp_list in self.granular_dampening.values():
                 if first_site_len == 0:
                     first_site_len = len(damp_list)
-                elif len(damp_list) != first_site_len:
-                    _LOGGER.warning(
-                        "Number of dampening factors for all sites must be the same, dampening will be ignored until this is resolved"
+                elif len(damp_list) != first_site_len:  # pragma: no cover, already checked elsewhere so should never occur
+                    _LOGGER.error(
+                        "Internal error: Number of dampening factors for all sites must be the same, dampening will be ignored until this is resolved"
                     )
                     return False
             return True
@@ -1020,10 +1029,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     cls=NoIndentEncoder,
                     indent=2,
                 )
-            else:
-                _LOGGER.warning("Not writing granular dampening file: %s", filename)
+            else:  # pragma: no cover, should never occur
+                _LOGGER.error("Internal error: Not writing granular dampening file: %s", filename)
                 serialise = False
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error(
                 "Exception in serialise_granular_dampening(): %s: %s",
                 e,
@@ -1035,7 +1044,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 async with self._serialise_lock, aiofiles.open(filename, "w") as file:
                     await file.write(payload)
                 self._granular_dampening_mtime = Path(filename).stat().st_mtime
-            except Exception as e:  # noqa: BLE001
+            except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
                 _LOGGER.error("Exception writing site dampening for %s: %s", filename, e)
             finally:
                 _LOGGER.debug(
@@ -1043,7 +1052,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT),
                 )
 
-    async def __migrate_granular_dampening(self) -> bool:
+    async def __migrate_granular_dampening(self) -> bool:  # pragma: no cover, migration of legacy file
         """Migrate from legacy per-site dampening to granular dampening.
 
         Returns:
@@ -1064,7 +1073,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if self.granular_dampening:
                         _LOGGER.debug("Granular dampening: %s", str(self.granular_dampening))
                     Path(legacy_file).unlink()
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
                     _LOGGER.error(
                         "Exception in __migrate_granular_dampening(): %s: %s",
                         e,
@@ -1092,7 +1101,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             bool: Granular dampening in use.
 
         """
-        if await self.__migrate_granular_dampening():
+        if await self.__migrate_granular_dampening():  # pragma: no cover, migration of legacy file
             return True
 
         def option(enable: bool, set_allow_reset: bool = False):
@@ -1128,14 +1137,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 )
                                 self.granular_dampening = {}
                                 return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
-                            if len(damp_list) not in (24, 48):
+                            if len(damp_list) not in (24, 48):  # pragma: no cover, already checked elsewhere so should never occur
                                 _LOGGER.error(
                                     "Number of dampening factors for site %s must be 24 or 48 in %s, dampening ignored",
                                     site,
                                     filename,
                                 )
                                 error = True
-                        if error:
+                        if error:  # pragma: no cover, only occurs on internal error
                             self.granular_dampening = {}
                             return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
                         _LOGGER.debug("Granular dampening: %s", str(self.granular_dampening))
@@ -1148,7 +1157,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
             finally:
                 self._granular_dampening_mtime = Path(filename).stat().st_mtime
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error(
                 "Exception in granular_dampening_data(): %s: %s",
                 e,
@@ -1177,7 +1186,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         "Granular dampening file mtime: %s",
                         dt.fromtimestamp(mtime, self._tz).strftime(DATE_FORMAT),
                     )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error(
                 "Exception in refresh_granular_dampening_data(): %s: %s",
                 e,
@@ -1187,6 +1196,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     def allow_granular_dampening_reset(self):
         """Allow options change to reset the granular dampening file to an empty dictionary."""
         return self._granular_allow_reset
+
+    def set_allow_granular_dampening_reset(self, enable: bool):
+        """Set/clear allow reset granular dampening file to an empty dictionary by options change."""
+        self._granular_allow_reset = enable
 
     async def get_dampening(self, site: str) -> list:
         """Retrieve the currently set dampening factors.
@@ -1266,7 +1279,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 translation_domain=DOMAIN,
                 translation_key="damp_use_all",
                 translation_placeholders={"site": site},
-            )
+            )  # pragma: no cover, not expected to be reached
 
     '''
     async def get_weather(self):
@@ -1337,7 +1350,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     "%s data loaded",
                                     "Dampened" if filename == self._filename else "Un-dampened",
                                 )
-                            if json_version != JSON_VERSION:
+                            if json_version != JSON_VERSION:  # pragma: no cover, tested separately
                                 _LOGGER.info(
                                     "Upgrading %s version from v%d to v%d",
                                     filename,
@@ -1384,18 +1397,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             site = site["resource_id"]
                             if site not in cache_sites or len(self._data["siteinfo"][site].get("forecasts", [])) == 0:
                                 new_sites[site] = api_key
-                            if (
+                            if (  # pragma: no cover, tested separately
                                 api_key not in old_api_keys
                             ):  # If a new site is seen in conjunction with an API key change then reset the usage.
                                 reset_usage = True
-                    except Exception as e:
+                    except Exception as e:  # pragma: no cover, handle unexpected exceptions
                         raise f"Exception while adding new sites: {e}" from e
                     with contextlib.suppress(Exception):
                         del self.hass.data[DOMAIN]["old_api_key"]
 
                     if reset_usage:
                         _LOGGER.info("An API key has changed, resetting usage")
-                        await self.reset_api_usage()
+                        await self.reset_api_usage(force=True)
 
                     if len(new_sites.keys()) > 0:
                         # Some site data does not exist yet so get it.
@@ -1417,7 +1430,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                     # Check for sites that need to be removed.
                     remove_sites = []
-                    try:
+                    try:  # pragma: no cover, tested separately
                         configured_sites = [site["resource_id"] for site in self.sites]
                         for site in cache_sites:
                             if site not in configured_sites:
@@ -1428,14 +1441,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     self._filename_undampened,
                                 )
                                 remove_sites.append(site)
-                    except Exception as e:
+                    except Exception as e:  # pragma: no cover, handle unexpected exceptions
                         raise f"Exception while determining stale sites for {self._filename}, {self._filename_undampened}: {e}" from e
 
-                    for site in remove_sites:
+                    for site in remove_sites:  # pragma: no cover, tested separately
                         with contextlib.suppress(Exception):
                             del self._data["siteinfo"][site]
                             del self._data_undampened["siteinfo"][site]
-                    if len(remove_sites) > 0:
+                    if len(remove_sites) > 0:  # pragma: no cover, tested separately
                         serialise = True
 
                     if serialise:
@@ -1470,13 +1483,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # Create an up to date forecast.
                     if not await self.build_forecast_data():
                         status = "Failed to build forecast data (corrupt config/solcast.json?)"
-            else:
+            else:  # pragma: no cover, will never occur under test conditions
                 _LOGGER.error("Site count is zero in load_saved_data(); the get sites must have failed, and there is no sites cache")
                 status = "Site count is zero, add sites"
-        except json.decoder.JSONDecodeError:
+        except json.decoder.JSONDecodeError:  # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("The cached data in solcast.json is corrupt in load_saved_data()")
             status = "The cached data in /config/solcast.json is corrupted, suggest removing or repairing it"
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in load_saved_data(): %s", traceback.format_exc())
             status = f"Exception in load_saved_data(): {e}"
         return status
@@ -1504,7 +1517,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 return False
             self._loaded_data = False
             await self.load_saved_data()
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Action failed deleting old solcast.json file: %s: %s", e, traceback.format_exc())
             return False
         return True
@@ -1529,7 +1542,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             start_index, end_index = self.__get_forecast_list_slice(data_forecasts, args[0], args[1], search_past=True)
             forecast_slice = data_forecasts[start_index:end_index]
 
-            if SENSOR_DEBUG_LOGGING:
+            if SENSOR_DEBUG_LOGGING:  # pragma: no cover, debug logging
                 _LOGGER.debug(
                     "Get forecast list: (%ss) start %s end %s start_index %d end_index %d slice.len %d site %s un-dampened %s",
                     round(time.time() - start_time, 4),
@@ -1544,7 +1557,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             return tuple({**data, "period_start": data["period_start"].astimezone(self._tz)} for data in forecast_slice)
 
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Action failed to get list of forecasts: %s: %s", e, traceback.format_exc())
             return None
 
@@ -1596,7 +1609,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             float: Total site kW forecast today.
 
         """
-        if self._tally.get(site) is None:
+        if self._tally.get(site) is None:  # pragma: no cover, will never occur under test conditions
             _LOGGER.warning("Site total kW forecast today is currently unavailable for %s", site)
         return self._tally.get(site)
 
@@ -1611,7 +1624,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
         target_site = tuple(_site for _site in self.sites if _site["resource_id"] == site)
-        if len(target_site) != 1:
+        if len(target_site) != 1:  # pragma: no cover, will never occur under test conditions
             raise ValueError(f"Unable to find site {site}")
         site: dict[str, Any] = target_site[0]
         result = {
@@ -1650,7 +1663,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return dt.now().astimezone(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
-    def get_now_utc(self) -> dt:
+    def get_now_utc(self) -> dt:  # pragma: no cover, replaced when testing
         """Datetime helper.
 
         Returns:
@@ -1659,7 +1672,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return dt.now(self._tz).replace(second=0, microsecond=0).astimezone(datetime.UTC)
 
-    def get_real_now_utc(self) -> dt:
+    def get_real_now_utc(self) -> dt:  # pragma: no cover, replaced when testing
         """Datetime helper.
 
         Returns:
@@ -1668,7 +1681,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return dt.now(self._tz).astimezone(datetime.UTC)
 
-    def get_hour_start_utc(self) -> dt:
+    def get_hour_start_utc(self) -> dt:  # pragma: no cover, replaced when testing
         """Datetime helper.
 
         Returns:
@@ -1713,16 +1726,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 ),
                             }
                         )
-                    except IndexError:
-                        ht.append(
-                            {
-                                "period_start": forecast[index]["period_start"],
-                                "pv_estimate": round((forecast[index]["pv_estimate"]), 4),
-                                "pv_estimate10": round((forecast[index]["pv_estimate10"]), 4),
-                                "pv_estimate90": round((forecast[index]["pv_estimate90"]), 4),
-                            }
-                        )
-                    except Exception as e:  # noqa: BLE001
+                    except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
                         _LOGGER.error(
                             "Exception in get_forecast_day(): %s: %s",
                             e,
@@ -1739,7 +1743,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for site in self.sites:
                 site_data_forecast[site["resource_id"]] = self._site_data_forecasts[site["resource_id"]][start_index:end_index]
 
-        if SENSOR_DEBUG_LOGGING:
+        if SENSOR_DEBUG_LOGGING:  # pragma: no cover, debug logging
             _LOGGER.debug(
                 "Get forecast day: %d start %s end %s start_index %d end_index %d slice.len %d",
                 future_day,
@@ -1762,7 +1766,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     for forecast in site_data_forecast[site["resource_id"]]
                 )
 
-        if len(_tuple) < 48:
+        if len(_tuple) < 48:  # pragma: no cover, not possible to test reliably
             no_data_error = False
 
         if self.options.attr_brk_hourly:
@@ -2009,7 +2013,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if start_utc < forecast_period + timedelta(seconds=1800) and start_index == -1:
                 start_index = test_index
         # Never found.
-        if start_index == -1:
+        if start_index == -1:  # pragma: no cover, unlikely to occur
             start_index = 0
             end_index = 0
         return start_index, end_index
@@ -2042,9 +2046,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     y = [0.5 * sum(y[index:]) for index in range(len(self._spline_period))]
                 spline[forecast_confidence] = cubic_interp(xx, self._spline_period, y)
                 self.__sanitise_spline(spline, forecast_confidence, xx, y, reducing=reducing)
-            else:  # The list slice was not found, so zero all values in the spline.
+            else:  # The list slice was not found, so zero all values in the spline. # pragma: no cover, unlikely to occur
                 spline[forecast_confidence] = [0] * (len(self._spline_period) * 6)
-        if SPLINE_DEBUG_LOGGING:
+        if SPLINE_DEBUG_LOGGING:  # pragma: no cover, debug logging
             _LOGGER.debug(str(spline))
 
     def __sanitise_spline(
@@ -2127,14 +2131,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """Build the moments splines."""
         try:
             self.__build_splines(self._forecasts_moment)
-        except:  # noqa: E722
+        except:  # noqa: E722 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in __spline_moments(): %s", traceback.format_exc())
 
     async def __spline_remaining(self):
         """Build the descending splines."""
         try:
             self.__build_splines(self._forecasts_remaining, reducing=True)
-        except:  # noqa: E722
+        except:  # noqa: E722 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in __spline_remaining(): %s", traceback.format_exc())
 
     async def recalculate_splines(self):
@@ -2160,7 +2164,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return self._forecasts_moment["all" if site is None else site][
                 self._use_forecast_confidence if forecast_confidence is None else forecast_confidence
             ][int(n_min / 300)]
-        except IndexError:
+        except IndexError:  # pragma: no cover, handle unexpected exceptions
             _LOGGER.debug("Get moment %d for %s caused index error", n_min, FunctionName(2))
             return 0
 
@@ -2180,7 +2184,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return self._forecasts_remaining["all" if site is None else site][
                 self._use_forecast_confidence if forecast_confidence is None else forecast_confidence
             ][int(n_min / 300)]
-        except IndexError:
+        except IndexError:  # pragma: no cover, handle unexpected exceptions
             _LOGGER.debug("Get remaining %d for %s caused index error", n_min, FunctionName(2))
             return 0
 
@@ -2220,7 +2224,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if end_utc < day_start + timedelta(seconds=1800 * len(self._spline_period)):
                     # End is within today so use spline data.
                     result -= self.__get_remaining(site, forecast_confidence, (end_utc - day_start).total_seconds())
-                else:
+                else:  # pragma: no cover, scenario is unlikely and untested
                     # End is beyond today, so revert to simple linear interpolation.
                     start_index_post_spline, _ = self.__get_forecast_list_slice(  # Get post-spline day onwards start index.
                         data,
@@ -2235,7 +2239,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             result += interval * seconds / 1800
                         else:
                             result += interval
-            if SENSOR_DEBUG_LOGGING:
+            if SENSOR_DEBUG_LOGGING:  # pragma: no cover, debug logging
                 _LOGGER.debug(
                     "Get estimate: %s()%s %s start %s end %s start_index %d end_index %d result %s",
                     FunctionName(1),
@@ -2248,7 +2252,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     round(result, 4),
                 )
             return max(0, result)
-        except Exception as e:
+        except Exception as e:  # pragma: no cover, handle unexpected exceptions
             _LOGGER.error(
                 "Exception in __get_forecast_pv_remaining(): %s: %s",
                 e,
@@ -2285,7 +2289,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if data[start_index:end_index] != []:
                 for forecast_slice in data[start_index:end_index]:
                     result += forecast_slice[forecast_confidence]
-                if SENSOR_DEBUG_LOGGING:
+                if SENSOR_DEBUG_LOGGING:  # pragma: no cover, debug logging
                     _LOGGER.debug(
                         "Get estimate: %s()%s%s start %s end %s start_index %d end_index %d result %s",
                         FunctionName(1),
@@ -2304,13 +2308,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             #    start_utc.strftime(DATE_FORMAT_UTC),
             #    end_utc.strftime(DATE_FORMAT_UTC)
             # )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error(
                 "Exception in __get_forecast_pv_estimates(): %s: %s",
                 e,
                 traceback.format_exc(),
             )
-        return 0
+        return 0  # pragma: no cover, unexpected error
 
     def __get_forecast_pv_moment(
         self,
@@ -2335,7 +2339,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             day_start = self.get_day_start_utc()
             time_utc = time_utc.replace(minute=math.floor(time_utc.minute / 5) * 5)
             result = self.__get_moment(site, forecast_confidence, (time_utc - day_start).total_seconds())
-            if SENSOR_DEBUG_LOGGING:
+            if SENSOR_DEBUG_LOGGING:  # pragma: no cover, debug logging
                 _LOGGER.debug(
                     "Get estimate moment: %s()%s %s t %s sec %d result %s",
                     FunctionName(1),
@@ -2345,7 +2349,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     (time_utc - day_start).total_seconds(),
                     round(result, 4),
                 )
-        except Exception as e:
+        except Exception as e:  # pragma: no cover, handle unexpected exceptions
             _LOGGER.error(
                 "Exception in __get_forecast_pv_moment(): %s: %s",
                 e,
@@ -2383,7 +2387,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 for forecast_slice in data[start_index:end_index]:
                     if result[forecast_confidence] < forecast_slice[forecast_confidence]:
                         result = forecast_slice
-                if SENSOR_DEBUG_LOGGING:
+                if SENSOR_DEBUG_LOGGING:  # pragma: no cover, debug logging
                     _LOGGER.debug(
                         "Get max estimate: %s()%s %s start %s end %s start_index %d end_index %d result %s",
                         FunctionName(1),
@@ -2396,7 +2400,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         result,
                     )
             else:
-                _LOGGER.error(
+                _LOGGER.error(  # pragma: no cover, debug logging
                     "No forecast data available for %s()%s%s: %s to %s",
                     FunctionName(1),
                     "" if site is None else " " + site,
@@ -2404,7 +2408,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     start_utc.strftime(DATE_FORMAT_UTC),
                     end_utc.strftime(DATE_FORMAT_UTC),
                 )
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error(
                 "Exception in __get_max_forecast_pv_estimate(): %s: %s",
                 e,
@@ -2421,7 +2425,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         try:
             return self._data_energy_dashboard
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in get_energy_data(): %s: %s", e, traceback.format_exc())
             return None
 
@@ -2440,7 +2444,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             last_attempt = dt.now(datetime.UTC)
             status = ""
 
-            def next_update():
+            def next_update():  # pragma: no cover, testing only possible when running
                 if self._next_update is not None:
                     return f", next auto update at {self._next_update}"
                 return ""
@@ -2448,7 +2452,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if self.get_last_updated() + timedelta(seconds=10) > dt.now(datetime.UTC):
                 status = f"Not requesting a solar forecast because time is within ten seconds of last update ({self.get_last_updated().astimezone(self._tz)})"
                 _LOGGER.warning(status)
-                if self._next_update is not None:
+                if self._next_update is not None:  # pragma: no cover, testing only possible when running
                     _LOGGER.info("Forecast update suppressed%s", next_update())
                 return status
 
@@ -2466,7 +2470,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     do_past=do_past,
                     force=force,
                 )
-                if result == DataCallStatus.FAIL:
+                if result == DataCallStatus.FAIL:  # pragma: no cover, will not occur under test conditions
                     failure = True
                     if self.hass.data[DOMAIN].get(self.entry.entry_id) is not None:
                         if len(self.sites) > 1:
@@ -2513,7 +2517,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 if b_status and s_status:
                     _LOGGER.info("Forecast update completed successfully%s", next_update())
-            else:
+            else:  # pragma: no cover, will not occur under test conditions
                 if sites_attempted > 0:
                     if status != "KILLED":
                         _LOGGER.error(
@@ -2524,13 +2528,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 else:
                     _LOGGER.error("Internal error, there is no sites data so forecast has not been built")
                 status = f"At least one site forecast get failed: {reason}"
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             status = f"Exception in get_forecast_update(): {e} - Forecast has not been built{next_update()}"
             _LOGGER.error(status)
             _LOGGER.error(traceback.format_exc())
         return status
 
-    def set_next_update(self, next_update: str) -> None:
+    def set_next_update(self, next_update: str) -> None:  # pragma: no cover, testing only possible when running
         """Set the next update time.
 
         Arguments:
@@ -2539,7 +2543,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         self._next_update = next_update
 
-    async def __migrate_undampened_history(self):
+    async def __migrate_undampened_history(self):  # pragma: no cover, migration from legacy scenario
         """Migrate un-dampened forecasts if un-dampened data for a site does not exist."""
         apply_dampening = []
         try:
@@ -2618,7 +2622,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             if len(apply_dampening) > 0:
                 await self.__serialise_data(self._data, self._filename)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error(
                 "Exception in __migrate_undampened_history(): %s: %s",
                 e,
@@ -2660,7 +2664,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     async def reapply_forward_dampening(self):
         """Re-apply dampening to forward forecasts."""
-        if not self.__valid_granular_dampening():
+        if not self.__valid_granular_dampening():  # pragma: no cover, unlikely scenario
             _LOGGER.warning("Invalid dampening configuration, so not re-applying dampening to future forecasts")
             return
         _LOGGER.debug("Re-applying future dampening")
@@ -2674,15 +2678,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     for forecast in self._data_undampened["siteinfo"][site]["forecasts"]
                     if forecast["period_start"] >= dt.now(datetime.UTC)
                 ]
-            except:  # noqa: E722
+            except:  # noqa: E722 # pragma: no cover, handle unexpected exceptions
                 forecasts_undampened_future = {}
-            if forecasts_undampened_future == {}:
+            if forecasts_undampened_future == {}:  # pragma: no cover, handle unexpected exceptions
                 return
             try:
                 forecasts = {forecast["period_start"]: forecast for forecast in self._data["siteinfo"][site]["forecasts"]}
-            except:  # noqa: E722
+            except:  # noqa: E722 # pragma: no cover, handle unexpected exceptions
                 forecasts = {}
-            if forecasts == {}:
+            if forecasts == {}:  # pragma: no cover, handle unexpected exceptions
                 return
 
             # Apply dampening to the new data
@@ -2738,7 +2742,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             # Fetch past data. (Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.)
 
             if do_past:
-                if self.tasks.get("fetch") is not None:
+                if self.tasks.get("fetch") is not None:  # pragma: no cover, unlikely scenario
                     _LOGGER.error("Internal error: A fetch task is already running, so aborting get past actuals")
                     return DataCallStatus.FAIL, "Fetch already running"
                 self.tasks["fetch"] = asyncio.create_task(
@@ -2755,10 +2759,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if self.tasks.get("fetch") is not None:
                     response = self.tasks["fetch"].result()
                     self.tasks.pop("fetch")
-                if response is None:
+                if response is None:  # pragma: no cover, unlikely scenario
                     _LOGGER.error("No data was returned for estimated_actuals")
                     return DataCallStatus.FAIL, "No data returned for estimated_actuals"
-                if not isinstance(response, dict):
+                if not isinstance(response, dict):  # pragma: no cover, unlikely scenario
                     _LOGGER.error(
                         "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
                     )
@@ -2767,7 +2771,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 estimate_actuals = response.get("estimated_actuals", None)
 
-                if not isinstance(estimate_actuals, list):
+                if not isinstance(estimate_actuals, list):  # pragma: no cover, unlikely scenario
                     _LOGGER.error(
                         "Estimated actuals must be a list, not %s",
                         type(estimate_actuals),
@@ -2780,7 +2784,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     period_start = parse_datetime(estimate_actual["period_end"]).astimezone(datetime.UTC).replace(
                         second=0, microsecond=0
                     ) - timedelta(minutes=30)
-                    if period_start.minute not in (0, 30):
+                    if period_start.minute not in (0, 30):  # pragma: no cover, unlikely scenario
                         _LOGGER.error(
                             "Got a period_start minute that is not 0 or 30, period_start: %d",
                             period_start.minute,
@@ -2815,16 +2819,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if self.tasks.get("fetch") is not None:
                 response = self.tasks["fetch"].result()
                 self.tasks.pop("fetch")
-            if response is None:
+            if response is None:  # pragma: no cover, unlikely scenario
                 _LOGGER.error("No data was returned for forecasts")
                 return DataCallStatus.FAIL, "No data returned for forecasts"
 
-            if not isinstance(response, dict):
+            if not isinstance(response, dict):  # pragma: no cover, unlikely scenario
                 _LOGGER.error("API did not return a json object. Returned %s", response)
                 return DataCallStatus.FAIL, "No valid json returned"
 
             latest_forecasts = response.get("forecasts", None)
-            if not isinstance(latest_forecasts, list):
+            if not isinstance(latest_forecasts, list):  # pragma: no cover, unlikely scenario
                 _LOGGER.error("Forecasts must be a list, not %s", type(latest_forecasts))
                 return DataCallStatus.FAIL, "Forecasts not a list"
 
@@ -2835,7 +2839,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 period_start = parse_datetime(forecast["period_end"]).astimezone(datetime.UTC).replace(second=0, microsecond=0) - timedelta(
                     minutes=30
                 )
-                if period_start.minute not in {0, 30}:
+                if period_start.minute not in {0, 30}:  # pragma: no cover, unlikely scenario
                     _LOGGER.error(
                         "Got a period_start minute that is not 0 or 30, period_start: %d",
                         period_start.minute,
@@ -2912,14 +2916,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Task sort_and_prune took %.3f seconds", time.time() - start_time)
 
             _LOGGER.debug("Forecasts dictionary length %s (%s un-dampened)", len(forecasts), len(forecasts_undampened))
-        except InvalidStateError:
+        except InvalidStateError:  # pragma: no cover, handle unexpected exceptions
             return DataCallStatus.FAIL, "Invalid state error"
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in __http_data_call(): %s: %s", e, traceback.format_exc())
             return DataCallStatus.FAIL, f"Exception {traceback.format_exc()}"  # ZZZZ
         return DataCallStatus.SUCCESS, ""
 
-    async def fetch_data(  # noqa: C901
+    async def fetch_data(  # noqa: C901 # pragma: no cover, replaced by simulated data in tests, tested with wsgi simulator
         self,
         hours: int,
         path: str = "error",
@@ -3131,7 +3135,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 last_period_start = period_start
                 last_value = value
-        except:  # noqa: E722
+        except:  # noqa: E722 # pragma: no cover, handle unexpected
             _LOGGER.error("Exception in __make_energy_dict(): %s", traceback.format_exc())
 
         return {"wh_hours": forecast_generation}
@@ -3140,7 +3144,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for _site in self.sites:
             if _site["resource_id"] == site:
                 return _site["api_key"]
-        return None
+        return None  # pragma: no cover, should never get here
 
     def hard_limit_set(self) -> tuple[bool, bool]:
         """Determine whether a hard limit is set.
@@ -3165,7 +3169,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for index, key in enumerate(self.options.api_key.split(",")):
             if key == api_key:
                 return float(hard_limit[index])
-        return 100.0
+        return 100.0  # pragma: no cover, should never get here
 
     async def build_forecast_data(self) -> bool:  # noqa: C901
         """Build data structures needed, adjusting if setting a hard limit.
@@ -3392,7 +3396,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 await self.recalculate_splines()
             else:
                 return False
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in build_forecast_data(): %s: %s", e, traceback.format_exc())
             return False
         return True
@@ -3414,7 +3418,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for index in range(len(data) - 1, -1, -1):
             if data[index]["period_start"] < midnight_utc:
                 break
-        # if SENSOR_DEBUG_LOGGING:
+        # if SENSOR_DEBUG_LOGGING: # pragma: no cover, debug logging
         #    _LOGGER.debug("Calc forecast start index midnight: %s, index %d, len %d", midnight_utc.strftime(DATE_FORMAT_UTC), index, len(data))
         return index
 
@@ -3447,7 +3451,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     else:
                         is_daylight = is_dst(self._data_forecasts[interval]["period_start"])
                         if is_daylight is not None and is_daylight != _is_dst:
-                            expected_intervals = 50 if _is_dst else 46
+                            expected_intervals = 50 if _is_dst else 46  # pragma: no cover, daylight saving time change not tested
                 intervals = end_index - start_index
                 forecasts_date = dt.now(self._tz).date() + timedelta(days=future_day)
 
@@ -3462,12 +3466,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         if all_records_good:
                             contiguous += 1
                             contiguous_end_date = forecasts_date
-                    else:
+                    else:  # pragma: no cover, will not reliably trigger in tests
                         all_records_good = False
 
                 if intervals == expected_intervals:
                     set_assessment(forecasts_date, expected_intervals, intervals, True)
-                else:
+                else:  # pragma: no cover, will not reliably trigger in tests
                     set_assessment(forecasts_date, expected_intervals, intervals, False)
                 if future_day == 0 and interval_assessment[forecasts_date]["correct"]:
                     contiguous_start_date = forecasts_date
@@ -3477,9 +3481,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     contiguous_start_date.strftime("%Y-%m-%d"),
                     contiguous_end_date.strftime("%Y-%m-%d"),
                 )
-            else:
+            else:  # pragma: no cover, will not reliably trigger in tests
                 contiguous_end_date = None
-            if contiguous < 8:
+            if contiguous < 8:  # pragma: no cover, will not reliably trigger in tests
                 for day, assessment in OrderedDict(sorted(interval_assessment.items(), key=lambda k: k[0])).items():
                     if contiguous_end_date is not None and day <= contiguous_end_date:
                         continue
@@ -3500,6 +3504,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return True  # noqa: TRY300
         except UnboundLocalError:
             _LOGGER.error("UnboundLocalError in check_data_records(): %s %s %s", start_utc, end_utc, traceback.format_exc())
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in check_data_records(): %s: %s", e, traceback.format_exc())
         return False
