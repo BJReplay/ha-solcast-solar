@@ -138,23 +138,28 @@ async def _exec_update(
 ) -> None:
     """Execute an action and wait for completion."""
     caplog.clear()
+    if last_update_delta == 0:
+        last_updated = dt(year=2020, month=1, day=1, hour=1, minute=1, second=1, tzinfo=datetime.UTC)
+    else:
+        last_updated = solcast._data["last_updated"] - timedelta(seconds=last_update_delta)
+        _LOGGER.info("Mock last updated: %s", last_updated)
+    solcast._data["last_updated"] = last_updated
+    await hass.services.async_call(DOMAIN, action, {}, blocking=True)
+    await hass.async_block_till_done()
+    if wait:
+        await _wait_for_update(caplog)
+
+
+async def _wait_for_update(caplog: any) -> None:
+    """Wait for forecast update completion."""
     async with asyncio.timeout(2):
-        if last_update_delta == 0:
-            last_updated = dt(year=2020, month=1, day=1, hour=1, minute=1, second=1, tzinfo=datetime.UTC)
-        else:
-            last_updated = solcast._data["last_updated"] - timedelta(seconds=last_update_delta)
-            _LOGGER.info("Mock last updated: %s", last_updated)
-        solcast._data["last_updated"] = last_updated
-        await hass.services.async_call(DOMAIN, action, {}, blocking=True)
-        await hass.async_block_till_done()
-        if wait:
-            while (
-                "Forecast update completed successfully" not in caplog.text
-                and "Not requesting a solar forecast" not in caplog.text
-                and "seconds before retry" not in caplog.text
-                and "ERROR" not in caplog.text
-            ):  # Wait for task to complete
-                await asyncio.sleep(0.01)
+        while (
+            "Forecast update completed successfully" not in caplog.text
+            and "Not requesting a solar forecast" not in caplog.text
+            and "seconds before retry" not in caplog.text
+            and "ERROR" not in caplog.text
+        ):  # Wait for task to complete
+            await asyncio.sleep(0.01)
 
 
 @pytest.mark.parametrize(
@@ -592,11 +597,13 @@ async def test_scenarios(
     options = copy.deepcopy(DEFAULT_INPUT1)
     options[HARD_LIMIT_API] = "6.0"
     entry = await async_init_integration(hass, options)
-    solcast: SolcastApi = hass.data[DOMAIN][entry.entry_id].solcast
-    config_dir = hass.data[DOMAIN][entry.entry_id].solcast._config_dir
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    solcast = coordinator.solcast
+    config_dir = solcast._config_dir
     try:
         assert hass.data[DOMAIN].get("has_loaded") is True
         assert "Hard limit is set to limit peak forecast values" in caplog.text
+        caplog.clear()
 
         data_file = Path(f"{config_dir}/solcast.json")
 
@@ -608,23 +615,21 @@ async def test_scenarios(
             data_file.write_text(json.dumps(data), encoding="utf-8")
             mock_session_config_reset()
 
-        def corrupt_data():
-            data = json.loads(data_file.read_text(encoding="utf-8"))
-            data["siteinfo"]["3333-3333-3333-3333"]["forecasts"] = [{"bob": 0}]
-            # data["last_updated"] = "sdkjfhkjsfh"
-            data_file.write_text(json.dumps(data), encoding="utf-8")
-
         async def reload():
+            nonlocal coordinator, solcast
             await hass.config_entries.async_reload(entry.entry_id)
             await hass.async_block_till_done()
+            if hass.data[DOMAIN].get(entry.entry_id):
+                coordinator = hass.data[DOMAIN][entry.entry_id]
+                solcast = coordinator.solcast
 
         # Test stale start with auto update enabled
         alter_last_updated()
         await reload()
-        assert "Many auto updates have been missed, updating forecast" in caplog.text
+        await _wait_for_update(caplog)
+        assert "is older than expected, should be" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
         caplog.clear()
-        await tasks_cancel(hass, entry)
 
         # Test stale start with auto update disabled
         opt = {**entry.options}
@@ -633,10 +638,12 @@ async def test_scenarios(
         await hass.async_block_till_done()
         alter_last_updated()
         await reload()
+        # Sneak in an extra update that will be cancelled because update already in progress
+        await hass.services.async_call(DOMAIN, "update_forecasts", {}, blocking=True)
+        await _wait_for_update(caplog)
         assert "The update automation has not been running, updating forecast" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
         caplog.clear()
-        await tasks_cancel(hass, entry)
 
         # Test API key change
         opt = {**entry.options}
@@ -653,9 +660,17 @@ async def test_scenarios(
         caplog.clear()
 
         # Test corrupt data start, integration will not load
+
+        def corrupt_data():
+            data = json.loads(data_file.read_text(encoding="utf-8"))
+            data["siteinfo"]["3333-3333-3333-3333"]["forecasts"] = [{"bob": 0}]
+            # data["last_updated"] = "sdkjfhkjsfh"
+            data_file.write_text(json.dumps(data), encoding="utf-8")
+
         corrupt_data()
         await reload()
         assert "Failed to build forecast data" in caplog.text
+        assert "Exception in build_data(): 'period_start'" in caplog.text
         assert "UnboundLocalError in check_data_records()" in caplog.text
         caplog.clear()
 

@@ -2426,7 +2426,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 if b_status and s_status:
                     _LOGGER.info("Forecast update completed successfully%s", next_update())
-            else:  # pragma: no cover, will not occur under test conditions
+            else:
                 if sites_attempted > 0:
                     if status != "KILLED":
                         _LOGGER.error(
@@ -2434,7 +2434,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             "At least one s" if len(self.sites) > 1 else "S",
                             next_update(),
                         )
-                else:
+                else:  # pragma: no cover, will not occur under test conditions
                     _LOGGER.error("Internal error, there is no sites data so forecast has not been built")
                 status = f"At least one site forecast get failed: {reason}"
         except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
