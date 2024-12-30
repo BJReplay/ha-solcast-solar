@@ -788,6 +788,7 @@ v4.2.8
 * Fix an issue when half-hourly breakdown is disabled but hourly is enabled by @autoSteve
 * Fix an issue with transitioning from granular to legacy dampening by @autoSteve
 * Fix an issue with using multiple hard limits by @autoSteve
+* Fix an issue with stale start when auto-update is enabled by @autoSteve
 * Add integration and unit tests by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.7...v4.2.8

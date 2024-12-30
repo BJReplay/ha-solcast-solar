@@ -2380,7 +2380,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     do_past=do_past,
                     force=force,
                 )
-                if result == DataCallStatus.FAIL:  # pragma: no cover, will not occur under test conditions
+                if result == DataCallStatus.FAIL:
                     failure = True
                     if self.hass.data[DOMAIN].get(self.entry.entry_id) is not None:
                         if len(self.sites) > 1:
@@ -2391,7 +2391,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     " - API use count may be odd" if len(self.sites) > 2 and sites_succeeded and not force else "",
                                     next_update(),
                                 )
-                            else:
+                            else:  # pragma: no cover, will not occur under test conditions
                                 _LOGGER.warning(
                                     "Forecast update for the last site queued failed (%s)%s%s",
                                     site["resource_id"],
@@ -2399,13 +2399,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     next_update(),
                                 )
                             status = "At least one site forecast get failed"
-                        else:
+                        else:  # pragma: no cover, will not occur under test conditions
                             _LOGGER.warning("Forecast update failed%s", next_update())
                             status = "Forecast get failed"
                     else:
-                        status = "KILLED"
+                        status = "KILLED"  # pragma: no cover, will not occur under test conditions
                     break
-                if result == DataCallStatus.ABORT:
+                if result == DataCallStatus.ABORT:  # pragma: no cover, will not occur under test conditions
                     return ""
                 if result == DataCallStatus.SUCCESS:
                     sites_succeeded += 1

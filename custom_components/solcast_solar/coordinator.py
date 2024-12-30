@@ -226,7 +226,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         except:  # noqa: E722
             _LOGGER.error("Exception in __update_utc_midnight_usage_sensor_data(): %s", traceback.format_exc())
 
-    async def __update_midnight_spline_recalculate(self):  # pragma: no cover
+    async def __update_midnight_spline_recalculate(self):  # pragma: no cover, testing only possible when running
         """Re-calculates splines at midnight local time."""
         try:
             await self.solcast.check_data_records()
@@ -328,7 +328,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             intervals_tomorrow = get_intervals(self._sunrise_tomorrow, self._sunset_tomorrow, log=False)
             self._intervals = intervals_today + intervals_tomorrow
 
-            if len(intervals_today) > 0:
+            if len(intervals_today) > 0:  # pragma: no cover, testing only reliable when running
                 _LOGGER.info(
                     "Auto forecast update%s for today at %s",
                     "s" if len(intervals_today) > 1 else "",

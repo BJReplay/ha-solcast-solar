@@ -214,17 +214,15 @@ async def __get_granular_dampening(hass: HomeAssistant, entry: ConfigEntry, solc
     hass.data[DOMAIN]["entry_options"] = entry.options
 
 
-async def __check_stale_start(coordinator: SolcastUpdateCoordinator):
+async def __check_stale_start(coordinator: SolcastUpdateCoordinator) -> bool:
     """Check whether the integration has been failed for some time and then is restarted, and if so update forecast."""
     _LOGGER.debug("Checking for stale start")
+    stale = False
     if coordinator.solcast.is_stale_data():
         try:
-            if coordinator.solcast.options.auto_update == 0:
-                _LOGGER.warning("The update automation has not been running, updating forecast")
-                await coordinator.service_event_update(completion="Completed task stale_update")
-            else:
-                _LOGGER.warning("Many auto updates have been missed, updating forecast")
-                await coordinator.service_event_update(ignore_auto_enabled=True, completion="Completed task stale_update")
+            _LOGGER.warning("The update automation has not been running, updating forecast")
+            await coordinator.service_event_update(completion="Completed task stale_update")
+            stale = True
         except Exception as e:  # noqa: BLE001 # pragma: no cover, catch unexpected exceptions
             _LOGGER.error(
                 "Exception fetching data on stale start: %s: %s",
@@ -234,10 +232,12 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator):
             _LOGGER.warning("Continuing... ")
     else:
         _LOGGER.debug("Start is not stale")
+    return stale
 
 
-async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator):
+async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> bool:
     """Check whether an auto-update has been missed, and if so update forecast."""
+    stale = False
     if coordinator.solcast.options.auto_update > 0:
         if coordinator.solcast.get_data()["auto_updated"]:
             _LOGGER.debug("Checking whether auto update forecast is stale")
@@ -253,6 +253,7 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator):
                         coordinator.interval_just_passed.astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
                     )
                     await coordinator.service_event_update(ignore_auto_enabled=True, completion="Completed task update_missed")
+                    stale = True
                 else:  # pragma: no cover, time-of-day dependent
                     _LOGGER.debug("Auto update forecast is fresh")
             except TypeError:  # pragma: no cover, catch unexpected exceptions
@@ -263,6 +264,7 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator):
                     e,
                     traceback.format_exc(),
                 )
+    return stale
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  # noqa: C901
@@ -322,8 +324,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     entry.async_on_unload(entry.add_update_listener(async_update_options))
 
     __log_hard_limit_set(solcast)
-    await __check_stale_start(coordinator)
-    await __check_auto_update_missed(coordinator)
+    if not await __check_auto_update_missed(coordinator):
+        await __check_stale_start(coordinator)
+
     hass.data[DOMAIN]["has_loaded"] = True
 
     async def action_call_update_forecast(call: ServiceCall):
@@ -622,7 +625,7 @@ async def tasks_cancel(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     try:
         coordinator = hass.data[DOMAIN][entry.entry_id]
         # Terminate solcastapi tasks in progress
-        for task, cancel in coordinator.solcast.tasks.items():
+        for task, cancel in coordinator.solcast.tasks.items():  # pragma: no cover, unlikely under test conditions
             _LOGGER.debug("Cancelling solcastapi task %s", task)
             cancel.cancel()
         # Terminate coordinator tasks in progress
