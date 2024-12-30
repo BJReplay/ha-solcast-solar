@@ -354,7 +354,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 await self.solcast.reset_usage_cache()
                 await self.__restart_time_track_midnight_update()
 
-            # await self.solcast.get_weather()
             await self.solcast.get_forecast_update(do_past=False, force=force)
             self._data_updated = True
             await self.update_integration_listeners()

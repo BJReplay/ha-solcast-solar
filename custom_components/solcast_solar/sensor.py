@@ -233,7 +233,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
         suggested_display_precision=0,
         state_class=SensorStateClass.MEASUREMENT,
     ),
-    # "weather_description": SensorEntityDescription(key="weather_description", translation_key="weather_description", icon="mdi:weather-partly-snowy-rainy",),
 }
 
 

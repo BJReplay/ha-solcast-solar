@@ -189,7 +189,6 @@
             "total_kwh_forecast_d6": {"name": "Forecast Day 6"},
             "total_kwh_forecast_d7": {"name": "Forecast Day 7"},
             "power_now": {"name": "Power Now"},
-            "weather_description": {"name": "Weather"},
             "hard_limit": {"name": "Hard Limit Set"},
             "hard_limit_api": {"name": "Hard Limit Set {api_key}"}
         },

@@ -318,7 +318,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._tally = {}
         self._tz = options.tz
         self._use_forecast_confidence = f"pv_{options.key_estimate}"
-        # self._weather = ""
 
         self._config_dir = hass.config.config_dir
         _LOGGER.debug("Configuration directory is %s", self._config_dir)
@@ -1234,43 +1233,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 translation_placeholders={"site": site},
             )  # pragma: no cover, not expected to be reached
 
-    '''
-    async def get_weather(self):
-        """Request site weather byline."""
-
-        try:
-            if len(self.sites) > 0:
-                api_keys = self.options.api_key.split(",")
-                rid = self.sites[0].get("resource_id", None)
-                url=f"{self.options.host}/json/reply/GetRooftopSiteSparklines"
-                params = {"resourceId": rid, "api_key": api_keys[0]}
-                _LOGGER.debug("Get weather byline")
-                async with asyncio.timeout(60):
-                    #async_timeout.timeout(60):
-                    response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
-                    response_json = await response.json(content_type=None)
-                    status = response.status
-
-                if status == 200:
-                    weather_data = cast(dict, response_json)
-                    _LOGGER.debug("Returned data in get_weather(): %s", str(weather_data))
-                    self._weather = weather_data.get("forecast_descriptor", None).get("description", None)
-                    _LOGGER.debug("Weather description: %s", self._weather)
-                else:
-                    raise Exception(f"Gathering weather description failed. request returned: {self.__translate(status)} - Response: {response_json}.")
-
-        except json.decoder.JSONDecodeError:
-            _LOGGER.error("JSONDecodeError in get_weather(): Solcast could be having problems")
-        except ConnectionRefusedError as e:
-            _LOGGER.error("Error in get_weather(): %s", e)
-        except ClientConnectionError as e:
-            _LOGGER.error("Connection error in get_weather(): %s", e)
-        except asyncio.TimeoutError:
-            _LOGGER.error("Connection error in get_weather(): Timed out connecting to solcast")
-        except Exception as e:
-            _LOGGER.error("Error in get_weather(): %s", traceback.format_exc())
-    '''
-
     async def load_saved_data(self) -> str:  # noqa: C901
         """Load the saved solcast.json data.
 
@@ -1289,7 +1251,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         async with aiofiles.open(filename) as data_file:
                             json_data = json.loads(await data_file.read(), cls=JSONDecoder)
                             json_version = json_data.get("version", 1)
-                            # self._weather = json_data.get("weather", "unknown")
                             _LOGGER.debug(
                                 "Data cache %s exists, file type is %s",
                                 filename,
@@ -1538,10 +1499,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
         return min(list(self._api_limit.values()))
-
-    # def get_weather_description(self):
-    #     """Return weather description."""
-    #     return self._weather
 
     def get_last_updated(self) -> dt:
         """Return when the data was last updated.
@@ -2454,7 +2411,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     sites_succeeded += 1
 
             if sites_attempted > 0 and not failure:
-                # self._data["weather"] = self._weather
                 b_status = await self.build_forecast_data()
                 self._loaded_data = True
 

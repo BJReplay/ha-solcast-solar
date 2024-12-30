@@ -190,7 +190,6 @@
             "total_kwh_forecast_d6": {"name": "Predpoveď deň 6"},
             "total_kwh_forecast_d7": {"name": "Predpoveď deň 7"},
             "power_now": {"name": "Výkon teraz"},
-            "weather_description": {"name": "Počasie"},
             "hard_limit": {"name": "Tvrdý limit nastavený"},
             "hard_limit_api": {"name": "Tvrdý limit nastavený {api_key}"}
         },

@@ -190,7 +190,6 @@
             "total_kwh_forecast_d6": {"name": "Prognoza na dzień 6"},
             "total_kwh_forecast_d7": {"name": "Prognoza na dzień 7"},
             "power_now": {"name": "Aktualna moc"},
-            "weather_description": {"name": "Pogoda"},
             "hard_limit": {"name": "Ustawiony twardy limit"},
             "hard_limit_api": {"name": "Ustawiony twardy limit {api_key}"}
         },

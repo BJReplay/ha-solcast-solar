@@ -190,7 +190,6 @@
             "total_kwh_forecast_d6": {"name": "دن 6 کی پیشن گوئی"},
             "total_kwh_forecast_d7": {"name": "دن 7 کی پیشن گوئی"},
             "power_now": {"name": "ابھی پاور"},
-            "weather_description": {"name": "موسم"},
             "hard_limit": {"name": "سخت حد مقرر"},
             "hard_limit_api": {"name": "سخت حد مقرر {api_key}"}
         },
