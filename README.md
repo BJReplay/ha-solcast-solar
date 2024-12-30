@@ -22,8 +22,6 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/solar_production.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/solar_production.png)
 
-The integration is not currently in the HACS database, but this is planned. [This PR](https://github.com/hacs/default/pull/2535) is awaiting merge. It must be installed using a custom repository, which is a straightforward process, and detailed instructions are provided.
-
 > [!NOTE]
 >
 > 
