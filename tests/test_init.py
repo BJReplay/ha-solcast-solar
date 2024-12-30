@@ -34,6 +34,7 @@ from . import (
     BAD_INPUT,
     DEFAULT_INPUT1,
     DEFAULT_INPUT2,
+    DEFAULT_INPUT_NO_SITES,
     ZONE,
     async_cleanup_integration_tests,
     async_init_integration,
@@ -69,16 +70,33 @@ async def test_api_failure(
         config_dir = Path(__file__).parents[2] / "testing_config"
         assert config_dir.is_dir()
 
-        def assertions1():
+        def assertions1_busy():
+            assert "Get sites failed, last call result: 429/Try again later" in caplog.text
+            assert "Cached sites are not yet available" in caplog.text
+            assert "integration not ready yet" in caplog.text
+            caplog.clear()
+
+        def assertions1_except():
             assert "Error retrieving sites, attempting to continue" in caplog.text
             assert "Cached sites are not yet available" in caplog.text
             assert "integration not ready yet" in caplog.text
             caplog.clear()
 
-        def assertions2():
+        def assertions2_busy():
+            assert "Get sites failed, last call result: 429/Try again later, using cached data" in caplog.text
+            assert "Sites data:" in caplog.text
+            caplog.clear()
+
+        def assertions2_except():
             assert "Error retrieving sites, attempting to continue" in caplog.text
             assert "Sites data:" in caplog.text
             caplog.clear()
+
+        async def too_busy(assertions: callable):
+            mock_session_set_too_busy()
+            await async_init_integration(hass, DEFAULT_INPUT1)
+            assertions()
+            mock_session_clear_too_busy()
 
         async def exceptions(assertions: callable):
             mock_session_set_exception(ConnectionRefusedError)
@@ -86,6 +104,7 @@ async def test_api_failure(
             assertions()
             mock_session_set_exception(TimeoutError)
             await async_init_integration(hass, DEFAULT_INPUT1)
+            mock_session_clear_exception()
             assertions()
 
             # TODO: Fix this test, it is failing because a mocked exception is not being created successfully
@@ -93,18 +112,21 @@ async def test_api_failure(
             # await async_init_integration(hass, DEFAULT_INPUT1)
             # assertions()
 
+        # Test API too busy during get sites without cache
+        await too_busy(assertions1_busy)
         # Test exceptions during get sites without cache
-        await exceptions(assertions1)
+        await exceptions(assertions1_except)
 
         # Normal start and teardown to create caches
-        mock_session_clear_exception()
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         assert hass.data[DOMAIN].get("has_loaded") is True
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
 
+        # Test API too busy during get sites with the cache present
+        await too_busy(assertions2_busy)
         # Test exceptions during get sites with the cache present
-        await exceptions(assertions2)
+        await exceptions(assertions2_except)
 
     finally:
         mock_session_clear_exception()
@@ -139,6 +161,7 @@ async def _exec_update(
     "options",
     [
         BAD_INPUT,
+        DEFAULT_INPUT_NO_SITES,
         DEFAULT_INPUT1,
         DEFAULT_INPUT2,
     ],
@@ -157,7 +180,16 @@ async def test_init(
     if options == BAD_INPUT:
         assert hass.data[DOMAIN].get("has_loaded") is None
         assert "Dampening factors corrupt or not found, setting to 1.0" in caplog.text
-        assert "Error getting sites for the API key ******badkey, is the key correct?" in caplog.text
+        assert "Get sites failed, last call result: 401/Unauthorized" in caplog.text
+        assert "Cached sites are not yet available" in caplog.text
+        assert "integration not ready yet" in caplog.text
+        return
+
+    if options == DEFAULT_INPUT_NO_SITES:
+        entry = await async_init_integration(hass, DEFAULT_INPUT_NO_SITES)
+        assert "No sites for the API key ******_sites are configured at solcast.com" in caplog.text
+        assert "Get sites failed, last call result: 200/Success" in caplog.text
+        assert "integration not ready yet" in caplog.text
         return
 
     assert hass.data[DOMAIN].get("has_loaded") is True

@@ -116,6 +116,10 @@ API_KEY_SITES = {
         ],
         "counter": 0,
     },
+    "no_sites": {
+        "sites": [],
+        "counter": 0,
+    },
 }
 FORECAST = 0.9
 FORECAST_10 = 0.75
@@ -192,7 +196,7 @@ def raw_get_sites(api_key):
     meta = {
         "page_count": 1,
         "current_page": 1,
-        "total_records": 1,
+        "total_records": len(API_KEY_SITES[api_key]["sites"]),
     }
     return sites | meta
 
