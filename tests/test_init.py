@@ -13,7 +13,6 @@ import pytest
 from voluptuous.error import MultipleInvalid
 
 from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar import tasks_cancel
 from homeassistant.components.solcast_solar.const import (
     API_QUOTA,
     AUTO_UPDATE,
@@ -129,6 +128,7 @@ async def test_api_failure(
         await exceptions(assertions2_except)
 
     finally:
+        mock_session_clear_too_busy()
         mock_session_clear_exception()
         assert await async_cleanup_integration_tests(hass, config_dir)
 
@@ -284,13 +284,10 @@ async def test_init(
 
         # Create a granular dampening file to be read on next update
         granular_dampening = (
-            {
-                "1111-1111-1111-1111": [0.8] * 48,
-                "2222-2222-2222-2222": [0.9] * 48,
-            }
+            {"1111-1111-1111-1111": [0.8] * 48, "2222-2222-2222-2222": [0.9] * 48}
             if options == DEFAULT_INPUT1
             else {
-                "1111-1111-1111-1111": [0.7] * 24,
+                "1111-1111-1111-1111": [0.7] * 24,  # Intentionally dodgy
                 "2222-2222-2222-2222": [0.8] * 48,
                 "3333-3333-3333-3333": [0.9] * 48,
             }
@@ -303,8 +300,6 @@ async def test_init(
             solcast._api_used_reset[api_key] = dt.now(datetime.UTC) - timedelta(days=5)
         solcast.options.auto_update = 0
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
-        await hass.async_block_till_done()
-
         assert "Not requesting a solar forecast because time is within ten seconds of last update" not in caplog.text
         assert "resetting API usage" in caplog.text
         assert "Writing API usage cache file" in caplog.text
@@ -317,7 +312,7 @@ async def test_init(
             assert "contains all intervals" in caplog.text
         caplog.clear()
 
-        # Test reset usage cache
+        # Test reset usage cache when fresh
         for api_key in options["api_key"].split(","):
             solcast._api_used_reset[api_key] = solcast._api_used_reset[api_key] - timedelta(hours=24)
         await solcast.reset_api_usage()
@@ -342,7 +337,7 @@ async def test_init(
             hass,
             config_dir,
             solcast_dampening=options != DEFAULT_INPUT1,  # Keep dampening file from first test
-            solcast_sites=options != DEFAULT_INPUT1,  # Keep sites file from first test
+            solcast_sites=options != DEFAULT_INPUT1,  # Keep sites cache file from first test
         )
 
 
@@ -584,7 +579,6 @@ async def test_remaining_actions(
 
     finally:
         assert await async_cleanup_integration_tests(hass, config_dir)
-        # pass
 
 
 async def test_scenarios(
