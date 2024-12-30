@@ -323,6 +323,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._config_dir = hass.config.config_dir
         _LOGGER.debug("Configuration directory is %s", self._config_dir)
 
+    async def tasks_cancel(self):
+        """Cancel all tasks."""
+
+        if len(self.tasks) == 0:
+            _LOGGER.debug("No tasks to cancel")  # pragma: no cover, normally no tasks to cancel
+        else:
+            for task, cancel in self.tasks.items():
+                _LOGGER.debug("Cancelling solcastapi task %s", task)
+                cancel.cancel()
+            self.tasks = {}
+
     async def set_options(self, options: dict):
         """Set the class option variables (called by __init__ to avoid an integration reload).
 
@@ -534,25 +545,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 return False
         return True
 
-    async def get_sites_api_request(
-        self, url: str, params: dict, headers: dict, ssl: bool
-    ) -> ClientResponse:  # pragma: no cover, replaced during testing
-        """Get the sites API request.
-
-        Separate method to allow for mocking in tests.
-
-        Arguments:
-            url (str): The URL to call.
-            params (dict): The parameters to send.
-            headers (dict): The headers to send.
-            ssl (bool): Whether to use SSL.
-
-        Returns:
-            ClientResponse: The response.
-
-        """
-        return await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
-
     async def __sites_data(self):  # noqa: C901
         """Request site details.
 
@@ -590,8 +582,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     use_cache_immediate = False
                     cache_exists = Path(cache_filename).is_file()
                     while retry >= 0:
-                        response: ClientResponse = await self.get_sites_api_request(url, params, self.headers, False)
-                        # response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
+                        response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
 
                         status = response.status
                         (_LOGGER.debug if status == 200 else _LOGGER.warning)(
@@ -641,7 +632,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         retry -= 1  # pragma nocover, simulator always returns sites
                     if status == 401 and not use_cache_immediate:
                         continue
-                    if not success:  # pragma nocover, simulator always returns sites
+                    if not success:
                         if not use_cache_immediate:
                             _LOGGER.warning(
                                 "Retries exhausted gathering sites, last call result: %s, using cached data if it exists",
@@ -686,14 +677,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             "Sites loaded%s",
                             (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
                         )
-                else:  # pragma nocover, simulator always returns sites
+                else:
                     _LOGGER.error(
                         "%s HTTP status error %s in __sites_data() while gathering sites",
                         self.options.host,
                         self.__translate(status),
                     )
                     raise Exception("HTTP __sites_data() error: gathering sites")  # noqa: TRY002, TRY301
-        except (ClientConnectionError, ConnectionRefusedError, TimeoutError) as e:  # pragma: no cover, handle unexpected exceptions
+        except (ClientConnectionError, ConnectionRefusedError, TimeoutError) as e:
             try:
                 _LOGGER.warning("Error retrieving sites, attempting to continue: %s", e)
                 error = False
@@ -717,11 +708,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             self.sites = self.sites + sites_data["sites"]
                             self.sites_loaded = True
                             self._api_used_reset[api_key] = None
-                            if not self.previously_loaded:
-                                _LOGGER.info(
-                                    "Sites loaded%s",
-                                    (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
-                                )
+                            _LOGGER.info(
+                                "Sites loaded%s",
+                                (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
+                            )
                     else:
                         error = True
                         _LOGGER.error(
@@ -735,7 +725,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _LOGGER.error(
                         "Suggestion: Check your overall HA configuration, specifically networking related (Is IPV6 an issue for you? DNS? Proxy?)"
                     )
-            except:  # noqa: E722
+            except:  # noqa: E722  # pragma: no cover, handle unexpected exceptions
                 pass
         except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in __sites_data(): %s: %s", e, traceback.format_exc())
@@ -847,7 +837,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             self._api_limit[api_key] = quota[api_key]
                             await self.__serialise_usage(api_key)
                             _LOGGER.info("Usage loaded and cache updated with new limit")
-                        elif not self.previously_loaded:
+                        elif not self.previously_loaded:  # pragma nocover, usage re-load is not tested
                             _LOGGER.info(
                                 "Usage loaded%s",
                                 (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
@@ -2923,7 +2913,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return DataCallStatus.FAIL, f"Exception {traceback.format_exc()}"  # ZZZZ
         return DataCallStatus.SUCCESS, ""
 
-    async def fetch_data(  # noqa: C901 # pragma: no cover, replaced by simulated data in tests, tested with wsgi simulator
+    async def fetch_data(  # noqa: C901
         self,
         hours: int,
         path: str = "error",
@@ -2963,10 +2953,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if API == Api.HOBBYIST:
                         url = f"{self.options.host}/rooftop_sites/{site}/{path}"
                         params = {"format": "json", "api_key": api_key, "hours": hours}
-                    elif API == Api.ADVANCED and path == "forecasts":
+                    elif API == Api.ADVANCED and path == "forecasts":  # pragma: no cover, possible future use
                         url = f"{self.options.host}/data/forecast/advanced_pv_power"
                         params = {"format": "json", "api_key": api_key, "resource_id": site, "hours": hours}
-                    elif API == Api.ADVANCED and path == "estimated_actuals":
+                    elif API == Api.ADVANCED and path == "estimated_actuals":  # pragma: no cover, possible future use
                         url = f"{self.options.host}/data/historic/advanced_pv_power"
                         params = {
                             "format": "json",
@@ -2989,47 +2979,44 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             )
                             _LOGGER.debug("Fetch data url %s", self.__redact_msg_api_key(str(response.url), api_key))
                             status = response.status
-                        except ConnectionRefusedError:
+                        except ConnectionRefusedError:  # pragma: no cover, not reachable under test conditions
                             status = 996
-                        except ClientConnectionError:
+                        except ClientConnectionError:  # pragma: no cover, not reachable under test conditions
                             status = 997
-                        except Exception as e:
+                        except Exception as e:  # pragma: no cover, handle unexpected exceptions
                             raise e from e
                         if status == 200:
                             break
-                        if status == 403:
+                        if status == 403:  # pragma: no cover, not reachable under test conditions
                             break
                         if status == 429:
-                            try:
-                                # Test for API limit exceeded.
-                                # {"response_status":{"error_code":"TooManyRequests","message":"You have exceeded your free daily limit.","errors":[]}}
-                                response_json = await response.json(content_type=None)
-                                response_status = response_json.get("response_status")
-                                if response_status is not None:
-                                    if response_status.get("error_code") == "TooManyRequests":
-                                        status = 998
-                                        self._api_used[api_key] = self._api_limit[api_key]
-                                        await self.__serialise_usage(api_key)
-                                        break
-                                    status = 1000
-                                    _LOGGER.warning(
-                                        "An unexpected error occurred: %s",
-                                        response_status.get("message"),
-                                    )
+                            # Test for API limit exceeded.
+                            # {"response_status":{"error_code":"TooManyRequests","message":"You have exceeded your free daily limit.","errors":[]}}
+                            response_json = await response.json(content_type=None)
+                            response_status = response_json.get("response_status")
+                            if response_status is not None:
+                                if response_status.get("error_code") == "TooManyRequests":
+                                    status = 998
+                                    self._api_used[api_key] = self._api_limit[api_key]
+                                    await self.__serialise_usage(api_key)
                                     break
-                            except:  # noqa: E722
-                                pass
-                            if counter >= tries:
+                                status = 1000  # pragma: no cover, unexpected error
+                                _LOGGER.warning(
+                                    "An unexpected error occurred: %s",
+                                    response_status.get("message"),
+                                )  # pragma: no cover, unexpected error
+                                break  # pragma: no cover, unexpected error
+                            if counter >= tries:  # pragma: no cover, not reachable under test conditions
                                 status = 999  # All retries have been exhausted.
                                 break
                         # Solcast is in a possibly recoverable state, so delay (15 seconds * counter), plus a random number of seconds between zero and 15.
-                        delay = (counter * backoff) + random.randrange(0, 15)
+                        delay = (counter * backoff) + random.randrange(0, 15)  # pragma: no cover, not reachable under test conditions
                         _LOGGER.warning(
                             "Call status %s, pausing %d seconds before retry",
                             self.__translate(status),
                             delay,
-                        )
-                        await asyncio.sleep(delay)
+                        )  # pragma: no cover, not reachable under test conditions
+                        await asyncio.sleep(delay)  # pragma: no cover, not reachable under test conditions
 
                     if status == 200:
                         if not force:
@@ -3050,12 +3037,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             self._api_limit[api_key],
                         )
                         return None
-                    elif status == 999:  # Attempts exhausted.
+                    elif status == 999:  # Attempts exhausted.  # pragma: no cover, not reachable under test conditions
                         _LOGGER.error("API was tried %d times, but all attempts failed", tries)
                         return None
-                    elif status == 1000:  # An unexpected response.
+                    elif status == 1000:  # Unexpected response.  # pragma: no cover, not reachable under test conditions
                         return None
-                    else:
+                    else:  # Unknown status.  # pragma: no cover, not reachable under test conditions
                         _LOGGER.error(
                             "Call status %s, API used is %d/%d",
                             self.__translate(status),
@@ -3073,17 +3060,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     return None
 
                 if type(response_json) is not dict:
-                    _LOGGER.warning("HTTP session return is not dict: type %s", type(response_json))
+                    _LOGGER.warning(
+                        "HTTP session return is not dict: type %s", type(response_json)
+                    )  # pragma: no cover, not reachable under test conditions
                 _LOGGER.debug("HTTP session status %s", self.__translate(status))
 
             if status == 429:
-                _LOGGER.warning("API is too busy, try again later")
-            elif status == 400:
+                _LOGGER.warning("API is too busy, try again later")  # pragma: no cover, test cancels before this point
+            elif status == 400:  # pragma: no cover, not reachable under test conditions
                 _LOGGER.warning(
                     "Status %s: Internal error",
                     self.__translate(status),
                 )
-            elif status == 404:
+            elif status == 404:  # pragma: no cover, not reachable under test conditions
                 _LOGGER.error(
                     "The site cannot be found, status %s returned",
                     self.__translate(status),
@@ -3094,18 +3083,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     "Task fetch_data took %.3f seconds",
                     time.time() - start_time,
                 )
-                if FORECAST_DEBUG_LOGGING:
+                if FORECAST_DEBUG_LOGGING:  # pragma: no cover, debug logging
                     _LOGGER.debug("HTTP session returned: %s", str(response))
                 return response
         except asyncio.exceptions.CancelledError:
             _LOGGER.info("Fetch cancelled")
-        except ConnectionRefusedError as e:
+        except ConnectionRefusedError as e:  # pragma: no cover, handle unexpected exception
             _LOGGER.error("Connection error in fetch_data(), connection refused: %s", e)
-        except ClientConnectionError as e:
+        except ClientConnectionError as e:  # pragma: no cover, handle unexpected exception
             _LOGGER.error("Connection error in fetch_data(): %s", e)
-        except TimeoutError:
+        except TimeoutError:  # pragma: no cover, handle unexpected exception
             _LOGGER.error("Connection error in fetch_data(): Timed out connecting to server")
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001  # pragma: no cover, handle unexpected exception
             _LOGGER.error("Exception in fetch_data(): %s, %s", e, traceback.format_exc())
 
         return None

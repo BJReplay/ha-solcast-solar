@@ -216,7 +216,7 @@ def raw_get_site_estimated_actuals(site_id, api_key, hours, key="pv_estimate", p
     """Return simulated estimated actials for a site.
 
     The real Solcast API does not return values for estimate 10/90, but the simulator does.
-    This is to enable unit testing of the integration.
+    This is to enable testing of the integration.
     """
 
     site = next((site for site in API_KEY_SITES[api_key]["sites"] if site["resource_id"] == site_id), None)

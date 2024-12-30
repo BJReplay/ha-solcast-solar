@@ -43,25 +43,28 @@ async def test_select_change_value(
 
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
     coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
-    assert (
-        select_entity_id := entity_registry.async_get_entity_id(
+
+    try:
+        assert (
+            select_entity_id := entity_registry.async_get_entity_id(
+                SELECT_DOMAIN,
+                DOMAIN,
+                "estimate_mode",
+            )
+        ) is not None
+        assert hass.states.get(select_entity_id).state == "estimate"
+
+        await hass.services.async_call(
             SELECT_DOMAIN,
-            DOMAIN,
-            "estimate_mode",
+            SERVICE_SELECT_OPTION,
+            {ATTR_ENTITY_ID: select_entity_id, ATTR_OPTION: resulting_state},
+            blocking=True,
         )
-    ) is not None
-    assert hass.states.get(select_entity_id).state == "estimate"
 
-    await hass.services.async_call(
-        SELECT_DOMAIN,
-        SERVICE_SELECT_OPTION,
-        {ATTR_ENTITY_ID: select_entity_id, ATTR_OPTION: resulting_state},
-        blocking=True,
-    )
+        assert hass.states.get(select_entity_id).state == resulting_state
+        assert coordinator.solcast.options.key_estimate == resulting_state
+        state = hass.states.get(f"sensor.solcast_pv_forecast_{test_entity}")
+        assert state.state == expected_value
 
-    assert hass.states.get(select_entity_id).state == resulting_state
-    assert coordinator.solcast.options.key_estimate == resulting_state
-    state = hass.states.get(f"sensor.solcast_pv_forecast_{test_entity}")
-    assert state.state == expected_value
-
-    assert await async_cleanup_integration_tests(hass, coordinator.solcast._config_dir)
+    finally:
+        assert await async_cleanup_integration_tests(hass, coordinator.solcast._config_dir)

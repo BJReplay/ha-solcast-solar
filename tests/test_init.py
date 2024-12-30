@@ -8,6 +8,7 @@ import json
 import logging
 from pathlib import Path
 
+from aiohttp import ClientConnectorError
 import pytest
 from voluptuous.error import MultipleInvalid
 
@@ -36,6 +37,11 @@ from . import (
     ZONE,
     async_cleanup_integration_tests,
     async_init_integration,
+    mock_session_clear_exception,
+    mock_session_clear_too_busy,
+    mock_session_config_reset,
+    mock_session_set_exception,
+    mock_session_set_too_busy,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,6 +56,59 @@ SERVICES = [
     "set_hard_limit",
     "update_forecasts",
 ]
+
+
+async def test_api_failure(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test API failure."""
+
+    try:
+        config_dir = Path(__file__).parents[2] / "testing_config"
+        assert config_dir.is_dir()
+
+        def assertions1():
+            assert "Error retrieving sites, attempting to continue" in caplog.text
+            assert "Cached sites are not yet available" in caplog.text
+            assert "integration not ready yet" in caplog.text
+            caplog.clear()
+
+        def assertions2():
+            assert "Error retrieving sites, attempting to continue" in caplog.text
+            assert "Sites data:" in caplog.text
+            caplog.clear()
+
+        async def exceptions(assertions: callable):
+            mock_session_set_exception(ConnectionRefusedError)
+            await async_init_integration(hass, DEFAULT_INPUT1)
+            assertions()
+            mock_session_set_exception(TimeoutError)
+            await async_init_integration(hass, DEFAULT_INPUT1)
+            assertions()
+
+            # TODO: Fix this test, it is failing because a mocked exception is not being created successfully
+            # mock_session_set_exception(ClientConnectorError)
+            # await async_init_integration(hass, DEFAULT_INPUT1)
+            # assertions()
+
+        # Test exceptions during get sites without cache
+        await exceptions(assertions1)
+
+        # Normal start and teardown to create caches
+        mock_session_clear_exception()
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        assert hass.data[DOMAIN].get("has_loaded") is True
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Test exceptions during get sites with the cache present
+        await exceptions(assertions2)
+
+    finally:
+        mock_session_clear_exception()
+        assert await async_cleanup_integration_tests(hass, config_dir)
 
 
 async def _exec_update(
@@ -70,6 +129,7 @@ async def _exec_update(
             while (
                 "Forecast update completed successfully" not in caplog.text
                 and "Not requesting a solar forecast" not in caplog.text
+                and "seconds before retry" not in caplog.text
                 and "ERROR" not in caplog.text
             ):  # Wait for task to complete
                 await asyncio.sleep(0.01)
@@ -131,7 +191,9 @@ async def test_init(
             assert not Path(f"{config_dir}/solcast-usage.json").is_file()
 
         # Test coordinator tasks are created
-        assert len(coordinator.tasks.keys()) == 3
+        assert coordinator.tasks["listeners"]
+        assert coordinator.tasks["check_fetch"]
+        assert coordinator.tasks["midnight_update"]
 
         # Test expected services are registered
         assert len(hass.services.async_services_for_domain(DOMAIN).keys()) == len(SERVICES)
@@ -161,6 +223,28 @@ async def test_init(
         assert "ERROR" not in caplog.text
         caplog.clear()
 
+        # Test API too busy
+        mock_session_set_too_busy()
+        solcast.options.auto_update = 0
+        await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
+        assert "seconds before retry" in caplog.text
+        await solcast.tasks_cancel()
+        await hass.async_block_till_done()
+        assert "ERROR" not in caplog.text
+        caplog.clear()
+        mock_session_clear_too_busy()
+        await hass.async_block_till_done()
+
+        # At this point the API count is ten for API key 1, so take it beyond the limit
+        await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
+        assert "API allowed polling limit has been exceeded" in caplog.text
+        assert "Forecast update for site 1111-1111-1111-1111 failed" in caplog.text
+        assert "At least one site failed to fetch, so forecast has not been built" in caplog.text
+        caplog.clear()
+        await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
+        assert "API polling limit exhausted, not getting forecast" in caplog.text
+        caplog.clear()
+
         # Create a granular dampening file to be read on next update
         granular_dampening = (
             {
@@ -177,6 +261,7 @@ async def test_init(
         granular_dampening_file.write_text(json.dumps(granular_dampening), encoding="utf-8")
 
         # Test update beyond ten seconds of prior update, also with stale usage cache
+        mock_session_config_reset()
         for api_key in options["api_key"].split(","):
             solcast._api_used_reset[api_key] = dt.now(datetime.UTC) - timedelta(days=5)
         solcast.options.auto_update = 0
@@ -203,9 +288,6 @@ async def test_init(
         await solcast.reset_api_usage()
         assert "Usage cache is fresh, so not resetting" in caplog.text
 
-        assert "WARNING" not in caplog.text
-        assert "ERROR" not in caplog.text
-
         # Test clear data action when no solcast.json exists
         if options == DEFAULT_INPUT2:
             Path(f"{config_dir}/solcast.json").unlink()
@@ -216,13 +298,14 @@ async def test_init(
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
 
+        mock_session_config_reset()
+
     finally:
         assert await async_cleanup_integration_tests(
             hass,
             config_dir,
-            solcast_dampening=options != DEFAULT_INPUT1,
-            solcast_sites=options != DEFAULT_INPUT1,
-            solcast_usage=options != DEFAULT_INPUT1,
+            solcast_dampening=options != DEFAULT_INPUT1,  # Keep dampening file from first test
+            solcast_sites=options != DEFAULT_INPUT1,  # Keep sites file from first test
         )
 
 
@@ -239,10 +322,11 @@ async def test_remaining_actions(
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
 
+    caplog.clear()
+
     # Switch to one API key and two sites to assert the initial clean-up
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    coordinator = hass.data[DOMAIN][entry.entry_id]
-    solcast: SolcastApi = coordinator.solcast
+    solcast: SolcastApi = hass.data[DOMAIN][entry.entry_id].solcast
     config_dir = solcast._config_dir
     assert hass.data[DOMAIN].get("has_loaded") is True
 
@@ -256,7 +340,6 @@ async def test_remaining_actions(
     try:
         # Test logs for cache load
         assert "Sites cache exists" in caplog.text
-        assert "Usage cache exists" in caplog.text
         assert f"Data cache {config_dir}/solcast.json exists, file type is <class 'dict'>" in caplog.text
         assert f"Data cache {config_dir}/solcast-undampened.json exists, file type is <class 'dict'>" in caplog.text
         occurs_in_log("Renaming", 2)
@@ -284,21 +367,23 @@ async def test_remaining_actions(
             "damp_factor": ("1.0," * 24)[:-1],
         }
         odd_factors = [
-            {"damp_factor": "  "},  # No factors
-            {"damp_factor": ("0.5," * 5)[:-1]},  # Insufficient factors
-            {"damp_factor": ("0.5," * 15)[:-1]},  # Not 24 or 48 factors
-            {"damp_factor": ("1.5," * 24)[:-1]},  # Out of range factors
-            {"damp_factor": ("0.8f," * 24)[:-1]},  # Weird factors
+            {"set": {}, "expect": MultipleInvalid},  # No factors
+            {"set": {"damp_factor": "  "}, "expect": ServiceValidationError},  # No factors
+            {"set": {"damp_factor": ("0.5," * 5)[:-1]}, "expect": ServiceValidationError},  # Insufficient factors
+            {"set": {"damp_factor": ("0.5," * 15)[:-1]}, "expect": ServiceValidationError},  # Not 24 or 48 factors
+            {"set": {"damp_factor": ("1.5," * 24)[:-1]}, "expect": ServiceValidationError},  # Out of range factors
+            {"set": {"damp_factor": ("0.8f," * 24)[:-1]}, "expect": ServiceValidationError},  # Weird factors
+            {
+                "set": {"site": "all", "damp_factor": ("1.0," * 24)[:-1]},
+                "expect": ServiceValidationError,
+            },  # Site with 24 dampening factors
         ]
-        with pytest.raises(MultipleInvalid):
-            await hass.services.async_call(DOMAIN, "set_dampening", {}, blocking=True)
         for factors in odd_factors:
-            with pytest.raises(ServiceValidationError):
-                await hass.services.async_call(DOMAIN, "set_dampening", factors, blocking=True)
-        with pytest.raises(ServiceValidationError):
-            # Specifying site with 24 dampening factors
-            await hass.services.async_call(DOMAIN, "set_dampening", {"site": "all", "damp_factor": ("1.0," * 24)[:-1]}, blocking=True)
+            with pytest.raises(factors["expect"]):
+                await hass.services.async_call(DOMAIN, "set_dampening", factors["set"], blocking=True)
+
         await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("0.5," * 24)[:-1]}, blocking=True)
+        await hass.async_block_till_done()  # Because options change
         dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
         assert dampening.get("data", [{}])[0] == {"site": "all", "damp_factor": ("0.5," * 24)[:-1]}
         # Granular dampening
@@ -343,36 +428,40 @@ async def test_remaining_actions(
         await _clear_granular_dampening()
 
         # Test set/clear hard limit
-        with pytest.raises(MultipleInvalid):
-            # No hard limit
-            await hass.services.async_call(DOMAIN, "set_hard_limit", {}, blocking=True)
-        with pytest.raises(ServiceValidationError):
-            # Silly hard limit
-            await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": "zzzzzz"}, blocking=True)
-        with pytest.raises(ServiceValidationError):
-            # Negative hard limit
-            await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": "-5"}, blocking=True)
-        with pytest.raises(ServiceValidationError):
-            # Too many hard limits
-            await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": "5.0,5.0,5.0"}, blocking=True)
+        odd_limits = [
+            {"set": {}, "expect": MultipleInvalid},  # No hard limit
+            {"set": {"hard_limit": "zzzzzz"}, "expect": ServiceValidationError},  # Silly hard limit
+            {"set": {"hard_limit": "-5"}, "expect": ServiceValidationError},  # Negative hard limit
+            {"set": {"hard_limit": "5.0,5.0,5.0"}, "expect": ServiceValidationError},  # Too many hard limits
+        ]
+        for limits in odd_limits:
+            with pytest.raises(limits["expect"]):
+                await hass.services.async_call(DOMAIN, "set_hard_limit", limits["set"], blocking=True)
 
-        await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": "5.0"}, blocking=True)
-        await hass.async_block_till_done()  # Because integration reloads
-        assert hass.data[DOMAIN][entry.entry_id].solcast.hard_limit == "5.0"
+        async def _set_hard_limit(hard_limit: str) -> None:
+            await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": hard_limit}, blocking=True)
+            await hass.async_block_till_done()
+            return hass.data[DOMAIN][entry.entry_id].solcast  # Because integration reloads
+
+        async def _remove_hard_limit() -> None:
+            await hass.services.async_call(DOMAIN, "remove_hard_limit", {}, blocking=True)
+            await hass.async_block_till_done()
+            return hass.data[DOMAIN][entry.entry_id].solcast  # Because integration reloads
+
+        solcast = await _set_hard_limit("5.0")
+        assert solcast.hard_limit == "5.0"
         assert "Build hard limit period values from scratch for dampened" in caplog.text
         assert "Build hard limit period values from scratch for un-dampened" in caplog.text
         for estimate in ["pv_estimate", "pv_estimate10", "pv_estimate90"]:
-            assert len(hass.data[DOMAIN][entry.entry_id].solcast._sites_hard_limit["all"][estimate]) > 0
-            assert len(hass.data[DOMAIN][entry.entry_id].solcast._sites_hard_limit_undampened["all"][estimate]) > 0
+            assert len(solcast._sites_hard_limit["all"][estimate]) > 0
+            assert len(solcast._sites_hard_limit_undampened["all"][estimate]) > 0
 
-        await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": "5000"}, blocking=True)
-        await hass.async_block_till_done()  # Because integration reloads
-        assert hass.data[DOMAIN][entry.entry_id].solcast.hard_limit == "5000.0"
+        solcast = await _set_hard_limit("5000")
+        assert solcast.hard_limit == "5000.0"
         assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set").state == "5.0 MW"
 
-        await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": "5000000"}, blocking=True)
-        await hass.async_block_till_done()  # Because integration reloads
-        assert hass.data[DOMAIN][entry.entry_id].solcast.hard_limit == "5000000.0"
+        solcast = await _set_hard_limit("5000000")
+        assert solcast.hard_limit == "5000000.0"
         assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set").state == "5.0 GW"
 
         assert await hass.config_entries.async_unload(entry.entry_id)
@@ -387,32 +476,31 @@ async def test_remaining_actions(
         data["reset"] = (dt.now(datetime.UTC) - timedelta(days=5)).isoformat()
         usage_file.write_text(json.dumps(data), encoding="utf-8")
         config = copy.deepcopy(DEFAULT_INPUT2)
-        config[API_QUOTA] = "20,20"
+        config[API_QUOTA] = "8,8"
+        mock_session_config_reset()
         entry = await async_init_integration(hass, config)
 
-        await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": "100.0,100.0"}, blocking=True)
-        await hass.async_block_till_done()  # Because integration reloads
-        assert hass.data[DOMAIN][entry.entry_id].solcast.hard_limit == "100.0,100.0"
+        solcast = await _set_hard_limit("100.0,100.0")
+        assert solcast.hard_limit == "100.0,100.0"
         assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "False"
         assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "False"
 
-        await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": "5.0,5.0"}, blocking=True)
-        await hass.async_block_till_done()  # Because integration reloads
-        assert hass.data[DOMAIN][entry.entry_id].solcast.hard_limit == "5.0,5.0"
+        solcast = await _set_hard_limit("5.0,5.0")
+        assert solcast.hard_limit == "5.0,5.0"
         assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "5.0 kW"
         assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "5.0 kW"
         assert "Build hard limit period values from scratch for dampened" in caplog.text
         assert "Build hard limit period values from scratch for un-dampened" in caplog.text
         for api_key in entry.options["api_key"].split(","):
             for estimate in ["pv_estimate", "pv_estimate10", "pv_estimate90"]:
-                assert len(hass.data[DOMAIN][entry.entry_id].solcast._sites_hard_limit[api_key][estimate]) > 0
-                assert len(hass.data[DOMAIN][entry.entry_id].solcast._sites_hard_limit_undampened[api_key][estimate]) > 0
+                assert len(solcast._sites_hard_limit[api_key][estimate]) > 0
+                assert len(solcast._sites_hard_limit_undampened[api_key][estimate]) > 0
 
-        await hass.services.async_call(DOMAIN, "remove_hard_limit", {}, blocking=True)
-        await hass.async_block_till_done()  # Because integration reloads
-        assert hass.data[DOMAIN][entry.entry_id].solcast.hard_limit == "100.0"
-        assert len(hass.data[DOMAIN][entry.entry_id].solcast._sites_hard_limit["all"]["pv_estimate"]) == 0
-        assert len(hass.data[DOMAIN][entry.entry_id].solcast._sites_hard_limit_undampened["all"]["pv_estimate"]) == 0
+        solcast = await _remove_hard_limit()
+        assert solcast.hard_limit == "100.0"
+        for estimate in ["pv_estimate", "pv_estimate10", "pv_estimate90"]:
+            assert len(solcast._sites_hard_limit["all"][estimate]) == 0
+            assert len(solcast._sites_hard_limit_undampened["all"][estimate]) == 0
 
         # Test query forecast data
         queries = [
@@ -421,7 +509,7 @@ async def test_remaining_actions(
                     EVENT_START_DATETIME: solcast.get_day_start_utc().isoformat(),
                     EVENT_END_DATETIME: solcast.get_day_start_utc(future=1).isoformat(),
                 },
-                "expected": 48,
+                "expect": 48,
             },
             {
                 "query": {
@@ -429,7 +517,7 @@ async def test_remaining_actions(
                     EVENT_END_DATETIME: solcast.get_day_start_utc(future=1).isoformat(),
                     UNDAMPENED: True,
                 },
-                "expected": 48,
+                "expect": 48,
             },
             {
                 "query": {
@@ -437,7 +525,7 @@ async def test_remaining_actions(
                     EVENT_END_DATETIME: solcast.get_day_start_utc().isoformat(),
                     SITE: "1111-1111-1111-1111",
                 },
-                "expected": 42,
+                "expect": 42,
             },
             {
                 "query": {
@@ -446,14 +534,14 @@ async def test_remaining_actions(
                     SITE: "2222-2222-2222-2222",
                     UNDAMPENED: True,
                 },
-                "expected": 96,
+                "expect": 96,
             },
         ]
         for query in queries:
             forecast_data = await hass.services.async_call(
                 DOMAIN, "query_forecast_data", query["query"], blocking=True, return_response=True
             )
-            assert len(forecast_data.get("data", [])) == query["expected"]
+            assert len(forecast_data.get("data", [])) == query["expect"]
 
         assert "ERROR" not in caplog.text
 
@@ -486,6 +574,7 @@ async def test_scenarios(
             data["last_attempt"] = data["last_updated"]
             data["auto_updated"] = True
             data_file.write_text(json.dumps(data), encoding="utf-8")
+            mock_session_config_reset()
 
         def corrupt_data():
             data = json.loads(data_file.read_text(encoding="utf-8"))

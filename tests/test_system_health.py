@@ -10,13 +10,7 @@ from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 
-from . import (
-    DEFAULT_INPUT1,
-    MockedResponse,
-    ResponseMocker,
-    async_cleanup_integration_tests,
-    async_init_integration,
-)
+from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,23 +25,15 @@ async def get_system_health_info(hass: HomeAssistant, domain: str) -> dict[str, 
 async def test_system_health(
     recorder_mock: Recorder,
     hass: HomeAssistant,
-    response_mocker: ResponseMocker,
+    # response_mocker: ResponseMocker,
 ) -> None:
     """Test system health."""
 
-    entry = await async_init_integration(hass, DEFAULT_INPUT1, mock_api=True)
+    entry = await async_init_integration(hass, DEFAULT_INPUT1)
     coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
     solcast: SolcastApi = coordinator.solcast
 
     try:
-        response_mocker.add(
-            url="https://api.solcast.com.au",
-            response=MockedResponse(
-                content={},
-                headers={"Content-Type": "application/json"},
-            ),
-        )
-
         assert await async_setup_component(hass, "system_health", {})
         await hass.async_block_till_done()
 
