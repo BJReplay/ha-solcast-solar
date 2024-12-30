@@ -171,7 +171,7 @@ async def _wait_for_update(caplog: any) -> None:
         DEFAULT_INPUT2,
     ],
 )
-async def test_init(
+async def test_integration(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
@@ -341,7 +341,7 @@ async def test_init(
         )
 
 
-async def test_remaining_actions(
+async def test_integration_remaining_actions(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
@@ -581,7 +581,7 @@ async def test_remaining_actions(
         assert await async_cleanup_integration_tests(hass, config_dir)
 
 
-async def test_scenarios(
+async def test_integration_scenarios(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
