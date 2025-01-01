@@ -10,6 +10,7 @@ import re
 from typing import Final
 from zoneinfo import ZoneInfo
 
+from aiohttp import ClientConnectionError
 import pytest
 
 from homeassistant.components.solcast_solar import SolcastApi
@@ -232,28 +233,26 @@ async def async_init_integration(
         mock_session_reset()
         aioresp = None
         aioresp = aioresponses(passthrough=["http://127.0.0.1"])
+
+        URLS = [
+            r"https://api\.solcast\.com\.au/rooftop_sites\?.*api_key=.*$",
+            r"https://api\.solcast\.com\.au/rooftop_sites/.+/forecasts.*$",
+            r"https://api\.solcast\.com\.au/rooftop_sites/.+/estimated_actuals.*$",
+        ]
+        SITES = 0
+        FORECASTS = 1
+        ESTIMATED_ACTUALS = 2
+        exc = MOCK_SESSION_CONFIG["exception"]
+        if exc == ClientConnectionError:
+            # Modify the URLs to cause a connection error.
+            for n, url in enumerate(URLS):
+                URLS[n] = url.replace("solcast", "solcastxxxx")
+            exc = None
+
         aioresp.get("https://api.solcast.com.au", status=200)
-        aioresp.get(
-            re.compile(r"https://api\.solcast\.com\.au/rooftop_sites\?.*api_key=.*$"),
-            status=200,
-            callback=_get_solcast_sites,
-            repeat=99999,
-            exception=MOCK_SESSION_CONFIG["exception"],
-        )
-        aioresp.get(
-            re.compile(r"^https://api\.solcast\.com\.au/rooftop_sites/.+/forecasts.*$"),
-            status=200,
-            callback=_get_solcast_forecasts,
-            repeat=99999,
-            exception=MOCK_SESSION_CONFIG["exception"],
-        )
-        aioresp.get(
-            re.compile(r"^https://api\.solcast\.com\.au/rooftop_sites/.+/estimated_actuals.*$"),
-            status=200,
-            callback=_get_solcast_estimated_actuals,
-            repeat=99999,
-            exception=MOCK_SESSION_CONFIG["exception"],
-        )
+        aioresp.get(re.compile(URLS[SITES]), status=200, callback=_get_solcast_sites, repeat=99999, exception=exc)
+        aioresp.get(re.compile(URLS[FORECASTS]), status=200, callback=_get_solcast_forecasts, repeat=99999, exception=exc)
+        aioresp.get(re.compile(URLS[ESTIMATED_ACTUALS]), status=200, callback=_get_solcast_estimated_actuals, repeat=99999, exception=exc)
         MOCK_SESSION_CONFIG["aioresponses"] = aioresp
 
     await hass.config_entries.async_setup(entry.entry_id)

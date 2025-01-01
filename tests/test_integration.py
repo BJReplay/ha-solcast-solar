@@ -8,7 +8,7 @@ import json
 import logging
 from pathlib import Path
 
-from aiohttp import ClientConnectorError
+from aiohttp import ClientConnectionError, ClientError, ClientOSError
 import pytest
 from voluptuous.error import MultipleInvalid
 
@@ -103,13 +103,11 @@ async def test_api_failure(
             assertions()
             mock_session_set_exception(TimeoutError)
             await async_init_integration(hass, DEFAULT_INPUT1)
-            mock_session_clear_exception()
             assertions()
-
-            # TODO: Fix this test, it is failing because a mocked exception is not being created successfully
-            # mock_session_set_exception(ClientConnectorError)
-            # await async_init_integration(hass, DEFAULT_INPUT1)
-            # assertions()
+            mock_session_set_exception(ClientConnectionError)
+            await async_init_integration(hass, DEFAULT_INPUT1)
+            assertions()
+            mock_session_clear_exception()
 
         # Test API too busy during get sites without cache
         await too_busy(assertions1_busy)
