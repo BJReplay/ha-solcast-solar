@@ -1,6 +1,5 @@
-"""Tests for Solcast Solar integration."""
+"""Tests setup for Solcast Solar integration."""
 
-from contextvars import ContextVar
 import copy
 import datetime
 from datetime import datetime as dt
@@ -11,7 +10,6 @@ from typing import Final
 from zoneinfo import ZoneInfo
 
 from aiohttp import ClientConnectionError
-import pytest
 
 from homeassistant.components.solcast_solar import SolcastApi
 import homeassistant.components.solcast_solar.const as const  # noqa: PLR0402
@@ -83,6 +81,22 @@ DEFAULT_INPUT2[BRK_SITE_DETAILED] = True
 DEFAULT_INPUT_NO_SITES = copy.deepcopy(DEFAULT_INPUT1)
 DEFAULT_INPUT_NO_SITES[CONF_API_KEY] = KEY_NO_SITES
 
+STATUS_401 = {
+    "response_status": {
+        "error_code": "InvalidApiKey",
+        "message": "The API key is invalid",
+        "errors": [],
+    }
+}
+STATUS_429 = {}
+STATUS_429_OVER = {
+    "response_status": {
+        "error_code": "TooManyRequests",
+        "message": "You have exceeded your free daily limit.",
+        "errors": [],
+    }
+}
+
 MOCK_SESSION_CONFIG = {
     "api_limit": int(min(DEFAULT_INPUT2[API_QUOTA].split(","))),
     "api_used": {api_key: 0 for api_key in DEFAULT_INPUT2[CONF_API_KEY].split(",")},
@@ -91,10 +105,9 @@ MOCK_SESSION_CONFIG = {
     "aioresponses": None,
 }
 
-REQUEST_CONTEXT: ContextVar[pytest.FixtureRequest] = ContextVar("request_context", default=None)
-
 ZONE = ZoneInfo(ZONE_RAW)
 set_time_zone(ZONE)
+NOW = dt.now(ZONE)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -102,19 +115,19 @@ _LOGGER = logging.getLogger(__name__)
 def get_now_utc(self) -> dt:
     """Mock get_now_utc, spoof middle-of-the-day-ish."""
 
-    return dt.now(self._tz).replace(hour=12, minute=27, second=0, microsecond=0).astimezone(datetime.UTC)
+    return NOW.replace(hour=12, minute=27, second=0, microsecond=0).astimezone(datetime.UTC)
 
 
 def get_real_now_utc(self) -> dt:
     """Mock get_real_now_utc, spoof middle-of-the-day-ish."""
 
-    return dt.now(self._tz).replace(hour=12, minute=27, second=27, microsecond=27272).astimezone(datetime.UTC)
+    return NOW.replace(hour=12, minute=27, second=27, microsecond=27272).astimezone(datetime.UTC)
 
 
 def get_hour_start_utc(self) -> dt:
     """Mock get_hour_start_utc, spoof middle-of-the-day-ish."""
 
-    return dt.now(self._tz).replace(hour=12, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
+    return NOW.replace(hour=12, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
 
 
 # Replace the current date/time functions in SolcastApi.
@@ -122,6 +135,49 @@ def get_hour_start_utc(self) -> dt:
 SolcastApi.get_now_utc = get_now_utc
 SolcastApi.get_real_now_utc = get_real_now_utc
 SolcastApi.get_hour_start_utc = get_hour_start_utc
+
+
+def _check_abend(api_key) -> CallbackResult | None:
+    if MOCK_SESSION_CONFIG["return_429"]:
+        return CallbackResult(status=429, payload=STATUS_429)
+    if MOCK_SESSION_CONFIG["api_used"].get(api_key, 0) >= MOCK_SESSION_CONFIG["api_limit"]:
+        return CallbackResult(status=429, payload=STATUS_429_OVER)
+    if API_KEY_SITES.get(api_key) is None:
+        return CallbackResult(status=401, payload=STATUS_401)
+    return None
+
+
+async def _get_sites(url, **kwargs) -> CallbackResult:
+    try:
+        params = kwargs.get("params")
+        api_key = params["api_key"]
+        if (abend := _check_abend(api_key)) is not None:
+            return abend
+        return CallbackResult(payload=raw_get_sites(api_key))
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.error("Error building sites: %s", e)
+
+
+async def _get_solcast(url, get, **kwargs) -> CallbackResult:
+    try:
+        params = kwargs.get("params")
+        site = str(url).split("_sites/")[1].split("/")[0]
+        api_key = params["api_key"]
+        hours = params.get("hours", 168)
+        if (abend := _check_abend(api_key)) is not None:
+            return abend
+        MOCK_SESSION_CONFIG["api_used"][api_key] += 1
+        return CallbackResult(payload=get(site, api_key, hours))
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.error("Error building past actual data: %s", e)
+
+
+async def _get_forecasts(url, **kwargs) -> CallbackResult:
+    return await _get_solcast(url, raw_get_site_forecasts, **kwargs)
+
+
+async def _get_actuals(url, **kwargs) -> CallbackResult:
+    return await _get_solcast(url, raw_get_site_estimated_actuals, **kwargs)
 
 
 def mock_session_config_reset() -> None:
@@ -147,64 +203,6 @@ def mock_session_set_exception(exception: Exception) -> None:
 def mock_session_clear_exception() -> None:
     """Clear the mock session returned exception."""
     MOCK_SESSION_CONFIG["exception"] = None
-
-
-STATUS_401 = {
-    "response_status": {
-        "error_code": "InvalidApiKey",
-        "message": "The API key is invalid",
-        "errors": [],
-    }
-}
-STATUS_429 = {}
-STATUS_429_OVER = {
-    "response_status": {
-        "error_code": "TooManyRequests",
-        "message": "You have exceeded your free daily limit.",
-        "errors": [],
-    }
-}
-
-
-async def _get_solcast_sites(url, **kwargs) -> CallbackResult:
-    try:
-        params = kwargs.get("params")
-        api_key = params["api_key"]
-        if MOCK_SESSION_CONFIG["return_429"]:
-            return CallbackResult(status=429, payload=STATUS_429)
-        if MOCK_SESSION_CONFIG["api_used"].get(api_key, 0) >= MOCK_SESSION_CONFIG["api_limit"]:
-            return CallbackResult(status=429, payload=STATUS_429_OVER)
-        if API_KEY_SITES.get(api_key) is None:
-            return CallbackResult(status=401, payload=STATUS_401)
-        return CallbackResult(payload=raw_get_sites(api_key))
-    except Exception as e:  # noqa: BLE001
-        _LOGGER.error("Error building sites: %s", e)
-
-
-async def _get_solcast(url, get, **kwargs) -> CallbackResult:
-    try:
-        params = kwargs.get("params")
-        site = str(url).split("_sites/")[1].split("/")[0]
-        api_key = params["api_key"]
-        hours = params.get("hours", 168)
-        if MOCK_SESSION_CONFIG["return_429"]:
-            return CallbackResult(status=429, payload=STATUS_429)
-        if MOCK_SESSION_CONFIG["api_used"].get(api_key, 0) >= MOCK_SESSION_CONFIG["api_limit"]:
-            return CallbackResult(status=429, payload=STATUS_429_OVER)
-        if API_KEY_SITES.get(api_key) is None:
-            return CallbackResult(status=401, payload=STATUS_401)
-        MOCK_SESSION_CONFIG["api_used"][api_key] += 1
-        return CallbackResult(payload=get(site, api_key, hours))
-    except Exception as e:  # noqa: BLE001
-        _LOGGER.error("Error building past actual data: %s", e)
-
-
-async def _get_solcast_forecasts(url, **kwargs) -> CallbackResult:
-    return await _get_solcast(url, raw_get_site_forecasts, **kwargs)
-
-
-async def _get_solcast_estimated_actuals(url, **kwargs) -> CallbackResult:
-    return await _get_solcast(url, raw_get_site_estimated_actuals, **kwargs)
 
 
 def mock_session_reset() -> None:
@@ -234,25 +232,24 @@ async def async_init_integration(
         aioresp = None
         aioresp = aioresponses(passthrough=["http://127.0.0.1"])
 
-        URLS = [
-            r"https://api\.solcast\.com\.au/rooftop_sites\?.*api_key=.*$",
-            r"https://api\.solcast\.com\.au/rooftop_sites/.+/forecasts.*$",
-            r"https://api\.solcast\.com\.au/rooftop_sites/.+/estimated_actuals.*$",
-        ]
-        SITES = 0
-        FORECASTS = 1
-        ESTIMATED_ACTUALS = 2
+        URLS = {
+            "sites": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites\?.*api_key=.*$", "callback": _get_sites},
+            "forecasts": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites/.+/forecasts.*$", "callback": _get_forecasts},
+            "estimated_actuals": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites/.+/estimated_actuals.*$", "callback": _get_actuals},
+        }
+
         exc = MOCK_SESSION_CONFIG["exception"]
         if exc == ClientConnectionError:
             # Modify the URLs to cause a connection error.
-            for n, url in enumerate(URLS):
-                URLS[n] = url.replace("solcast", "solcastxxxx")
+            for url in URLS.values():
+                url["URL"] = url["URL"].replace("solcast", "solcastxxxx")
             exc = None
 
+        # Set up the mock GET responses.
         aioresp.get("https://api.solcast.com.au", status=200)
-        aioresp.get(re.compile(URLS[SITES]), status=200, callback=_get_solcast_sites, repeat=99999, exception=exc)
-        aioresp.get(re.compile(URLS[FORECASTS]), status=200, callback=_get_solcast_forecasts, repeat=99999, exception=exc)
-        aioresp.get(re.compile(URLS[ESTIMATED_ACTUALS]), status=200, callback=_get_solcast_estimated_actuals, repeat=99999, exception=exc)
+        for _get in URLS.values():
+            aioresp.get(re.compile(_get["URL"]), status=200, callback=_get["callback"], repeat=99999, exception=exc)
+
         MOCK_SESSION_CONFIG["aioresponses"] = aioresp
 
     await hass.config_entries.async_setup(entry.entry_id)
@@ -262,7 +259,7 @@ async def async_init_integration(
 
 
 async def async_cleanup_integration_tests(hass: HomeAssistant, config_dir: str, **kwargs) -> None:
-    """Clean up the Solcast Solar integration caches."""
+    """Clean up the Solcast Solar integration caches and session."""
 
     def list_files() -> list[str]:
         return [str(cache) for cache in Path(config_dir).glob("solcast*.json")]
@@ -275,8 +272,6 @@ async def async_cleanup_integration_tests(hass: HomeAssistant, config_dir: str, 
             if not kwargs.get("solcast_dampening", True) and "solcast-dampening" in cache:
                 continue
             if not kwargs.get("solcast_sites", True) and "solcast-sites" in cache:
-                continue
-            if not kwargs.get("solcast_usage", True) and "solcast-usage" in cache:
                 continue
             _LOGGER.debug("Removing cache file: %s", cache)
             Path(cache).unlink()
