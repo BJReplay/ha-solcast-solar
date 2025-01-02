@@ -29,7 +29,7 @@ async def test_diagnostics(
     """Test diagnostics output."""
 
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
     solcast: SolcastApi = coordinator.solcast
 
     try:
@@ -50,4 +50,4 @@ async def test_diagnostics(
         assert diagnostics["forecast_hard_limit_set"] is True
 
     finally:
-        assert await async_cleanup_integration_tests(hass, solcast._config_dir)
+        assert await async_cleanup_integration_tests(hass)

@@ -44,6 +44,9 @@ from .aioresponses import CallbackResult, aioresponses
 
 from tests.common import MockConfigEntry
 
+CONFIG_DIR = Path(__file__).parents[2] / "testing_config"
+assert CONFIG_DIR.is_dir()
+
 KEY1: Final = "1"
 KEY2: Final = "2"
 KEY_NO_SITES = "no_sites"
@@ -101,6 +104,7 @@ MOCK_SESSION_CONFIG = {
     "api_limit": int(min(DEFAULT_INPUT2[API_QUOTA].split(","))),
     "api_used": {api_key: 0 for api_key in DEFAULT_INPUT2[CONF_API_KEY].split(",")},
     "return_429": False,
+    "return_429_over": False,
     "exception": None,
     "aioresponses": None,
 }
@@ -141,6 +145,8 @@ def _check_abend(api_key) -> CallbackResult | None:
     if MOCK_SESSION_CONFIG["return_429"]:
         return CallbackResult(status=429, payload=STATUS_429)
     if MOCK_SESSION_CONFIG["api_used"].get(api_key, 0) >= MOCK_SESSION_CONFIG["api_limit"]:
+        return CallbackResult(status=429, payload=STATUS_429_OVER)
+    if MOCK_SESSION_CONFIG["return_429_over"]:
         return CallbackResult(status=429, payload=STATUS_429_OVER)
     if API_KEY_SITES.get(api_key) is None:
         return CallbackResult(status=401, payload=STATUS_401)
@@ -186,13 +192,23 @@ def mock_session_config_reset() -> None:
 
 
 def mock_session_set_too_busy() -> None:
-    """Set the mock session to return a 429 error."""
+    """Set the mock session to return a 429 too busy error."""
     MOCK_SESSION_CONFIG["return_429"] = True
 
 
 def mock_session_clear_too_busy() -> None:
-    """Clear the mock session to return 429."""
+    """Clear the mock session to return too busy."""
     MOCK_SESSION_CONFIG["return_429"] = False
+
+
+def mock_session_set_over_limit() -> None:
+    """Set the mock session to return a 429 limit exceeded error."""
+    MOCK_SESSION_CONFIG["return_429_over"] = True
+
+
+def mock_session_clear_over_limit() -> None:
+    """Clear the mock session to return limit exceeded."""
+    MOCK_SESSION_CONFIG["return_429_over"] = False
 
 
 def mock_session_set_exception(exception: Exception) -> None:
@@ -217,6 +233,8 @@ async def async_init_integration(
     hass: HomeAssistant, options: dict, version: int = CONFIG_VERSION, mock_api: bool = True
 ) -> MockConfigEntry:
     """Set up the Solcast Solar integration in HomeAssistant."""
+
+    mock_session_config_reset()
 
     hass.config.time_zone = ZONE_RAW
     const.SENSOR_UPDATE_LOGGING = True
@@ -258,11 +276,11 @@ async def async_init_integration(
     return entry
 
 
-async def async_cleanup_integration_tests(hass: HomeAssistant, config_dir: str, **kwargs) -> None:
+async def async_cleanup_integration_tests(hass: HomeAssistant, **kwargs) -> None:
     """Clean up the Solcast Solar integration caches and session."""
 
     def list_files() -> list[str]:
-        return [str(cache) for cache in Path(config_dir).glob("solcast*.json")]
+        return [str(cache) for cache in Path(CONFIG_DIR).glob("solcast*.json")]
 
     try:
         mock_session_reset()

@@ -8,9 +8,13 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.sensor import SensorStateClass
-from homeassistant.components.solcast_solar.const import DOMAIN
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.const import STATE_UNAVAILABLE, STATE_UNKNOWN, UnitOfEnergy, UnitOfPower
+from homeassistant.const import (
+    STATE_UNAVAILABLE,
+    STATE_UNKNOWN,
+    UnitOfEnergy,
+    UnitOfPower,
+)
 from homeassistant.core import HomeAssistant
 
 from . import (
@@ -347,7 +351,7 @@ async def test_sensor_states(
     """Test state and attributes of sensors including expected state class and unit of measurement."""
 
     entry = await async_init_integration(hass, settings)
-    coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
     try:
         assert len(hass.states.async_all("sensor")) == len(SENSORS) + (3 if key == "1" else 4)
@@ -390,7 +394,7 @@ async def test_sensor_states(
         assert coordinator.get_site_sensor_extra_attributes("badroof", "badkey") is None
 
     finally:
-        assert await async_cleanup_integration_tests(hass, hass.data[DOMAIN][entry.entry_id].solcast._config_dir)
+        assert await async_cleanup_integration_tests(hass)
 
 
 def get_sensor_value(self, key: str):  # TODO: Presently never returns None
@@ -407,7 +411,7 @@ async def test_sensor_unknown(
     SolcastUpdateCoordinator.get_sensor_value = get_sensor_value
     SolcastUpdateCoordinator.get_sensor_extra_attributes = get_sensor_value
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
     try:
         for sensor in SENSORS:
@@ -423,4 +427,4 @@ async def test_sensor_unknown(
             assert state.state == STATE_UNKNOWN
 
     finally:
-        assert await async_cleanup_integration_tests(hass, hass.data[DOMAIN][entry.entry_id].solcast._config_dir)
+        assert await async_cleanup_integration_tests(hass)

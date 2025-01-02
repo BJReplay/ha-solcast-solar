@@ -6,6 +6,7 @@ from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import CONFIG_VERSION, DOMAIN
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.energy import async_get_solar_forecast
+from homeassistant.components.solcast_solar.util import SolcastConfigEntry
 from homeassistant.core import HomeAssistant
 
 from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
@@ -25,8 +26,8 @@ async def test_energy_data(
     )
     assert await async_get_solar_forecast(hass, entry.entry_id) is None
 
-    entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    entry: SolcastConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
+    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
     try:
         response = await async_get_solar_forecast(hass, entry.entry_id)
@@ -52,4 +53,4 @@ async def test_energy_data(
         assert earliest_and_beyond >= 30 * 13
 
     finally:
-        assert await async_cleanup_integration_tests(hass, coordinator.solcast._config_dir)
+        assert await async_cleanup_integration_tests(hass)

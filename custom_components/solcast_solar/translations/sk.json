@@ -1,10 +1,19 @@
 {
     "config": {
         "abort": {
-            "single_instance_allowed": "Povolená je iba jedna inštancia Solcast"
+            "single_instance_allowed": "Povolená je iba jedna inštancia Solcast",
+            "reconfigured": "Použila sa nová konfigurácia"
         },
         "step": {
             "user": {
+                "data": {
+                    "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
+                    "api_quota": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",
+                    "auto_update": "Automatická aktualizácia"
+                },
+                "description": "Podrobnosti o účte Solcast\n\n(Ak nie je automatická aktualizácia, potom je potrebná automatizácia – pozrite si integračnú dokumentáciu)"
+            },
+            "reconfigure_confirm": {
                 "data": {
                     "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
                     "api_quota": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",

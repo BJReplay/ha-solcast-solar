@@ -15,7 +15,6 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_CONFIGURATION_URL,
     ATTR_IDENTIFIERS,
@@ -41,6 +40,7 @@ from .const import (
     SENSOR_UPDATE_LOGGING,
 )
 from .coordinator import SolcastUpdateCoordinator
+from .util import SolcastConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -273,19 +273,19 @@ def get_sensor_update_policy(key: str) -> SensorUpdatePolicy:
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: SolcastConfigEntry,
     async_add_entities: AddEntitiesCallback,
-):
+) -> None:
     """Set up a Solcast sensor.
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (ConfigEntry): The integration entry instance, contains the configuration.
+        entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
         async_add_entities (AddEntitiesCallback): The Home Assistant callback to add entities.
 
     """
 
-    coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
     entities = []
 
     for sensor in SENSORS.values():
@@ -349,14 +349,14 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         self,
         coordinator: SolcastUpdateCoordinator,
         entity_description: SensorEntityDescription,
-        entry: ConfigEntry,
+        entry: SolcastConfigEntry,
     ) -> None:
         """Initialise the sensor.
 
         Arguments:
             coordinator (SolcastUpdateCoordinator): The integration coordinator instance.
             entity_description (SensorEntityDescription): The details of the entity.
-            entry (ConfigEntry): The integration entry instance, contains the configuration.
+            entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
 
         """
         super().__init__(coordinator)
@@ -492,7 +492,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         key: str,
         coordinator: SolcastUpdateCoordinator,
         entity_description: SensorEntityDescription,
-        entry: ConfigEntry,
+        entry: SolcastConfigEntry,
     ) -> None:
         """Initialise the sensor.
 
@@ -500,7 +500,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
             key (str): The sensor name.
             coordinator (SolcastUpdateCoordinator): The integration coordinator instance.
             entity_description (SensorEntityDescription): The details of the entity.
-            entry (ConfigEntry): The integration entry instance, contains the configuration.
+            entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
 
         """
         super().__init__(coordinator)

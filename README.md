@@ -785,6 +785,7 @@ series:
 
 v4.2.8
 * Catch duplicate API key being specified by @autoSteve
+* Add re-auth and reconfigure flows by @autoSteve
 * Fix an issue when half-hourly breakdown is disabled but hourly is enabled by @autoSteve
 * Fix an issue with transitioning from granular to legacy dampening by @autoSteve
 * Fix an issue with using multiple hard limits by @autoSteve

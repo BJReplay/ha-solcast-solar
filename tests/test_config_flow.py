@@ -4,7 +4,6 @@ import copy
 import json
 import logging
 from pathlib import Path
-from unittest.mock import AsyncMock
 
 from homeassistant import config_entries
 from homeassistant.components.recorder import Recorder
@@ -38,8 +37,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
 from . import (
+    CONFIG_DIR,
     DEFAULT_INPUT1,
     DEFAULT_INPUT2,
+    KEY1,
+    KEY2,
     async_cleanup_integration_tests,
     async_init_integration,
 )
@@ -48,17 +50,17 @@ from tests.common import MockConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
-KEY1 = "65sa6d46-sadf876_sd54"
-KEY2 = "65sa6946-glad876_pf69"
+API_KEY1 = "65sa6d46-sadf876_sd54"
+API_KEY2 = "65sa6946-glad876_pf69"
 
-DEFAULT_INPUT1 = copy.deepcopy(DEFAULT_INPUT1)
-DEFAULT_INPUT1[CONF_API_KEY] = KEY1
+DEFAULT_INPUT1_COPY = copy.deepcopy(DEFAULT_INPUT1)
+DEFAULT_INPUT1_COPY[CONF_API_KEY] = API_KEY1
 
-DEFAULT_INPUT2 = copy.deepcopy(DEFAULT_INPUT2)
-DEFAULT_INPUT2[CONF_API_KEY] = KEY1 + "," + KEY2
+DEFAULT_INPUT2_COPY = copy.deepcopy(DEFAULT_INPUT2)
+DEFAULT_INPUT2_COPY[CONF_API_KEY] = API_KEY1 + "," + API_KEY2
 
-MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1)
-MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2)
+MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1_COPY)
+MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2_COPY)
 
 
 async def test_single_instance(
@@ -99,80 +101,69 @@ async def test_create_entry(hass: HomeAssistant) -> None:
     assert result["options"][BRK_SITE_DETAILED] is False
 
 
-async def api_key(step, expect):
-    """Test that valid/invalid API key is handled."""
+TEST_API_KEY = [
+    {
+        "set": {CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"},
+        "expect_type": FlowResultType.ABORT,
+        "expect_reason": "API key looks like a site ID",
+    },
+    {
+        "set": {CONF_API_KEY: KEY1 + "," + KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"},
+        "expect_type": FlowResultType.ABORT,
+        "expect_reason": "Duplicate API key specified",
+    },
+    {"set": {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "0"}},
+    {"set": {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}},
+    {"set": {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "2"}},
+    {
+        "set": {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "0", AUTO_UPDATE: "2"},
+        "expect_type": FlowResultType.ABORT,
+        "expect_reason": "API limit must be one or greater",
+    },
+]
 
-    user_input = {CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"}
-    result = await step(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "API key looks like a site ID"
-
-    user_input = {CONF_API_KEY: KEY1 + "," + KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}
-    result = await step(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "Duplicate API key specified"
-
-    user_input = {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "0"}
-    result = await step(user_input)
-    assert result["type"] == expect
-
-    user_input = {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}
-    result = await step(user_input)
-    assert result["type"] == expect
-
-    user_input = {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "2"}
-    result = await step(user_input)
-    assert result["type"] == expect
-
-    user_input = {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "0", AUTO_UPDATE: "2"}
-    result = await step(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "API limit must be one or greater"
-
-
-async def api_quota(hass: HomeAssistant, step, expect):
-    """Test that valid/invalid API quota is handled."""
-
-    user_input = copy.deepcopy(DEFAULT_INPUT1)
-    user_input[API_QUOTA] = "1nvalid"
-    result = await step(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "API limit is not a number"
-
-    user_input[API_QUOTA] = "0"
-    result = await step(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "API limit must be one or greater"
-
-    user_input[API_QUOTA] = "10,10"
-    result = await step(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "There are more API limit counts entered than keys"
-
-    user_input[API_QUOTA] = "10"
-    result = await step(user_input)
-    assert result["type"] == expect
-
-    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY2)
-    flow.hass = hass
-    user_input = copy.deepcopy(DEFAULT_INPUT2)
-
-    user_input[API_QUOTA] = "10,10"
-    result = await step(user_input)
-    assert result["type"] == expect
-
-    user_input[API_QUOTA] = "10,10,10"
-    result = await step(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "There are more API limit counts entered than keys"
-
-    user_input[API_QUOTA] = "10"
-    result = await step(user_input)
-    assert result["type"] == expect
+TEST_API_QUOTA = [
+    {
+        "input": DEFAULT_INPUT1,
+        "set": {CONF_API_KEY: KEY1, API_QUOTA: "1nvalid", AUTO_UPDATE: "1"},
+        "expect_type": FlowResultType.ABORT,
+        "expect_reason": "API limit is not a number",
+    },
+    {
+        "input": DEFAULT_INPUT1,
+        "set": {CONF_API_KEY: KEY1, API_QUOTA: "0", AUTO_UPDATE: "1"},
+        "expect_type": FlowResultType.ABORT,
+        "expect_reason": "API limit must be one or greater",
+    },
+    {
+        "input": DEFAULT_INPUT1,
+        "set": {CONF_API_KEY: KEY1, API_QUOTA: "10,10", AUTO_UPDATE: "1"},
+        "expect_type": FlowResultType.ABORT,
+        "expect_reason": "There are more API limit counts entered than keys",
+    },
+    {
+        "input": DEFAULT_INPUT1,
+        "set": {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"},
+    },
+    {
+        "input": DEFAULT_INPUT2,
+        "set": {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10,10", AUTO_UPDATE: "1"},
+    },
+    {
+        "input": DEFAULT_INPUT2,
+        "set": {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10,10,10", AUTO_UPDATE: "1"},
+        "expect_type": FlowResultType.ABORT,
+        "expect_reason": "There are more API limit counts entered than keys",
+    },
+    {
+        "input": DEFAULT_INPUT2,
+        "set": {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "1"},
+    },
+]
 
 
-async def test_api_key(hass: HomeAssistant) -> None:
-    """Test that valid/invalid API key is handled."""
+async def test_init_api_key(hass: HomeAssistant) -> None:
+    """Test that valid/invalid API key is handled in init."""
 
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
@@ -181,16 +172,68 @@ async def test_api_key(hass: HomeAssistant) -> None:
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "user"
 
-    await api_key(flow.async_step_user, FlowResultType.CREATE_ENTRY)
+    for test in TEST_API_KEY:
+        result = await flow.async_step_user(test["set"])
+        assert result["type"] == test.get("expect_type", FlowResultType.CREATE_ENTRY)
+        if test.get("expect_type", FlowResultType.CREATE_ENTRY) is FlowResultType.ABORT:
+            assert result["reason"] == test["expect_reason"]
 
 
-async def test_api_quota(hass: HomeAssistant) -> None:
-    """Test that valid/invalid API quota is handled."""
+async def test_init_api_quota(hass: HomeAssistant) -> None:
+    """Test that valid/invalid API quota is handled in init."""
 
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
 
-    await api_quota(hass, flow.async_step_user, FlowResultType.CREATE_ENTRY)
+    for test in TEST_API_QUOTA:
+        result = await flow.async_step_user(test["set"])
+        assert result["type"] == test.get("expect_type", FlowResultType.CREATE_ENTRY)
+        if test.get("expect_type", FlowResultType.CREATE_ENTRY) is FlowResultType.ABORT:
+            assert result["reason"] == test["expect_reason"]
+
+
+async def test_reconfigure_api_key(recorder_mock: Recorder, hass: HomeAssistant) -> None:
+    """Test that valid/invalid API key is handled in reconfigure."""
+
+    entry = await async_init_integration(hass, DEFAULT_INPUT1)
+    assert hass.data[DOMAIN].get("has_loaded", False) is True
+
+    for test in TEST_API_KEY:
+        for flow in [entry.start_reauth_flow, entry.start_reconfigure_flow]:
+            result = await flow(hass)
+
+            assert result["type"] == FlowResultType.FORM
+            assert result["step_id"] == "reconfigure_confirm"
+            _result = await hass.config_entries.flow.async_configure(
+                result["flow_id"],
+                user_input=test["set"],
+            )
+            if _result["reason"] != "reconfigured":
+                assert _result["reason"] == test.get("expect_reason", "")
+                assert _result["type"] == test["expect_type"]
+
+
+async def test_reconfigure_api_quota(recorder_mock: Recorder, hass: HomeAssistant) -> None:
+    """Test that valid/invalid API quota is handled in reconfigure."""
+
+    _input = None
+    for test in TEST_API_QUOTA:
+        if _input is None or test["input"] != _input:
+            entry = await async_init_integration(hass, test["input"])
+            assert hass.data[DOMAIN].get("has_loaded", False) is True
+            _input = copy.deepcopy(test["input"])
+        for flow in [entry.start_reauth_flow, entry.start_reconfigure_flow]:
+            result = await flow(hass)
+
+            assert result["type"] == FlowResultType.FORM
+            assert result["step_id"] == "reconfigure_confirm"
+            _result = await hass.config_entries.flow.async_configure(
+                result["flow_id"],
+                user_input=test["set"],
+            )
+            if _result["reason"] != "reconfigured":
+                assert _result["reason"] == test.get("expect_reason", "")
+                assert _result["type"] == test["expect_type"]
 
 
 async def test_option_api_key(hass: HomeAssistant) -> None:
@@ -199,7 +242,11 @@ async def test_option_api_key(hass: HomeAssistant) -> None:
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
 
-    await api_key(flow.async_step_init, FlowResultType.FORM)
+    for test in TEST_API_KEY:
+        result = await flow.async_step_init(test["set"])
+        assert result["type"] == test.get("expect_type", FlowResultType.FORM)
+        if test.get("expect_type", FlowResultType.FORM) is FlowResultType.ABORT:
+            assert result["reason"] == test["expect_reason"]
 
 
 async def test_option_api_quota(hass: HomeAssistant) -> None:
@@ -208,7 +255,11 @@ async def test_option_api_quota(hass: HomeAssistant) -> None:
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
 
-    await api_key(flow.async_step_init, FlowResultType.FORM)
+    for test in TEST_API_QUOTA:
+        result = await flow.async_step_init(test["set"])
+        assert result["type"] == test.get("expect_type", FlowResultType.FORM)
+        if test.get("expect_type", FlowResultType.FORM) is FlowResultType.ABORT:
+            assert result["reason"] == test["expect_reason"]
 
 
 async def test_option_custom_hour_sensor(hass: HomeAssistant) -> None:
@@ -296,6 +347,7 @@ async def test_dampen(hass: HomeAssistant) -> None:
     flow.hass = hass
 
     result = await flow.async_step_dampen()
+
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "dampen"
 
@@ -322,7 +374,6 @@ async def test_entry_options_upgrade(
     }
     entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
     assert hass.data[DOMAIN].get("has_loaded", False) is True
-    config_dir = hass.data[DOMAIN][entry.entry_id].solcast._config_dir
 
     try:
         assert entry.version == FINAL_VERSION
@@ -356,7 +407,7 @@ async def test_entry_options_upgrade(
         await hass.async_block_till_done()
 
         # Test API limit gets imported from existing cache in upgrade to V9
-        data_file = Path(f"{config_dir}/solcast-usage.json")
+        data_file = Path(f"{CONFIG_DIR}/solcast-usage.json")
         data_file.write_text(
             json.dumps({"daily_limit": 50, "daily_limit_consumed": 34, "reset": "2024-01-01T00:00:00+00:00"}), encoding="utf-8"
         )
@@ -368,4 +419,4 @@ async def test_entry_options_upgrade(
         await hass.async_block_till_done()
 
     finally:
-        assert await async_cleanup_integration_tests(hass, config_dir)
+        assert await async_cleanup_integration_tests(hass)

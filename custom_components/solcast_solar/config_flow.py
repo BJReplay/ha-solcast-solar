@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import logging
 from pathlib import Path
 import re
@@ -10,12 +11,7 @@ from typing import Any
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.config_entries import (
-    ConfigEntry,
-    ConfigFlow,
-    ConfigFlowResult,
-    OptionsFlow,
-)
+from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
@@ -44,9 +40,15 @@ from .const import (
     SITE_DAMP,
     TITLE,
 )
+from .util import SolcastConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
+AUTO_UPDATE_OPTIONS: list[SelectOptionDict] = [
+    SelectOptionDict(label="none", value="0"),
+    SelectOptionDict(label="sunrise_sunset", value="1"),
+    SelectOptionDict(label="all_day", value="2"),
+]
 LIKE_SITE_ID = r"^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$"
 
 
@@ -113,21 +115,76 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
     VERSION = CONFIG_VERSION
 
+    entry: SolcastConfigEntry | None = None
+
     @staticmethod
     @callback
     def async_get_options_flow(
-        config_entry: ConfigEntry,
+        config_entry: SolcastConfigEntry,
     ) -> SolcastSolarOptionFlowHandler:
         """Get the options flow for this handler.
 
         Arguments:
-            config_entry (ConfigEntry): The integration entry instance, contains the configuration.
+            config_entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
 
         Returns:
             SolcastSolarOptionFlowHandler: The config flow handler instance.
 
         """
         return SolcastSolarOptionFlowHandler(config_entry)  # pragma: no cover, never called by tests
+
+    async def async_step_reauth(self, entry: Mapping[str, Any]) -> ConfigFlowResult:
+        """Reconfigure API key, limit and auto-update."""
+        _entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        assert _entry is not None
+        self.entry = _entry
+        return await self.async_step_reconfigure_confirm()
+
+    async def async_step_reconfigure(self, entry: Mapping[str, Any]) -> ConfigFlowResult:
+        """Reconfigure API key, limit and auto-update."""
+        _entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        assert _entry is not None
+        self.entry = _entry
+        return await self.async_step_reconfigure_confirm()
+
+    async def async_step_reconfigure_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Handle a reconfiguration flow initialized by the user."""
+        errors = {}
+
+        all_config_data = {**self.entry.options}
+
+        if user_input is not None:
+            api_key, api_count, abort = validate_api_key(user_input)
+            if abort is not None:
+                return self.async_abort(reason=abort)
+
+            api_quota, abort = validate_api_limit(user_input, api_count)
+            if abort is not None:
+                return self.async_abort(reason=abort)
+
+            all_config_data[CONF_API_KEY] = api_key
+            all_config_data[API_QUOTA] = api_quota
+            all_config_data[AUTO_UPDATE] = int(user_input[AUTO_UPDATE])
+
+            data = {**self.entry.data, **all_config_data}
+            self.hass.config_entries.async_update_entry(self.entry, data=data, options=data)
+            await self.hass.config_entries.async_reload(self.entry.entry_id)
+            return self.async_abort(reason="reconfigured")
+
+        return self.async_show_form(
+            step_id="reconfigure_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_API_KEY, default=all_config_data[CONF_API_KEY]): str,
+                    vol.Required(API_QUOTA, default=all_config_data[API_QUOTA]): str,
+                    vol.Required(AUTO_UPDATE, default=str(all_config_data[AUTO_UPDATE])): SelectSelector(
+                        SelectSelectorConfig(options=AUTO_UPDATE_OPTIONS, mode=SelectSelectorMode.DROPDOWN, translation_key="auto_update")
+                    ),
+                }
+            ),
+            description_placeholders={"device_name": self.entry.title},
+            errors=errors,
+        )
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a flow initiated by the user.
@@ -176,12 +233,6 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             "exists, defaulting to auto-update off" if solcast_json_exists else "does not exist, defaulting to auto-update on",
         )
 
-        update: list[SelectOptionDict] = [
-            SelectOptionDict(label="none", value="0"),
-            SelectOptionDict(label="sunrise_sunset", value="1"),
-            SelectOptionDict(label="all_day", value="2"),
-        ]
-
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema(
@@ -189,7 +240,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_API_KEY, default=""): str,
                     vol.Required(API_QUOTA, default="10"): str,
                     vol.Required(AUTO_UPDATE, default=str(int(not solcast_json_exists))): SelectSelector(
-                        SelectSelectorConfig(options=update, mode=SelectSelectorMode.DROPDOWN, translation_key="auto_update")
+                        SelectSelectorConfig(options=AUTO_UPDATE_OPTIONS, mode=SelectSelectorMode.DROPDOWN, translation_key="auto_update")
                     ),
                 }
             ),
@@ -199,11 +250,11 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 class SolcastSolarOptionFlowHandler(OptionsFlow):
     """Handle options."""
 
-    def __init__(self, config_entry: ConfigEntry) -> None:
+    def __init__(self, config_entry: SolcastConfigEntry) -> None:
         """Initialize options flow.
 
         Arguments:
-            config_entry (ConfigEntry): The integration entry instance, contains the configuration.
+            config_entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
 
         """
         self._entry = config_entry
@@ -277,7 +328,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
 
                 self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
 
-                return self.async_create_entry(title=TITLE, data=None)  # pragma: no cover, works at runtime never called by tests
+                return self.async_create_entry(title=TITLE, data=None)
             except Exception as e:  # noqa: BLE001
                 errors["base"] = str(e)
 
@@ -349,7 +400,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 all_config_data[SITE_DAMP] = False
 
                 self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
-                return self.async_create_entry(title=TITLE, data=None)  # pragma: no cover, works at runtime never called by tests
+                return self.async_create_entry(title=TITLE, data=None)
             except:  # noqa: E722
                 errors["base"] = "unknown"
 

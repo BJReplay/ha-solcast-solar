@@ -12,10 +12,10 @@ import aiofiles
 import voluptuous as vol
 
 from homeassistant import loader
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
     ConfigEntryNotReady,
     HomeAssistantError,
     ServiceValidationError,
@@ -62,7 +62,8 @@ from .const import (
     UNDAMPENED,
 )
 from .coordinator import SolcastUpdateCoordinator
-from .solcastapi import ConnectionOptions, SolcastApi
+from .solcastapi import ConnectionOptions, SitesStatus, SolcastApi
+from .util import SolcastConfigEntry, SolcastData
 
 PLATFORMS: Final = [
     Platform.SELECT,
@@ -129,7 +130,7 @@ async def __get_time_zone(hass: HomeAssistant):  # pragma: no cover, handle comp
     return dt_util.get_time_zone(hass.config.time_zone)
 
 
-async def __get_options(hass: HomeAssistant, entry: ConfigEntry) -> ConnectionOptions:
+async def __get_options(hass: HomeAssistant, entry: SolcastConfigEntry) -> ConnectionOptions:
     __log_entry_options(entry)
 
     try:
@@ -164,7 +165,7 @@ async def __get_options(hass: HomeAssistant, entry: ConfigEntry) -> ConnectionOp
     )
 
 
-def __log_entry_options(entry: ConfigEntry):
+def __log_entry_options(entry: SolcastConfigEntry):
     _LOGGER.debug(
         "Auto-update options: %s",
         {k: v for k, v in entry.options.items() if k.startswith("auto_")},
@@ -206,7 +207,7 @@ def __get_session_headers(version: str):
     return headers
 
 
-async def __get_granular_dampening(hass: HomeAssistant, entry: ConfigEntry, solcast: SolcastApi):
+async def __get_granular_dampening(hass: HomeAssistant, entry: SolcastConfigEntry, solcast: SolcastApi):
     opt = {**entry.options}
     # Set internal per-site dampening set flag. This is a hidden option until True.
     opt[SITE_DAMP] = await solcast.granular_dampening_data()
@@ -267,7 +268,7 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> b
     return stale
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  # noqa: C901
+async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> bool:  # noqa: C901
     """Set up the integration.
 
     * Get and sanitise options.
@@ -282,7 +283,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (ConfigEntry): The integration entry instance, contains the options and other information.
+        entry (SolcastConfigEntry): The integration entry instance, contains the options and other information.
 
     Raises:
         ConfigEntryNotReady: Instructs Home Assistant that the integration is not yet ready when a load failure occurs.
@@ -297,37 +298,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     options = await __get_options(hass, entry)
     __setup_storage(hass)
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options, hass, entry)
+
     solcast.headers = __get_session_headers(version)
     solcast.previously_loaded = hass.data[DOMAIN].get("has_loaded", False)
-
     try:
         await solcast.get_sites_and_usage()
     except Exception as e:  # pragma: no cover, catch unexpected exceptions
         raise ConfigEntryNotReady(f"Getting sites data failed: {e}") from e
-    if not solcast.sites_loaded:
-        raise ConfigEntryNotReady("Sites data could not be retrieved")
-
-    __log_init_message(version, solcast)
+    match solcast.sites_status:
+        case SitesStatus.ERROR:
+            raise ConfigEntryNotReady("Sites data could not be retrieved")
+        case SitesStatus.BAD_KEY:
+            raise ConfigEntryAuthFailed("API key is invalid")
+        case SitesStatus.NO_SITES:
+            raise ConfigEntryAuthFailed("No sites found for API key")
+        case SitesStatus.UNKNOWN:
+            raise ConfigEntryNotReady("Internal error: Sites data could not be retrieved")  # pragma: no cover, handle unexpected exceptions
+        case SitesStatus.OK:
+            pass
 
     await __get_granular_dampening(hass, entry, solcast)
-    status = await solcast.load_saved_data()
-    if status != "":
+    if (status := await solcast.load_saved_data()) != "":
         raise ConfigEntryNotReady(status)
 
     coordinator = SolcastUpdateCoordinator(hass, solcast, version)
+    entry.runtime_data = SolcastData(coordinator=coordinator)
     if not await coordinator.setup():
         raise ConfigEntryNotReady("Internal error: Coordinator setup failed")  # pragma: no cover, handle unexpected exceptions
     await coordinator.async_config_entry_first_refresh()
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = coordinator
 
-    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    __log_init_message(version, solcast)
+
     entry.async_on_unload(entry.add_update_listener(async_update_options))
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     __log_hard_limit_set(solcast)
     if not await __check_auto_update_missed(coordinator):
         await __check_stale_start(coordinator)
 
     hass.data[DOMAIN]["has_loaded"] = True
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = True
 
     async def action_call_update_forecast(call: ServiceCall):
         """Handle action.
@@ -567,14 +577,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> bool:
     """Unload config entry.
 
     This also removes the actions available and terminates running tasks.
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (ConfigEntry): The integration entry instance.
+        entry (SolcastConfigEntry): The integration entry instance.
 
     Returns:
         bool: Whether the unload completed successfully.
@@ -598,13 +608,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_remove_config_entry_device(
-    hass: HomeAssistant, entry: ConfigEntry, device: dr.DeviceEntry
+    hass: HomeAssistant, entry: SolcastConfigEntry, device: dr.DeviceEntry
 ) -> bool:  # pragma: no cover, never called in tests
     """Remove a device.
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (ConfigEntry): Not used.
+        entry (SolcastConfigEntry): Not used.
         device: The device instance.
 
     Returns:
@@ -615,7 +625,7 @@ async def async_remove_config_entry_device(
     return True
 
 
-async def tasks_cancel(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def tasks_cancel(hass: HomeAssistant, entry: SolcastConfigEntry) -> bool:
     """Cancel all tasks.
 
     Returns:
@@ -623,7 +633,7 @@ async def tasks_cancel(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     """
     try:
-        coordinator = hass.data[DOMAIN][entry.entry_id]
+        coordinator = entry.runtime_data.coordinator
         # Terminate solcastapi tasks in progress
         for task, cancel in coordinator.solcast.tasks.items():  # pragma: no cover, unlikely under test conditions
             _LOGGER.debug("Cancelling solcastapi task %s", task)
@@ -640,7 +650,7 @@ async def tasks_cancel(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         coordinator.tasks = {}
 
 
-async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
+async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry):
     """Reconfigure the integration when options get updated.
 
     * Changing API key or limit, auto-update or turning detailed site breakdown on results in a restart.
@@ -649,10 +659,10 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (ConfigEntry): The integration entry instance.
+        entry (SolcastConfigEntry): The integration entry instance.
 
     """
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data.coordinator
 
     try:
         reload = False
@@ -735,7 +745,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry):
         await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_migrate_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> bool:
     """Upgrade configuration.
 
     v4:  (ancient)  Remove option for auto-poll
@@ -763,7 +773,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (ConfigEntry): The integration entry instance, contains the options and other information.
+        entry (SolcastConfigEntry): The integration entry instance, contains the options and other information.
 
     Returns:
         bool: Whether the config upgrade completed successfully.

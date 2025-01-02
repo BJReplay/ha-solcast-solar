@@ -31,7 +31,6 @@ from aiohttp import ClientConnectionError, ClientSession
 from aiohttp.client_reqrep import ClientResponse
 from isodate import parse_datetime
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
@@ -55,7 +54,7 @@ from .const import (
     SITE_DAMP,
     SPLINE_DEBUG_LOGGING,
 )
-from .spline import cubic_interp
+from .util import SolcastConfigEntry, cubic_interp
 
 
 class DataCallStatus(Enum):
@@ -64,6 +63,16 @@ class DataCallStatus(Enum):
     SUCCESS = 0
     FAIL = 1
     ABORT = 2
+
+
+class SitesStatus(Enum):
+    """The state of load sites."""
+
+    OK = 0
+    BAD_KEY = 1
+    ERROR = 2
+    NO_SITES = 3
+    UNKNOWN = 99
 
 
 class Api(Enum):
@@ -263,7 +272,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         aiohttp_session: ClientSession,
         options: ConnectionOptions,
         hass: HomeAssistant,
-        entry: ConfigEntry,
+        entry: SolcastConfigEntry,
     ) -> None:
         """Initialise the API interface.
 
@@ -271,7 +280,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             aiohttp_session (ClientSession): The aiohttp client session provided by Home Assistant
             options (ConnectionOptions): The integration stored configuration options.
             hass (HomeAssistant): The Home Assistant instance.
-            entry (ConfigEntry): The entry options.
+            entry (SolcastConfigEntry): The entry options.
 
         """
 
@@ -287,7 +296,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.options = options
         self.previously_loaded = False
         self.sites = []
-        self.sites_loaded = False
+        self.sites_status: SitesStatus = SitesStatus.UNKNOWN
         self.tasks = {}
 
         file_path = Path(options.file_path)
@@ -547,11 +556,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def __sites_data(self):  # noqa: C901
         """Request site details.
 
-        The Solcast API is called here with a simple five-second retry mechanism. If
-        the sites cannot be loaded then the integration cannot function, and this will
+        If the sites cannot be loaded then the integration cannot function, and this will
         result in Home Assistant repeatedly trying to initialise.
 
-        If the sites cache exists then it is loaded on API error.
+        If the sites cache exists and is valid then it is loaded on API error.
         """
 
         async def load_cache(cache_filename: str):
@@ -599,6 +607,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             api_keys = self.options.api_key.split(",")
             for api_key in api_keys:
                 api_key = api_key.strip()
+                no_sites = True
                 async with asyncio.timeout(10):
                     cache_filename = self.__get_sites_cache_filename(api_key)
                     _LOGGER.debug(
@@ -632,6 +641,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         if response_json["total_records"] > 0:
                             await save_cache(cache_filename, response_json)
                             success = True
+                            no_sites = False
                         else:
                             _LOGGER.error(
                                 "No sites for the API key %s are configured at solcast.com",
@@ -650,7 +660,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 "Get sites failed, last call result: %s",
                                 self.__translate(status),
                             )
-                        if cache_exists:
+                        if status == 200 and no_sites:
+                            self.sites_status = SitesStatus.NO_SITES
+                        elif cache_exists:
                             response_json = await load_cache(cache_filename)
                             status = 200
                             # Check for API key change and cache validity
@@ -663,10 +675,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     break
                         elif status != 200:
                             cached_sites_unavailable()
+                            if status == 401:
+                                self.sites_status = SitesStatus.BAD_KEY
+                            else:
+                                self.sites_status = SitesStatus.ERROR
 
                 if status == 200 and success:
                     set_sites(response_json, api_key)
-                    self.sites_loaded = True
+                    self.sites_status = SitesStatus.OK
                 else:
                     cached_sites_unavailable(at_least_one_only=True)
         except (ClientConnectionError, ConnectionRefusedError, TimeoutError) as e:
@@ -679,8 +695,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if Path(cache_filename).is_file():  # Cache exists, so load it
                         response_json = await load_cache(cache_filename)
                         set_sites(response_json, api_key)
-                        self.sites_loaded = True
+                        self.sites_status = SitesStatus.OK
                     else:
+                        self.sites_status = SitesStatus.ERROR
                         error = True
                         cached_sites_unavailable()
                 if error:
@@ -739,10 +756,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         The limit is specified by the user in integration configuration.
         """
         try:
-            if not self.sites_loaded:  # pragma nocover, simulator always returns sites
-                _LOGGER.error("Internal error. Sites must be loaded before __sites_usage() is called")
-                return
-
             api_keys = self.options.api_key.split(",")
             api_quota = self.options.api_quota.split(",")
             try:
@@ -927,7 +940,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         await self.tasks["sites_load"]
         if self.tasks.get("sites_load") is not None:
             self.tasks.pop("sites_load")
-        if self.sites_loaded:
+        if self.sites_status == SitesStatus.OK:
             await self.__sites_usage()
 
     async def reset_api_usage(self, force: bool = False):

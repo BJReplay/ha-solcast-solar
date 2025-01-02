@@ -1,10 +1,19 @@
 {
     "config": {
         "abort": {
-            "single_instance_allowed": "Es ist nur eine Solcast-Instanz zulässig"
+            "single_instance_allowed": "Es ist nur eine Solcast-Instanz zulässig",
+            "reconfigured": "Neue Konfiguration angewendet"
         },
         "step": {
             "user": {
+                "data": {
+                    "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
+                    "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)",
+                    "auto_update": "Automatische Aktualisierung"
+                },
+                "description": "Solcast-Kontodaten\n\n(Wenn keine automatische Aktualisierung erfolgt, ist eine Automatisierung erforderlich – siehe Integrationsdokumentation)"
+            },
+            "reconfigure_confirm": {
                 "data": {
                     "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
                     "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)",

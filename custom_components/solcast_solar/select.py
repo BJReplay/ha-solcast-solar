@@ -4,7 +4,6 @@ from enum import IntEnum
 import logging
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_CONFIGURATION_URL,
     ATTR_IDENTIFIERS,
@@ -20,6 +19,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import ATTR_ENTRY_TYPE, ATTRIBUTION, DOMAIN, KEY_ESTIMATE, MANUFACTURER
 from .coordinator import SolcastUpdateCoordinator
+from .util import SolcastConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -53,32 +53,27 @@ ESTIMATE_MODE = SelectEntityDescription(
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: SolcastConfigEntry,
     async_add_entities: AddEntitiesCallback,
-):
+) -> None:
     """Set up a Solcast select.
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (ConfigEntry): The integration entry instance, contains the configuration.
+        entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
         async_add_entities (AddEntitiesCallback): The Home Assistant callback to add entities.
 
     """
-    coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
-    try:
-        est_mode = coordinator.solcast.options.key_estimate
-    except ValueError:
-        _LOGGER.debug("Could not read estimate mode", exc_info=True)
-    else:
-        entity = EstimateModeEntity(
-            coordinator,
-            ESTIMATE_MODE,
-            [v for k, v in _MODE_TO_OPTION.items()],
-            est_mode,
-            entry,
-        )
-        async_add_entities([entity])
+    entity = EstimateModeEntity(
+        coordinator,
+        ESTIMATE_MODE,
+        [v for k, v in _MODE_TO_OPTION.items()],
+        coordinator.solcast.options.key_estimate,
+        entry,
+    )
+    async_add_entities([entity])
 
 
 class EstimateModeEntity(SelectEntity):
@@ -94,7 +89,7 @@ class EstimateModeEntity(SelectEntity):
         entity_description: SelectEntityDescription,
         supported_options: list[str],
         current_option: str,
-        entry: ConfigEntry,
+        entry: SolcastConfigEntry,
     ) -> None:
         """Initialise the sensor.
 
@@ -103,7 +98,7 @@ class EstimateModeEntity(SelectEntity):
             entity_description (SensorEntityDescription): The details of the entity.
             supported_options (list[str]): All select options available.
             current_option (str): The currently selected option.
-            entry (ConfigEntry): The integration entry instance, contains the configuration.
+            entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
 
         """
 
@@ -127,7 +122,7 @@ class EstimateModeEntity(SelectEntity):
             ATTR_CONFIGURATION_URL: "https://toolkit.solcast.com.au/",
         }
 
-    async def async_select_option(self, option: str):
+    async def async_select_option(self, option: str) -> None:
         """Change the selected option.
 
         Arguments:

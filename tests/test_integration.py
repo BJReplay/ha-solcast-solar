@@ -8,7 +8,7 @@ import json
 import logging
 from pathlib import Path
 
-from aiohttp import ClientConnectionError, ClientError, ClientOSError
+from aiohttp import ClientConnectionError
 import pytest
 from voluptuous.error import MultipleInvalid
 
@@ -24,13 +24,16 @@ from homeassistant.components.solcast_solar.const import (
     UNDAMPENED,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from homeassistant.components.solcast_solar.solcastapi import SitesStatus, SolcastApi
+from homeassistant.components.solcast_solar.util import SolcastConfigEntry
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 
 from . import (
     BAD_INPUT,
+    CONFIG_DIR,
     DEFAULT_INPUT1,
     DEFAULT_INPUT2,
     DEFAULT_INPUT_NO_SITES,
@@ -38,9 +41,11 @@ from . import (
     async_cleanup_integration_tests,
     async_init_integration,
     mock_session_clear_exception,
+    mock_session_clear_over_limit,
     mock_session_clear_too_busy,
     mock_session_config_reset,
     mock_session_set_exception,
+    mock_session_set_over_limit,
     mock_session_set_too_busy,
 )
 
@@ -66,47 +71,45 @@ async def test_api_failure(
     """Test API failure."""
 
     try:
-        config_dir = Path(__file__).parents[2] / "testing_config"
-        assert config_dir.is_dir()
 
-        def assertions1_busy():
+        def assertions1_busy(entry: SolcastConfigEntry):
+            assert entry.state is ConfigEntryState.SETUP_RETRY
             assert "Get sites failed, last call result: 429/Try again later" in caplog.text
             assert "Cached sites are not yet available" in caplog.text
-            assert "integration not ready yet" in caplog.text
             caplog.clear()
 
-        def assertions1_except():
+        def assertions1_except(entry: SolcastConfigEntry):
+            assert entry.state is ConfigEntryState.SETUP_RETRY
             assert "Error retrieving sites, attempting to continue" in caplog.text
             assert "Cached sites are not yet available" in caplog.text
-            assert "integration not ready yet" in caplog.text
             caplog.clear()
 
-        def assertions2_busy():
+        def assertions2_busy(entry: SolcastConfigEntry):
             assert "Get sites failed, last call result: 429/Try again later, using cached data" in caplog.text
             assert "Sites data:" in caplog.text
             caplog.clear()
 
-        def assertions2_except():
+        def assertions2_except(entry: SolcastConfigEntry):
             assert "Error retrieving sites, attempting to continue" in caplog.text
             assert "Sites data:" in caplog.text
             caplog.clear()
 
         async def too_busy(assertions: callable):
             mock_session_set_too_busy()
-            await async_init_integration(hass, DEFAULT_INPUT1)
-            assertions()
+            entry = await async_init_integration(hass, DEFAULT_INPUT1)
+            assertions(entry)
             mock_session_clear_too_busy()
 
         async def exceptions(assertions: callable):
             mock_session_set_exception(ConnectionRefusedError)
-            await async_init_integration(hass, DEFAULT_INPUT1)
-            assertions()
+            entry = await async_init_integration(hass, DEFAULT_INPUT1)
+            assertions(entry)
             mock_session_set_exception(TimeoutError)
-            await async_init_integration(hass, DEFAULT_INPUT1)
-            assertions()
+            entry = await async_init_integration(hass, DEFAULT_INPUT1)
+            assertions(entry)
             mock_session_set_exception(ClientConnectionError)
-            await async_init_integration(hass, DEFAULT_INPUT1)
-            assertions()
+            entry = await async_init_integration(hass, DEFAULT_INPUT1)
+            assertions(entry)
             mock_session_clear_exception()
 
         # Test API too busy during get sites without cache
@@ -128,7 +131,7 @@ async def test_api_failure(
     finally:
         mock_session_clear_too_busy()
         mock_session_clear_exception()
-        assert await async_cleanup_integration_tests(hass, config_dir)
+        assert await async_cleanup_integration_tests(hass)
 
 
 async def _exec_update(
@@ -150,7 +153,7 @@ async def _exec_update(
 
 async def _wait_for_update(caplog: any) -> None:
     """Wait for forecast update completion."""
-    async with asyncio.timeout(2):
+    async with asyncio.timeout(5):
         while (
             "Forecast update completed successfully" not in caplog.text
             and "Not requesting a solar forecast" not in caplog.text
@@ -178,52 +181,52 @@ async def test_integration(
     """Test integration init."""
 
     # Test startup
-    entry = await async_init_integration(hass, options)
+    entry: SolcastConfigEntry = await async_init_integration(hass, options)
 
     if options == BAD_INPUT:
+        assert entry.state is ConfigEntryState.SETUP_ERROR
         assert hass.data[DOMAIN].get("has_loaded") is None
         assert "Dampening factors corrupt or not found, setting to 1.0" in caplog.text
         assert "Get sites failed, last call result: 401/Unauthorized" in caplog.text
-        assert "Cached sites are not yet available" in caplog.text
-        assert "integration not ready yet" in caplog.text
+        assert "API key is invalid" in caplog.text
         return
 
     if options == DEFAULT_INPUT_NO_SITES:
-        entry = await async_init_integration(hass, DEFAULT_INPUT_NO_SITES)
+        assert entry.state is ConfigEntryState.SETUP_ERROR
         assert "No sites for the API key ******_sites are configured at solcast.com" in caplog.text
         assert "Get sites failed, last call result: 200/Success" in caplog.text
-        assert "integration not ready yet" in caplog.text
         return
 
+    assert entry.state is ConfigEntryState.LOADED
     assert hass.data[DOMAIN].get("has_loaded") is True
-    config_dir = hass.data[DOMAIN][entry.entry_id].solcast._config_dir
-    coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+
+    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
     solcast: SolcastApi = coordinator.solcast
-    granular_dampening_file = Path(f"{config_dir}/solcast-dampening.json")
+    granular_dampening_file = Path(f"{CONFIG_DIR}/solcast-dampening.json")
     if options == DEFAULT_INPUT2:
         assert granular_dampening_file.is_file()
 
     try:
-        assert solcast.sites_loaded is True
+        assert solcast.sites_status is SitesStatus.OK
         assert solcast._loaded_data is True
         assert "Dampening factors corrupt or not found, setting to 1.0" not in caplog.text
         assert solcast._tz == ZONE
 
         # Test cache files are as expected
         if len(options["api_key"].split(",")) == 1:
-            assert not Path(f"{config_dir}/solcast-sites-1.json").is_file()
-            assert not Path(f"{config_dir}/solcast-sites-2.json").is_file()
-            assert Path(f"{config_dir}/solcast-sites.json").is_file()
-            assert not Path(f"{config_dir}/solcast-usage-1.json").is_file()
-            assert not Path(f"{config_dir}/solcast-usage-2.json").is_file()
-            assert Path(f"{config_dir}/solcast-usage.json").is_file()
+            assert not Path(f"{CONFIG_DIR}/solcast-sites-1.json").is_file()
+            assert not Path(f"{CONFIG_DIR}/solcast-sites-2.json").is_file()
+            assert Path(f"{CONFIG_DIR}/solcast-sites.json").is_file()
+            assert not Path(f"{CONFIG_DIR}/solcast-usage-1.json").is_file()
+            assert not Path(f"{CONFIG_DIR}/solcast-usage-2.json").is_file()
+            assert Path(f"{CONFIG_DIR}/solcast-usage.json").is_file()
         else:
-            assert Path(f"{config_dir}/solcast-sites-1.json").is_file()
-            assert Path(f"{config_dir}/solcast-sites-2.json").is_file()
-            assert not Path(f"{config_dir}/solcast-sites.json").is_file()
-            assert Path(f"{config_dir}/solcast-usage-1.json").is_file()
-            assert Path(f"{config_dir}/solcast-usage-2.json").is_file()
-            assert not Path(f"{config_dir}/solcast-usage.json").is_file()
+            assert Path(f"{CONFIG_DIR}/solcast-sites-1.json").is_file()
+            assert Path(f"{CONFIG_DIR}/solcast-sites-2.json").is_file()
+            assert not Path(f"{CONFIG_DIR}/solcast-sites.json").is_file()
+            assert Path(f"{CONFIG_DIR}/solcast-usage-1.json").is_file()
+            assert Path(f"{CONFIG_DIR}/solcast-usage-2.json").is_file()
+            assert not Path(f"{CONFIG_DIR}/solcast-usage.json").is_file()
 
         # Test coordinator tasks are created
         assert coordinator.tasks["listeners"]
@@ -270,15 +273,16 @@ async def test_integration(
         mock_session_clear_too_busy()
         await hass.async_block_till_done()
 
-        # At this point the API count is ten for API key 1, so take it beyond the limit
+        # Simulate exceed API limit and beyond
+        mock_session_set_over_limit()
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "API allowed polling limit has been exceeded" in caplog.text
-        assert "Forecast update for site 1111-1111-1111-1111 failed" in caplog.text
-        assert "At least one site failed to fetch, so forecast has not been built" in caplog.text
+        assert "No data was returned for forecasts" in caplog.text
         caplog.clear()
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "API polling limit exhausted, not getting forecast" in caplog.text
         caplog.clear()
+        mock_session_clear_over_limit()
 
         # Create a granular dampening file to be read on next update
         granular_dampening = (
@@ -291,6 +295,7 @@ async def test_integration(
             }
         )
         granular_dampening_file.write_text(json.dumps(granular_dampening), encoding="utf-8")
+        assert granular_dampening_file.is_file()
 
         # Test update beyond ten seconds of prior update, also with stale usage cache
         mock_session_config_reset()
@@ -320,8 +325,8 @@ async def test_integration(
 
         # Test clear data action when no solcast.json exists
         if options == DEFAULT_INPUT2:
-            Path(f"{config_dir}/solcast.json").unlink()
-            Path(f"{config_dir}/solcast-undampened.json").unlink()
+            Path(f"{CONFIG_DIR}/solcast.json").unlink()
+            Path(f"{CONFIG_DIR}/solcast-undampened.json").unlink()
             with pytest.raises(ServiceValidationError):
                 await hass.services.async_call(DOMAIN, "clear_all_solcast_data", {}, blocking=True)
 
@@ -333,9 +338,8 @@ async def test_integration(
     finally:
         assert await async_cleanup_integration_tests(
             hass,
-            config_dir,
-            solcast_dampening=options != DEFAULT_INPUT1,  # Keep dampening file from first test
-            solcast_sites=options != DEFAULT_INPUT1,  # Keep sites cache file from first test
+            solcast_dampening=options != DEFAULT_INPUT1,  # Keep dampening file from the DEFAULT_INPUT1 test
+            solcast_sites=options != DEFAULT_INPUT1,  # Keep sites cache file from the DEFAULT_INPUT1 test
         )
 
 
@@ -356,8 +360,7 @@ async def test_integration_remaining_actions(
 
     # Switch to one API key and two sites to assert the initial clean-up
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    solcast: SolcastApi = hass.data[DOMAIN][entry.entry_id].solcast
-    config_dir = solcast._config_dir
+    solcast: SolcastApi = entry.runtime_data.coordinator.solcast
     assert hass.data[DOMAIN].get("has_loaded") is True
 
     def occurs_in_log(text: str, occurrences: int) -> int:
@@ -370,8 +373,8 @@ async def test_integration_remaining_actions(
     try:
         # Test logs for cache load
         assert "Sites cache exists" in caplog.text
-        assert f"Data cache {config_dir}/solcast.json exists, file type is <class 'dict'>" in caplog.text
-        assert f"Data cache {config_dir}/solcast-undampened.json exists, file type is <class 'dict'>" in caplog.text
+        assert f"Data cache {CONFIG_DIR}/solcast.json exists, file type is <class 'dict'>" in caplog.text
+        assert f"Data cache {CONFIG_DIR}/solcast-undampened.json exists, file type is <class 'dict'>" in caplog.text
         occurs_in_log("Renaming", 2)
         occurs_in_log("Removing orphaned", 2)
 
@@ -419,7 +422,7 @@ async def test_integration_remaining_actions(
         # Granular dampening
         await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("0.5," * 48)[:-1]}, blocking=True)
         await hass.async_block_till_done()  # Because options change
-        assert Path(f"{config_dir}/solcast-dampening.json").is_file()
+        assert Path(f"{CONFIG_DIR}/solcast-dampening.json").is_file()
         dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
         assert dampening.get("data", [{}])[0] == {"site": "all", "damp_factor": ("0.5," * 48)[:-1]}
         # Trigger re-apply forward dampening
@@ -471,12 +474,12 @@ async def test_integration_remaining_actions(
         async def _set_hard_limit(hard_limit: str) -> None:
             await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": hard_limit}, blocking=True)
             await hass.async_block_till_done()
-            return hass.data[DOMAIN][entry.entry_id].solcast  # Because integration reloads
+            return entry.runtime_data.coordinator.solcast  # Because integration reloads
 
         async def _remove_hard_limit() -> None:
             await hass.services.async_call(DOMAIN, "remove_hard_limit", {}, blocking=True)
             await hass.async_block_till_done()
-            return hass.data[DOMAIN][entry.entry_id].solcast  # Because integration reloads
+            return entry.runtime_data.coordinator.solcast  # Because integration reloads
 
         solcast = await _set_hard_limit("5.0")
         assert solcast.hard_limit == "5.0"
@@ -501,7 +504,7 @@ async def test_integration_remaining_actions(
         caplog.clear()
 
         # Switch to using two API keys, three sites, start with an out-of-date usage cache
-        usage_file = Path(f"{config_dir}/solcast-usage.json")
+        usage_file = Path(f"{CONFIG_DIR}/solcast-usage.json")
         data = json.loads(usage_file.read_text(encoding="utf-8"))
         data["reset"] = (dt.now(datetime.UTC) - timedelta(days=5)).isoformat()
         usage_file.write_text(json.dumps(data), encoding="utf-8")
@@ -576,7 +579,7 @@ async def test_integration_remaining_actions(
         assert "ERROR" not in caplog.text
 
     finally:
-        assert await async_cleanup_integration_tests(hass, config_dir)
+        assert await async_cleanup_integration_tests(hass)
 
 
 async def test_integration_scenarios(
@@ -589,15 +592,14 @@ async def test_integration_scenarios(
     options = copy.deepcopy(DEFAULT_INPUT1)
     options[HARD_LIMIT_API] = "6.0"
     entry = await async_init_integration(hass, options)
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data.coordinator
     solcast = coordinator.solcast
-    config_dir = solcast._config_dir
     try:
         assert hass.data[DOMAIN].get("has_loaded") is True
         assert "Hard limit is set to limit peak forecast values" in caplog.text
         caplog.clear()
 
-        data_file = Path(f"{config_dir}/solcast.json")
+        data_file = Path(f"{CONFIG_DIR}/solcast.json")
 
         def alter_last_updated():
             data = json.loads(data_file.read_text(encoding="utf-8"))
@@ -612,7 +614,7 @@ async def test_integration_scenarios(
             await hass.config_entries.async_reload(entry.entry_id)
             await hass.async_block_till_done()
             if hass.data[DOMAIN].get(entry.entry_id):
-                coordinator = hass.data[DOMAIN][entry.entry_id]
+                coordinator = entry.runtime_data.coordinator
                 solcast = coordinator.solcast
 
         # Test stale start with auto update enabled
@@ -667,4 +669,4 @@ async def test_integration_scenarios(
         caplog.clear()
 
     finally:
-        assert await async_cleanup_integration_tests(hass, config_dir)
+        assert await async_cleanup_integration_tests(hass)

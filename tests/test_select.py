@@ -42,7 +42,7 @@ async def test_select_change_value(
     """Test estimate mode selector."""
 
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
     try:
         assert (
@@ -67,4 +67,4 @@ async def test_select_change_value(
         assert state.state == expected_value
 
     finally:
-        assert await async_cleanup_integration_tests(hass, coordinator.solcast._config_dir)
+        assert await async_cleanup_integration_tests(hass)

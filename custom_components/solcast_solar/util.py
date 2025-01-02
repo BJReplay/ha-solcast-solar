@@ -1,10 +1,23 @@
-"""Cubic spline from one-dimensional arrays."""
+"""Utility."""
 
 # pylint: disable=consider-using-enumerate
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import math
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+
+type SolcastConfigEntry = ConfigEntry[SolcastData]
+
+
+@dataclass
+class SolcastData:
+    """Runtime data definition."""
+
+    coordinator: DataUpdateCoordinator[None]
 
 
 def cubic_interp(x0: list, x: list, y: list) -> list:

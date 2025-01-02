@@ -4,30 +4,29 @@ from __future__ import annotations
 
 from typing import Any, Final
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 
-from .const import DOMAIN
 from .coordinator import SolcastUpdateCoordinator
+from .util import SolcastConfigEntry
 
 TO_REDACT: Final = [
     CONF_API_KEY,
 ]
 
 
-async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigEntry) -> dict[str, Any]:
+async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: SolcastConfigEntry) -> dict[str, Any]:
     """Return diagnostics for a config entry.
 
     Args:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (ConfigEntry): The integration entry instance, provides access to the coordinator.
+        entry (SolcastConfigEntry): The integration entry instance, provides access to the coordinator.
 
     Returns:
         dict[str, Any]: Diagnostic details to include in a download file.
 
     """
-    coordinator: SolcastUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
     def hard_limit_set():
         hard_set = False

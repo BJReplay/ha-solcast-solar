@@ -1,10 +1,19 @@
 {
     "config": {
         "abort": {
-            "single_instance_allowed": "Une seule instance Solcast autorisée"
+            "single_instance_allowed": "Une seule instance Solcast autorisée",
+            "reconfigured": "Nouvelle configuration appliquée"
         },
         "step": {
             "user": {
+                "data": {
+                    "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
+                    "api_quota": "Quota d'API (plusieurs valeurs séparées par des virgules)",
+                    "auto_update": "Mise à jour automatique"
+                },
+                "description": "Solcast Account Details\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)"
+            },
+            "reconfigure_confirm": {
                 "data": {
                     "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
                     "api_quota": "Quota d'API (plusieurs valeurs séparées par des virgules)",
