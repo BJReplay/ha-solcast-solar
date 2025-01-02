@@ -327,6 +327,8 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     return await self.async_step_dampen()
 
                 self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
+                if self._entry.state != config_entries.ConfigEntryState.LOADED:
+                    await self.hass.config_entries.async_reload(self._entry.entry_id)
 
                 return self.async_create_entry(title=TITLE, data=None)
             except Exception as e:  # noqa: BLE001
