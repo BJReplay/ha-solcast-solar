@@ -29,6 +29,12 @@ async def test_energy_data(
     entry: SolcastConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
+    # Test that the function returns None if the coordinator does not exist
+    runtime_data = entry.runtime_data.coordinator
+    entry.runtime_data.coordinator = None
+    assert await async_get_solar_forecast(hass, entry.entry_id) is None
+    entry.runtime_data.coordinator = runtime_data
+
     try:
         response = await async_get_solar_forecast(hass, entry.entry_id)
 
