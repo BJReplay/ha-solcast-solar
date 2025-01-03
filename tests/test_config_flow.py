@@ -5,6 +5,8 @@ import json
 import logging
 from pathlib import Path
 
+import pytest
+
 from homeassistant import config_entries
 from homeassistant.components.recorder import Recorder
 
@@ -62,6 +64,35 @@ DEFAULT_INPUT2_COPY[CONF_API_KEY] = API_KEY1 + "," + API_KEY2
 MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1_COPY)
 MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2_COPY)
 
+TEST_API_KEY = [
+    ({CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"}, FlowResultType.ABORT, "API key looks like a site ID"),
+    ({CONF_API_KEY: KEY1 + "," + KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, FlowResultType.ABORT, "Duplicate API key specified"),
+    ({CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "0"}, None, None),
+    ({CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, None, None),
+    ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "2"}, None, None),
+    ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "0", AUTO_UPDATE: "2"}, FlowResultType.ABORT, "API limit must be one or greater"),
+]
+
+TEST_API_QUOTA = [
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "invalid", AUTO_UPDATE: "1"}, FlowResultType.ABORT, "API limit is not a number"),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "0", AUTO_UPDATE: "1"}, FlowResultType.ABORT, "API limit must be one or greater"),
+    (
+        DEFAULT_INPUT1,
+        {CONF_API_KEY: KEY1, API_QUOTA: "10,10", AUTO_UPDATE: "1"},
+        FlowResultType.ABORT,
+        "There are more API limit counts entered than keys",
+    ),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, None, None),
+    (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10,10", AUTO_UPDATE: "1"}, None, None),
+    (
+        DEFAULT_INPUT2,
+        {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10,10,10", AUTO_UPDATE: "1"},
+        FlowResultType.ABORT,
+        "There are more API limit counts entered than keys",
+    ),
+    (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "1"}, None, None),
+]
+
 
 async def test_single_instance(
     recorder_mock: Recorder,
@@ -81,88 +112,33 @@ async def test_create_entry(hass: HomeAssistant) -> None:
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
 
+    expected_options = {
+        CONF_API_KEY: KEY1,
+        API_QUOTA: "10",
+        AUTO_UPDATE: 1,
+        CUSTOM_HOUR_SENSOR: 1,
+        HARD_LIMIT_API: "100.0",
+        KEY_ESTIMATE: "estimate",
+        BRK_ESTIMATE: True,
+        BRK_ESTIMATE10: True,
+        BRK_ESTIMATE90: True,
+        BRK_SITE: True,
+        BRK_HALFHOURLY: True,
+        BRK_HOURLY: True,
+        BRK_SITE_DETAILED: False,
+    }
+
     user_input = {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}
     result = await flow.async_step_user(user_input)
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["title"] == TITLE
     assert result["data"] == {}
-    assert result["options"][CONF_API_KEY] == KEY1
-    assert result["options"][API_QUOTA] == "10"
-    assert result["options"][AUTO_UPDATE] == 1
-    assert result["options"][CUSTOM_HOUR_SENSOR] == 1
-    assert result["options"][HARD_LIMIT_API] == "100.0"
-    assert result["options"][KEY_ESTIMATE] == "estimate"
-    assert result["options"][BRK_ESTIMATE] is True
-    assert result["options"][BRK_ESTIMATE10] is True
-    assert result["options"][BRK_ESTIMATE90] is True
-    assert result["options"][BRK_SITE] is True
-    assert result["options"][BRK_HALFHOURLY] is True
-    assert result["options"][BRK_HOURLY] is True
-    assert result["options"][BRK_SITE_DETAILED] is False
+    for key, expect in expected_options.items():
+        assert result["options"][key] == expect
 
 
-TEST_API_KEY = [
-    {
-        "set": {CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"},
-        "expect_type": FlowResultType.ABORT,
-        "expect_reason": "API key looks like a site ID",
-    },
-    {
-        "set": {CONF_API_KEY: KEY1 + "," + KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"},
-        "expect_type": FlowResultType.ABORT,
-        "expect_reason": "Duplicate API key specified",
-    },
-    {"set": {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "0"}},
-    {"set": {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}},
-    {"set": {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "2"}},
-    {
-        "set": {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "0", AUTO_UPDATE: "2"},
-        "expect_type": FlowResultType.ABORT,
-        "expect_reason": "API limit must be one or greater",
-    },
-]
-
-TEST_API_QUOTA = [
-    {
-        "input": DEFAULT_INPUT1,
-        "set": {CONF_API_KEY: KEY1, API_QUOTA: "1nvalid", AUTO_UPDATE: "1"},
-        "expect_type": FlowResultType.ABORT,
-        "expect_reason": "API limit is not a number",
-    },
-    {
-        "input": DEFAULT_INPUT1,
-        "set": {CONF_API_KEY: KEY1, API_QUOTA: "0", AUTO_UPDATE: "1"},
-        "expect_type": FlowResultType.ABORT,
-        "expect_reason": "API limit must be one or greater",
-    },
-    {
-        "input": DEFAULT_INPUT1,
-        "set": {CONF_API_KEY: KEY1, API_QUOTA: "10,10", AUTO_UPDATE: "1"},
-        "expect_type": FlowResultType.ABORT,
-        "expect_reason": "There are more API limit counts entered than keys",
-    },
-    {
-        "input": DEFAULT_INPUT1,
-        "set": {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"},
-    },
-    {
-        "input": DEFAULT_INPUT2,
-        "set": {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10,10", AUTO_UPDATE: "1"},
-    },
-    {
-        "input": DEFAULT_INPUT2,
-        "set": {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10,10,10", AUTO_UPDATE: "1"},
-        "expect_type": FlowResultType.ABORT,
-        "expect_reason": "There are more API limit counts entered than keys",
-    },
-    {
-        "input": DEFAULT_INPUT2,
-        "set": {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "1"},
-    },
-]
-
-
-async def test_init_api_key(hass: HomeAssistant) -> None:
+@pytest.mark.parametrize(("user_input", "result", "reason"), TEST_API_KEY)
+async def test_init_api_key(hass: HomeAssistant, user_input, result, reason) -> None:
     """Test that valid/invalid API key is handled in init."""
 
     flow = SolcastSolarFlowHandler()
@@ -171,30 +147,37 @@ async def test_init_api_key(hass: HomeAssistant) -> None:
     result = await flow.async_step_user()
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "user"
-
-    for test in TEST_API_KEY:
-        result = await flow.async_step_user(test["set"])
-        assert result["type"] == test.get("expect_type", FlowResultType.CREATE_ENTRY)
-        if test.get("expect_type", FlowResultType.CREATE_ENTRY) is FlowResultType.ABORT:
-            assert result["reason"] == test["expect_reason"]
+    result = await flow.async_step_user(user_input)
+    assert result["type"] == result if result is None else FlowResultType.CREATE_ENTRY
+    if result == FlowResultType.ABORT:
+        assert result["reason"] == reason
 
 
-async def test_init_api_quota(hass: HomeAssistant) -> None:
+@pytest.mark.parametrize(("options", "user_input", "result", "reason"), TEST_API_QUOTA)
+async def test_init_api_quota(hass: HomeAssistant, options, user_input, result, reason) -> None:
     """Test that valid/invalid API quota is handled in init."""
 
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
 
-    for test in TEST_API_QUOTA:
-        result = await flow.async_step_user(test["set"])
-        assert result["type"] == test.get("expect_type", FlowResultType.CREATE_ENTRY)
-        if test.get("expect_type", FlowResultType.CREATE_ENTRY) is FlowResultType.ABORT:
-            assert result["reason"] == test["expect_reason"]
+    result = await flow.async_step_user()
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "user"
+    result = await flow.async_step_user(user_input)
+    assert result["type"] == result if result is None else FlowResultType.CREATE_ENTRY
+    if result == FlowResultType.ABORT:
+        assert result["reason"] == reason
 
 
 async def test_reconfigure_api_key(recorder_mock: Recorder, hass: HomeAssistant) -> None:
-    """Test that valid/invalid API key is handled in reconfigure."""
+    """Test that valid/invalid API key is handled in reconfigure.
 
+    Not parameterised for performance reasons.
+    """
+
+    USER_INPUT = 0
+    TYPE = 1
+    REASON = 2
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
     assert hass.data[DOMAIN].get("has_loaded", False) is True
 
@@ -206,22 +189,29 @@ async def test_reconfigure_api_key(recorder_mock: Recorder, hass: HomeAssistant)
             assert result["step_id"] == "reconfigure_confirm"
             _result = await hass.config_entries.flow.async_configure(
                 result["flow_id"],
-                user_input=test["set"],
+                user_input=test[USER_INPUT],
             )
-            if _result["reason"] != "reconfigured":
-                assert _result["reason"] == test.get("expect_reason", "")
-                assert _result["type"] == test["expect_type"]
+            if _result["reason"] not in ("reconfigured", None):
+                assert _result["type"] == test[TYPE]
+                assert _result["reason"] == test[REASON]
 
 
 async def test_reconfigure_api_quota(recorder_mock: Recorder, hass: HomeAssistant) -> None:
-    """Test that valid/invalid API quota is handled in reconfigure."""
+    """Test that valid/invalid API quota is handled in reconfigure.
+
+    Not parameterised for performance reasons.
+    """
+    OPTIONS = 0
+    USER_INPUT = 1
+    TYPE = 2
+    REASON = 3
 
     _input = None
     for test in TEST_API_QUOTA:
-        if _input is None or test["input"] != _input:
-            entry = await async_init_integration(hass, test["input"])
+        if _input is None or test[OPTIONS] != _input:
+            entry = await async_init_integration(hass, test[OPTIONS])
             assert hass.data[DOMAIN].get("has_loaded", False) is True
-            _input = copy.deepcopy(test["input"])
+            _input = copy.deepcopy(test[OPTIONS])
         for flow in [entry.start_reauth_flow, entry.start_reconfigure_flow]:
             result = await flow(hass)
 
@@ -229,98 +219,89 @@ async def test_reconfigure_api_quota(recorder_mock: Recorder, hass: HomeAssistan
             assert result["step_id"] == "reconfigure_confirm"
             _result = await hass.config_entries.flow.async_configure(
                 result["flow_id"],
-                user_input=test["set"],
+                user_input=test[USER_INPUT],
             )
-            if _result["reason"] != "reconfigured":
-                assert _result["reason"] == test.get("expect_reason", "")
-                assert _result["type"] == test["expect_type"]
+            if _result["reason"] not in ("reconfigured", None):
+                assert _result["type"] == test[TYPE]
+                assert _result["reason"] == test[REASON]
 
 
-async def test_option_api_key(hass: HomeAssistant) -> None:
-    """Test that valid/invalid API key is handled."""
-
-    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
-    flow.hass = hass
-
-    for test in TEST_API_KEY:
-        result = await flow.async_step_init(test["set"])
-        assert result["type"] == test.get("expect_type", FlowResultType.FORM)
-        if test.get("expect_type", FlowResultType.FORM) is FlowResultType.ABORT:
-            assert result["reason"] == test["expect_reason"]
-
-
-async def test_option_api_quota(hass: HomeAssistant) -> None:
-    """Test that valid/invalid API quota is handled."""
+@pytest.mark.parametrize(("user_input", "result", "reason"), TEST_API_KEY)
+async def test_option_api_key(hass: HomeAssistant, user_input, result, reason) -> None:
+    """Test that valid/invalid API key is handled in option flow init."""
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
 
-    for test in TEST_API_QUOTA:
-        result = await flow.async_step_init(test["set"])
-        assert result["type"] == test.get("expect_type", FlowResultType.FORM)
-        if test.get("expect_type", FlowResultType.FORM) is FlowResultType.ABORT:
-            assert result["reason"] == test["expect_reason"]
+    result = await flow.async_step_init()
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "init"
+    result = await flow.async_step_init(user_input)
+    assert result["type"] == result if result is None else FlowResultType.FORM
+    if result == FlowResultType.ABORT:
+        assert result["reason"] == reason
 
 
-async def test_option_custom_hour_sensor(hass: HomeAssistant) -> None:
+@pytest.mark.parametrize(("options", "user_input", "result", "reason"), TEST_API_QUOTA)
+async def test_option_api_quota(hass: HomeAssistant, options, user_input, result, reason) -> None:
+    """Test that valid/invalid API quota is handled in option flow init."""
+
+    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
+    flow.hass = hass
+
+    result = await flow.async_step_init()
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "init"
+    result = await flow.async_step_init({**options, **user_input})
+    assert result["type"] == result if result is None else FlowResultType.FORM
+    if result == FlowResultType.ABORT:
+        assert result["reason"] == reason
+
+
+@pytest.mark.parametrize(
+    ("options", "value", "result", "reason"),
+    [
+        ((DEFAULT_INPUT1, 0, FlowResultType.ABORT, "Custom sensor not between 1 and 144")),
+        ((DEFAULT_INPUT1, 145, FlowResultType.ABORT, "Custom sensor not between 1 and 144")),
+        ((DEFAULT_INPUT1, 8, FlowResultType.FORM, "")),
+    ],
+)
+async def test_option_custom_hour_sensor(hass: HomeAssistant, options, value, result, reason) -> None:
     """Test that valid/invalid custom hour sensor is handled."""
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
 
-    user_input = copy.deepcopy(DEFAULT_INPUT1)
-    user_input[CUSTOM_HOUR_SENSOR] = 0
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "Custom sensor not between 1 and 144"
-
-    user_input[CUSTOM_HOUR_SENSOR] = 145
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "Custom sensor not between 1 and 144"
-
-    user_input[CUSTOM_HOUR_SENSOR] = 8
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.FORM
+    user_input = copy.deepcopy(options)
+    user_input[CUSTOM_HOUR_SENSOR] = value
+    _result = await flow.async_step_init(user_input)
+    assert _result["type"] == result
+    if _result == FlowResultType.ABORT:
+        assert _result["reason"] == reason
 
 
-async def test_option_hard_limit(hass: HomeAssistant) -> None:
+@pytest.mark.parametrize(
+    ("options", "value", "result", "reason"),
+    [
+        ((DEFAULT_INPUT1, "invalid", FlowResultType.ABORT, "Hard limit is not a positive number")),
+        ((DEFAULT_INPUT1, "-1", FlowResultType.ABORT, "Hard limit is not a positive number")),
+        ((DEFAULT_INPUT1, "6,6.0", FlowResultType.ABORT, "There are more hard limits entered than keys")),
+        ((DEFAULT_INPUT1, "6", FlowResultType.FORM, "")),
+        ((DEFAULT_INPUT2, "6,6.0", FlowResultType.FORM, "")),
+        ((DEFAULT_INPUT2, "6", FlowResultType.FORM, "")),
+    ],
+)
+async def test_option_hard_limit(hass: HomeAssistant, options, value, result, reason) -> None:
     """Test that valid/invalid hard limit is handled."""
 
-    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
+    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1 if options == DEFAULT_INPUT1 else MOCK_ENTRY2)
     flow.hass = hass
-    user_input = copy.deepcopy(DEFAULT_INPUT1)
-
-    user_input[HARD_LIMIT_API] = "invalid"
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "Hard limit is not a positive number"
-
-    user_input[HARD_LIMIT_API] = "-1"
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "Hard limit is not a positive number"
-
-    user_input[HARD_LIMIT_API] = "6,6.0"
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.ABORT
-    assert result["reason"] == "There are more hard limits entered than keys"
-
-    user_input[HARD_LIMIT_API] = "6"
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.FORM
-
-    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY2)
-    flow.hass = hass
-    user_input = copy.deepcopy(DEFAULT_INPUT2)
-
-    user_input[HARD_LIMIT_API] = "6,6.0"
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.FORM
-
-    user_input[HARD_LIMIT_API] = "6"
-    result = await flow.async_step_init(user_input)
-    assert result["type"] == FlowResultType.FORM
+    user_input = copy.deepcopy(options)
+    user_input[HARD_LIMIT_API] = value
+    _result = await flow.async_step_init(user_input)
+    assert _result["type"] == result
+    if _result == FlowResultType.ABORT:
+        assert _result["reason"] == reason
 
 
 async def test_step_to_dampen(hass: HomeAssistant) -> None:
@@ -340,24 +321,23 @@ async def test_step_to_dampen(hass: HomeAssistant) -> None:
     assert result["step_id"] == "dampen"
 
 
-async def test_dampen(hass: HomeAssistant) -> None:
+@pytest.mark.parametrize(
+    ("value", "result"),
+    [
+        ({f"damp{factor:02d}": 1.0 for factor in range(24)}, FlowResultType.FORM),
+        ({f"damp{factor:02d}": 0.0 for factor in range(24)}, FlowResultType.FORM),
+    ],
+)
+async def test_dampen(hass: HomeAssistant, value, result) -> None:
     """Test dampening step."""
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
 
-    result = await flow.async_step_dampen()
-
-    assert result["type"] == FlowResultType.FORM
-    assert result["step_id"] == "dampen"
-
-    user_input = {f"damp{factor:02d}": 1.0 for factor in range(24)}
-    result = await flow.async_step_dampen(user_input)
-    assert result["type"] == FlowResultType.FORM
-
-    user_input = {f"damp{factor:02d}": 0.0 for factor in range(24)}
-    result = await flow.async_step_dampen(user_input)
-    assert result["type"] == FlowResultType.FORM
+    user_input = {**copy.deepcopy(DEFAULT_INPUT1), **value}
+    _result = await flow.async_step_dampen(user_input)
+    assert _result["step_id"] == "dampen"
+    assert _result["type"] == result
 
 
 async def test_entry_options_upgrade(
