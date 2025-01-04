@@ -5,6 +5,7 @@ import json
 import logging
 from pathlib import Path
 
+from freezegun.api import FrozenDateTimeFactory
 import pytest
 
 from homeassistant import config_entries
@@ -171,7 +172,11 @@ async def test_init_api_quota(hass: HomeAssistant, options, user_input, result, 
         assert result["reason"] == reason
 
 
-async def test_reconfigure_api_key(recorder_mock: Recorder, hass: HomeAssistant) -> None:
+async def test_reconfigure_api_key(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+) -> None:
     """Test that valid/invalid API key is handled in reconfigure.
 
     Not parameterised for performance reasons.
@@ -209,7 +214,11 @@ async def test_reconfigure_api_key(recorder_mock: Recorder, hass: HomeAssistant)
         assert await async_cleanup_integration_tests(hass)
 
 
-async def test_reconfigure_api_quota(recorder_mock: Recorder, hass: HomeAssistant) -> None:
+async def test_reconfigure_api_quota(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+) -> None:
     """Test that valid/invalid API quota is handled in reconfigure.
 
     Not parameterised for performance reasons.
@@ -370,6 +379,7 @@ async def test_dampen(
 async def test_entry_options_upgrade(
     recorder_mock: Recorder,
     hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
 ) -> None:
     """Test that entry options are upgraded as expected."""
 
@@ -433,6 +443,7 @@ async def test_entry_options_upgrade(
 async def test_presumed_dead_and_full_flow(
     recorder_mock: Recorder,
     hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test presumption of death by setting "presumed dead" flag, and testing a config change."""

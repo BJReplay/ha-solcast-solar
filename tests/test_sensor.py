@@ -4,6 +4,7 @@ import contextlib
 from datetime import datetime as dt
 import logging
 
+from freezegun.api import FrozenDateTimeFactory
 import pytest
 
 from homeassistant.components.recorder import Recorder
@@ -345,6 +346,7 @@ SENSORS["forecast_day_7"] = SENSORS["forecast_today"]
 async def test_sensor_states(
     recorder_mock: Recorder,
     hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
     key: str,
     settings: dict,
 ) -> None:
@@ -397,7 +399,7 @@ async def test_sensor_states(
         assert await async_cleanup_integration_tests(hass)
 
 
-def get_sensor_value(self, key: str):  # TODO: Presently never returns None
+def get_sensor_value(self, key: str):
     """Raise an exception getting the value of a sensor."""
     return 1 / 0
 
@@ -405,6 +407,7 @@ def get_sensor_value(self, key: str):  # TODO: Presently never returns None
 async def test_sensor_unknown(
     recorder_mock: Recorder,
     hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
 ) -> None:
     """Test state and attributes of sensors including expected state class and unit of measurement."""
 
@@ -433,6 +436,14 @@ async def test_sensor_unknown(
         for sensor in SENSORS:
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
             assert state.state == STATE_UNKNOWN
-
     finally:
         assert await async_cleanup_integration_tests(hass)
+
+
+async def test_sensor_unavailable(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+) -> None:
+    """Test state and attributes of sensors including expected state class and unit of measurement."""
+
+    # TODO: Sensors are not being set to unavailable when the API returns an error.

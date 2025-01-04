@@ -1586,7 +1586,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return dt.now().astimezone(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
-    def get_now_utc(self) -> dt:  # pragma: no cover, replaced when testing
+    def get_now_utc(self) -> dt:
         """Datetime helper.
 
         Returns:
@@ -1595,7 +1595,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return dt.now(self._tz).replace(second=0, microsecond=0).astimezone(datetime.UTC)
 
-    def get_real_now_utc(self) -> dt:  # pragma: no cover, replaced when testing
+    def get_real_now_utc(self) -> dt:
         """Datetime helper.
 
         Returns:
@@ -1604,7 +1604,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return dt.now(self._tz).astimezone(datetime.UTC)
 
-    def get_hour_start_utc(self) -> dt:  # pragma: no cover, replaced when testing
+    def get_hour_start_utc(self) -> dt:
         """Datetime helper.
 
         Returns:

@@ -3,10 +3,9 @@
 import logging
 from typing import Any
 
+from freezegun.api import FrozenDateTimeFactory
+
 from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.const import DOMAIN
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 
@@ -25,13 +24,11 @@ async def get_system_health_info(hass: HomeAssistant, domain: str) -> dict[str, 
 async def test_system_health(
     recorder_mock: Recorder,
     hass: HomeAssistant,
-    # response_mocker: ResponseMocker,
+    freezer: FrozenDateTimeFactory,
 ) -> None:
     """Test system health."""
 
-    entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-    solcast: SolcastApi = coordinator.solcast
+    await async_init_integration(hass, DEFAULT_INPUT1)
 
     try:
         assert await async_setup_component(hass, "system_health", {})

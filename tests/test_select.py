@@ -2,6 +2,7 @@
 
 import logging
 
+from freezegun.api import FrozenDateTimeFactory
 import pytest
 
 from homeassistant.components.recorder import Recorder
@@ -33,6 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 async def test_select_change_value(
     recorder_mock: Recorder,
     hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
     entity_registry: er.EntityRegistry,
     entity_key: PVEstimateMode,
     resulting_state: str,

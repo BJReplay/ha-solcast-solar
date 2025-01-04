@@ -1,7 +1,6 @@
 """Tests setup for Solcast Solar integration."""
 
 import copy
-import datetime
 from datetime import datetime as dt
 import logging
 from pathlib import Path
@@ -11,7 +10,6 @@ from zoneinfo import ZoneInfo
 
 from aiohttp import ClientConnectionError
 
-from homeassistant.components.solcast_solar import SolcastApi
 import homeassistant.components.solcast_solar.const as const  # noqa: PLR0402
 from homeassistant.components.solcast_solar.const import (
     API_QUOTA,
@@ -107,34 +105,8 @@ MOCK_SESSION_CONFIG = {
 
 ZONE = ZoneInfo(ZONE_RAW)
 set_time_zone(ZONE)
-NOW = dt.now(ZONE)
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def get_now_utc(self) -> dt:
-    """Mock get_now_utc, spoof middle-of-the-day-ish."""
-
-    return NOW.replace(hour=12, minute=27, second=0, microsecond=0).astimezone(datetime.UTC)
-
-
-def get_real_now_utc(self) -> dt:
-    """Mock get_real_now_utc, spoof middle-of-the-day-ish."""
-
-    return NOW.replace(hour=12, minute=27, second=27, microsecond=27272).astimezone(datetime.UTC)
-
-
-def get_hour_start_utc(self) -> dt:
-    """Mock get_hour_start_utc, spoof middle-of-the-day-ish."""
-
-    return NOW.replace(hour=12, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
-
-
-# Replace the current date/time functions in SolcastApi.
-
-SolcastApi.get_now_utc = get_now_utc
-SolcastApi.get_real_now_utc = get_real_now_utc
-SolcastApi.get_hour_start_utc = get_hour_start_utc
 
 
 def _check_abend(api_key) -> CallbackResult | None:

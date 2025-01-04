@@ -236,23 +236,20 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     def __auto_update_setup(self, init: bool = False):
         """Set up of auto-updates."""
-        try:
-            match self.solcast.options.auto_update:
-                case 1:
-                    self.__get_sun_rise_set()
-                    self.__calculate_forecast_updates(init=init)
-                case 2:
-                    self._sunrise_yesterday = self.solcast.get_day_start_utc(future=-1)
-                    self._sunset_yesterday = self.solcast.get_day_start_utc()
-                    self._sunrise = self._sunset_yesterday
-                    self._sunset = self.solcast.get_day_start_utc(future=1)
-                    self._sunrise_tomorrow = self._sunset
-                    self._sunset_tomorrow = self.solcast.get_day_start_utc(future=2)
-                    self.__calculate_forecast_updates(init=init)
-                case _:
-                    pass
-        except:  # noqa: E722 # pragma: no cover, catch unexpected exceptions
-            _LOGGER.error("Exception in __auto_update_setup(): %s", traceback.format_exc())
+        match self.solcast.options.auto_update:
+            case 1:
+                self.__get_sun_rise_set()
+                self.__calculate_forecast_updates(init=init)
+            case 2:
+                self._sunrise_yesterday = self.solcast.get_day_start_utc(future=-1)
+                self._sunset_yesterday = self.solcast.get_day_start_utc()
+                self._sunrise = self._sunset_yesterday
+                self._sunset = self.solcast.get_day_start_utc(future=1)
+                self._sunrise_tomorrow = self._sunset
+                self._sunset_tomorrow = self.solcast.get_day_start_utc(future=2)
+                self.__calculate_forecast_updates(init=init)
+            case _:
+                pass
 
     def __get_sun_rise_set(self):
         """Get the sunrise and sunset times for today and tomorrow."""

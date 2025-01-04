@@ -2,6 +2,8 @@
 
 import logging
 
+from freezegun.api import FrozenDateTimeFactory
+
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import DOMAIN
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
@@ -24,6 +26,7 @@ _LOGGER = logging.getLogger(__name__)
 async def test_diagnostics(
     recorder_mock: Recorder,
     hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
     hass_client: ClientSessionGenerator,
 ) -> None:
     """Test diagnostics output."""

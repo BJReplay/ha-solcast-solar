@@ -48,6 +48,13 @@ from . import (
     mock_session_set_too_busy,
 )
 
+
+@pytest.fixture(autouse=True)
+def frozen_time() -> None:
+    """Override autouse fixute for this module. Time must pass."""
+    return
+
+
 _LOGGER = logging.getLogger(__name__)
 
 SERVICES = [
@@ -60,6 +67,40 @@ SERVICES = [
     "set_hard_limit",
     "update_forecasts",
 ]
+
+NOW = dt.now(ZONE)
+
+
+def get_now_utc() -> dt:
+    """Mock get_now_utc, spoof middle-of-the-day-ish."""
+
+    return NOW.replace(hour=12, minute=27, second=0, microsecond=0).astimezone(datetime.UTC)
+
+
+def get_real_now_utc() -> dt:
+    """Mock get_real_now_utc, spoof middle-of-the-day-ish."""
+
+    return NOW.replace(hour=12, minute=27, second=27, microsecond=27272).astimezone(datetime.UTC)
+
+
+def get_hour_start_utc() -> dt:
+    """Mock get_hour_start_utc, spoof middle-of-the-day-ish."""
+
+    return NOW.replace(hour=12, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
+
+
+# Replace the current date/time functions in SolcastApi.
+
+
+def patch_solcast_api(solcast):
+    """Patch SolcastApi to return a fixed time.
+
+    Cannot use freezegun with these tests because time must tick (the teck= option won't work).
+    """
+    solcast.get_now_utc = get_now_utc
+    solcast.get_real_now_utc = get_real_now_utc
+    solcast.get_hour_start_utc = get_hour_start_utc
+    return solcast
 
 
 async def test_api_failure(
@@ -202,7 +243,7 @@ async def test_integration(
     assert hass.data[DOMAIN].get("has_loaded") is True
 
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-    solcast: SolcastApi = coordinator.solcast
+    solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
     granular_dampening_file = Path(f"{config_dir}/solcast-dampening.json")
     if options == DEFAULT_INPUT2:
         assert granular_dampening_file.is_file()
@@ -363,7 +404,7 @@ async def test_integration_remaining_actions(
 
     # Switch to one API key and two sites to assert the initial clean-up
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    solcast: SolcastApi = entry.runtime_data.coordinator.solcast
+    solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
     assert hass.data[DOMAIN].get("has_loaded") is True
 
     def occurs_in_log(text: str, occurrences: int) -> int:
@@ -477,12 +518,12 @@ async def test_integration_remaining_actions(
         async def _set_hard_limit(hard_limit: str) -> None:
             await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": hard_limit}, blocking=True)
             await hass.async_block_till_done()
-            return entry.runtime_data.coordinator.solcast  # Because integration reloads
+            return patch_solcast_api(entry.runtime_data.coordinator.solcast)  # Because integration reloads
 
         async def _remove_hard_limit() -> None:
             await hass.services.async_call(DOMAIN, "remove_hard_limit", {}, blocking=True)
             await hass.async_block_till_done()
-            return entry.runtime_data.coordinator.solcast  # Because integration reloads
+            return patch_solcast_api(entry.runtime_data.coordinator.solcast)  # Because integration reloads
 
         solcast = await _set_hard_limit("5.0")
         assert solcast.hard_limit == "5.0"
@@ -598,7 +639,7 @@ async def test_integration_scenarios(
     options[HARD_LIMIT_API] = "6.0"
     entry = await async_init_integration(hass, options)
     coordinator = entry.runtime_data.coordinator
-    solcast = coordinator.solcast
+    solcast = patch_solcast_api(coordinator.solcast)
     try:
         assert hass.data[DOMAIN].get("has_loaded") is True
         assert "Hard limit is set to limit peak forecast values" in caplog.text
@@ -620,7 +661,7 @@ async def test_integration_scenarios(
             await hass.async_block_till_done()
             if hass.data[DOMAIN].get(entry.entry_id):
                 coordinator = entry.runtime_data.coordinator
-                solcast = coordinator.solcast
+                solcast = patch_solcast_api(coordinator.solcast)
 
         # Test stale start with auto update enabled
         alter_last_updated()
