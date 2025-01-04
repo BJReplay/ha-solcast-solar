@@ -131,7 +131,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             SolcastSolarOptionFlowHandler: The config flow handler instance.
 
         """
-        return SolcastSolarOptionFlowHandler(config_entry)  # pragma: no cover, never called by tests
+        return SolcastSolarOptionFlowHandler(config_entry)
 
     async def async_step_reauth(self, entry: Mapping[str, Any]) -> ConfigFlowResult:
         """Reconfigure API key, limit and auto-update."""
@@ -261,6 +261,13 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         self._options = config_entry.options
         self._all_config_data = None
 
+    async def check_dead(self) -> None:
+        """Check if the integration is presumed dead and reload if so."""
+
+        if self.hass.data.get(DOMAIN, {}).get("presumed_dead", True):
+            _LOGGER.warning("Integration presumed dead, reloading")
+            await self.hass.config_entries.async_reload(self._entry.entry_id)
+
     async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
         """Initialise main options flow step.
 
@@ -327,10 +334,8 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     return await self.async_step_dampen()
 
                 self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
-                if self._entry.state != config_entries.ConfigEntryState.LOADED:
-                    await self.hass.config_entries.async_reload(self._entry.entry_id)
-
-                return self.async_create_entry(title=TITLE, data=None)
+                await self.check_dead()
+                return self.async_create_entry(title=TITLE, data=all_config_data)
             except Exception as e:  # noqa: BLE001
                 errors["base"] = str(e)
 
@@ -372,7 +377,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                         if not self._options[SITE_DAMP]
                         else vol.Optional(SITE_DAMP, default=self._options[SITE_DAMP])
                     ): bool,
-                }
+                },
             ),
             errors=errors,
         )
@@ -393,7 +398,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             all_config_data = {**self._options}
         else:
             all_config_data = self._all_config_data
-        extant = {f"damp{factor:02d}": all_config_data[f"damp{factor:02d}"] for factor in range(24)}
+        extant_factors = {f"damp{factor:02d}": all_config_data[f"damp{factor:02d}"] for factor in range(24)}
 
         if user_input is not None:
             try:
@@ -402,7 +407,8 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 all_config_data[SITE_DAMP] = False
 
                 self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
-                return self.async_create_entry(title=TITLE, data=None)
+                await self.check_dead()
+                return self.async_create_entry(title=TITLE, data=all_config_data)
             except:  # noqa: E722
                 errors["base"] = "unknown"
 
@@ -410,7 +416,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             step_id="dampen",
             data_schema=vol.Schema(
                 {
-                    vol.Required(f"damp{factor:02d}", description={"suggested_value": extant[f"damp{factor:02d}"]}): vol.All(
+                    vol.Required(f"damp{factor:02d}", description={"suggested_value": extant_factors[f"damp{factor:02d}"]}): vol.All(
                         vol.Coerce(float), vol.Range(min=0.0, max=1.0)
                     )
                     for factor in range(24)

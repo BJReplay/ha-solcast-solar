@@ -34,13 +34,15 @@ from homeassistant.components.solcast_solar.const import (
     SITE_DAMP,
     TITLE,
 )
+from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from homeassistant.components.solcast_solar.solcastapi import SitesStatus, SolcastApi
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 
 from . import (
-    CONFIG_DIR,
     DEFAULT_INPUT1,
+    DEFAULT_INPUT1_NO_DAMP,
     DEFAULT_INPUT2,
     KEY1,
     KEY2,
@@ -174,26 +176,37 @@ async def test_reconfigure_api_key(recorder_mock: Recorder, hass: HomeAssistant)
 
     Not parameterised for performance reasons.
     """
-
     USER_INPUT = 0
     TYPE = 1
     REASON = 2
-    entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    assert hass.data[DOMAIN].get("has_loaded", False) is True
 
-    for test in TEST_API_KEY:
-        for flow in [entry.start_reauth_flow, entry.start_reconfigure_flow]:
-            result = await flow(hass)
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        assert hass.data[DOMAIN].get("has_loaded", False) is True
+        for test in TEST_API_KEY:
+            for source in [config_entries.SOURCE_REAUTH, config_entries.SOURCE_RECONFIGURE]:
+                result = await hass.config_entries.flow.async_init(
+                    DOMAIN,
+                    context={
+                        "source": source,
+                        "entry_id": entry.entry_id,
+                    },
+                    data=entry.data,
+                )
+                await hass.async_block_till_done()
+                assert result["type"] is FlowResultType.FORM
+                assert result["step_id"] == "reconfigure_confirm"
+                result = await hass.config_entries.flow.async_configure(
+                    result["flow_id"],
+                    user_input=test[USER_INPUT],
+                )
+                await hass.async_block_till_done()
+                if result["reason"] not in ("reconfigured", None):
+                    assert result["type"] == test[TYPE]
+                    assert result["reason"] == test[REASON]
 
-            assert result["type"] == FlowResultType.FORM
-            assert result["step_id"] == "reconfigure_confirm"
-            _result = await hass.config_entries.flow.async_configure(
-                result["flow_id"],
-                user_input=test[USER_INPUT],
-            )
-            if _result["reason"] not in ("reconfigured", None):
-                assert _result["type"] == test[TYPE]
-                assert _result["reason"] == test[REASON]
+    finally:
+        assert await async_cleanup_integration_tests(hass)
 
 
 async def test_reconfigure_api_quota(recorder_mock: Recorder, hass: HomeAssistant) -> None:
@@ -206,24 +219,35 @@ async def test_reconfigure_api_quota(recorder_mock: Recorder, hass: HomeAssistan
     TYPE = 2
     REASON = 3
 
-    _input = None
-    for test in TEST_API_QUOTA:
-        if _input is None or test[OPTIONS] != _input:
-            entry = await async_init_integration(hass, test[OPTIONS])
-            assert hass.data[DOMAIN].get("has_loaded", False) is True
-            _input = copy.deepcopy(test[OPTIONS])
-        for flow in [entry.start_reauth_flow, entry.start_reconfigure_flow]:
-            result = await flow(hass)
+    try:
+        _input = None
+        for test in TEST_API_QUOTA:
+            if _input is None or test[OPTIONS] != _input:
+                entry = await async_init_integration(hass, test[OPTIONS])
+                assert hass.data[DOMAIN].get("has_loaded", False) is True
+                _input = copy.deepcopy(test[OPTIONS])
+            for source in [config_entries.SOURCE_REAUTH, config_entries.SOURCE_RECONFIGURE]:
+                result = await hass.config_entries.flow.async_init(
+                    DOMAIN,
+                    context={
+                        "source": source,
+                        "entry_id": entry.entry_id,
+                    },
+                    data=entry.data,
+                )
+                await hass.async_block_till_done()
+                assert result["type"] == FlowResultType.FORM
+                assert result["step_id"] == "reconfigure_confirm"
+                result = await hass.config_entries.flow.async_configure(
+                    result["flow_id"],
+                    user_input=test[USER_INPUT],
+                )
+                if result["reason"] not in ("reconfigured", None):
+                    assert result["type"] == test[TYPE]
+                    assert result["reason"] == test[REASON]
 
-            assert result["type"] == FlowResultType.FORM
-            assert result["step_id"] == "reconfigure_confirm"
-            _result = await hass.config_entries.flow.async_configure(
-                result["flow_id"],
-                user_input=test[USER_INPUT],
-            )
-            if _result["reason"] not in ("reconfigured", None):
-                assert _result["type"] == test[TYPE]
-                assert _result["reason"] == test[REASON]
+    finally:
+        assert await async_cleanup_integration_tests(hass)
 
 
 @pytest.mark.parametrize(("user_input", "result", "reason"), TEST_API_KEY)
@@ -308,13 +332,11 @@ async def test_step_to_dampen(hass: HomeAssistant) -> None:
     """Test opening the dampening step."""
 
     user_input = copy.deepcopy(DEFAULT_INPUT1)
-    # user_input[SITE_DAMP] = True
     user_input[CONFIG_DAMP] = True
 
     entry = MockConfigEntry(domain=DOMAIN, data={}, options=user_input)
     flow = SolcastSolarOptionFlowHandler(entry)
     flow.hass = hass
-
     result = await flow.async_step_init(user_input)
     await hass.async_block_till_done()
     assert result["type"] == FlowResultType.FORM
@@ -324,17 +346,22 @@ async def test_step_to_dampen(hass: HomeAssistant) -> None:
 @pytest.mark.parametrize(
     ("value", "result"),
     [
-        ({f"damp{factor:02d}": 1.0 for factor in range(24)}, FlowResultType.FORM),
-        ({f"damp{factor:02d}": 0.0 for factor in range(24)}, FlowResultType.FORM),
+        ({f"damp{factor:02d}": 0.8 for factor in range(24)}, FlowResultType.FORM),
     ],
 )
-async def test_dampen(hass: HomeAssistant, value, result) -> None:
+async def test_dampen(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    value,
+    result,
+) -> None:
     """Test dampening step."""
+
+    user_input = {**copy.deepcopy(DEFAULT_INPUT1), **value}
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
 
-    user_input = {**copy.deepcopy(DEFAULT_INPUT1), **value}
     _result = await flow.async_step_dampen(user_input)
     assert _result["step_id"] == "dampen"
     assert _result["type"] == result
@@ -352,6 +379,7 @@ async def test_entry_options_upgrade(
         CONF_API_KEY: "1",
         "const_disableautopoll": False,
     }
+    config_dir = hass.config.config_dir
     entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
     assert hass.data[DOMAIN].get("has_loaded", False) is True
 
@@ -387,7 +415,7 @@ async def test_entry_options_upgrade(
         await hass.async_block_till_done()
 
         # Test API limit gets imported from existing cache in upgrade to V9
-        data_file = Path(f"{CONFIG_DIR}/solcast-usage.json")
+        data_file = Path(f"{config_dir}/solcast-usage.json")
         data_file.write_text(
             json.dumps({"daily_limit": 50, "daily_limit_consumed": 34, "reset": "2024-01-01T00:00:00+00:00"}), encoding="utf-8"
         )
@@ -397,6 +425,68 @@ async def test_entry_options_upgrade(
 
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_presumed_dead_and_full_flow(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test presumption of death by setting "presumed dead" flag, and testing a config change."""
+
+    entry = await async_init_integration(hass, DEFAULT_INPUT1)
+    assert hass.data[DOMAIN].get("has_loaded", False) is True
+    assert hass.data[DOMAIN]["presumed_dead"] is False
+
+    try:
+        # Test presumed dead
+        caplog.clear()
+        assert hass.data[DOMAIN]["presumed_dead"] is False
+
+        option = {BRK_ESTIMATE: False}
+        user_input = DEFAULT_INPUT1_NO_DAMP | option
+        hass.data[DOMAIN]["presumed_dead"] = True
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        await hass.async_block_till_done()
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            user_input,
+        )
+        await hass.async_block_till_done()  # Integration will reload
+        assert "Integration presumed dead, reloading" in caplog.text
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = coordinator.solcast
+        assert solcast.sites_status is SitesStatus.OK
+        assert solcast._loaded_data is True
+
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Test dampening step can  be reached
+        option = {CONFIG_DAMP: True}
+        user_input = DEFAULT_INPUT1_NO_DAMP | option
+
+        result = await hass.config_entries.options.async_init(entry.entry_id)
+        await hass.async_block_till_done()
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            user_input,
+        )
+        await hass.async_block_till_done()
+        assert result["type"] == FlowResultType.FORM
+
+        user_input = {f"damp{factor:02d}": 0.9 for factor in range(24)}
+        result = await hass.config_entries.options.async_configure(
+            result["flow_id"],
+            user_input,
+        )
+        await hass.async_block_till_done()
+        assert result["result"] is True
+        assert result["type"] == FlowResultType.CREATE_ENTRY
 
     finally:
         assert await async_cleanup_integration_tests(hass)

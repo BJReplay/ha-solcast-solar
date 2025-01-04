@@ -44,17 +44,14 @@ from .aioresponses import CallbackResult, aioresponses
 
 from tests.common import MockConfigEntry
 
-CONFIG_DIR = Path(__file__).parents[2] / "testing_config"
-assert CONFIG_DIR.is_dir()
-
 KEY1: Final = "1"
 KEY2: Final = "2"
 KEY_NO_SITES = "no_sites"
 CUSTOM_HOURS: Final = 2
-DEFAULT_INPUT1: Final = {
+DEFAULT_INPUT1_NO_DAMP = {
     CONF_API_KEY: KEY1,
     API_QUOTA: "10",
-    AUTO_UPDATE: 1,
+    AUTO_UPDATE: "1",
     CUSTOM_HOUR_SENSOR: CUSTOM_HOURS,
     HARD_LIMIT_API: "100.0",
     KEY_ESTIMATE: "estimate",
@@ -65,14 +62,13 @@ DEFAULT_INPUT1: Final = {
     BRK_HALFHOURLY: True,
     BRK_HOURLY: True,
     BRK_SITE_DETAILED: False,
-    SITE_DAMP: False,
 }
 
-BAD_INPUT = copy.deepcopy(DEFAULT_INPUT1)
+BAD_INPUT = copy.deepcopy(DEFAULT_INPUT1_NO_DAMP)
 BAD_INPUT[CONF_API_KEY] = "badkey"
 
-SITE_DAMP: Final = {f"damp{factor:02d}": 1.0 for factor in range(24)}
-DEFAULT_INPUT1 |= SITE_DAMP
+SITE_DAMP_FACTORS: Final = {f"damp{factor:02d}": 1.0 for factor in range(24)}
+DEFAULT_INPUT1 = DEFAULT_INPUT1_NO_DAMP | SITE_DAMP_FACTORS | {SITE_DAMP: False}
 ZONE_RAW: Final = "Australia/Brisbane"  # Somewhere without daylight saving time
 
 DEFAULT_INPUT2 = copy.deepcopy(DEFAULT_INPUT1)
@@ -239,8 +235,11 @@ async def async_init_integration(
     hass.config.time_zone = ZONE_RAW
     const.SENSOR_UPDATE_LOGGING = True
 
+    if options.get(AUTO_UPDATE) is not None:
+        options = copy.deepcopy(options)
+        options[AUTO_UPDATE] = int(options[AUTO_UPDATE])
     entry = MockConfigEntry(
-        domain=DOMAIN, unique_id="solcast_pv_solar", title="Solcast PV Forecast", data={}, options=options, version=version
+        domain=DOMAIN, unique_id="solcast_pv_solar", title="Solcast PV Forecast", data=options, options=options, version=version
     )
 
     entry.add_to_hass(hass)
@@ -279,8 +278,10 @@ async def async_init_integration(
 async def async_cleanup_integration_tests(hass: HomeAssistant, **kwargs) -> None:
     """Clean up the Solcast Solar integration caches and session."""
 
+    config_dir = hass.config.config_dir
+
     def list_files() -> list[str]:
-        return [str(cache) for cache in Path(CONFIG_DIR).glob("solcast*.json")]
+        return [str(cache) for cache in Path(config_dir).glob("solcast*.json")]
 
     try:
         mock_session_reset()

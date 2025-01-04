@@ -17,6 +17,7 @@ from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import (
     ConfigEntryAuthFailed,
     ConfigEntryNotReady,
+    ConfigEntryError,
     HomeAssistantError,
     ServiceValidationError,
 )
@@ -296,6 +297,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
     version = await __get_version(hass)
     options = await __get_options(hass, entry)
     __setup_storage(hass)
+    hass.data[DOMAIN]["presumed_dead"] = True
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options, hass, entry)
 
     solcast.headers = __get_session_headers(version)
@@ -308,9 +310,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
         case SitesStatus.ERROR:
             raise ConfigEntryNotReady("Sites data could not be retrieved")
         case SitesStatus.BAD_KEY:
-            raise ConfigEntryAuthFailed("API key is invalid")
+            raise ConfigEntryError("API key is invalid")
         case SitesStatus.NO_SITES:
-            raise ConfigEntryAuthFailed("No sites found for API key")
+            raise ConfigEntryError("No sites found for API key")
         case SitesStatus.UNKNOWN:
             raise ConfigEntryNotReady("Internal error: Sites data could not be retrieved")  # pragma: no cover, handle unexpected exceptions
         case SitesStatus.OK:
@@ -338,6 +340,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
         await __check_stale_start(coordinator)
 
     hass.data[DOMAIN]["has_loaded"] = True
+    hass.data[DOMAIN]["presumed_dead"] = False
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = True
 
     async def action_call_update_forecast(call: ServiceCall):

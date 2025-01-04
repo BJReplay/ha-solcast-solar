@@ -33,7 +33,6 @@ from homeassistant.exceptions import ServiceValidationError
 
 from . import (
     BAD_INPUT,
-    CONFIG_DIR,
     DEFAULT_INPUT1,
     DEFAULT_INPUT2,
     DEFAULT_INPUT_NO_SITES,
@@ -180,6 +179,8 @@ async def test_integration(
 ) -> None:
     """Test integration init."""
 
+    config_dir = hass.config.config_dir
+
     # Test startup
     entry: SolcastConfigEntry = await async_init_integration(hass, options)
 
@@ -202,7 +203,7 @@ async def test_integration(
 
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
     solcast: SolcastApi = coordinator.solcast
-    granular_dampening_file = Path(f"{CONFIG_DIR}/solcast-dampening.json")
+    granular_dampening_file = Path(f"{config_dir}/solcast-dampening.json")
     if options == DEFAULT_INPUT2:
         assert granular_dampening_file.is_file()
 
@@ -214,19 +215,19 @@ async def test_integration(
 
         # Test cache files are as expected
         if len(options["api_key"].split(",")) == 1:
-            assert not Path(f"{CONFIG_DIR}/solcast-sites-1.json").is_file()
-            assert not Path(f"{CONFIG_DIR}/solcast-sites-2.json").is_file()
-            assert Path(f"{CONFIG_DIR}/solcast-sites.json").is_file()
-            assert not Path(f"{CONFIG_DIR}/solcast-usage-1.json").is_file()
-            assert not Path(f"{CONFIG_DIR}/solcast-usage-2.json").is_file()
-            assert Path(f"{CONFIG_DIR}/solcast-usage.json").is_file()
+            assert not Path(f"{config_dir}/solcast-sites-1.json").is_file()
+            assert not Path(f"{config_dir}/solcast-sites-2.json").is_file()
+            assert Path(f"{config_dir}/solcast-sites.json").is_file()
+            assert not Path(f"{config_dir}/solcast-usage-1.json").is_file()
+            assert not Path(f"{config_dir}/solcast-usage-2.json").is_file()
+            assert Path(f"{config_dir}/solcast-usage.json").is_file()
         else:
-            assert Path(f"{CONFIG_DIR}/solcast-sites-1.json").is_file()
-            assert Path(f"{CONFIG_DIR}/solcast-sites-2.json").is_file()
-            assert not Path(f"{CONFIG_DIR}/solcast-sites.json").is_file()
-            assert Path(f"{CONFIG_DIR}/solcast-usage-1.json").is_file()
-            assert Path(f"{CONFIG_DIR}/solcast-usage-2.json").is_file()
-            assert not Path(f"{CONFIG_DIR}/solcast-usage.json").is_file()
+            assert Path(f"{config_dir}/solcast-sites-1.json").is_file()
+            assert Path(f"{config_dir}/solcast-sites-2.json").is_file()
+            assert not Path(f"{config_dir}/solcast-sites.json").is_file()
+            assert Path(f"{config_dir}/solcast-usage-1.json").is_file()
+            assert Path(f"{config_dir}/solcast-usage-2.json").is_file()
+            assert not Path(f"{config_dir}/solcast-usage.json").is_file()
 
         # Test coordinator tasks are created
         assert coordinator.tasks["listeners"]
@@ -325,8 +326,8 @@ async def test_integration(
 
         # Test clear data action when no solcast.json exists
         if options == DEFAULT_INPUT2:
-            Path(f"{CONFIG_DIR}/solcast.json").unlink()
-            Path(f"{CONFIG_DIR}/solcast-undampened.json").unlink()
+            Path(f"{config_dir}/solcast.json").unlink()
+            Path(f"{config_dir}/solcast-undampened.json").unlink()
             with pytest.raises(ServiceValidationError):
                 await hass.services.async_call(DOMAIN, "clear_all_solcast_data", {}, blocking=True)
 
@@ -349,6 +350,8 @@ async def test_integration_remaining_actions(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test remaining actions."""
+
+    config_dir = hass.config.config_dir
 
     # Start with two API keys and three sites
     entry = await async_init_integration(hass, DEFAULT_INPUT2)
@@ -373,8 +376,8 @@ async def test_integration_remaining_actions(
     try:
         # Test logs for cache load
         assert "Sites cache exists" in caplog.text
-        assert f"Data cache {CONFIG_DIR}/solcast.json exists, file type is <class 'dict'>" in caplog.text
-        assert f"Data cache {CONFIG_DIR}/solcast-undampened.json exists, file type is <class 'dict'>" in caplog.text
+        assert f"Data cache {config_dir}/solcast.json exists, file type is <class 'dict'>" in caplog.text
+        assert f"Data cache {config_dir}/solcast-undampened.json exists, file type is <class 'dict'>" in caplog.text
         occurs_in_log("Renaming", 2)
         occurs_in_log("Removing orphaned", 2)
 
@@ -422,7 +425,7 @@ async def test_integration_remaining_actions(
         # Granular dampening
         await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("0.5," * 48)[:-1]}, blocking=True)
         await hass.async_block_till_done()  # Because options change
-        assert Path(f"{CONFIG_DIR}/solcast-dampening.json").is_file()
+        assert Path(f"{config_dir}/solcast-dampening.json").is_file()
         dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
         assert dampening.get("data", [{}])[0] == {"site": "all", "damp_factor": ("0.5," * 48)[:-1]}
         # Trigger re-apply forward dampening
@@ -504,7 +507,7 @@ async def test_integration_remaining_actions(
         caplog.clear()
 
         # Switch to using two API keys, three sites, start with an out-of-date usage cache
-        usage_file = Path(f"{CONFIG_DIR}/solcast-usage.json")
+        usage_file = Path(f"{config_dir}/solcast-usage.json")
         data = json.loads(usage_file.read_text(encoding="utf-8"))
         data["reset"] = (dt.now(datetime.UTC) - timedelta(days=5)).isoformat()
         usage_file.write_text(json.dumps(data), encoding="utf-8")
@@ -589,6 +592,8 @@ async def test_integration_scenarios(
 ) -> None:
     """Test integration start with stale data."""
 
+    config_dir = hass.config.config_dir
+
     options = copy.deepcopy(DEFAULT_INPUT1)
     options[HARD_LIMIT_API] = "6.0"
     entry = await async_init_integration(hass, options)
@@ -599,7 +604,7 @@ async def test_integration_scenarios(
         assert "Hard limit is set to limit peak forecast values" in caplog.text
         caplog.clear()
 
-        data_file = Path(f"{CONFIG_DIR}/solcast.json")
+        data_file = Path(f"{config_dir}/solcast.json")
 
         def alter_last_updated():
             data = json.loads(data_file.read_text(encoding="utf-8"))
