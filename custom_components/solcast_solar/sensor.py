@@ -370,7 +370,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
         try:
             self._sensor_data = self._coordinator.get_sensor_value(self.entity_description.key)
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
+        except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor value: %s", e)
             self._sensor_data = None
 
@@ -414,7 +414,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         """
         try:
             return self._coordinator.get_sensor_extra_attributes(self.entity_description.key)
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
+        except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor attributes: %s", e)
             return None
 
@@ -454,7 +454,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
         try:
             self._sensor_data = self._coordinator.get_sensor_value(self.entity_description.key)
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
+        except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
             self._sensor_data = None
         if SENSOR_UPDATE_LOGGING:
@@ -515,7 +515,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
 
         try:
             self._sensor_data = coordinator.get_site_sensor_value(self._rooftop_id, key)
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
+        except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor value: %s", e)
             self._sensor_data = None
 
@@ -556,7 +556,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         """Return the state extra attributes of the sensor."""
         try:
             return self._coordinator.get_site_sensor_extra_attributes(self._rooftop_id, self._key)
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
+        except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor attributes: %s: %s", e, traceback.format_exc())
             return None
 
@@ -594,7 +594,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
             self._sensor_data = self._coordinator.get_site_sensor_value(self._rooftop_id, self._key)
             if SENSOR_UPDATE_LOGGING:
                 _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle uncaught exceptions
+        except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
             self._sensor_data = None
         self.async_write_ha_state()

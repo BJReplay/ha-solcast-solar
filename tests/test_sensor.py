@@ -410,14 +410,22 @@ async def test_sensor_unknown(
 
     SolcastUpdateCoordinator.get_sensor_value = get_sensor_value
     SolcastUpdateCoordinator.get_sensor_extra_attributes = get_sensor_value
+    SolcastUpdateCoordinator.get_site_sensor_value = get_sensor_value
+    SolcastUpdateCoordinator.get_site_sensor_extra_attributes = get_sensor_value
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
     try:
         for sensor in SENSORS:
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
+            _ = state.attributes
             assert state
             assert state.state == STATE_UNKNOWN
+
+        state = hass.states.get("sensor.first_site")
+        _ = state.attributes
+        assert state
+        assert state.state == STATE_UNKNOWN
 
         coordinator._data_updated = True
         coordinator.async_update_listeners()
