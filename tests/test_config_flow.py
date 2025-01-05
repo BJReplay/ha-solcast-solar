@@ -187,7 +187,7 @@ async def test_reconfigure_api_key(
 
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        assert hass.data[DOMAIN].get("has_loaded", False) is True
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
         for test in TEST_API_KEY:
             for source in [config_entries.SOURCE_REAUTH, config_entries.SOURCE_RECONFIGURE]:
                 result = await hass.config_entries.flow.async_init(
@@ -233,7 +233,7 @@ async def test_reconfigure_api_quota(
         for test in TEST_API_QUOTA:
             if _input is None or test[OPTIONS] != _input:
                 entry = await async_init_integration(hass, test[OPTIONS])
-                assert hass.data[DOMAIN].get("has_loaded", False) is True
+                assert hass.data[DOMAIN].get("presumed_dead", True) is False
                 _input = copy.deepcopy(test[OPTIONS])
             for source in [config_entries.SOURCE_REAUTH, config_entries.SOURCE_RECONFIGURE]:
                 result = await hass.config_entries.flow.async_init(
@@ -391,7 +391,7 @@ async def test_entry_options_upgrade(
     }
     config_dir = hass.config.config_dir
     entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
-    assert hass.data[DOMAIN].get("has_loaded", False) is True
+    assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
     try:
         assert entry.version == FINAL_VERSION
@@ -430,7 +430,7 @@ async def test_entry_options_upgrade(
             json.dumps({"daily_limit": 50, "daily_limit_consumed": 34, "reset": "2024-01-01T00:00:00+00:00"}), encoding="utf-8"
         )
         entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
-        assert hass.data[DOMAIN].get("has_loaded", False) is True
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
         assert entry.options.get(API_QUOTA) == "50"
 
         assert await hass.config_entries.async_unload(entry.entry_id)
@@ -449,13 +449,11 @@ async def test_presumed_dead_and_full_flow(
     """Test presumption of death by setting "presumed dead" flag, and testing a config change."""
 
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    assert hass.data[DOMAIN].get("has_loaded", False) is True
-    assert hass.data[DOMAIN]["presumed_dead"] is False
 
     try:
         # Test presumed dead
         caplog.clear()
-        assert hass.data[DOMAIN]["presumed_dead"] is False
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
         option = {BRK_ESTIMATE: False}
         user_input = DEFAULT_INPUT1_NO_DAMP | option

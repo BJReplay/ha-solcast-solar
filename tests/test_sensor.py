@@ -1,6 +1,7 @@
 """Tests for the Solcast Solar sensors."""
 
 import contextlib
+import copy
 from datetime import datetime as dt
 import logging
 
@@ -9,6 +10,7 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.sensor import SensorStateClass
+from homeassistant.components.solcast_solar.const import CUSTOM_HOUR_SENSOR
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.const import (
     STATE_UNAVAILABLE,
@@ -395,6 +397,25 @@ async def test_sensor_states(
         assert coordinator.get_site_sensor_value("badroof", "badkey") is None
         assert coordinator.get_site_sensor_extra_attributes("badroof", "badkey") is None
 
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_sensor_x_hours_long(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Test state and of x hours sensor."""
+
+    options = copy.deepcopy(DEFAULT_INPUT1)
+    options[CUSTOM_HOUR_SENSOR] = 48
+    await async_init_integration(hass, options)
+
+    try:
+        state = hass.states.get("sensor.solcast_pv_forecast_forecast_next_x_hours")
+        assert state
+        assert int(state.state) == 86910
     finally:
         assert await async_cleanup_integration_tests(hass)
 

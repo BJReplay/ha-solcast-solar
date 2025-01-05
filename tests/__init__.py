@@ -1,7 +1,6 @@
 """Tests setup for Solcast Solar integration."""
 
 import copy
-from datetime import datetime as dt
 import logging
 from pathlib import Path
 import re

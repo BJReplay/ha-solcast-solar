@@ -35,16 +35,6 @@ EVENT_END_DATETIME: Final = "end_date_time"
 EVENT_START_DATETIME: Final = "start_date_time"
 HARD_LIMIT: Final = "hard_limit"
 HARD_LIMIT_API: Final = "hard_limit_api"
-INIT_MSG: Final = """This is a custom integration. When troubleshooting a problem, after
-reviewing open and closed issues, and the discussions, check any
-automation is functioning correctly (unless auto-update is
-enabled). Troubleshooting tips available at:
-https://github.com/BJReplay/ha-solcast-solar/discussions/38
-
-Beta versions may also have addressed issues so look at those.
-
-If all else fails, then open an issue and our community will try to
-help: https://github.com/BJReplay/ha-solcast-solar/issues"""
 KEY_ESTIMATE: Final = "key_estimate"
 MANUFACTURER: Final = "BJReplay"
 SERVICE_CLEAR_DATA: Final = "clear_all_solcast_data"

@@ -48,13 +48,6 @@ from . import (
     mock_session_set_too_busy,
 )
 
-
-@pytest.fixture(autouse=True)
-def frozen_time() -> None:
-    """Override autouse fixute for this module. Time must pass."""
-    return
-
-
 _LOGGER = logging.getLogger(__name__)
 
 SERVICES = [
@@ -69,6 +62,15 @@ SERVICES = [
 ]
 
 NOW = dt.now(ZONE)
+
+
+@pytest.fixture(autouse=True)
+def frozen_time() -> None:
+    """Override autouse fixture for this module.
+
+    Time must pass, so use method replacement instead.
+    """
+    return
 
 
 def get_now_utc() -> dt:
@@ -87,9 +89,6 @@ def get_hour_start_utc() -> dt:
     """Mock get_hour_start_utc, spoof middle-of-the-day-ish."""
 
     return NOW.replace(hour=12, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
-
-
-# Replace the current date/time functions in SolcastApi.
 
 
 def patch_solcast_api(solcast):
@@ -159,7 +158,7 @@ async def test_api_failure(
 
         # Normal start and teardown to create caches
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        assert hass.data[DOMAIN].get("has_loaded") is True
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
 
@@ -175,7 +174,12 @@ async def test_api_failure(
 
 
 async def _exec_update(
-    hass: HomeAssistant, solcast: SolcastApi, caplog: any, action: str, last_update_delta: int = 0, wait: bool = True
+    hass: HomeAssistant,
+    solcast: SolcastApi,
+    caplog: any,
+    action: str,
+    last_update_delta: int = 0,
+    wait: bool = True,
 ) -> None:
     """Execute an action and wait for completion."""
     caplog.clear()
@@ -227,7 +231,7 @@ async def test_integration(
 
     if options == BAD_INPUT:
         assert entry.state is ConfigEntryState.SETUP_ERROR
-        assert hass.data[DOMAIN].get("has_loaded") is None
+        assert hass.data[DOMAIN].get("presumed_dead", True) is True
         assert "Dampening factors corrupt or not found, setting to 1.0" in caplog.text
         assert "Get sites failed, last call result: 401/Unauthorized" in caplog.text
         assert "API key is invalid" in caplog.text
@@ -240,7 +244,7 @@ async def test_integration(
         return
 
     assert entry.state is ConfigEntryState.LOADED
-    assert hass.data[DOMAIN].get("has_loaded") is True
+    assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
     solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
@@ -396,7 +400,7 @@ async def test_integration_remaining_actions(
 
     # Start with two API keys and three sites
     entry = await async_init_integration(hass, DEFAULT_INPUT2)
-    assert hass.data[DOMAIN].get("has_loaded") is True
+    assert hass.data[DOMAIN].get("presumed_dead", True) is False
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
 
@@ -405,7 +409,7 @@ async def test_integration_remaining_actions(
     # Switch to one API key and two sites to assert the initial clean-up
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
     solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
-    assert hass.data[DOMAIN].get("has_loaded") is True
+    assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
     def occurs_in_log(text: str, occurrences: int) -> int:
         occurs = 0
@@ -641,7 +645,7 @@ async def test_integration_scenarios(
     coordinator = entry.runtime_data.coordinator
     solcast = patch_solcast_api(coordinator.solcast)
     try:
-        assert hass.data[DOMAIN].get("has_loaded") is True
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
         assert "Hard limit is set to limit peak forecast values" in caplog.text
         caplog.clear()
 
@@ -660,8 +664,11 @@ async def test_integration_scenarios(
             await hass.config_entries.async_reload(entry.entry_id)
             await hass.async_block_till_done()
             if hass.data[DOMAIN].get(entry.entry_id):
-                coordinator = entry.runtime_data.coordinator
-                solcast = patch_solcast_api(coordinator.solcast)
+                try:
+                    coordinator = entry.runtime_data.coordinator
+                    solcast = patch_solcast_api(coordinator.solcast)
+                except:  # noqa: E722
+                    _LOGGER.error("Failed to load coordinator (or solcast), which may be expected given test conditions")
 
         # Test stale start with auto update enabled
         alter_last_updated()
@@ -699,20 +706,29 @@ async def test_integration_scenarios(
         assert "Site resource id 2222-2222-2222-2222 is no longer configured" in caplog.text
         caplog.clear()
 
-        # Test corrupt data start, integration will not load
+        # Test corrupt data start, integration will not load, and will attempt reload
 
-        def corrupt_data():
+        def _corrupt_data():
             data = json.loads(data_file.read_text(encoding="utf-8"))
             data["siteinfo"]["3333-3333-3333-3333"]["forecasts"] = [{"bob": 0}]
-            # data["last_updated"] = "sdkjfhkjsfh"
             data_file.write_text(json.dumps(data), encoding="utf-8")
 
-        corrupt_data()
+        def _really_corrupt_data():
+            data_file.write_text("Purple monkey dishwasher 🤣🤣🤣", encoding="utf-8")
+
+        _corrupt_data()
         await reload()
         assert "Failed to build forecast data" in caplog.text
         assert "Exception in build_data(): 'period_start'" in caplog.text
         assert "UnboundLocalError in check_data_records()" in caplog.text
+        assert hass.data[DOMAIN].get("presumed_dead", True) is True
         caplog.clear()
+
+        _really_corrupt_data()
+        await reload()
+        assert "The cached data in solcast.json is corrupt" in caplog.text
+        assert "integration not ready yet" in caplog.text
+        assert hass.data[DOMAIN].get("presumed_dead", True) is True
 
     finally:
         assert await async_cleanup_integration_tests(hass)

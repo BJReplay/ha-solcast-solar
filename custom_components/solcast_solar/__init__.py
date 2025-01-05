@@ -15,9 +15,8 @@ from homeassistant import loader
 from homeassistant.const import CONF_API_KEY, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import (
-    ConfigEntryAuthFailed,
-    ConfigEntryNotReady,
     ConfigEntryError,
+    ConfigEntryNotReady,
     HomeAssistantError,
     ServiceValidationError,
 )
@@ -47,7 +46,6 @@ from .const import (
     EVENT_START_DATETIME,
     HARD_LIMIT,
     HARD_LIMIT_API,
-    INIT_MSG,
     KEY_ESTIMATE,
     SERVICE_CLEAR_DATA,
     SERVICE_FORCE_UPDATE,
@@ -98,16 +96,10 @@ SERVICE_QUERY_SCHEMA: Final = vol.All(
 _LOGGER = logging.getLogger(__name__)
 
 
-def __log_init_message(version: str, solcast: SolcastApi):
+def __log_init_message(entry: SolcastConfigEntry, version: str, solcast: SolcastApi):
     _LOGGER.debug("UTC times are converted to %s", solcast.options.tz)
     _LOGGER.debug("Successful init")
-    _LOGGER.info(
-        "%sSolcast integration version: %s%s%s",
-        ("\n" + "-" * 67 + "\n") if not solcast.previously_loaded else "",
-        version,
-        ("\n\n" + INIT_MSG) if not solcast.previously_loaded else "",
-        ("\n" + "-" * 67) if not solcast.previously_loaded else "",
-    )
+    _LOGGER.info("Solcast integration version: %s", version)
 
 
 async def __get_version(hass: HomeAssistant) -> str:
@@ -301,7 +293,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options, hass, entry)
 
     solcast.headers = __get_session_headers(version)
-    solcast.previously_loaded = hass.data[DOMAIN].get("has_loaded", False)
     try:
         await solcast.get_sites_and_usage()
     except Exception as e:  # pragma: no cover, catch unexpected exceptions
@@ -330,7 +321,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
         raise ConfigEntryNotReady("Internal error: Coordinator setup failed")  # pragma: no cover, handle unexpected exceptions
     await coordinator.async_config_entry_first_refresh()
 
-    __log_init_message(version, solcast)
+    __log_init_message(entry, version, solcast)
 
     entry.async_on_unload(entry.add_update_listener(async_update_options))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -339,7 +330,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
     if not await __check_auto_update_missed(coordinator):
         await __check_stale_start(coordinator)
 
-    hass.data[DOMAIN]["has_loaded"] = True
     hass.data[DOMAIN]["presumed_dead"] = False
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = True
 
@@ -604,7 +594,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> 
             _LOGGER.debug("Remove action: %s.%s", DOMAIN, action)
             hass.services.async_remove(DOMAIN, action)
 
-        hass.data[DOMAIN].pop(entry.entry_id)
+        hass.data[DOMAIN].pop("presumed_dead")
     else:
         _LOGGER.error("Unload failed")  # pragma: no cover, never called in tests
 

@@ -294,7 +294,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.hass = hass
         self.headers = {}
         self.options = options
-        self.previously_loaded = False
         self.sites = []
         self.sites_status: SitesStatus = SitesStatus.UNKNOWN
         self.tasks = {}
@@ -598,11 +597,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     site.pop("latitude", None)
                 self.sites = self.sites + sites_data["sites"]
                 self._api_used_reset[api_key] = None
-                if not self.previously_loaded:
-                    _LOGGER.info(
-                        "Sites loaded%s",
-                        (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
-                    )
+                _LOGGER.debug(
+                    "Sites loaded%s",
+                    (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
+                )
 
             api_keys = self.options.api_key.split(",")
             for api_key in api_keys:
@@ -812,8 +810,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             self._api_limit[api_key] = quota[api_key]
                             await self.__serialise_usage(api_key)
                             _LOGGER.info("Usage loaded and cache updated with new limit")
-                        elif not self.previously_loaded:  # pragma nocover, usage re-load is not tested
-                            _LOGGER.info(
+                        else:
+                            _LOGGER.debug(
                                 "Usage loaded%s",
                                 (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
                             )
@@ -1131,9 +1129,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             raising_exception = True
             return option(GRANULAR_DAMPENING_OFF)
         finally:
-            if not self.previously_loaded and not raising_exception:
+            if not raising_exception:
                 if len(self.granular_dampening) > 0 and not info_suppression:
-                    _LOGGER.info("Granular dampening loaded")
+                    _LOGGER.debug("Granular dampening loaded")
                     _LOGGER.debug(
                         "Granular dampening file mtime: %s",
                         dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT),
@@ -1272,11 +1270,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             data = json_data
                             if set_loaded:
                                 self._loaded_data = True
-                            if not self.previously_loaded:  # pragma: no cover, not reached in tests
-                                _LOGGER.info(
-                                    "%s data loaded",
-                                    "Dampened" if filename == self._filename else "Un-dampened",
-                                )
+                            _LOGGER.debug(
+                                "%s data loaded",
+                                "Dampened" if filename == self._filename else "Un-dampened",
+                            )
                             if json_version != JSON_VERSION:  # pragma: no cover, tested separately
                                 _LOGGER.info(
                                     "Upgrading %s version from v%d to v%d",
@@ -1410,10 +1407,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # Create an up to date forecast.
                     if not await self.build_forecast_data():
                         status = "Failed to build forecast data (corrupt config/solcast.json?)"
-            else:  # pragma: no cover, will never occur under test conditions
-                _LOGGER.error("Site count is zero in load_saved_data(); the get sites must have failed, and there is no sites cache")
-                status = "Site count is zero, add sites"
-        except json.decoder.JSONDecodeError:  # pragma: no cover, handle unexpected exceptions
+        except json.decoder.JSONDecodeError:
             _LOGGER.error("The cached data in solcast.json is corrupt in load_saved_data()")
             status = "The cached data in /config/solcast.json is corrupted, suggest removing or repairing it"
         except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
@@ -2147,7 +2141,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if end_utc < day_start + timedelta(seconds=1800 * len(self._spline_period)):
                     # End is within today so use spline data.
                     result -= self.__get_remaining(site, forecast_confidence, (end_utc - day_start).total_seconds())
-                else:  # pragma: no cover, scenario is unlikely and untested
+                else:
                     # End is beyond today, so revert to simple linear interpolation.
                     start_index_post_spline, _ = self.__get_forecast_list_slice(  # Get post-spline day onwards start index.
                         data,
@@ -2395,7 +2389,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 if result == DataCallStatus.FAIL:
                     failure = True
-                    if self.hass.data[DOMAIN].get(self.entry.entry_id) is not None:
+                    if self.hass.data[DOMAIN].get("presumed_dead") is not None:
                         if len(self.sites) > 1:
                             if sites_attempted < len(self.sites):
                                 _LOGGER.warning(
