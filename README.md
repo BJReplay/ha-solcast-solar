@@ -6,7 +6,7 @@
 [![hacs_downloads](https://img.shields.io/github/downloads/BJReplay/ha-solcast-solar/latest/total?style=for-the-badge)](https://github.com/BJReplay/ha-solcast-solar/releases/latest)
 ![GitHub License](https://img.shields.io/github/license/BJReplay/ha-solcast-solar?style=for-the-badge)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/y/BJReplay/ha-solcast-solar?style=for-the-badge)
-![Maintenance](https://img.shields.io/maintenance/yes/2024?style=for-the-badge)
+![Maintenance](https://img.shields.io/maintenance/yes/2025?style=for-the-badge)
 
 ## Preamble
 
