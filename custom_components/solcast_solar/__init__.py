@@ -1,6 +1,5 @@
 """Solcast PV forecast, initialisation."""
 
-import asyncio
 import contextlib
 import json
 import logging
@@ -61,7 +60,7 @@ from .const import (
     UNDAMPENED,
 )
 from .coordinator import SolcastUpdateCoordinator
-from .solcastapi import ConnectionOptions, SitesStatus, SolcastApi
+from .solcastapi import ConnectionOptions, SitesStatus, SolcastApi, UsageStatus
 from .util import SolcastConfigEntry, SolcastData
 
 PLATFORMS: Final = [
@@ -300,13 +299,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
     match solcast.sites_status:
         case SitesStatus.ERROR:
             raise ConfigEntryNotReady("Sites data could not be retrieved")
+        case SitesStatus.CACHE_INVALID:
+            raise ConfigEntryNotReady("Sites data could not be retrieved and cache is invalid")
         case SitesStatus.BAD_KEY:
             raise ConfigEntryError("API key is invalid")
         case SitesStatus.NO_SITES:
             raise ConfigEntryError("No sites found for API key")
         case SitesStatus.UNKNOWN:
-            raise ConfigEntryNotReady("Internal error: Sites data could not be retrieved")  # pragma: no cover, handle unexpected exceptions
+            raise ConfigEntryError("Exception loading sites data")  # pragma: no cover, handle unexpected exceptions
         case SitesStatus.OK:
+            pass
+    match solcast.usage_status:
+        case UsageStatus.ERROR:
+            raise ConfigEntryError("Usage data is corrupt, check or delete config/solcast-usage.json")
+        case UsageStatus.OK:
             pass
 
     await __get_granular_dampening(hass, entry, solcast)
@@ -620,28 +626,16 @@ async def async_remove_config_entry_device(
 
 
 async def tasks_cancel(hass: HomeAssistant, entry: SolcastConfigEntry) -> bool:
-    """Cancel all tasks.
+    """Cancel all tasks, both coordinator and solcast.
 
     Returns:
         bool: Whether the tasks cancel completed successfully.
 
     """
-    try:
-        coordinator = entry.runtime_data.coordinator
-        # Terminate solcastapi tasks in progress
-        for task, cancel in coordinator.solcast.tasks.items():  # pragma: no cover, unlikely under test conditions
-            _LOGGER.debug("Cancelling solcastapi task %s", task)
-            cancel.cancel()
-        # Terminate coordinator tasks in progress
-        for task, cancel in coordinator.tasks.items():
-            _LOGGER.debug("Cancelling coordinator task %s", task)
-            if isinstance(cancel, asyncio.Task):
-                cancel.cancel()
-            else:
-                cancel()
-    finally:
-        coordinator.solcast.tasks = {}
-        coordinator.tasks = {}
+    coordinator = entry.runtime_data.coordinator
+
+    await coordinator.solcast.tasks_cancel()
+    await coordinator.tasks_cancel()
 
 
 async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry):

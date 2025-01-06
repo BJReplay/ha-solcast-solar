@@ -6,6 +6,7 @@ import datetime
 from datetime import datetime as dt, timedelta
 import json
 import logging
+import os
 from pathlib import Path
 
 from aiohttp import ClientConnectionError
@@ -336,14 +337,14 @@ async def test_integration(
             if options == DEFAULT_INPUT1
             else {
                 "1111-1111-1111-1111": [0.7] * 24,  # Intentionally dodgy
-                "2222-2222-2222-2222": [0.8] * 48,
+                "2222-2222-2222-2222": [0.8] * 42,  # Intentionally dodgy
                 "3333-3333-3333-3333": [0.9] * 48,
             }
         )
         granular_dampening_file.write_text(json.dumps(granular_dampening), encoding="utf-8")
         assert granular_dampening_file.is_file()
 
-        # Test update beyond ten seconds of prior update, also with stale usage cache
+        # Test update beyond ten seconds of prior update, also with stale usage cache and dodgy dampening file
         mock_session_config_reset()
         for api_key in options["api_key"].split(","):
             solcast._api_used_reset[api_key] = dt.now(datetime.UTC) - timedelta(days=5)
@@ -355,10 +356,21 @@ async def test_integration(
         assert "Started task midnight_update" in caplog.text
         if options == DEFAULT_INPUT2:
             assert "Number of dampening factors for all sites must be the same" in caplog.text
+            assert "must be 24 or 48 in" in caplog.text
         else:
-            assert "Valid granular dampening: True" in caplog.text
+            assert "Granular dampening reloaded" in caplog.text
             assert "Forecast update completed successfully" in caplog.text
             assert "contains all intervals" in caplog.text
+        caplog.clear()
+
+        def set_file_last_modified(file_path, dt):
+            dt_epoch = dt.timestamp()
+            os.utime(file_path, (dt_epoch, dt_epoch))
+
+        granular_dampening_file.write_text("really dodgy", encoding="utf-8")
+        set_file_last_modified(str(granular_dampening_file), dt.now(datetime.UTC) - timedelta(minutes=5))
+        await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
+        assert "JSONDecodeError, dampening ignored" in caplog.text
         caplog.clear()
 
         # Test reset usage cache when fresh
@@ -373,8 +385,14 @@ async def test_integration(
         if options == DEFAULT_INPUT2:
             Path(f"{config_dir}/solcast.json").unlink()
             Path(f"{config_dir}/solcast-undampened.json").unlink()
-            with pytest.raises(ServiceValidationError):
-                await hass.services.async_call(DOMAIN, "clear_all_solcast_data", {}, blocking=True)
+            await hass.services.async_call(DOMAIN, "clear_all_solcast_data", {}, blocking=True)
+            await hass.async_block_till_done()
+            assert "There is no solcast-undampened.json to delete" in caplog.text
+            assert "There is no solcast.json to delete" in caplog.text
+            assert "There is no solcast.json to load" in caplog.text
+            assert "Polling API for site 1111-1111-1111-1111" in caplog.text
+            assert "Polling API for site 2222-2222-2222-2222" in caplog.text
+            assert "Polling API for site 3333-3333-3333-3333" in caplog.text
 
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
@@ -477,6 +495,11 @@ async def test_integration_remaining_actions(
         await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("0.75," * 48)[:-1]}, blocking=True)
         await hass.async_block_till_done()  # Because options change
         await _clear_granular_dampening()
+        # Request dampening for a site when using legacy dampening
+        with pytest.raises(ServiceValidationError):
+            dampening = await hass.services.async_call(
+                DOMAIN, "get_dampening", {"site": "1111-1111-1111-1111"}, blocking=True, return_response=True
+            )
         # Granular dampening with site
         await hass.services.async_call(
             DOMAIN, "set_dampening", {"site": "1111-1111-1111-1111", "damp_factor": ("0.5," * 48)[:-1]}, blocking=True
@@ -635,7 +658,7 @@ async def test_integration_scenarios(
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test integration start with stale data."""
+    """Test various integration scenarios."""
 
     config_dir = hass.config.config_dir
 
@@ -649,6 +672,7 @@ async def test_integration_scenarios(
         assert "Hard limit is set to limit peak forecast values" in caplog.text
         caplog.clear()
 
+        # Test start with stale data
         data_file = Path(f"{config_dir}/solcast.json")
 
         def alter_last_updated():
@@ -659,20 +683,33 @@ async def test_integration_scenarios(
             data_file.write_text(json.dumps(data), encoding="utf-8")
             mock_session_config_reset()
 
+        def set_old_solcast_schema():
+            data = json.loads(data_file.read_text(encoding="utf-8"))
+            data["version"] = 3
+            data.pop("last_attempt")
+            data.pop("auto_updated")
+            data_file.write_text(json.dumps(data), encoding="utf-8")
+
+        def verify_new_solcast_schema():
+            data = json.loads(data_file.read_text(encoding="utf-8"))
+            assert data["version"] == 5
+            assert "last_attempt" in data
+            assert "auto_updated" in data
+
         async def reload():
-            nonlocal coordinator, solcast
+            _LOGGER.warning("Reloading integration")
             await hass.config_entries.async_reload(entry.entry_id)
             await hass.async_block_till_done()
             if hass.data[DOMAIN].get(entry.entry_id):
                 try:
-                    coordinator = entry.runtime_data.coordinator
-                    solcast = patch_solcast_api(coordinator.solcast)
+                    return entry.runtime_data.coordinator, patch_solcast_api(coordinator.solcast)
                 except:  # noqa: E722
                     _LOGGER.error("Failed to load coordinator (or solcast), which may be expected given test conditions")
+            return None, None
 
         # Test stale start with auto update enabled
         alter_last_updated()
-        await reload()
+        coordinator, solcast = await reload()
         await _wait_for_update(caplog)
         assert "is older than expected, should be" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
@@ -684,7 +721,7 @@ async def test_integration_scenarios(
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         alter_last_updated()
-        await reload()
+        coordinator, solcast = await reload()
         # Sneak in an extra update that will be cancelled because update already in progress
         await hass.services.async_call(DOMAIN, "update_forecasts", {}, blocking=True)
         await _wait_for_update(caplog)
@@ -692,13 +729,29 @@ async def test_integration_scenarios(
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
         caplog.clear()
 
-        # Test API key change
+        # Test API key change, start with an API failure and invalid sites cache
+        mock_session_set_too_busy()
+        sites_file = Path(f"{config_dir}/solcast-sites.json")
+        data = json.loads(sites_file.read_text(encoding="utf-8"))
+        data["sites"][0].pop("api_key")
+        data["sites"][1]["api_key"] = "888"
+        sites_file.write_text(json.dumps(data), encoding="utf-8")
         opt = {**entry.options}
         opt[CONF_API_KEY] = "2"
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         assert "Options updated, action: The integration will reload" in caplog.text
-        assert "Migrating un-dampened history" in caplog.text
+        assert "sites cache is invalid" in caplog.text
+        mock_session_clear_too_busy()
+        caplog.clear()
+
+        # Test upgrade schema version
+        set_old_solcast_schema()
+        coordinator, solcast = await reload()
+        assert "version from v3 to v5" in caplog.text
+        verify_new_solcast_schema()
+
+        # Test API key change removes sites, and migrates undampened history for new site
         assert "An API key has changed, resetting usage" in caplog.text
         assert "Reset API usage" in caplog.text
         assert "New site(s) have been added" in caplog.text
@@ -706,16 +759,50 @@ async def test_integration_scenarios(
         assert "Site resource id 2222-2222-2222-2222 is no longer configured" in caplog.text
         caplog.clear()
 
-        # Test corrupt data start, integration will not load, and will attempt reload
+        # Test corrupt cache start, integration will mostly not load, and will not attempt reload
+        # Must be the final test because it will leave the integration in a bad state
+
+        corrupt = "Purple monkey dishwasher 🤣🤣🤣"
+        sites_file = Path(f"{config_dir}/solcast-sites.json")
+        sites = json.loads(sites_file.read_text(encoding="utf-8"))
+        usage_file = Path(f"{config_dir}/solcast-usage.json")
+        usage = json.loads(usage_file.read_text(encoding="utf-8"))
+
+        def _really_corrupt_data():
+            data_file.write_text(corrupt, encoding="utf-8")
 
         def _corrupt_data():
             data = json.loads(data_file.read_text(encoding="utf-8"))
             data["siteinfo"]["3333-3333-3333-3333"]["forecasts"] = [{"bob": 0}]
             data_file.write_text(json.dumps(data), encoding="utf-8")
 
-        def _really_corrupt_data():
-            data_file.write_text("Purple monkey dishwasher 🤣🤣🤣", encoding="utf-8")
+        # Corrupt sites.json
+        mock_session_set_too_busy()
+        sites_file.write_text(corrupt, encoding="utf-8")
+        await reload()
+        assert "Exception in __sites_data(): Expecting value:" in caplog.text
+        sites_file.write_text(json.dumps(sites), encoding="utf-8")
+        mock_session_clear_too_busy()
+        caplog.clear()
 
+        # Corrupt usage.json
+        usage_corruption = [
+            {"daily_limit": "10", "daily_limit_consumed": 8, "reset": "2025-01-05T00:00:00+00:00"},
+            {"daily_limit": 10, "daily_limit_consumed": "8", "reset": "2025-01-05T00:00:00+00:00"},
+            {"daily_limit": 10, "daily_limit_consumed": 8, "reset": "notadate"},
+        ]
+        for test in usage_corruption:
+            _LOGGER.critical(test)
+            usage_file.write_text(json.dumps(test), encoding="utf-8")
+            await reload()
+            assert entry.state is ConfigEntryState.SETUP_ERROR
+        usage_file.write_text(corrupt, encoding="utf-8")
+        await reload()
+        assert "corrupt, re-creating cache with zero usage" in caplog.text
+        usage_file.write_text(json.dumps(usage), encoding="utf-8")
+        caplog.clear()
+
+        # Corrupt solcast.json
         _corrupt_data()
         await reload()
         assert "Failed to build forecast data" in caplog.text
