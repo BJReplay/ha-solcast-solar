@@ -60,8 +60,8 @@ from .const import (
     UNDAMPENED,
 )
 from .coordinator import SolcastUpdateCoordinator
-from .solcastapi import ConnectionOptions, SitesStatus, SolcastApi, UsageStatus
-from .util import SolcastConfigEntry, SolcastData
+from .solcastapi import ConnectionOptions, SolcastApi, SolcastConfigEntry
+from .util import SitesStatus, SolcastApiStatus, SolcastData, UsageStatus
 
 PLATFORMS: Final = [
     Platform.SELECT,
@@ -320,6 +320,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
 
     if (status := await solcast.load_saved_data()) != "":
         raise ConfigEntryNotReady(status)
+
+    match solcast.status:
+        case SolcastApiStatus.DATA_INCOMPATIBLE:
+            raise ConfigEntryError("Data incompatible")
+        case SolcastApiStatus.OK:
+            pass
 
     coordinator = SolcastUpdateCoordinator(hass, solcast, version)
     entry.runtime_data = SolcastData(coordinator=coordinator)

@@ -51,42 +51,15 @@ from .const import (
     KEY_ESTIMATE,
     SITE_DAMP,
 )
-from .util import SolcastConfigEntry, cubic_interp
-
-
-class DataCallStatus(Enum):
-    """The result of a data call."""
-
-    SUCCESS = 0
-    FAIL = 1
-    ABORT = 2
-
-
-class SitesStatus(Enum):
-    """The state of load sites."""
-
-    OK = 0
-    BAD_KEY = 1
-    ERROR = 2
-    NO_SITES = 3
-    CACHE_INVALID = 4
-    UNKNOWN = 99
-
-
-class UsageStatus(Enum):
-    """The state of API usage."""
-
-    OK = 0
-    ERROR = 1
-    UNKNOWN = 99
-
-
-class Api(Enum):
-    """The APIs at Solcast."""
-
-    HOBBYIST = 0
-    ADVANCED = 1
-
+from .util import (
+    Api,
+    DataCallStatus,
+    SitesStatus,
+    SolcastApiStatus,
+    SolcastConfigEntry,
+    UsageStatus,
+    cubic_interp,
+)
 
 SENSOR_DEBUG_LOGGING: Final = False
 
@@ -276,6 +249,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.options = options
         self.sites = []
         self.sites_status: SitesStatus = SitesStatus.UNKNOWN
+        self.status: SolcastApiStatus = SolcastApiStatus.OK
         self.tasks = {}
         self.usage_status: UsageStatus = UsageStatus.UNKNOWN
 
@@ -1172,15 +1146,43 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 # If the file structure must change then upgrade it
                                 on_version = json_version
 
+                                # Test for incompatible data
+                                incompatible = "The solcast.json appears incompatible, so cannot upgrade it"
+                                if data.get("siteinfo") is None and data.get("forecasts") is None:
+                                    # Need one or the other to be able to upgrade.
+                                    _LOGGER.critical(incompatible)
+                                    self.status = SolcastApiStatus.DATA_INCOMPATIBLE
+                                if data.get("siteinfo") is not None:
+                                    if not isinstance(data["siteinfo"].get(self.sites[0]["resource_id"], {}).get("forecasts"), list):
+                                        _LOGGER.critical(incompatible)
+                                        self.status = SolcastApiStatus.DATA_INCOMPATIBLE
+                                if data.get("forecasts") is not None:
+                                    if not isinstance(data.get("forecasts"), list):
+                                        _LOGGER.critical(incompatible)
+                                        self.status = SolcastApiStatus.DATA_INCOMPATIBLE
+                                if self.status == SolcastApiStatus.DATA_INCOMPATIBLE:
+                                    return None
+
                                 # What happened before v4 stays before v4. BJReplay has no visibility of ancient.
+                                # V3 versions of the solcast.json file did not have a version key.
                                 if json_version < 4:
                                     data["version"] = 4
                                     json_version = 4
                                 # Add "last_attempt" and "auto_updated" to cache structure as of v5, introduced v4.2.5.
+                                # Ancient v3 versions of this code did not have the "siteinfo" key to contain forecasts, so fix that.
                                 if json_version < 5:
                                     data["version"] = 5
                                     data["last_attempt"] = data["last_updated"]
                                     data["auto_updated"] = self.options.auto_update > 0
+                                    if data.get("siteinfo") is None:
+                                        if (
+                                            data.get("forecasts") is not None
+                                            and len(self.sites) > 0
+                                            and self.sites[0].get("resource_id") is not None
+                                        ):
+                                            data["siteinfo"] = {self.sites[0]["resource_id"]: {"forecasts": data.get("forecasts")}}
+                                            data.pop("forecasts", None)
+                                            data.pop("energy", None)
                                     json_version = 5
 
                                 if json_version > on_version:
@@ -1271,6 +1273,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # Migrate un-dampened history data to the un-dampened cache if needed.
                     await self.__migrate_undampened_history()
                 else:
+                    if self.status != SolcastApiStatus.OK:
+                        return "Failed to load data, status is not OK"
                     # There is no cached data, so start fresh.
                     self._data = copy.deepcopy(FRESH_DATA)
                     self._data_undampened = copy.deepcopy(FRESH_DATA)

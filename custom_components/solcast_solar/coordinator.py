@@ -16,14 +16,8 @@ from homeassistant.helpers.event import async_track_utc_time_change
 from homeassistant.helpers.sun import get_astral_event_next
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import (
-    DATE_FORMAT,
-    DOMAIN,
-    SENSOR_DEBUG_LOGGING,
-    SENSOR_UPDATE_LOGGING,
-    TIME_FORMAT,
-)
-from .solcastapi import SolcastApi
+from .const import DATE_FORMAT, DOMAIN, SENSOR_UPDATE_LOGGING, TIME_FORMAT
+from .solcastapi import SENSOR_DEBUG_LOGGING, SolcastApi
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -202,7 +196,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                                     _LOGGER.debug("Task %s already exists, ignoring", task_name)
                                     continue
                                 _LOGGER.debug("Create task %s", task_name)
-                                self.tasks[task_name] = asyncio.create_task(wait_for_fetch(update_in))
+                                self.tasks[task_name] = asyncio.create_task(wait_for_fetch(update_in)).cancel
                             else:
                                 _LOGGER.debug("Not tasking %s", task_name)
                         if interval < _from:
@@ -375,7 +369,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_force")
         self.tasks["forecast_update"] = asyncio.create_task(
             self.__forecast_update(completion="Completed task update" if not kwargs.get("completion") else kwargs["completion"])
-        )
+        ).cancel
 
     async def service_event_force_update(self):
         """Force the update of forecast data when requested by a service call. Ignores API usage/limit counts.
@@ -386,7 +380,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """
         if self.solcast.options.auto_update == 0:
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_normal")
-        self.tasks["forecast_update"] = asyncio.create_task(self.__forecast_update(force=True, completion="Completed task force_update"))
+        self.tasks["forecast_update"] = asyncio.create_task(
+            self.__forecast_update(force=True, completion="Completed task force_update")
+        ).cancel
 
     async def service_event_delete_old_solcast_json_file(self):
         """Delete the solcast.json file when requested by a service call."""
@@ -394,8 +390,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Cancelling solcastapi task %s", task)
             cancel.cancel()
         self.solcast.tasks = {}
-        if not await self.solcast.delete_solcast_file():
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="remove_cache_failed")
+        await self.solcast.delete_solcast_file()
         self._data_updated = True
         await self.update_integration_listeners()
         self._data_updated = False
@@ -512,3 +507,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 return self.solcast.get_rooftop_site_extra_data(roof_id)
             case _:
                 return None
+
+    async def tasks_cancel(self):
+        """Cancel all tasks."""
+        for task, cancel in self.tasks.items():
+            _LOGGER.debug("Cancelling coordinator task %s", task)
+            cancel()
+        self.tasks = {}

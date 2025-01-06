@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from aiohttp import ClientConnectionError
 
-import homeassistant.components.solcast_solar.const as const  # noqa: PLR0402
+from homeassistant.components.solcast_solar import const, solcastapi
 from homeassistant.components.solcast_solar.const import (
     API_QUOTA,
     AUTO_UPDATE,
@@ -146,6 +146,7 @@ async def _get_solcast(url, get, **kwargs) -> CallbackResult:
 
 
 async def _get_forecasts(url, **kwargs) -> CallbackResult:
+    kwargs["params"]["hours"] -= 12  # Intentionally return less hours for testing.
     return await _get_solcast(url, raw_get_site_forecasts, **kwargs)
 
 
@@ -205,6 +206,7 @@ async def async_init_integration(
 
     hass.config.time_zone = ZONE_RAW
     const.SENSOR_UPDATE_LOGGING = True
+    solcastapi.SENSOR_DEBUG_LOGGING = True
 
     if options.get(AUTO_UPDATE) is not None:
         options = copy.deepcopy(options)

@@ -26,7 +26,7 @@ from homeassistant.components.solcast_solar.const import (
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SitesStatus, SolcastApi
-from homeassistant.components.solcast_solar.util import SolcastConfigEntry
+from homeassistant.components.solcast_solar.util import SolcastConfigEntry, SolcastApiStatus
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -48,6 +48,7 @@ from . import (
     mock_session_set_over_limit,
     mock_session_set_too_busy,
 )
+import contextlib
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -171,6 +172,105 @@ async def test_api_failure(
     finally:
         mock_session_clear_too_busy()
         mock_session_clear_exception()
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_schema_upgrade(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test various integration scenarios."""
+
+    config_dir = hass.config.config_dir
+
+    options = copy.deepcopy(DEFAULT_INPUT1)
+    options[CONF_API_KEY] = "2"
+    entry = await async_init_integration(hass, options)
+    coordinator = entry.runtime_data.coordinator
+    solcast = patch_solcast_api(coordinator.solcast)
+    try:
+        data_file = Path(f"{config_dir}/solcast.json")
+        undampened_file = Path(f"{config_dir}/solcast-undampened.json")
+        original_data = json.loads(data_file.read_text(encoding="utf-8"))
+
+        def set_old_solcast_schema(data_file):
+            data = copy.deepcopy(original_data)
+            data["version"] = 4
+            data.pop("last_attempt")
+            data.pop("auto_updated")
+            data_file.write_text(json.dumps(data), encoding="utf-8")
+
+        def set_ancient_solcast_schema(data_file):
+            data = copy.deepcopy(original_data)
+            data.pop("version")
+            data.pop("last_attempt")
+            data.pop("auto_updated")
+            data["forecasts"] = data["siteinfo"]["3333-3333-3333-3333"]["forecasts"].copy()
+            data.pop("siteinfo")
+            data_file.write_text(json.dumps(data), encoding="utf-8")
+
+        def set_incompatible_schema1(data_file):
+            data = copy.deepcopy(original_data)
+            data.pop("version")
+            data.pop("siteinfo")
+            data.pop("last_attempt")
+            data.pop("auto_updated")
+            data["some_stuff"] = {"fraggle": "rock"}
+            data_file.write_text(json.dumps(data), encoding="utf-8")
+            _LOGGER.critical(data)
+
+        def set_incompatible_schema2(data_file):
+            data = copy.deepcopy(original_data)
+            data.pop("version")
+            data["siteinfo"] = {"weird": "stuff"}
+            data["forecasts"] = "favourable"
+            data.pop("last_attempt")
+            data.pop("auto_updated")
+            data_file.write_text(json.dumps(data), encoding="utf-8")
+            _LOGGER.critical(data)
+
+        def verify_new_solcast_schema(data_file):
+            data = json.loads(data_file.read_text(encoding="utf-8"))
+            assert data["version"] == 5
+            assert "last_attempt" in data
+            assert "auto_updated" in data
+
+        def kill_undampened_cache():
+            with contextlib.suppress(FileNotFoundError):
+                undampened_file.unlink()
+
+        # Test upgrade schema version
+        kill_undampened_cache()
+        set_old_solcast_schema(data_file)
+        coordinator, solcast = await reload(hass, entry)
+        assert "version from v4 to v5" in caplog.text
+        assert "Migrating un-dampened history" in caplog.text
+        verify_new_solcast_schema(data_file)
+
+        # Test upgrade from v3 schema
+        kill_undampened_cache()
+        set_ancient_solcast_schema(data_file)
+        coordinator, solcast = await reload(hass, entry)
+        assert "version from v1 to v5" in caplog.text
+        assert "Migrating un-dampened history" in caplog.text
+        verify_new_solcast_schema(data_file)
+
+        # Test upgrade from incompatible schema 1
+        kill_undampened_cache()
+        set_incompatible_schema1(data_file)
+        coordinator, solcast = await reload(hass, entry)
+        assert "CRITICAL" in caplog.text
+        assert solcast is None
+
+        # Test upgrade from incompatible schema 2
+        kill_undampened_cache()
+        set_incompatible_schema2(data_file)
+        coordinator, solcast = await reload(hass, entry)
+        assert "CRITICAL" in caplog.text
+        assert solcast is None
+
+    finally:
         assert await async_cleanup_integration_tests(hass)
 
 
@@ -653,6 +753,20 @@ async def test_integration_remaining_actions(
         assert await async_cleanup_integration_tests(hass)
 
 
+async def reload(hass: HomeAssistant, entry: SolcastConfigEntry) -> tuple[SolcastUpdateCoordinator | None, SolcastApi | None]:
+    """Reload the integration."""
+    _LOGGER.warning("Reloading integration")
+    await hass.config_entries.async_reload(entry.entry_id)
+    await hass.async_block_till_done()
+    if hass.data[DOMAIN].get(entry.entry_id):
+        try:
+            coordinator = entry.runtime_data.coordinator
+            return coordinator, patch_solcast_api(coordinator.solcast)
+        except:  # noqa: E722
+            _LOGGER.error("Failed to load coordinator (or solcast), which may be expected given test conditions")
+    return None, None
+
+
 async def test_integration_scenarios(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -683,33 +797,9 @@ async def test_integration_scenarios(
             data_file.write_text(json.dumps(data), encoding="utf-8")
             mock_session_config_reset()
 
-        def set_old_solcast_schema():
-            data = json.loads(data_file.read_text(encoding="utf-8"))
-            data["version"] = 3
-            data.pop("last_attempt")
-            data.pop("auto_updated")
-            data_file.write_text(json.dumps(data), encoding="utf-8")
-
-        def verify_new_solcast_schema():
-            data = json.loads(data_file.read_text(encoding="utf-8"))
-            assert data["version"] == 5
-            assert "last_attempt" in data
-            assert "auto_updated" in data
-
-        async def reload():
-            _LOGGER.warning("Reloading integration")
-            await hass.config_entries.async_reload(entry.entry_id)
-            await hass.async_block_till_done()
-            if hass.data[DOMAIN].get(entry.entry_id):
-                try:
-                    return entry.runtime_data.coordinator, patch_solcast_api(coordinator.solcast)
-                except:  # noqa: E722
-                    _LOGGER.error("Failed to load coordinator (or solcast), which may be expected given test conditions")
-            return None, None
-
         # Test stale start with auto update enabled
         alter_last_updated()
-        coordinator, solcast = await reload()
+        coordinator, solcast = await reload(hass, entry)
         await _wait_for_update(caplog)
         assert "is older than expected, should be" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
@@ -721,7 +811,7 @@ async def test_integration_scenarios(
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         alter_last_updated()
-        coordinator, solcast = await reload()
+        coordinator, solcast = await reload(hass, entry)
         # Sneak in an extra update that will be cancelled because update already in progress
         await hass.services.async_call(DOMAIN, "update_forecasts", {}, blocking=True)
         await _wait_for_update(caplog)
@@ -730,6 +820,7 @@ async def test_integration_scenarios(
         caplog.clear()
 
         # Test API key change, start with an API failure and invalid sites cache
+        # Verigy API key change removes sites, and migrates undampened history for new site
         mock_session_set_too_busy()
         sites_file = Path(f"{config_dir}/solcast-sites.json")
         data = json.loads(sites_file.read_text(encoding="utf-8"))
@@ -744,14 +835,7 @@ async def test_integration_scenarios(
         assert "sites cache is invalid" in caplog.text
         mock_session_clear_too_busy()
         caplog.clear()
-
-        # Test upgrade schema version
-        set_old_solcast_schema()
-        coordinator, solcast = await reload()
-        assert "version from v3 to v5" in caplog.text
-        verify_new_solcast_schema()
-
-        # Test API key change removes sites, and migrates undampened history for new site
+        coordinator, solcast = await reload(hass, entry)
         assert "An API key has changed, resetting usage" in caplog.text
         assert "Reset API usage" in caplog.text
         assert "New site(s) have been added" in caplog.text
@@ -779,7 +863,7 @@ async def test_integration_scenarios(
         # Corrupt sites.json
         mock_session_set_too_busy()
         sites_file.write_text(corrupt, encoding="utf-8")
-        await reload()
+        await reload(hass, entry)
         assert "Exception in __sites_data(): Expecting value:" in caplog.text
         sites_file.write_text(json.dumps(sites), encoding="utf-8")
         mock_session_clear_too_busy()
@@ -794,17 +878,17 @@ async def test_integration_scenarios(
         for test in usage_corruption:
             _LOGGER.critical(test)
             usage_file.write_text(json.dumps(test), encoding="utf-8")
-            await reload()
+            await reload(hass, entry)
             assert entry.state is ConfigEntryState.SETUP_ERROR
         usage_file.write_text(corrupt, encoding="utf-8")
-        await reload()
+        await reload(hass, entry)
         assert "corrupt, re-creating cache with zero usage" in caplog.text
         usage_file.write_text(json.dumps(usage), encoding="utf-8")
         caplog.clear()
 
         # Corrupt solcast.json
         _corrupt_data()
-        await reload()
+        await reload(hass, entry)
         assert "Failed to build forecast data" in caplog.text
         assert "Exception in build_data(): 'period_start'" in caplog.text
         assert "UnboundLocalError in check_data_records()" in caplog.text
@@ -812,7 +896,7 @@ async def test_integration_scenarios(
         caplog.clear()
 
         _really_corrupt_data()
-        await reload()
+        await reload(hass, entry)
         assert "The cached data in solcast.json is corrupt" in caplog.text
         assert "integration not ready yet" in caplog.text
         assert hass.data[DOMAIN].get("presumed_dead", True) is True

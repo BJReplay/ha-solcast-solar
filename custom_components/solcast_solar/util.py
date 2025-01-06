@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
 import math
 
 from homeassistant.config_entries import ConfigEntry
@@ -18,6 +19,48 @@ class SolcastData:
     """Runtime data definition."""
 
     coordinator: DataUpdateCoordinator[None]
+
+
+class SolcastApiStatus(Enum):
+    """The state of the Solcast API."""
+
+    OK = 0
+    DATA_INCOMPATIBLE = 1
+    ERROR = 2
+
+
+class DataCallStatus(Enum):
+    """The result of a data call."""
+
+    SUCCESS = 0
+    FAIL = 1
+    ABORT = 2
+
+
+class SitesStatus(Enum):
+    """The state of load sites."""
+
+    OK = 0
+    BAD_KEY = 1
+    ERROR = 2
+    NO_SITES = 3
+    CACHE_INVALID = 4
+    UNKNOWN = 99
+
+
+class UsageStatus(Enum):
+    """The state of API usage."""
+
+    OK = 0
+    ERROR = 1
+    UNKNOWN = 99
+
+
+class Api(Enum):
+    """The APIs at Solcast."""
+
+    HOBBYIST = 0
+    ADVANCED = 1
 
 
 def cubic_interp(x0: list, x: list, y: list) -> list:
