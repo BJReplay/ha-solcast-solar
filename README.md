@@ -784,6 +784,7 @@ series:
 ## Changes
 
 v4.2.8
+* Upgrade data files from v3 integration by @autoSteve
 * Catch duplicate API key being specified by @autoSteve
 * Add re-auth and reconfigure flows by @autoSteve
 * Fix an issue when half-hourly breakdown is disabled but hourly is enabled by @autoSteve
