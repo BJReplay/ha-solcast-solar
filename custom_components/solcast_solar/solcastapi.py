@@ -13,7 +13,6 @@ import copy
 from dataclasses import dataclass
 import datetime
 from datetime import datetime as dt, timedelta, timezone
-from enum import Enum
 import json
 import logging
 import math
@@ -70,11 +69,6 @@ if API == Api.HOBBYIST:
     FORECAST10: Final = "pv_estimate10"
     FORECAST90: Final = "pv_estimate90"
 
-if API == Api.ADVANCED:  # pragma: no cover, possible future use
-    FORECAST: Final = "pv_power_advanced"
-    FORECAST10: Final = "pv_power_advanced10"
-    FORECAST90: Final = "pv_power_advanced90"
-
 GRANULAR_DAMPENING_OFF: Final = False
 GRANULAR_DAMPENING_ON: Final = True
 JSON_VERSION: Final = 5
@@ -86,6 +80,7 @@ SET_ALLOW_RESET: Final = True
 # 900 >= Exceptions < 1000, to be potentially handled with retries.
 STATUS_TRANSLATE: Final = {
     200: "Success",
+    400: "Bad request",
     401: "Unauthorized",
     403: "Forbidden",
     404: "Not found",
@@ -121,7 +116,7 @@ class DateTimeEncoder(json.JSONEncoder):
         """Convert to ISO format if datetime."""
         if isinstance(o, dt):
             return o.isoformat()
-        return None  # pragma: no cover, never occurs
+        return super().default(o)  # pragma: no cover, raise TypeError never expected
 
 
 class NoIndentEncoder(json.JSONEncoder):
@@ -288,11 +283,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def tasks_cancel(self):
         """Cancel all tasks."""
 
-        if len(self.tasks) > 0:
-            for task, cancel in self.tasks.items():
-                _LOGGER.debug("Cancelling solcastapi task %s", task)
-                cancel.cancel()
-            self.tasks = {}
+        for task, cancel in self.tasks.items():
+            _LOGGER.debug("Cancelling solcastapi task %s", task)
+            cancel.cancel()
+        self.tasks = {}
 
     async def set_options(self, options: dict):
         """Set the class option variables (called by __init__ to avoid an integration reload).
@@ -444,7 +438,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return f"{self._config_dir}/solcast-sites{'' if not self.__is_multi_key() else '-' + api_key}.json"
 
-    def __get_granular_dampening_filename(self, legacy: bool = False) -> str:
+    def __get_granular_dampening_filename(self) -> str:
         """Build a fully qualified site dampening filename.
 
         Arguments:
@@ -454,8 +448,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             str: A fully qualified cache filename.
 
         """
-        if legacy:
-            return f"{self._config_dir}/solcast-site-dampening.json"
         return f"{self._config_dir}/solcast-dampening.json"
 
     async def __serialise_data(self, data: dict, filename: str) -> bool:
@@ -574,9 +566,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         ", trying cache" if status != 200 and cache_exists else "",
                     )
                     try:
-                        response_json = await response.json(content_type=None)
-                    except json.decoder.JSONDecodeError:  # pragma: no cover, handle unexpected API response
-                        _LOGGER.error("JSONDecodeError in __sites_data(): Solcast could be having problems")
+                        response_json = await response.text()
+                        response_json = json.loads(response_json)
+                    except json.decoder.JSONDecodeError:
+                        _LOGGER.error("API did not return a json object, returned %s", response_json)
+                        status = 500
 
                     if status == 200:
                         for site in response_json["sites"]:
@@ -618,7 +612,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     break
                         elif status != 200:
                             cached_sites_unavailable()
-                            if status == 401:
+                            if status in [401]:
                                 self.sites_status = SitesStatus.BAD_KEY
                             else:
                                 self.sites_status = SitesStatus.ERROR
@@ -672,7 +666,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 "reset": self._api_used_reset[api_key],
             }
             payload = json.dumps(json_content, ensure_ascii=False, cls=DateTimeEncoder)
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, avoids corrupting the cache file
             _LOGGER.error("Exception in __serialise_usage(): %s: %s", e, traceback.format_exc())
             serialise = False
         if serialise:
@@ -881,7 +875,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 cls=NoIndentEncoder,
                 indent=2,
             )
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
+        except Exception as e:  # noqa: BLE001 # pragma: no cover, avoids corrupting the cache file
             _LOGGER.error(
                 "Exception in serialise_granular_dampening(): %s: %s",
                 e,
@@ -897,45 +891,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT),
             )
 
-    async def __migrate_granular_dampening(self) -> bool:  # pragma: no cover, migration of legacy file
-        """Migrate from legacy per-site dampening to granular dampening.
-
-        Returns:
-            bool: Per-site dampening legacy file upgraded.
-
-        """
-        try:
-            legacy_file = self.__get_granular_dampening_filename(legacy=True)
-            if Path(legacy_file).is_file():
-                raising_exception = False
-                try:
-                    _LOGGER.info("Migrating legacy per-site dampening to granular")
-                    async with aiofiles.open(legacy_file) as file:
-                        response_json = json.loads(await file.read())
-                        self.granular_dampening = cast(dict, response_json)
-                    for site, damp_dict in self.granular_dampening.items():
-                        self.granular_dampening[site] = [damp_dict[f"{hour}"] for hour in range(24)]
-                    if self.granular_dampening:
-                        _LOGGER.debug("Granular dampening: %s", str(self.granular_dampening))
-                    Path(legacy_file).unlink()
-                except Exception as e:  # noqa: BLE001
-                    _LOGGER.error(
-                        "Exception in __migrate_granular_dampening(): %s: %s",
-                        e,
-                        traceback.format_exc(),
-                    )
-                    raising_exception = True
-                if not raising_exception:
-                    await self.serialise_granular_dampening()
-                    return True
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error(
-                "Exception in __migrate_granular_dampening(): %s: %s",
-                e,
-                traceback.format_exc(),
-            )
-        return False
-
     async def granular_dampening_data(self, info_suppression: bool = False) -> bool:
         """Read the current granular dampening file.
 
@@ -946,8 +901,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             bool: Granular dampening in use.
 
         """
-        if await self.__migrate_granular_dampening():
-            return True  # pragma: no cover, migration of legacy file
 
         def option(enable: bool, set_allow_reset: bool = False):
             site_damp = self.entry_options.get(SITE_DAMP, False) if self.entry_options.get(SITE_DAMP) is not None else False
@@ -1153,14 +1106,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     _LOGGER.critical(incompatible)
                                     self.status = SolcastApiStatus.DATA_INCOMPATIBLE
                                 if data.get("siteinfo") is not None:
-                                    if not isinstance(data["siteinfo"].get(self.sites[0]["resource_id"], {}).get("forecasts"), list):
-                                        _LOGGER.critical(incompatible)
+                                    if not isinstance(
+                                        data.get("siteinfo", {}).get(self.sites[0]["resource_id"], {}).get("forecasts"), list
+                                    ):
                                         self.status = SolcastApiStatus.DATA_INCOMPATIBLE
                                 if data.get("forecasts") is not None:
                                     if not isinstance(data.get("forecasts"), list):
-                                        _LOGGER.critical(incompatible)
                                         self.status = SolcastApiStatus.DATA_INCOMPATIBLE
                                 if self.status == SolcastApiStatus.DATA_INCOMPATIBLE:
+                                    _LOGGER.critical(incompatible)
                                     return None
 
                                 # What happened before v4 stays before v4. BJReplay has no visibility of ancient.
@@ -1274,7 +1228,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     await self.__migrate_undampened_history()
                 else:
                     if self.status != SolcastApiStatus.OK:
-                        return "Failed to load data, status is not OK"
+                        return ""
                     # There is no cached data, so start fresh.
                     self._data = copy.deepcopy(FRESH_DATA)
                     self._data_undampened = copy.deepcopy(FRESH_DATA)
@@ -1328,34 +1282,32 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             tuple(dict, ...): Forecasts representing the range specified.
 
         """
-        try:
-            start_time = time.time()
+        start_time = time.time()
 
-            if args[2] == "all":
-                data_forecasts = self._data_forecasts if not args[3] else self._data_forecasts_undampened
-            else:
-                data_forecasts = self._site_data_forecasts[args[2]] if not args[3] else self._site_data_forecasts_undampened[args[2]]
-            start_index, end_index = self.__get_forecast_list_slice(data_forecasts, args[0], args[1], search_past=True)
-            forecast_slice = data_forecasts[start_index:end_index]
+        if args[2] == "all":
+            data_forecasts = self._data_forecasts if not args[3] else self._data_forecasts_undampened
+        else:
+            data_forecasts = self._site_data_forecasts[args[2]] if not args[3] else self._site_data_forecasts_undampened[args[2]]
+        start_index, end_index = self.__get_forecast_list_slice(data_forecasts, args[0], args[1], search_past=True)
+        if start_index == 0 and end_index == 0:
+            # Range could not be found
+            raise ValueError("Range is invalid")
+        forecast_slice = data_forecasts[start_index:end_index]
 
-            if SENSOR_DEBUG_LOGGING:
-                _LOGGER.debug(
-                    "Get forecast list: (%ss) start %s end %s start_index %d end_index %d slice.len %d site %s un-dampened %s",
-                    round(time.time() - start_time, 4),
-                    args[0].strftime(DATE_FORMAT_UTC),
-                    args[1].strftime(DATE_FORMAT_UTC),
-                    start_index,
-                    end_index,
-                    len(forecast_slice),
-                    args[2],
-                    args[3],
-                )
+        if SENSOR_DEBUG_LOGGING:
+            _LOGGER.debug(
+                "Get forecast list: (%ss) start %s end %s start_index %d end_index %d slice.len %d site %s un-dampened %s",
+                round(time.time() - start_time, 4),
+                args[0].strftime(DATE_FORMAT_UTC),
+                args[1].strftime(DATE_FORMAT_UTC),
+                start_index,
+                end_index,
+                len(forecast_slice),
+                args[2],
+                args[3],
+            )
 
-            return tuple({**data, "period_start": data["period_start"].astimezone(self._tz)} for data in forecast_slice)
-
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
-            _LOGGER.error("Action failed to get list of forecasts: %s: %s", e, traceback.format_exc())
-            return None
+        return tuple({**data, "period_start": data["period_start"].astimezone(self._tz)} for data in forecast_slice)
 
     def get_api_used_count(self) -> int:
         """Return API polling count for this UTC 24hr period (minimum of all API keys).
@@ -1389,7 +1341,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             datetime: The last successful forecast fetch.
 
         """
-        return self._data["last_updated"]
+        return self._data.get("last_updated")
 
     def get_rooftop_site_total_today(self, site: str) -> float:
         """Return total kW for today for a site.
@@ -1401,7 +1353,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             float: Total site kW forecast today.
 
         """
-        if self._tally.get(site) is None:  # pragma: no cover, will never occur under test conditions
+        if self._tally.get(site) is None:
             _LOGGER.warning("Site total kW forecast today is currently unavailable for %s", site)
         return self._tally.get(site)
 
@@ -1480,7 +1432,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return dt.now(self._tz).replace(minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
 
-    def get_forecast_day(self, future_day: int) -> dict[str, Any]:
+    def get_forecast_day(self, future_day: int) -> dict[str, Any] | None:
         """Return forecast data for the Nth day ahead.
 
         Arguments:
@@ -1547,7 +1499,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     for forecast in site_data_forecast[site["resource_id"]]
                 )
 
-        if len(_tuple) < 48:  # pragma: no cover, not possible to test reliably
+        if len(_tuple) < 48:
             no_data_error = False
 
         if self.options.attr_brk_hourly:
@@ -1592,7 +1544,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         start_utc = self.get_hour_start_utc() + timedelta(hours=n_hour)
         end_utc = start_utc + timedelta(hours=1)
-        return round(500 * self.__get_forecast_pv_estimates(start_utc, end_utc, site=site, forecast_confidence=forecast_confidence))
+        estimate = self.__get_forecast_pv_estimates(start_utc, end_utc, site=site, forecast_confidence=forecast_confidence)
+        return round(500 * estimate) if estimate is not None else None
 
     def get_forecast_custom_hours(
         self,
@@ -1613,15 +1566,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         start_utc = self.get_now_utc()
         end_utc = start_utc + timedelta(hours=n_hours)
-        return round(
-            1000
-            * self.__get_forecast_pv_remaining(
-                start_utc,
-                end_utc=end_utc,
-                site=site,
-                forecast_confidence=forecast_confidence,
-            )
+        remaining = self.__get_forecast_pv_remaining(
+            start_utc,
+            end_utc=end_utc,
+            site=site,
+            forecast_confidence=forecast_confidence,
         )
+        return round(1000 * remaining) if remaining is not None else None
 
     def get_power_n_minutes(
         self,
@@ -1641,7 +1592,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
         time_utc = self.get_now_utc() + timedelta(minutes=n_mins)
-        return round(1000 * self.__get_forecast_pv_moment(time_utc, site=site, forecast_confidence=forecast_confidence))
+        forecast = self.__get_forecast_pv_moment(time_utc, site=site, forecast_confidence=forecast_confidence)
+        return round(1000 * forecast) if forecast is not None else None
 
     def get_peak_power_day(
         self,
@@ -1664,7 +1616,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         start_utc = self.get_day_start_utc(future=n_day)
         end_utc = self.get_day_start_utc(future=n_day + 1)
         result = self.__get_max_forecast_pv_estimate(start_utc, end_utc, site=site, forecast_confidence=forecast_confidence)
-        return 0 if result is None else round(1000 * result[forecast_confidence])
+        return round(1000 * result[forecast_confidence]) if result is not None else None
 
     def get_peak_time_day(
         self,
@@ -1686,7 +1638,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         start_utc = self.get_day_start_utc(future=n_day)
         end_utc = self.get_day_start_utc(future=n_day + 1)
         result = self.__get_max_forecast_pv_estimate(start_utc, end_utc, site=site, forecast_confidence=forecast_confidence)
-        return result if result is None else result["period_start"]
+        return result["period_start"] if result is not None else None
 
     def get_forecast_remaining_today(self, n: int = 0, site: str | None = None, forecast_confidence: str | None = None) -> float:
         """Return remaining forecasted production for today.
@@ -1702,15 +1654,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         start_utc = self.get_now_utc()
         end_utc = self.get_day_start_utc(future=1)
-        return round(
-            self.__get_forecast_pv_remaining(
-                start_utc,
-                end_utc=end_utc,
-                site=site,
-                forecast_confidence=forecast_confidence,
-            ),
-            4,
+        remaining = self.__get_forecast_pv_remaining(
+            start_utc,
+            end_utc=end_utc,
+            site=site,
+            forecast_confidence=forecast_confidence,
         )
+        return round(remaining, 4) if remaining is not None else None
 
     def get_total_energy_forecast_day(
         self,
@@ -1731,10 +1681,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         start_utc = self.get_day_start_utc(future=n_day)
         end_utc = self.get_day_start_utc(future=n_day + 1)
-        return round(
-            0.5 * self.__get_forecast_pv_estimates(start_utc, end_utc, site=site, forecast_confidence=forecast_confidence),
-            4,
-        )
+        estimate = self.__get_forecast_pv_estimates(start_utc, end_utc, site=site, forecast_confidence=forecast_confidence)
+        return round(0.5 * estimate, 4) if estimate is not None else None
 
     def get_forecast_attributes(self, get_forecast_value, n: int = 0) -> dict[str, Any]:
         """Return forecast attributes for the 'n' forecast value for all sites and individual sites.
@@ -1794,14 +1742,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if start_utc < forecast_period + timedelta(seconds=1800) and start_index == -1:
                 start_index = test_index
         # Never found.
-        if start_index == -1:  # pragma: no cover, unlikely to ever occur
+        if start_index == -1:
             start_index = 0
             end_index = 0
         return start_index, end_index
 
     def __get_spline(
         self,
-        spline: dict,
+        spline: dict[str, list],
         start: int,
         xx: list,
         data: list,
@@ -1820,15 +1768,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
         for forecast_confidence in confidences:
-            if start > 0:
-                y = [data[start + index][forecast_confidence] for index in range(len(self._spline_period))]
-                if reducing:
-                    # Build a decreasing set of forecasted values instead.
-                    y = [0.5 * sum(y[index:]) for index in range(len(self._spline_period))]
-                spline[forecast_confidence] = cubic_interp(xx, self._spline_period, y)
-                self.__sanitise_spline(spline, forecast_confidence, xx, y, reducing=reducing)
-            else:  # The list slice was not found, so zero all values in the spline. # pragma: no cover, unlikely to ever occur
-                spline[forecast_confidence] = [0] * (len(self._spline_period) * 6)
+            try:
+                if start > 0:
+                    y = [data[start + index][forecast_confidence] for index in range(len(self._spline_period))]
+                    if reducing:
+                        # Build a decreasing set of forecasted values instead.
+                        y = [0.5 * sum(y[index:]) for index in range(len(self._spline_period))]
+                    spline[forecast_confidence] = cubic_interp(xx, self._spline_period, y)
+                    self.__sanitise_spline(spline, forecast_confidence, xx, y, reducing=reducing)
+                    continue
+            except IndexError:
+                pass
+            spline[forecast_confidence] = [0] * (len(self._spline_period) * 6)
 
     def __sanitise_spline(
         self,
@@ -1894,19 +1845,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if self.options.attr_brk_site:
             for site in self.sites:
                 variant[site["resource_id"]] = {}
-                start, _ = self.__get_forecast_list_slice(
-                    self._site_data_forecasts[site["resource_id"]],
-                    self.get_day_start_utc(),
-                )
-                if start:
-                    self.__get_spline(
-                        variant[site["resource_id"]],
-                        start,
-                        xx,
+                if self._site_data_forecasts.get(site["resource_id"]):
+                    start, _ = self.__get_forecast_list_slice(
                         self._site_data_forecasts[site["resource_id"]],
-                        df,
-                        reducing=reducing,
+                        self.get_day_start_utc(),
                     )
+                    if start:
+                        self.__get_spline(
+                            variant[site["resource_id"]],
+                            start,
+                            xx,
+                            self._site_data_forecasts[site["resource_id"]],
+                            df,
+                            reducing=reducing,
+                        )
 
     async def __spline_moments(self):
         """Build the moments splines."""
@@ -1935,12 +1887,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             float: A splined forecasted value as kW.
 
         """
-        variant = self._forecasts_moment["all" if site is None else site][
-            self._use_forecast_confidence if forecast_confidence is None else forecast_confidence
-        ]
-        if len(variant) > 0:
-            return variant[int(n_min / 300)]
-        return 0  # pragma: no cover, should never occur
+        variant = self._forecasts_moment["all" if site is None else site].get(
+            self._use_forecast_confidence if forecast_confidence is None else forecast_confidence, []
+        )
+        return variant[int(n_min / 300)] if len(variant) > 0 else None
 
     def __get_remaining(self, site: str, forecast_confidence: str, n_min: int) -> float:
         """Get a remaining value at a given five-minute point from a reducing spline.
@@ -1957,9 +1907,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         variant = self._forecasts_remaining["all" if site is None else site][
             self._use_forecast_confidence if forecast_confidence is None else forecast_confidence
         ]
-        if len(variant) > 0:
-            return variant[int(n_min / 300)]
-        return 0  # pragma: no cover, should never occur
+        return variant[int(n_min / 300)] if len(variant) > 0 else None
 
     def __get_forecast_pv_remaining(
         self,
@@ -1967,7 +1915,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         end_utc: dt | None = None,
         site: str | None = None,
         forecast_confidence: str | None = None,
-    ) -> float:
+    ) -> float | None:
         """Return estimate remaining for a period.
 
         The start_utc and end_utc will be adjusted to the most recent five-minute period start. Where
@@ -1989,6 +1937,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         start_index, end_index = self.__get_forecast_list_slice(  # Get start and end indexes for the requested range.
             data, start_utc, end_utc
         )
+        if (start_index == 0 and end_index == 0) or data[len(data) - 1]["period_start"] < end_utc:
+            return None  # Set sensor to unavailable
         day_start = self.get_day_start_utc()
         result = self.__get_remaining(site, forecast_confidence, (start_utc - day_start).total_seconds())
         if end_utc is not None:
@@ -2050,6 +2000,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         start_index, end_index = self.__get_forecast_list_slice(  # Get start and end indexes for the requested range.
             data, start_utc, end_utc
         )
+        if start_index == 0 and end_index == 0:
+            return None
         for forecast_slice in data[start_index:end_index]:
             result += forecast_slice[forecast_confidence]
         if SENSOR_DEBUG_LOGGING:
@@ -2083,29 +2035,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             float: Forecast power for a point in time as kW (from splined data).
 
         """
-        result = 0
-        try:
-            forecast_confidence = self._use_forecast_confidence if forecast_confidence is None else forecast_confidence
-            day_start = self.get_day_start_utc()
-            time_utc = time_utc.replace(minute=math.floor(time_utc.minute / 5) * 5)
-            result = self.__get_moment(site, forecast_confidence, (time_utc - day_start).total_seconds())
-            if SENSOR_DEBUG_LOGGING:
-                _LOGGER.debug(
-                    "Get estimate moment: %s()%s %s t %s sec %d result %s",
-                    FunctionName(1),
-                    "" if site is None else " " + site,
-                    forecast_confidence,
-                    time_utc.strftime(DATE_FORMAT_UTC),
-                    (time_utc - day_start).total_seconds(),
-                    round(result, 4),
-                )
-        except Exception as e:  # pragma: no cover, handle unexpected exceptions
-            _LOGGER.error(
-                "Exception in __get_forecast_pv_moment(): %s: %s",
-                e,
-                traceback.format_exc(),
+        forecast_confidence = self._use_forecast_confidence if forecast_confidence is None else forecast_confidence
+        day_start = self.get_day_start_utc()
+        time_utc = time_utc.replace(minute=math.floor(time_utc.minute / 5) * 5)
+        result = self.__get_moment(site, forecast_confidence, (time_utc - day_start).total_seconds())
+        if SENSOR_DEBUG_LOGGING and result is not None:
+            _LOGGER.debug(
+                "Get estimate moment: %s()%s %s t %s sec %d result %s",
+                FunctionName(1),
+                "" if site is None else " " + site,
+                forecast_confidence,
+                time_utc.strftime(DATE_FORMAT_UTC),
+                (time_utc - day_start).total_seconds(),
+                round(result, 4),
             )
-            raise
         return result
 
     def __get_max_forecast_pv_estimate(
@@ -2114,7 +2057,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         end_utc: dt,
         site: str | None = None,
         forecast_confidence: str | None = None,
-    ) -> float:
+    ) -> float | None:
         """Return forecast maximum for a period.
 
         Arguments:
@@ -2131,6 +2074,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         data = self._data_forecasts if site is None else self._site_data_forecasts[site]
         forecast_confidence = self._use_forecast_confidence if forecast_confidence is None else forecast_confidence
         start_index, end_index = self.__get_forecast_list_slice(data, start_utc, end_utc)
+        if start_index == 0 and end_index == 0:
+            return None  # Set sensor to unavailable
         result = data[start_index]
         for forecast_slice in data[start_index:end_index]:
             if result[forecast_confidence] < forecast_slice[forecast_confidence]:
@@ -2173,7 +2118,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             last_attempt = dt.now(datetime.UTC)
             status = ""
 
-            def next_update():  # pragma: no cover, testing only possible when running
+            def next_update():
                 if self._next_update is not None:
                     return f", next auto update at {self._next_update}"
                 return ""
@@ -2181,7 +2126,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if self.get_last_updated() + timedelta(seconds=10) > dt.now(datetime.UTC):
                 status = f"Not requesting a solar forecast because time is within ten seconds of last update ({self.get_last_updated().astimezone(self._tz)})"
                 _LOGGER.warning(status)
-                if self._next_update is not None:  # pragma: no cover, testing only possible when running
+                if self._next_update is not None:
                     _LOGGER.info("Forecast update suppressed%s", next_update())
                 return status
 
@@ -2201,30 +2146,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 if result == DataCallStatus.FAIL:
                     failure = True
-                    if self.hass.data[DOMAIN].get("presumed_dead") is not None:
-                        if len(self.sites) > 1:
-                            if sites_attempted < len(self.sites):
-                                _LOGGER.warning(
-                                    "Forecast update for site %s failed so not getting remaining sites%s%s",
-                                    site["resource_id"],
-                                    " - API use count may be odd" if len(self.sites) > 2 and sites_succeeded and not force else "",
-                                    next_update(),
-                                )
-                            else:  # pragma: no cover, will not occur under test conditions
-                                _LOGGER.warning(
-                                    "Forecast update for the last site queued failed (%s)%s%s",
-                                    site["resource_id"],
-                                    " - API use count may be odd" if sites_succeeded and not force else "",
-                                    next_update(),
-                                )
-                            status = "At least one site forecast get failed"
-                        else:  # pragma: no cover, will not occur under test conditions
-                            _LOGGER.warning("Forecast update failed%s", next_update())
-                            status = "Forecast get failed"
-                    else:
-                        status = "KILLED"  # pragma: no cover, will not occur under test conditions
+                    _LOGGER.warning(
+                        "Forecast update for site %s failed%s%s",
+                        site["resource_id"],
+                        " so not getting remaining sites" if sites_attempted < len(self.sites) else "",
+                        " - API use count may be odd" if len(self.sites) > 1 and sites_succeeded and not force else "",
+                    )
+                    status = "At least one site forecast get failed" if len(self.sites) > 1 else "Forecast get failed"
                     break
-                if result == DataCallStatus.ABORT:  # pragma: no cover, will not occur under test conditions
+                if result == DataCallStatus.ABORT:
+                    _LOGGER.info("Forecast update sborted%s", next_update())
                     return ""
                 if result == DataCallStatus.SUCCESS:
                     sites_succeeded += 1
@@ -2246,23 +2177,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if b_status and s_status:
                     _LOGGER.info("Forecast update completed successfully%s", next_update())
             else:
-                if sites_attempted > 0:
-                    if status != "KILLED":
-                        _LOGGER.error(
-                            "%site failed to fetch, so forecast has not been built%s",
-                            "At least one s" if len(self.sites) > 1 else "S",
-                            next_update(),
-                        )
-                else:  # pragma: no cover, will not occur under test conditions
-                    _LOGGER.error("Internal error, there is no sites data so forecast has not been built")
+                _LOGGER.warning("Forecast has not been updated%s", next_update())
                 status = f"At least one site forecast get failed: {reason}"
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
+        except Exception as e:  # noqa: BLE001
             status = f"Exception in get_forecast_update(): {e} - Forecast has not been built{next_update()}"
             _LOGGER.error(status)
             _LOGGER.error(traceback.format_exc())
         return status
 
-    def set_next_update(self, next_update: str) -> None:  # pragma: no cover, testing only possible when running
+    def set_next_update(self, next_update: str) -> None:
         """Set the next update time.
 
         Arguments:
@@ -2271,82 +2194,69 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         self._next_update = next_update
 
-    async def __migrate_undampened_history(self):  # pragma: no cover, migrate undampened history for legacy data
+    async def __migrate_undampened_history(self):
         """Migrate un-dampened forecasts if un-dampened data for a site does not exist."""
         apply_dampening = []
-        try:
-            forecasts = {}
-            past_days = self.get_day_start_utc(future=-14)
-            for site in self.sites:
-                site = site["resource_id"]
-                if (
-                    not self._data_undampened["siteinfo"].get(site)
-                    or len(self._data_undampened["siteinfo"][site].get("forecasts", [])) == 0
-                ):
-                    _LOGGER.info(
-                        "Migrating un-dampened history to %s for %s",
-                        self._filename_undampened,
-                        site,
-                    )
-                    apply_dampening.append(site)
-                else:
-                    continue
-                # Load the forecast history.
-                try:
-                    forecasts[site] = {forecast["period_start"]: forecast for forecast in self._data["siteinfo"][site]["forecasts"]}
-                except:  # noqa: E722
-                    forecasts[site] = {}
-                forecasts_undampened = {}
-                # Migrate forecast history if un-dampened data does not yet exist.
-                if len(forecasts[site]) > 0:
-                    forecasts_undampened = sorted(
-                        {
-                            forecast["period_start"]: forecast
-                            for forecast in self._data["siteinfo"][site]["forecasts"]
-                            if forecast["period_start"] >= past_days
-                        }.values(),
-                        key=itemgetter("period_start"),
-                    )
-                    _LOGGER.debug(
-                        "Migrating %d forecast entries to un-dampened forecasts for site %s",
-                        len(forecasts_undampened),
-                        site,
-                    )
-                self._data_undampened["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts_undampened)}})
+        forecasts = {}
+        past_days = self.get_day_start_utc(future=-14)
+        for site in self.sites:
+            site = site["resource_id"]
+            if not self._data_undampened["siteinfo"].get(site) or len(self._data_undampened["siteinfo"][site].get("forecasts", [])) == 0:
+                _LOGGER.info(
+                    "Migrating un-dampened history to %s for %s",
+                    self._filename_undampened,
+                    site,
+                )
+                apply_dampening.append(site)
+            else:
+                continue
+            # Load the forecast history.
+            forecasts[site] = {forecast["period_start"]: forecast for forecast in self._data["siteinfo"][site]["forecasts"]}
+            forecasts_undampened = {}
+            # Migrate forecast history if un-dampened data does not yet exist.
+            if len(forecasts[site]) > 0:
+                forecasts_undampened = sorted(
+                    {
+                        forecast["period_start"]: forecast
+                        for forecast in self._data["siteinfo"][site]["forecasts"]
+                        if forecast["period_start"] >= past_days
+                    }.values(),
+                    key=itemgetter("period_start"),
+                )
+                _LOGGER.debug(
+                    "Migrating %d forecast entries to un-dampened forecasts for site %s",
+                    len(forecasts_undampened),
+                    site,
+                )
+            self._data_undampened["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts_undampened)}})
 
-            if len(apply_dampening) > 0:
-                self._data_undampened["last_updated"] = dt.now(datetime.UTC).replace(microsecond=0)
-                await self.__serialise_data(self._data_undampened, self._filename_undampened)
+        if len(apply_dampening) > 0:
+            self._data_undampened["last_updated"] = dt.now(datetime.UTC).replace(microsecond=0)
+            await self.__serialise_data(self._data_undampened, self._filename_undampened)
 
-            for site in self.sites:
-                site = site["resource_id"]
-                if site in apply_dampening:
-                    _LOGGER.info("Dampening forecasts for today onwards for site %s", site)
-                else:
-                    continue
-                for interval, forecast in forecasts[site].items():
-                    if interval >= self.get_day_start_utc():
-                        # Apply dampening to the existing data (today onwards only).
-                        period_start = forecast["period_start"]
-                        dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz))
-                        self.__forecast_entry_update(
-                            forecasts[site],
-                            period_start,
-                            round(forecast["pv_estimate"] * dampening_factor, 4),
-                            round(forecast["pv_estimate10"] * dampening_factor, 4),
-                            round(forecast["pv_estimate90"] * dampening_factor, 4),
-                        )
-                forecasts[site] = sorted(forecasts[site].values(), key=itemgetter("period_start"))
-                self._data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts[site])}})
+        for site in self.sites:
+            site = site["resource_id"]
+            if site in apply_dampening:
+                _LOGGER.info("Dampening forecasts for today onwards for site %s", site)
+            else:
+                continue
+            for interval, forecast in forecasts[site].items():
+                if interval >= self.get_day_start_utc():
+                    # Apply dampening to the existing data (today onwards only).
+                    period_start = forecast["period_start"]
+                    dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz))
+                    self.__forecast_entry_update(
+                        forecasts[site],
+                        period_start,
+                        round(forecast["pv_estimate"] * dampening_factor, 4),
+                        round(forecast["pv_estimate10"] * dampening_factor, 4),
+                        round(forecast["pv_estimate90"] * dampening_factor, 4),
+                    )
+            forecasts[site] = sorted(forecasts[site].values(), key=itemgetter("period_start"))
+            self._data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts[site])}})
 
-            if len(apply_dampening) > 0:
-                await self.__serialise_data(self._data, self._filename)
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error(
-                "Exception in __migrate_undampened_history(): %s: %s",
-                e,
-                traceback.format_exc(),
-            )
+        if len(apply_dampening) > 0:
+            await self.__serialise_data(self._data, self._filename)
 
     def __forecast_entry_update(self, forecasts: dict, period_start: dt, pv: float, pv10: float, pv90: float):
         """Update an individual forecast entry."""
@@ -2448,9 +2358,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             # Fetch past data. (Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.)
 
             if do_past:
-                if self.tasks.get("fetch") is not None:  # pragma: no cover, unlikely scenario, but possible in the real world
-                    _LOGGER.error("Internal error: A fetch task is already running, so aborting get past actuals")
-                    return DataCallStatus.FAIL, "Fetch already running"
                 self.tasks["fetch"] = asyncio.create_task(
                     self.fetch_data(
                         168,
@@ -2460,15 +2367,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         force=force,
                     )
                 )
-                response = None
                 await self.tasks["fetch"]
                 if self.tasks.get("fetch") is not None:
                     response = self.tasks["fetch"].result()
                     self.tasks.pop("fetch")
-                if response is None:  # pragma: no cover, super unlikely scenario, will never be seen in testing
-                    _LOGGER.error("No data was returned for estimated_actuals")
-                    return DataCallStatus.FAIL, "No data returned for estimated_actuals"
-                if not isinstance(response, dict):  # pragma: no cover, unlikely scenario, will never be seen in testing
+                if not isinstance(response, dict):
                     _LOGGER.error(
                         "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
                     )
@@ -2483,15 +2386,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     period_start = parse_datetime(estimate_actual["period_end"]).astimezone(datetime.UTC).replace(
                         second=0, microsecond=0
                     ) - timedelta(minutes=30)
-                    if period_start.minute not in (
-                        0,
-                        30,
-                    ):  # pragma: no cover, unlikely scenario, only possible if the Solcast API returns bad data
-                        _LOGGER.error(
-                            "Got a period_start minute that is not 0 or 30, period_start: %d",
-                            period_start.minute,
-                        )
-                        return DataCallStatus.FAIL, "Invalid period start minute"
                     if period_start > oldest:
                         new_data.append(
                             {
@@ -2521,11 +2415,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if self.tasks.get("fetch") is not None:
                 response = self.tasks["fetch"].result()
                 self.tasks.pop("fetch")
-            if response is None:  # pragma: no cover, super unlikely scenario, will never be seen in testing
+            if response is None:
                 _LOGGER.error("No data was returned for forecasts")
                 return DataCallStatus.FAIL, "No data returned for forecasts"
 
-            if not isinstance(response, dict):  # pragma: no cover, unlikely scenario, will never be seen in testing
+            if not isinstance(response, dict):
                 _LOGGER.error("API did not return a json object. Returned %s", response)
                 return DataCallStatus.FAIL, "No valid json returned"
 
@@ -2538,15 +2432,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 period_start = parse_datetime(forecast["period_end"]).astimezone(datetime.UTC).replace(second=0, microsecond=0) - timedelta(
                     minutes=30
                 )
-                if period_start.minute not in {
-                    0,
-                    30,
-                }:  # pragma: no cover, unlikely scenario, only possible if the Solcast API returns bad data
-                    _LOGGER.error(
-                        "Got a period_start minute that is not 0 or 30, period_start: %d",
-                        period_start.minute,
-                    )
-                    return DataCallStatus.FAIL, "Invalid period start minute"
                 if period_start < last_day:
                     new_data.append(
                         {
@@ -2617,11 +2502,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Task sort_and_prune took %.3f seconds", time.time() - start_time)
 
             _LOGGER.debug("Forecasts dictionary length %s (%s un-dampened)", len(forecasts), len(forecasts_undampened))
-        except InvalidStateError:  # pragma: no cover, the task has not completed, not tested for
-            return DataCallStatus.FAIL, "Invalid state error"
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
+        except Exception as e:  # noqa: BLE001
             _LOGGER.error("Exception in __http_data_call(): %s: %s", e, traceback.format_exc())
-            return DataCallStatus.FAIL, f"Exception {traceback.format_exc()}"  # ZZZZ
+            return DataCallStatus.FAIL, f"Exception {traceback.format_exc()}"
         return DataCallStatus.SUCCESS, ""
 
     async def fetch_data(  # noqa: C901
@@ -2664,20 +2547,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if API == Api.HOBBYIST:
                         url = f"{self.options.host}/rooftop_sites/{site}/{path}"
                         params = {"format": "json", "api_key": api_key, "hours": hours}
-                    elif API == Api.ADVANCED and path == "forecasts":  # pragma: no cover, possible future use
-                        url = f"{self.options.host}/data/forecast/advanced_pv_power"
-                        params = {"format": "json", "api_key": api_key, "resource_id": site, "hours": hours}
-                    elif API == Api.ADVANCED and path == "estimated_actuals":  # pragma: no cover, possible future use
-                        url = f"{self.options.host}/data/historic/advanced_pv_power"
-                        params = {
-                            "format": "json",
-                            "api_key": api_key,
-                            "resource_id": site,
-                            "start": self.get_day_start_utc(future=-14).isoformat(),
-                            "end": (
-                                self.get_now_utc().replace(minute=int(self.get_now_utc().minute / 30) * 30) + timedelta(minutes=30)
-                            ).isoformat(),
-                        }
                     tries = 10
                     counter = 0
                     backoff = 15  # On every retry the back-off increases by (at least) fifteen seconds more than the previous back-off.
@@ -2690,15 +2559,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             )
                             _LOGGER.debug("Fetch data url %s", self.__redact_msg_api_key(str(response.url), api_key))
                             status = response.status
-                        except ConnectionRefusedError:  # pragma: no cover, not reachable under current test conditions
-                            status = 996
-                        except ClientConnectionError:  # pragma: no cover, not reachable under current test conditions
-                            status = 997
+                        except TimeoutError:
+                            _LOGGER.error("Connection error: Timed out connecting to server")
+                        except ConnectionRefusedError as e:
+                            _LOGGER.error("Connection error, connection refused: %s", e)
+                            break
+                        except ClientConnectionError as e:
+                            _LOGGER.error("Client connection error: %s", e)
                         except Exception as e:  # pragma: no cover, handle unexpected exceptions
                             raise e from e
-                        if status == 200:
-                            break
-                        if status == 403:  # pragma: no cover, not reachable under current test conditions
+                        if status in (200, 400, 403, 404):  # Do not retry for these statuses.
                             break
                         if status == 429:
                             # Test for API limit exceeded.
@@ -2711,16 +2581,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     self._api_used[api_key] = self._api_limit[api_key]
                                     await self.__serialise_usage(api_key)
                                     break
-                                try:  # pragma: no cover, not reachable under current test conditions
-                                    status = 1000
-                                    _LOGGER.warning(
-                                        "An unexpected error occurred: %s",
-                                        response_status.get("message"),
-                                    )
-                                    break
-                                finally:
-                                    pass  # pragma: no cover, not reachable under current test conditions
-                            if counter >= tries:  # pragma: no cover, not reachable under test conditions
+                                status = 1000
+                                _LOGGER.warning("An unexpected error occurred: %s", response_status.get("message"))
+                                break
+                            if counter >= tries:  # pragma: no cover, not reachable under current test conditions
                                 status = 999  # All retries have been exhausted.
                                 break
                         # Solcast is in a possibly recoverable state, so delay (15 seconds * counter), plus a random number of seconds between zero and 15.
@@ -2743,27 +2607,37 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             await self.__serialise_usage(api_key)
                         else:
                             _LOGGER.debug("API returned data, using force fetch so not incrementing API counter")
-                        response_json = await response.json(content_type=None)
+                        response_json = await response.text()
+                        response_json = json.loads(response_json)
+                        _LOGGER.debug(
+                            "Task fetch_data took %.3f seconds",
+                            time.time() - start_time,
+                        )
+                        return response_json
+                    elif status == 429:  # noqa: RET505  # pragma: no cover, not reachable under test conditions
+                        _LOGGER.warning("API is too busy, try again later")
+                    elif status == 400:
+                        _LOGGER.warning("Status %s: Internal error", self.__translate(status))
+                    elif status == 404:
+                        _LOGGER.error("The site cannot be found, status %s returned", self.__translate(status))
                     elif status == 998:  # Exceeded API limit.
                         _LOGGER.error(
                             "API allowed polling limit has been exceeded, API counter set to %d/%d",
                             self._api_used[api_key],
                             self._api_limit[api_key],
                         )
-                        return None
                     elif status == 999:  # Attempts exhausted.  # pragma: no cover, not reachable under test conditions
                         _LOGGER.error("API was tried %d times, but all attempts failed", tries)
-                        return None
-                    elif status == 1000:  # Unexpected response.  # pragma: no cover, not reachable under test conditions
-                        return None
-                    else:  # Unknown status.  # pragma: no cover, not reachable under test conditions
+                    elif status == 1000:  # Unexpected response.
+                        _LOGGER.error("Unexpected response from API")
+                    else:  # Unknown status.
                         _LOGGER.error(
                             "Call status %s, API used is %d/%d",
                             self.__translate(status),
                             self._api_used[api_key],
                             self._api_limit[api_key],
                         )
-                        return None
+                        _LOGGER.debug("HTTP session status %s", self.__translate(status))
                 else:
                     _LOGGER.warning(
                         "API polling limit exhausted, not getting forecast for site %s, API used is %d/%d",
@@ -2773,39 +2647,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
                     return None
 
-                if type(response_json) is not dict:
-                    _LOGGER.warning(
-                        "HTTP session return is not dict: type %s", type(response_json)
-                    )  # pragma: no cover, not reachable under test conditions
-                _LOGGER.debug("HTTP session status %s", self.__translate(status))
-
-            if status == 429:
-                _LOGGER.warning("API is too busy, try again later")  # pragma: no cover, test cancels before this point
-            elif status == 400:
-                _LOGGER.warning(
-                    "Status %s: Internal error",
-                    self.__translate(status),
-                )  # pragma: no cover, not reachable under test conditions
-            elif status == 404:
-                _LOGGER.error(
-                    "The site cannot be found, status %s returned",
-                    self.__translate(status),
-                )  # pragma: no cover, not reachable under test conditions
-            elif status == 200:
-                response = cast(dict, response_json)
-                _LOGGER.debug(
-                    "Task fetch_data took %.3f seconds",
-                    time.time() - start_time,
-                )
-                return response
         except asyncio.exceptions.CancelledError:
             _LOGGER.info("Fetch cancelled")
-        except ConnectionRefusedError as e:  # pragma: no cover, handle unexpected exception, not tested for
-            _LOGGER.error("Connection error in fetch_data(), connection refused: %s", e)
-        except ClientConnectionError as e:  # pragma: no cover, handle unexpected exception, not tested for
-            _LOGGER.error("Connection error in fetch_data(): %s", e)
-        except TimeoutError:  # pragma: no cover, handle unexpected exception,  not tested for
-            _LOGGER.error("Connection error in fetch_data(): Timed out connecting to server")
+        except json.decoder.JSONDecodeError:
+            return await response.text()
         except Exception as e:  # noqa: BLE001  # pragma: no cover, handle unexpected exception
             _LOGGER.error("Exception in fetch_data(): %s, %s", e, traceback.format_exc())
 
@@ -2837,11 +2682,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             last_value = value
         return {"wh_hours": forecast_generation}
 
-    def __site_api_key(self, site: str) -> str | None:
+    def __site_api_key(self, site: str) -> str:
+        api_key = None
         for _site in self.sites:
             if _site["resource_id"] == site:
-                return _site["api_key"]
-        return None  # pragma: no cover, should never get here
+                api_key = _site["api_key"]
+        return api_key
 
     def hard_limit_set(self) -> tuple[bool, bool]:
         """Determine whether a hard limit is set.
@@ -2861,12 +2707,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     def __hard_limit_for_key(self, api_key: str) -> float:
         hard_limit = self.hard_limit.split(",")
+        limit = 100.0
         if len(hard_limit) == 1:
-            return float(hard_limit[0])
-        for index, key in enumerate(self.options.api_key.split(",")):
-            if key == api_key:
-                return float(hard_limit[index])
-        return 100.0  # pragma: no cover, should never get here
+            limit = float(hard_limit[0])
+        else:
+            for index, key in enumerate(self.options.api_key.split(",")):
+                if key == api_key:
+                    limit = float(hard_limit[index])
+        return limit
 
     async def build_forecast_data(self) -> bool:  # noqa: C901
         """Build data structures needed, adjusting if setting a hard limit.
@@ -2885,14 +2733,22 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             forecasts = {}
             forecasts_undampened = {}
 
+            self._data_forecasts = []
+            self._data_forecasts_undampened = []
+
+            build_success = True
+
             def build_data(  # noqa: C901
-                data: list,
+                data: dict,
                 commencing: dt,
                 forecasts: dict,
                 site_data_forecasts: list,
                 sites_hard_limit: defaultdict,
                 update_tally: bool = False,
             ):
+                nonlocal build_success
+
+                site = None
                 try:
                     # Build per-site hard limit.
                     # The API key hard limit for each site is calculated as proportion of the site contribution for the account.
@@ -2983,10 +2839,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             sites_hard_limit["all"][pv_estimate] = {}
 
                     # Build per-site and total forecasts with proportionate hard limit applied.
-                    for site, siteinfo in data["siteinfo"].items():
+                    for site, siteinfo in data.get("siteinfo", {}).items():
                         api_key = self.__site_api_key(site) if multi_key else "all"
                         if update_tally:
-                            tally = 0
+                            tally = None
                         site_forecasts = {}
 
                         for forecast in siteinfo["forecasts"]:
@@ -3021,6 +2877,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 }
 
                                 if update_tally and period_start_local.date() == today:
+                                    if tally is None:
+                                        tally = 0.0
                                     tally += (
                                         min(
                                             forecast[self._use_forecast_confidence],
@@ -3053,14 +2911,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     }
                         site_data_forecasts[site] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
                         if update_tally:
-                            siteinfo["tally"] = round(tally, 4)
+                            siteinfo["tally"] = round(tally, 4) if tally is not None else None
                             self._tally[site] = siteinfo["tally"]
                     if update_tally:
                         self._data_forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
                     else:
                         self._data_forecasts_undampened = sorted(forecasts.values(), key=itemgetter("period_start"))
-                except Exception as e:  # noqa: BLE001
+                except Exception as e:  # noqa: BLE001, handle all exceptions
                     _LOGGER.error("Exception in build_data(): %s: %s", e, traceback.format_exc())
+                    if update_tally:
+                        self._data_forecasts = []
+                        for site in self.sites:
+                            self._tally[site["resource_id"]] = None
+                    build_success = False
 
             start_time = time.time()
             with ThreadPoolExecutor() as ex:
@@ -3084,14 +2947,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Task build_data took %.3f seconds", time.time() - start_time)
             self._data_energy_dashboard = self.__make_energy_dict()
 
-            if await self.check_data_records():
-                await self.recalculate_splines()
-            else:
-                return False
+            await self.check_data_records()
+            await self.recalculate_splines()
         except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in build_forecast_data(): %s: %s", e, traceback.format_exc())
             return False
-        return True
+        return build_success
 
     def __calc_forecast_start_index(self, data: list) -> int:
         """Get the start of forecasts as-at just before midnight.
@@ -3110,7 +2971,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for index in range(len(data) - 1, -1, -1):
             if data[index]["period_start"] < midnight_utc:
                 break
-        return index
+        try:
+            return index
+        except UnboundLocalError:
+            return 0
 
     async def check_data_records(self) -> bool:
         """Log whether all records are present for each day.
@@ -3119,81 +2983,74 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             bool: A flag indicating success or failure.
 
         """
-        try:
-            contiguous = 0
-            contiguous_start_date = None
-            contiguous_end_date = None
-            all_records_good = True
-            interval_assessment = {}
+        contiguous = 0
+        contiguous_start_date = None
+        contiguous_end_date = None
+        all_records_good = True
+        interval_assessment = {}
 
-            def is_dst(_datetime: dt):
-                return (_datetime.astimezone(self._tz).dst() == timedelta(hours=1)) if _datetime is not None else None
+        def is_dst(_datetime: dt):
+            return (_datetime.astimezone(self._tz).dst() == timedelta(hours=1)) if _datetime is not None else None
 
-            for future_day in range(8):
-                start_utc = self.get_day_start_utc(future=future_day)
-                end_utc = self.get_day_start_utc(future=future_day + 1)
-                start_index, end_index = self.__get_forecast_list_slice(self._data_forecasts, start_utc, end_utc)
+        for future_day in range(8):
+            start_utc = self.get_day_start_utc(future=future_day)
+            end_utc = self.get_day_start_utc(future=future_day + 1)
+            start_index, end_index = self.__get_forecast_list_slice(self._data_forecasts, start_utc, end_utc)
 
-                expected_intervals = 48
-                for interval in range(start_index, end_index):
-                    if interval == start_index:
-                        _is_dst = is_dst(self._data_forecasts[interval]["period_start"])
-                    else:
-                        is_daylight = is_dst(self._data_forecasts[interval]["period_start"])
-                        if is_daylight is not None and is_daylight != _is_dst:
-                            expected_intervals = 50 if _is_dst else 46  # pragma: no cover, daylight saving time change not tested
-                intervals = end_index - start_index
-                forecasts_date = dt.now(self._tz).date() + timedelta(days=future_day)
-
-                def set_assessment(forecasts_date, expected_intervals, intervals, is_correct: bool):
-                    nonlocal contiguous, all_records_good, contiguous_end_date
-                    interval_assessment[forecasts_date] = {
-                        "expected_intervals": expected_intervals,
-                        "intervals": intervals,
-                        "correct": is_correct,
-                    }
-                    if is_correct:
-                        if all_records_good:
-                            contiguous += 1
-                            contiguous_end_date = forecasts_date
-                    else:
-                        all_records_good = False
-
-                if intervals == expected_intervals:
-                    set_assessment(forecasts_date, expected_intervals, intervals, True)
+            expected_intervals = 48
+            for interval in range(start_index, end_index):
+                if interval == start_index:
+                    _is_dst = is_dst(self._data_forecasts[interval]["period_start"])
                 else:
-                    set_assessment(forecasts_date, expected_intervals, intervals, False)
-                if future_day == 0 and interval_assessment[forecasts_date]["correct"]:
-                    contiguous_start_date = forecasts_date
-            if contiguous > 1:
-                _LOGGER.debug(
-                    "Forecast data from %s to %s contains all intervals",
-                    contiguous_start_date.strftime("%Y-%m-%d"),
-                    contiguous_end_date.strftime("%Y-%m-%d"),
-                )
+                    is_daylight = is_dst(self._data_forecasts[interval]["period_start"])
+                    if is_daylight is not None and is_daylight != _is_dst:
+                        expected_intervals = 50 if _is_dst else 46  # pragma: no cover, daylight saving time logging is not tested
+            intervals = end_index - start_index
+            forecasts_date = dt.now(self._tz).date() + timedelta(days=future_day)
+
+            def set_assessment(forecasts_date, expected_intervals, intervals, is_correct: bool):
+                nonlocal contiguous, all_records_good, contiguous_end_date
+                interval_assessment[forecasts_date] = {
+                    "expected_intervals": expected_intervals,
+                    "intervals": intervals,
+                    "correct": is_correct,
+                }
+                if is_correct:
+                    if all_records_good:
+                        contiguous += 1
+                        contiguous_end_date = forecasts_date
+                else:
+                    all_records_good = False
+
+            if intervals == expected_intervals:
+                set_assessment(forecasts_date, expected_intervals, intervals, True)
             else:
-                contiguous_end_date = None  # pragma: no cover, never reached in tests
-            if contiguous < 8:
-                for day, assessment in OrderedDict(sorted(interval_assessment.items(), key=lambda k: k[0])).items():
-                    if contiguous_end_date is not None and day <= contiguous_end_date:
-                        continue
-                    match assessment["correct"]:
-                        case True:
-                            _LOGGER.debug(
-                                "Forecast data for %s contains all intervals",
-                                day.strftime("%Y-%m-%d"),
-                            )  # pragma: no cover, will not log in tests
-                        case False:
-                            (_LOGGER.debug if contiguous == 7 else _LOGGER.warning)(
-                                "Forecast data for %s contains %d of %d intervals%s",
-                                day.strftime("%Y-%m-%d"),
-                                assessment["intervals"],
-                                assessment["expected_intervals"],
-                                ", which may be expected" if contiguous == 7 else ", so is missing forecast data",
-                            )
-            return True  # noqa: TRY300
-        except UnboundLocalError:
-            _LOGGER.error("UnboundLocalError in check_data_records(): %s %s %s", start_utc, end_utc, traceback.format_exc())
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
-            _LOGGER.error("Exception in check_data_records(): %s: %s", e, traceback.format_exc())
-        return False
+                set_assessment(forecasts_date, expected_intervals, intervals, False)
+            if future_day == 0 and interval_assessment[forecasts_date]["correct"]:
+                contiguous_start_date = forecasts_date
+        if contiguous > 1:
+            _LOGGER.debug(
+                "Forecast data from %s to %s contains all intervals",
+                contiguous_start_date.strftime("%Y-%m-%d"),
+                contiguous_end_date.strftime("%Y-%m-%d"),
+            )
+        else:
+            contiguous_end_date = None
+        if contiguous < 8:
+            for day, assessment in OrderedDict(sorted(interval_assessment.items(), key=lambda k: k[0])).items():
+                if contiguous_end_date is not None and day <= contiguous_end_date:
+                    continue
+                match assessment["correct"]:
+                    case True:
+                        _LOGGER.debug(
+                            "Forecast data for %s contains all intervals",
+                            day.strftime("%Y-%m-%d"),
+                        )
+                    case False:
+                        (_LOGGER.debug if contiguous == 7 else _LOGGER.warning)(
+                            "Forecast data for %s contains %d of %d intervals%s",
+                            day.strftime("%Y-%m-%d"),
+                            assessment["intervals"],
+                            assessment["expected_intervals"],
+                            ", which may be expected" if contiguous == 7 else ", so is missing forecast data",
+                        )

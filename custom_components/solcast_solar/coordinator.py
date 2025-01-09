@@ -151,21 +151,19 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         )
         _LOGGER.debug("Started task midnight_update")
 
+    def set_next_update(self):
+        """Set the next forecast update message time."""
+        self.solcast.set_next_update(None)
+        if len(self._intervals) > 0:
+            next_update = self._intervals[0].astimezone(self.solcast.options.tz)
+            self.solcast.set_next_update(
+                next_update.strftime(TIME_FORMAT) if next_update.date() == dt.now().date() else next_update.strftime(DATE_FORMAT)
+            )
+
     async def __check_forecast_fetch(self, *args):  # pragma: no cover, testing only possible when running
         """Check for an auto forecast update event."""
         try:
             if self.solcast.options.auto_update:
-
-                def set_next_update():
-                    if len(self._intervals) > 0:
-                        next_update = self._intervals[0].astimezone(self.solcast.options.tz)
-                        self.solcast.set_next_update(
-                            next_update.strftime(TIME_FORMAT)
-                            if next_update.date() == dt.now().date()
-                            else next_update.strftime(DATE_FORMAT)
-                        )
-                    else:
-                        self.solcast.set_next_update(None)
 
                 async def wait_for_fetch(update_in: int):
                     try:
@@ -173,7 +171,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         await asyncio.sleep(update_in)
                         _LOGGER.info("Auto update forecast")
                         self._intervals = self._intervals[1:]
-                        set_next_update()
+                        self.set_next_update()
                         await self.__forecast_update(completion=f"Completed task {task_name}")
                     except asyncio.CancelledError:
                         _LOGGER.info("Auto update scheduled update cancelled")
@@ -205,7 +203,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     if len(pop_expired) > 0:
                         _LOGGER.debug("Removing expired auto update intervals")
                         self._intervals = [interval for i, interval in enumerate(self._intervals) if i not in pop_expired]
-                        set_next_update()
+                        self.set_next_update()
 
         except:  # noqa: E722
             _LOGGER.error("Exception in __check_forecast_fetch(): %s", traceback.format_exc())
@@ -386,10 +384,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     async def service_event_delete_old_solcast_json_file(self):
         """Delete the solcast.json file when requested by a service call."""
-        for task, cancel in self.solcast.tasks.items():
-            _LOGGER.debug("Cancelling solcastapi task %s", task)
-            cancel.cancel()
-        self.solcast.tasks = {}
+        await self.solcast.tasks_cancel()
         await self.solcast.delete_solcast_file()
         self._data_updated = True
         await self.update_integration_listeners()
@@ -485,11 +480,13 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             return None
         ret = {}
         for fetch in self.__get_value[key] if key not in NO_ATTRIBUTES else []:
-            ret |= (
+            to_return = (
                 self.solcast.get_forecast_attributes(fetch["method"], fetch.get("value", 0))
                 if fetch["method"] != self.solcast.get_forecast_day
                 else fetch["method"](fetch["value"])
             )
+            if to_return is not None:
+                ret.update(to_return)
         return ret
 
     def get_site_sensor_value(self, roof_id: str, key: str) -> float | None:

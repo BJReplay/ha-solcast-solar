@@ -5,7 +5,7 @@ import logging
 from freezegun.api import FrozenDateTimeFactory
 
 from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.const import DOMAIN
+from homeassistant.components.solcast_solar.const import API_QUOTA, DOMAIN
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.core import HomeAssistant
@@ -39,7 +39,7 @@ async def test_diagnostics(
         diagnostics = await get_diagnostics_for_config_entry(hass, hass_client, entry)
         assert ZONE_RAW in diagnostics["tz_conversion"]["repr"]
         assert diagnostics["used_api_requests"] == 4
-        assert diagnostics["api_request_limit"] == 10
+        assert diagnostics["api_request_limit"] == int(DEFAULT_INPUT1[API_QUOTA])
         assert diagnostics["rooftop_site_count"] == 2
         assert diagnostics["forecast_hard_limit_set"] is False
         for site, data in diagnostics["data"][0]["siteinfo"].items():

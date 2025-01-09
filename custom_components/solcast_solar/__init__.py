@@ -393,8 +393,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
                 call.data.get(SITE, "all"),
                 call.data.get(UNDAMPENED, False),
             )
-        except intent.IntentHandleError as e:  # pragma: no cover, catch unexpected exceptions
-            raise HomeAssistantError(f"Error processing {SERVICE_QUERY_FORECAST_DATA}: {e}") from e
+        except ValueError as e:
+            raise ServiceValidationError(f"{e}") from e
 
         if call.return_response:
             return {"data": data}
@@ -606,7 +606,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> 
             _LOGGER.debug("Remove action: %s.%s", DOMAIN, action)
             hass.services.async_remove(DOMAIN, action)
 
-        hass.data[DOMAIN].pop("presumed_dead")
+        if hass.data[DOMAIN].get("presumed_dead"):
+            hass.data[DOMAIN].pop("presumed_dead")
     else:
         _LOGGER.error("Unload failed")  # pragma: no cover, never called in tests
 

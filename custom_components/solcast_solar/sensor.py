@@ -366,6 +366,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         self._update_policy = get_sensor_update_policy(entity_description.key)
         self._attr_unique_id = f"{entity_description.key}"
         self._attributes = {}
+        self._attr_available = False
         self._attr_extra_state_attributes = {}
 
         try:
@@ -405,6 +406,11 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             self._state_info["unrecorded_attributes"] = self._state_info["unrecorded_attributes"] | frozenset(exclude)
 
     @property
+    def available(self) -> bool:
+        """Return the availability of the sensor linked to the source sensor."""
+        return self._attr_available
+
+    @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
         """Return the state extra attributes of the sensor.
 
@@ -412,18 +418,14 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             dict[str, Any] | None: The current attributes of a sensor.
 
         """
-        try:
-            return self._coordinator.get_sensor_extra_attributes(self.entity_description.key)
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error("Unable to get sensor attributes: %s", e)
-            return None
+        return self._coordinator.get_sensor_extra_attributes(self.entity_description.key)
 
     @property
     def native_value(self) -> int | dt | float | str | bool | None:
         """Return the current value of the sensor.
 
         Returns:
-            int | dt | float | Any | str | bool | None: The current value of a sensor.
+            int | dt | float | str | bool | None: The current value of a sensor.
 
         """
         return self._sensor_data
@@ -457,8 +459,9 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
             self._sensor_data = None
-        if SENSOR_UPDATE_LOGGING:
-            _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
+        finally:
+            if SENSOR_UPDATE_LOGGING:
+                _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
 
         if self._sensor_data is None:
             self._attr_available = False
@@ -510,6 +513,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         self._coordinator = coordinator
         self._rooftop_id = entity_description.rooftop_id
         self._attributes = {}
+        self._attr_available = False
         self._attr_extra_state_attributes = {}
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
 
@@ -530,6 +534,11 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         }
 
         self._unique_id = f"solcast_api_{entity_description.name}"
+
+    @property
+    def available(self) -> bool:
+        """Return the availability of the sensor linked to the source sensor."""
+        return self._attr_available
 
     @property
     def name(self) -> str:
@@ -553,12 +562,13 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self) -> dict[str, Any] | None:
-        """Return the state extra attributes of the sensor."""
-        try:
-            return self._coordinator.get_site_sensor_extra_attributes(self._rooftop_id, self._key)
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error("Unable to get sensor attributes: %s: %s", e, traceback.format_exc())
-            return None
+        """Return the state extra attributes of the sensor.
+
+        Returns:
+            dict[str, Any] | None: The current attributes of a sensor.
+
+        """
+        return self._coordinator.get_site_sensor_extra_attributes(self._rooftop_id, self._key)
 
     @property
     def native_value(self) -> int | dt | float | str | bool | None:
@@ -583,18 +593,19 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
     async def async_added_to_hass(self) -> None:
         """Entity is added to Home Assistant."""
         await super().async_added_to_hass()
-        # self.async_on_remove(self._coordinator.async_add_listener(self._handle_coordinator_update))
 
     @callback
     def _handle_coordinator_update(self):
         """Handle updated data from the coordinator."""
         if not (self._coordinator.get_date_changed() or self._coordinator.get_data_updated()):
             return
-        try:
-            self._sensor_data = self._coordinator.get_site_sensor_value(self._rooftop_id, self._key)
-            if SENSOR_UPDATE_LOGGING:
-                _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
-            self._sensor_data = None
+        self._sensor_data = self._coordinator.get_site_sensor_value(self._rooftop_id, self._key)
+        if SENSOR_UPDATE_LOGGING:
+            _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
+
+        if self._sensor_data is None:
+            self._attr_available = False
+        else:
+            self._attr_available = True
+
         self.async_write_ha_state()

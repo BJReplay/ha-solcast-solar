@@ -10,8 +10,9 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.sensor import SensorStateClass
-from homeassistant.components.solcast_solar.const import CUSTOM_HOUR_SENSOR
+from homeassistant.components.solcast_solar.const import API_QUOTA, CUSTOM_HOUR_SENSOR
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.const import (
     STATE_UNAVAILABLE,
     STATE_UNKNOWN,
@@ -54,6 +55,7 @@ SENSORS: dict[str, dict] = {
                 "estimate90-2222-2222-2222-2222": 17.73,
             },
         },
+        "can_be_unavailable": True,
     },
     "peak_forecast_today": {
         "state": {"1": "7200", "2": "9900"},
@@ -77,6 +79,7 @@ SENSORS: dict[str, dict] = {
                 "estimate90-2222-2222-2222-2222": 3000,
             },
         },
+        "can_be_unavailable": True,
     },
     "peak_time_today": {
         "state": {"1": "2024-01-01T02:00:00+00:00", "2": "2024-01-01T02:00:00+00:00"},
@@ -106,6 +109,7 @@ SENSORS: dict[str, dict] = {
                 "estimate90-2222-2222-2222-2222": "2024-01-01T02:00:00+00:00",
             },
         },
+        "can_be_unavailable": True,
     },
     "forecast_this_hour": {
         "state": {"1": "7200", "2": "9900"},
@@ -128,6 +132,7 @@ SENSORS: dict[str, dict] = {
                 "estimate90-2222-2222-2222-2222": 3000,
             },
         },
+        "can_be_unavailable": True,
     },
     "forecast_remaining_today": {
         "state": {"1": "23.6817", "2": "32.5624"},
@@ -150,6 +155,7 @@ SENSORS: dict[str, dict] = {
                 "estimate90-2222-2222-2222-2222": 9.8674,
             },
         },
+        "can_be_unavailable": True,
     },
     "forecast_next_hour": {
         "state": {"1": "6732", "2": "9256"},
@@ -172,6 +178,7 @@ SENSORS: dict[str, dict] = {
                 "estimate90-2222-2222-2222-2222": 2805,
             },
         },
+        "can_be_unavailable": True,
     },
     "forecast_next_x_hours": {
         "state": {"1": "13748", "2": "18904"},
@@ -194,6 +201,7 @@ SENSORS: dict[str, dict] = {
                 "estimate90-2222-2222-2222-2222": 5728,
             },
         },
+        "can_be_unavailable": True,
     },
     "peak_forecast_tomorrow": {
         "state": {"1": "7200", "2": "9900"},
@@ -216,6 +224,7 @@ SENSORS: dict[str, dict] = {
                 "estimate90-2222-2222-2222-2222": 3000,
             },
         },
+        "can_be_unavailable": True,
     },
     "peak_time_tomorrow": {
         "state": {"1": "2024-01-01T02:00:00+00:00", "2": "2024-01-01T02:00:00+00:00"},
@@ -245,6 +254,7 @@ SENSORS: dict[str, dict] = {
                 "estimate90-2222-2222-2222-2222": "2024-01-01T02:00:00+00:00",
             },
         },
+        "can_be_unavailable": True,
     },
     "power_now": {
         "state": {"1": "7221", "2": "9928"},
@@ -268,6 +278,7 @@ SENSORS: dict[str, dict] = {
                 "estimate90-2222-2222-2222-2222": 3009,
             },
         },
+        "can_be_unavailable": True,
     },
     "power_in_30_minutes": {
         "state": {"1": "7158", "2": "9842"},
@@ -291,6 +302,7 @@ SENSORS: dict[str, dict] = {
                 "estimate90-2222-2222-2222-2222": 2982,
             },
         },
+        "can_be_unavailable": True,
     },
     "power_in_1_hour": {
         "state": {"1": "6842", "2": "9408"},
@@ -314,9 +326,10 @@ SENSORS: dict[str, dict] = {
                 "estimate90-2222-2222-2222-2222": 2851,
             },
         },
+        "can_be_unavailable": True,
     },
     "api_used": {"state": {"1": "4", "2": "4"}},
-    "api_limit": {"state": {"1": "10", "2": "10"}},
+    "api_limit": {"state": {"1": DEFAULT_INPUT1[API_QUOTA], "2": DEFAULT_INPUT1[API_QUOTA]}},
     "api_last_polled": {"state": {"1": "isodate", "2": "isodate"}},
     # "weather_description": {},
 }
@@ -425,7 +438,86 @@ def get_sensor_value(self, key: str):
     return 1 / 0
 
 
-async def test_sensor_unknown(
+def get_sensor_extra_attributes(self, key: str):
+    """Raise an exception getting the value of a sensor."""
+    return 1 / 0
+
+
+def get_site_sensor_extra_attributes(self, rooftop: str, key: str):
+    """Raise an exception getting the value of a sensor."""
+    return 1 / 0
+
+
+async def test_sensor_unavailable(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Verify sensors unavailable when "impossible" eventualities occur."""
+
+    options = copy.deepcopy(DEFAULT_INPUT1)
+    options[CUSTOM_HOUR_SENSOR] = 120
+    entry = await async_init_integration(hass, options)
+    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+    solcast: SolcastApi = coordinator.solcast
+
+    try:
+        # Turn SolcastApi to custard.
+        old_solcast_data = copy.deepcopy(solcast._data)
+        old_solcast_data_undampened = copy.deepcopy(solcast._data_undampened)
+        solcast._data["siteinfo"]["1111-1111-1111-1111"]["forecasts"] = ["blah"]
+        solcast._data["siteinfo"]["2222-2222-2222-2222"]["forecasts"] = []
+        solcast._data_undampened["siteinfo"]["1111-1111-1111-1111"]["forecasts"] = []
+        solcast._data_undampened["siteinfo"]["2222-2222-2222-2222"]["forecasts"] = []
+
+        await solcast.build_forecast_data()
+        coordinator._data_updated = True
+        coordinator.async_update_listeners()
+
+        for sensor, assertions in SENSORS.items():
+            if assertions.get("can_be_unavailable", False):
+                state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
+                assert state
+                assert state.state == STATE_UNAVAILABLE
+
+        for site in ("first_site", "second_site"):
+            state = hass.states.get(f"sensor.{site}")
+            assert state
+            assert state.state == STATE_UNAVAILABLE
+
+        # Test when some future day data is missing (remove D3 onwards).
+        solcast._data_undampened = old_solcast_data_undampened
+        for site in ("1111-1111-1111-1111", "2222-2222-2222-2222"):
+            solcast._data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][:-269]
+        await solcast.build_forecast_data()
+        coordinator._data_updated = True
+        coordinator.async_update_listeners()
+
+        for sensor, assertions in SENSORS.items():
+            if "forecast_day_" not in sensor and "forecast_next_x_hours" not in sensor:
+                continue
+            if assertions.get("can_be_unavailable", False):
+                state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
+                assert state
+                assert state.state == STATE_UNAVAILABLE
+
+        # Test when 'today' is partial (remove D3 onwards).
+        solcast._data_undampened = old_solcast_data_undampened
+        for site in ("1111-1111-1111-1111", "2222-2222-2222-2222"):
+            solcast._data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][:-325]
+        await solcast.build_forecast_data()
+        coordinator._data_updated = True
+        coordinator.async_update_listeners()
+
+        state = hass.states.get(f"sensor.solcast_pv_forecast_forecast_today")
+        assert state
+        assert state.attributes["dataCorrect"] is False
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_sensor_unavailble_exception(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
@@ -433,38 +525,23 @@ async def test_sensor_unknown(
     """Test state and attributes of sensors including expected state class and unit of measurement."""
 
     SolcastUpdateCoordinator.get_sensor_value = get_sensor_value
-    SolcastUpdateCoordinator.get_sensor_extra_attributes = get_sensor_value
+    SolcastUpdateCoordinator.get_sensor_extra_attributes = get_sensor_extra_attributes
     SolcastUpdateCoordinator.get_site_sensor_value = get_sensor_value
-    SolcastUpdateCoordinator.get_site_sensor_extra_attributes = get_sensor_value
-    entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+    SolcastUpdateCoordinator.get_site_sensor_extra_attributes = get_site_sensor_extra_attributes
+    await async_init_integration(hass, DEFAULT_INPUT1)
 
     try:
         for sensor in SENSORS:
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
             _ = state.attributes
             assert state
-            assert state.state == STATE_UNKNOWN
+            assert state.state == STATE_UNAVAILABLE
 
-        state = hass.states.get("sensor.first_site")
-        _ = state.attributes
-        assert state
-        assert state.state == STATE_UNKNOWN
+        for site in ("first_site", "second_site"):
+            state = hass.states.get(f"sensor.{site}")
+            _ = state.attributes
+            assert state
+            assert state.state == STATE_UNAVAILABLE
 
-        coordinator._data_updated = True
-        coordinator.async_update_listeners()
-
-        for sensor in SENSORS:
-            state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
-            assert state.state == STATE_UNKNOWN
     finally:
         assert await async_cleanup_integration_tests(hass)
-
-
-async def test_sensor_unavailable(
-    recorder_mock: Recorder,
-    hass: HomeAssistant,
-) -> None:
-    """Test state and attributes of sensors including expected state class and unit of measurement."""
-
-    # TODO: Sensors are not being set to unavailable when the API returns an error.

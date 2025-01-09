@@ -47,7 +47,7 @@ KEY_NO_SITES = "no_sites"
 CUSTOM_HOURS: Final = 2
 DEFAULT_INPUT1_NO_DAMP = {
     CONF_API_KEY: KEY1,
-    API_QUOTA: "10",
+    API_QUOTA: "20",
     AUTO_UPDATE: "1",
     CUSTOM_HOUR_SENSOR: CUSTOM_HOURS,
     HARD_LIMIT_API: "100.0",
@@ -80,11 +80,18 @@ DEFAULT_INPUT_NO_SITES[CONF_API_KEY] = KEY_NO_SITES
 STATUS_401 = {
     "response_status": {
         "error_code": "InvalidApiKey",
-        "message": "The API key is invalid",
+        "message": "The API key is invalid.",
         "errors": [],
     }
 }
-STATUS_429 = {}
+STATUS_403 = {
+    "response_status": {
+        "error_code": "Forbidden",
+        "message": "The request cannot be made using this API key.",
+        "errors": [],
+    }
+}
+STATUS_EMPTY = {}
 STATUS_429_OVER = {
     "response_status": {
         "error_code": "TooManyRequests",
@@ -92,14 +99,41 @@ STATUS_429_OVER = {
         "errors": [],
     }
 }
+STATUS_429_UNEXPECTED = {
+    "response_status": {
+        "error_code": "NoIdea",
+        "message": "I have no idea what you want, but I am busy.",
+        "errors": [],
+    }
+}
+
+MOCK_BAD_REQUEST = "return_400"
+MOCK_BUSY = "return_429"
+MOCK_BUSY_SITE = "return_429_for_site"
+MOCK_BUSY_UNEXPECTED = "return_429_unexpected"
+MOCK_CORRUPT_SITES = "return_corrupt_sites"
+MOCK_CORRUPT_FORECAST = "return_corrupt_forecast"
+MOCK_CORRUPT_ACTUALS = "return_corrupt_actuals"
+MOCK_EXCEPTION = "exception"
+MOCK_FORBIDDEN = "return_403"
+MOCK_NOT_FOUND = "return_404"
+MOCK_OVER_LIMIT = "return_429_over"
 
 MOCK_SESSION_CONFIG = {
+    "aioresponses": None,
     "api_limit": int(min(DEFAULT_INPUT2[API_QUOTA].split(","))),
     "api_used": {api_key: 0 for api_key in DEFAULT_INPUT2[CONF_API_KEY].split(",")},
-    "return_429": False,
-    "return_429_over": False,
-    "exception": None,
-    "aioresponses": None,
+    MOCK_BAD_REQUEST: False,
+    MOCK_BUSY: False,
+    MOCK_BUSY_SITE: None,
+    MOCK_BUSY_UNEXPECTED: False,
+    MOCK_CORRUPT_SITES: False,
+    MOCK_CORRUPT_FORECAST: False,
+    MOCK_CORRUPT_ACTUALS: False,
+    MOCK_EXCEPTION: None,
+    MOCK_FORBIDDEN: False,
+    MOCK_NOT_FOUND: False,
+    MOCK_OVER_LIMIT: False,
 }
 
 ZONE = ZoneInfo(ZONE_RAW)
@@ -108,15 +142,23 @@ set_time_zone(ZONE)
 _LOGGER = logging.getLogger(__name__)
 
 
-def _check_abend(api_key) -> CallbackResult | None:
-    if MOCK_SESSION_CONFIG["return_429"]:
-        return CallbackResult(status=429, payload=STATUS_429)
+def _check_abend(api_key, site=None) -> CallbackResult | None:
+    if MOCK_SESSION_CONFIG[MOCK_BUSY] or (MOCK_SESSION_CONFIG[MOCK_BUSY_SITE] and site == MOCK_SESSION_CONFIG[MOCK_BUSY_SITE]):
+        return CallbackResult(status=429, payload=STATUS_EMPTY)
     if MOCK_SESSION_CONFIG["api_used"].get(api_key, 0) >= MOCK_SESSION_CONFIG["api_limit"]:
         return CallbackResult(status=429, payload=STATUS_429_OVER)
-    if MOCK_SESSION_CONFIG["return_429_over"]:
+    if MOCK_SESSION_CONFIG[MOCK_BUSY_UNEXPECTED]:
+        return CallbackResult(status=429, payload=STATUS_429_UNEXPECTED)
+    if MOCK_SESSION_CONFIG[MOCK_OVER_LIMIT]:
         return CallbackResult(status=429, payload=STATUS_429_OVER)
+    if MOCK_SESSION_CONFIG[MOCK_BAD_REQUEST]:
+        return CallbackResult(status=400, payload=STATUS_EMPTY)
     if API_KEY_SITES.get(api_key) is None:
         return CallbackResult(status=401, payload=STATUS_401)
+    if MOCK_SESSION_CONFIG[MOCK_FORBIDDEN]:
+        return CallbackResult(status=403, payload=STATUS_403)
+    if MOCK_SESSION_CONFIG[MOCK_NOT_FOUND]:
+        return CallbackResult(status=404, payload=STATUS_EMPTY)
     return None
 
 
@@ -126,6 +168,8 @@ async def _get_sites(url, **kwargs) -> CallbackResult:
         api_key = params["api_key"]
         if (abend := _check_abend(api_key)) is not None:
             return abend
+        if MOCK_SESSION_CONFIG[MOCK_CORRUPT_SITES]:
+            return CallbackResult(body="Not available, a string response")
         return CallbackResult(payload=raw_get_sites(api_key))
     except Exception as e:  # noqa: BLE001
         _LOGGER.error("Error building sites: %s", e)
@@ -137,7 +181,7 @@ async def _get_solcast(url, get, **kwargs) -> CallbackResult:
         site = str(url).split("_sites/")[1].split("/")[0]
         api_key = params["api_key"]
         hours = params.get("hours", 168)
-        if (abend := _check_abend(api_key)) is not None:
+        if (abend := _check_abend(api_key, site=site)) is not None:
             return abend
         MOCK_SESSION_CONFIG["api_used"][api_key] += 1
         return CallbackResult(payload=get(site, api_key, hours))
@@ -146,52 +190,45 @@ async def _get_solcast(url, get, **kwargs) -> CallbackResult:
 
 
 async def _get_forecasts(url, **kwargs) -> CallbackResult:
+    if MOCK_SESSION_CONFIG[MOCK_CORRUPT_FORECAST]:
+        return CallbackResult(body="Not available, a string response")
     kwargs["params"]["hours"] -= 12  # Intentionally return less hours for testing.
     return await _get_solcast(url, raw_get_site_forecasts, **kwargs)
 
 
 async def _get_actuals(url, **kwargs) -> CallbackResult:
+    if MOCK_SESSION_CONFIG[MOCK_CORRUPT_ACTUALS]:
+        return CallbackResult(body="Not available, a string response")
     return await _get_solcast(url, raw_get_site_estimated_actuals, **kwargs)
 
 
-def mock_session_config_reset() -> None:
+def session_reset_usage() -> None:
     """Reset the mock session config."""
     MOCK_SESSION_CONFIG["api_used"] = {api_key: 0 for api_key in DEFAULT_INPUT2[CONF_API_KEY].split(",")}
 
 
-def mock_session_set_too_busy() -> None:
-    """Set the mock session to return a 429 too busy error."""
-    MOCK_SESSION_CONFIG["return_429"] = True
+def session_set(setting: str, **kwargs) -> None:
+    """Set mock session behaviour."""
+    if setting == MOCK_BUSY_SITE:
+        MOCK_SESSION_CONFIG[setting] = kwargs.get("site")
+        return
+    MOCK_SESSION_CONFIG[setting] = True if kwargs.get(MOCK_EXCEPTION) is None else kwargs.get(MOCK_EXCEPTION)
 
 
-def mock_session_clear_too_busy() -> None:
-    """Clear the mock session to return too busy."""
-    MOCK_SESSION_CONFIG["return_429"] = False
+def session_clear(setting: str) -> None:
+    """Clear mock session behaviour."""
+    match setting:
+        case "exception":
+            MOCK_SESSION_CONFIG[setting] = None
+        case "return_429_for_site":
+            MOCK_SESSION_CONFIG[setting] = None
+        case _:
+            MOCK_SESSION_CONFIG[setting] = False
 
 
-def mock_session_set_over_limit() -> None:
-    """Set the mock session to return a 429 limit exceeded error."""
-    MOCK_SESSION_CONFIG["return_429_over"] = True
-
-
-def mock_session_clear_over_limit() -> None:
-    """Clear the mock session to return limit exceeded."""
-    MOCK_SESSION_CONFIG["return_429_over"] = False
-
-
-def mock_session_set_exception(exception: Exception) -> None:
-    """Set the mock session to return an exception."""
-    MOCK_SESSION_CONFIG["exception"] = exception
-
-
-def mock_session_clear_exception() -> None:
-    """Clear the mock session returned exception."""
-    MOCK_SESSION_CONFIG["exception"] = None
-
-
-def mock_session_reset() -> None:
+def aioresponses_reset() -> None:
     """Reset the mock session."""
-    mock_session_config_reset()
+    session_reset_usage()
     if MOCK_SESSION_CONFIG["aioresponses"] is not None:
         MOCK_SESSION_CONFIG["aioresponses"].stop()
         MOCK_SESSION_CONFIG["aioresponses"] = None
@@ -202,7 +239,7 @@ async def async_init_integration(
 ) -> MockConfigEntry:
     """Set up the Solcast Solar integration in HomeAssistant."""
 
-    mock_session_config_reset()
+    session_reset_usage()
 
     hass.config.time_zone = ZONE_RAW
     const.SENSOR_UPDATE_LOGGING = True
@@ -218,7 +255,7 @@ async def async_init_integration(
     entry.add_to_hass(hass)
 
     if mock_api:
-        mock_session_reset()
+        aioresponses_reset()
         aioresp = None
         aioresp = aioresponses(passthrough=["http://127.0.0.1"])
 
@@ -257,7 +294,7 @@ async def async_cleanup_integration_tests(hass: HomeAssistant, **kwargs) -> None
         return [str(cache) for cache in Path(config_dir).glob("solcast*.json")]
 
     try:
-        mock_session_reset()
+        aioresponses_reset()
 
         caches = await hass.async_add_executor_job(list_files)
         for cache in caches:
