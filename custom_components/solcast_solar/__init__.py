@@ -110,16 +110,8 @@ def __setup_storage(hass: HomeAssistant):
         hass.data[DOMAIN] = {}
 
 
-async def __get_time_zone(hass: HomeAssistant):  # pragma: no cover, handle compatibility with earlier HA versions
-    # async_get_time_zone() mandated in HA core 2024.6.0
-    try:
-        dt_util.async_get_time_zone  # pylint: disable=W0104  # noqa: B018
-        asynctz = True
-    except:  # noqa: E722
-        asynctz = False
-    if asynctz:
-        return await dt_util.async_get_time_zone(hass.config.time_zone)
-    return dt_util.get_time_zone(hass.config.time_zone)
+async def __get_time_zone(hass: HomeAssistant):
+    return await dt_util.async_get_time_zone(hass.config.time_zone)
 
 
 async def __get_options(hass: HomeAssistant, entry: SolcastConfigEntry) -> ConnectionOptions:
@@ -211,17 +203,9 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator) -> bool:
     _LOGGER.debug("Checking for stale start")
     stale = False
     if coordinator.solcast.is_stale_data():
-        try:
-            _LOGGER.warning("The update automation has not been running, updating forecast")
-            await coordinator.service_event_update(completion="Completed task stale_update")
-            stale = True
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, catch unexpected exceptions
-            _LOGGER.error(
-                "Exception fetching data on stale start: %s: %s",
-                e,
-                traceback.format_exc(),
-            )
-            _LOGGER.warning("Continuing... ")
+        _LOGGER.warning("The update automation has not been running, updating forecast")
+        await coordinator.service_event_update(completion="Completed task stale_update")
+        stale = True
     else:
         _LOGGER.debug("Start is not stale")
     return stale
@@ -233,29 +217,20 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> b
     if coordinator.solcast.options.auto_update > 0:
         if coordinator.solcast.get_data()["auto_updated"]:
             _LOGGER.debug("Checking whether auto update forecast is stale")
-            try:
-                if (
-                    coordinator.interval_just_passed is not None
-                    and coordinator.solcast.get_data()["auto_updated"]
-                    and coordinator.solcast.get_data()["last_attempt"] < coordinator.interval_just_passed
-                ):
-                    _LOGGER.info(
-                        "Last auto update forecast recorded (%s) is older than expected, should be (%s), updating forecast",
-                        coordinator.solcast.get_data()["last_attempt"].astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
-                        coordinator.interval_just_passed.astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
-                    )
-                    await coordinator.service_event_update(ignore_auto_enabled=True, completion="Completed task update_missed")
-                    stale = True
-                else:  # pragma: no cover, time-of-day dependent
-                    _LOGGER.debug("Auto update forecast is fresh")
-            except TypeError:  # pragma: no cover, catch unexpected exceptions
-                _LOGGER.warning("Auto update freshness could not be determined")
-            except Exception as e:  # noqa: BLE001 # pragma: no cover, catch unexpected exceptions
-                _LOGGER.error(
-                    "Auto update freshness could not be determined: %s: %s",
-                    e,
-                    traceback.format_exc(),
+            if (
+                coordinator.interval_just_passed is not None
+                and coordinator.solcast.get_data()["auto_updated"]
+                and coordinator.solcast.get_data()["last_attempt"] < coordinator.interval_just_passed
+            ):
+                _LOGGER.info(
+                    "Last auto update forecast recorded (%s) is older than expected, should be (%s), updating forecast",
+                    coordinator.solcast.get_data()["last_attempt"].astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
+                    coordinator.interval_just_passed.astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
                 )
+                await coordinator.service_event_update(ignore_auto_enabled=True, completion="Completed task update_missed")
+                stale = True
+            else:
+                _LOGGER.debug("Auto update forecast is fresh")
     return stale
 
 
@@ -292,10 +267,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options, hass, entry)
 
     solcast.headers = __get_session_headers(version)
-    try:
-        await solcast.get_sites_and_usage()
-    except Exception as e:  # pragma: no cover, catch unexpected exceptions
-        raise ConfigEntryNotReady(f"Getting sites data failed: {e}") from e
+    await solcast.get_sites_and_usage()
     match solcast.sites_status:
         case SitesStatus.ERROR:
             raise ConfigEntryNotReady("Sites data could not be retrieved")
@@ -306,7 +278,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
         case SitesStatus.NO_SITES:
             raise ConfigEntryError("No sites found for API key")
         case SitesStatus.UNKNOWN:
-            raise ConfigEntryError("Exception loading sites data")  # pragma: no cover, handle unexpected exceptions
+            raise ConfigEntryError("Exception loading sites data")
         case SitesStatus.OK:
             pass
     match solcast.usage_status:
@@ -329,8 +301,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
 
     coordinator = SolcastUpdateCoordinator(hass, solcast, version)
     entry.runtime_data = SolcastData(coordinator=coordinator)
-    if not await coordinator.setup():
-        raise ConfigEntryNotReady("Internal error: Coordinator setup failed")  # pragma: no cover, handle unexpected exceptions
+    await coordinator.setup()
     await coordinator.async_config_entry_first_refresh()
 
     __log_init_message(entry, version, solcast)
@@ -396,10 +367,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
         except ValueError as e:
             raise ServiceValidationError(f"{e}") from e
 
-        if call.return_response:
-            return {"data": data}
-
-        return None  # pragma: no cover, handle unexpected exceptions
+        return {"data": data}
 
     async def action_call_set_dampening(call: ServiceCall):
         """Handle action.
@@ -412,66 +380,63 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
             ServiceValidationError: Notify Home Assistant that an error has occurred, with translation.
 
         """
+        _LOGGER.info("Action: Set dampening")
+
+        factors = call.data.get(DAMP_FACTOR, None)
+        site = call.data.get(SITE, None)  # Optional site.
+
+        factors = factors.strip().replace(" ", "")
+        factors = factors.split(",")
+        if factors[0] == "":
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_no_factors")
+        if len(factors) not in (24, 48):
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_count_not_correct")
+        if site is not None:
+            site = site.lower()
+            if site == "all":
+                if (len(factors)) != 48:
+                    raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_no_all_24")
+            elif site not in [s["resource_id"] for s in solcast.sites]:
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_not_site")
+        elif len(factors) == 48:
+            site = "all"
+        out_of_range = False
         try:
-            _LOGGER.info("Action: Set dampening")
+            for factor in factors:
+                if float(factor) < 0 or float(factor) > 1:
+                    out_of_range = True
+        except:  # noqa: E722
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_error_parsing") from None
+        if out_of_range:
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_outside_range")
 
-            factors = call.data.get(DAMP_FACTOR, None)
-            site = call.data.get(SITE, None)  # Optional site.
+        opt = {**entry.options}
 
-            factors = factors.strip().replace(" ", "")
-            factors = factors.split(",")
-            if factors[0] == "":
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_no_factors")
-            if len(factors) not in (24, 48):
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_count_not_correct")
-            if site is not None:
-                site = site.lower()
-                if site == "all":
-                    if (len(factors)) != 48:
-                        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_no_all_24")
-                elif site not in [s["resource_id"] for s in solcast.sites]:
-                    raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_not_site")
-            elif len(factors) == 48:
-                site = "all"
-            out_of_range = False
-            try:
-                for factor in factors:
-                    if float(factor) < 0 or float(factor) > 1:
-                        out_of_range = True
-            except:  # noqa: E722
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_error_parsing") from None
-            if out_of_range:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_outside_range")
+        if site is None:
+            damp_factors = {}
+            for i in range(24):
+                factor = float(factors[i])
+                damp_factors.update({f"{i}": factor})
+                opt[f"damp{i:02}"] = factor
+            solcast.damp = damp_factors
+            if solcast.granular_dampening:
+                _LOGGER.debug("Clear granular dampening")
+                opt[SITE_DAMP] = False  # Clear "hidden" option.
+                solcast.set_allow_granular_dampening_reset(True)
+        else:
+            await solcast.refresh_granular_dampening_data()  # Ensure latest file content gets updated
+            solcast.granular_dampening[site] = [float(factors[i]) for i in range(len(factors))]
+            await solcast.serialise_granular_dampening()
+            old_damp = opt.get(SITE_DAMP, False)
+            opt[SITE_DAMP] = True  # Set "hidden" option.
+            if opt[SITE_DAMP] == old_damp:
+                await solcast.reapply_forward_dampening()
+                await coordinator.solcast.build_forecast_data()
+                coordinator.set_data_updated(True)
+                await coordinator.update_integration_listeners()
+                coordinator.set_data_updated(False)
 
-            opt = {**entry.options}
-
-            if site is None:
-                damp_factors = {}
-                for i in range(24):
-                    factor = float(factors[i])
-                    damp_factors.update({f"{i}": factor})
-                    opt[f"damp{i:02}"] = factor
-                solcast.damp = damp_factors
-                if solcast.granular_dampening:
-                    _LOGGER.debug("Clear granular dampening")
-                    opt[SITE_DAMP] = False  # Clear "hidden" option.
-                    solcast.set_allow_granular_dampening_reset(True)
-            else:
-                await solcast.refresh_granular_dampening_data()  # Ensure latest file content gets updated
-                solcast.granular_dampening[site] = [float(factors[i]) for i in range(len(factors))]
-                await solcast.serialise_granular_dampening()
-                old_damp = opt.get(SITE_DAMP, False)
-                opt[SITE_DAMP] = True  # Set "hidden" option.
-                if opt[SITE_DAMP] == old_damp:
-                    await solcast.reapply_forward_dampening()
-                    await coordinator.solcast.build_forecast_data()
-                    coordinator.set_data_updated(True)
-                    await coordinator.update_integration_listeners()
-                    coordinator.set_data_updated(False)
-
-            hass.config_entries.async_update_entry(entry, options=opt)
-        except intent.IntentHandleError as e:  # pragma: no cover, catch unexpected exceptions
-            raise HomeAssistantError(f"Error processing {SERVICE_SET_DAMPENING}: {e}") from e
+        hass.config_entries.async_update_entry(entry, options=opt)
 
     async def action_call_get_dampening(call: ServiceCall):
         """Handle action.
@@ -483,18 +448,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
             HomeAssistantError: Notify Home Assistant that an error has occurred.
 
         """
-        try:
-            _LOGGER.info("Action: Get dampening")
+        _LOGGER.info("Action: Get dampening")
 
-            data = await solcast.get_dampening(call.data.get(SITE, None))  # Optional site.
-
-            if call.return_response:
-                return {"data": data}
-
-        except intent.IntentHandleError as e:  # pragma: no cover, handle unexpected exception
-            raise HomeAssistantError(f"Error processing {SERVICE_GET_DAMPENING}: {e}") from e
-
-        return None  # pragma: no cover, handle unexpected exceptions
+        data = await solcast.get_dampening(call.data.get(SITE, None))  # Optional site.
+        return {"data": data}
 
     async def action_call_set_hard_limit(call: ServiceCall):
         """Handle action.
@@ -507,29 +464,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
             ServiceValidationError: Notify Home Assistant that an error has occurred, with translation.
 
         """
-        try:
-            _LOGGER.info("Action: Set hard limit")
+        _LOGGER.info("Action: Set hard limit")
 
-            hard_limit = call.data.get(HARD_LIMIT, "100.0")
-            to_set = []
-            for limit in hard_limit.split(","):
-                limit = limit.strip()
-                if not limit.replace(".", "", 1).isdigit():
-                    raise ServiceValidationError(
-                        translation_domain=DOMAIN,
-                        translation_key="hard_not_positive_number",
-                    )
-                to_set.append(f"{float(limit):.1f}")
-            if len(to_set) > len(entry.options["api_key"].split(",")):
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_too_many")
+        hard_limit = call.data.get(HARD_LIMIT, "100.0")
+        to_set = []
+        for limit in hard_limit.split(","):
+            limit = limit.strip()
+            if not limit.replace(".", "", 1).isdigit():
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN,
+                    translation_key="hard_not_positive_number",
+                )
+            to_set.append(f"{float(limit):.1f}")
+        if len(to_set) > len(entry.options["api_key"].split(",")):
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_too_many")
 
-            opt = {**entry.options}
-            opt[HARD_LIMIT_API] = ",".join(to_set)
-            hass.config_entries.async_update_entry(entry, options=opt)
-        except ValueError as e:  # pragma: no cover, handle unexpected exceptions
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="hard_not_positive_number") from e
-        except intent.IntentHandleError as e:  # pragma: no cover, handle unexpected exceptions
-            raise HomeAssistantError(f"Error processing {SERVICE_SET_HARD_LIMIT}: {e}") from e
+        opt = {**entry.options}
+        opt[HARD_LIMIT_API] = ",".join(to_set)
+        hass.config_entries.async_update_entry(entry, options=opt)
 
     async def action_call_remove_hard_limit(call: ServiceCall):
         """Handle action.
@@ -541,15 +493,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
             HomeAssistantError: Notify Home Assistant that an error has occurred.
 
         """
-        try:
-            _LOGGER.info("Action: Remove hard limit")
+        _LOGGER.info("Action: Remove hard limit")
 
-            opt = {**entry.options}
-            opt[HARD_LIMIT_API] = "100.0"
-            hass.config_entries.async_update_entry(entry, options=opt)
-
-        except intent.IntentHandleError as e:  # pragma: no cover, handle unexpected exceptions
-            raise HomeAssistantError(f"Error processing {SERVICE_REMOVE_HARD_LIMIT}: {e}") from e
+        opt = {**entry.options}
+        opt[HARD_LIMIT_API] = "100.0"
+        hass.config_entries.async_update_entry(entry, options=opt)
 
     service_actions = {
         SERVICE_CLEAR_DATA: {"action": action_call_clear_solcast_data},
@@ -608,15 +556,14 @@ async def async_unload_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> 
 
         if hass.data[DOMAIN].get("presumed_dead"):
             hass.data[DOMAIN].pop("presumed_dead")
-    else:
-        _LOGGER.error("Unload failed")  # pragma: no cover, never called in tests
-
     return unload_ok
 
 
 async def async_remove_config_entry_device(
-    hass: HomeAssistant, entry: SolcastConfigEntry, device: dr.DeviceEntry
-) -> bool:  # pragma: no cover, never called in tests
+    hass: HomeAssistant,
+    entry: SolcastConfigEntry,
+    device: dr.DeviceEntry,
+) -> bool:  # pragma: no cover, not covered in tests, covered by wsgi simulator
     """Remove a device.
 
     Arguments:
@@ -659,83 +606,69 @@ async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry):
     """
     coordinator = entry.runtime_data.coordinator
 
-    try:
-        reload = False
-        recalculate_and_refresh = False
-        recalculate_splines = False
+    reload = False
+    recalculate_and_refresh = False
+    recalculate_splines = False
 
-        def changed(config):
-            return hass.data[DOMAIN]["entry_options"].get(config) != entry.options.get(config)
+    def changed(config):
+        return hass.data[DOMAIN]["entry_options"].get(config) != entry.options.get(config)
 
-        # Config changes, which when changed will cause a reload.
-        if changed(CONF_API_KEY):
-            hass.data[DOMAIN]["old_api_key"] = hass.data[DOMAIN]["entry_options"].get(CONF_API_KEY)
-        reload = (
-            changed(CONF_API_KEY) or changed(API_QUOTA) or changed(AUTO_UPDATE) or changed(HARD_LIMIT_API) or changed(CUSTOM_HOUR_SENSOR)
-        )
+    # Config changes, which when changed will cause a reload.
+    if changed(CONF_API_KEY):
+        hass.data[DOMAIN]["old_api_key"] = hass.data[DOMAIN]["entry_options"].get(CONF_API_KEY)
+    reload = changed(CONF_API_KEY) or changed(API_QUOTA) or changed(AUTO_UPDATE) or changed(HARD_LIMIT_API) or changed(CUSTOM_HOUR_SENSOR)
 
-        # Config changes, which when changed will cause a forecast recalculation only, without reload.
-        # Dampening must be the first check with the code as-is...
-        if not reload:
-            damp_changed = False
-            damp_factors = {}
-            for i in range(24):
-                damp_factors.update({f"{i}": entry.options[f"damp{i:02}"]})
-                if changed(f"damp{i:02}"):
-                    recalculate_and_refresh = True
-                    damp_changed = True
-            if recalculate_and_refresh:
-                coordinator.solcast.damp = damp_factors
-
-            # Attribute changes, which will need a recalculation of splines
-            if not recalculate_and_refresh:
-                recalculate_splines = (
-                    changed(BRK_ESTIMATE)
-                    or changed(BRK_ESTIMATE10)
-                    or changed(BRK_ESTIMATE90)
-                    or changed(BRK_SITE)
-                    or changed(KEY_ESTIMATE)
-                )
-
-            if changed(SITE_DAMP):
-                damp_changed = True
-                if not entry.options[SITE_DAMP]:
-                    if coordinator.solcast.allow_granular_dampening_reset():
-                        coordinator.solcast.granular_dampening = {}
-                        await coordinator.solcast.serialise_granular_dampening()
-                        _LOGGER.debug("Granular dampening file reset")
-                    else:  # pragma: no cover, replicating is difficult under test conditions and it's only a debug message
-                        _LOGGER.debug("Granular dampening file not reset")
-            if damp_changed:
+    # Config changes, which when changed will cause a forecast recalculation only, without reload.
+    # Dampening must be the first check with the code as-is...
+    if not reload:
+        damp_changed = False
+        damp_factors = {}
+        for i in range(24):
+            damp_factors.update({f"{i}": entry.options[f"damp{i:02}"]})
+            if changed(f"damp{i:02}"):
                 recalculate_and_refresh = True
-                await coordinator.solcast.reapply_forward_dampening()
+                damp_changed = True
+        if recalculate_and_refresh:
+            coordinator.solcast.damp = damp_factors
 
-        if reload:
-            determination = "The integration will reload"
-        elif recalculate_and_refresh:
-            determination = "Recalculate forecasts and refresh sensors"
-        else:
-            determination = "Refresh sensors only" + (", with spline recalculate" if recalculate_splines else "")
-        _LOGGER.debug("Options updated, action: %s", determination)
-        if not reload:
-            await coordinator.solcast.set_options(entry.options)
-            if recalculate_and_refresh:
-                await coordinator.solcast.build_forecast_data()
-            elif recalculate_splines:
-                await coordinator.solcast.recalculate_splines()
-            coordinator.set_data_updated(True)
-            await coordinator.update_integration_listeners()
-            coordinator.set_data_updated(False)
+        # Attribute changes, which will need a recalculation of splines
+        if not recalculate_and_refresh:
+            recalculate_splines = (
+                changed(BRK_ESTIMATE) or changed(BRK_ESTIMATE10) or changed(BRK_ESTIMATE90) or changed(BRK_SITE) or changed(KEY_ESTIMATE)
+            )
 
-            hass.data[DOMAIN]["entry_options"] = entry.options
-            coordinator.solcast.entry_options = entry.options
-        else:
-            # Reload
-            await tasks_cancel(hass, entry)
-            await hass.config_entries.async_reload(entry.entry_id)
-    except:  # noqa: E722 # pragma: no cover, catch unexpected exceptions
-        _LOGGER.debug(traceback.format_exc())
-        # Restart on exception
+        if changed(SITE_DAMP):
+            damp_changed = True
+            if not entry.options[SITE_DAMP]:
+                if coordinator.solcast.allow_granular_dampening_reset():
+                    coordinator.solcast.granular_dampening = {}
+                    await coordinator.solcast.serialise_granular_dampening()
+                    _LOGGER.debug("Granular dampening file reset")
+        if damp_changed:
+            recalculate_and_refresh = True
+            await coordinator.solcast.reapply_forward_dampening()
+
+    if reload:
+        determination = "The integration will reload"
+    elif recalculate_and_refresh:
+        determination = "Recalculate forecasts and refresh sensors"
+    else:
+        determination = "Refresh sensors only" + (", with spline recalculate" if recalculate_splines else "")
+    _LOGGER.debug("Options updated, action: %s", determination)
+    if not reload:
+        await coordinator.solcast.set_options(entry.options)
+        if recalculate_and_refresh:
+            await coordinator.solcast.build_forecast_data()
+        elif recalculate_splines:
+            await coordinator.solcast.recalculate_splines()
+        coordinator.set_data_updated(True)
+        await coordinator.update_integration_listeners()
+        coordinator.set_data_updated(False)
+
+        hass.data[DOMAIN]["entry_options"] = entry.options
+        coordinator.solcast.entry_options = entry.options
+    else:
+        # Reload
         await tasks_cancel(hass, entry)
         await hass.config_entries.async_reload(entry.entry_id)
 

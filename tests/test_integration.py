@@ -488,21 +488,6 @@ async def test_integration(
         await hass.async_block_till_done()
         session_clear(MOCK_BUSY)
 
-        """
-        if options == DEFAULT_INPUT2:
-            caplog.clear()
-            # Test API too busy encountered for non-first site
-            session_set(MOCK_BUSY_SITE, site="2222-2222-2222-2222")
-            solcast.options.auto_update = 0
-            await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
-            assert "seconds before retry" in caplog.text
-            assert "API use count may be odd" in caplog.text
-            assert "ERROR" not in caplog.text
-            await hass.async_block_till_done()
-            session_clear(MOCK_BUSY_SITE)
-            # assert False
-        """
-
         # Simulate exceed API limit and beyond
         caplog.clear()
         session_set(MOCK_OVER_LIMIT)
@@ -555,7 +540,6 @@ async def test_integration(
         granular_dampening_file.write_text("really dodgy", encoding="utf-8")
         set_file_last_modified(str(granular_dampening_file), dt.now(datetime.UTC) - timedelta(minutes=5))
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
-        # TODO: Something weird with timing is happening here...
         assert "JSONDecodeError, dampening ignored" in caplog.text
         caplog.clear()
 

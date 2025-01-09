@@ -115,7 +115,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         )
         for timer in sorted(self.tasks):
             _LOGGER.debug("Running task %s", timer)
-        return True
 
     async def update_integration_listeners(self, *args):
         """Get updated sensor values."""
@@ -134,8 +133,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 self.__auto_update_setup()
 
             await self.async_update_listeners()
-        except:  # noqa: E722
-            # _LOGGER.error("Exception in update_integration_listeners(): %s", traceback.format_exc())
+        except:  # noqa: E722, handle unexpected exceptions
             pass
         if SENSOR_UPDATE_LOGGING:  # pragma: no cover, debugging only
             _LOGGER.debug("Update listeners took %.3f seconds", time.time() - start_time)
@@ -210,21 +208,15 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     async def __update_utc_midnight_usage_sensor_data(self, *args):  # pragma: no cover, testing only possible when running
         """Reset tracked API usage at midnight UTC."""
-        try:
-            await self.solcast.reset_api_usage()
-            self._data_updated = True
-            await self.update_integration_listeners()
-            self._data_updated = False
-        except:  # noqa: E722
-            _LOGGER.error("Exception in __update_utc_midnight_usage_sensor_data(): %s", traceback.format_exc())
+        await self.solcast.reset_api_usage()
+        self._data_updated = True
+        await self.update_integration_listeners()
+        self._data_updated = False
 
     async def __update_midnight_spline_recalculate(self):  # pragma: no cover, testing only possible when running
         """Re-calculates splines at midnight local time."""
-        try:
-            await self.solcast.check_data_records()
-            await self.solcast.recalculate_splines()
-        except:  # noqa: E722
-            _LOGGER.error("Exception in __update_midnight_spline_recalculate(): %s", traceback.format_exc())
+        await self.solcast.check_data_records()
+        await self.solcast.recalculate_splines()
 
     def __auto_update_setup(self, init: bool = False):
         """Set up of auto-updates."""
@@ -265,72 +257,67 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         This is an even spread between sunrise and sunset.
         """
-        try:
-            divisions = int(self.solcast.get_api_limit() / min(len(self.solcast.sites), 2))
+        divisions = int(self.solcast.get_api_limit() / min(len(self.solcast.sites), 2))
 
-            def get_intervals(sunrise: dt, sunset: dt, log=True):
-                intervals_yesterday = []
-                if sunrise == self._sunrise:
-                    seconds = int((self._sunset_yesterday - self._sunrise_yesterday).total_seconds())
-                    intervals_yesterday = [
-                        (self._sunrise_yesterday + timedelta(seconds=int(seconds / divisions * i))).replace(microsecond=0)
-                        for i in range(divisions)
-                    ]
-                seconds = (sunset - sunrise).total_seconds()
-                interval = seconds / divisions
-                intervals = intervals_yesterday + [
-                    (sunrise + timedelta(seconds=interval * i)).replace(microsecond=0) for i in range(divisions)
+        def get_intervals(sunrise: dt, sunset: dt, log=True):
+            intervals_yesterday = []
+            if sunrise == self._sunrise:
+                seconds = int((self._sunset_yesterday - self._sunrise_yesterday).total_seconds())
+                intervals_yesterday = [
+                    (self._sunrise_yesterday + timedelta(seconds=int(seconds / divisions * i))).replace(microsecond=0)
+                    for i in range(divisions)
                 ]
-                _now = self.solcast.get_real_now_utc()
-                for i in intervals:
-                    if i < _now:
-                        self.interval_just_passed = i
-                    else:
-                        break
-                intervals = [i for i in intervals if i > _now]
-                if log:
-                    _LOGGER.debug("Auto update total seconds: %d, divisions: %d, interval: %d seconds", seconds, divisions, interval)
-                    if init:
-                        _LOGGER.debug(
-                            "Auto update forecasts %s",
-                            "over 24 hours" if self.solcast.options.auto_update > 1 else "between sunrise and sunset",
-                        )
-                if sunrise == self._sunrise:
-                    if self.interval_just_passed in intervals_yesterday:
-                        just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(
-                            DATE_FORMAT
-                        )  # pragma: no cover, testing only possible when running
-                    else:
-                        just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
-                    _LOGGER.debug("Previous auto update would have been at %s", just_passed)
-                return intervals
+            seconds = (sunset - sunrise).total_seconds()
+            interval = seconds / divisions
+            intervals = intervals_yesterday + [(sunrise + timedelta(seconds=interval * i)).replace(microsecond=0) for i in range(divisions)]
+            _now = self.solcast.get_real_now_utc()
+            for i in intervals:
+                if i < _now:
+                    self.interval_just_passed = i
+                else:
+                    break
+            intervals = [i for i in intervals if i > _now]
+            if log:
+                _LOGGER.debug("Auto update total seconds: %d, divisions: %d, interval: %d seconds", seconds, divisions, interval)
+                if init:
+                    _LOGGER.debug(
+                        "Auto update forecasts %s",
+                        "over 24 hours" if self.solcast.options.auto_update > 1 else "between sunrise and sunset",
+                    )
+            if sunrise == self._sunrise:
+                if self.interval_just_passed in intervals_yesterday:
+                    just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(
+                        DATE_FORMAT
+                    )  # pragma: no cover, testing only reliable when running
+                else:
+                    just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
+                _LOGGER.debug("Previous auto update would have been at %s", just_passed)
+            return intervals
 
-            def format_intervals(intervals):
-                return [
-                    i.astimezone(self.solcast.options.tz).strftime("%H:%M")
-                    if len(intervals) > 10
-                    else i.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
-                    for i in intervals
-                ]
+        def format_intervals(intervals):
+            return [
+                i.astimezone(self.solcast.options.tz).strftime("%H:%M")
+                if len(intervals) > 10
+                else i.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
+                for i in intervals
+            ]
 
-            intervals_today = get_intervals(self._sunrise, self._sunset)
-            intervals_tomorrow = get_intervals(self._sunrise_tomorrow, self._sunset_tomorrow, log=False)
-            self._intervals = intervals_today + intervals_tomorrow
+        intervals_today = get_intervals(self._sunrise, self._sunset)
+        intervals_tomorrow = get_intervals(self._sunrise_tomorrow, self._sunset_tomorrow, log=False)
+        self._intervals = intervals_today + intervals_tomorrow
 
-            if len(intervals_today) > 0:  # pragma: no cover, testing only reliable when running
-                _LOGGER.info(
-                    "Auto forecast update%s for today at %s",
-                    "s" if len(intervals_today) > 1 else "",
-                    ", ".join(format_intervals(intervals_today)),
-                )
-            if len(intervals_today) < divisions:  # Only log tomorrow if part-way though today, or today has no more updates
-                _LOGGER.info(
-                    "Auto forecast update%s for tomorrow at %s",
-                    "s" if len(intervals_tomorrow) > 1 else "",
-                    ", ".join(format_intervals(intervals_tomorrow)),
-                )
-        except:  # noqa: E722 # pragma: no cover, catch unexpected exceptions
-            _LOGGER.error("Exception in __calculate_forecast_updates(): %s", traceback.format_exc())
+        if len(intervals_today) > 0:  # pragma: no cover, testing only reliable when running
+            _LOGGER.info(
+                "Auto forecast update%s for today at %s",
+                "s" if len(intervals_today) > 1 else "",
+                ", ".join(format_intervals(intervals_today)),
+            )
+        if len(intervals_today) < divisions:  # Only log tomorrow if part-way though today, or today has no more updates
+            _LOGGER.info(
+                "Auto forecast update%s for tomorrow at %s",
+                "s" if len(intervals_tomorrow) > 1 else "",
+                ", ".join(format_intervals(intervals_tomorrow)),
+            )
 
     async def __forecast_update(self, force: bool = False, completion: str = ""):
         """Get updated forecast data."""
