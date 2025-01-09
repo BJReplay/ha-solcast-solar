@@ -126,7 +126,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
             current_day = dt.now(self.solcast.options.tz).day
             self._date_changed = current_day != self._last_day
-            if self._date_changed:  # pragma: no cover, testing only possible when running
+            if self._date_changed:
                 _LOGGER.debug("Date has changed, recalculate splines and set up auto-updates")
                 self._last_day = current_day
                 await self.__update_midnight_spline_recalculate()
@@ -158,7 +158,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 next_update.strftime(TIME_FORMAT) if next_update.date() == dt.now().date() else next_update.strftime(DATE_FORMAT)
             )
 
-    async def __check_forecast_fetch(self, *args):  # pragma: no cover, testing only possible when running
+    async def __check_forecast_fetch(self, *args):  # pragma: no cover, only possible when running so tested with wsgi simulator
         """Check for an auto forecast update event."""
         try:
             if self.solcast.options.auto_update:
@@ -206,14 +206,16 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         except:  # noqa: E722
             _LOGGER.error("Exception in __check_forecast_fetch(): %s", traceback.format_exc())
 
-    async def __update_utc_midnight_usage_sensor_data(self, *args):  # pragma: no cover, testing only possible when running
+    async def __update_utc_midnight_usage_sensor_data(
+        self, *args
+    ):  # pragma: no cover, only possible when running so tested with wsgi simulator
         """Reset tracked API usage at midnight UTC."""
         await self.solcast.reset_api_usage()
         self._data_updated = True
         await self.update_integration_listeners()
         self._data_updated = False
 
-    async def __update_midnight_spline_recalculate(self):  # pragma: no cover, testing only possible when running
+    async def __update_midnight_spline_recalculate(self):
         """Re-calculates splines at midnight local time."""
         await self.solcast.check_data_records()
         await self.solcast.recalculate_splines()
@@ -288,7 +290,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 if self.interval_just_passed in intervals_yesterday:
                     just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(
                         DATE_FORMAT
-                    )  # pragma: no cover, testing only reliable when running
+                    )  # pragma: no cover, only possible when running so tested with wsgi simulator
                 else:
                     just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
                 _LOGGER.debug("Previous auto update would have been at %s", just_passed)
@@ -306,7 +308,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         intervals_tomorrow = get_intervals(self._sunrise_tomorrow, self._sunset_tomorrow, log=False)
         self._intervals = intervals_today + intervals_tomorrow
 
-        if len(intervals_today) > 0:  # pragma: no cover, testing only reliable when running
+        if len(intervals_today) > 0:  # pragma: no cover, only reliable when running so tested with wsgi simulator
             _LOGGER.info(
                 "Auto forecast update%s for today at %s",
                 "s" if len(intervals_today) > 1 else "",

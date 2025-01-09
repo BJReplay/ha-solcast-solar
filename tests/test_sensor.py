@@ -2,7 +2,7 @@
 
 import contextlib
 import copy
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 import logging
 
 from freezegun.api import FrozenDateTimeFactory
@@ -369,6 +369,7 @@ async def test_sensor_states(
 
     entry = await async_init_integration(hass, settings)
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+    solcast = coordinator.solcast
 
     try:
         assert len(hass.states.async_all("sensor")) == len(SENSORS) + (3 if key == "1" else 4)
@@ -403,6 +404,8 @@ async def test_sensor_states(
         coordinator._data_updated = False
         await coordinator.update_integration_listeners()
         coordinator._data_updated = True
+        await coordinator.update_integration_listeners()
+        coordinator._last_day = (dt.now(solcast.options.tz) - timedelta(days=1)).day
         await coordinator.update_integration_listeners()
 
         assert coordinator.get_sensor_value("badkey") is None
@@ -509,7 +512,7 @@ async def test_sensor_unavailable(
         coordinator._data_updated = True
         coordinator.async_update_listeners()
 
-        state = hass.states.get(f"sensor.solcast_pv_forecast_forecast_today")
+        state = hass.states.get("sensor.solcast_pv_forecast_forecast_today")
         assert state
         assert state.attributes["dataCorrect"] is False
 
