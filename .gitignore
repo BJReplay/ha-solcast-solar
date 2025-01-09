@@ -5,5 +5,3 @@
 .pytest_cache
 Thumbs.db
 __pycache__
-cert.pem
-key.pem

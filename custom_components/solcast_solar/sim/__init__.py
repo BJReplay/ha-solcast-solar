@@ -1,1 +1,0 @@
-"""Solcast Solar Simulator."""

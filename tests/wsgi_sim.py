@@ -1,10 +1,11 @@
+#!/usr/bin/env python3
 """Solcast hobbyist API simulator.
 
 Install:
 
 * This script runs in a Home Assistant DevContainer
 * Modify /etc/hosts (need sudo): 127.0.0.1 localhost api.solcast.com.au
-* Script start: python3 -m wsgi
+* Script start: python3 -m wsgi_sim.py
 
 Optional run arguments:
 
@@ -52,7 +53,7 @@ import sys
 import traceback
 from zoneinfo import ZoneInfo
 
-from simulate import (
+from simulator import (
     API_KEY_SITES,
     TIMEZONE,
     get_period,
