@@ -2,6 +2,7 @@
 
 import logging
 
+from datetime import datetime as dt
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
@@ -63,10 +64,13 @@ async def test_select_change_value(
             blocking=True,
         )
 
+        coordinator._data_updated = True
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+
         assert hass.states.get(select_entity_id).state == resulting_state
         assert coordinator.solcast.options.key_estimate == resulting_state
-        state = hass.states.get(f"sensor.solcast_pv_forecast_{test_entity}")
-        assert state.state == expected_value
+        assert hass.states.get(f"sensor.solcast_pv_forecast_{test_entity}").state == expected_value
 
     finally:
         assert await async_cleanup_integration_tests(hass)

@@ -6,8 +6,6 @@ import asyncio
 import contextlib
 from datetime import datetime as dt, timedelta
 import logging
-import time
-import traceback
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -16,8 +14,8 @@ from homeassistant.helpers.event import async_track_utc_time_change
 from homeassistant.helpers.sun import get_astral_event_next
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DATE_FORMAT, DOMAIN, SENSOR_UPDATE_LOGGING, TIME_FORMAT
-from .solcastapi import SENSOR_DEBUG_LOGGING, SolcastApi
+from .const import DATE_FORMAT, DOMAIN, TIME_FORMAT
+from .solcastapi import SolcastApi
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,6 +61,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._sunset: dt = None
         self._sunset_tomorrow: dt = None
         self._sunset_yesterday: dt = None
+        self._update_sequence: list = []
 
         # First list item is the sensor value method, additional items are only used for sensor attributes.
         self.__get_value = {
@@ -118,25 +117,15 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     async def update_integration_listeners(self, *args):
         """Get updated sensor values."""
-        if SENSOR_UPDATE_LOGGING:  # pragma: no cover, debugging only
-            start_time = time.time()
-        try:
-            if SENSOR_DEBUG_LOGGING:  # pragma: no cover, debugging only
-                _LOGGER.debug("Update listeners")
+        current_day = dt.now(self.solcast.options.tz).day
+        self._date_changed = current_day != self._last_day
+        if self._date_changed:
+            _LOGGER.debug("Date has changed, recalculate splines and set up auto-updates")
+            self._last_day = current_day
+            await self.__update_midnight_spline_recalculate()
+            self.__auto_update_setup()
 
-            current_day = dt.now(self.solcast.options.tz).day
-            self._date_changed = current_day != self._last_day
-            if self._date_changed:
-                _LOGGER.debug("Date has changed, recalculate splines and set up auto-updates")
-                self._last_day = current_day
-                await self.__update_midnight_spline_recalculate()
-                self.__auto_update_setup()
-
-            await self.async_update_listeners()
-        except:  # noqa: E722, handle unexpected exceptions
-            pass
-        if SENSOR_UPDATE_LOGGING:  # pragma: no cover, debugging only
-            _LOGGER.debug("Update listeners took %.3f seconds", time.time() - start_time)
+            self.async_update_listeners()
 
     async def __restart_time_track_midnight_update(self):
         """Cancel and restart UTC time change tracker."""
@@ -158,57 +147,45 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 next_update.strftime(TIME_FORMAT) if next_update.date() == dt.now().date() else next_update.strftime(DATE_FORMAT)
             )
 
-    async def __check_forecast_fetch(self, *args):  # pragma: no cover, only possible when running so tested with wsgi simulator
+    async def __fetch(self, *args):
+        task_name = f"pending_update_{self._update_sequence.pop(0):03}"
+        _LOGGER.info("Auto update forecast")
+        self._intervals.pop(0)
+        self.set_next_update()
+        await self.__forecast_update(completion=f"Completed task {task_name}")
+        self.tasks.pop(task_name)
+
+    async def __check_forecast_fetch(self, *args):
         """Check for an auto forecast update event."""
-        try:
-            if self.solcast.options.auto_update:
+        if self.solcast.options.auto_update:
+            if len(self._intervals) > 0:
+                _now = self.solcast.get_real_now_utc().replace(microsecond=0)
+                _from = _now.replace(minute=int(_now.minute / 5) * 5, second=0)
 
-                async def wait_for_fetch(update_in: int):
-                    try:
-                        task_name = f"pending_update_{update_in:03}"
-                        await asyncio.sleep(update_in)
-                        _LOGGER.info("Auto update forecast")
-                        self._intervals = self._intervals[1:]
-                        self.set_next_update()
-                        await self.__forecast_update(completion=f"Completed task {task_name}")
-                    except asyncio.CancelledError:
-                        _LOGGER.info("Auto update scheduled update cancelled")
-                    finally:
-                        with contextlib.suppress(Exception):
-                            self.tasks.pop(task_name)
-
-                if len(self._intervals) > 0:
-                    _now = self.solcast.get_real_now_utc().replace(microsecond=0)
-                    _from = _now.replace(minute=int(_now.minute / 5) * 5, second=0)
-
-                    pop_expired = []
-                    for index, interval in enumerate(self._intervals):
-                        if _from <= interval <= _from + timedelta(seconds=299):
-                            update_in = int((interval - _now).total_seconds())
+                pop_expired = []
+                for index, interval in enumerate(self._intervals):
+                    if _from <= interval < _from + timedelta(minutes=5):
+                        update_in = int((interval - _now).total_seconds())
+                        if update_in >= 0:
                             task_name = f"pending_update_{update_in:03}"
-                            if update_in >= 0:
-                                if self.tasks.get(task_name) is not None:
-                                    # The interval update is already tasked
-                                    _LOGGER.debug("Task %s already exists, ignoring", task_name)
-                                    continue
-                                _LOGGER.debug("Create task %s", task_name)
-                                self.tasks[task_name] = asyncio.create_task(wait_for_fetch(update_in)).cancel
-                            else:
-                                _LOGGER.debug("Not tasking %s", task_name)
-                        if interval < _from:
-                            pop_expired.append(index)
-                    # Remove expired intervals if any have been missed
-                    if len(pop_expired) > 0:
-                        _LOGGER.debug("Removing expired auto update intervals")
-                        self._intervals = [interval for i, interval in enumerate(self._intervals) if i not in pop_expired]
-                        self.set_next_update()
+                            _LOGGER.debug("Create task %s", task_name)
+                            self._update_sequence.append(update_in)
+                            self.tasks[task_name] = async_track_utc_time_change(
+                                self.hass,
+                                self.__fetch,
+                                hour=interval.hour,
+                                minute=interval.minute,
+                                second=interval.second,
+                            )
+                    if interval < _from:
+                        pop_expired.append(index)
+                # Remove expired intervals if any have been missed
+                if len(pop_expired) > 0:
+                    _LOGGER.debug("Removing expired auto update intervals")
+                    self._intervals = [interval for i, interval in enumerate(self._intervals) if i not in pop_expired]
+                    self.set_next_update()
 
-        except:  # noqa: E722
-            _LOGGER.error("Exception in __check_forecast_fetch(): %s", traceback.format_exc())
-
-    async def __update_utc_midnight_usage_sensor_data(
-        self, *args
-    ):  # pragma: no cover, only possible when running so tested with wsgi simulator
+    async def __update_utc_midnight_usage_sensor_data(self, *args):
         """Reset tracked API usage at midnight UTC."""
         await self.solcast.reset_api_usage()
         self._data_updated = True
@@ -288,9 +265,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     )
             if sunrise == self._sunrise:
                 if self.interval_just_passed in intervals_yesterday:
-                    just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(
-                        DATE_FORMAT
-                    )  # pragma: no cover, only possible when running so tested with wsgi simulator
+                    just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT)
                 else:
                     just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
                 _LOGGER.debug("Previous auto update would have been at %s", just_passed)
@@ -308,13 +283,13 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         intervals_tomorrow = get_intervals(self._sunrise_tomorrow, self._sunset_tomorrow, log=False)
         self._intervals = intervals_today + intervals_tomorrow
 
-        if len(intervals_today) > 0:  # pragma: no cover, only reliable when running so tested with wsgi simulator
+        if len(intervals_today) > 0:
             _LOGGER.info(
                 "Auto forecast update%s for today at %s",
                 "s" if len(intervals_today) > 1 else "",
                 ", ".join(format_intervals(intervals_today)),
             )
-        if len(intervals_today) < divisions:  # Only log tomorrow if part-way though today, or today has no more updates
+        if len(intervals_today) < divisions:
             _LOGGER.info(
                 "Auto forecast update%s for tomorrow at %s",
                 "s" if len(intervals_tomorrow) > 1 else "",
