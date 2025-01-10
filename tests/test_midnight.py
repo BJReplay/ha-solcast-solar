@@ -46,6 +46,8 @@ async def test_midnight(
 
         coordinator._intervals = [dt.fromisoformat(f"{dt.now().date()}T00:59:30+00:00"), *coordinator._intervals]  # Inject expired interval
         caplog.clear()
+        coordinator._data_updated = False  # Improve test coverage
+        await coordinator.async_refresh()
         for _ in range(30):
             freezer.tick()
             coordinator._data_updated = True
@@ -60,7 +62,6 @@ async def test_midnight(
 
         # Test auto-update occurs just after midnight UTC.
         caplog.clear()
-        _LOGGER.critical("NEXT TEST")
         for _ in range(1000):
             freezer.tick(0.01)
             await hass.async_block_till_done()

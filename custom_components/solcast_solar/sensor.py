@@ -599,9 +599,14 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         """Handle updated data from the coordinator."""
         if not (self._coordinator.get_date_changed() or self._coordinator.get_data_updated()):
             return
-        self._sensor_data = self._coordinator.get_site_sensor_value(self._rooftop_id, self._key)
-        if SENSOR_UPDATE_LOGGING:
-            _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
+        try:
+            self._sensor_data = self._coordinator.get_site_sensor_value(self._rooftop_id, self._key)
+        except Exception as e:  # noqa: BLE001
+            _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
+            self._sensor_data = None
+        finally:
+            if SENSOR_UPDATE_LOGGING:
+                _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
 
         if self._sensor_data is None:
             self._attr_available = False

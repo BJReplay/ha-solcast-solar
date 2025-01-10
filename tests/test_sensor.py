@@ -436,21 +436,6 @@ async def test_sensor_x_hours_long(
         assert await async_cleanup_integration_tests(hass)
 
 
-def get_sensor_value(self, key: str):
-    """Raise an exception getting the value of a sensor."""
-    return 1 / 0
-
-
-def get_sensor_extra_attributes(self, key: str):
-    """Raise an exception getting the value of a sensor."""
-    return 1 / 0
-
-
-def get_site_sensor_extra_attributes(self, rooftop: str, key: str):
-    """Raise an exception getting the value of a sensor."""
-    return 1 / 0
-
-
 async def test_sensor_unavailable(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -520,6 +505,26 @@ async def test_sensor_unavailable(
         assert await async_cleanup_integration_tests(hass)
 
 
+def get_sensor_value(self, key: str):
+    """Raise an exception getting the value of a sensor."""
+    return 1 / 0
+
+
+def get_site_sensor_value(self, rooftop: str, key: str):
+    """Raise an exception getting the value of a sensor."""
+    return 1 / 0
+
+
+def get_sensor_extra_attributes(self, key: str):
+    """Raise an exception getting the value of a sensor."""
+    return 1 / 0
+
+
+def get_site_sensor_extra_attributes(self, rooftop: str, key: str):
+    """Raise an exception getting the value of a sensor."""
+    return 1 / 0
+
+
 async def test_sensor_unavailble_exception(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -529,11 +534,16 @@ async def test_sensor_unavailble_exception(
 
     SolcastUpdateCoordinator.get_sensor_value = get_sensor_value
     SolcastUpdateCoordinator.get_sensor_extra_attributes = get_sensor_extra_attributes
-    SolcastUpdateCoordinator.get_site_sensor_value = get_sensor_value
+    SolcastUpdateCoordinator.get_site_sensor_value = get_site_sensor_value
     SolcastUpdateCoordinator.get_site_sensor_extra_attributes = get_site_sensor_extra_attributes
-    await async_init_integration(hass, DEFAULT_INPUT1)
+    entry = await async_init_integration(hass, DEFAULT_INPUT1)
+    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
     try:
+        coordinator._data_updated = True
+        await coordinator.async_refresh()
+        await hass.async_block_till_done()
+
         for sensor in SENSORS:
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
             _ = state.attributes
