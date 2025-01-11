@@ -4,7 +4,6 @@ import contextlib
 import json
 import logging
 import random
-import traceback
 from typing import Any, Final
 
 import aiofiles
@@ -16,15 +15,9 @@ from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import (
     ConfigEntryError,
     ConfigEntryNotReady,
-    HomeAssistantError,
     ServiceValidationError,
 )
-from homeassistant.helpers import (
-    aiohttp_client,
-    config_validation as cv,
-    device_registry as dr,
-    intent,
-)
+from homeassistant.helpers import aiohttp_client, config_validation as cv
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -557,26 +550,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> 
         if hass.data[DOMAIN].get("presumed_dead"):
             hass.data[DOMAIN].pop("presumed_dead")
     return unload_ok
-
-
-async def async_remove_config_entry_device(
-    hass: HomeAssistant,
-    entry: SolcastConfigEntry,
-    device: dr.DeviceEntry,
-) -> bool:  # pragma: no cover, not covered in tests, covered by wsgi simulator
-    """Remove a device.
-
-    Arguments:
-        hass (HomeAssistant): The Home Assistant instance.
-        entry (SolcastConfigEntry): Not used.
-        device: The device instance.
-
-    Returns:
-        bool: Whether the removal completed successfully.
-
-    """
-    dr.async_get(hass).async_remove_device(device.id)
-    return True
 
 
 async def tasks_cancel(hass: HomeAssistant, entry: SolcastConfigEntry) -> bool:

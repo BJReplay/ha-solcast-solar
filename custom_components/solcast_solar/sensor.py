@@ -366,19 +366,15 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         self._update_policy = get_sensor_update_policy(entity_description.key)
         self._attr_unique_id = f"{entity_description.key}"
         self._attributes = {}
-        self._attr_available = False
+        self._sensor_data = None
         self._attr_extra_state_attributes = {}
 
         try:
             self._sensor_data = self._coordinator.get_sensor_value(self.entity_description.key)
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor value: %s", e)
-            self._sensor_data = None
 
-        if self._sensor_data is None:
-            self._attr_available = False
-        else:
-            self._attr_available = True
+        self._attr_available = self._sensor_data is not None
 
         self._attr_device_info = {
             ATTR_IDENTIFIERS: {(DOMAIN, entry.entry_id)},
@@ -448,7 +444,6 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         SensorUpdatePolicy.EVERY_TIME_INTERVAL), while the remaining sensors update after each
         forecast update or when the date changes.
         """
-
         if self._update_policy == SensorUpdatePolicy.DEFAULT and not (
             self._coordinator.get_date_changed() or self._coordinator.get_data_updated()
         ):
@@ -463,10 +458,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             if SENSOR_UPDATE_LOGGING:
                 _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
 
-        if self._sensor_data is None:
-            self._attr_available = False
-        else:
-            self._attr_available = True
+        self._attr_available = self._sensor_data is not None
 
         self.async_write_ha_state()
 
@@ -513,15 +505,16 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         self._coordinator = coordinator
         self._rooftop_id = entity_description.rooftop_id
         self._attributes = {}
-        self._attr_available = False
         self._attr_extra_state_attributes = {}
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
+        self._sensor_data = None
 
         try:
             self._sensor_data = coordinator.get_site_sensor_value(self._rooftop_id, key)
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor value: %s", e)
-            self._sensor_data = None
+
+        self._attr_available = self._sensor_data is not None
 
         self._attr_device_info = {
             ATTR_IDENTIFIERS: {(DOMAIN, entry.entry_id)},
@@ -608,9 +601,6 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
             if SENSOR_UPDATE_LOGGING:
                 _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
 
-        if self._sensor_data is None:
-            self._attr_available = False
-        else:
-            self._attr_available = True
+        self._attr_available = self._sensor_data is not None
 
         self.async_write_ha_state()

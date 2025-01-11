@@ -20,6 +20,7 @@ from homeassistant.const import (
     UnitOfPower,
 )
 from homeassistant.core import HomeAssistant
+from tests.common import async_fire_time_changed
 
 from . import (
     DEFAULT_INPUT1,
@@ -362,6 +363,7 @@ async def test_sensor_states(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
     key: str,
     settings: dict,
 ) -> None:
@@ -372,8 +374,10 @@ async def test_sensor_states(
     solcast = coordinator.solcast
 
     try:
+        # Test number of site sensors that exist.
         assert len(hass.states.async_all("sensor")) == len(SENSORS) + (3 if key == "1" else 4)
 
+        # Test initial sensor values.
         for sensor, attrs in SENSORS.items():
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
             assert state
@@ -388,8 +392,6 @@ async def test_sensor_states(
                 else:
                     assert test == attrs["state"][key]
             if "attributes" in attrs:
-                if attrs["attributes"][key].get("bob"):
-                    _LOGGER.critical(state.attributes)
                 for attribute in attrs["attributes"][key]:
                     test = state.attributes[attribute]
                     with contextlib.suppress(AttributeError, ValueError):
@@ -401,13 +403,26 @@ async def test_sensor_states(
             if "state_class" in attrs:
                 assert state.attributes["state_class"] == attrs["state_class"]
 
-        coordinator._data_updated = False
-        await coordinator.update_integration_listeners()
-        coordinator._data_updated = True
-        await coordinator.update_integration_listeners()
+        # Test day change and last sensor update time.
+        freezer.tick(timedelta(minutes=2, seconds=33))  # Will trigger periodic five minute update
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+        coordinator._data_updated = True  # Will trigger all sensor update
+        freezer.tick(timedelta(minutes=5))  # Time is now 02:35:00
+        async_fire_time_changed(hass)
+        await hass.async_block_till_done()
+
+        state = hass.states.get("sensor.solcast_pv_forecast_forecast_remaining_today")
+        assert state.last_updated.strftime("%H:%M:%S") == "02:35:00"
+
+        # Simulate date change
+        caplog.clear()
         coordinator._last_day = (dt.now(solcast.options.tz) - timedelta(days=1)).day
         await coordinator.update_integration_listeners()
+        assert "Date has changed, recalculate splines and set up auto-updates" in caplog.text
+        assert "Updating sensor" in caplog.text
 
+        # Test get bad key and site.
         assert coordinator.get_sensor_value("badkey") is None
         assert coordinator.get_sensor_extra_attributes("badkey") is None
         assert coordinator.get_site_sensor_value("badroof", "badkey") is None

@@ -37,14 +37,14 @@ async def test_midnight(
 
     try:
         # Test midnight UTC usage reset.
-        freezer.move_to(f"{dt.now().date()} 23:59:59")
+        freezer.move_to("2025-01-10 23:59:59")
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
         assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "4"
 
-        coordinator._intervals = [dt.fromisoformat(f"{dt.now().date()}T00:59:30+00:00"), *coordinator._intervals]  # Inject expired interval
+        coordinator._intervals = [dt.fromisoformat("2025-01-10T00:59:30+00:00"), *coordinator._intervals]  # Inject expired interval
         caplog.clear()
         coordinator._data_updated = False  # Improve test coverage
         await coordinator.async_refresh()

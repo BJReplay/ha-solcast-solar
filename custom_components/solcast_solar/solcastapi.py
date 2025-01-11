@@ -116,7 +116,7 @@ class DateTimeEncoder(json.JSONEncoder):
         """Convert to ISO format if datetime."""
         if isinstance(o, dt):
             return o.isoformat()
-        return super().default(o)  # pragma: no cover, raise TypeError never expected
+        return super().default(o)  # pragma: no cover, never expected
 
 
 class NoIndentEncoder(json.JSONEncoder):
