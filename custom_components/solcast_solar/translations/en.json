@@ -1,11 +1,11 @@
 {
     "config": {
         "abort": {
-            "single_instance_allowed": "Only one Solcast instance allowed",
-            "reconfigured": "New configuration applied"
+            "reconfigured": "New configuration applied",
+            "single_instance_allowed": "Only one Solcast instance allowed"
         },
         "step": {
-            "user": {
+            "reconfigure_confirm": {
                 "data": {
                     "api_key": "API key (comma separate multiple values)",
                     "api_quota": "API limit (optionally comma separate multiple values for each key)",
@@ -13,7 +13,7 @@
                 },
                 "description": "Solcast Account Details\n\n(If not using auto-update then an automation is required - see the integration documentation)"
             },
-            "reconfigure_confirm": {
+            "user": {
                 "data": {
                     "api_key": "API key (comma separate multiple values)",
                     "api_quota": "API limit (optionally comma separate multiple values for each key)",
@@ -23,28 +23,134 @@
             }
         }
     },
-    "options": {
-        "step": {
-            "init": {
-                "data": {
-                    "api_key": "API key (comma separate multiple values)",
-                    "api_quota": "API limit (optionally comma separate multiple values for each key)",
-                    "auto_update": "Auto-update (if no auto-update then an automation must be used instead)",
-                    "customhoursensor": "Custom next X hours sensor (min=1, max=144)",
-                    "hard_limit_api": "Inverter hard limit in kW (see integration documentation)",
-                    "key_estimate": "Preferred forecast likelihood to use for sensors",
-                    "attr_brk_estimate10": "Enable estimate 10 sensor attributes",
-                    "attr_brk_estimate": "Enable estimate 50 sensor attributes",
-                    "attr_brk_estimate90": "Enable estimate 90 sensor attributes",
-                    "attr_brk_site": "Enable site breakdown sensor attributes",
-                    "attr_brk_halfhourly": "Enable forecast half-hourly detail attributes",
-                    "attr_brk_hourly": "Enable forecast hourly detail attributes",
-                    "attr_brk_detailed": "Enable site breakdown for half-hourly/hourly detail attributes (these will not be saved to database state attributes)",
-                    "config_damp": "Modify the hourly dampening factors (after clicking submit)",
-                    "site_damp": "Granular dampening is set: Clear to revert to overall hourly dampening"
-                },
-                "description": "Solcast configuration options"
+    "entity": {
+        "select": {
+            "estimate_mode": {
+                "name": "Use Forecast Field"
+            }
+        },
+        "sensor": {
+            "api_counter": {
+                "name": "API Used"
             },
+            "api_limit": {
+                "name": "API Limit"
+            },
+            "forecast_custom_hours": {
+                "name": "Forecast Next X Hours"
+            },
+            "forecast_next_hour": {
+                "name": "Forecast Next Hour"
+            },
+            "forecast_this_hour": {
+                "name": "Forecast This Hour"
+            },
+            "get_remaining_today": {
+                "name": "Forecast Remaining Today"
+            },
+            "hard_limit": {
+                "name": "Hard Limit Set"
+            },
+            "hard_limit_api": {
+                "name": "Hard Limit Set {api_key}"
+            },
+            "lastupdated": {
+                "name": "API Last Polled"
+            },
+            "peak_w_time_today": {
+                "name": "Peak Time Today"
+            },
+            "peak_w_time_tomorrow": {
+                "name": "Peak Time Tomorrow"
+            },
+            "peak_w_today": {
+                "name": "Peak Forecast Today"
+            },
+            "peak_w_tomorrow": {
+                "name": "Peak Forecast Tomorrow"
+            },
+            "power_now": {
+                "name": "Power Now"
+            },
+            "power_now_1hr": {
+                "name": "Power in 1 Hour"
+            },
+            "power_now_30m": {
+                "name": "Power in 30 Minutes"
+            },
+            "total_kwh_forecast_d3": {
+                "name": "Forecast Day 3"
+            },
+            "total_kwh_forecast_d4": {
+                "name": "Forecast Day 4"
+            },
+            "total_kwh_forecast_d5": {
+                "name": "Forecast Day 5"
+            },
+            "total_kwh_forecast_d6": {
+                "name": "Forecast Day 6"
+            },
+            "total_kwh_forecast_d7": {
+                "name": "Forecast Day 7"
+            },
+            "total_kwh_forecast_today": {
+                "name": "Forecast Today"
+            },
+            "total_kwh_forecast_tomorrow": {
+                "name": "Forecast Tomorrow"
+            }
+        }
+    },
+    "exceptions": {
+        "auto_use_force": {
+            "message": "Auto-update is enabled, ignoring service event for forecast update, use Force Update instead."
+        },
+        "auto_use_normal": {
+            "message": "Auto-update is not enabled, ignoring service event for force forecast update, use Update instead."
+        },
+        "damp_count_not_correct": {
+            "message": "There are not 24 or 48 comma separated numbers between 0.0 and 1.0."
+        },
+        "damp_error_parsing": {
+            "message": "Error parsing dampening factor comma separated numbers."
+        },
+        "damp_no_all_24": {
+            "message": "Specifying a site of 'all' is not allowed with 24 factors, remove site from the request."
+        },
+        "damp_no_factors": {
+            "message": "No dampening factors, must be a comma separated list of numbers between 0.0 and 1.0."
+        },
+        "damp_not_for_site": {
+            "message": "Site dampening is not set for {site}."
+        },
+        "damp_not_site": {
+            "message": "Not a configured site."
+        },
+        "damp_outside_range": {
+            "message": "Dampening factor value present that is not between 0.0 and 1.0."
+        },
+        "damp_use_all": {
+            "message": "Site dampening is not set for {site}, 'all' is the only available site parameter for the service call."
+        },
+        "hard_empty": {
+            "message": "Empty hard limit value."
+        },
+        "hard_not_positive_number": {
+            "message": "Hard limit value is not a positive number."
+        },
+        "hard_too_many": {
+            "message": "More hard limits are specified than there are API keys."
+        },
+        "remove_cache_failed": {
+            "message": "Clear all Solcast data failed."
+        }
+    },
+    "options": {
+        "error": {
+            "incorrect_options_action": "Incorrect action chosen",
+            "unknown": "Unknown error"
+        },
+        "step": {
             "dampen": {
                 "data": {
                     "damp00": "00:00",
@@ -73,16 +179,27 @@
                     "damp23": "23:00"
                 },
                 "description": "Modify the hourly dampening factor"
+            },
+            "init": {
+                "data": {
+                    "api_key": "API key (comma separate multiple values)",
+                    "api_quota": "API limit (optionally comma separate multiple values for each key)",
+                    "attr_brk_detailed": "Enable site breakdown for half-hourly/hourly detail attributes (these will not be saved to database state attributes)",
+                    "attr_brk_estimate": "Enable estimate 50 sensor attributes",
+                    "attr_brk_estimate10": "Enable estimate 10 sensor attributes",
+                    "attr_brk_estimate90": "Enable estimate 90 sensor attributes",
+                    "attr_brk_halfhourly": "Enable forecast half-hourly detail attributes",
+                    "attr_brk_hourly": "Enable forecast hourly detail attributes",
+                    "attr_brk_site": "Enable site breakdown sensor attributes",
+                    "auto_update": "Auto-update (if no auto-update then an automation must be used instead)",
+                    "config_damp": "Modify the hourly dampening factors (after clicking submit)",
+                    "customhoursensor": "Custom next X hours sensor (min=1, max=144)",
+                    "hard_limit_api": "Inverter hard limit in kW (see integration documentation)",
+                    "key_estimate": "Preferred forecast likelihood to use for sensors",
+                    "site_damp": "Granular dampening is set: Clear to revert to overall hourly dampening"
+                },
+                "description": "Solcast configuration options"
             }
-        },
-        "error": {
-            "unknown": "Unknown error",
-            "incorrect_options_action": "Incorrect action chosen"
-        }
-    },
-    "system_health": {
-        "info": {
-            "can_reach_server": "Solcast server connection"
         }
     },
     "selector": {
@@ -102,151 +219,82 @@
         }
     },
     "services": {
-        "update_forecasts": {
-            "name": "Update",
-            "description": "Fetches the latest forecasts data from Solcast."
+        "clear_all_solcast_data": {
+            "description": "Deletes the solcast.json file to remove all current solcast site data.",
+            "name": "Clear all saved Solcast data"
         },
         "force_update_forecasts": {
-            "name": "Force Update",
-            "description": "Force fetches the latest forecasts data from Solcast."
-        },
-        "clear_all_solcast_data": {
-            "name": "Clear all saved Solcast data",
-            "description": "Deletes the solcast.json file to remove all current solcast site data."
-        },
-        "query_forecast_data": {
-            "name": "Query forecast data",
-            "description": "Return a data set for a given query.",
-            "fields": {
-                "start_date_time": {
-                    "name": "Start date time",
-                    "description": "Query forecast data events from date time."
-                },
-                "end_date_time": {
-                    "name": "End date time",
-                    "description": "Query forecast data events up to date time."
-                },
-                "undampened": {
-                    "name": "Undampened",
-                    "description": "Optional boolean to retrieve un-dampened forecast"
-                },
-                "site": {
-                    "name": "Site ID",
-                    "description": "Optional site to retrieve one site forecast"
-                }
-            }
+            "description": "Force fetches the latest forecasts data from Solcast.",
+            "name": "Force Update"
         },
         "get_dampening": {
-            "name": "Get forecasts dampening",
             "description": "Get the forecast dampening factors.",
             "fields": {
                 "site": {
-                    "name": "Site ID",
-                    "description": "Optional site to get dampening. (Note: Will not work if granular dampening is not enabled.)"
+                    "description": "Optional site to get dampening. (Note: Will not work if granular dampening is not enabled.)",
+                    "name": "Site ID"
                 }
-            }
+            },
+            "name": "Get forecasts dampening"
+        },
+        "query_forecast_data": {
+            "description": "Return a data set for a given query.",
+            "fields": {
+                "end_date_time": {
+                    "description": "Query forecast data events up to date time.",
+                    "name": "End date time"
+                },
+                "site": {
+                    "description": "Optional site to retrieve one site forecast",
+                    "name": "Site ID"
+                },
+                "start_date_time": {
+                    "description": "Query forecast data events from date time.",
+                    "name": "Start date time"
+                },
+                "undampened": {
+                    "description": "Optional boolean to retrieve un-dampened forecast",
+                    "name": "Undampened"
+                }
+            },
+            "name": "Query forecast data"
+        },
+        "remove_hard_limit": {
+            "description": "Remove set limit.",
+            "name": "Remove inverter forecast hard limit"
         },
         "set_dampening": {
-            "name": "Set forecasts dampening",
             "description": "Set forecast dampening factors.",
             "fields": {
                 "damp_factor": {
-                    "name": "Dampening string",
-                    "description": "String of dampening factor values comma separated (24 or 48 values)."
+                    "description": "String of dampening factor values comma separated (24 or 48 values).",
+                    "name": "Dampening string"
                 },
                 "site": {
-                    "name": "Site ID",
-                    "description": "Optional site to set per-site dampening. (Note: Omitting site clears per-site dampening unless 48 values.)"
+                    "description": "Optional site to set per-site dampening. (Note: Omitting site clears per-site dampening unless 48 values.)",
+                    "name": "Site ID"
                 }
-            }
+            },
+            "name": "Set forecasts dampening"
         },
         "set_hard_limit": {
-            "name": "Set inverter forecast hard limit",
             "description": "Prevent forecast values being higher than the inverter can produce.",
             "fields": {
                 "hard_limit": {
-                    "name": "Limit value in Watts",
-                    "description": "Set the max value in Watts that the inverter can produce."
+                    "description": "Set the max value in Watts that the inverter can produce.",
+                    "name": "Limit value in Watts"
                 }
-            }
+            },
+            "name": "Set inverter forecast hard limit"
         },
-        "remove_hard_limit": {
-            "name": "Remove inverter forecast hard limit",
-            "description": "Remove set limit."
+        "update_forecasts": {
+            "description": "Fetches the latest forecasts data from Solcast.",
+            "name": "Update"
         }
     },
-    "entity": {
-        "sensor": {
-            "power_now_30m": {"name": "Power in 30 Minutes"},
-            "power_now_1hr": {"name": "Power in 1 Hour"},
-            "total_kwh_forecast_today": {"name": "Forecast Today"},
-            "peak_w_today": {"name": "Peak Forecast Today"},
-            "peak_w_time_today": {"name": "Peak Time Today"},
-            "forecast_this_hour": {"name": "Forecast This Hour"},
-            "get_remaining_today": {"name": "Forecast Remaining Today"},
-            "forecast_next_hour": {"name": "Forecast Next Hour"},
-            "forecast_custom_hours": {"name": "Forecast Next X Hours"},
-            "total_kwh_forecast_tomorrow": {"name": "Forecast Tomorrow"},
-            "peak_w_tomorrow": {"name": "Peak Forecast Tomorrow"},
-            "peak_w_time_tomorrow": {"name": "Peak Time Tomorrow"},
-            "api_counter": {"name": "API Used"},
-            "api_limit": {"name": "API Limit"},
-            "lastupdated": {"name": "API Last Polled"},
-            "total_kwh_forecast_d3": {"name": "Forecast Day 3"},
-            "total_kwh_forecast_d4": {"name": "Forecast Day 4"},
-            "total_kwh_forecast_d5": {"name": "Forecast Day 5"},
-            "total_kwh_forecast_d6": {"name": "Forecast Day 6"},
-            "total_kwh_forecast_d7": {"name": "Forecast Day 7"},
-            "power_now": {"name": "Power Now"},
-            "hard_limit": {"name": "Hard Limit Set"},
-            "hard_limit_api": {"name": "Hard Limit Set {api_key}"}
-        },
-        "select": {
-            "estimate_mode" : {"name": "Use Forecast Field"}
-        }
-    },
-    "exceptions": {
-        "auto_use_force": {
-            "message": "Auto-update is enabled, ignoring service event for forecast update, use Force Update instead."
-        },
-        "auto_use_normal": {
-            "message": "Auto-update is not enabled, ignoring service event for force forecast update, use Update instead."
-        },
-        "damp_not_for_site": {
-            "message": "Site dampening is not set for {site}."
-        },
-        "damp_use_all": {
-            "message": "Site dampening is not set for {site}, 'all' is the only available site parameter for the service call."
-        },
-        "damp_no_factors": {
-            "message": "No dampening factors, must be a comma separated list of numbers between 0.0 and 1.0."
-        },
-        "damp_count_not_correct": {
-            "message": "There are not 24 or 48 comma separated numbers between 0.0 and 1.0."
-        },
-        "damp_no_all_24": {
-            "message": "Specifying a site of 'all' is not allowed with 24 factors, remove site from the request."
-        },
-        "damp_not_site": {
-            "message": "Not a configured site."
-        },
-        "damp_error_parsing": {
-            "message": "Error parsing dampening factor comma separated numbers."
-        },
-        "damp_outside_range": {
-            "message": "Dampening factor value present that is not between 0.0 and 1.0."
-        },
-        "hard_empty": {
-            "message": "Empty hard limit value."
-        },
-        "hard_too_many": {
-            "message": "More hard limits are specified than there are API keys."
-        },
-        "hard_not_positive_number": {
-            "message": "Hard limit value is not a positive number."
-        },
-        "remove_cache_failed": {
-            "message": "Clear all Solcast data failed."
+    "system_health": {
+        "info": {
+            "can_reach_server": "Solcast server connection"
         }
     }
 }

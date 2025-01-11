@@ -197,7 +197,7 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator) -> bool:
     stale = False
     if coordinator.solcast.is_stale_data():
         _LOGGER.warning("The update automation has not been running, updating forecast")
-        await coordinator.service_event_update(completion="Completed task stale_update")
+        await coordinator.service_event_update(ignore_auto_enabled=True, completion="Completed task stale_update")
         stale = True
     else:
         _LOGGER.debug("Start is not stale")
@@ -303,11 +303,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     __log_hard_limit_set(solcast)
-    if not await __check_auto_update_missed(coordinator):
-        await __check_stale_start(coordinator)
 
     hass.data[DOMAIN]["presumed_dead"] = False
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = True
+
+    if not await __check_auto_update_missed(coordinator):
+        await __check_stale_start(coordinator)
 
     async def action_call_update_forecast(call: ServiceCall):
         """Handle action.
