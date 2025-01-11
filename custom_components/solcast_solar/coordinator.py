@@ -125,7 +125,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             await self.__update_midnight_spline_recalculate()
             self.__auto_update_setup()
 
-            self.async_update_listeners()
+        self.async_update_listeners()
 
     async def __restart_time_track_midnight_update(self):
         """Cancel and restart UTC time change tracker."""
