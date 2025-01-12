@@ -857,14 +857,21 @@ async def test_integration_scenarios(
 
         # Test start with stale data
         data_file = Path(f"{config_dir}/solcast.json")
+        original_data = json.loads(data_file.read_text(encoding="utf-8"))
 
         def alter_last_updated():
             data = json.loads(data_file.read_text(encoding="utf-8"))
             data["last_updated"] = (dt.now(datetime.UTC) - timedelta(days=5)).isoformat()
             data["last_attempt"] = data["last_updated"]
             data["auto_updated"] = True
+            # Remove forecasts today up to "now"
+            for site in data["siteinfo"].values():
+                site["forecasts"] = [f for f in site["forecasts"] if f["period_start"] > dt.now(datetime.UTC).isoformat()]
             data_file.write_text(json.dumps(data), encoding="utf-8")
             session_reset_usage()
+
+        def restore_data():
+            data_file.write_text(json.dumps(original_data), encoding="utf-8")
 
         # Test stale start with auto update enabled
         alter_last_updated()
@@ -872,6 +879,7 @@ async def test_integration_scenarios(
         await _wait_for_update(caplog)
         assert "is older than expected, should be" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
+        assert "ERROR" not in caplog.text
         caplog.clear()
 
         # Test stale start with auto update disabled
@@ -887,6 +895,8 @@ async def test_integration_scenarios(
         # assert "The update automation has not been running, updating forecast" in caplog.text
         # assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
         caplog.clear()
+
+        restore_data()
 
         # Test API key change, start with an API failure and invalid sites cache
         # Verigy API key change removes sites, and migrates undampened history for new site

@@ -1463,18 +1463,32 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         4,
                     ),
                 }
-                for index in range(0, len(forecast), 2)
+                for index in range(1 if len(forecast) % 2 == 1 else 0, len(forecast), 2)
                 if len(forecast) > 0
             ]
 
-        start_utc = self.get_day_start_utc(future=future_day)
-        end_utc = self.get_day_start_utc(future=future_day + 1)
-        start_index, end_index = self.__get_forecast_list_slice(self._data_forecasts, start_utc, end_utc)
+        def get_start_and_end(forecasts: list) -> int:
+            start_utc = self.get_day_start_utc(future=future_day)
+            start, _ = self.__get_forecast_list_slice(forecasts, start_utc)
+            end_utc = min(self.get_day_start_utc(future=future_day + 1), forecasts[-1]["period_start"])  # Don't go past the last forecast.
+            end, _ = self.__get_forecast_list_slice(forecasts, end_utc)
+            if not start:
+                # Data is missing, so adjust the start time to the first available forecast.
+                start, _ = self.__get_forecast_list_slice(forecasts, forecasts[0]["period_start"])
+                start_utc = forecasts[0]["period_start"]
+            return start, end, start_utc, end_utc
+
+        site_start_index = {site["resource_id"]: 0 for site in self.sites}
+        site_end_index = {site["resource_id"]: 0 for site in self.sites}
+
+        start_index, end_index, start_utc, end_utc = get_start_and_end(self._data_forecasts)
+
         forecast_slice = self._data_forecasts[start_index:end_index]
         if self.options.attr_brk_site_detailed:
             site_data_forecast = {}
             for site in self.sites:
-                site_data_forecast[site["resource_id"]] = self._site_data_forecasts[site["resource_id"]][start_index:end_index]
+                site_start_index, site_end_index, _, _ = get_start_and_end(self._site_data_forecasts[site["resource_id"]])
+                site_data_forecast[site["resource_id"]] = self._site_data_forecasts[site["resource_id"]][site_start_index:site_end_index]
 
         if SENSOR_DEBUG_LOGGING:
             _LOGGER.debug(
@@ -1769,14 +1783,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         for forecast_confidence in confidences:
             try:
-                if start > 0:
-                    y = [data[start + index][forecast_confidence] for index in range(len(self._spline_period))]
-                    if reducing:
-                        # Build a decreasing set of forecasted values instead.
-                        y = [0.5 * sum(y[index:]) for index in range(len(self._spline_period))]
-                    spline[forecast_confidence] = cubic_interp(xx, self._spline_period, y)
-                    self.__sanitise_spline(spline, forecast_confidence, xx, y, reducing=reducing)
-                    continue
+                y = [data[start + index][forecast_confidence] for index in range(len(self._spline_period))]
+                if reducing:
+                    # Build a decreasing set of forecasted values instead.
+                    y = [0.5 * sum(y[index:]) for index in range(len(self._spline_period))]
+                spline[forecast_confidence] = cubic_interp(xx, self._spline_period, y)
+                self.__sanitise_spline(spline, forecast_confidence, xx, y, reducing=reducing)
+                continue
             except IndexError:
                 pass
             spline[forecast_confidence] = [0] * (len(self._spline_period) * 6)
@@ -1799,8 +1812,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             reducing (bool): A flag to indicate whether the spline is momentary power, or reducing energy, default momentary.
 
         """
+        offset = int(xx[0] / 300)  # To cater for less intervals than the spline period
         for interval in xx:
-            spline_index = int(interval / 300)  # Every five minutes
+            spline_index = int(interval / 300) - offset  # Every five minutes
             # Suppress negative values.
             if math.copysign(1.0, spline[forecast_confidence][spline_index]) < 0:
                 spline[forecast_confidence][spline_index] = 0.0
@@ -1821,7 +1835,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         else:
             spline[forecast_confidence] = ([0] * 3) + spline[forecast_confidence]
 
-    def __build_splines(self, variant: list, reducing: bool = False):
+    def __build_spline(self, variant: list, reducing: bool = False):
         """Build cubic splines for interpolated inter-interval momentary or reducing estimates.
 
         Arguments:
@@ -1836,21 +1850,28 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             df.append("pv_estimate10")
         if self.options.attr_brk_estimate90 and "pv_estimate90" not in df:
             df.append("pv_estimate90")
-        xx = list(range(0, 1800 * len(self._spline_period), 300))
+
+        def get_start_and_end(forecasts: list) -> int:
+            start, end = self.__get_forecast_list_slice(forecasts, self.get_day_start_utc())  # Get start of day index.
+            if start:
+                xx = list(range(0, 1800 * len(self._spline_period), 300))
+            else:
+                # Data is missing at the start of the set, so adjust the start time to the first available forecast.
+                start, end = self.__get_forecast_list_slice(forecasts, forecasts[0]["period_start"], self.get_day_start_utc(future=1))
+                _LOGGER.critical(end - start)
+                xx = list(range((48 - start) * 300, 1800 * len(self._spline_period), 300))
+            return start, end, xx
 
         variant["all"] = {}
-        start, _ = self.__get_forecast_list_slice(self._data_forecasts, self.get_day_start_utc())  # Get start of day index.
-        if start:
+        start, end, xx = get_start_and_end(self._data_forecasts)
+        if end:
             self.__get_spline(variant["all"], start, xx, self._data_forecasts, df, reducing=reducing)
         if self.options.attr_brk_site:
             for site in self.sites:
                 variant[site["resource_id"]] = {}
                 if self._site_data_forecasts.get(site["resource_id"]):
-                    start, _ = self.__get_forecast_list_slice(
-                        self._site_data_forecasts[site["resource_id"]],
-                        self.get_day_start_utc(),
-                    )
-                    if start:
+                    start, end, xx = get_start_and_end(self._site_data_forecasts[site["resource_id"]])
+                    if end:
                         self.__get_spline(
                             variant[site["resource_id"]],
                             start,
@@ -1862,11 +1883,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     async def __spline_moments(self):
         """Build the moments splines."""
-        self.__build_splines(self._forecasts_moment)
+        self.__build_spline(self._forecasts_moment)
 
     async def __spline_remaining(self):
         """Build the descending splines."""
-        self.__build_splines(self._forecasts_remaining, reducing=True)
+        self.__build_spline(self._forecasts_remaining, reducing=True)
 
     async def recalculate_splines(self):
         """Recalculate both the moment and remaining splines."""
@@ -1890,7 +1911,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         variant = self._forecasts_moment["all" if site is None else site].get(
             self._use_forecast_confidence if forecast_confidence is None else forecast_confidence, []
         )
-        return variant[int(n_min / 300)] if len(variant) > 0 else None
+        offset = (len(self._spline_period) * 6 - len(variant)) + 3  # To cater for less intervals than the spline period
+        return variant[int(n_min / 300) - offset] if len(variant) > 0 else None
 
     def __get_remaining(self, site: str, forecast_confidence: str, n_min: int) -> float:
         """Get a remaining value at a given five-minute point from a reducing spline.
@@ -1907,7 +1929,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         variant = self._forecasts_remaining["all" if site is None else site][
             self._use_forecast_confidence if forecast_confidence is None else forecast_confidence
         ]
-        return variant[int(n_min / 300)] if len(variant) > 0 else None
+        offset = (len(self._spline_period) * 6 - len(variant)) + 3  # To cater for less intervals than the spline period
+        return variant[int(n_min / 300) - offset] if len(variant) > 0 else None
 
     def __get_forecast_pv_remaining(
         self,
