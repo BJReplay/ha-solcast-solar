@@ -7,6 +7,14 @@ body:
         This issue form is for reporting bugs only!
         
         Do not just write 'it does not work, vX.X.X, HA, X.X.X'
+
+        If you do, and don't provide additional background, such as whether or not this is a new install,
+        or an upgrade, and if so, from what version, you may find that your issue is deleted without comment.
+        
+        Particularly if your issue is triaged first by the repo owner who is in a grumpy mood
+        because he is suffering from chronic migraines.
+
+        Help us help you be providing more information, not less.
         
         If not enough information is supplied the you may not get the support you hope for. 
 
