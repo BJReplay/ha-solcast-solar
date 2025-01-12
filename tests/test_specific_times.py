@@ -8,7 +8,6 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.core import HomeAssistant
 
 from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
@@ -43,6 +42,7 @@ async def test_midnight(
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
         assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "4"
+        assert "Transitioning between summer/standard time" not in caplog.text
 
         coordinator._intervals = [dt.fromisoformat("2025-01-10T00:59:30+00:00"), *coordinator._intervals]  # Inject expired interval
         caplog.clear()
@@ -84,6 +84,42 @@ async def test_midnight(
         assert "Sun rise / set today" in caplog.text
         assert "Auto forecast updates for today" in caplog.text
         assert "Updating sensor" in caplog.text
+
+    finally:
+        await async_cleanup_integration_tests(hass)
+
+
+async def test_timezone_transition(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test summer time transitions."""
+
+    try:
+        # Test transition from summer to standard time.
+        freezer.move_to("2025-04-04 00:00:00")
+        entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone="Australia/Sydney")
+
+        assert "Transitioning between summer/standard time" in caplog.text
+        assert "Forecast data from 2025-04-04 to 2025-04-10 contains all intervals" in caplog.text
+
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        caplog.clear()
+        await async_cleanup_integration_tests(hass)
+
+        # Test transition from standard to summer time.
+        freezer.move_to("2025-10-01 00:00:00")
+        entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone="Australia/Sydney")
+
+        assert "Transitioning between summer/standard time" in caplog.text
+        assert "Forecast data from 2025-10-01 to 2025-10-07 contains all intervals" in caplog.text
+
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
 
     finally:
         await async_cleanup_integration_tests(hass)

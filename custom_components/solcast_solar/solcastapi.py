@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import asyncio
-from asyncio import InvalidStateError
 from collections import OrderedDict, defaultdict
 from concurrent.futures import ThreadPoolExecutor
 import contextlib
@@ -44,7 +43,7 @@ from .const import (
     BRK_SITE_DETAILED,
     CUSTOM_HOUR_SENSOR,
     DATE_FORMAT,
-    DATE_FORMAT_UTC,
+    # DATE_FORMAT_UTC,
     DOMAIN,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
@@ -60,7 +59,7 @@ from .util import (
     cubic_interp,
 )
 
-SENSOR_DEBUG_LOGGING: Final = False
+# SENSOR_DEBUG_LOGGING: Final = False
 
 API: Final = Api.HOBBYIST  # The API to use. Presently only the hobbyist API is allowed for hobbyist accounts.
 
@@ -479,7 +478,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 return False
             payload = json.dumps(data, ensure_ascii=False, cls=DateTimeEncoder)
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, avoids corrupting the cache file
+        except Exception as e:  # noqa: BLE001  # pragma: no cover, avoids corrupting the cache file
             _LOGGER.error("Exception in __serialise_data(): %s: %s", e, traceback.format_exc())
             serialise = False
         if serialise:
@@ -666,7 +665,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 "reset": self._api_used_reset[api_key],
             }
             payload = json.dumps(json_content, ensure_ascii=False, cls=DateTimeEncoder)
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, avoids corrupting the cache file
+        except Exception as e:  # noqa: BLE001  # pragma: no cover, avoids corrupting the cache file
             _LOGGER.error("Exception in __serialise_usage(): %s: %s", e, traceback.format_exc())
             serialise = False
         if serialise:
@@ -875,7 +874,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 cls=NoIndentEncoder,
                 indent=2,
             )
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, avoids corrupting the cache file
+        except Exception as e:  # noqa: BLE001  # pragma: no cover, avoids corrupting the cache file
             _LOGGER.error(
                 "Exception in serialise_granular_dampening(): %s: %s",
                 e,
@@ -1294,18 +1293,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             raise ValueError("Range is invalid")
         forecast_slice = data_forecasts[start_index:end_index]
 
-        if SENSOR_DEBUG_LOGGING:
-            _LOGGER.debug(
-                "Get forecast list: (%ss) start %s end %s start_index %d end_index %d slice.len %d site %s un-dampened %s",
-                round(time.time() - start_time, 4),
-                args[0].strftime(DATE_FORMAT_UTC),
-                args[1].strftime(DATE_FORMAT_UTC),
-                start_index,
-                end_index,
-                len(forecast_slice),
-                args[2],
-                args[3],
-            )
+        # if SENSOR_DEBUG_LOGGING:
+        #    _LOGGER.debug(
+        #        "Get forecast list: (%ss) start %s end %s start_index %d end_index %d slice.len %d site %s un-dampened %s",
+        #        round(time.time() - start_time, 4),
+        #        args[0].strftime(DATE_FORMAT_UTC),
+        #        args[1].strftime(DATE_FORMAT_UTC),
+        #        start_index,
+        #        end_index,
+        #        len(forecast_slice),
+        #        args[2],
+        #        args[3],
+        #    )
 
         return tuple({**data, "period_start": data["period_start"].astimezone(self._tz)} for data in forecast_slice)
 
@@ -1490,16 +1489,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 site_start_index, site_end_index, _, _ = get_start_and_end(self._site_data_forecasts[site["resource_id"]])
                 site_data_forecast[site["resource_id"]] = self._site_data_forecasts[site["resource_id"]][site_start_index:site_end_index]
 
-        if SENSOR_DEBUG_LOGGING:
-            _LOGGER.debug(
-                "Get forecast day: %d start %s end %s start_index %d end_index %d slice.len %d",
-                future_day,
-                start_utc.strftime(DATE_FORMAT_UTC),
-                end_utc.strftime(DATE_FORMAT_UTC),
-                start_index,
-                end_index,
-                len(forecast_slice),
-            )
+        # if SENSOR_DEBUG_LOGGING:
+        #    _LOGGER.debug(
+        #        "Get forecast day: %d start %s end %s start_index %d end_index %d slice.len %d",
+        #        future_day,
+        #        start_utc.strftime(DATE_FORMAT_UTC),
+        #        end_utc.strftime(DATE_FORMAT_UTC),
+        #        start_index,
+        #        end_index,
+        #        len(forecast_slice),
+        #    )
 
         _tuple = tuple({**forecast, "period_start": forecast["period_start"].astimezone(self._tz)} for forecast in forecast_slice)
         if self.options.attr_brk_site_detailed:
@@ -1858,7 +1857,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             else:
                 # Data is missing at the start of the set, so adjust the start time to the first available forecast.
                 start, end = self.__get_forecast_list_slice(forecasts, forecasts[0]["period_start"], self.get_day_start_utc(future=1))
-                _LOGGER.critical(end - start)
                 xx = list(range((48 - start) * 300, 1800 * len(self._spline_period), 300))
             return start, end, xx
 
@@ -1984,18 +1982,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         result += interval * seconds / 1800
                     else:
                         result += interval
-        if SENSOR_DEBUG_LOGGING:
-            _LOGGER.debug(
-                "Get estimate: %s()%s %s start %s end %s start_index %d end_index %d result %s",
-                FunctionName(1),
-                "" if site is None else " " + site,
-                forecast_confidence,
-                start_utc.strftime(DATE_FORMAT_UTC),
-                end_utc.strftime(DATE_FORMAT_UTC) if end_utc is not None else None,
-                start_index,
-                end_index,
-                round(result, 4),
-            )
+        # if SENSOR_DEBUG_LOGGING:
+        #    _LOGGER.debug(
+        #        "Get estimate: %s()%s %s start %s end %s start_index %d end_index %d result %s",
+        #        FunctionName(1),
+        #        "" if site is None else " " + site,
+        #        forecast_confidence,
+        #        start_utc.strftime(DATE_FORMAT_UTC),
+        #        end_utc.strftime(DATE_FORMAT_UTC) if end_utc is not None else None,
+        #        start_index,
+        #        end_index,
+        #        round(result, 4),
+        #    )
         return max(0, result)
 
     def __get_forecast_pv_estimates(
@@ -2027,18 +2025,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return None
         for forecast_slice in data[start_index:end_index]:
             result += forecast_slice[forecast_confidence]
-        if SENSOR_DEBUG_LOGGING:
-            _LOGGER.debug(
-                "Get estimate: %s()%s%s start %s end %s start_index %d end_index %d result %s",
-                FunctionName(1),
-                "" if site is None else " " + site,
-                "" if forecast_confidence is None else " " + forecast_confidence,
-                start_utc.strftime(DATE_FORMAT_UTC),
-                end_utc.strftime(DATE_FORMAT_UTC),
-                start_index,
-                end_index,
-                round(result, 4),
-            )
+        # if SENSOR_DEBUG_LOGGING:
+        #    _LOGGER.debug(
+        #        "Get estimate: %s()%s%s start %s end %s start_index %d end_index %d result %s",
+        #        FunctionName(1),
+        #        "" if site is None else " " + site,
+        #        "" if forecast_confidence is None else " " + forecast_confidence,
+        #        start_utc.strftime(DATE_FORMAT_UTC),
+        #        end_utc.strftime(DATE_FORMAT_UTC),
+        #        start_index,
+        #        end_index,
+        #        round(result, 4),
+        #    )
         return result
 
     def __get_forecast_pv_moment(
@@ -2062,16 +2060,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         day_start = self.get_day_start_utc()
         time_utc = time_utc.replace(minute=math.floor(time_utc.minute / 5) * 5)
         result = self.__get_moment(site, forecast_confidence, (time_utc - day_start).total_seconds())
-        if SENSOR_DEBUG_LOGGING and result is not None:
-            _LOGGER.debug(
-                "Get estimate moment: %s()%s %s t %s sec %d result %s",
-                FunctionName(1),
-                "" if site is None else " " + site,
-                forecast_confidence,
-                time_utc.strftime(DATE_FORMAT_UTC),
-                (time_utc - day_start).total_seconds(),
-                round(result, 4),
-            )
+        # if SENSOR_DEBUG_LOGGING and result is not None:
+        #    _LOGGER.debug(
+        #        "Get estimate moment: %s()%s %s t %s sec %d result %s",
+        #        FunctionName(1),
+        #        "" if site is None else " " + site,
+        #        forecast_confidence,
+        #        time_utc.strftime(DATE_FORMAT_UTC),
+        #        (time_utc - day_start).total_seconds(),
+        #        round(result, 4),
+        #    )
         return result
 
     def __get_max_forecast_pv_estimate(
@@ -2103,18 +2101,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for forecast_slice in data[start_index:end_index]:
             if result[forecast_confidence] < forecast_slice[forecast_confidence]:
                 result = forecast_slice
-        if SENSOR_DEBUG_LOGGING:
-            _LOGGER.debug(
-                "Get max estimate: %s()%s %s start %s end %s start_index %d end_index %d result %s",
-                FunctionName(1),
-                "" if site is None else " " + site,
-                forecast_confidence,
-                start_utc.strftime(DATE_FORMAT_UTC),
-                end_utc.strftime(DATE_FORMAT_UTC),
-                start_index,
-                end_index,
-                result,
-            )
+        # if SENSOR_DEBUG_LOGGING:
+        #    _LOGGER.debug(
+        #        "Get max estimate: %s()%s %s start %s end %s start_index %d end_index %d result %s",
+        #        FunctionName(1),
+        #        "" if site is None else " " + site,
+        #        forecast_confidence,
+        #        start_utc.strftime(DATE_FORMAT_UTC),
+        #        end_utc.strftime(DATE_FORMAT_UTC),
+        #        start_index,
+        #        end_index,
+        #        result,
+        #    )
         return result
 
     def get_energy_data(self) -> dict[str, Any] | None:
@@ -2972,7 +2970,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             await self.check_data_records()
             await self.recalculate_splines()
-        except Exception as e:  # noqa: BLE001 # pragma: no cover, handle unexpected exceptions
+        except Exception as e:  # noqa: BLE001  # pragma: no cover, handle unexpected exceptions
             _LOGGER.error("Exception in build_forecast_data(): %s: %s", e, traceback.format_exc())
             return False
         return build_success
@@ -3010,6 +3008,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         contiguous_start_date = None
         contiguous_end_date = None
         all_records_good = True
+        summer_time_transitioning = False
         interval_assessment = {}
 
         def is_dst(_datetime: dt):
@@ -3027,7 +3026,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 else:
                     is_daylight = is_dst(self._data_forecasts[interval]["period_start"])
                     if is_daylight is not None and is_daylight != _is_dst:
-                        expected_intervals = 50 if _is_dst else 46  # pragma: no cover, daylight saving time logging is not tested
+                        summer_time_transitioning = True
+                        expected_intervals = 50 if _is_dst else 46
             intervals = end_index - start_index
             forecasts_date = dt.now(self._tz).date() + timedelta(days=future_day)
 
@@ -3051,6 +3051,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 set_assessment(forecasts_date, expected_intervals, intervals, False)
             if future_day == 0 and interval_assessment[forecasts_date]["correct"]:
                 contiguous_start_date = forecasts_date
+        if summer_time_transitioning:
+            _LOGGER.debug("Transitioning between summer/standard time")
         if contiguous > 1:
             _LOGGER.debug(
                 "Forecast data from %s to %s contains all intervals",

@@ -136,9 +136,6 @@ MOCK_SESSION_CONFIG = {
     MOCK_OVER_LIMIT: False,
 }
 
-ZONE = ZoneInfo(ZONE_RAW)
-set_time_zone(ZONE)
-
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -235,15 +232,18 @@ def aioresponses_reset() -> None:
 
 
 async def async_init_integration(
-    hass: HomeAssistant, options: dict, version: int = CONFIG_VERSION, mock_api: bool = True
+    hass: HomeAssistant, options: dict, version: int = CONFIG_VERSION, mock_api: bool = True, timezone: str = ZONE_RAW
 ) -> MockConfigEntry:
     """Set up the Solcast Solar integration in HomeAssistant."""
 
     session_reset_usage()
 
-    hass.config.time_zone = ZONE_RAW
+    ZONE = ZoneInfo(timezone)
+    set_time_zone(ZONE)
+
+    hass.config.time_zone = timezone
     const.SENSOR_UPDATE_LOGGING = True
-    solcastapi.SENSOR_DEBUG_LOGGING = True
+    # solcastapi.SENSOR_DEBUG_LOGGING = True
 
     if options.get(AUTO_UPDATE) is not None:
         options = copy.deepcopy(options)

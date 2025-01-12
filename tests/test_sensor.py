@@ -547,6 +547,11 @@ async def test_sensor_unavailble_exception(
 ) -> None:
     """Test state and attributes of sensors including expected state class and unit of measurement."""
 
+    old_get_sensor_value = SolcastUpdateCoordinator.get_sensor_value
+    old_get_sensor_extra_attributes = SolcastUpdateCoordinator.get_sensor_extra_attributes
+    old_get_site_sensor_value = SolcastUpdateCoordinator.get_site_sensor_value
+    old_get_site_sensor_extra_attributes = SolcastUpdateCoordinator.get_site_sensor_extra_attributes
+
     SolcastUpdateCoordinator.get_sensor_value = get_sensor_value
     SolcastUpdateCoordinator.get_sensor_extra_attributes = get_sensor_extra_attributes
     SolcastUpdateCoordinator.get_site_sensor_value = get_site_sensor_value
@@ -573,3 +578,7 @@ async def test_sensor_unavailble_exception(
 
     finally:
         assert await async_cleanup_integration_tests(hass)
+        SolcastUpdateCoordinator.get_sensor_value = old_get_sensor_value
+        SolcastUpdateCoordinator.get_sensor_extra_attributes = old_get_sensor_extra_attributes
+        SolcastUpdateCoordinator.get_site_sensor_value = old_get_site_sensor_value
+        SolcastUpdateCoordinator.get_site_sensor_extra_attributes = old_get_site_sensor_extra_attributes

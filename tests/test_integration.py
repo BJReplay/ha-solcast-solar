@@ -9,6 +9,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from aiohttp import ClientConnectionError
 import pytest
@@ -48,7 +49,7 @@ from . import (
     MOCK_FORBIDDEN,
     MOCK_NOT_FOUND,
     MOCK_OVER_LIMIT,
-    ZONE,
+    ZONE_RAW,
     async_cleanup_integration_tests,
     async_init_integration,
     session_clear,
@@ -69,6 +70,7 @@ SERVICES = [
     "update_forecasts",
 ]
 
+ZONE = ZoneInfo(ZONE_RAW)
 NOW = dt.now(ZONE)
 
 
