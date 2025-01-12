@@ -372,7 +372,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         try:
             self._sensor_data = self._coordinator.get_sensor_value(self.entity_description.key)
         except Exception as e:  # noqa: BLE001
-            _LOGGER.error("Unable to get sensor value: %s", e)
+            _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
 
         self._attr_available = self._sensor_data is not None
 

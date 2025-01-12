@@ -13,14 +13,8 @@ from homeassistant.components.sensor import SensorStateClass
 from homeassistant.components.solcast_solar.const import API_QUOTA, CUSTOM_HOUR_SENSOR
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
-from homeassistant.const import (
-    STATE_UNAVAILABLE,
-    STATE_UNKNOWN,
-    UnitOfEnergy,
-    UnitOfPower,
-)
+from homeassistant.const import STATE_UNAVAILABLE, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
-from tests.common import async_fire_time_changed
 
 from . import (
     DEFAULT_INPUT1,
@@ -29,18 +23,20 @@ from . import (
     async_init_integration,
 )
 
+from tests.common import async_fire_time_changed
+
 _LOGGER = logging.getLogger(__name__)
 
 
 # Site breakdown for 2222-2222-2222-2222 and 3333-3333-3333-3333 are identical.
 SENSORS: dict[str, dict] = {
     "forecast_today": {
-        "state": {"1": "42.552", "2": "58.509"},
+        "state": {"2": "42.552", "1": "58.509"},
         "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
         "state_class": SensorStateClass.TOTAL,
         "attributes": {
-            "1": {"estimate": 42.552, "estimate10": 35.46, "estimate90": 47.28},
-            "2": {"estimate": 58.509, "estimate10": 48.7575, "estimate90": 65.01},
+            "2": {"estimate": 42.552, "estimate10": 35.46, "estimate90": 47.28},
+            "1": {"estimate": 58.509, "estimate10": 48.7575, "estimate90": 65.01},
         },
         "breakdown": {
             "1": {
@@ -59,12 +55,12 @@ SENSORS: dict[str, dict] = {
         "can_be_unavailable": True,
     },
     "peak_forecast_today": {
-        "state": {"1": "7200", "2": "9900"},
+        "state": {"2": "7200", "1": "9900"},
         "unit_of_measurement": UnitOfPower.WATT,
         "state_class": SensorStateClass.MEASUREMENT,
         "attributes": {
-            "1": {"estimate": 7200, "estimate10": 6000, "estimate90": 8000},
-            "2": {"estimate": 9900, "estimate10": 8250, "estimate90": 11000},
+            "2": {"estimate": 7200, "estimate10": 6000, "estimate90": 8000},
+            "1": {"estimate": 9900, "estimate10": 8250, "estimate90": 11000},
         },
         "breakdown": {
             "1": {
@@ -83,14 +79,14 @@ SENSORS: dict[str, dict] = {
         "can_be_unavailable": True,
     },
     "peak_time_today": {
-        "state": {"1": "2024-01-01T02:00:00+00:00", "2": "2024-01-01T02:00:00+00:00"},
+        "state": {"2": "2024-01-01T02:00:00+00:00", "1": "2024-01-01T02:00:00+00:00"},
         "attributes": {
-            "1": {
+            "2": {
                 "estimate": "2024-01-01T02:00:00+00:00",
                 "estimate10": "2024-01-01T02:00:00+00:00",
                 "estimate90": "2024-01-01T02:00:00+00:00",
             },
-            "2": {
+            "1": {
                 "estimate": "2024-01-01T02:00:00+00:00",
                 "estimate10": "2024-01-01T02:00:00+00:00",
                 "estimate90": "2024-01-01T02:00:00+00:00",
@@ -113,11 +109,11 @@ SENSORS: dict[str, dict] = {
         "can_be_unavailable": True,
     },
     "forecast_this_hour": {
-        "state": {"1": "7200", "2": "9900"},
+        "state": {"2": "7200", "1": "9900"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
-            "1": {"estimate": 7200, "estimate10": 6000, "estimate90": 8000},
-            "2": {"estimate": 9900, "estimate10": 8250, "estimate90": 11000},
+            "2": {"estimate": 7200, "estimate10": 6000, "estimate90": 8000},
+            "1": {"estimate": 9900, "estimate10": 8250, "estimate90": 11000},
         },
         "breakdown": {
             "1": {
@@ -136,11 +132,11 @@ SENSORS: dict[str, dict] = {
         "can_be_unavailable": True,
     },
     "forecast_remaining_today": {
-        "state": {"1": "23.6817", "2": "32.5624"},
+        "state": {"2": "23.6817", "1": "32.5624"},
         "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
         "attributes": {
-            "1": {"estimate": 23.6817, "estimate10": 19.7348, "estimate90": 26.313},
-            "2": {"estimate": 32.5624, "estimate10": 27.1353, "estimate90": 36.1804},
+            "2": {"estimate": 23.6817, "estimate10": 19.7348, "estimate90": 26.313},
+            "1": {"estimate": 32.5624, "estimate10": 27.1353, "estimate90": 36.1804},
         },
         "breakdown": {
             "1": {
@@ -159,11 +155,11 @@ SENSORS: dict[str, dict] = {
         "can_be_unavailable": True,
     },
     "forecast_next_hour": {
-        "state": {"1": "6732", "2": "9256"},
+        "state": {"2": "6732", "1": "9256"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
-            "1": {"estimate": 6732, "estimate10": 5610, "estimate90": 7480},
-            "2": {"estimate": 9256, "estimate10": 7714, "estimate90": 10285},
+            "2": {"estimate": 6732, "estimate10": 5610, "estimate90": 7480},
+            "1": {"estimate": 9256, "estimate10": 7714, "estimate90": 10285},
         },
         "breakdown": {
             "1": {
@@ -182,11 +178,11 @@ SENSORS: dict[str, dict] = {
         "can_be_unavailable": True,
     },
     "forecast_next_x_hours": {
-        "state": {"1": "13748", "2": "18904"},
+        "state": {"2": "13748", "1": "18904"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
-            "1": {"estimate": 13748, "estimate10": 11457, "estimate90": 15276},
-            "2": {"estimate": 18904, "estimate10": 15753, "estimate90": 21004},
+            "2": {"estimate": 13748, "estimate10": 11457, "estimate90": 15276},
+            "1": {"estimate": 18904, "estimate10": 15753, "estimate90": 21004},
         },
         "breakdown": {
             "1": {
@@ -205,11 +201,11 @@ SENSORS: dict[str, dict] = {
         "can_be_unavailable": True,
     },
     "peak_forecast_tomorrow": {
-        "state": {"1": "7200", "2": "9900"},
+        "state": {"2": "7200", "1": "9900"},
         "unit_of_measurement": UnitOfPower.WATT,
         "attributes": {
-            "1": {"estimate": 7200, "estimate10": 6000, "estimate90": 8000},
-            "2": {"estimate": 9900, "estimate10": 8250, "estimate90": 11000},
+            "2": {"estimate": 7200, "estimate10": 6000, "estimate90": 8000},
+            "1": {"estimate": 9900, "estimate10": 8250, "estimate90": 11000},
         },
         "breakdown": {
             "1": {
@@ -228,14 +224,14 @@ SENSORS: dict[str, dict] = {
         "can_be_unavailable": True,
     },
     "peak_time_tomorrow": {
-        "state": {"1": "2024-01-01T02:00:00+00:00", "2": "2024-01-01T02:00:00+00:00"},
+        "state": {"2": "2024-01-01T02:00:00+00:00", "1": "2024-01-01T02:00:00+00:00"},
         "attributes": {
-            "1": {
+            "2": {
                 "estimate": "2024-01-01T02:00:00+00:00",
                 "estimate10": "2024-01-01T02:00:00+00:00",
                 "estimate90": "2024-01-01T02:00:00+00:00",
             },
-            "2": {
+            "1": {
                 "estimate": "2024-01-01T02:00:00+00:00",
                 "estimate10": "2024-01-01T02:00:00+00:00",
                 "estimate90": "2024-01-01T02:00:00+00:00",
@@ -258,12 +254,12 @@ SENSORS: dict[str, dict] = {
         "can_be_unavailable": True,
     },
     "power_now": {
-        "state": {"1": "7221", "2": "9928"},
+        "state": {"2": "7221", "1": "9928"},
         "unit_of_measurement": UnitOfPower.WATT,
         "state_class": SensorStateClass.MEASUREMENT,
         "attributes": {
-            "1": {"estimate": 7221, "estimate10": 6017, "estimate90": 8023},
-            "2": {"estimate": 9928, "estimate10": 8274, "estimate90": 11032},
+            "2": {"estimate": 7221, "estimate10": 6017, "estimate90": 8023},
+            "1": {"estimate": 9928, "estimate10": 8274, "estimate90": 11032},
         },
         "breakdown": {
             "1": {
@@ -282,12 +278,12 @@ SENSORS: dict[str, dict] = {
         "can_be_unavailable": True,
     },
     "power_in_30_minutes": {
-        "state": {"1": "7158", "2": "9842"},
+        "state": {"2": "7158", "1": "9842"},
         "unit_of_measurement": UnitOfPower.WATT,
         "state_class": SensorStateClass.MEASUREMENT,
         "attributes": {
-            "1": {"estimate": 7158, "estimate10": 5965, "estimate90": 7953},
-            "2": {"estimate": 9842, "estimate10": 8201, "estimate90": 10935},
+            "2": {"estimate": 7158, "estimate10": 5965, "estimate90": 7953},
+            "1": {"estimate": 9842, "estimate10": 8201, "estimate90": 10935},
         },
         "breakdown": {
             "1": {
@@ -306,12 +302,12 @@ SENSORS: dict[str, dict] = {
         "can_be_unavailable": True,
     },
     "power_in_1_hour": {
-        "state": {"1": "6842", "2": "9408"},
+        "state": {"2": "6842", "1": "9408"},
         "unit_of_measurement": UnitOfPower.WATT,
         "state_class": SensorStateClass.MEASUREMENT,
         "attributes": {
-            "1": {"estimate": 6842, "estimate10": 5702, "estimate90": 7603},
-            "2": {"estimate": 9408, "estimate10": 7840, "estimate90": 10454},
+            "2": {"estimate": 6842, "estimate10": 5702, "estimate90": 7603},
+            "1": {"estimate": 9408, "estimate10": 7840, "estimate90": 10454},
         },
         "breakdown": {
             "1": {
@@ -329,10 +325,9 @@ SENSORS: dict[str, dict] = {
         },
         "can_be_unavailable": True,
     },
-    "api_used": {"state": {"1": "4", "2": "4"}},
-    "api_limit": {"state": {"1": DEFAULT_INPUT1[API_QUOTA], "2": DEFAULT_INPUT1[API_QUOTA]}},
-    "api_last_polled": {"state": {"1": "isodate", "2": "isodate"}},
-    # "weather_description": {},
+    "api_used": {"state": {"2": "4", "1": "4"}},
+    "api_limit": {"state": {"2": DEFAULT_INPUT1[API_QUOTA], "1": DEFAULT_INPUT1[API_QUOTA]}},
+    "api_last_polled": {"state": {"2": "isodate", "1": "isodate"}},
 }
 
 for attrs in SENSORS.values():
@@ -355,8 +350,8 @@ SENSORS["forecast_day_7"] = SENSORS["forecast_today"]
 @pytest.mark.parametrize(
     ("key", "settings"),
     [
-        ("1", DEFAULT_INPUT1),
-        ("2", DEFAULT_INPUT2),
+        ("1", DEFAULT_INPUT2),
+        ("2", DEFAULT_INPUT1),
     ],
 )
 async def test_sensor_states(
@@ -375,7 +370,13 @@ async def test_sensor_states(
 
     try:
         # Test number of site sensors that exist.
-        assert len(hass.states.async_all("sensor")) == len(SENSORS) + (3 if key == "1" else 4)
+        assert len(hass.states.async_all("sensor")) == len(SENSORS) + (3 if key == "2" else 4)
+
+        # Remove unusied options for DEFAULT_INPUT1.
+        if key == "2":
+            for attrs in SENSORS.values():
+                _LOGGER.critical(attrs)
+                attrs["attributes"] = {}
 
         # Test initial sensor values.
         for sensor, attrs in SENSORS.items():
@@ -391,7 +392,7 @@ async def test_sensor_states(
                     assert dt.fromisoformat(test)
                 else:
                     assert test == attrs["state"][key]
-            if "attributes" in attrs:
+            if "attributes" in attrs and attrs["attributes"]:
                 for attribute in attrs["attributes"][key]:
                     test = state.attributes[attribute]
                     with contextlib.suppress(AttributeError, ValueError):

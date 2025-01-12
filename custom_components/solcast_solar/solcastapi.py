@@ -1806,12 +1806,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
         df = [self._use_forecast_confidence]
-        if self.options.attr_brk_estimate and "pv_estimate" not in df:
-            df.append("pv_estimate")
-        if self.options.attr_brk_estimate10 and "pv_estimate10" not in df:
-            df.append("pv_estimate10")
-        if self.options.attr_brk_estimate90 and "pv_estimate90" not in df:
-            df.append("pv_estimate90")
+        for estimate in ("pv_estimate", "pv_estimate10", "pv_estimate90"):
+            if self.options.attr_brk_estimate and estimate not in df:
+                df.append(estimate)
 
         def get_start_and_end(forecasts: list) -> int:
             start, end = self.__get_forecast_list_slice(forecasts, self.get_day_start_utc())  # Get start of day index.
@@ -1872,8 +1869,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         variant = self._forecasts_moment["all" if site is None else site].get(
             self._use_forecast_confidence if forecast_confidence is None else forecast_confidence, []
         )
-        offset = (len(self._spline_period) * 6 - len(variant)) + 3  # To cater for less intervals than the spline period
-        return variant[int(n_min / 300) - offset] if len(variant) > 0 else None
+        offset = (
+            (len(self._spline_period) * 6 - len(variant)) + 3 if variant is not None else 0
+        )  # To cater for less intervals than the spline period
+        return variant[int(n_min / 300) - offset] if variant and len(variant) > 0 else None
 
     def __get_remaining(self, site: str, forecast_confidence: str, n_min: int) -> float:
         """Get a remaining value at a given five-minute point from a reducing spline.
@@ -1887,11 +1886,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             float: A splined forecasted remaining value as kWh.
 
         """
-        variant = self._forecasts_remaining["all" if site is None else site][
+        variant = self._forecasts_remaining["all" if site is None else site].get(
             self._use_forecast_confidence if forecast_confidence is None else forecast_confidence
-        ]
-        offset = (len(self._spline_period) * 6 - len(variant)) + 3  # To cater for less intervals than the spline period
-        return variant[int(n_min / 300) - offset] if len(variant) > 0 else None
+        )
+        offset = (
+            (len(self._spline_period) * 6 - len(variant)) + 3 if variant is not None else 0
+        )  # To cater for less intervals than the spline period
+        return variant[int(n_min / 300) - offset] if variant and len(variant) > 0 else None
 
     def __get_forecast_pv_remaining(
         self,
@@ -1925,6 +1926,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return None  # Set sensor to unavailable
         day_start = self.get_day_start_utc()
         result = self.__get_remaining(site, forecast_confidence, (start_utc - day_start).total_seconds())
+        if result is None:
+            return None
         if end_utc is not None:
             end_utc = end_utc.replace(minute=math.floor(end_utc.minute / 5) * 5)
             if end_utc < day_start + timedelta(seconds=1800 * len(self._spline_period)):
