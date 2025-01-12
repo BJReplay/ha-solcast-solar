@@ -11,6 +11,7 @@ import os
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import aiohttp
 from aiohttp import ClientConnectionError
 import pytest
 from voluptuous.error import MultipleInvalid
@@ -19,15 +20,28 @@ from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
     API_QUOTA,
     AUTO_UPDATE,
+    BRK_ESTIMATE,
+    BRK_ESTIMATE10,
+    BRK_ESTIMATE90,
+    BRK_HALFHOURLY,
+    BRK_HOURLY,
+    BRK_SITE,
+    BRK_SITE_DETAILED,
+    CUSTOM_HOUR_SENSOR,
     DOMAIN,
     EVENT_END_DATETIME,
     EVENT_START_DATETIME,
     HARD_LIMIT_API,
+    KEY_ESTIMATE,
     SITE,
     UNDAMPENED,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.solcastapi import SitesStatus, SolcastApi
+from homeassistant.components.solcast_solar.solcastapi import (
+    ConnectionOptions,
+    SitesStatus,
+    SolcastApi,
+)
 from homeassistant.components.solcast_solar.util import SolcastConfigEntry
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_API_KEY
@@ -852,7 +866,34 @@ async def test_integration_scenarios(
     entry = await async_init_integration(hass, options)
     coordinator = entry.runtime_data.coordinator
     solcast = patch_solcast_api(coordinator.solcast)
+
     try:
+        # Test bad serialise data while an entry exists
+        async with aiohttp.ClientSession() as session:
+            connection_options = ConnectionOptions(
+                DEFAULT_INPUT1[CONF_API_KEY],
+                DEFAULT_INPUT1[API_QUOTA],
+                "api.whatever.com",
+                config_dir,
+                ZONE_RAW,
+                DEFAULT_INPUT1[AUTO_UPDATE],
+                {str(hour): DEFAULT_INPUT1[f"damp{hour:02}"] for hour in range(24)},
+                DEFAULT_INPUT1[CUSTOM_HOUR_SENSOR],
+                DEFAULT_INPUT1[KEY_ESTIMATE],
+                DEFAULT_INPUT1[HARD_LIMIT_API],
+                DEFAULT_INPUT1[BRK_ESTIMATE],
+                DEFAULT_INPUT1[BRK_ESTIMATE10],
+                DEFAULT_INPUT1[BRK_ESTIMATE90],
+                DEFAULT_INPUT1[BRK_SITE],
+                DEFAULT_INPUT1[BRK_HALFHOURLY],
+                DEFAULT_INPUT1[BRK_HOURLY],
+                DEFAULT_INPUT1[BRK_SITE_DETAILED],
+            )
+            solcast_bad: SolcastApi = SolcastApi(session, connection_options, hass, entry)
+            await solcast_bad.serialise_data(solcast_bad._data, Path(f"{config_dir}/solcast.json"))
+            assert "Not serialising empty data" in caplog.text
+
+        # Assert good start
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
         assert "Hard limit is set to limit peak forecast values" in caplog.text
         caplog.clear()

@@ -449,7 +449,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return f"{self._config_dir}/solcast-dampening.json"
 
-    async def __serialise_data(self, data: dict, filename: str) -> bool:
+    async def serialise_data(self, data: dict, filename: str) -> bool:
         """Serialize data to file.
 
         Arguments:
@@ -460,35 +460,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             bool: Success or failure.
 
         """
-        serialise = True
-        # The try/except block arrangement here is significant. If the file write was
-        # inside the try could result in an empty file.
-        try:
-            if not self._loaded_data:  # pragma: no cover, not tested
-                _LOGGER.debug("Not saving forecast cache in __serialise_data() as no data has been loaded yet")
-                return False
-            # If the _loaded_data flag is True, yet last_updated is 1/1/1970 then data has not been loaded
-            # properly for some reason, or no forecast has been received since startup so abort the save.
-            if data["last_updated"] == dt.fromtimestamp(
-                0, datetime.UTC
-            ):  # pragma: no cover, avoids corrupting the cache file due to unexpected exceptions
-                _LOGGER.error(
-                    "Internal error: Forecast cache %s last updated date has not been set, not saving data",
-                    filename,
-                )
-                return False
+        if self._loaded_data and data["last_updated"] != dt.fromtimestamp(0, datetime.UTC):
             payload = json.dumps(data, ensure_ascii=False, cls=DateTimeEncoder)
-        except Exception as e:  # noqa: BLE001  # pragma: no cover, avoids corrupting the cache file
-            _LOGGER.error("Exception in __serialise_data(): %s: %s", e, traceback.format_exc())
-            serialise = False
-        if serialise:
             async with self._serialise_lock, aiofiles.open(filename, "w") as file:
                 await file.write(payload)
             _LOGGER.debug(
                 "Saved %s forecast cache",
                 "dampened" if filename == self._filename else "un-dampened",
             )
-        return True
+            return True
+        _LOGGER.error("Not serialising empty data")
+        return False
 
     async def __sites_data(self):  # noqa: C901
         """Request site details.
@@ -650,27 +632,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             reset (bool): Whether to reset API key usage to zero.
 
         """
-        serialise = True
-        try:
-            filename = self.__get_usage_cache_filename(api_key)
-            if reset:
-                self._api_used_reset[api_key] = self.__get_utc_previous_midnight()
-            _LOGGER.debug(
-                "Writing API usage cache file: %s",
-                self.__redact_msg_api_key(filename, api_key),
-            )
-            json_content = {
-                "daily_limit": self._api_limit[api_key],
-                "daily_limit_consumed": self._api_used[api_key],
-                "reset": self._api_used_reset[api_key],
-            }
-            payload = json.dumps(json_content, ensure_ascii=False, cls=DateTimeEncoder)
-        except Exception as e:  # noqa: BLE001  # pragma: no cover, avoids corrupting the cache file
-            _LOGGER.error("Exception in __serialise_usage(): %s: %s", e, traceback.format_exc())
-            serialise = False
-        if serialise:
-            async with self._serialise_lock, aiofiles.open(filename, "w") as file:
-                await file.write(payload)
+        filename = self.__get_usage_cache_filename(api_key)
+        if reset:
+            self._api_used_reset[api_key] = self.__get_utc_previous_midnight()
+        _LOGGER.debug(
+            "Writing API usage cache file: %s",
+            self.__redact_msg_api_key(filename, api_key),
+        )
+        json_content = {
+            "daily_limit": self._api_limit[api_key],
+            "daily_limit_consumed": self._api_used[api_key],
+            "reset": self._api_used_reset[api_key],
+        }
+        payload = json.dumps(json_content, ensure_ascii=False, cls=DateTimeEncoder)
+        async with self._serialise_lock, aiofiles.open(filename, "w") as file:
+            await file.write(payload)
 
     async def __sites_usage(self):
         """Load api usage cache.
@@ -860,35 +836,22 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Usage cache is fresh, so not resetting")
 
     async def serialise_granular_dampening(self):
-        """Serialise the site dampening file.
-
-        See comment in __serialise_data.
-        """
-        serialise = True
-        try:
-            filename = self.__get_granular_dampening_filename()
-            _LOGGER.debug("Writing granular dampening file: %s", filename)
-            payload = json.dumps(
-                self.granular_dampening,
-                ensure_ascii=False,
-                cls=NoIndentEncoder,
-                indent=2,
-            )
-        except Exception as e:  # noqa: BLE001  # pragma: no cover, avoids corrupting the cache file
-            _LOGGER.error(
-                "Exception in serialise_granular_dampening(): %s: %s",
-                e,
-                traceback.format_exc(),
-            )
-            serialise = False
-        if serialise:
-            async with self._serialise_lock, aiofiles.open(filename, "w") as file:
-                await file.write(payload)
-            self._granular_dampening_mtime = Path(filename).stat().st_mtime
-            _LOGGER.debug(
-                "Granular dampening file mtime: %s",
-                dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT),
-            )
+        """Serialise the site dampening file."""
+        filename = self.__get_granular_dampening_filename()
+        _LOGGER.debug("Writing granular dampening file: %s", filename)
+        payload = json.dumps(
+            self.granular_dampening,
+            ensure_ascii=False,
+            cls=NoIndentEncoder,
+            indent=2,
+        )
+        async with self._serialise_lock, aiofiles.open(filename, "w") as file:
+            await file.write(payload)
+        self._granular_dampening_mtime = Path(filename).stat().st_mtime
+        _LOGGER.debug(
+            "Granular dampening file mtime: %s",
+            dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT),
+        )
 
     async def granular_dampening_data(self, info_suppression: bool = False) -> bool:
         """Read the current granular dampening file.
@@ -1139,7 +1102,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     json_version = 5
 
                                 if json_version > on_version:
-                                    await self.__serialise_data(data, filename)
+                                    await self.serialise_data(data, filename)
                         return data
                     return None
 
@@ -1211,8 +1174,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         serialise = True
 
                     if serialise:
-                        await self.__serialise_data(self._data, self._filename)
-                        await self.__serialise_data(self._data_undampened, self._filename_undampened)
+                        await self.serialise_data(self._data, self._filename)
+                        await self.serialise_data(self._data_undampened, self._filename_undampened)
 
                 dampened_data = await load_data(self._filename)
                 if dampened_data:
@@ -2189,7 +2152,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     data["last_updated"] = dt.now(datetime.UTC).replace(microsecond=0)
                     data["last_attempt"] = last_attempt
                     data["auto_updated"] = self.options.auto_update > 0
-                    return await self.__serialise_data(data, self._filename if data == self._data else self._filename_undampened)
+                    return await self.serialise_data(data, self._filename if data == self._data else self._filename_undampened)
 
                 s_status = await set_metadata_and_serialise(self._data)
                 await set_metadata_and_serialise(self._data_undampened)
@@ -2253,7 +2216,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         if len(apply_dampening) > 0:
             self._data_undampened["last_updated"] = dt.now(datetime.UTC).replace(microsecond=0)
-            await self.__serialise_data(self._data_undampened, self._filename_undampened)
+            await self.serialise_data(self._data_undampened, self._filename_undampened)
 
         for site in self.sites:
             site = site["resource_id"]
@@ -2277,7 +2240,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             self._data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts[site])}})
 
         if len(apply_dampening) > 0:
-            await self.__serialise_data(self._data, self._filename)
+            await self.serialise_data(self._data, self._filename)
 
     def __forecast_entry_update(self, forecasts: dict, period_start: dt, pv: float, pv10: float, pv90: float):
         """Update an individual forecast entry."""
