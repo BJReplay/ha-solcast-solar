@@ -176,6 +176,11 @@ async def _reload(hass: HomeAssistant, entry: SolcastConfigEntry) -> tuple[Solca
     return None, None
 
 
+def _no_exception(caplog: pytest.LogCaptureFixture):
+    assert "Error" not in caplog.text
+    assert "Exception" not in caplog.text
+
+
 async def test_api_failure(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -494,6 +499,8 @@ async def test_integration(
         assert "Not requesting a solar forecast because time is within ten seconds of last update" in caplog.text
         assert "ERROR" not in caplog.text
 
+        _no_exception(caplog)
+
         # Test API too busy encountered for first site
         caplog.clear()
         session_set(MOCK_BUSY)
@@ -511,9 +518,11 @@ async def test_integration(
         assert "API allowed polling limit has been exceeded" in caplog.text
         assert "No data was returned for forecasts" in caplog.text
         caplog.clear()
+        _no_exception(caplog)
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "API polling limit exhausted, not getting forecast" in caplog.text
         caplog.clear()
+        _no_exception(caplog)
         session_clear(MOCK_OVER_LIMIT)
 
         # Create a granular dampening file to be read on next update
@@ -547,6 +556,7 @@ async def test_integration(
             assert "Granular dampening reloaded" in caplog.text
             assert "Forecast update completed successfully" in caplog.text
             assert "contains all intervals" in caplog.text
+        _no_exception(caplog)
         caplog.clear()
 
         def set_file_last_modified(file_path, dt):
@@ -608,6 +618,7 @@ async def test_integration_remaining_actions(
     assert await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()
 
+    _no_exception(caplog)
     caplog.clear()
 
     # Switch to one API key and two sites to assert the initial clean-up
@@ -685,6 +696,7 @@ async def test_integration_remaining_actions(
         await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("0.75," * 48)[:-1]}, blocking=True)
         await hass.async_block_till_done()  # Because options change
         await _clear_granular_dampening()
+
         # Request dampening for a site when using legacy dampening
         with pytest.raises(ServiceValidationError):
             dampening = await hass.services.async_call(
@@ -863,6 +875,8 @@ async def test_integration_remaining_actions(
                 return_response=True,
             )
 
+        _no_exception(caplog)
+
     finally:
         assert await async_cleanup_integration_tests(hass)
 
@@ -913,6 +927,7 @@ async def test_integration_scenarios(
         _LOGGER.debug("Testing good start happened")
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
         assert "Hard limit is set to limit peak forecast values" in caplog.text
+        _no_exception(caplog)
         caplog.clear()
 
         # Test start with stale data
@@ -941,6 +956,7 @@ async def test_integration_scenarios(
         assert "is older than expected, should be" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
         assert "ERROR" not in caplog.text
+        _no_exception(caplog)
         caplog.clear()
 
         # Test stale start with auto update disabled
@@ -956,6 +972,7 @@ async def test_integration_scenarios(
         # await _wait_for_update(caplog)
         # assert "The update automation has not been running, updating forecast" in caplog.text
         # assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
+        _no_exception(caplog)
         caplog.clear()
 
         restore_data()
@@ -976,6 +993,7 @@ async def test_integration_scenarios(
         assert "Options updated, action: The integration will reload" in caplog.text
         assert "sites cache is invalid" in caplog.text
         session_clear(MOCK_BUSY)
+        _no_exception(caplog)
         caplog.clear()
         coordinator, solcast = await _reload(hass, entry)
         assert "An API key has changed, resetting usage" in caplog.text
@@ -983,6 +1001,7 @@ async def test_integration_scenarios(
         assert "New site(s) have been added" in caplog.text
         assert "Site resource id 1111-1111-1111-1111 is no longer configured" in caplog.text
         assert "Site resource id 2222-2222-2222-2222 is no longer configured" in caplog.text
+        _no_exception(caplog)
         caplog.clear()
 
         # Test corrupt cache start, integration will mostly not load, and will not attempt reload
