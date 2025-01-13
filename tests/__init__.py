@@ -31,13 +31,7 @@ from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 
 from .aioresponses import CallbackResult, aioresponses
-from .simulator import (
-    API_KEY_SITES,
-    raw_get_site_estimated_actuals,
-    raw_get_site_forecasts,
-    raw_get_sites,
-    set_time_zone,
-)
+from .simulator import API_KEY_SITES, SimulatedSolcast
 
 from tests.common import MockConfigEntry
 
@@ -66,7 +60,7 @@ BAD_INPUT[CONF_API_KEY] = "badkey"
 
 SITE_DAMP_FACTORS: Final = {f"damp{factor:02d}": 1.0 for factor in range(24)}
 DEFAULT_INPUT1 = DEFAULT_INPUT1_NO_DAMP | SITE_DAMP_FACTORS | {SITE_DAMP: False}
-ZONE_RAW: Final = "Australia/Brisbane"  # Somewhere without daylight saving time
+ZONE_RAW: Final = "Australia/Brisbane"  # Somewhere without daylight saving time by default
 
 DEFAULT_INPUT2 = copy.deepcopy(DEFAULT_INPUT1)
 DEFAULT_INPUT2[CONF_API_KEY] = KEY1 + "," + KEY2
@@ -143,6 +137,8 @@ MOCK_SESSION_CONFIG = {
 
 _LOGGER = logging.getLogger(__name__)
 
+simulated: SimulatedSolcast = SimulatedSolcast()
+
 
 def _check_abend(api_key, site=None) -> CallbackResult | None:
     if MOCK_SESSION_CONFIG[MOCK_BUSY] or (MOCK_SESSION_CONFIG[MOCK_BUSY_SITE] and site == MOCK_SESSION_CONFIG[MOCK_BUSY_SITE]):
@@ -172,7 +168,7 @@ async def _get_sites(url, **kwargs) -> CallbackResult:
             return abend
         if MOCK_SESSION_CONFIG[MOCK_CORRUPT_SITES]:
             return CallbackResult(body="Not available, a string response")
-        return CallbackResult(payload=raw_get_sites(api_key))
+        return CallbackResult(payload=simulated.raw_get_sites(api_key))
     except Exception as e:  # noqa: BLE001
         _LOGGER.error("Error building sites: %s", e)
 
@@ -195,13 +191,13 @@ async def _get_forecasts(url, **kwargs) -> CallbackResult:
     if MOCK_SESSION_CONFIG[MOCK_CORRUPT_FORECAST]:
         return CallbackResult(body="Not available, a string response")
     kwargs["params"]["hours"] -= 12  # Intentionally return less hours for testing.
-    return await _get_solcast(url, raw_get_site_forecasts, **kwargs)
+    return await _get_solcast(url, simulated.raw_get_site_forecasts, **kwargs)
 
 
 async def _get_actuals(url, **kwargs) -> CallbackResult:
     if MOCK_SESSION_CONFIG[MOCK_CORRUPT_ACTUALS]:
         return CallbackResult(body="Not available, a string response")
-    return await _get_solcast(url, raw_get_site_estimated_actuals, **kwargs)
+    return await _get_solcast(url, simulated.raw_get_site_estimated_actuals, **kwargs)
 
 
 def session_reset_usage() -> None:
@@ -244,7 +240,7 @@ async def async_init_integration(
     session_reset_usage()
 
     ZONE = ZoneInfo(timezone)
-    set_time_zone(ZONE)
+    simulated.set_time_zone(ZONE)
 
     hass.config.time_zone = timezone
     const.SENSOR_UPDATE_LOGGING = True

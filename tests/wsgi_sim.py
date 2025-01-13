@@ -53,14 +53,9 @@ import sys
 import traceback
 from zoneinfo import ZoneInfo
 
-from simulator import (
-    API_KEY_SITES,
-    TIMEZONE,
-    get_period,
-    raw_get_site_estimated_actuals,
-    raw_get_site_forecasts,
-    raw_get_sites,
-)
+from simulator import API_KEY_SITES, SimulatedSolcast
+
+simulate = SimulatedSolcast()
 
 
 def restart():
@@ -216,7 +211,7 @@ def get_sites():
     if response_code != 200:
         return jsonify(issue), response_code
 
-    return jsonify(raw_get_sites(api_key)), 200
+    return jsonify(simulate.raw_get_sites(api_key)), 200
 
 
 @app.route("/rooftop_sites/<site_id>/estimated_actuals", methods=["GET"])
@@ -228,7 +223,7 @@ def get_site_estimated_actuals(site_id):
     if response_code != 200:
         return jsonify(issue), response_code
 
-    return jsonify(raw_get_site_estimated_actuals(site_id, api_key, int(request.args.get("hours")))), 200
+    return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, int(request.args.get("hours")))), 200
 
 
 @app.route("/rooftop_sites/<site_id>/forecasts", methods=["GET"])
@@ -239,7 +234,7 @@ def get_site_forecasts(site_id):
     response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue), response_code
-    return jsonify(raw_get_site_forecasts(site_id, api_key, int(request.args.get("hours")))), 200
+    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, int(request.args.get("hours")))), 200
 
 
 @app.route("/data/historic/advanced_pv_power", methods=["GET"])
@@ -271,12 +266,12 @@ def get_site_estimated_actuals_advanced():
         return missing_parameter()
     if not duration:
         _hours = int((end - start).total_seconds() / 3600)
-    period_end = get_period(start, timedelta(minutes=30))
+    period_end = simulate.get_period(start, timedelta(minutes=30))
     response_code, issue, site = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue), response_code
 
-    return jsonify(raw_get_site_estimated_actuals(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200
+    return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200
 
 
 @app.route("/data/forecast/advanced_pv_power", methods=["GET"])
@@ -286,33 +281,32 @@ def get_site_forecasts_advanced():
     api_key = request.args.get("api_key")
     site_id = request.args.get("resource_id")
     _hours = int(request.args.get("hours"))
-    period_end = get_period(dt.now(datetime.UTC), timedelta(minutes=30))
+    period_end = simulate.get_period(dt.now(datetime.UTC), timedelta(minutes=30))
     response_code, issue, site = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue), response_code
 
-    return jsonify(raw_get_site_forecasts(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200
+    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200
 
 
 def get_time_zone():
     """Attempt to read time zone from Home Assistant config."""
 
-    global TIMEZONE
     try:
         with Path.open(Path(Path.cwd(), "../../../.storage/core.config")) as f:
             config = json.loads(f.read())
-            TIMEZONE = ZoneInfo(config["data"]["time_zone"])
+            simulate.set_time_zone(ZoneInfo(config["data"]["time_zone"]))
+            _LOGGER.info("Time zone: %s", config["data"]["time_zone"])
     except:  # noqa: E722
         pass
 
 
 if __name__ == "__main__":
-    get_time_zone()
     random.seed()
     _LOGGER.info("Starting Solcast API simulator, will listen on localhost:443")
-    _LOGGER.info("Time zone: %s", TIMEZONE)
     _LOGGER.info("Originally written by @autoSteve")
     _LOGGER.info("Integration issues raised regarding this script will be closed without response because it is a development tool")
+    get_time_zone()
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", help="Set the API call limit available, example --limit 100", type=int, required=False)

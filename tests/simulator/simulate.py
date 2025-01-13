@@ -2,6 +2,7 @@
 
 import datetime
 from datetime import datetime as dt, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo
 
 API_KEY_SITES = {
@@ -177,82 +178,102 @@ GENERATION_FACTOR = [
 TIMEZONE = ZoneInfo("Australia/Melbourne")
 
 
-def get_period(period, delta):
-    """Return the start period and factors for the current time."""
-    return period.replace(minute=(int(period.minute / 30) * 30), second=0, microsecond=0) + delta
+class SimulatedSolcast:
+    """Simulated Solcast API."""
 
+    def __init__(self) -> None:
+        """Initialize the API."""
+        self.timezone: ZoneInfo = TIMEZONE
+        self.cached_actuals = {}
+        self.cached_forecasts = {}
 
-def set_time_zone(time_zone):
-    """Set the time zone."""
+    def raw_get_sites(self, api_key):
+        """Return sites for an API key."""
 
-    global TIMEZONE
-    TIMEZONE = time_zone
+        sites = API_KEY_SITES[api_key]
+        meta = {
+            "page_count": 1,
+            "current_page": 1,
+            "total_records": len(API_KEY_SITES[api_key]["sites"]),
+        }
+        return sites | meta
 
+    def raw_get_site_estimated_actuals(
+        self, site_id: str, api_key: str, hours: int, prefix: str = "pv_estimate", period_end: dt | None = None
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Return simulated estimated actials for a site.
 
-def raw_get_sites(api_key):
-    """Return sites for an API key."""
+        The real Solcast API does not return values for estimate 10/90, but the simulator does.
+        This is to enable testing of the integration.
+        """
 
-    sites = API_KEY_SITES[api_key]
-    meta = {
-        "page_count": 1,
-        "current_page": 1,
-        "total_records": len(API_KEY_SITES[api_key]["sites"]),
-    }
-    return sites | meta
+        site = next((site for site in API_KEY_SITES[api_key]["sites"] if site["resource_id"] == site_id), None)
+        period_end = self.get_period(dt.now(datetime.UTC), timedelta(hours=hours) * -1) if period_end is None else period_end
 
+        lookup = f"{api_key} {site_id} {hours} {period_end}"
+        if cached := self.cached_actuals.get(lookup):
+            return cached
 
-def pv_interval(site_capacity, estimate, period_end, minute):
-    """Calculate value for a single interval."""
-    return round(
-        site_capacity
-        * estimate
-        * GENERATION_FACTOR[
-            int(
-                (period_end + timedelta(minutes=minute * 30)).astimezone(TIMEZONE).hour * 2
-                + (period_end + timedelta(minutes=minute * 30)).astimezone(TIMEZONE).minute / 30
-            )
-        ],
-        4,
-    )
+        self.cached_actuals[lookup] = {
+            "estimated_actuals": [
+                {
+                    "period_end": (period_end + timedelta(minutes=minute * 30)).isoformat(),
+                    "period": "PT30M",
+                    prefix: self.__pv_interval(site["capacity"], FORECAST, period_end, minute),
+                    # The Solcast API does not return these values, but the simulator does
+                    prefix + "10": self.__pv_interval(site["capacity"], FORECAST_10, period_end, minute),
+                    prefix + "90": self.__pv_interval(site["capacity"], FORECAST_90, period_end, minute),
+                }
+                for minute in range((hours + 1) * 2)
+            ],
+        }
+        return self.cached_actuals[lookup]
 
+    def raw_get_site_forecasts(
+        self, site_id: str, api_key: str, hours: int, prefix: str = "pv_estimate"
+    ) -> dict[str, list[dict[str, Any]]]:
+        """Return simulated forecasts for a site."""
 
-def raw_get_site_estimated_actuals(site_id, api_key, hours, key="pv_estimate", period_end=None):
-    """Return simulated estimated actials for a site.
+        site = next((site for site in API_KEY_SITES[api_key]["sites"] if site["resource_id"] == site_id), None)
+        period_end = self.get_period(dt.now(datetime.UTC), timedelta(minutes=30))
 
-    The real Solcast API does not return values for estimate 10/90, but the simulator does.
-    This is to enable testing of the integration.
-    """
+        lookup = f"{api_key} {site_id} {hours} {period_end}"
+        if cached := self.cached_forecasts.get(lookup):
+            return cached
 
-    site = next((site for site in API_KEY_SITES[api_key]["sites"] if site["resource_id"] == site_id), None)
-    period_end = get_period(dt.now(datetime.UTC), timedelta(hours=hours) * -1) if period_end is None else period_end
-    return {
-        "estimated_actuals": [
-            {
-                "period_end": (period_end + timedelta(minutes=minute * 30)).isoformat(),
-                key: pv_interval(site["capacity"], FORECAST, period_end, minute),
-                key + "10": pv_interval(site["capacity"], FORECAST_10, period_end, minute),
-                key + "90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
-                "period": "PT30M",
-            }
-            for minute in range((hours + 1) * 2)
-        ],
-    }
+        self.cached_forecasts[lookup] = {
+            "forecasts": [
+                {
+                    "period_end": (period_end + timedelta(minutes=minute * 30)).isoformat(),
+                    "period": "PT30M",
+                    prefix: self.__pv_interval(site["capacity"], FORECAST, period_end, minute),
+                    prefix + "10": self.__pv_interval(site["capacity"], FORECAST_10, period_end, minute),
+                    prefix + "90": self.__pv_interval(site["capacity"], FORECAST_90, period_end, minute),
+                }
+                for minute in range(hours * 2 + 1)  # Solcast usually returns one more forecast, not an even number of intervals
+            ],
+        }
+        return self.cached_forecasts[lookup]
 
+    def set_time_zone(self, timezone: ZoneInfo) -> None:
+        """Set the time zone."""
 
-def raw_get_site_forecasts(site_id, api_key, hours, key="pv_estimate"):
-    """Return simulated forecasts for a site."""
+        self.timezone = timezone
 
-    site = next((site for site in API_KEY_SITES[api_key]["sites"] if site["resource_id"] == site_id), None)
-    period_end = get_period(dt.now(datetime.UTC), timedelta(minutes=30))
-    return {
-        "forecasts": [
-            {
-                "period_end": (period_end + timedelta(minutes=minute * 30)).isoformat(),
-                key: pv_interval(site["capacity"], FORECAST, period_end, minute),
-                key + "10": pv_interval(site["capacity"], FORECAST_10, period_end, minute),
-                key + "90": pv_interval(site["capacity"], FORECAST_90, period_end, minute),
-                "period": "PT30M",
-            }
-            for minute in range(hours * 2 + 1)  # Solcast usually returns one more forecast, not an even number of intervals
-        ],
-    }
+    def get_period(self, period: dt, delta: timedelta) -> dt:
+        """Return the start period and factors for the current time."""
+        return period.replace(minute=(int(period.minute / 30) * 30), second=0, microsecond=0) + delta
+
+    def __pv_interval(self, site_capacity: float, estimate: float, period_end: dt, minute: int) -> float:
+        """Calculate value for a single interval."""
+        return round(
+            site_capacity
+            * estimate
+            * GENERATION_FACTOR[
+                int(
+                    (period_end + timedelta(minutes=minute * 30)).astimezone(self.timezone).hour * 2
+                    + (period_end + timedelta(minutes=minute * 30)).astimezone(self.timezone).minute / 30
+                )
+            ],
+            4,
+        )

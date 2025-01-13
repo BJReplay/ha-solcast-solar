@@ -25,7 +25,7 @@ import traceback
 from typing import Any, Final, cast
 
 import aiofiles
-from aiohttp import ClientConnectionError, ClientSession
+from aiohttp import ClientConnectionError, ClientResponseError, ClientSession
 from aiohttp.client_reqrep import ClientResponse
 from isodate import parse_datetime
 
@@ -285,7 +285,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for task, cancel in self.tasks.items():
             _LOGGER.debug("Cancelling solcastapi task %s", task)
             cancel.cancel()
-        self.tasks = {}
 
     async def set_options(self, options: dict):
         """Set the class option variables (called by __init__ to avoid an integration reload).
@@ -526,84 +525,86 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for api_key in api_keys:
                 api_key = api_key.strip()
                 no_sites = True
-                async with asyncio.timeout(10):
-                    cache_filename = self.__get_sites_cache_filename(api_key)
-                    _LOGGER.debug(
-                        "%s",
-                        "Sites cache " + ("exists" if Path(cache_filename).is_file() else "does not yet exist"),
-                    )
-                    url = f"{self.options.host}/rooftop_sites"
-                    params = {"format": "json", "api_key": api_key}
-                    _LOGGER.debug("Connecting to %s?format=json&api_key=%s", url, self.__redact_api_key(api_key))
+                cache_filename = self.__get_sites_cache_filename(api_key)
+                _LOGGER.debug(
+                    "%s",
+                    f"Sites cache {'exists' if Path(cache_filename).is_file() else 'does not yet exist'}"
+                    f" for {self.__redact_api_key(api_key)}",
+                )
+                url = f"{self.options.host}/rooftop_sites"
+                params = {"format": "json", "api_key": api_key}
+                _LOGGER.debug("Connecting to %s?format=json&api_key=%s", url, self.__redact_api_key(api_key))
 
-                    success = False
-                    cache_exists = Path(cache_filename).is_file()
-                    response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
+                success = False
+                cache_exists = Path(cache_filename).is_file()
+                response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
 
-                    status = response.status
-                    (_LOGGER.debug if status == 200 else _LOGGER.warning)(
-                        "HTTP session returned status %s in __sites_data()%s",
-                        self.__translate(status),
-                        ", trying cache" if status != 200 and cache_exists else "",
-                    )
-                    try:
-                        response_json = await response.text()
-                        response_json = json.loads(response_json)
-                    except json.decoder.JSONDecodeError:
-                        _LOGGER.error("API did not return a json object, returned %s", response_json)
-                        status = 500
+                status = response.status
+                (_LOGGER.debug if status == 200 else _LOGGER.warning)(
+                    "HTTP session returned status %s%s",
+                    self.__translate(status),
+                    ", trying cache" if status != 200 and cache_exists else "",
+                )
+                try:
+                    response_json = await response.text()
+                    response_json = json.loads(response_json)
+                except json.decoder.JSONDecodeError:
+                    _LOGGER.error("API did not return a json object, returned `%s`", response_json)
+                    status = 500
 
-                    if status == 200:
+                if status == 200:
+                    for site in response_json["sites"]:
+                        site["api_key"] = api_key
+                    if response_json["total_records"] > 0:
+                        await save_cache(cache_filename, response_json)
+                        success = True
+                        no_sites = False
+                    else:
+                        _LOGGER.error(
+                            "No sites for the API key %s are configured at solcast.com",
+                            self.__redact_api_key(api_key),
+                        )
+                        cache_exists = False  # Prevent cache load if no sites
+
+                if not success:
+                    if cache_exists:
+                        _LOGGER.warning(
+                            "Get sites failed, last call result: %s, using cached data",
+                            self.__translate(status),
+                        )
+                    else:
+                        _LOGGER.error(
+                            "Get sites failed, last call result: %s",
+                            self.__translate(status),
+                        )
+                    if status == 200 and no_sites:
+                        self.sites_status = SitesStatus.NO_SITES
+                    elif cache_exists:
+                        response_json = await load_cache(cache_filename)
+                        status = 200
+                        success = True
+                        # Check for API key change and cache validity
                         for site in response_json["sites"]:
-                            site["api_key"] = api_key
-                        if response_json["total_records"] > 0:
-                            await save_cache(cache_filename, response_json)
-                            success = True
-                            no_sites = False
+                            if site.get("api_key") is None:
+                                site["api_key"] = api_key
+                            if site["api_key"] not in api_keys:
+                                self.sites_status = SitesStatus.CACHE_INVALID
+                                _LOGGER.debug("API key has changed so sites cache is invalid, not loading cached data")
+                                success = False
+                                break
+                    if status != 200:
+                        cached_sites_unavailable()
+                        if status in [401]:
+                            self.sites_status = SitesStatus.BAD_KEY
                         else:
-                            _LOGGER.error(
-                                "No sites for the API key %s are configured at solcast.com",
-                                self.__redact_api_key(api_key),
-                            )
-                            cache_exists = False  # Prevent cache load if no sites
-
-                    if not success:
-                        if cache_exists:
-                            _LOGGER.error(
-                                "Get sites failed, last call result: %s, using cached data",
-                                self.__translate(status),
-                            )
-                        else:
-                            _LOGGER.error(
-                                "Get sites failed, last call result: %s",
-                                self.__translate(status),
-                            )
-                        if status == 200 and no_sites:
-                            self.sites_status = SitesStatus.NO_SITES
-                        elif cache_exists:
-                            response_json = await load_cache(cache_filename)
-                            status = 200
-                            # Check for API key change and cache validity
-                            for site in response_json["sites"]:
-                                if site.get("api_key") is None:
-                                    site["api_key"] = api_key
-                                if site["api_key"] not in api_keys:
-                                    self.sites_status = SitesStatus.CACHE_INVALID
-                                    _LOGGER.debug("API key has changed so sites cache is invalid, not loading cached data")
-                                    break
-                        elif status != 200:
-                            cached_sites_unavailable()
-                            if status in [401]:
-                                self.sites_status = SitesStatus.BAD_KEY
-                            else:
-                                self.sites_status = SitesStatus.ERROR
+                            self.sites_status = SitesStatus.ERROR
 
                 if status == 200 and success:
                     set_sites(response_json, api_key)
                     self.sites_status = SitesStatus.OK
                 else:
                     cached_sites_unavailable(at_least_one_only=True)
-        except (ClientConnectionError, ConnectionRefusedError, TimeoutError) as e:
+        except (ClientConnectionError, ClientResponseError, ConnectionRefusedError, TimeoutError) as e:
             _LOGGER.warning("Error retrieving sites, attempting to continue: %s", e)
             error = False
             for api_key in api_keys:
@@ -867,10 +868,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         def option(enable: bool, set_allow_reset: bool = False):
             site_damp = self.entry_options.get(SITE_DAMP, False) if self.entry_options.get(SITE_DAMP) is not None else False
             if enable ^ site_damp:
-                self.entry_options[SITE_DAMP] = enable
+                options = {**self.entry_options}
+                options[SITE_DAMP] = enable
                 if set_allow_reset:
                     self._granular_allow_reset = enable
-                self.hass.config_entries.async_update_entry(self.entry, options=self.entry_options)
+                self.hass.config_entries.async_update_entry(self.entry, options=options)
             return enable
 
         error = False
@@ -1121,6 +1123,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         )
                         .split(",")
                     )
+                    _LOGGER.critical(old_api_keys)
                     for site in self.sites:
                         api_key = site["api_key"]
                         site = site["resource_id"]
@@ -1854,7 +1857,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         await self.__spline_remaining()
         _LOGGER.debug("Task recalculate_splines took %.3f seconds", time.time() - start_time)
 
-    def __get_moment(self, site: str, forecast_confidence: str, n_min: int) -> float:
+    def __get_moment(self, site: str, forecast_confidence: str, n_min: int) -> float | None:
         """Get a time value from a moment spline.
 
         Arguments:
@@ -1874,7 +1877,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         )  # To cater for less intervals than the spline period
         return variant[int(n_min / 300) - offset] if variant and len(variant) > 0 else None
 
-    def __get_remaining(self, site: str, forecast_confidence: str, n_min: int) -> float:
+    def __get_remaining(self, site: str, forecast_confidence: str, n_min: int) -> float | None:
         """Get a remaining value at a given five-minute point from a reducing spline.
 
         Arguments:
@@ -1926,14 +1929,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return None  # Set sensor to unavailable
         day_start = self.get_day_start_utc()
         result = self.__get_remaining(site, forecast_confidence, (start_utc - day_start).total_seconds())
-        if result is None:
-            return None
         if end_utc is not None:
             end_utc = end_utc.replace(minute=math.floor(end_utc.minute / 5) * 5)
             if end_utc < day_start + timedelta(seconds=1800 * len(self._spline_period)):
                 # End is within today so use spline data.
-                result -= self.__get_remaining(site, forecast_confidence, (end_utc - day_start).total_seconds())
-            else:
+                if result is not None:
+                    result -= self.__get_remaining(site, forecast_confidence, (end_utc - day_start).total_seconds())
+            elif result is not None:
                 # End is beyond today, so revert to simple linear interpolation.
                 start_index_post_spline, _ = self.__get_forecast_list_slice(  # Get post-spline day onwards start index.
                     data,
@@ -2101,75 +2103,70 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             str: An error message, or an empty string for no error.
 
         """
-        try:
-            last_attempt = dt.now(datetime.UTC)
-            status = ""
+        last_attempt = dt.now(datetime.UTC)
+        status = ""
 
-            def next_update():
-                if self._next_update is not None:
-                    return f", next auto update at {self._next_update}"
-                return ""
+        def next_update():
+            if self._next_update is not None:
+                return f", next auto update at {self._next_update}"
+            return ""
 
-            if self.get_last_updated() + timedelta(seconds=10) > dt.now(datetime.UTC):
-                status = f"Not requesting a solar forecast because time is within ten seconds of last update ({self.get_last_updated().astimezone(self._tz)})"
-                _LOGGER.warning(status)
-                if self._next_update is not None:
-                    _LOGGER.info("Forecast update suppressed%s", next_update())
-                return status
+        if self.get_last_updated() + timedelta(seconds=10) > dt.now(datetime.UTC):
+            status = f"Not requesting a solar forecast because time is within ten seconds of last update ({self.get_last_updated().astimezone(self._tz)})"
+            _LOGGER.warning(status)
+            if self._next_update is not None:
+                _LOGGER.info("Forecast update suppressed%s", next_update())
+            return status
 
-            await self.refresh_granular_dampening_data()
+        await self.refresh_granular_dampening_data()
 
-            failure = False
-            sites_attempted = 0
-            sites_succeeded = 0
-            for site in self.sites:
-                sites_attempted += 1
-                _LOGGER.info("Getting forecast update for site %s%s", site["resource_id"], ", including past data" if do_past else "")
-                result, reason = await self.__http_data_call(
-                    site=site["resource_id"],
-                    api_key=site["api_key"],
-                    do_past=do_past,
-                    force=force,
+        failure = False
+        sites_attempted = 0
+        sites_succeeded = 0
+        for site in self.sites:
+            sites_attempted += 1
+            _LOGGER.info("Getting forecast update for site %s%s", site["resource_id"], ", including past data" if do_past else "")
+            result, reason = await self.__http_data_call(
+                site=site["resource_id"],
+                api_key=site["api_key"],
+                do_past=do_past,
+                force=force,
+            )
+            if result == DataCallStatus.FAIL:
+                failure = True
+                _LOGGER.warning(
+                    "Forecast update for site %s failed%s%s",
+                    site["resource_id"],
+                    " so not getting remaining sites" if sites_attempted < len(self.sites) else "",
+                    " - API use count may be odd" if len(self.sites) > 1 and sites_succeeded and not force else "",
                 )
-                if result == DataCallStatus.FAIL:
-                    failure = True
-                    _LOGGER.warning(
-                        "Forecast update for site %s failed%s%s",
-                        site["resource_id"],
-                        " so not getting remaining sites" if sites_attempted < len(self.sites) else "",
-                        " - API use count may be odd" if len(self.sites) > 1 and sites_succeeded and not force else "",
-                    )
-                    status = "At least one site forecast get failed" if len(self.sites) > 1 else "Forecast get failed"
-                    break
-                if result == DataCallStatus.ABORT:
-                    _LOGGER.info("Forecast update sborted%s", next_update())
-                    return ""
-                if result == DataCallStatus.SUCCESS:
-                    sites_succeeded += 1
+                status = "At least one site forecast get failed" if len(self.sites) > 1 else "Forecast get failed"
+                break
+            if result == DataCallStatus.ABORT:
+                _LOGGER.info("Forecast update aborted%s", next_update())
+                return ""
+            if result == DataCallStatus.SUCCESS:
+                sites_succeeded += 1
 
-            if sites_attempted > 0 and not failure:
-                b_status = await self.build_forecast_data()
-                self._loaded_data = True
+        if sites_attempted > 0 and not failure:
+            b_status = await self.build_forecast_data()
+            self._loaded_data = True
 
-                async def set_metadata_and_serialise(data):
-                    data["last_updated"] = dt.now(datetime.UTC).replace(microsecond=0)
-                    data["last_attempt"] = last_attempt
-                    data["auto_updated"] = self.options.auto_update > 0
-                    return await self.serialise_data(data, self._filename if data == self._data else self._filename_undampened)
+            async def set_metadata_and_serialise(data):
+                data["last_updated"] = dt.now(datetime.UTC).replace(microsecond=0)
+                data["last_attempt"] = last_attempt
+                data["auto_updated"] = self.options.auto_update > 0
+                return await self.serialise_data(data, self._filename if data == self._data else self._filename_undampened)
 
-                s_status = await set_metadata_and_serialise(self._data)
-                await set_metadata_and_serialise(self._data_undampened)
-                self._loaded_data = True
+            s_status = await set_metadata_and_serialise(self._data)
+            await set_metadata_and_serialise(self._data_undampened)
+            self._loaded_data = True
 
-                if b_status and s_status:
-                    _LOGGER.info("Forecast update completed successfully%s", next_update())
-            else:
-                _LOGGER.warning("Forecast has not been updated%s", next_update())
-                status = f"At least one site forecast get failed: {reason}"
-        except Exception as e:  # noqa: BLE001
-            status = f"Exception in get_forecast_update(): {e} - Forecast has not been built{next_update()}"
-            _LOGGER.error(status)
-            _LOGGER.error(traceback.format_exc())
+            if b_status and s_status:
+                _LOGGER.info("Forecast update completed successfully%s", next_update())
+        else:
+            _LOGGER.warning("Forecast has not been updated%s", next_update())
+            status = f"At least one site forecast get failed: {reason}"
         return status
 
     def set_next_update(self, next_update: str) -> None:
@@ -2355,6 +2352,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
                 )
                 await self.tasks["fetch"]
+                response = None
                 if self.tasks.get("fetch") is not None:
                     response = self.tasks["fetch"].result()
                     self.tasks.pop("fetch")
@@ -2362,7 +2360,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _LOGGER.error(
                         "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
                     )
-                    _LOGGER.error("API did not return a json object, returned %s", response)
+                    _LOGGER.error("API did not return a json object, returned `%s`", response)
                     return DataCallStatus.FAIL, "No valid json returned"
 
                 estimate_actuals = response.get("estimated_actuals", [])
@@ -2489,9 +2487,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Task sort_and_prune took %.3f seconds", time.time() - start_time)
 
             _LOGGER.debug("Forecasts dictionary length %s (%s un-dampened)", len(forecasts), len(forecasts_undampened))
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error("Exception in __http_data_call(): %s: %s", e, traceback.format_exc())
-            return DataCallStatus.FAIL, f"Exception {traceback.format_exc()}"
+        except asyncio.InvalidStateError:
+            return DataCallStatus.ABORT, "Cancelled"
         return DataCallStatus.SUCCESS, ""
 
     async def fetch_data(  # noqa: C901
@@ -2548,13 +2545,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             status = response.status
                         except TimeoutError:
                             _LOGGER.error("Connection error: Timed out connecting to server")
+                            status = 1000
+                            break
                         except ConnectionRefusedError as e:
                             _LOGGER.error("Connection error, connection refused: %s", e)
+                            status = 1000
                             break
-                        except ClientConnectionError as e:
-                            _LOGGER.error("Client connection error: %s", e)
-                        except Exception as e:  # pragma: no cover, handle unexpected exceptions
-                            raise e from e
+                        except (ClientConnectionError, ClientResponseError) as e:
+                            _LOGGER.error("Client error: %s", e)
+                            status = 1000
+                            break
                         if status in (200, 400, 403, 404):  # Do not retry for these statuses.
                             break
                         if status == 429:
@@ -2572,9 +2572,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 _LOGGER.warning("An unexpected error occurred: %s", response_status.get("message"))
                                 break
                             if counter >= tries:  # pragma: no cover, not reachable under current test conditions
-                                status = 999  # All retries have been exhausted.
+                                _LOGGER.error("API was tried %d times, but all attempts failed", tries)
                                 break
-                        # Solcast is in a possibly recoverable state, so delay (15 seconds * counter), plus a random number of seconds between zero and 15.
+                        # Integration fetch is in a possibly recoverable state, so delay (15 seconds * counter),
+                        # plus a random number of seconds between zero and 15.
                         delay = (counter * backoff) + random.randrange(0, 15)
                         _LOGGER.warning(
                             "Call status %s, pausing %d seconds before retry",
@@ -2601,8 +2602,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             time.time() - start_time,
                         )
                         return response_json
-                    elif status == 429:  # noqa: RET505  # pragma: no cover, not reachable under test conditions
-                        _LOGGER.warning("API is too busy, try again later")
                     elif status == 400:
                         _LOGGER.warning("Status %s: Internal error", self.__translate(status))
                     elif status == 404:
@@ -2613,10 +2612,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             self._api_used[api_key],
                             self._api_limit[api_key],
                         )
-                    elif status == 999:  # Attempts exhausted.  # pragma: no cover, not reachable under test conditions
-                        _LOGGER.error("API was tried %d times, but all attempts failed", tries)
                     elif status == 1000:  # Unexpected response.
-                        _LOGGER.error("Unexpected response from API")
+                        _LOGGER.error("Unexpected response received")
                     else:  # Unknown status.
                         _LOGGER.error(
                             "Call status %s, API used is %d/%d",
@@ -2638,8 +2635,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.info("Fetch cancelled")
         except json.decoder.JSONDecodeError:
             return await response.text()
-        except Exception as e:  # noqa: BLE001  # pragma: no cover, handle unexpected exception
-            _LOGGER.error("Exception in fetch_data(): %s, %s", e, traceback.format_exc())
 
         return None
 
@@ -2936,7 +2931,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             await self.check_data_records()
             await self.recalculate_splines()
-        except Exception as e:  # noqa: BLE001  # pragma: no cover, handle unexpected exceptions
+        except Exception as e:  # noqa: BLE001
             _LOGGER.error("Exception in build_forecast_data(): %s: %s", e, traceback.format_exc())
             return False
         return build_success

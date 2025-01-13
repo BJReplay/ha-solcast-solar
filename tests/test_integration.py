@@ -238,13 +238,13 @@ async def test_api_failure(
         async def exceptions_update():
             for test in [
                 {"exception": TimeoutError, "assertion": "Connection error: Timed out", "fatal": True},
-                {"exception": ClientConnectionError, "assertion": "Client connection error", "fatal": True},
+                {"exception": ClientConnectionError, "assertion": "Client error", "fatal": True},
                 {"exception": ConnectionRefusedError, "assertion": "Connection error, connection refused", "fatal": True},
                 {"exception": MOCK_BAD_REQUEST, "assertion": "400/Bad request", "fatal": True},
                 {"exception": MOCK_FORBIDDEN, "assertion": "403/Forbidden", "fatal": True},
                 {"exception": MOCK_NOT_FOUND, "assertion": "404/Not found", "fatal": True},
                 {"exception": MOCK_BUSY, "assertion": "429/Try again later", "fatal": False},
-                {"exception": MOCK_BUSY_UNEXPECTED, "assertion": "Unexpected response from API", "fatal": True},
+                {"exception": MOCK_BUSY_UNEXPECTED, "assertion": "Unexpected response received", "fatal": True},
             ]:
                 if not isinstance(test["exception"], str):
                     session_set(MOCK_EXCEPTION, exception=test["exception"])
@@ -611,6 +611,7 @@ async def test_integration_remaining_actions(
     caplog.clear()
 
     # Switch to one API key and two sites to assert the initial clean-up
+    _LOGGER.debug("Swithching to one API key and two sites")
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
     solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
     assert hass.data[DOMAIN].get("presumed_dead", True) is False
@@ -631,6 +632,7 @@ async def test_integration_remaining_actions(
         occurs_in_log("Removing orphaned", 2)
 
         # Forced update when auto-update is disabled
+        _LOGGER.debug("Test forced update when auto-update is disabled")
         solcast.options.auto_update = 0
         with pytest.raises(ServiceValidationError):
             await hass.services.async_call(DOMAIN, "force_update_forecasts", {}, blocking=True)
@@ -664,9 +666,11 @@ async def test_integration_remaining_actions(
             },  # Site with 24 dampening factors
         ]
         for factors in odd_factors:
+            _LOGGER.debug("Test set odd dampening factors: %s", factors)
             with pytest.raises(factors["expect"]):
                 await hass.services.async_call(DOMAIN, "set_dampening", factors["set"], blocking=True)
 
+        _LOGGER.debug("Test set various dampening factors")
         await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("0.5," * 24)[:-1]}, blocking=True)
         await hass.async_block_till_done()  # Because options change
         dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
@@ -687,6 +691,7 @@ async def test_integration_remaining_actions(
                 DOMAIN, "get_dampening", {"site": "1111-1111-1111-1111"}, blocking=True, return_response=True
             )
         # Granular dampening with site
+        _LOGGER.debug("Test granular dampening with site")
         await hass.services.async_call(
             DOMAIN, "set_dampening", {"site": "1111-1111-1111-1111", "damp_factor": ("0.5," * 48)[:-1]}, blocking=True
         )
@@ -725,6 +730,7 @@ async def test_integration_remaining_actions(
             {"set": {"hard_limit": "5.0,5.0,5.0"}, "expect": ServiceValidationError},  # Too many hard limits
         ]
         for limits in odd_limits:
+            _LOGGER.debug("Test set odd hard limit: %s", limits)
             with pytest.raises(limits["expect"]):
                 await hass.services.async_call(DOMAIN, "set_hard_limit", limits["set"], blocking=True)
 
@@ -738,6 +744,7 @@ async def test_integration_remaining_actions(
             await hass.async_block_till_done()
             return patch_solcast_api(entry.runtime_data.coordinator.solcast)  # Because integration reloads
 
+        _LOGGER.debug("Test set reasonable hard limit")
         solcast = await _set_hard_limit("5.0")
         assert solcast.hard_limit == "5.0"
         assert "Build hard limit period values from scratch for dampened" in caplog.text
@@ -746,10 +753,12 @@ async def test_integration_remaining_actions(
             assert len(solcast._sites_hard_limit["all"][estimate]) > 0
             assert len(solcast._sites_hard_limit_undampened["all"][estimate]) > 0
 
+        _LOGGER.debug("Test set large hard limit")
         solcast = await _set_hard_limit("5000")
         assert solcast.hard_limit == "5000.0"
         assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set").state == "5.0 MW"
 
+        _LOGGER.debug("Test set huge hard limit")
         solcast = await _set_hard_limit("5000000")
         assert solcast.hard_limit == "5000000.0"
         assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set").state == "5.0 GW"
@@ -761,6 +770,7 @@ async def test_integration_remaining_actions(
         caplog.clear()
 
         # Switch to using two API keys, three sites, start with an out-of-date usage cache
+        _LOGGER.debug("Switch to using two API keys, three sites")
         usage_file = Path(f"{config_dir}/solcast-usage.json")
         data = json.loads(usage_file.read_text(encoding="utf-8"))
         data["reset"] = (dt.now(datetime.UTC) - timedelta(days=5)).isoformat()
@@ -770,11 +780,13 @@ async def test_integration_remaining_actions(
         session_reset_usage()
         entry = await async_init_integration(hass, config)
 
+        _LOGGER.debug("Test disable hard limit")
         solcast = await _set_hard_limit("100.0,100.0")
         assert solcast.hard_limit == "100.0,100.0"
         assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "False"
         assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "False"
 
+        _LOGGER.debug("Test set hard limit for both API keys")
         solcast = await _set_hard_limit("5.0,5.0")
         assert solcast.hard_limit == "5.0,5.0"
         assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "5.0 kW"
@@ -786,6 +798,7 @@ async def test_integration_remaining_actions(
                 assert len(solcast._sites_hard_limit[api_key][estimate]) > 0
                 assert len(solcast._sites_hard_limit_undampened[api_key][estimate]) > 0
 
+        _LOGGER.debug("Test set single hard limit value for both API keys")
         solcast = await _remove_hard_limit()
         assert solcast.hard_limit == "100.0"
         for estimate in ["pv_estimate", "pv_estimate10", "pv_estimate90"]:
@@ -828,6 +841,7 @@ async def test_integration_remaining_actions(
             },
         ]
         for query in queries:
+            _LOGGER.debug("Testing query forecast data: %s", query["query"])
             forecast_data = await hass.services.async_call(
                 DOMAIN, "query_forecast_data", query["query"], blocking=True, return_response=True
             )
@@ -836,6 +850,7 @@ async def test_integration_remaining_actions(
         assert "ERROR" not in caplog.text
 
         # Test invalid query range
+        _LOGGER.debug("Testing invalid query range")
         with pytest.raises(ServiceValidationError):
             forecast_data = await hass.services.async_call(
                 DOMAIN,
@@ -869,6 +884,7 @@ async def test_integration_scenarios(
 
     try:
         # Test bad serialise data while an entry exists
+        _LOGGER.debug("Testing bad serialise data")
         async with aiohttp.ClientSession() as session:
             connection_options = ConnectionOptions(
                 DEFAULT_INPUT1[CONF_API_KEY],
@@ -894,6 +910,7 @@ async def test_integration_scenarios(
             assert "Not serialising empty data" in caplog.text
 
         # Assert good start
+        _LOGGER.debug("Testing good start happened")
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
         assert "Hard limit is set to limit peak forecast values" in caplog.text
         caplog.clear()
@@ -917,6 +934,7 @@ async def test_integration_scenarios(
             data_file.write_text(json.dumps(original_data), encoding="utf-8")
 
         # Test stale start with auto update enabled
+        _LOGGER.debug("Testing stale start with auto update enabled")
         alter_last_updated()
         coordinator, solcast = await _reload(hass, entry)
         await _wait_for_update(caplog)
@@ -926,6 +944,7 @@ async def test_integration_scenarios(
         caplog.clear()
 
         # Test stale start with auto update disabled
+        _LOGGER.debug("Testing stale start with auto update disabled")
         opt = {**entry.options}
         opt[AUTO_UPDATE] = 0
         hass.config_entries.async_update_entry(entry, options=opt)
@@ -943,6 +962,7 @@ async def test_integration_scenarios(
 
         # Test API key change, start with an API failure and invalid sites cache
         # Verigy API key change removes sites, and migrates undampened history for new site
+        _LOGGER.debug("Testing API key change")
         session_set(MOCK_BUSY)
         sites_file = Path(f"{config_dir}/solcast-sites.json")
         data = json.loads(sites_file.read_text(encoding="utf-8"))
@@ -983,6 +1003,7 @@ async def test_integration_scenarios(
             data_file.write_text(json.dumps(data), encoding="utf-8")
 
         # Corrupt sites.json
+        _LOGGER.debug("Testing corruption: sites.json")
         session_set(MOCK_BUSY)
         sites_file.write_text(corrupt, encoding="utf-8")
         await _reload(hass, entry)
@@ -998,7 +1019,7 @@ async def test_integration_scenarios(
             {"daily_limit": 10, "daily_limit_consumed": 8, "reset": "notadate"},
         ]
         for test in usage_corruption:
-            _LOGGER.critical(test)
+            _LOGGER.debug("Testing usage corruption: %s", test)
             usage_file.write_text(json.dumps(test), encoding="utf-8")
             await _reload(hass, entry)
             assert entry.state is ConfigEntryState.SETUP_ERROR
@@ -1009,11 +1030,13 @@ async def test_integration_scenarios(
         caplog.clear()
 
         # Corrupt solcast.json
+        _LOGGER.debug("Testing corruption: solcast.json")
         _corrupt_data()
         await _reload(hass, entry)
         assert hass.data[DOMAIN].get("presumed_dead", True) is True
         caplog.clear()
 
+        _LOGGER.debug("Testing extreme corruption: solcast.json")
         _really_corrupt_data()
         await _reload(hass, entry)
         assert "The cached data in solcast.json is corrupt" in caplog.text
