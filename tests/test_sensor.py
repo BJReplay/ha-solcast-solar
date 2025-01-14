@@ -347,6 +347,11 @@ SENSORS["forecast_day_6"] = SENSORS["forecast_today"]
 SENSORS["forecast_day_7"] = SENSORS["forecast_today"]
 
 
+def _no_exception(caplog: pytest.LogCaptureFixture):
+    assert "Error" not in caplog.text
+    assert "Exception" not in caplog.text
+
+
 @pytest.mark.parametrize(
     ("key", "settings"),
     [
@@ -371,6 +376,8 @@ async def test_sensor_states(
     try:
         # Test number of site sensors that exist.
         assert len(hass.states.async_all("sensor")) == len(SENSORS) + (3 if key == "2" else 4)
+        _no_exception(caplog)
+        caplog.clear()
 
         # Remove unusied options for DEFAULT_INPUT1.
         if key == "2":
@@ -403,6 +410,8 @@ async def test_sensor_states(
                 assert state.attributes["unit_of_measurement"] == attrs["unit_of_measurement"]
             if "state_class" in attrs:
                 assert state.attributes["state_class"] == attrs["state_class"]
+        _no_exception(caplog)
+        caplog.clear()
 
         # Test day change and last sensor update time.
         freezer.tick(timedelta(minutes=2, seconds=33))  # Will trigger periodic five minute update
@@ -415,6 +424,7 @@ async def test_sensor_states(
 
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_remaining_today")
         assert state.last_updated.strftime("%H:%M:%S") == "02:35:00"
+        _no_exception(caplog)
 
         # Simulate date change
         caplog.clear()
@@ -428,6 +438,7 @@ async def test_sensor_states(
         assert coordinator.get_sensor_extra_attributes("badkey") is None
         assert coordinator.get_site_sensor_value("badroof", "badkey") is None
         assert coordinator.get_site_sensor_extra_attributes("badroof", "badkey") is None
+        _no_exception(caplog)
 
     finally:
         assert await async_cleanup_integration_tests(hass)
@@ -436,6 +447,7 @@ async def test_sensor_states(
 async def test_sensor_x_hours_long(
     recorder_mock: Recorder,
     hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
     freezer: FrozenDateTimeFactory,
 ) -> None:
     """Test state and of x hours sensor."""
@@ -448,6 +460,8 @@ async def test_sensor_x_hours_long(
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_next_x_hours")
         assert state
         assert int(state.state) == 86910
+        _no_exception(caplog)
+
     finally:
         assert await async_cleanup_integration_tests(hass)
 
@@ -455,6 +469,7 @@ async def test_sensor_x_hours_long(
 async def test_sensor_unavailable(
     recorder_mock: Recorder,
     hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
     freezer: FrozenDateTimeFactory,
 ) -> None:
     """Verify sensors unavailable when "impossible" eventualities occur."""
@@ -489,6 +504,9 @@ async def test_sensor_unavailable(
             assert state
             assert state.state == STATE_UNAVAILABLE
 
+        # Exceptions will be in the log
+        caplog.clear()
+
         # Test when some future day data is missing (remove D3 onwards).
         solcast._data_undampened = old_solcast_data_undampened
         for site in ("1111-1111-1111-1111", "2222-2222-2222-2222"):
@@ -505,6 +523,9 @@ async def test_sensor_unavailable(
                 assert state
                 assert state.state == STATE_UNAVAILABLE
 
+        _no_exception(caplog)
+        caplog.clear()
+
         # Test when 'today' is partial (remove D3 onwards).
         solcast._data_undampened = old_solcast_data_undampened
         for site in ("1111-1111-1111-1111", "2222-2222-2222-2222"):
@@ -516,6 +537,8 @@ async def test_sensor_unavailable(
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_today")
         assert state
         assert state.attributes["dataCorrect"] is False
+
+        _no_exception(caplog)
 
     finally:
         assert await async_cleanup_integration_tests(hass)
@@ -546,7 +569,7 @@ async def test_sensor_unavailble_exception(
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
 ) -> None:
-    """Test state and attributes of sensors including expected state class and unit of measurement."""
+    """Test state of sensors when exceptions occur."""
 
     old_get_sensor_value = SolcastUpdateCoordinator.get_sensor_value
     old_get_sensor_extra_attributes = SolcastUpdateCoordinator.get_sensor_extra_attributes
