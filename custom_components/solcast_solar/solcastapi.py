@@ -1123,7 +1123,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         )
                         .split(",")
                     )
-                    _LOGGER.critical(old_api_keys)
                     for site in self.sites:
                         api_key = site["api_key"]
                         site = site["resource_id"]
@@ -1931,10 +1930,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         result = self.__get_remaining(site, forecast_confidence, (start_utc - day_start).total_seconds())
         if end_utc is not None:
             end_utc = end_utc.replace(minute=math.floor(end_utc.minute / 5) * 5)
-            if end_utc < day_start + timedelta(seconds=1800 * len(self._spline_period)):
+            if end_utc < day_start + timedelta(seconds=1800 * len(self._spline_period)) and result is not None:
                 # End is within today so use spline data.
-                if result is not None:
-                    result -= self.__get_remaining(site, forecast_confidence, (end_utc - day_start).total_seconds())
+                result -= self.__get_remaining(site, forecast_confidence, (end_utc - day_start).total_seconds())
             elif result is not None:
                 # End is beyond today, so revert to simple linear interpolation.
                 start_index_post_spline, _ = self.__get_forecast_list_slice(  # Get post-spline day onwards start index.
@@ -1962,7 +1960,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         #        end_index,
         #        round(result, 4),
         #    )
-        return max(0, result)
+        return max(0, result) if result is not None else None
 
     def __get_forecast_pv_estimates(
         self,
@@ -1970,7 +1968,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         end_utc: dt,
         site: str | None = None,
         forecast_confidence: str | None = None,
-    ) -> float:
+    ) -> float | None:
         """Return energy total for a period.
 
         Arguments:
@@ -2012,7 +2010,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         time_utc: dt,
         site: str | None = None,
         forecast_confidence: str | None = None,
-    ) -> float:
+    ) -> float | None:
         """Return forecast power for a point in time.
 
         Arguments:
