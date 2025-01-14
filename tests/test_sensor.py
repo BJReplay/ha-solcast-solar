@@ -399,7 +399,7 @@ async def test_sensor_states(
                     assert dt.fromisoformat(test)
                 else:
                     assert test == attrs["state"][key]
-            if "attributes" in attrs and attrs["attributes"]:
+            if attrs.get("attributes"):
                 for attribute in attrs["attributes"][key]:
                     test = state.attributes[attribute]
                     with contextlib.suppress(AttributeError, ValueError):

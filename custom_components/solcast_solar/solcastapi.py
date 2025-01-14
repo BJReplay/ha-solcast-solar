@@ -2569,7 +2569,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 status = 1000
                                 _LOGGER.warning("An unexpected error occurred: %s", response_status.get("message"))
                                 break
-                            if counter >= tries:  # pragma: no cover, not reachable under current test conditions
+                            if counter >= tries:
                                 _LOGGER.error("API was tried %d times, but all attempts failed", tries)
                                 break
                         # Integration fetch is in a possibly recoverable state, so delay (15 seconds * counter),
