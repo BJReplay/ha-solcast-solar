@@ -113,9 +113,7 @@ class DateTimeEncoder(json.JSONEncoder):
 
     def default(self, o: Any) -> str | Any:
         """Convert to ISO format if datetime."""
-        if isinstance(o, dt):
-            return o.isoformat()
-        return super().default(o)  # pragma: no cover, never expected
+        return o.isoformat() if isinstance(o, dt) else super().default(o)
 
 
 class NoIndentEncoder(json.JSONEncoder):
