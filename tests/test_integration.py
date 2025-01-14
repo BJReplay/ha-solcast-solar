@@ -978,7 +978,7 @@ async def test_integration_scenarios(
         restore_data()
 
         # Test API key change, start with an API failure and invalid sites cache
-        # Verigy API key change removes sites, and migrates undampened history for new site
+        # Verify API key change removes sites, and migrates undampened history for new site
         _LOGGER.debug("Testing API key change")
         session_set(MOCK_BUSY)
         sites_file = Path(f"{config_dir}/solcast-sites.json")

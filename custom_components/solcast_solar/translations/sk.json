@@ -23,6 +23,59 @@
             }
         }
     },
+    "entity": {
+        "sensor": {
+            "power_now_30m": {"name": "Výkon za 30 minút"},
+            "power_now_1hr": {"name": "Výkon za 1 hodinu"},
+            "total_kwh_forecast_today": {"name": "Predpoveď dnes"},
+            "peak_w_today": {"name": "Predpoveď špičky dnes"},
+            "peak_w_time_today": {"name": "Čas špičky dnes"},
+            "forecast_this_hour": {"name": "Predpoveď túto hodinu"},
+            "get_remaining_today": {"name": "Predpoveď zostávajúca dnes"},
+            "forecast_next_hour": {"name": "Predpoveď ďalšie hodina"},
+            "forecast_custom_hours": {"name": "Predpoveď najbližších X hodín"},
+            "total_kwh_forecast_tomorrow": {"name": "Prepoveď zajtra"},
+            "peak_w_tomorrow": {"name": "Predpoveď špička zajtra"},
+            "peak_w_time_tomorrow": {"name": "Čas špičky zajtra"},
+            "api_counter": {"name": "Použité API"},
+            "api_limit": {"name": "Limit API"},
+            "lastupdated": {"name": "API naposledy dotazované"},
+            "total_kwh_forecast_d3": {"name": "Predpoveď deň 3"},
+            "total_kwh_forecast_d4": {"name": "Prepoveď deň 4"},
+            "total_kwh_forecast_d5": {"name": "Predpoveď deň 5"},
+            "total_kwh_forecast_d6": {"name": "Predpoveď deň 6"},
+            "total_kwh_forecast_d7": {"name": "Predpoveď deň 7"},
+            "power_now": {"name": "Výkon teraz"},
+            "hard_limit": {"name": "Tvrdý limit nastavený"},
+            "hard_limit_api": {"name": "Tvrdý limit nastavený {api_key}"}
+        },
+        "select": {
+            "estimate_mode" : {"name": "Použiť pole predpovede"}
+        }
+    },
+    "exceptions": {
+        "auto_use_force": {"message": "Automatická aktualizácia je povolená, pri aktualizácii prognózy sa ignoruje udalosť služby, namiesto toho použite vynútenie aktualizácie."},
+        "auto_use_normal": {"message": "Automatická aktualizácia nie je povolená, pri vynútenej aktualizácii prognózy ignorujete udalosť služby, namiesto toho použite Aktualizovať."},
+        "damp_not_for_site": {"message": "Tlmenie stránok nie je nastavené pre {site}."},
+        "damp_use_all": {"message": "Tlmenie stránky nie je nastavené pre {site}, 'all' je jediný dostupný parameter stránky pre servisné volanie."},
+        "damp_no_factors": {"message": "Žiadne tlmiace faktory, musí to byť čiarkami oddelený zoznam čísel medzi 0,0 a 1,0."},
+        "damp_count_not_correct": {"message": "Medzi 0,0 a 1,0 nie je 24 alebo 48 čiarkami oddelených čísel."},
+        "damp_no_all_24": {"message": "Zadanie stránky „všetky“ nie je povolené s 24 faktormi, odstráňte stránku zo žiadosti."},
+        "damp_not_site": {"message": "Nie je to nakonfigurovaná lokalita."},
+        "damp_error_parsing": {"message": "Chyba pri analýze tlmiaceho faktora oddelených čiarkami."},
+        "damp_outside_range": {"message": "Prítomná hodnota faktora tlmenia, ktorá nie je medzi 0,0 a 1,0."},
+        "hard_empty": {"message": "Prázdna hodnota pevného limitu."},
+        "hard_too_many": {"message": "Je špecifikovaných viac tvrdých limitov, ako existuje kľúčov API."},
+        "hard_not_positive_number": {"message": "Hodnota pevného limitu nie je kladné číslo."},
+        "init_cannot_get_sites": {"message": "Údaje stránok sa nepodarilo načítať."},
+        "init_cannot_get_sites_cache_invalid": {"message": "Údaje stránok sa nepodarilo načítať a vyrovnávacia pamäť je neplatná."},
+        "init_incompatible": {"message": "Údaje súboru `config/solcast.json` vo vyrovnávacej pamäti sú nekompatibilné, odstráňte ich."},
+        "init_key_invalid": {"message": "Kľúč API je neplatný."},
+        "init_no_sites": {"message": "Nenašli sa žiadne stránky pre kľúč API."},
+        "init_unknown": {"message": "Výnimka pri načítavaní údajov stránok."},
+        "init_usage_corrupt": {"message": "Údaje o používaní sú poškodené, skontrolujte alebo odstráňte súbor `config/solcast-usage.json`."},
+        "remove_cache_failed": {"message": "Vymazanie všetkých údajov Solcast zlyhalo."}
+    },
     "options": {
         "step": {
             "init": {
@@ -79,11 +132,6 @@
         "error": {
             "unknown": "Neznáma chyba",
             "incorrect_options_action": "Zvolená nesprávna akcia"
-        }
-    },
-    "system_health": {
-        "info": {
-            "can_reach_server": "Solcast server pripojenie"
         }
     },
     "selector": {
@@ -176,78 +224,9 @@
             "description": "Odstráňte nastavený limit."
         }
     },
-    "entity": {
-        "sensor": {
-            "power_now_30m": {"name": "Výkon za 30 minút"},
-            "power_now_1hr": {"name": "Výkon za 1 hodinu"},
-            "total_kwh_forecast_today": {"name": "Predpoveď dnes"},
-            "peak_w_today": {"name": "Predpoveď špičky dnes"},
-            "peak_w_time_today": {"name": "Čas špičky dnes"},
-            "forecast_this_hour": {"name": "Predpoveď túto hodinu"},
-            "get_remaining_today": {"name": "Predpoveď zostávajúca dnes"},
-            "forecast_next_hour": {"name": "Predpoveď ďalšie hodina"},
-            "forecast_custom_hours": {"name": "Predpoveď najbližších X hodín"},
-            "total_kwh_forecast_tomorrow": {"name": "Prepoveď zajtra"},
-            "peak_w_tomorrow": {"name": "Predpoveď špička zajtra"},
-            "peak_w_time_tomorrow": {"name": "Čas špičky zajtra"},
-            "api_counter": {"name": "Použité API"},
-            "api_limit": {"name": "Limit API"},
-            "lastupdated": {"name": "API naposledy dotazované"},
-            "total_kwh_forecast_d3": {"name": "Predpoveď deň 3"},
-            "total_kwh_forecast_d4": {"name": "Prepoveď deň 4"},
-            "total_kwh_forecast_d5": {"name": "Predpoveď deň 5"},
-            "total_kwh_forecast_d6": {"name": "Predpoveď deň 6"},
-            "total_kwh_forecast_d7": {"name": "Predpoveď deň 7"},
-            "power_now": {"name": "Výkon teraz"},
-            "hard_limit": {"name": "Tvrdý limit nastavený"},
-            "hard_limit_api": {"name": "Tvrdý limit nastavený {api_key}"}
-        },
-        "select": {
-            "estimate_mode" : {"name": "Použiť pole predpovede"}
-        }
-    },
-    "exceptions": {
-        "auto_use_force": {
-            "message": "Automatická aktualizácia je povolená, pri aktualizácii prognózy sa ignoruje udalosť služby, namiesto toho použite vynútenie aktualizácie."
-        },
-        "auto_use_normal": {
-            "message": "Automatická aktualizácia nie je povolená, pri vynútenej aktualizácii prognózy ignorujete udalosť služby, namiesto toho použite Aktualizovať."
-        },
-        "damp_not_for_site": {
-            "message": "Tlmenie stránok nie je nastavené pre {site}."
-        },
-        "damp_use_all": {
-            "message": "Tlmenie stránky nie je nastavené pre {site}, 'all' je jediný dostupný parameter stránky pre servisné volanie."
-        },
-        "damp_no_factors": {
-            "message": "Žiadne tlmiace faktory, musí to byť čiarkami oddelený zoznam čísel medzi 0,0 a 1,0."
-        },
-        "damp_count_not_correct": {
-            "message": "Medzi 0,0 a 1,0 nie je 24 alebo 48 čiarkami oddelených čísel."
-        },
-        "damp_no_all_24": {
-            "message": "Zadanie stránky „všetky“ nie je povolené s 24 faktormi, odstráňte stránku zo žiadosti."
-        },
-        "damp_not_site": {
-            "message": "Nie je to nakonfigurovaná lokalita."
-        },
-        "damp_error_parsing": {
-            "message": "Chyba pri analýze tlmiaceho faktora oddelených čiarkami."
-        },
-        "damp_outside_range": {
-            "message": "Prítomná hodnota faktora tlmenia, ktorá nie je medzi 0,0 a 1,0."
-        },
-        "hard_empty": {
-            "message": "Prázdna hodnota pevného limitu."
-        },
-        "hard_too_many": {
-            "message": "Je špecifikovaných viac tvrdých limitov, ako existuje kľúčov API."
-        },
-        "hard_not_positive_number": {
-            "message": "Hodnota pevného limitu nie je kladné číslo."
-        },
-        "remove_cache_failed": {
-            "message": "Vymazanie všetkých údajov Solcast zlyhalo."
+    "system_health": {
+        "info": {
+            "can_reach_server": "Solcast server pripojenie"
         }
     }
 }

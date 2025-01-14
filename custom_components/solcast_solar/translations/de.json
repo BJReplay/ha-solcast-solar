@@ -23,6 +23,59 @@
             }
         }
     },
+    "entity": {
+        "sensor": {
+            "power_now_30m": {"name": "Leistung in 30 Minuten"},
+            "power_now_1hr": {"name": "Leistung in 1 Stunde"},
+            "total_kwh_forecast_today": {"name": "Prognose heute"},
+            "peak_w_today": {"name": "Prognose Spitzenleistung heute"},
+            "peak_w_time_today": {"name": "Zeitpunkt Spitzenleistung heute"},
+            "forecast_this_hour": {"name": "Prognose aktuelle Stunde"},
+            "get_remaining_today": {"name": "Prognose verbleibende Leistung heute"},
+            "forecast_next_hour": {"name": "Prognose nächste Stunde"},
+            "forecast_custom_hours": {"name": "Prognostizieren Sie die nächsten X Stunden"},
+            "total_kwh_forecast_tomorrow": {"name": "Prognose morgen"},
+            "peak_w_tomorrow": {"name": "Prognose Spitzenleistung morgen"},
+            "peak_w_time_tomorrow": {"name": "Zeitpunkt Spitzenleistung morgen"},
+            "api_counter": {"name": "Verwendete API-Abrufe"},
+            "api_limit": {"name": "max. API-Abrufe"},
+            "lastupdated": {"name": "Zeitpunkt letzter API-Abruf"},
+            "total_kwh_forecast_d3": {"name": "Prognose Tag 3"},
+            "total_kwh_forecast_d4": {"name": "Prognose Tag 4"},
+            "total_kwh_forecast_d5": {"name": "Prognose Tag 5"},
+            "total_kwh_forecast_d6": {"name": "Prognose Tag 6"},
+            "total_kwh_forecast_d7": {"name": "Prognose Tag 7"},
+            "power_now": {"name": "Aktuelle Leistung"},
+            "hard_limit": {"name": "Fester Grenzwert eingestellt"},
+            "hard_limit_api": {"name": "Fester Grenzwert eingestellt {api_key}"}
+        },
+        "select": {
+            "estimate_mode" : {"name": "Verwenden Sie das Prognosefeld"}
+        }
+    },
+    "exceptions": {
+        "auto_use_force": {"message": "Die automatische Aktualisierung ist aktiviert und ignoriert Serviceereignisse für die Prognoseaktualisierung. Verwenden Sie stattdessen „Aktualisierung erzwingen“."},
+        "auto_use_normal": {"message": "Die automatische Aktualisierung ist nicht aktiviert. Dienstereignisse werden ignoriert, um eine Prognoseaktualisierung zu erzwingen. Verwenden Sie stattdessen „Aktualisierung“."},
+        "damp_not_for_site": {"message": "Die Site-Dämpfung ist für {site} nicht festgelegt."},
+        "damp_use_all": {"message": "Die Standortdämpfung ist für {site} nicht festgelegt, „all“ ist der einzige verfügbare Standortparameter für den Serviceaufruf."},
+        "damp_no_factors": {"message": "Keine Dämpfungsfaktoren, es muss eine durch Kommas getrennte Liste von Zahlen zwischen 0,0 und 1,0 sein."},
+        "damp_count_not_correct": {"message": "Es gibt keine 24 oder 48 durch Kommas getrennten Zahlen zwischen 0,0 und 1,0."},
+        "damp_no_all_24": {"message": "Bei 24 Faktoren ist die Angabe einer Site „all“ (alle) nicht zulässig. Entfernen Sie die Site aus der Anfrage."},
+        "damp_not_site": {"message": "Keine konfigurierte Site."},
+        "damp_error_parsing": {"message": "Fehler beim Parsen der durch Kommas getrennten Zahlen des Dämpfungsfaktors."},
+        "damp_outside_range": {"message": "Es liegt ein Wert des Dämpfungsfaktors vor, der nicht zwischen 0,0 und 1,0 liegt."},
+        "hard_empty": {"message": "Leerer harter Grenzwert."},
+        "hard_too_many": {"message": "Es werden mehr harte Limits angegeben als API-Schlüssel vorhanden sind."},
+        "hard_not_positive_number": {"message": "Der harte Grenzwert ist keine positive Zahl."},
+        "init_cannot_get_sites": {"message": "Site-Daten konnten nicht abgerufen werden."},
+        "init_cannot_get_sites_cache_invalid": {"message": "Die Site-Daten konnten nicht abgerufen werden und der Cache ist ungültig."},
+        "init_incompatible": {"message": "Zwischengespeicherte „config/solcast.json“-Daten sind nicht kompatibel, löschen Sie sie."},
+        "init_key_invalid": {"message": "Der API-Schlüssel ist ungültig."},
+        "init_no_sites": {"message": "Für den API-Schlüssel wurden keine Websites gefunden."},
+        "init_unknown": {"message": "Ausnahme beim Laden von Site-Daten."},
+        "init_usage_corrupt": {"message": "Die Nutzungsdaten sind beschädigt. Überprüfen oder löschen Sie „config/solcast-usage.json“."},
+        "remove_cache_failed": {"message": "Das Löschen aller Solcast-Daten ist fehlgeschlagen."}
+    },
     "options": {
         "step": {
             "init": {
@@ -79,11 +132,6 @@
         "error": {
             "unknown": "Unbekannter Fehler",
             "incorrect_options_action": "Falsche Aktion ausgewählt"
-        }
-    },
-    "system_health": {
-        "info": {
-            "can_reach_server": "Verbindung zum Solcast-Server"
         }
     },
     "selector": {
@@ -176,78 +224,9 @@
             "description": "Eingestelltes Limit entfernen."
         }
     },
-    "entity": {
-        "sensor": {
-            "power_now_30m": {"name": "Leistung in 30 Minuten"},
-            "power_now_1hr": {"name": "Leistung in 1 Stunde"},
-            "total_kwh_forecast_today": {"name": "Prognose heute"},
-            "peak_w_today": {"name": "Prognose Spitzenleistung heute"},
-            "peak_w_time_today": {"name": "Zeitpunkt Spitzenleistung heute"},
-            "forecast_this_hour": {"name": "Prognose aktuelle Stunde"},
-            "get_remaining_today": {"name": "Prognose verbleibende Leistung heute"},
-            "forecast_next_hour": {"name": "Prognose nächste Stunde"},
-            "forecast_custom_hours": {"name": "Prognostizieren Sie die nächsten X Stunden"},
-            "total_kwh_forecast_tomorrow": {"name": "Prognose morgen"},
-            "peak_w_tomorrow": {"name": "Prognose Spitzenleistung morgen"},
-            "peak_w_time_tomorrow": {"name": "Zeitpunkt Spitzenleistung morgen"},
-            "api_counter": {"name": "Verwendete API-Abrufe"},
-            "api_limit": {"name": "max. API-Abrufe"},
-            "lastupdated": {"name": "Zeitpunkt letzter API-Abruf"},
-            "total_kwh_forecast_d3": {"name": "Prognose Tag 3"},
-            "total_kwh_forecast_d4": {"name": "Prognose Tag 4"},
-            "total_kwh_forecast_d5": {"name": "Prognose Tag 5"},
-            "total_kwh_forecast_d6": {"name": "Prognose Tag 6"},
-            "total_kwh_forecast_d7": {"name": "Prognose Tag 7"},
-            "power_now": {"name": "Aktuelle Leistung"},
-            "hard_limit": {"name": "Fester Grenzwert eingestellt"},
-            "hard_limit_api": {"name": "Fester Grenzwert eingestellt {api_key}"}
-        },
-        "select": {
-            "estimate_mode" : {"name": "Verwenden Sie das Prognosefeld"}
-        }
-    },
-    "exceptions": {
-        "auto_use_force": {
-            "message": "Die automatische Aktualisierung ist aktiviert und ignoriert Serviceereignisse für die Prognoseaktualisierung. Verwenden Sie stattdessen „Aktualisierung erzwingen“."
-        },
-        "auto_use_normal": {
-            "message": "Die automatische Aktualisierung ist nicht aktiviert. Dienstereignisse werden ignoriert, um eine Prognoseaktualisierung zu erzwingen. Verwenden Sie stattdessen „Aktualisierung“."
-        },
-        "damp_not_for_site": {
-            "message": "Die Site-Dämpfung ist für {site} nicht festgelegt."
-        },
-        "damp_use_all": {
-            "message": "Die Standortdämpfung ist für {site} nicht festgelegt, „all“ ist der einzige verfügbare Standortparameter für den Serviceaufruf."
-        },
-        "damp_no_factors": {
-            "message": "Keine Dämpfungsfaktoren, es muss eine durch Kommas getrennte Liste von Zahlen zwischen 0,0 und 1,0 sein."
-        },
-        "damp_count_not_correct": {
-            "message": "Es gibt keine 24 oder 48 durch Kommas getrennten Zahlen zwischen 0,0 und 1,0."
-        },
-        "damp_no_all_24": {
-            "message": "Bei 24 Faktoren ist die Angabe einer Site „all“ (alle) nicht zulässig. Entfernen Sie die Site aus der Anfrage."
-        },
-        "damp_not_site": {
-            "message": "Keine konfigurierte Site."
-        },
-        "damp_error_parsing": {
-            "message": "Fehler beim Parsen der durch Kommas getrennten Zahlen des Dämpfungsfaktors."
-        },
-        "damp_outside_range": {
-            "message": "Es liegt ein Wert des Dämpfungsfaktors vor, der nicht zwischen 0,0 und 1,0 liegt."
-        },
-        "hard_empty": {
-            "message": "Leerer harter Grenzwert."
-        },
-        "hard_too_many": {
-            "message": "Es werden mehr harte Limits angegeben als API-Schlüssel vorhanden sind."
-        },
-        "hard_not_positive_number": {
-            "message": "Der harte Grenzwert ist keine positive Zahl."
-        },
-        "remove_cache_failed": {
-            "message": "Das Löschen aller Solcast-Daten ist fehlgeschlagen."
+    "system_health": {
+        "info": {
+            "can_reach_server": "Verbindung zum Solcast-Server"
         }
     }
 }

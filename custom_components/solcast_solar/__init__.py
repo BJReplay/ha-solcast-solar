@@ -263,20 +263,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
     await solcast.get_sites_and_usage()
     match solcast.sites_status:
         case SitesStatus.ERROR:
-            raise ConfigEntryNotReady("Sites data could not be retrieved")
+            raise ConfigEntryNotReady(translation_domain=DOMAIN, translation_key="init_cannot_get_sites")
         case SitesStatus.CACHE_INVALID:
-            raise ConfigEntryNotReady("Sites data could not be retrieved and cache is invalid")
+            raise ConfigEntryNotReady(translation_domain=DOMAIN, translation_key="init_cannot_get_sites_cache_invalid")
         case SitesStatus.BAD_KEY:
-            raise ConfigEntryError("API key is invalid")
+            raise ConfigEntryError(translation_domain=DOMAIN, translation_key="init_key_invalid")
         case SitesStatus.NO_SITES:
-            raise ConfigEntryError("No sites found for API key")
+            raise ConfigEntryError(translation_domain=DOMAIN, translation_key="init_no_sites")
         case SitesStatus.UNKNOWN:
-            raise ConfigEntryError("Exception loading sites data")
+            raise ConfigEntryError(translation_domain=DOMAIN, translation_key="init_unknown")
         case SitesStatus.OK:
             pass
     match solcast.usage_status:
         case UsageStatus.ERROR:
-            raise ConfigEntryError("Usage data is corrupt, check or delete config/solcast-usage.json")
+            raise ConfigEntryError(translation_domain=DOMAIN, translation_key="init_usage_corrupt")
         case UsageStatus.OK:
             pass
 
@@ -288,7 +288,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
 
     match solcast.status:
         case SolcastApiStatus.DATA_INCOMPATIBLE:
-            raise ConfigEntryError("Data incompatible")
+            raise ConfigEntryError(translation_domain=DOMAIN, translation_key="init_incompatible")
         case SolcastApiStatus.OK:
             pass
 
