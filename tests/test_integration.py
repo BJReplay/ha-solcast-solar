@@ -371,6 +371,7 @@ async def test_schema_upgrade(
         assert "version from v4 to v5" in caplog.text
         assert "Migrating un-dampened history" in caplog.text
         verify_new_solcast_schema(data_file)
+        caplog.clear()
 
         # Test upgrade from v3 schema
         kill_undampened_cache()
@@ -379,6 +380,7 @@ async def test_schema_upgrade(
         assert "version from v1 to v5" in caplog.text
         assert "Migrating un-dampened history" in caplog.text
         verify_new_solcast_schema(data_file)
+        caplog.clear()
 
         # Test upgrade from incompatible schema 1
         kill_undampened_cache()
@@ -386,6 +388,7 @@ async def test_schema_upgrade(
         coordinator, solcast = await _reload(hass, entry)
         assert "CRITICAL" in caplog.text
         assert solcast is None
+        caplog.clear()
 
         # Test upgrade from incompatible schema 2
         kill_undampened_cache()
