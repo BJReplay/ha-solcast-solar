@@ -80,7 +80,7 @@ TEST_API_KEY = [
     ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "0", AUTO_UPDATE: "2"}, FlowResultType.ABORT, "API limit must be one or greater"),
 ]
 
-TEST_BAD_KEY_INJECTION = [
+TEST_KEY_CHANGES = [
     {
         "options": {CONF_API_KEY: "555", API_QUOTA: "10", AUTO_UPDATE: "1"},
         "assert": "Bad API key, 401/Unauth",
@@ -95,6 +95,11 @@ TEST_BAD_KEY_INJECTION = [
         "options": {CONF_API_KEY: "1", API_QUOTA: "10", AUTO_UPDATE: "1"},
         "assert": "Error 429/Try again later for API key",
         "set": MOCK_BUSY,
+    },
+    {
+        "options": {CONF_API_KEY: "2", API_QUOTA: "10", AUTO_UPDATE: "1"},
+        "assert": None,
+        "set": None,
     },
 ]
 
@@ -255,7 +260,7 @@ async def test_reconfigure_api_key(
                     assert result["type"] == test[TYPE]
                     assert result["reason"] == test[REASON]
 
-        for test in TEST_BAD_KEY_INJECTION:
+        for test in TEST_KEY_CHANGES:
             _LOGGER.critical(test)
             flow = await hass.config_entries.flow.async_init(
                 DOMAIN,
@@ -269,10 +274,15 @@ async def test_reconfigure_api_key(
                 flow["flow_id"],
                 user_input=test["options"],
             )
+            await hass.async_block_till_done()
             if test["set"]:
                 session_clear(test["set"])
-            assert result["type"] == FlowResultType.ABORT
-            assert test["assert"] in result["reason"]
+            if test["assert"]:
+                assert result["type"] == FlowResultType.ABORT
+                assert test["assert"] in result["reason"]
+            else:
+                assert result["type"] == FlowResultType.ABORT
+                assert result["reason"] == "reconfigured"
 
     finally:
         assert await async_cleanup_integration_tests(hass)
