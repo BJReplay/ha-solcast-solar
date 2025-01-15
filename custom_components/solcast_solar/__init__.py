@@ -94,7 +94,8 @@ def __log_init_message(entry: SolcastConfigEntry, version: str, solcast: Solcast
     _LOGGER.info("Solcast integration version: %s", version)
 
 
-async def __get_version(hass: HomeAssistant) -> str:
+async def get_version(hass: HomeAssistant) -> str:
+    """Get the version of the integration."""
     return str((await loader.async_get_integration(hass, DOMAIN)).version)
 
 
@@ -174,7 +175,8 @@ def __log_hard_limit_set(solcast: SolcastApi):
         )
 
 
-def __get_session_headers(version: str):
+def get_session_headers(version: str):
+    """Get the headers for the session based on the integration version."""
     raw_version = version.replace("v", "")
     headers = {
         "Accept": "application/json",
@@ -253,13 +255,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
     """
     random.seed()
 
-    version = await __get_version(hass)
+    version = await get_version(hass)
     options = await __get_options(hass, entry)
     __setup_storage(hass)
     hass.data[DOMAIN]["presumed_dead"] = True
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options, hass, entry)
 
-    solcast.headers = __get_session_headers(version)
+    solcast.headers = get_session_headers(version)
     await solcast.get_sites_and_usage()
     match solcast.sites_status:
         case SitesStatus.ERROR:

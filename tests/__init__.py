@@ -232,6 +232,34 @@ def aioresponses_reset() -> None:
         MOCK_SESSION_CONFIG["aioresponses"] = None
 
 
+async def async_setup_aioresponses() -> None:
+    """Set up the mock session."""
+
+    aioresponses_reset()
+    aioresp = None
+    aioresp = aioresponses(passthrough=["http://127.0.0.1"])
+
+    URLS = {
+        "sites": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites\?.*api_key=.*$", "callback": _get_sites},
+        "forecasts": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites/.+/forecasts.*$", "callback": _get_forecasts},
+        "estimated_actuals": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites/.+/estimated_actuals.*$", "callback": _get_actuals},
+    }
+
+    exc = MOCK_SESSION_CONFIG["exception"]
+    if exc == ClientConnectionError:
+        # Modify the URLs to cause a connection error.
+        for url in URLS.values():
+            url["URL"] = url["URL"].replace("solcast", "solcastxxxx")
+        exc = None
+
+    # Set up the mock GET responses.
+    aioresp.get("https://api.solcast.com.au", status=200)
+    for _get in URLS.values():
+        aioresp.get(re.compile(_get["URL"]), status=200, callback=_get["callback"], repeat=99999, exception=exc)
+
+    MOCK_SESSION_CONFIG["aioresponses"] = aioresp
+
+
 async def async_init_integration(
     hass: HomeAssistant, options: dict, version: int = CONFIG_VERSION, mock_api: bool = True, timezone: str = ZONE_RAW
 ) -> MockConfigEntry:
@@ -256,29 +284,7 @@ async def async_init_integration(
     entry.add_to_hass(hass)
 
     if mock_api:
-        aioresponses_reset()
-        aioresp = None
-        aioresp = aioresponses(passthrough=["http://127.0.0.1"])
-
-        URLS = {
-            "sites": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites\?.*api_key=.*$", "callback": _get_sites},
-            "forecasts": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites/.+/forecasts.*$", "callback": _get_forecasts},
-            "estimated_actuals": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites/.+/estimated_actuals.*$", "callback": _get_actuals},
-        }
-
-        exc = MOCK_SESSION_CONFIG["exception"]
-        if exc == ClientConnectionError:
-            # Modify the URLs to cause a connection error.
-            for url in URLS.values():
-                url["URL"] = url["URL"].replace("solcast", "solcastxxxx")
-            exc = None
-
-        # Set up the mock GET responses.
-        aioresp.get("https://api.solcast.com.au", status=200)
-        for _get in URLS.values():
-            aioresp.get(re.compile(_get["URL"]), status=200, callback=_get["callback"], repeat=99999, exception=exc)
-
-        MOCK_SESSION_CONFIG["aioresponses"] = aioresp
+        await async_setup_aioresponses()
 
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()

@@ -59,8 +59,6 @@ from .util import (
     cubic_interp,
 )
 
-# SENSOR_DEBUG_LOGGING: Final = False
-
 API: Final = Api.HOBBYIST  # The API to use. Presently only the hobbyist API is allowed for hobbyist accounts.
 
 if API == Api.HOBBYIST:
@@ -217,7 +215,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         aiohttp_session: ClientSession,
         options: ConnectionOptions,
         hass: HomeAssistant,
-        entry: SolcastConfigEntry,
+        entry: SolcastConfigEntry | None = None,
     ) -> None:
         """Initialise the API interface.
 
@@ -232,7 +230,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.custom_hour_sensor = options.custom_hour_sensor
         self.damp = options.dampening
         self.entry = entry
-        self.entry_options = {**entry.options}
+        self.entry_options = {**entry.options} if entry is not None else {}
         self.estimate_set = self.__get_estimate_set(options)
         self.granular_dampening = {}
         self.hard_limit = options.hard_limit
@@ -468,6 +466,25 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return True
         _LOGGER.error("Not serialising empty data")
         return False
+
+    async def test_api_key(self):
+        """Test the API key. Used in the config flow."""
+        api_keys = self.options.api_key.split(",")
+        for api_key in api_keys:
+            api_key = api_key.strip()
+            url = f"{self.options.host}/rooftop_sites"
+            params = {"format": "json", "api_key": api_key}
+            _LOGGER.debug("Test connection to %s?format=json&api_key=%s", url, self.__redact_api_key(api_key))
+
+            response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
+            if response.status != 200:
+                if response.status == 401:
+                    return response.status, f"Bad API key, {self.__translate(response.status)} returned for {api_key}"
+                return response.status, f"Error {self.__translate(response.status)} for API key {api_key}"
+            sites = await response.json()
+            if sites.get("total_records") == 0:
+                return 404, f"No sites found for API key {api_key}"
+        return 200, ""
 
     async def __sites_data(self):  # noqa: C901
         """Request site details.
@@ -1244,7 +1261,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             tuple(dict, ...): Forecasts representing the range specified.
 
         """
-        start_time = time.time()
 
         if args[2] == "all":
             data_forecasts = self._data_forecasts if not args[3] else self._data_forecasts_undampened
@@ -1255,19 +1271,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             # Range could not be found
             raise ValueError("Range is invalid")
         forecast_slice = data_forecasts[start_index:end_index]
-
-        # if SENSOR_DEBUG_LOGGING:
-        #    _LOGGER.debug(
-        #        "Get forecast list: (%ss) start %s end %s start_index %d end_index %d slice.len %d site %s un-dampened %s",
-        #        round(time.time() - start_time, 4),
-        #        args[0].strftime(DATE_FORMAT_UTC),
-        #        args[1].strftime(DATE_FORMAT_UTC),
-        #        start_index,
-        #        end_index,
-        #        len(forecast_slice),
-        #        args[2],
-        #        args[3],
-        #    )
 
         return tuple({**data, "period_start": data["period_start"].astimezone(self._tz)} for data in forecast_slice)
 
@@ -1451,17 +1454,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for site in self.sites:
                 site_start_index, site_end_index, _, _ = get_start_and_end(self._site_data_forecasts[site["resource_id"]])
                 site_data_forecast[site["resource_id"]] = self._site_data_forecasts[site["resource_id"]][site_start_index:site_end_index]
-
-        # if SENSOR_DEBUG_LOGGING:
-        #    _LOGGER.debug(
-        #        "Get forecast day: %d start %s end %s start_index %d end_index %d slice.len %d",
-        #        future_day,
-        #        start_utc.strftime(DATE_FORMAT_UTC),
-        #        end_utc.strftime(DATE_FORMAT_UTC),
-        #        start_index,
-        #        end_index,
-        #        len(forecast_slice),
-        #    )
 
         _tuple = tuple({**forecast, "period_start": forecast["period_start"].astimezone(self._tz)} for forecast in forecast_slice)
         if self.options.attr_brk_site_detailed:
@@ -1946,18 +1938,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         result += interval * seconds / 1800
                     else:
                         result += interval
-        # if SENSOR_DEBUG_LOGGING:
-        #    _LOGGER.debug(
-        #        "Get estimate: %s()%s %s start %s end %s start_index %d end_index %d result %s",
-        #        FunctionName(1),
-        #        "" if site is None else " " + site,
-        #        forecast_confidence,
-        #        start_utc.strftime(DATE_FORMAT_UTC),
-        #        end_utc.strftime(DATE_FORMAT_UTC) if end_utc is not None else None,
-        #        start_index,
-        #        end_index,
-        #        round(result, 4),
-        #    )
         return max(0, result) if result is not None else None
 
     def __get_forecast_pv_estimates(
@@ -1989,18 +1969,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return None
         for forecast_slice in data[start_index:end_index]:
             result += forecast_slice[forecast_confidence]
-        # if SENSOR_DEBUG_LOGGING:
-        #    _LOGGER.debug(
-        #        "Get estimate: %s()%s%s start %s end %s start_index %d end_index %d result %s",
-        #        FunctionName(1),
-        #        "" if site is None else " " + site,
-        #        "" if forecast_confidence is None else " " + forecast_confidence,
-        #        start_utc.strftime(DATE_FORMAT_UTC),
-        #        end_utc.strftime(DATE_FORMAT_UTC),
-        #        start_index,
-        #        end_index,
-        #        round(result, 4),
-        #    )
         return result
 
     def __get_forecast_pv_moment(
@@ -2023,18 +1991,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         forecast_confidence = self._use_forecast_confidence if forecast_confidence is None else forecast_confidence
         day_start = self.get_day_start_utc()
         time_utc = time_utc.replace(minute=math.floor(time_utc.minute / 5) * 5)
-        result = self.__get_moment(site, forecast_confidence, (time_utc - day_start).total_seconds())
-        # if SENSOR_DEBUG_LOGGING and result is not None:
-        #    _LOGGER.debug(
-        #        "Get estimate moment: %s()%s %s t %s sec %d result %s",
-        #        FunctionName(1),
-        #        "" if site is None else " " + site,
-        #        forecast_confidence,
-        #        time_utc.strftime(DATE_FORMAT_UTC),
-        #        (time_utc - day_start).total_seconds(),
-        #        round(result, 4),
-        #    )
-        return result
+        return self.__get_moment(site, forecast_confidence, (time_utc - day_start).total_seconds())
 
     def __get_max_forecast_pv_estimate(
         self,
@@ -2065,18 +2022,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for forecast_slice in data[start_index:end_index]:
             if result[forecast_confidence] < forecast_slice[forecast_confidence]:
                 result = forecast_slice
-        # if SENSOR_DEBUG_LOGGING:
-        #    _LOGGER.debug(
-        #        "Get max estimate: %s()%s %s start %s end %s start_index %d end_index %d result %s",
-        #        FunctionName(1),
-        #        "" if site is None else " " + site,
-        #        forecast_confidence,
-        #        start_utc.strftime(DATE_FORMAT_UTC),
-        #        end_utc.strftime(DATE_FORMAT_UTC),
-        #        start_index,
-        #        end_index,
-        #        result,
-        #    )
         return result
 
     def get_energy_data(self) -> dict[str, Any] | None:
@@ -2598,10 +2543,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             time.time() - start_time,
                         )
                         return response_json
-                    elif status == 400:
-                        _LOGGER.warning("Status %s: Internal error", self.__translate(status))
-                    elif status == 404:
-                        _LOGGER.error("The site cannot be found, status %s returned", self.__translate(status))
+                    elif status in (400, 404):  # noqa: RET505
+                        _LOGGER.error("Unexpected error getting sites, status %s returned", self.__translate(status))
                     elif status == 998:  # Exceeded API limit.
                         _LOGGER.error(
                             "API allowed polling limit has been exceeded, API counter set to %d/%d",
@@ -2610,7 +2553,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         )
                     elif status == 1000:  # Unexpected response.
                         _LOGGER.error("Unexpected response received")
-                    else:  # Unknown status.
+                    else:  # Other, or unknown status.
                         _LOGGER.error(
                             "Call status %s, API used is %d/%d",
                             self.__translate(status),

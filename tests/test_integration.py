@@ -1,4 +1,4 @@
-"""Tests for the Solcast Solar initialisation."""
+"""Tests for the Solcast Solar integration startup, options and scenarios."""
 
 import asyncio
 import contextlib
@@ -90,11 +90,15 @@ NOW = dt.now(ZONE)
 
 @pytest.fixture(autouse=True)
 def frozen_time() -> None:
-    """Override autouse fixture for this module.
+    """Override autouse fixture for this module, disabling use of the freezer feature.
 
-    Time must pass, so use method replacement instead.
+    Time runs in this test suite in real-time, so method replacement is used
+    instead of the regular datetime helpers.
+
+    The date is the real date, but the time is spoofed to always be around midday
+    for forecast and sensor updates giving predicable responses. Logged time is realtime,
+    allowing analysis of performance and waiting for asyncio tasks to complete normally.
     """
-    return
 
 
 def get_now_utc() -> dt:
@@ -135,6 +139,7 @@ async def _exec_update(
     wait: bool = True,
 ) -> None:
     """Execute an action and wait for completion."""
+
     caplog.clear()
     if last_update_delta == 0:
         last_updated = dt(year=2020, month=1, day=1, hour=1, minute=1, second=1, tzinfo=datetime.UTC)
@@ -151,6 +156,7 @@ async def _exec_update(
 
 async def _wait_for_update(caplog: any) -> None:
     """Wait for forecast update completion."""
+
     async with asyncio.timeout(5):
         while (
             "Forecast update completed successfully" not in caplog.text
@@ -164,6 +170,7 @@ async def _wait_for_update(caplog: any) -> None:
 
 async def _reload(hass: HomeAssistant, entry: SolcastConfigEntry) -> tuple[SolcastUpdateCoordinator | None, SolcastApi | None]:
     """Reload the integration."""
+
     _LOGGER.warning("Reloading integration")
     await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()

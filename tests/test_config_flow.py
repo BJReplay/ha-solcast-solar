@@ -47,8 +47,12 @@ from . import (
     DEFAULT_INPUT2,
     KEY1,
     KEY2,
+    MOCK_BUSY,
     async_cleanup_integration_tests,
     async_init_integration,
+    async_setup_aioresponses,
+    session_set,
+    session_clear,
 )
 
 from tests.common import MockConfigEntry
@@ -74,6 +78,24 @@ TEST_API_KEY = [
     ({CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, None, None),
     ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "2"}, None, None),
     ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "0", AUTO_UPDATE: "2"}, FlowResultType.ABORT, "API limit must be one or greater"),
+]
+
+TEST_BAD_KEY_INJECTION = [
+    {
+        "options": {CONF_API_KEY: "555", API_QUOTA: "10", AUTO_UPDATE: "1"},
+        "assert": "Bad API key, 401/Unauth",
+        "set": None,
+    },
+    {
+        "options": {CONF_API_KEY: "no_sites", API_QUOTA: "10", AUTO_UPDATE: "1"},
+        "assert": "No sites found for API key",
+        "set": None,
+    },
+    {
+        "options": {CONF_API_KEY: "1", API_QUOTA: "10", AUTO_UPDATE: "1"},
+        "assert": "Error 429/Try again later for API key",
+        "set": MOCK_BUSY,
+    },
 ]
 
 TEST_API_QUOTA = [
@@ -111,6 +133,8 @@ async def test_single_instance(
 
 async def test_create_entry(hass: HomeAssistant) -> None:
     """Test that a valid user input creates an entry."""
+
+    await async_setup_aioresponses()
 
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
@@ -156,8 +180,31 @@ async def test_init_api_key(hass: HomeAssistant, user_input, result, reason) -> 
         assert result["reason"] == reason
 
 
+async def test_config_api_key_invalid(hass: HomeAssistant) -> None:
+    """Test that invalid API key is handled in config flow."""
+
+    await async_setup_aioresponses()
+
+    flow = SolcastSolarFlowHandler()
+    flow.hass = hass
+
+    result = await flow.async_step_user({CONF_API_KEY: "555", API_QUOTA: "10", AUTO_UPDATE: "1"})
+    assert result["type"] == FlowResultType.ABORT
+    assert "Bad API key, 401/Unauth" in result["reason"]
+
+    result = await flow.async_step_user({CONF_API_KEY: "no_sites", API_QUOTA: "10", AUTO_UPDATE: "1"})
+    assert result["type"] == FlowResultType.ABORT
+    assert "No sites found for API key" in result["reason"]
+
+    session_set(MOCK_BUSY)
+    result = await flow.async_step_user({CONF_API_KEY: "1", API_QUOTA: "10", AUTO_UPDATE: "1"})
+    assert result["type"] == FlowResultType.ABORT
+    assert "Error 429/Try again later for API key" in result["reason"]
+    session_clear(MOCK_BUSY)
+
+
 @pytest.mark.parametrize(("options", "user_input", "result", "reason"), TEST_API_QUOTA)
-async def test_init_api_quota(hass: HomeAssistant, options, user_input, result, reason) -> None:
+async def test_config_api_quota(hass: HomeAssistant, options, user_input, result, reason) -> None:
     """Test that valid/invalid API quota is handled in init."""
 
     flow = SolcastSolarFlowHandler()
@@ -187,15 +234,13 @@ async def test_reconfigure_api_key(
 
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
+
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
         for test in TEST_API_KEY:
             for source in [config_entries.SOURCE_REAUTH, config_entries.SOURCE_RECONFIGURE]:
                 result = await hass.config_entries.flow.async_init(
                     DOMAIN,
-                    context={
-                        "source": source,
-                        "entry_id": entry.entry_id,
-                    },
+                    context={"source": source, "entry_id": entry.entry_id},
                     data=entry.data,
                 )
                 await hass.async_block_till_done()
@@ -209,6 +254,25 @@ async def test_reconfigure_api_key(
                 if result["reason"] not in ("reconfigured", None):
                     assert result["type"] == test[TYPE]
                     assert result["reason"] == test[REASON]
+
+        for test in TEST_BAD_KEY_INJECTION:
+            _LOGGER.critical(test)
+            flow = await hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+                data=entry.data,
+            )
+            await hass.async_block_till_done()
+            if test["set"]:
+                session_set(test["set"])
+            result = await hass.config_entries.flow.async_configure(
+                flow["flow_id"],
+                user_input=test["options"],
+            )
+            if test["set"]:
+                session_clear(test["set"])
+            assert result["type"] == FlowResultType.ABORT
+            assert test["assert"] in result["reason"]
 
     finally:
         assert await async_cleanup_integration_tests(hass)
@@ -260,7 +324,7 @@ async def test_reconfigure_api_quota(
 
 
 @pytest.mark.parametrize(("user_input", "result", "reason"), TEST_API_KEY)
-async def test_option_api_key(hass: HomeAssistant, user_input, result, reason) -> None:
+async def test_options_api_key(hass: HomeAssistant, user_input, result, reason) -> None:
     """Test that valid/invalid API key is handled in option flow init."""
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
@@ -275,8 +339,35 @@ async def test_option_api_key(hass: HomeAssistant, user_input, result, reason) -
         assert result["reason"] == reason
 
 
+async def test_options_api_key_invalid(hass: HomeAssistant) -> None:
+    """Test that invalid API key is handled in options flow."""
+
+    await async_setup_aioresponses()
+
+    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
+    flow.hass = hass
+
+    options = DEFAULT_INPUT1
+
+    inject = {CONF_API_KEY: "555"}
+    result = await flow.async_step_init({**options, **inject})
+    assert result["type"] == FlowResultType.ABORT
+    assert "Bad API key, 401/Unauth" in result["reason"]
+
+    inject = {CONF_API_KEY: "no_sites"}
+    result = await flow.async_step_init({**options, **inject})
+    assert result["type"] == FlowResultType.ABORT
+    assert "No sites found for API key" in result["reason"]
+
+    session_set(MOCK_BUSY)
+    result = await flow.async_step_init(options)
+    assert result["type"] == FlowResultType.ABORT
+    assert "Error 429/Try again later for API key" in result["reason"]
+    session_clear(MOCK_BUSY)
+
+
 @pytest.mark.parametrize(("options", "user_input", "result", "reason"), TEST_API_QUOTA)
-async def test_option_api_quota(hass: HomeAssistant, options, user_input, result, reason) -> None:
+async def test_options_api_quota(hass: HomeAssistant, options, user_input, result, reason) -> None:
     """Test that valid/invalid API quota is handled in option flow init."""
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
@@ -299,7 +390,7 @@ async def test_option_api_quota(hass: HomeAssistant, options, user_input, result
         ((DEFAULT_INPUT1, 8, FlowResultType.FORM, "")),
     ],
 )
-async def test_option_custom_hour_sensor(hass: HomeAssistant, options, value, result, reason) -> None:
+async def test_options_custom_hour_sensor(hass: HomeAssistant, options, value, result, reason) -> None:
     """Test that valid/invalid custom hour sensor is handled."""
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
@@ -324,7 +415,7 @@ async def test_option_custom_hour_sensor(hass: HomeAssistant, options, value, re
         ((DEFAULT_INPUT2, "6", FlowResultType.FORM, "")),
     ],
 )
-async def test_option_hard_limit(hass: HomeAssistant, options, value, result, reason) -> None:
+async def test_options_hard_limit(hass: HomeAssistant, options, value, result, reason) -> None:
     """Test that valid/invalid hard limit is handled."""
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1 if options == DEFAULT_INPUT1 else MOCK_ENTRY2)

@@ -13,14 +13,17 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.const import CONF_API_KEY
-from homeassistant.core import callback
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
 )
+from homeassistant.util import dt as dt_util
 
+from . import get_session_headers, get_version
 from .const import (
     API_QUOTA,
     AUTO_UPDATE,
@@ -38,8 +41,10 @@ from .const import (
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE_DAMP,
+    SOLCAST_URL,
     TITLE,
 )
+from .solcastapi import ConnectionOptions, SolcastApi
 from .util import SolcastConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
@@ -99,19 +104,46 @@ def validate_api_limit(user_input: dict[str, Any], api_count: int) -> tuple[str,
     return api_quota, None
 
 
+async def validate_sites(hass: HomeAssistant, user_input: dict[str, Any]) -> tuple[int, str]:
+    """Validate the keys and sites with an API call.
+
+    Arguments:
+        hass: The Home Assistant instance.
+        user_input (dict[str, Any]): The user input.
+
+    Returns:
+        tuple[int, str]: The test HTTP status and non-blank message for failures.
+
+    """
+    session = async_get_clientsession(hass)
+    options = ConnectionOptions(
+        user_input[CONF_API_KEY],
+        user_input[API_QUOTA],
+        SOLCAST_URL,
+        hass.config.path(f"{hass.config.config_dir}/solcast.json"),
+        await dt_util.async_get_time_zone(hass.config.time_zone),
+        user_input[AUTO_UPDATE],
+        {str(a): 1.0 for a in range(24)},
+        user_input[CUSTOM_HOUR_SENSOR],
+        user_input[KEY_ESTIMATE],
+        user_input[HARD_LIMIT_API],
+        user_input[BRK_ESTIMATE],
+        user_input[BRK_ESTIMATE10],
+        user_input[BRK_ESTIMATE90],
+        user_input[BRK_SITE],
+        user_input[BRK_HALFHOURLY],
+        user_input[BRK_HOURLY],
+        user_input[BRK_SITE_DETAILED],
+    )
+    solcast = SolcastApi(session, options, hass)
+    solcast.headers = get_session_headers(await get_version(hass))
+
+    return await solcast.test_api_key()
+
+
 @config_entries.HANDLERS.register(DOMAIN)
 class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
     """Handle the config flow."""
-
-    # 5 started 4.0.8
-    # 6 started 4.0.15
-    # 7 started 4.0.16
-    # 8 started 4.0.39
-    # 9 started 4.1.3
-    # 10 unreleased
-    # 11 unreleased
-    # 12 started 4.1.8
-    # 14 started 4.2.4
 
     VERSION = CONFIG_VERSION
 
@@ -165,6 +197,10 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             all_config_data[CONF_API_KEY] = api_key
             all_config_data[API_QUOTA] = api_quota
             all_config_data[AUTO_UPDATE] = int(user_input[AUTO_UPDATE])
+
+            status, message = await validate_sites(self.hass, all_config_data)
+            if status != 200:
+                return self.async_abort(reason=message)
 
             data = {**self.entry.data, **all_config_data}
             self.hass.config_entries.async_update_entry(self.entry, data=data, options=data)
@@ -225,6 +261,12 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 BRK_SITE_DETAILED: False,
             }
             damp = {f"damp{factor:02d}": 1.0 for factor in range(24)}
+
+            status, message = await validate_sites(self.hass, options)
+            if status != 200:
+                _LOGGER.critical(message)
+                return self.async_abort(reason=message)
+
             return self.async_create_entry(title=TITLE, data={}, options=options | damp)
 
         solcast_json_exists = Path(f"{self.hass.config.config_dir}/solcast.json").is_file()
@@ -283,6 +325,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         if user_input is not None:
             try:
                 all_config_data = {**self._options}
+                _old_api_key = all_config_data[CONF_API_KEY]
 
                 all_config_data[CONF_API_KEY], api_count, abort = validate_api_key(user_input)
                 if abort is not None:
@@ -329,6 +372,11 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 all_config_data[BRK_SITE_DETAILED] = site_detailed
 
                 self._all_config_data = all_config_data
+
+                if all_config_data[CONF_API_KEY] != _old_api_key:
+                    status, message = await validate_sites(self.hass, all_config_data)
+                    if status != 200:
+                        return self.async_abort(reason=message)
 
                 if user_input.get(CONFIG_DAMP):
                     return await self.async_step_dampen()
