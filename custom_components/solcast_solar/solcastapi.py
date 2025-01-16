@@ -485,6 +485,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             sites = await response.json()
             if sites.get("total_records") == 0:
                 return 404, f"No sites found for API key {api_key}"
+        self.reauth_required = False
         return 200, ""
 
     async def __sites_data(self):  # noqa: C901
