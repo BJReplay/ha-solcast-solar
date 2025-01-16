@@ -237,6 +237,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.hass = hass
         self.headers = {}
         self.options = options
+        self.reauth_required = False
         self.sites = []
         self.sites_status: SitesStatus = SitesStatus.UNKNOWN
         self.status: SolcastApiStatus = SolcastApiStatus.OK
@@ -478,7 +479,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
             if response.status != 200:
-                if response.status == 401:
+                if response.status in (401, 403):
                     return response.status, f"Bad API key, {self.__translate(response.status)} returned for {api_key}"
                 return response.status, f"Error {self.__translate(response.status)} for API key {api_key}"
             sites = await response.json()
@@ -2545,6 +2546,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         return response_json
                     elif status in (400, 404):  # noqa: RET505
                         _LOGGER.error("Unexpected error getting sites, status %s returned", self.__translate(status))
+                    elif status == 403:  # Forbidden.
+                        _LOGGER.error("API key %s is forbidden, re-authentication required", self.__redact_api_key(api_key))
+                        self.reauth_required = True
                     elif status == 998:  # Exceeded API limit.
                         _LOGGER.error(
                             "API allowed polling limit has been exceeded, API counter set to %d/%d",

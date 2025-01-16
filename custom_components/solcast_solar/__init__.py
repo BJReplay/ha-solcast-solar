@@ -13,6 +13,7 @@ from homeassistant import loader
 from homeassistant.const import CONF_API_KEY, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
     ConfigEntryError,
     ConfigEntryNotReady,
     ServiceValidationError,
@@ -269,7 +270,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
         case SitesStatus.CACHE_INVALID:
             raise ConfigEntryNotReady(translation_domain=DOMAIN, translation_key="init_cannot_get_sites_cache_invalid")
         case SitesStatus.BAD_KEY:
-            raise ConfigEntryError(translation_domain=DOMAIN, translation_key="init_key_invalid")
+            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
         case SitesStatus.NO_SITES:
             raise ConfigEntryError(translation_domain=DOMAIN, translation_key="init_no_sites")
         case SitesStatus.UNKNOWN:

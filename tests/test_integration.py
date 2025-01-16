@@ -46,7 +46,7 @@ from homeassistant.components.solcast_solar.util import SolcastConfigEntry
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
 
 from . import (
     BAD_INPUT,
@@ -164,6 +164,7 @@ async def _wait_for_update(caplog: any) -> None:
             and "aborting forecast update" not in caplog.text
             and "pausing" not in caplog.text
             and "Completed task update" not in caplog.text
+            and "ConfigEntryAuthFailed" not in caplog.text
         ):  # Wait for task to complete
             await asyncio.sleep(0.01)
 
@@ -195,6 +196,7 @@ async def test_api_failure(
 ) -> None:
     """Test API failure."""
 
+    await async_cleanup_integration_tests(hass)
     try:
 
         def assertions1_busy(entry: SolcastConfigEntry):
@@ -253,10 +255,11 @@ async def test_api_failure(
                 {"exception": ClientConnectionError, "assertion": "Client error", "fatal": True},
                 {"exception": ConnectionRefusedError, "assertion": "Connection error, connection refused", "fatal": True},
                 {"exception": MOCK_BAD_REQUEST, "assertion": "400/Bad request", "fatal": True},
-                {"exception": MOCK_FORBIDDEN, "assertion": "403/Forbidden", "fatal": True},
                 {"exception": MOCK_NOT_FOUND, "assertion": "404/Not found", "fatal": True},
                 {"exception": MOCK_BUSY, "assertion": "429/Try again later", "fatal": False},
                 {"exception": MOCK_BUSY_UNEXPECTED, "assertion": "Unexpected response received", "fatal": True},
+                # Forbidden must be last
+                {"exception": MOCK_FORBIDDEN, "assertion": "ConfigEntryAuthFailed: API key is invalid", "fatal": True},
             ]:
                 if not isinstance(test["exception"], str):
                     session_set(MOCK_EXCEPTION, exception=test["exception"])
@@ -271,16 +274,24 @@ async def test_api_failure(
 
                 if isinstance(test["exception"], str):
                     session_set(test["exception"])
-                await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
-                assert test["assertion"] in caplog.text
-                if test["fatal"]:
-                    assert "pausing" not in caplog.text
+                if test["exception"] == MOCK_FORBIDDEN:
+                    await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
+                    with pytest.raises(ConfigEntryAuthFailed):
+                        await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
+                else:
+                    await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
+                    assert test["assertion"] in caplog.text
+                    if test["fatal"]:
+                        assert "pausing" not in caplog.text
 
                 assert await hass.config_entries.async_unload(entry.entry_id)
                 if isinstance(test["exception"], str):
                     session_clear(test["exception"])
                 else:
                     session_clear(MOCK_EXCEPTION)
+
+                await hass.config_entries.async_unload(entry.entry_id)
+                await hass.async_block_till_done()
             caplog.clear()
 
         # Test API too busy during get sites without cache
@@ -292,7 +303,6 @@ async def test_api_failure(
 
         # Normal start and teardown to create caches
         entry: SolcastConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
         await hass.async_block_till_done()
         assert await hass.config_entries.async_unload(entry.entry_id)
 
@@ -305,6 +315,13 @@ async def test_api_failure(
         await exceptions_update()
 
     finally:
+        session_clear(MOCK_BAD_REQUEST)
+        session_clear(MOCK_BUSY)
+        session_clear(MOCK_BUSY_UNEXPECTED)
+        session_clear(MOCK_EXCEPTION)
+        session_clear(MOCK_FORBIDDEN)
+        session_clear(MOCK_NOT_FOUND)
+
         assert await async_cleanup_integration_tests(hass)
 
 

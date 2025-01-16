@@ -9,7 +9,7 @@ import logging
 from typing import Any
 
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
+from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
 from homeassistant.helpers.event import async_track_utc_time_change
 from homeassistant.helpers.sun import get_astral_event_next
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -117,6 +117,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     async def update_integration_listeners(self, *args):
         """Get updated sensor values."""
+
         current_day = dt.now(self.solcast.options.tz).day
         self._date_changed = current_day != self._last_day
         if self._date_changed:
@@ -168,6 +169,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     if _from <= interval < _from + timedelta(minutes=5):
                         update_in = int((interval - _now).total_seconds())
                         if update_in >= 0:
+                            if self.solcast.reauth_required:
+                                raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
+
                             task_name = f"pending_update_{update_in:03}"
                             _LOGGER.debug("Create task %s", task_name)
                             self._update_sequence.append(update_in)
@@ -309,6 +313,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 await self.__restart_time_track_midnight_update()
 
             await self.solcast.get_forecast_update(do_past=False, force=force)
+
             self._data_updated = True
             await self.update_integration_listeners()
             self._data_updated = False
@@ -318,6 +323,13 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 # Clean up a task created by a service call action
                 self.tasks.pop("forecast_update")
 
+    def __update_callback(self, *_args):
+        # Check for re-authentication required
+        # The exception below will not work...
+        # if self.solcast.reauth_required:
+        #    raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
+        pass
+
     async def service_event_update(self, **kwargs):
         """Get updated forecast data when requested by a service call.
 
@@ -325,27 +337,35 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             kwargs (dict): If a key of "ignore_auto_enabled" exists (regardless of the value), then the API counter will be incremented.
 
         Raises:
-            ServiceValidationError: Notify Home Assistant that an error has occurred, with translation.
+            ServiceValidationError: Notify Home Assistant that an error has occurred.
 
         """
+        if self.solcast.reauth_required:
+            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
+
         if self.solcast.options.auto_update > 0 and "ignore_auto_enabled" not in kwargs:
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_force")
-        self.tasks["forecast_update"] = asyncio.create_task(
+        task = asyncio.create_task(
             self.__forecast_update(completion="Completed task update" if not kwargs.get("completion") else kwargs["completion"])
-        ).cancel
+        )
+        task.add_done_callback(self.__update_callback)
+        self.tasks["forecast_update"] = task.cancel
 
     async def service_event_force_update(self):
         """Force the update of forecast data when requested by a service call. Ignores API usage/limit counts.
 
         Raises:
-            ServiceValidationError: Notify Home Assistant that an error has occurred, with translation.
+            ServiceValidationError: Notify Home Assistant that an error has occurred.
 
         """
+        if self.solcast.reauth_required:
+            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
+
         if self.solcast.options.auto_update == 0:
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_normal")
-        self.tasks["forecast_update"] = asyncio.create_task(
-            self.__forecast_update(force=True, completion="Completed task force_update")
-        ).cancel
+        task = asyncio.create_task(self.__forecast_update(force=True, completion="Completed task force_update"))
+        task.add_done_callback(self.__update_callback)
+        self.tasks["forecast_update"] = task.cancel
 
     async def service_event_delete_old_solcast_json_file(self):
         """Delete the solcast.json file when requested by a service call."""
