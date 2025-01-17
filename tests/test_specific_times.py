@@ -62,7 +62,7 @@ async def test_midnight(
 
         # Test auto-update occurs just after midnight UTC.
         caplog.clear()
-        for _ in range(1000):
+        for _ in range(2000):  # Twenty virtual seconds
             freezer.tick(0.01)
             await hass.async_block_till_done()
             if "Completed task pending_update" in caplog.text:

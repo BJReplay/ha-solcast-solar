@@ -791,6 +791,7 @@ v4.2.8
 * Upgrade data files from v3 integration by @autoSteve
 * Config and options flows check valid API key and sites available by @autoSteve
 * Add re-auth and reconfigure flows by @autoSteve
+* Set sensors to unavailable on integration failure by @autoSteve
 * Catch duplicate API key being specified by @autoSteve
 * Remove check for conflicting integration by @autoSteve
 * Add integration and unit tests by @autoSteve
