@@ -496,6 +496,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         If the sites cache exists and is valid then it is loaded on API error.
         """
+        one_only = False
 
         async def load_cache(cache_filename: str):
             _LOGGER.info("Loading cached sites for %s", self.__redact_api_key(api_key))
@@ -508,12 +509,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 await file.write(json.dumps(response_json, ensure_ascii=False))
 
         def cached_sites_unavailable(at_least_one_only: bool = False):
+            nonlocal one_only
+
             if not at_least_one_only:
                 _LOGGER.error(
                     "Cached sites are not yet available for %s to cope with API call failure",
                     self.__redact_api_key(api_key),
                 )
-            _LOGGER.error("At least one successful API 'get sites' call is needed, so the integration will not function correctly")
+                _LOGGER.error("At least one successful API 'get sites' call is needed, so the integration will not function correctly")
+                one_only = True
 
         try:
             self.sites = []
@@ -555,7 +559,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 success = False
                 cache_exists = Path(cache_filename).is_file()
                 response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
-
                 status = response.status
                 (_LOGGER.debug if status == 200 else _LOGGER.warning)(
                     "HTTP session returned status %s%s",
@@ -611,7 +614,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 break
                     if status != 200:
                         cached_sites_unavailable()
-                        if status in [401]:
+                        if status in (401, 403):
                             self.sites_status = SitesStatus.BAD_KEY
                         else:
                             self.sites_status = SitesStatus.ERROR
@@ -831,10 +834,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         remove_orphans(all_sites, multi_sites)
         remove_orphans(all_usage, multi_usage)
 
-        self.tasks["sites_load"] = asyncio.create_task(self.__sites_data())
-        await self.tasks["sites_load"]
-        if self.tasks.get("sites_load") is not None:
-            self.tasks.pop("sites_load")
+        await self.__sites_data()
         if self.sites_status == SitesStatus.OK:
             await self.__sites_usage()
 
@@ -2412,7 +2412,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 time.time() - start_time,
             )
 
-            def sort_and_prune(data, past_days, forecasts):
+            async def sort_and_prune(data, past_days, forecasts):
                 past_days = self.get_day_start_utc(future=past_days * -1)
                 forecasts = sorted(
                     filter(
@@ -2424,9 +2424,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts)}})
 
             start_time = time.time()
-            with ThreadPoolExecutor() as ex:
-                ex.submit(sort_and_prune, self._data, 730, forecasts)
-                ex.submit(sort_and_prune, self._data_undampened, 14, forecasts_undampened)
+            await sort_and_prune(self._data, 730, forecasts)
+            await sort_and_prune(self._data_undampened, 14, forecasts_undampened)
             _LOGGER.debug("Task sort_and_prune took %.3f seconds", time.time() - start_time)
 
             _LOGGER.debug("Forecasts dictionary length %s (%s un-dampened)", len(forecasts), len(forecasts_undampened))

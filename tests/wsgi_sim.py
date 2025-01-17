@@ -111,7 +111,7 @@ ERROR_TOO_MANY_REQUESTS = "TooManyRequests"
 ERROR_SITE_NOT_FOUND = "SiteNotFound"
 ERROR_MESSAGE = {
     ERROR_KEY_REQUIRED: {"message": "An API key must be specified.", "status": 400},
-    ERROR_INVALID_KEY: {"message": "Invalid API key.", "status": 401},
+    ERROR_INVALID_KEY: {"message": "Invalid API key.", "status": 403},
     ERROR_TOO_MANY_REQUESTS: {"message": "You have exceeded your free daily limit.", "status": 429},
     ERROR_SITE_NOT_FOUND: {"message": "The specified site cannot be found.", "status": 404},
 }

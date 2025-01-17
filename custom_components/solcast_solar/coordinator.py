@@ -8,7 +8,7 @@ from datetime import datetime as dt, timedelta
 import logging
 from typing import Any
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
 from homeassistant.helpers.event import async_track_utc_time_change
 from homeassistant.helpers.sun import get_astral_event_next
@@ -323,9 +323,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 # Clean up a task created by a service call action
                 self.tasks.pop("forecast_update")
 
+    @callback
     def __update_callback(self, *_args):
-        # Check for re-authentication required
-        # The exception below will not work...
+        # Check for re-authentication required, does not work because in a task...
         # if self.solcast.reauth_required:
         #    raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
         pass

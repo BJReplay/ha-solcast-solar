@@ -265,12 +265,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
     solcast.headers = get_session_headers(version)
     await solcast.get_sites_and_usage()
     match solcast.sites_status:
+        case SitesStatus.BAD_KEY:
+            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
         case SitesStatus.ERROR:
             raise ConfigEntryNotReady(translation_domain=DOMAIN, translation_key="init_cannot_get_sites")
         case SitesStatus.CACHE_INVALID:
             raise ConfigEntryNotReady(translation_domain=DOMAIN, translation_key="init_cannot_get_sites_cache_invalid")
-        case SitesStatus.BAD_KEY:
-            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
         case SitesStatus.NO_SITES:
             raise ConfigEntryError(translation_domain=DOMAIN, translation_key="init_no_sites")
         case SitesStatus.UNKNOWN:

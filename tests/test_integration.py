@@ -276,6 +276,7 @@ async def test_api_failure(
                     session_set(test["exception"])
                 if test["exception"] == MOCK_FORBIDDEN:
                     await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
+                    assert "re-authentication required" in caplog.text
                     with pytest.raises(ConfigEntryAuthFailed):
                         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
                 else:
