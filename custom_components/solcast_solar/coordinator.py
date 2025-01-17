@@ -97,6 +97,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             list: Dampened forecast detail list of the sum of all site forecasts.
 
         """
+        # Check for re-authentication required
+        if self.solcast.reauth_required:
+            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
+
         return self.solcast.get_data()
 
     async def setup(self) -> bool:
@@ -317,18 +321,12 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             self._data_updated = True
             await self.update_integration_listeners()
             self._data_updated = False
+            await self.async_request_refresh()
             _LOGGER.debug(completion)
         finally:
             with contextlib.suppress(Exception):
                 # Clean up a task created by a service call action
                 self.tasks.pop("forecast_update")
-
-    @callback
-    def __update_callback(self, *_args):
-        # Check for re-authentication required, does not work because in a task...
-        # if self.solcast.reauth_required:
-        #    raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
-        pass
 
     async def service_event_update(self, **kwargs):
         """Get updated forecast data when requested by a service call.
@@ -348,7 +346,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         task = asyncio.create_task(
             self.__forecast_update(completion="Completed task update" if not kwargs.get("completion") else kwargs["completion"])
         )
-        task.add_done_callback(self.__update_callback)
         self.tasks["forecast_update"] = task.cancel
 
     async def service_event_force_update(self):
@@ -364,7 +361,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         if self.solcast.options.auto_update == 0:
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_normal")
         task = asyncio.create_task(self.__forecast_update(force=True, completion="Completed task force_update"))
-        task.add_done_callback(self.__update_callback)
         self.tasks["forecast_update"] = task.cancel
 
     async def service_event_delete_old_solcast_json_file(self):

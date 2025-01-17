@@ -137,6 +137,7 @@ async def _exec_update(
     action: str,
     last_update_delta: int = 0,
     wait: bool = True,
+    wait_exception: Exception | None = None,
 ) -> None:
     """Execute an action and wait for completion."""
 
@@ -148,7 +149,9 @@ async def _exec_update(
         _LOGGER.info("Mock last updated: %s", last_updated)
     solcast._data["last_updated"] = last_updated
     await hass.services.async_call(DOMAIN, action, {}, blocking=True)
-    if wait:
+    if wait_exception:
+        await _wait_for_raise(hass, wait_exception)
+    elif wait:
         await _wait_for_update(caplog)
         await solcast.tasks_cancel()
     await hass.async_block_till_done()
@@ -167,6 +170,19 @@ async def _wait_for_update(caplog: any) -> None:
             and "ConfigEntryAuthFailed" not in caplog.text
         ):  # Wait for task to complete
             await asyncio.sleep(0.01)
+
+
+async def _wait_for_raise(hass: HomeAssistant, exception: Exception) -> None:
+    """Wait for forecast update completion."""
+
+    async def wait_for_exception():
+        async with asyncio.timeout(5):
+            while True:
+                await hass.async_block_till_done()
+                await asyncio.sleep(0.01)
+
+    with pytest.raises(exception):
+        await wait_for_exception()
 
 
 async def _reload(hass: HomeAssistant, entry: SolcastConfigEntry) -> tuple[SolcastUpdateCoordinator | None, SolcastApi | None]:
