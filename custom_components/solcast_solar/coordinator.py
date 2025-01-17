@@ -173,9 +173,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     if _from <= interval < _from + timedelta(minutes=5):
                         update_in = int((interval - _now).total_seconds())
                         if update_in >= 0:
-                            if self.solcast.reauth_required:
-                                raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
-
                             task_name = f"pending_update_{update_in:03}"
                             _LOGGER.debug("Create task %s", task_name)
                             self._update_sequence.append(update_in)

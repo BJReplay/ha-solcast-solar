@@ -41,6 +41,7 @@ Experimental support for advanced_pv_power:
 """  # noqa: INP001
 
 import argparse
+import copy
 import datetime
 from datetime import datetime as dt, timedelta
 import json
@@ -116,6 +117,7 @@ ERROR_MESSAGE = {
     ERROR_SITE_NOT_FOUND: {"message": "The specified site cannot be found.", "status": 404},
 }
 GENERATE_418 = False
+CHANGE_KEY = []
 GENERATE_429 = True
 
 dictConfig(  # Logger configuration
@@ -165,6 +167,9 @@ except Exception as e:  # noqa: BLE001
 def validate_call(api_key, site_id=None, counter=True):
     """Return the state of the API call."""
     global counter_last_reset  # noqa: PLW0603 pylint: disable=global-statement
+
+    revert_key = True
+
     if counter_last_reset.day != dt.now(datetime.UTC).day:
         _LOGGER.info("Resetting API usage counter")
         for v in API_KEY_SITES.values():
@@ -184,20 +189,31 @@ def validate_call(api_key, site_id=None, counter=True):
         return error(ERROR_INVALID_KEY)
     if GENERATE_429 and dt.now(datetime.UTC).minute in BOMB_429:
         return 429, {}, None
-    if counter and API_KEY_SITES[api_key]["counter"] >= API_LIMIT:
+    if dt.now(datetime.UTC).minute in BOMB_KEY:
+        if API_KEY_SITES.get("1"):
+            API_KEY_SITES["4"] = copy.deepcopy(API_KEY_SITES["1"])
+            API_KEY_SITES.pop("1")
+        revert_key = False
+    if counter and API_KEY_SITES.get(api_key, {}).get("counter", 0) >= API_LIMIT:
         return error(ERROR_TOO_MANY_REQUESTS)
     if GENERATE_418 and random.random() < 0.01:
         return 418, {}, None  # An unusual status returned for fun, infrequently
     if site_id is not None:
         # Find the site by site_id
-        site = next((site for site in API_KEY_SITES[api_key]["sites"] if site["resource_id"] == site_id), None)
+        site = next((site for site in API_KEY_SITES.get(api_key, {}).get("sites", {}) if site["resource_id"] == site_id), None)
         if not site:
+            if API_KEY_SITES.get(api_key) is None:
+                return error(ERROR_INVALID_KEY)
             return error(ERROR_SITE_NOT_FOUND)  # Technically the Solcast API should not return 404 (as documented), but it might
     else:
         site = None
     if counter:
-        API_KEY_SITES[api_key]["counter"] += 1
-        _LOGGER.info("API key %s has been used %s times", api_key, API_KEY_SITES[api_key]["counter"])
+        if API_KEY_SITES.get(api_key) is None:
+            API_KEY_SITES[api_key]["counter"] += 1
+            _LOGGER.info("API key %s has been used %s times", api_key, API_KEY_SITES[api_key]["counter"])
+    if revert_key and API_KEY_SITES.get("4"):
+        API_KEY_SITES["1"] = copy.deepcopy(API_KEY_SITES["4"])
+        API_KEY_SITES.pop("4")
     return 200, None, site
 
 
@@ -318,6 +334,12 @@ if __name__ == "__main__":
         type=str,
         required=False,
     )
+    parser.add_argument(
+        "--bombkey",
+        help="The minute(s) of the hour to use a different API key, comma separated, example --bombkey 0-5,15,30,45",
+        type=str,
+        required=False,
+    )
     parser.add_argument("--debug", help="Set Flask debug mode on", action="store_true", required=False, default=False)
     args = parser.parse_args()
     if args.limit:
@@ -339,6 +361,16 @@ if __name__ == "__main__":
                 BOMB_429 += list(range(int(split[0]), int(split[1]) + 1))
         list.sort(BOMB_429)
         _LOGGER.info("API too busy responses will be returned at minute(s) %s", BOMB_429)
+    if args.bombkey:
+        BOMB_KEY = [int(x) for x in args.bombkey.split(",") if "-" not in x]  # Simple minutes of the hour.
+        if "-" in args.bombkey:
+            for x_to_y in [x for x in args.bombkey.split(",") if "-" in x]:  # Minute of the hour ranges.
+                split = x_to_y.split("-")
+                if len(split) != 2:
+                    _LOGGER.error("Not two hyphen separated values for --bombkey")
+                BOMB_KEY += list(range(int(split[0]), int(split[1]) + 1))
+        list.sort(BOMB_KEY)
+        _LOGGER.info("API key changes will be happen at minute(s) %s", BOMB_KEY)
     if args.teapot:
         GENERATE_418 = True
         _LOGGER.info("I'm a teapot response will be sometimes generated")
