@@ -2,7 +2,7 @@
     "config": {
         "abort": {
             "reconfigured": "نئی کنفیگریشن لاگو کر دی گئی۔",
-            "reauth_suffessful": "نئی کلید کامیابی کے ساتھ لاگو ہو گئی۔",
+            "reauth_successful": "نئی کلید کامیابی کے ساتھ لاگو ہو گئی۔",
             "single_instance_allowed": "صرف ایک سولکاسٹ مثال کی اجازت ہے۔"
         },
         "step": {

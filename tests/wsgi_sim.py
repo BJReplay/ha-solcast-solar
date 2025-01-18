@@ -228,7 +228,10 @@ def get_sites():
     if response_code != 200:
         return jsonify(issue), response_code
 
-    return jsonify(simulate.raw_get_sites(api_key)), 200
+    get_sites = simulate.raw_get_sites(api_key)
+    if get_sites is not None:
+        return jsonify(get_sites), 200
+    return {}, 403
 
 
 @app.route("/rooftop_sites/<site_id>/estimated_actuals", methods=["GET"])

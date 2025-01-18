@@ -2,7 +2,7 @@
     "config": {
         "abort": {
             "reconfigured": "Použila sa nová konfigurácia",
-            "reauth_suffessful": "Nový kľúč API bol úspešne použitý",
+            "reauth_successful": "Nový kľúč API bol úspešne použitý",
             "single_instance_allowed": "Povolená je iba jedna inštancia Solcast"
         },
         "step": {

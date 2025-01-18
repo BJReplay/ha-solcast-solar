@@ -2,7 +2,7 @@
     "config": {
         "abort": {
             "reconfigured": "Zastosowano nową konfigurację",
-            "reauth_suffessful": "Nowy klucz API został pomyślnie zastosowany",
+            "reauth_successful": "Nowy klucz API został pomyślnie zastosowany",
             "single_instance_allowed": "Dozwolona tylko jedna instancja Solcast"
         },
         "step": {

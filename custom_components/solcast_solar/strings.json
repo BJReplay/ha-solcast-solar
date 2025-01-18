@@ -2,7 +2,7 @@
     "config": {
         "abort": {
             "reconfigured": "New configuration applied successfully",
-            "reauth_suffessful": "New API key applied successfully",
+            "reauth_successful": "New API key applied successfully",
             "single_instance_allowed": "Only one Solcast instance allowed"
         },
         "step": {

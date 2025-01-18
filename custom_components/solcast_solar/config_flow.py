@@ -167,14 +167,12 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reauth(self, entry: Mapping[str, Any]) -> ConfigFlowResult:
         """Set a new API key."""
-        _entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
-        assert _entry is not None
-        self.entry = _entry
+        self.entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a re-key flow."""
-        errors = {}
+        errors: dict[str, str] = {}
 
         all_config_data = {**self.entry.options}
 
@@ -190,9 +188,11 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     errors["base"] = message
             if not errors:
                 data = {**self.entry.data, **all_config_data}
+                _LOGGER.critical(data)
                 return self.async_update_reload_and_abort(
                     self.entry,
                     data=data,
+                    options=data,
                     reload_even_if_entry_is_unchanged=True,
                     reason="reauth_successful",
                 )
@@ -215,7 +215,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reconfigure_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a reconfiguration flow."""
-        errors = {}
+        errors: dict[str, str] = {}
 
         all_config_data = {**self.entry.options}
 
@@ -240,8 +240,9 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 return self.async_update_reload_and_abort(
                     self.entry,
                     data=data,
+                    options=data,
                     reload_even_if_entry_is_unchanged=False,
-                    reason="reconfigured",
+                    reason="reauth_successful",
                 )
 
         return self.async_show_form(
@@ -272,7 +273,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
-        errors = {}
+        errors: dict[str, str] = {}
 
         if user_input is not None:
             api_key, api_count, abort = validate_api_key(user_input)
@@ -359,7 +360,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             Any: Either an error, or the configuration dialogue results.
 
         """
-        errors = {}
+        errors: dict[str, str] = {}
 
         if user_input is not None:
             try:
@@ -487,7 +488,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             FlowResult: The configuration dialogue results.
 
         """
-        errors = {}
+        errors: dict[str, str] = {}
         if self._all_config_data is None:
             all_config_data = {**self._options}
         else:

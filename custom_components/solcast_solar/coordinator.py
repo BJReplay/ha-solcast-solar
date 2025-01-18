@@ -159,7 +159,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             self._intervals.pop(0)
             self.set_next_update()
             await self.__forecast_update(completion=f"Completed task {task_name}")
-            self.tasks.pop(task_name)
+            if task_name in self.tasks:
+                self.tasks.pop(task_name)
 
     async def __check_forecast_fetch(self, *args):
         """Check for an auto forecast update event."""
