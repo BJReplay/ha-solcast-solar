@@ -242,7 +242,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     data=data,
                     options=data,
                     reload_even_if_entry_is_unchanged=False,
-                    reason="reauth_successful",
+                    reason="reconfigured",
                 )
 
         return self.async_show_form(
