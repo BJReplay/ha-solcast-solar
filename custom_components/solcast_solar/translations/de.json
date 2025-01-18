@@ -1,11 +1,18 @@
 {
     "config": {
         "abort": {
-            "single_instance_allowed": "Es ist nur eine Solcast-Instanz zulässig",
-            "reconfigured": "Neue Konfiguration angewendet"
+            "reconfigured": "Neue Konfiguration angewendet",
+            "reauth_suffessful": "Neuer API-Schlüssel erfolgreich angewendet",
+            "single_instance_allowed": "Es ist nur eine Solcast-Instanz zulässig"
         },
         "step": {
-            "user": {
+            "reauth_confirm": {
+                "data": {
+                    "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)"
+                },
+                "description": "API-Schlüssel für das Solcast-Konto"
+            },
+            "reconfigure_confirm": {
                 "data": {
                     "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
                     "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)",
@@ -13,7 +20,7 @@
                 },
                 "description": "Solcast-Kontodaten\n\n(Wenn keine automatische Aktualisierung erfolgt, ist eine Automatisierung erforderlich – siehe Integrationsdokumentation)"
             },
-            "reconfigure_confirm": {
+            "user": {
                 "data": {
                     "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
                     "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)",
@@ -24,6 +31,9 @@
         }
     },
     "entity": {
+        "select": {
+            "estimate_mode" : {"name": "Verwenden Sie das Prognosefeld"}
+        },
         "sensor": {
             "power_now_30m": {"name": "Leistung in 30 Minuten"},
             "power_now_1hr": {"name": "Leistung in 1 Stunde"},
@@ -48,9 +58,6 @@
             "power_now": {"name": "Aktuelle Leistung"},
             "hard_limit": {"name": "Fester Grenzwert eingestellt"},
             "hard_limit_api": {"name": "Fester Grenzwert eingestellt {api_key}"}
-        },
-        "select": {
-            "estimate_mode" : {"name": "Verwenden Sie das Prognosefeld"}
         }
     },
     "exceptions": {

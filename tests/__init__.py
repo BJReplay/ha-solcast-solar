@@ -152,7 +152,7 @@ def _check_abend(api_key, site=None) -> CallbackResult | None:
     if MOCK_SESSION_CONFIG[MOCK_BAD_REQUEST]:
         return CallbackResult(status=400, payload=STATUS_EMPTY)
     if API_KEY_SITES.get(api_key) is None:
-        return CallbackResult(status=401, payload=STATUS_401)
+        return CallbackResult(status=403, payload=STATUS_403)
     if MOCK_SESSION_CONFIG[MOCK_FORBIDDEN]:
         return CallbackResult(status=403, payload=STATUS_403)
     if MOCK_SESSION_CONFIG[MOCK_NOT_FOUND]:

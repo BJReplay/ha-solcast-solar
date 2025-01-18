@@ -382,7 +382,6 @@ async def test_sensor_states(
         # Remove unusied options for DEFAULT_INPUT1.
         if key == "2":
             for attrs in SENSORS.values():
-                _LOGGER.critical(attrs)
                 attrs["attributes"] = {}
 
         # Test initial sensor values.

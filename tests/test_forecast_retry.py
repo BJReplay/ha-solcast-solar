@@ -1,4 +1,4 @@
-"""Test midnight rollover."""
+"""Test forecasts update retry mechanism."""
 
 import logging
 
@@ -44,7 +44,7 @@ async def test_forecast_retry(
     freezer: FrozenDateTimeFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test midnight updates."""
+    """Test retry mechanism."""
 
     try:
         freezer.move_to("2025-01-10 23:59:59")  # A pending update will be queued for 00:00:07 UTC

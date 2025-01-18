@@ -1,10 +1,17 @@
 {
     "config": {
         "abort": {
-            "reconfigured": "New configuration applied",
+            "reconfigured": "New configuration applied successfully",
+            "reauth_suffessful": "New API key applied successfully",
             "single_instance_allowed": "Only one Solcast instance allowed"
         },
         "step": {
+            "reauth_confirm": {
+                "data": {
+                    "api_key": "API key (comma separate multiple values)"
+                },
+                "description": "Solcast Account API key"
+            },
             "reconfigure_confirm": {
                 "data": {
                     "api_key": "API key (comma separate multiple values)",

@@ -295,6 +295,10 @@ async def test_api_failure(
                     assert "re-authentication required" in caplog.text
                     with pytest.raises(ConfigEntryAuthFailed):
                         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
+                    solcast.options.auto_update = 1
+                    with pytest.raises(ConfigEntryAuthFailed):
+                        await _exec_update(hass, solcast, caplog, "force_update_forecasts", last_update_delta=20)
+                    solcast.options.auto_update = 0
                 else:
                     await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
                     assert test["assertion"] in caplog.text
@@ -468,7 +472,7 @@ async def test_integration(
         assert entry.state is ConfigEntryState.SETUP_ERROR
         assert hass.data[DOMAIN].get("presumed_dead", True) is True
         assert "Dampening factors corrupt or not found, setting to 1.0" in caplog.text
-        assert "Get sites failed, last call result: 401/Unauthorized" in caplog.text
+        assert "Get sites failed, last call result: 403/Forbidden" in caplog.text
         assert "API key is invalid" in caplog.text
         return
 
@@ -1011,11 +1015,6 @@ async def test_integration_scenarios(
         await hass.async_block_till_done()
         alter_last_updated()
         coordinator, solcast = await _reload(hass, entry)
-        # Sneak in an extra update that will be cancelled because update already in progress
-        # await hass.services.async_call(DOMAIN, "update_forecasts", {}, blocking=True)
-        # await _wait_for_update(caplog)
-        # assert "The update automation has not been running, updating forecast" in caplog.text
-        # assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
         _no_exception(caplog)
         caplog.clear()
 

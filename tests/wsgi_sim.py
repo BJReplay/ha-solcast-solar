@@ -106,6 +106,7 @@ if not (Path("cert.pem").exists() and Path("key.pem").exists()):
 
 API_LIMIT = 50
 BOMB_429 = [0]
+BOMB_KEY = []
 ERROR_KEY_REQUIRED = "KeyRequired"
 ERROR_INVALID_KEY = "InvalidKey"
 ERROR_TOO_MANY_REQUESTS = "TooManyRequests"

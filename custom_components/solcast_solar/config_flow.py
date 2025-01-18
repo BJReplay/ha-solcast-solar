@@ -166,21 +166,55 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         return SolcastSolarOptionFlowHandler(config_entry)
 
     async def async_step_reauth(self, entry: Mapping[str, Any]) -> ConfigFlowResult:
-        """Reconfigure API key, limit and auto-update."""
+        """Set a new API key."""
         _entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         assert _entry is not None
         self.entry = _entry
-        return await self.async_step_reconfigure_confirm()
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        """Handle a re-key flow."""
+        errors = {}
+
+        all_config_data = {**self.entry.options}
+
+        if user_input is not None:
+            api_key, _, abort = validate_api_key(user_input)
+            if abort is not None:
+                errors["base"] = abort
+            if not errors:
+                all_config_data[CONF_API_KEY] = api_key
+
+                status, message = await validate_sites(self.hass, all_config_data)
+                if status != 200:
+                    errors["base"] = message
+            if not errors:
+                data = {**self.entry.data, **all_config_data}
+                return self.async_update_reload_and_abort(
+                    self.entry,
+                    data=data,
+                    reload_even_if_entry_is_unchanged=True,
+                    reason="reauth_successful",
+                )
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_API_KEY, default=all_config_data[CONF_API_KEY]): str,
+                }
+            ),
+            description_placeholders={"device_name": self.entry.title},
+            errors=errors,
+        )
 
     async def async_step_reconfigure(self, entry: Mapping[str, Any]) -> ConfigFlowResult:
         """Reconfigure API key, limit and auto-update."""
-        _entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
-        assert _entry is not None
-        self.entry = _entry
+        self.entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         return await self.async_step_reconfigure_confirm()
 
     async def async_step_reconfigure_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        """Handle a reconfiguration flow initialized by the user."""
+        """Handle a reconfiguration flow."""
         errors = {}
 
         all_config_data = {**self.entry.options}
@@ -188,24 +222,27 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         if user_input is not None:
             api_key, api_count, abort = validate_api_key(user_input)
             if abort is not None:
-                return self.async_abort(reason=abort)
+                errors["base"] = abort
+            if not errors:
+                api_quota, abort = validate_api_limit(user_input, api_count)
+                if abort is not None:
+                    errors["base"] = abort
+            if not errors:
+                all_config_data[CONF_API_KEY] = api_key
+                all_config_data[API_QUOTA] = api_quota
+                all_config_data[AUTO_UPDATE] = int(user_input[AUTO_UPDATE])
 
-            api_quota, abort = validate_api_limit(user_input, api_count)
-            if abort is not None:
-                return self.async_abort(reason=abort)
-
-            all_config_data[CONF_API_KEY] = api_key
-            all_config_data[API_QUOTA] = api_quota
-            all_config_data[AUTO_UPDATE] = int(user_input[AUTO_UPDATE])
-
-            status, message = await validate_sites(self.hass, all_config_data)
-            if status != 200:
-                return self.async_abort(reason=message)
-
-            data = {**self.entry.data, **all_config_data}
-            self.hass.config_entries.async_update_entry(self.entry, data=data, options=data)
-            await self.hass.config_entries.async_reload(self.entry.entry_id)
-            return self.async_abort(reason="reconfigured")
+                status, message = await validate_sites(self.hass, all_config_data)
+                if status != 200:
+                    errors["base"] = message
+            if not errors:
+                data = {**self.entry.data, **all_config_data}
+                return self.async_update_reload_and_abort(
+                    self.entry,
+                    data=data,
+                    reload_even_if_entry_is_unchanged=False,
+                    reason="reconfigured",
+                )
 
         return self.async_show_form(
             step_id="reconfigure_confirm",
@@ -235,39 +272,40 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
 
+        errors = {}
+
         if user_input is not None:
             api_key, api_count, abort = validate_api_key(user_input)
             if abort is not None:
-                return self.async_abort(reason=abort)
+                errors["base"] = abort
+            if not errors:
+                api_quota, abort = validate_api_limit(user_input, api_count)
+                if abort is not None:
+                    errors["base"] = abort
+            if not errors:
+                options = {
+                    CONF_API_KEY: api_key,
+                    API_QUOTA: api_quota,
+                    AUTO_UPDATE: int(user_input[AUTO_UPDATE]),
+                    # Remaining options set to default
+                    CUSTOM_HOUR_SENSOR: 1,
+                    HARD_LIMIT_API: "100.0",
+                    KEY_ESTIMATE: "estimate",
+                    BRK_ESTIMATE: True,
+                    BRK_ESTIMATE10: True,
+                    BRK_ESTIMATE90: True,
+                    BRK_SITE: True,
+                    BRK_HALFHOURLY: True,
+                    BRK_HOURLY: True,
+                    BRK_SITE_DETAILED: False,
+                }
+                damp = {f"damp{factor:02d}": 1.0 for factor in range(24)}
 
-            api_quota, abort = validate_api_limit(user_input, api_count)
-            if abort is not None:
-                return self.async_abort(reason=abort)
-
-            options = {
-                CONF_API_KEY: api_key,
-                API_QUOTA: api_quota,
-                AUTO_UPDATE: int(user_input[AUTO_UPDATE]),
-                # Remaining options set to default
-                CUSTOM_HOUR_SENSOR: 1,
-                HARD_LIMIT_API: "100.0",
-                KEY_ESTIMATE: "estimate",
-                BRK_ESTIMATE: True,
-                BRK_ESTIMATE10: True,
-                BRK_ESTIMATE90: True,
-                BRK_SITE: True,
-                BRK_HALFHOURLY: True,
-                BRK_HOURLY: True,
-                BRK_SITE_DETAILED: False,
-            }
-            damp = {f"damp{factor:02d}": 1.0 for factor in range(24)}
-
-            status, message = await validate_sites(self.hass, options)
-            if status != 200:
-                _LOGGER.critical(message)
-                return self.async_abort(reason=message)
-
-            return self.async_create_entry(title=TITLE, data={}, options=options | damp)
+                status, message = await validate_sites(self.hass, options)
+                if status != 200:
+                    errors["base"] = message
+                else:
+                    return self.async_create_entry(title=TITLE, data={}, options=options | damp)
 
         solcast_json_exists = Path(f"{self.hass.config.config_dir}/solcast.json").is_file()
         _LOGGER.debug(
@@ -286,6 +324,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     ),
                 }
             ),
+            errors=errors,
         )
 
 
@@ -329,61 +368,69 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
 
                 all_config_data[CONF_API_KEY], api_count, abort = validate_api_key(user_input)
                 if abort is not None:
-                    return self.async_abort(reason=abort)
+                    errors["base"] = abort
 
-                all_config_data[API_QUOTA], abort = validate_api_limit(user_input, api_count)
-                if abort is not None:
-                    return self.async_abort(reason=abort)
+                if not errors:
+                    all_config_data[API_QUOTA], abort = validate_api_limit(user_input, api_count)
+                    if abort is not None:
+                        errors["base"] = abort
 
-                # Validate the custom hours sensor
-                custom_hour_sensor = user_input[CUSTOM_HOUR_SENSOR]
-                if custom_hour_sensor < 1 or custom_hour_sensor > 144:
-                    return self.async_abort(reason="Custom sensor not between 1 and 144")
-                all_config_data[CUSTOM_HOUR_SENSOR] = custom_hour_sensor
+                if not errors:
+                    # Validate the custom hours sensor
+                    custom_hour_sensor = user_input[CUSTOM_HOUR_SENSOR]
+                    if custom_hour_sensor < 1 or custom_hour_sensor > 144:
+                        errors["base"] = "Custom sensor not between 1 and 144"
+                    all_config_data[CUSTOM_HOUR_SENSOR] = custom_hour_sensor
 
-                # Validate the hard limit
-                hard_limit = user_input[HARD_LIMIT_API]
-                to_set = []
-                for h in hard_limit.split(","):
-                    h = h.strip()
-                    if not h.replace(".", "", 1).isdigit():
-                        return self.async_abort(reason="Hard limit is not a positive number")
-                    val = float(h)
-                    to_set.append(f"{val:.1f}")
-                if len(to_set) > api_count:
-                    return self.async_abort(reason="There are more hard limits entered than keys")
-                hard_limit = ",".join(to_set)
-                all_config_data[HARD_LIMIT_API] = hard_limit
+                if not errors:
+                    # Validate the hard limit
+                    hard_limit = user_input[HARD_LIMIT_API]
+                    to_set = []
+                    for h in hard_limit.split(","):
+                        h = h.strip()
+                        if not h.replace(".", "", 1).isdigit():
+                            errors["base"] = "Hard limit is not a positive number"
+                            break
+                        val = float(h)
+                        to_set.append(f"{val:.1f}")
+                    if not errors:
+                        if len(to_set) > api_count:
+                            errors["base"] = "There are more hard limits entered than keys"
+                        else:
+                            hard_limit = ",".join(to_set)
+                            all_config_data[HARD_LIMIT_API] = hard_limit
 
-                # Disable granular dampening
-                if user_input.get(SITE_DAMP) is not None:
-                    all_config_data[SITE_DAMP] = user_input[SITE_DAMP]
+                if not errors:
+                    # Disable granular dampening
+                    if user_input.get(SITE_DAMP) is not None:
+                        all_config_data[SITE_DAMP] = user_input[SITE_DAMP]
 
-                all_config_data[AUTO_UPDATE] = int(user_input[AUTO_UPDATE])
-                all_config_data[KEY_ESTIMATE] = user_input[KEY_ESTIMATE]
-                all_config_data[BRK_ESTIMATE] = user_input[BRK_ESTIMATE]
-                all_config_data[BRK_ESTIMATE10] = user_input[BRK_ESTIMATE10]
-                all_config_data[BRK_ESTIMATE90] = user_input[BRK_ESTIMATE90]
-                all_config_data[BRK_HALFHOURLY] = user_input[BRK_HALFHOURLY]
-                all_config_data[BRK_HOURLY] = user_input[BRK_HOURLY]
-                site_breakdown = user_input[BRK_SITE]
-                all_config_data[BRK_SITE] = site_breakdown
-                site_detailed = user_input[BRK_SITE_DETAILED]
-                all_config_data[BRK_SITE_DETAILED] = site_detailed
+                    all_config_data[AUTO_UPDATE] = int(user_input[AUTO_UPDATE])
+                    all_config_data[KEY_ESTIMATE] = user_input[KEY_ESTIMATE]
+                    all_config_data[BRK_ESTIMATE] = user_input[BRK_ESTIMATE]
+                    all_config_data[BRK_ESTIMATE10] = user_input[BRK_ESTIMATE10]
+                    all_config_data[BRK_ESTIMATE90] = user_input[BRK_ESTIMATE90]
+                    all_config_data[BRK_HALFHOURLY] = user_input[BRK_HALFHOURLY]
+                    all_config_data[BRK_HOURLY] = user_input[BRK_HOURLY]
+                    site_breakdown = user_input[BRK_SITE]
+                    all_config_data[BRK_SITE] = site_breakdown
+                    site_detailed = user_input[BRK_SITE_DETAILED]
+                    all_config_data[BRK_SITE_DETAILED] = site_detailed
 
-                self._all_config_data = all_config_data
+                    self._all_config_data = all_config_data
 
-                if all_config_data[CONF_API_KEY] != _old_api_key:
-                    status, message = await validate_sites(self.hass, all_config_data)
-                    if status != 200:
-                        return self.async_abort(reason=message)
+                    if all_config_data[CONF_API_KEY] != _old_api_key:
+                        status, message = await validate_sites(self.hass, all_config_data)
+                        if status != 200:
+                            errors["base"] = message
 
-                if user_input.get(CONFIG_DAMP):
-                    return await self.async_step_dampen()
+                if not errors:
+                    if user_input.get(CONFIG_DAMP):
+                        return await self.async_step_dampen()
 
-                self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
-                await self.check_dead()
-                return self.async_create_entry(title=TITLE, data=all_config_data)
+                    self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
+                    await self.check_dead()
+                    return self.async_create_entry(title=TITLE, data=all_config_data)
             except Exception as e:  # noqa: BLE001
                 errors["base"] = str(e)
 
@@ -440,7 +487,6 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             FlowResult: The configuration dialogue results.
 
         """
-
         errors = {}
         if self._all_config_data is None:
             all_config_data = {**self._options}
@@ -449,16 +495,13 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         extant_factors = {f"damp{factor:02d}": all_config_data[f"damp{factor:02d}"] for factor in range(24)}
 
         if user_input is not None:
-            try:
-                for factor in range(24):
-                    all_config_data[f"damp{factor:02d}"] = user_input[f"damp{factor:02d}"]
-                all_config_data[SITE_DAMP] = False
+            for factor in range(24):
+                all_config_data[f"damp{factor:02d}"] = user_input[f"damp{factor:02d}"]
+            all_config_data[SITE_DAMP] = False
 
-                self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
-                await self.check_dead()
-                return self.async_create_entry(title=TITLE, data=all_config_data)
-            except:  # noqa: E722
-                errors["base"] = "unknown"
+            self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
+            await self.check_dead()
+            return self.async_create_entry(title=TITLE, data=all_config_data)
 
         return self.async_show_form(
             step_id="dampen",

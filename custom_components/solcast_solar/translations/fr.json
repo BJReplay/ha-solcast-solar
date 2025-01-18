@@ -1,17 +1,16 @@
 {
     "config": {
         "abort": {
-            "single_instance_allowed": "Une seule instance Solcast autorisée",
-            "reconfigured": "Nouvelle configuration appliquée"
+            "reconfigured": "Nouvelle configuration appliquée",
+            "reauth_suffessful": "Nouvelle clé API appliquée avec succès",
+            "single_instance_allowed": "Une seule instance Solcast autorisée"
         },
         "step": {
-            "user": {
+            "reauth_confirm": {
                 "data": {
-                    "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
-                    "api_quota": "Quota d'API (plusieurs valeurs séparées par des virgules)",
-                    "auto_update": "Mise à jour automatique"
+                    "api_key": "Clé API (plusieurs valeurs séparées par des virgules)"
                 },
-                "description": "Solcast Account Details\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)"
+                "description": "Clé API du compte Solcast"
             },
             "reconfigure_confirm": {
                 "data": {
@@ -19,11 +18,22 @@
                     "api_quota": "Quota d'API (plusieurs valeurs séparées par des virgules)",
                     "auto_update": "Mise à jour automatique"
                 },
-                "description": "Solcast Account Details\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)"
+                "description": "Détails du compte Solcast\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)"
+            },
+            "user": {
+                "data": {
+                    "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
+                    "api_quota": "Quota d'API (plusieurs valeurs séparées par des virgules)",
+                    "auto_update": "Mise à jour automatique"
+                },
+                "description": "Détails du compte Solcast\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)"
             }
         }
     },
     "entity": {
+        "select": {
+            "estimate_mode" : {"name": "Utiliser le champ de prévision"}
+        },
         "sensor": {
             "power_now_30m": {"name": "Puissance en 30 minutes"},
             "power_now_1hr": {"name": "Puissance en 1 heure"},
@@ -48,9 +58,6 @@
             "power_now": {"name": "Puissance maintenant"},
             "hard_limit": {"name": "Ensemble de limites strictes"},
             "hard_limit_api": {"name": "Ensemble de limites strictes {api_key}"}
-        },
-        "select": {
-            "estimate_mode" : {"name": "Utiliser le champ de prévision"}
         }
     },
     "exceptions": {

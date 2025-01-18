@@ -1,11 +1,18 @@
 {
     "config": {
         "abort": {
-            "single_instance_allowed": "Dozwolona tylko jedna instancja Solcast",
-            "reconfigured": "Zastosowano nową konfigurację"
+            "reconfigured": "Zastosowano nową konfigurację",
+            "reauth_suffessful": "Nowy klucz API został pomyślnie zastosowany",
+            "single_instance_allowed": "Dozwolona tylko jedna instancja Solcast"
         },
         "step": {
-            "user": {
+            "reauth_confirm": {
+                "data": {
+                    "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)"
+                },
+                "description": "Klucz API konta Solcast"
+            },
+            "reconfigure_confirm": {
                 "data": {
                     "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
                     "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
@@ -13,7 +20,7 @@
                 },
                 "description": "Dane konta Solcast\n\n(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)"
             },
-            "reconfigure_confirm": {
+            "user": {
                 "data": {
                     "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
                     "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
@@ -24,6 +31,9 @@
         }
     },
     "entity": {
+        "select": {
+            "estimate_mode" : {"name": "Użyj pola prognozy"}
+        },
         "sensor": {
             "power_now_30m": {"name": "Moc w 30 minut"},
             "power_now_1hr": {"name": "Moc w 1 godzinę"},
@@ -48,9 +58,6 @@
             "power_now": {"name": "Aktualna moc"},
             "hard_limit": {"name": "Ustawiony twardy limit"},
             "hard_limit_api": {"name": "Ustawiony twardy limit {api_key}"}
-        },
-        "select": {
-            "estimate_mode" : {"name": "Użyj pola prognozy"}
         }
     },
     "exceptions": {

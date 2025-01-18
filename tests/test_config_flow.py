@@ -51,8 +51,8 @@ from . import (
     async_cleanup_integration_tests,
     async_init_integration,
     async_setup_aioresponses,
-    session_set,
     session_clear,
+    session_set,
 )
 
 from tests.common import MockConfigEntry
@@ -72,18 +72,25 @@ MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1_COP
 MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2_COPY)
 
 TEST_API_KEY = [
-    ({CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"}, FlowResultType.ABORT, "API key looks like a site ID"),
-    ({CONF_API_KEY: KEY1 + "," + KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, FlowResultType.ABORT, "Duplicate API key specified"),
-    ({CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "0"}, None, None),
-    ({CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, None, None),
-    ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "2"}, None, None),
-    ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "0", AUTO_UPDATE: "2"}, FlowResultType.ABORT, "API limit must be one or greater"),
+    ({CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"}, "API key looks like a site ID"),
+    ({CONF_API_KEY: KEY1 + "," + KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, "Duplicate API key specified"),
+    ({CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "0"}, None),
+    ({CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, None),
+    ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "2"}, None),
+    ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "0", AUTO_UPDATE: "2"}, "API limit must be one or greater"),
+]
+
+TEST_REAUTH_API_KEY = [
+    ({CONF_API_KEY: "1234-5678-8765-4321"}, "API key looks like a site ID"),
+    ({CONF_API_KEY: KEY1 + "," + KEY1}, "Duplicate API key specified"),
+    ({CONF_API_KEY: "555"}, "Bad API key, 403/Forbidden"),
+    ({CONF_API_KEY: KEY1 + "," + KEY2}, None),
 ]
 
 TEST_KEY_CHANGES = [
     {
         "options": {CONF_API_KEY: "555", API_QUOTA: "10", AUTO_UPDATE: "1"},
-        "assert": "Bad API key, 401/Unauth",
+        "assert": "Bad API key, 403/Forbidden",
         "set": None,
     },
     {
@@ -104,23 +111,21 @@ TEST_KEY_CHANGES = [
 ]
 
 TEST_API_QUOTA = [
-    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "invalid", AUTO_UPDATE: "1"}, FlowResultType.ABORT, "API limit is not a number"),
-    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "0", AUTO_UPDATE: "1"}, FlowResultType.ABORT, "API limit must be one or greater"),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "invalid", AUTO_UPDATE: "1"}, "API limit is not a number"),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "0", AUTO_UPDATE: "1"}, "API limit must be one or greater"),
     (
         DEFAULT_INPUT1,
         {CONF_API_KEY: KEY1, API_QUOTA: "10,10", AUTO_UPDATE: "1"},
-        FlowResultType.ABORT,
         "There are more API limit counts entered than keys",
     ),
-    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, None, None),
-    (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10,10", AUTO_UPDATE: "1"}, None, None),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, None),
+    (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10,10", AUTO_UPDATE: "1"}, None),
     (
         DEFAULT_INPUT2,
         {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10,10,10", AUTO_UPDATE: "1"},
-        FlowResultType.ABORT,
         "There are more API limit counts entered than keys",
     ),
-    (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "1"}, None, None),
+    (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "1"}, None),
 ]
 
 
@@ -169,9 +174,9 @@ async def test_create_entry(hass: HomeAssistant) -> None:
         assert result["options"][key] == expect
 
 
-@pytest.mark.parametrize(("user_input", "result", "reason"), TEST_API_KEY)
-async def test_init_api_key(hass: HomeAssistant, user_input, result, reason) -> None:
-    """Test that valid/invalid API key is handled in init."""
+@pytest.mark.parametrize(("user_input", "reason"), TEST_API_KEY)
+async def test_init_api_key(hass: HomeAssistant, user_input, reason) -> None:
+    """Test that valid/invalid API key is handled in config flow."""
 
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
@@ -180,9 +185,8 @@ async def test_init_api_key(hass: HomeAssistant, user_input, result, reason) -> 
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "user"
     result = await flow.async_step_user(user_input)
-    assert result["type"] == result if result is None else FlowResultType.CREATE_ENTRY
-    if result == FlowResultType.ABORT:
-        assert result["reason"] == reason
+    if reason is not None:
+        assert result["errors"]["base"] == reason
 
 
 async def test_config_api_key_invalid(hass: HomeAssistant) -> None:
@@ -194,23 +198,20 @@ async def test_config_api_key_invalid(hass: HomeAssistant) -> None:
     flow.hass = hass
 
     result = await flow.async_step_user({CONF_API_KEY: "555", API_QUOTA: "10", AUTO_UPDATE: "1"})
-    assert result["type"] == FlowResultType.ABORT
-    assert "Bad API key, 401/Unauth" in result["reason"]
+    assert "Bad API key, 403/Forbidden" in result["errors"]["base"]
 
     result = await flow.async_step_user({CONF_API_KEY: "no_sites", API_QUOTA: "10", AUTO_UPDATE: "1"})
-    assert result["type"] == FlowResultType.ABORT
-    assert "No sites found for API key" in result["reason"]
+    assert "No sites found for API key" in result["errors"]["base"]
 
     session_set(MOCK_BUSY)
     result = await flow.async_step_user({CONF_API_KEY: "1", API_QUOTA: "10", AUTO_UPDATE: "1"})
-    assert result["type"] == FlowResultType.ABORT
-    assert "Error 429/Try again later for API key" in result["reason"]
+    assert "Error 429/Try again later for API key" in result["errors"]["base"]
     session_clear(MOCK_BUSY)
 
 
-@pytest.mark.parametrize(("options", "user_input", "result", "reason"), TEST_API_QUOTA)
-async def test_config_api_quota(hass: HomeAssistant, options, user_input, result, reason) -> None:
-    """Test that valid/invalid API quota is handled in init."""
+@pytest.mark.parametrize(("options", "user_input", "reason"), TEST_API_QUOTA)
+async def test_config_api_quota(hass: HomeAssistant, options, user_input, reason) -> None:
+    """Test that valid/invalid API quota is handled in config flow."""
 
     flow = SolcastSolarFlowHandler()
     flow.hass = hass
@@ -219,9 +220,40 @@ async def test_config_api_quota(hass: HomeAssistant, options, user_input, result
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "user"
     result = await flow.async_step_user(user_input)
-    assert result["type"] == result if result is None else FlowResultType.CREATE_ENTRY
-    if result == FlowResultType.ABORT:
-        assert result["reason"] == reason
+    if reason is not None:
+        assert result["errors"]["base"] == reason
+
+
+async def test_reauth_api_key(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Test that valid/invalid API key is handled in reconfigure.
+
+    Not parameterised for performance reasons.
+    """
+    USER_INPUT = 0
+    REASON = 1
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+
+        for test in TEST_REAUTH_API_KEY:
+            result = await entry.start_reauth_flow(hass)
+            assert result["type"] is FlowResultType.FORM
+            assert result["step_id"] == "reauth_confirm"
+            result = await hass.config_entries.flow.async_configure(
+                result["flow_id"],
+                user_input=test[USER_INPUT],
+            )
+            await hass.async_block_till_done()
+            if result.get("reason") != "reauth_successful":
+                assert test[REASON] in result["errors"]["base"]
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
 
 
 async def test_reconfigure_api_key(
@@ -234,34 +266,30 @@ async def test_reconfigure_api_key(
     Not parameterised for performance reasons.
     """
     USER_INPUT = 0
-    TYPE = 1
-    REASON = 2
+    REASON = 1
 
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
+
         for test in TEST_API_KEY:
-            for source in [config_entries.SOURCE_REAUTH, config_entries.SOURCE_RECONFIGURE]:
-                result = await hass.config_entries.flow.async_init(
-                    DOMAIN,
-                    context={"source": source, "entry_id": entry.entry_id},
-                    data=entry.data,
-                )
-                await hass.async_block_till_done()
-                assert result["type"] is FlowResultType.FORM
-                assert result["step_id"] == "reconfigure_confirm"
-                result = await hass.config_entries.flow.async_configure(
-                    result["flow_id"],
-                    user_input=test[USER_INPUT],
-                )
-                await hass.async_block_till_done()
-                if result["reason"] not in ("reconfigured", None):
-                    assert result["type"] == test[TYPE]
-                    assert result["reason"] == test[REASON]
+            result = await hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+                data=entry.data,
+            )
+            # await hass.async_block_till_done()
+            assert result["type"] is FlowResultType.FORM
+            assert result["step_id"] == "reconfigure_confirm"
+            result = await hass.config_entries.flow.async_configure(
+                result["flow_id"],
+                user_input=test[USER_INPUT],
+            )
+            await hass.async_block_till_done()
+            if result.get("reason") != "reconfigured":
+                assert result["errors"]["base"] == test[REASON]
 
         for test in TEST_KEY_CHANGES:
-            _LOGGER.critical(test)
             flow = await hass.config_entries.flow.async_init(
                 DOMAIN,
                 context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
@@ -278,10 +306,8 @@ async def test_reconfigure_api_key(
             if test["set"]:
                 session_clear(test["set"])
             if test["assert"]:
-                assert result["type"] == FlowResultType.ABORT
-                assert test["assert"] in result["reason"]
+                assert test["assert"] in result["errors"]["base"]
             else:
-                assert result["type"] == FlowResultType.ABORT
                 assert result["reason"] == "reconfigured"
 
     finally:
@@ -299,42 +325,38 @@ async def test_reconfigure_api_quota(
     """
     OPTIONS = 0
     USER_INPUT = 1
-    TYPE = 2
-    REASON = 3
+    REASON = 2
 
     try:
         _input = None
         for test in TEST_API_QUOTA:
+            entry = await async_init_integration(hass, test[OPTIONS])
+            assert hass.data[DOMAIN].get("presumed_dead", True) is False
+
             if _input is None or test[OPTIONS] != _input:
-                entry = await async_init_integration(hass, test[OPTIONS])
-                assert hass.data[DOMAIN].get("presumed_dead", True) is False
                 _input = copy.deepcopy(test[OPTIONS])
-            for source in [config_entries.SOURCE_REAUTH, config_entries.SOURCE_RECONFIGURE]:
-                result = await hass.config_entries.flow.async_init(
-                    DOMAIN,
-                    context={
-                        "source": source,
-                        "entry_id": entry.entry_id,
-                    },
-                    data=entry.data,
-                )
-                await hass.async_block_till_done()
-                assert result["type"] == FlowResultType.FORM
-                assert result["step_id"] == "reconfigure_confirm"
-                result = await hass.config_entries.flow.async_configure(
-                    result["flow_id"],
-                    user_input=test[USER_INPUT],
-                )
-                if result["reason"] not in ("reconfigured", None):
-                    assert result["type"] == test[TYPE]
-                    assert result["reason"] == test[REASON]
+            result = await hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+                data=entry.data,
+            )
+            await hass.async_block_till_done()
+            assert result["type"] == FlowResultType.FORM
+            assert result["step_id"] == "reconfigure_confirm"
+            result = await hass.config_entries.flow.async_configure(
+                result["flow_id"],
+                user_input=test[USER_INPUT],
+            )
+            await hass.async_block_till_done()
+            if test[REASON]:
+                assert result["errors"]["base"] == test[REASON]
 
     finally:
         assert await async_cleanup_integration_tests(hass)
 
 
-@pytest.mark.parametrize(("user_input", "result", "reason"), TEST_API_KEY)
-async def test_options_api_key(hass: HomeAssistant, user_input, result, reason) -> None:
+@pytest.mark.parametrize(("user_input", "reason"), TEST_API_KEY)
+async def test_options_api_key(hass: HomeAssistant, user_input, reason) -> None:
     """Test that valid/invalid API key is handled in option flow init."""
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
@@ -344,9 +366,8 @@ async def test_options_api_key(hass: HomeAssistant, user_input, result, reason) 
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "init"
     result = await flow.async_step_init(user_input)
-    assert result["type"] == result if result is None else FlowResultType.FORM
-    if result == FlowResultType.ABORT:
-        assert result["reason"] == reason
+    if reason is not None:
+        assert result["errors"]["base"] == reason
 
 
 async def test_options_api_key_invalid(hass: HomeAssistant) -> None:
@@ -361,23 +382,20 @@ async def test_options_api_key_invalid(hass: HomeAssistant) -> None:
 
     inject = {CONF_API_KEY: "555"}
     result = await flow.async_step_init({**options, **inject})
-    assert result["type"] == FlowResultType.ABORT
-    assert "Bad API key, 401/Unauth" in result["reason"]
+    assert "Bad API key, 403/Forbidden" in result["errors"]["base"]
 
     inject = {CONF_API_KEY: "no_sites"}
     result = await flow.async_step_init({**options, **inject})
-    assert result["type"] == FlowResultType.ABORT
-    assert "No sites found for API key" in result["reason"]
+    assert "No sites found for API key" in result["errors"]["base"]
 
     session_set(MOCK_BUSY)
     result = await flow.async_step_init(options)
-    assert result["type"] == FlowResultType.ABORT
-    assert "Error 429/Try again later for API key" in result["reason"]
+    assert "Error 429/Try again later for API key" in result["errors"]["base"]
     session_clear(MOCK_BUSY)
 
 
-@pytest.mark.parametrize(("options", "user_input", "result", "reason"), TEST_API_QUOTA)
-async def test_options_api_quota(hass: HomeAssistant, options, user_input, result, reason) -> None:
+@pytest.mark.parametrize(("options", "user_input", "reason"), TEST_API_QUOTA)
+async def test_options_api_quota(hass: HomeAssistant, options, user_input, reason) -> None:
     """Test that valid/invalid API quota is handled in option flow init."""
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
@@ -387,20 +405,19 @@ async def test_options_api_quota(hass: HomeAssistant, options, user_input, resul
     assert result["type"] == FlowResultType.FORM
     assert result["step_id"] == "init"
     result = await flow.async_step_init({**options, **user_input})
-    assert result["type"] == result if result is None else FlowResultType.FORM
-    if result == FlowResultType.ABORT:
-        assert result["reason"] == reason
+    if reason is not None:
+        assert result["errors"]["base"] == reason
 
 
 @pytest.mark.parametrize(
-    ("options", "value", "result", "reason"),
+    ("options", "value", "reason"),
     [
-        ((DEFAULT_INPUT1, 0, FlowResultType.ABORT, "Custom sensor not between 1 and 144")),
-        ((DEFAULT_INPUT1, 145, FlowResultType.ABORT, "Custom sensor not between 1 and 144")),
-        ((DEFAULT_INPUT1, 8, FlowResultType.FORM, "")),
+        ((DEFAULT_INPUT1, 0, "Custom sensor not between 1 and 144")),
+        ((DEFAULT_INPUT1, 145, "Custom sensor not between 1 and 144")),
+        ((DEFAULT_INPUT1, 8, None)),
     ],
 )
-async def test_options_custom_hour_sensor(hass: HomeAssistant, options, value, result, reason) -> None:
+async def test_options_custom_hour_sensor(hass: HomeAssistant, options, value, reason) -> None:
     """Test that valid/invalid custom hour sensor is handled."""
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
@@ -408,34 +425,32 @@ async def test_options_custom_hour_sensor(hass: HomeAssistant, options, value, r
 
     user_input = copy.deepcopy(options)
     user_input[CUSTOM_HOUR_SENSOR] = value
-    _result = await flow.async_step_init(user_input)
-    assert _result["type"] == result
-    if _result == FlowResultType.ABORT:
-        assert _result["reason"] == reason
+    result = await flow.async_step_init(user_input)
+    if reason is not None:
+        assert result["errors"]["base"] == reason
 
 
 @pytest.mark.parametrize(
-    ("options", "value", "result", "reason"),
+    ("options", "value", "reason"),
     [
-        ((DEFAULT_INPUT1, "invalid", FlowResultType.ABORT, "Hard limit is not a positive number")),
-        ((DEFAULT_INPUT1, "-1", FlowResultType.ABORT, "Hard limit is not a positive number")),
-        ((DEFAULT_INPUT1, "6,6.0", FlowResultType.ABORT, "There are more hard limits entered than keys")),
-        ((DEFAULT_INPUT1, "6", FlowResultType.FORM, "")),
-        ((DEFAULT_INPUT2, "6,6.0", FlowResultType.FORM, "")),
-        ((DEFAULT_INPUT2, "6", FlowResultType.FORM, "")),
+        ((DEFAULT_INPUT1, "invalid", "Hard limit is not a positive number")),
+        ((DEFAULT_INPUT1, "-1", "Hard limit is not a positive number")),
+        ((DEFAULT_INPUT1, "6,6.0", "There are more hard limits entered than keys")),
+        ((DEFAULT_INPUT1, "6", None)),
+        ((DEFAULT_INPUT2, "6,6.0", None)),
+        ((DEFAULT_INPUT2, "6", None)),
     ],
 )
-async def test_options_hard_limit(hass: HomeAssistant, options, value, result, reason) -> None:
+async def test_options_hard_limit(hass: HomeAssistant, options, value, reason) -> None:
     """Test that valid/invalid hard limit is handled."""
 
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1 if options == DEFAULT_INPUT1 else MOCK_ENTRY2)
     flow.hass = hass
     user_input = copy.deepcopy(options)
     user_input[HARD_LIMIT_API] = value
-    _result = await flow.async_step_init(user_input)
-    assert _result["type"] == result
-    if _result == FlowResultType.ABORT:
-        assert _result["reason"] == reason
+    result = await flow.async_step_init(user_input)
+    if reason is not None:
+        assert result["errors"]["base"] == reason
 
 
 async def test_step_to_dampen(hass: HomeAssistant) -> None:
@@ -454,27 +469,38 @@ async def test_step_to_dampen(hass: HomeAssistant) -> None:
 
 
 @pytest.mark.parametrize(
-    ("value", "result"),
+    ("value"),
     [
-        ({f"damp{factor:02d}": 0.8 for factor in range(24)}, FlowResultType.FORM),
+        ({f"damp{factor:02d}": 0.8 for factor in range(24)}),
     ],
 )
 async def test_dampen(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     value,
-    result,
 ) -> None:
     """Test dampening step."""
 
     user_input = {**copy.deepcopy(DEFAULT_INPUT1), **value}
+    entry = await async_init_integration(hass, DEFAULT_INPUT1)
 
-    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
-    flow.hass = hass
+    try:
+        for key in value:
+            assert entry.options[key] == 1.0
 
-    _result = await flow.async_step_dampen(user_input)
-    assert _result["step_id"] == "dampen"
-    assert _result["type"] == result
+        flow = SolcastSolarOptionFlowHandler(entry)
+        flow.hass = hass
+
+        result = await flow.async_step_dampen(user_input)
+        assert result["type"] == FlowResultType.CREATE_ENTRY
+        for key, expect in value.items():
+            assert entry.options[key] == expect
+
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
 
 
 async def test_entry_options_upgrade(

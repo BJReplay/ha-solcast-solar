@@ -1,11 +1,18 @@
 {
     "config": {
         "abort": {
-            "single_instance_allowed": "صرف ایک سولکاسٹ مثال کی اجازت ہے۔",
-            "reconfigured": "نئی کنفیگریشن لاگو کر دی گئی۔"
+            "reconfigured": "نئی کنفیگریشن لاگو کر دی گئی۔",
+            "reauth_suffessful": "نئی کلید کامیابی کے ساتھ لاگو ہو گئی۔",
+            "single_instance_allowed": "صرف ایک سولکاسٹ مثال کی اجازت ہے۔"
         },
         "step": {
-            "user": {
+            "reauth_confirm": {
+                "data": {
+                    "api_key": "کلید (کوما سے الگ متعدد اقدار) API"
+                },
+                "description": "سولکاسٹ اکاؤنٹ کی کلید"
+            },
+            "reconfigure_confirm": {
                 "data": {
                     "api_key": "کلید (کوما سے الگ متعدد اقدار) API",
                     "api_quota": "کوٹہ (کوما سے الگ متعدد اقدار) API",
@@ -13,7 +20,7 @@
                 },
                 "description": "سولکاسٹ اکاؤنٹ کی تفصیلات\n\n(اگر کوئی آٹو اپ ڈیٹ نہیں ہے تو آٹومیشن کی ضرورت ہے - انضمام دستاویزات دیکھیں)"
             },
-            "reconfigure_confirm": {
+            "user": {
                 "data": {
                     "api_key": "کلید (کوما سے الگ متعدد اقدار) API",
                     "api_quota": "کوٹہ (کوما سے الگ متعدد اقدار) API",
@@ -24,6 +31,9 @@
         }
     },
     "entity": {
+        "select": {
+            "estimate_mode" : {"name": "پیشن گوئی کا میدان استعمال کریں۔"}
+        },
         "sensor": {
             "power_now_30m": {"name": "پاور اگلا 30 منٹ"},
             "power_now_1hr": {"name": "پاور اگلا گھنٹہ"},
@@ -48,9 +58,6 @@
             "power_now": {"name": "ابھی پاور"},
             "hard_limit": {"name": "سخت حد مقرر"},
             "hard_limit_api": {"name": "سخت حد مقرر {api_key}"}
-        },
-        "select": {
-            "estimate_mode" : {"name": "پیشن گوئی کا میدان استعمال کریں۔"}
         }
     },
     "exceptions": {
