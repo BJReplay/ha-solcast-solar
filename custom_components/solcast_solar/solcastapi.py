@@ -227,21 +227,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
 
-        self.custom_hour_sensor = options.custom_hour_sensor
-        self.damp = options.dampening
-        self.entry = entry
-        self.entry_options = {**entry.options} if entry is not None else {}
-        self.estimate_set = self.__get_estimate_set(options)
-        self.granular_dampening = {}
-        self.hard_limit = options.hard_limit
-        self.hass = hass
-        self.headers = {}
-        self.options = options
-        self.reauth_required = False
-        self.sites = []
+        self.custom_hour_sensor: int = options.custom_hour_sensor
+        self.damp: dict = options.dampening
+        self.entry: SolcastConfigEntry = entry
+        self.entry_options: dict = {**entry.options} if entry is not None else {}
+        self.estimate_set: str = self.__get_estimate_set(options)
+        self.granular_dampening: dict = {}
+        self.hard_limit: str = options.hard_limit
+        self.hass: HomeAssistant = hass
+        self.headers: dict = {}
+        self.options: ConnectionOptions = options
+        self.reauth_required: bool = False
+        self.sites: list = []
         self.sites_status: SitesStatus = SitesStatus.UNKNOWN
         self.status: SolcastApiStatus = SolcastApiStatus.OK
-        self.tasks = {}
+        self.tasks: dict = {}
         self.usage_status: UsageStatus = UsageStatus.UNKNOWN
 
         file_path = Path(options.file_path)
