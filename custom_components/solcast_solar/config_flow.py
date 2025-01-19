@@ -187,15 +187,10 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 if status != 200:
                     errors["base"] = message
             if not errors:
+                self.hass.data[DOMAIN]["reset_old_key"] = True
                 data = {**self.entry.data, **all_config_data}
-                _LOGGER.critical(data)
-                return self.async_update_reload_and_abort(
-                    self.entry,
-                    data=data,
-                    options=data,
-                    reload_even_if_entry_is_unchanged=True,
-                    reason="reauth_successful",
-                )
+                self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
+                return self.async_abort(reason="reauth_successful")
 
         return self.async_show_form(
             step_id="reauth_confirm",
@@ -236,14 +231,10 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 if status != 200:
                     errors["base"] = message
             if not errors:
+                self.hass.data[DOMAIN]["reset_old_key"] = True
                 data = {**self.entry.data, **all_config_data}
-                return self.async_update_reload_and_abort(
-                    self.entry,
-                    data=data,
-                    options=data,
-                    reload_even_if_entry_is_unchanged=False,
-                    reason="reconfigured",
-                )
+                self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
+                return self.async_abort(reason="reconfigured")
 
         return self.async_show_form(
             step_id="reconfigure_confirm",
@@ -431,7 +422,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
 
                     self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
                     await self.check_dead()
-                    return self.async_create_entry(title=TITLE, data=all_config_data)
+                    return self.async_abort(reason="reconfigured")
             except Exception as e:  # noqa: BLE001
                 errors["base"] = str(e)
 
@@ -502,7 +493,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
 
             self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
             await self.check_dead()
-            return self.async_create_entry(title=TITLE, data=all_config_data)
+            return self.async_abort(reason="reconfigured")
 
         return self.async_show_form(
             step_id="dampen",

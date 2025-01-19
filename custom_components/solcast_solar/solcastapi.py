@@ -255,6 +255,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._data_forecasts = []
         self._data_forecasts_undampened = []
         self._data_undampened = copy.deepcopy(FRESH_DATA)
+        self._extant_sites: defaultdict = defaultdict(list)
+        self._extant_usage: defaultdict = defaultdict(dict)
         self._filename = options.file_path
         self._filename_undampened = f"{file_path.parent / file_path.stem}-undampened{file_path.suffix}"
         self._forecasts_moment = {}
@@ -263,6 +265,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._granular_dampening_mtime = 0
         self._loaded_data = False
         self._next_update = None
+        self._rekey = {}
         self._site_data_forecasts = {}
         self._site_data_forecasts_undampened = {}
         self._sites_hard_limit = defaultdict(dict)
@@ -519,28 +522,41 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.error("At least one successful API 'get sites' call is needed, so the integration will not function correctly")
                 one_only = True
 
+        def redact_lat_lon(s) -> str:
+            return re.sub(r"itude\': [0-9\-\.]+", "itude': **.******", s)
+
+        def set_sites(response_json: dict, api_key: str):
+            sites_data = cast(dict, response_json)
+            _LOGGER.debug(
+                "Sites data: %s",
+                self.__redact_msg_api_key(redact_lat_lon(str(sites_data)), api_key),
+            )
+            for site in sites_data["sites"]:
+                site["api_key"] = api_key
+                site.pop("longitude", None)
+                site.pop("latitude", None)
+            self.sites = self.sites + sites_data["sites"]
+            self._api_used_reset[api_key] = None
+            _LOGGER.debug(
+                "Sites loaded%s",
+                (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
+            )
+
+        def check_rekey(response_json: dict, api_key: str):
+            _LOGGER.debug("Checking rekey for %s", self.__redact_api_key(api_key))
+
+            all_sites = sorted([site["resource_id"] for site in response_json["sites"]])
+            self._rekey[api_key] = None
+            for key in self._extant_sites:
+                extant_sites = sorted([site["resource_id"] for site in self._extant_sites[key]])
+                if all_sites == extant_sites and api_key != key:
+                    # Re-keyed API key, so adjust the content and declare it valid
+                    self._rekey[api_key] = key
+                    _LOGGER.info("API key %s has changed, migrating API usage", self.__redact_api_key(api_key))
+            return self._rekey[api_key] is not None
+
         try:
             self.sites = []
-
-            def redact_lat_lon(s) -> str:
-                return re.sub(r"itude\': [0-9\-\.]+", "itude': **.******", s)
-
-            def set_sites(response_json: dict, api_key: str):
-                sites_data = cast(dict, response_json)
-                _LOGGER.debug(
-                    "Sites data: %s",
-                    self.__redact_msg_api_key(redact_lat_lon(str(sites_data)), api_key),
-                )
-                for site in sites_data["sites"]:
-                    site["api_key"] = api_key
-                    site.pop("longitude", None)
-                    site.pop("latitude", None)
-                self.sites = self.sites + sites_data["sites"]
-                self._api_used_reset[api_key] = None
-                _LOGGER.debug(
-                    "Sites loaded%s",
-                    (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
-                )
 
             api_keys = self.options.api_key.split(",")
             for api_key in api_keys:
@@ -576,9 +592,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     for site in response_json["sites"]:
                         site["api_key"] = api_key
                     if response_json["total_records"] > 0:
+                        set_sites(response_json, api_key)
+                        check_rekey(response_json, api_key)
                         await save_cache(cache_filename, response_json)
                         success = True
                         no_sites = False
+                        self.sites_status = SitesStatus.OK
                     else:
                         _LOGGER.error(
                             "No sites for the API key %s are configured at solcast.com",
@@ -603,16 +622,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         response_json = await load_cache(cache_filename)
                         status = 200
                         success = True
-                        # Check for API key change and cache validity
-                        for site in response_json["sites"]:
-                            if site.get("api_key") is None:
-                                site["api_key"] = api_key
-                            if site["api_key"] not in api_keys:
-                                self.sites_status = SitesStatus.CACHE_INVALID
-                                _LOGGER.debug("API key has changed so sites cache is invalid, not loading cached data")
-                                success = False
-                                break
-                    if status != 200:
+                        set_sites(response_json, api_key)
+                        self.sites_status = SitesStatus.OK
+                        if not check_rekey(response_json, api_key):
+                            self.sites_status = SitesStatus.CACHE_INVALID
+                            _LOGGER.info(
+                                "API key %s has changed and sites are different invalidating the cache, not loading cached data",
+                                self.__redact_api_key(api_key),
+                            )
+                            success = False
+                    elif status != 200:
                         cached_sites_unavailable()
                         if status in (401, 403):
                             self.sites_status = SitesStatus.BAD_KEY
@@ -620,19 +639,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             self.sites_status = SitesStatus.ERROR
 
                 if status == 200 and success:
-                    set_sites(response_json, api_key)
-                    self.sites_status = SitesStatus.OK
+                    pass
                 else:
                     cached_sites_unavailable(at_least_one_only=True)
         except (ClientConnectionError, ClientResponseError, ConnectionRefusedError, TimeoutError) as e:
             _LOGGER.warning("Error retrieving sites, attempting to continue: %s", e)
             error = False
+            self.sites = []
             for api_key in api_keys:
                 api_key = api_key.strip()
                 cache_filename = self.__get_sites_cache_filename(api_key)
                 if Path(cache_filename).is_file():  # Cache exists, so load it
                     response_json = await load_cache(cache_filename)
                     set_sites(response_json, api_key)
+                    check_rekey(response_json, api_key)
                     self.sites_status = SitesStatus.OK
                 else:
                     self.sites_status = SitesStatus.ERROR
@@ -679,6 +699,38 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         The limit is specified by the user in integration configuration.
         """
         try:
+
+            async def sanitise_and_set_usage(api_key, usage: dict):
+                self._api_limit[api_key] = usage.get("daily_limit", 10)
+                assert isinstance(self._api_limit[api_key], int), "daily_limit is not an integer"
+                self._api_used[api_key] = usage.get("daily_limit_consumed", 0)
+                assert isinstance(self._api_used[api_key], int), "daily_limit_consumed is not an integer"
+                self._api_used_reset[api_key] = usage.get("reset", self.__get_utc_previous_midnight())
+                assert isinstance(self._api_used_reset[api_key], dt), "reset is not a datetime"
+                _LOGGER.debug(
+                    "Usage cache for %s last reset %s",
+                    self.__redact_api_key(api_key),
+                    self._api_used_reset[api_key].astimezone(self._tz).strftime(DATE_FORMAT),
+                )
+                if usage["daily_limit"] != quota[api_key]:  # Limit has been adjusted, so rewrite the cache.
+                    self._api_limit[api_key] = quota[api_key]
+                    await self.__serialise_usage(api_key)
+                    _LOGGER.info("Usage loaded and cache updated with new limit")
+                else:
+                    _LOGGER.debug(
+                        "Usage loaded%s",
+                        (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
+                    )
+                if self._api_used_reset[api_key] is not None and self.get_real_now_utc() > self._api_used_reset[api_key] + timedelta(
+                    hours=24
+                ):
+                    _LOGGER.warning(
+                        "Resetting usage for %s, last reset was more than 24-hours ago",
+                        self.__redact_api_key(api_key),
+                    )
+                    self._api_used[api_key] = 0
+                    await self.__serialise_usage(api_key, reset=True)
+
             self.usage_status = UsageStatus.OK
             api_keys = self.options.api_key.split(",")
             api_quota = self.options.api_quota.split(",")
@@ -689,6 +741,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             for api_key in api_keys:
                 api_key = api_key.strip()
+                old_api_key = self._rekey.get(api_key)  # For a re-keyed API key.
                 cache_filename = self.__get_usage_cache_filename(api_key)
                 _LOGGER.debug(
                     "%s for %s",
@@ -697,55 +750,33 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 cache = True
                 if Path(cache_filename).is_file():
-                    async with aiofiles.open(cache_filename) as file:
-                        try:
-                            usage = json.loads(await file.read(), cls=JSONDecoder)
-                        except json.decoder.JSONDecodeError:
-                            _LOGGER.error(
-                                "The usage cache for %s is corrupt, re-creating cache with zero usage",
-                                self.__redact_api_key(api_key),
-                            )
-                            cache = False
+                    if not old_api_key:
+                        async with aiofiles.open(cache_filename) as file:
+                            try:
+                                usage = json.loads(await file.read(), cls=JSONDecoder)
+                            except json.decoder.JSONDecodeError:
+                                _LOGGER.error(
+                                    "The usage cache for %s is corrupt, re-creating cache with zero usage",
+                                    self.__redact_api_key(api_key),
+                                )
+                                cache = False
+                    else:
+                        usage = self._extant_usage.get(old_api_key)
                     if cache:
-                        self._api_limit[api_key] = usage.get("daily_limit", 10)
-                        assert isinstance(self._api_limit[api_key], int), "daily_limit is not an integer"
-                        self._api_used[api_key] = usage.get("daily_limit_consumed", 0)
-                        assert isinstance(self._api_used[api_key], int), "daily_limit_consumed is not an integer"
-                        self._api_used_reset[api_key] = usage.get("reset", self.__get_utc_previous_midnight())
-                        assert isinstance(self._api_used_reset[api_key], dt), "reset is not a datetime"
-                        _LOGGER.debug(
-                            "Usage cache for %s last reset %s",
-                            self.__redact_api_key(api_key),
-                            self._api_used_reset[api_key].astimezone(self._tz).strftime(DATE_FORMAT),
-                        )
-                        if usage["daily_limit"] != quota[api_key]:  # Limit has been adjusted, so rewrite the cache.
-                            self._api_limit[api_key] = quota[api_key]
-                            await self.__serialise_usage(api_key)
-                            _LOGGER.info("Usage loaded and cache updated with new limit")
-                        else:
-                            _LOGGER.debug(
-                                "Usage loaded%s",
-                                (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
-                            )
-                        if self._api_used_reset[api_key] is not None and self.get_real_now_utc() > self._api_used_reset[
-                            api_key
-                        ] + timedelta(hours=24):
-                            _LOGGER.warning(
-                                "Resetting usage for %s, last reset was more than 24-hours ago",
-                                self.__redact_api_key(api_key),
-                            )
-                            self._api_used[api_key] = 0
-                            await self.__serialise_usage(api_key, reset=True)
+                        await sanitise_and_set_usage(api_key, usage)
                 else:
                     cache = False
                 if not cache:
-                    _LOGGER.warning(
-                        "Creating usage cache for %s, assuming zero API used",
-                        self.__redact_api_key(api_key),
-                    )
-                    self._api_limit[api_key] = quota[api_key]
-                    self._api_used[api_key] = 0
-                    self._api_used_reset[api_key] = self.__get_utc_previous_midnight()
+                    if old_api_key:
+                        # Multi-key, so the old cache has been removed
+                        _LOGGER.debug("Using extant cache data for API key %s", self.__redact_api_key(api_key))
+                        usage = self._extant_usage.get(old_api_key)
+                        await sanitise_and_set_usage(api_key, usage)
+                    else:
+                        _LOGGER.warning("Creating usage cache for %s, assuming zero API used", self.__redact_api_key(api_key))
+                        self._api_limit[api_key] = quota[api_key]
+                        self._api_used[api_key] = 0
+                        self._api_used_reset[api_key] = self.__get_utc_previous_midnight()
                     await self.__serialise_usage(api_key, reset=True)
                 _LOGGER.debug(
                     "API counter for %s is %d/%d",
@@ -817,6 +848,50 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
                     Path(file).unlink()
 
+        def list_all_files() -> tuple[list[str], list[str]]:
+            sites = [str(sites) for sites in Path(self._config_dir).glob("solcast-sites*.json")]
+            usage = [str(usage) for usage in Path(self._config_dir).glob("solcast-usage*.json")]
+            return sorted(sites), sorted(usage)
+
+        def list_multi_key_files() -> tuple[list[str], list[str]]:
+            sites = [str(sites) for sites in Path(self._config_dir).glob("solcast-sites-*.json")]
+            usage = [str(usage) for usage in Path(self._config_dir).glob("solcast-usage-*.json")]
+            return sorted(sites), sorted(usage)
+
+        async def load_extant_sites_and_usage(sites: list, usages: list):
+            extant_sites = defaultdict(list)  # Existing sites in caches
+            extant_usage = defaultdict(dict)  # Existing usage in caches, separated by API key
+            single_key = None
+            for site in sites:
+                async with aiofiles.open(site) as file:
+                    try:
+                        response_json = json.loads(await file.read(), cls=JSONDecoder)
+                    except json.decoder.JSONDecodeError:
+                        _LOGGER.error("JSONDecodeError, sites ignored: %s", site)
+                        continue
+                    for site in response_json.get("sites", []):
+                        if site.get("api_key"):
+                            extant_sites[site["api_key"]].append(site)
+                            if not self.__is_multi_key():
+                                single_key = site["api_key"]
+                        elif not self.__is_multi_key():  # The key is unknown because old schema version
+                            extant_sites["unknown"].append(site)
+            for usage in usages:
+                async with aiofiles.open(usage) as file:
+                    try:
+                        response_json = json.loads(await file.read(), cls=JSONDecoder)
+                    except json.decoder.JSONDecodeError:
+                        _LOGGER.error("JSONDecodeError, usage ignored: %s", usage)
+                        continue
+                    match = re.search(r"solcast-usage-(.+)\.json", usage)
+                    if match:
+                        extant_usage[match.group(1)] = response_json
+                    elif not self.__is_multi_key() and single_key:
+                        extant_usage[single_key] = response_json
+                    else:  # The key is unknown because old schema version
+                        extant_usage["unknown"] = response_json
+            return extant_sites, extant_usage
+
         api_keys = [api_key.strip() for api_key in self.options.api_key.split(",")]
         if self.__is_multi_key():
             await from_single_site_to_multi(api_keys)
@@ -825,14 +900,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         multi_sites = [f"{self._config_dir}/solcast-sites-{api_key}.json" for api_key in api_keys]
         multi_usage = [f"{self._config_dir}/solcast-usage-{api_key}.json" for api_key in api_keys]
 
-        def list_files() -> tuple[list[str], list[str]]:
-            all_sites = [str(sites) for sites in Path(self._config_dir).glob("solcast-sites-*.json")]
-            all_usage = [str(usage) for usage in Path(self._config_dir).glob("solcast-usage-*.json")]
-            return sorted(all_sites), sorted(all_usage)
-
-        all_sites, all_usage = await self.hass.async_add_executor_job(list_files)
-        remove_orphans(all_sites, multi_sites)
-        remove_orphans(all_usage, multi_usage)
+        all_sites, all_usage = await self.hass.async_add_executor_job(list_all_files)
+        multi_key_sites, multi_key_usage = await self.hass.async_add_executor_job(list_multi_key_files)
+        self._extant_sites, self._extant_usage = await load_extant_sites_and_usage(all_sites, all_usage)
+        remove_orphans(multi_key_sites, multi_sites)
+        remove_orphans(multi_key_usage, multi_usage)
 
         await self.__sites_data()
         if self.sites_status == SitesStatus.OK:
@@ -1133,12 +1205,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     new_sites = {}
                     cache_sites = list(self._data["siteinfo"].keys())
                     old_api_keys = (
-                        self.hass.data[DOMAIN]
-                        .get(
-                            "old_api_key",
-                            self.hass.data[DOMAIN]["entry_options"].get(CONF_API_KEY, ""),
-                        )
-                        .split(",")
+                        self.hass.data[DOMAIN].get("old_api_key", self.hass.data[DOMAIN]["entry_options"].get(CONF_API_KEY, "")).split(",")
                     )
                     for site in self.sites:
                         api_key = site["api_key"]

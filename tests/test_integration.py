@@ -1034,7 +1034,7 @@ async def test_integration_scenarios(
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         assert "Options updated, action: The integration will reload" in caplog.text
-        assert "sites cache is invalid" in caplog.text
+        assert "has changed and sites are different invalidating the cache" in caplog.text
         session_clear(MOCK_BUSY)
         _no_exception(caplog)
         caplog.clear()

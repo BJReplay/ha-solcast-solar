@@ -284,7 +284,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
             pass
 
     await __get_granular_dampening(hass, entry, solcast)
-    hass.data[DOMAIN]["entry_options"] = entry.options
+    hass.data[DOMAIN]["entry_options"] = {**entry.options}
 
     if (status := await solcast.load_saved_data()) != "":
         raise ConfigEntryNotReady(status)
@@ -592,7 +592,11 @@ async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry):
 
     # Config changes, which when changed will cause a reload.
     if changed(CONF_API_KEY):
-        hass.data[DOMAIN]["old_api_key"] = hass.data[DOMAIN]["entry_options"].get(CONF_API_KEY)
+        if hass.data[DOMAIN].get("reset_old_key"):
+            hass.data[DOMAIN].pop("reset_old_key")
+            hass.data[DOMAIN]["old_api_key"] = entry.options.get(CONF_API_KEY)
+        else:
+            hass.data[DOMAIN]["old_api_key"] = hass.data[DOMAIN]["entry_options"].get(CONF_API_KEY)
     reload = changed(CONF_API_KEY) or changed(API_QUOTA) or changed(AUTO_UPDATE) or changed(HARD_LIMIT_API) or changed(CUSTOM_HOUR_SENSOR)
 
     # Config changes, which when changed will cause a forecast recalculation only, without reload.
@@ -642,7 +646,7 @@ async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry):
         await coordinator.update_integration_listeners()
         coordinator.set_data_updated(False)
 
-        hass.data[DOMAIN]["entry_options"] = entry.options
+        hass.data[DOMAIN]["entry_options"] = {**entry.options}
         coordinator.solcast.entry_options = entry.options
     else:
         # Reload

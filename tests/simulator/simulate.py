@@ -190,12 +190,14 @@ class SimulatedSolcast:
     def raw_get_sites(self, api_key) -> dict[str, Any] | None:
         """Return sites for an API key."""
 
-        sites = API_KEY_SITES.get(api_key)
+        sites = API_KEY_SITES.get(api_key, {})
         meta = {
             "page_count": 1,
             "current_page": 1,
-            "total_records": len(API_KEY_SITES[api_key]["sites"]),
+            "total_records": len(API_KEY_SITES.get(api_key, {})["sites"]),
         }
+        if meta["total_records"] is None:
+            meta["total_records"] = 0
         return sites | meta if sites is not None else None
 
     def raw_get_site_estimated_actuals(
@@ -207,7 +209,12 @@ class SimulatedSolcast:
         This is to enable testing of the integration.
         """
 
-        site = next((site for site in API_KEY_SITES[api_key]["sites"] if site["resource_id"] == site_id), None)
+        sites = API_KEY_SITES.get(api_key, {}).get("sites")
+        if sites is None:
+            sites = {}
+        site = next((site for site in sites if site.get("resource_id") == site_id), None)
+        if not site:
+            return {}
         period_end = self.get_period(dt.now(datetime.UTC), timedelta(hours=hours) * -1) if period_end is None else period_end
 
         lookup = f"{api_key} {site_id} {hours} {period_end}"
@@ -234,7 +241,10 @@ class SimulatedSolcast:
     ) -> dict[str, list[dict[str, Any]]]:
         """Return simulated forecasts for a site."""
 
-        site = next((site for site in API_KEY_SITES.get(api_key, {})["sites"] if site.get("resource_id") == site_id), None)
+        sites = API_KEY_SITES.get(api_key, {}).get("sites")
+        if sites is None:
+            sites = {}
+        site = next((site for site in sites if site.get("resource_id") == site_id), None)
         if not site:
             return {}
         period_end = self.get_period(dt.now(datetime.UTC), timedelta(minutes=30))

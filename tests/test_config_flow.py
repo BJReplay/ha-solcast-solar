@@ -492,7 +492,7 @@ async def test_dampen(
         flow.hass = hass
 
         result = await flow.async_step_dampen(user_input)
-        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["reason"] == "reconfigured"
         for key, expect in value.items():
             assert entry.options[key] == expect
 
@@ -621,8 +621,7 @@ async def test_presumed_dead_and_full_flow(
             user_input,
         )
         await hass.async_block_till_done()
-        assert result["result"] is True
-        assert result["type"] == FlowResultType.CREATE_ENTRY
+        assert result["reason"] == "reconfigured"
 
     finally:
         assert await async_cleanup_integration_tests(hass)
