@@ -53,6 +53,7 @@ from . import (
     async_setup_aioresponses,
     session_clear,
     session_set,
+    simulator,
 )
 
 from tests.common import MockConfigEntry
@@ -228,6 +229,7 @@ async def test_reauth_api_key(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test that valid/invalid API key is handled in reconfigure.
 
@@ -251,6 +253,29 @@ async def test_reauth_api_key(
             await hass.async_block_till_done()
             if result.get("reason") != "reauth_successful":
                 assert test[REASON] in result["errors"]["base"]
+
+        await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Really change a responding key (last previous set test used API keys 1 and 2, so these are in cached sites/usage)
+        entry = await async_init_integration(hass, DEFAULT_INPUT2)
+        simulator.API_KEY_SITES["4"] = simulator.API_KEY_SITES.pop("1")  # Change the key
+        result = await entry.start_reauth_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={CONF_API_KEY: "4" + "," + KEY2},
+        )
+        await hass.async_block_till_done()
+        assert result["reason"] == "reauth_successful"
+        assert "API key ******4 has changed, migrating API usage" in caplog.text
+        assert "Using extant cache data for API key ******4" in caplog.text
+        assert "API counter for ******4 is 4/20" in caplog.text
+        assert "Using extant cache data for API key ******2" not in caplog.text
+        assert "API counter for ******2 is 2/20" in caplog.text
+        simulator.API_KEY_SITES["1"] = simulator.API_KEY_SITES.pop("4")  # Restore the key
+
+        await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
 
     finally:
         assert await async_cleanup_integration_tests(hass)

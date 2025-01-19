@@ -750,6 +750,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 cache = True
                 if Path(cache_filename).is_file():
+                    usage = self._extant_usage.get(old_api_key)
                     if not old_api_key:
                         async with aiofiles.open(cache_filename) as file:
                             try:
@@ -760,9 +761,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     self.__redact_api_key(api_key),
                                 )
                                 cache = False
-                    else:
-                        usage = self._extant_usage.get(old_api_key)
-                    if cache:
+                    if cache and usage:
                         await sanitise_and_set_usage(api_key, usage)
                 else:
                     cache = False
