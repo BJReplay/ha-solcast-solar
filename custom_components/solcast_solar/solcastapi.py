@@ -796,7 +796,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             self._api_used[api_key] = 0
             await self.__serialise_usage(api_key, reset=True)
 
-    async def get_sites_and_usage(self):
+    async def get_sites_and_usage(self):  # noqa: C901
         """Get the sites and usage, and validate API key changes against the cache files in use.
 
         Both the sites and usage are gathered here.
@@ -2563,7 +2563,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             _LOGGER.error("Client error: %s", e)
                             status = 1000
                             break
-                        if status in (200, 400, 403, 404):  # Do not retry for these statuses.
+                        if status in (200, 400, 401, 403, 404):  # Do not retry for these statuses.
                             break
                         if status == 429:
                             # Test for API limit exceeded.

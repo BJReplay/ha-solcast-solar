@@ -233,7 +233,7 @@ async def test_reauth_api_key(
 ) -> None:
     """Test that valid/invalid API key is handled in reconfigure.
 
-    Not parameterised for performance reasons.
+    Not parameterised for performance reasons and to maintain caches between tests.
     """
     USER_INPUT = 0
     REASON = 1
@@ -257,7 +257,7 @@ async def test_reauth_api_key(
         await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
 
-        # Really change a responding key (last previous set test used API keys 1 and 2, so these are in cached sites/usage)
+        # Really change key '1' (last test above used API keys '1' and '2', so these are in cached sites/usage)
         entry = await async_init_integration(hass, DEFAULT_INPUT2)
         simulator.API_KEY_SITES["4"] = simulator.API_KEY_SITES.pop("1")  # Change the key
         result = await entry.start_reauth_flow(hass)
@@ -267,11 +267,12 @@ async def test_reauth_api_key(
         )
         await hass.async_block_till_done()
         assert result["reason"] == "reauth_successful"
+        assert "An API key has changed, resetting usage" not in caplog.text  # Existing key change, so not seen
         assert "API key ******4 has changed, migrating API usage" in caplog.text
         assert "Using extant cache data for API key ******4" in caplog.text
         assert "API counter for ******4 is 4/20" in caplog.text
-        assert "Using extant cache data for API key ******2" not in caplog.text
-        assert "API counter for ******2 is 2/20" in caplog.text
+        assert "Using extant cache data for API key ******2" not in caplog.text  # Unaffected
+        assert "API counter for ******2 is 2/20" in caplog.text  # Unaffected, was 2/20 after previous test
         simulator.API_KEY_SITES["1"] = simulator.API_KEY_SITES.pop("4")  # Restore the key
 
         await hass.config_entries.async_unload(entry.entry_id)

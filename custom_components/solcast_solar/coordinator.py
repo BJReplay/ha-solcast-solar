@@ -8,7 +8,7 @@ from datetime import datetime as dt, timedelta
 import logging
 from typing import Any
 
-from homeassistant.core import HomeAssistant, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
 from homeassistant.helpers.event import async_track_utc_time_change
 from homeassistant.helpers.sun import get_astral_event_next
