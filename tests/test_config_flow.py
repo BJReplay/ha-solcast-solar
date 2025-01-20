@@ -48,6 +48,7 @@ from . import (
     KEY1,
     KEY2,
     MOCK_BUSY,
+    MOCK_FORBIDDEN,
     async_cleanup_integration_tests,
     async_init_integration,
     async_setup_aioresponses,
@@ -274,6 +275,22 @@ async def test_reauth_api_key(
         assert "Using extant cache data for API key ******2" not in caplog.text  # Unaffected
         assert "API counter for ******2 is 2/20" in caplog.text  # Unaffected, was 2/20 after previous test
         simulator.API_KEY_SITES["1"] = simulator.API_KEY_SITES.pop("4")  # Restore the key
+        result = await entry.start_reauth_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={CONF_API_KEY: "1" + "," + KEY2},
+        )
+        await hass.async_block_till_done()
+
+        await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Load with an invalid key (will receive 403/Forbidden in get sites call, load cached data and not start)
+        session_set(MOCK_FORBIDDEN)
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        assert "Sites loaded" in caplog.text
+        assert "API key is invalid" in caplog.text
+        session_clear(MOCK_FORBIDDEN)
 
         await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()

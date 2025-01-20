@@ -620,17 +620,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         self.sites_status = SitesStatus.NO_SITES
                     elif cache_exists:
                         response_json = await load_cache(cache_filename)
-                        status = 200
                         success = True
                         set_sites(response_json, api_key)
                         self.sites_status = SitesStatus.OK
-                        if not check_rekey(response_json, api_key):
-                            self.sites_status = SitesStatus.CACHE_INVALID
-                            _LOGGER.info(
-                                "API key %s has changed and sites are different invalidating the cache, not loading cached data",
-                                self.__redact_api_key(api_key),
-                            )
-                            success = False
+                        if status == 403:
+                            self.sites_status = SitesStatus.BAD_KEY
+                        else:
+                            status = 200
+                            if not check_rekey(response_json, api_key):
+                                self.sites_status = SitesStatus.CACHE_INVALID
+                                _LOGGER.info(
+                                    "API key %s has changed and sites are different invalidating the cache, not loading cached data",
+                                    self.__redact_api_key(api_key),
+                                )
+                                success = False
                     elif status != 200:
                         cached_sites_unavailable()
                         if status in (401, 403):
@@ -1170,7 +1173,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     return None
 
                                 # What happened before v4 stays before v4. BJReplay has no visibility of ancient.
-                                # V3 versions of the solcast.json file did not have a version key.
+                                # V3 and prior versions of the solcast.json file did not have a version key.
                                 if json_version < 4:
                                     data["version"] = 4
                                     json_version = 4
