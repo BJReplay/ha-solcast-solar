@@ -84,6 +84,9 @@
         "remove_cache_failed": {"message": "Wyczyść wszystkie dane Solcast nie powiodło się."}
     },
     "options": {
+        "abort": {
+            "reconfigured": "Zastosowano nową konfigurację"
+        },
         "step": {
             "init": {
                 "data": {
@@ -135,10 +138,6 @@
                 },
                 "description": "Zmodyfikuj godzinowy współczynnik tłumienia"
             }
-        },
-        "error": {
-            "unknown": "Nieznany błąd",
-            "incorrect_options_action": "Wybrano nieprawidłowe działanie"
         }
     },
     "selector": {

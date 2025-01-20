@@ -1871,8 +1871,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
         df = [self._use_forecast_confidence]
-        for estimate in ("pv_estimate", "pv_estimate10", "pv_estimate90"):
-            if self.options.attr_brk_estimate and estimate not in df:
+        for enabled, estimate in (
+            (self.options.attr_brk_estimate, "pv_estimate"),
+            (self.options.attr_brk_estimate10, "pv_estimate10"),
+            (self.options.attr_brk_estimate90, "pv_estimate90"),
+        ):
+            if enabled and estimate not in df:
                 df.append(estimate)
 
         def get_start_and_end(forecasts: list) -> int:

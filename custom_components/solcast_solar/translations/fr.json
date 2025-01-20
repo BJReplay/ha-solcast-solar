@@ -84,6 +84,9 @@
         "remove_cache_failed": {"message": "Échec de l'effacement de toutes les données Solcast."}
     },
     "options": {
+        "abort": {
+            "reconfigured": "Nouvelle configuration appliquée"
+        },
         "step": {
             "init": {
                 "data": {
@@ -134,10 +137,6 @@
                 },
                 "description": "Modifier le coefficient d'amortissement horaire"
             }
-        },
-        "error": {
-            "unknown": "Erreur inconnue",
-            "incorrect_options_action": "Action incorrecte choisie"
         }
     },
     "selector": {

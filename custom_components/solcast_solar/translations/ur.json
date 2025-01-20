@@ -84,6 +84,9 @@
         "remove_cache_failed": {"message": "تمام سولکاسٹ ڈیٹا کو صاف کرنا ناکام ہوگیا۔"}
     },
     "options": {
+        "abort": {
+            "reconfigured": "نئی کنفیگریشن لاگو کر دی گئی۔"
+        },
         "step": {
             "init": {
                 "data": {
@@ -135,10 +138,6 @@
                 },
                 "description": "گھنٹہ وار ڈیمپنگ فیکٹر میں ترمیم کریں۔"
             }
-        },
-        "error": {
-            "unknown": "نامعلوم خامی",
-            "incorrect_options_action": "غلط عمل کا انتخاب کیا گیا ہے۔"
         }
     },
     "selector": {

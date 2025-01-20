@@ -84,9 +84,8 @@
         "remove_cache_failed": {"message": "Clear all Solcast data failed."}
     },
     "options": {
-        "error": {
-            "incorrect_options_action": "Incorrect action chosen",
-            "unknown": "Unknown error"
+        "abort": {
+            "reconfigured": "New configuration applied successfully"
         },
         "step": {
             "dampen": {

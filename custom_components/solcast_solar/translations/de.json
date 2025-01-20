@@ -84,6 +84,9 @@
         "remove_cache_failed": {"message": "Das Löschen aller Solcast-Daten ist fehlgeschlagen."}
     },
     "options": {
+        "abort": {
+            "reconfigured": "Neue Konfiguration angewendet"
+        },
         "step": {
             "init": {
                 "data": {
@@ -135,10 +138,6 @@
                 },
                 "description": "Ändern Sie den stündlichen Dämpfungsfaktor"
             }
-        },
-        "error": {
-            "unknown": "Unbekannter Fehler",
-            "incorrect_options_action": "Falsche Aktion ausgewählt"
         }
     },
     "selector": {
