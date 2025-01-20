@@ -45,194 +45,242 @@ from .util import SolcastConfigEntry
 _LOGGER = logging.getLogger(__name__)
 
 SENSORS: dict[str, SensorEntityDescription] = {
-    "total_kwh_forecast_today": SensorEntityDescription(
-        key="total_kwh_forecast_today",
-        translation_key="total_kwh_forecast_today",
-        device_class=SensorDeviceClass.ENERGY,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        name="Forecast Today",
-        icon="mdi:solar-power",
-        suggested_display_precision=2,
-        state_class=SensorStateClass.TOTAL,
-    ),
-    "peak_w_today": SensorEntityDescription(
-        key="peak_w_today",
-        translation_key="peak_w_today",
-        device_class=SensorDeviceClass.POWER,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        name="Peak Forecast Today",
-        icon="mdi:solar-power",
-        suggested_display_precision=0,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    "peak_w_time_today": SensorEntityDescription(
-        key="peak_w_time_today",
-        translation_key="peak_w_time_today",
-        name="Peak Time Today",
-        icon="mdi:clock",
-        device_class=SensorDeviceClass.TIMESTAMP,
-    ),
-    "forecast_this_hour": SensorEntityDescription(
-        key="forecast_this_hour",
-        device_class=SensorDeviceClass.ENERGY,
-        native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
-        translation_key="forecast_this_hour",
-        name="Forecast This Hour",
-        icon="mdi:solar-power",
-        suggested_display_precision=0,
-    ),
-    "forecast_remaining_today": SensorEntityDescription(
-        key="get_remaining_today",
-        device_class=SensorDeviceClass.ENERGY,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        translation_key="get_remaining_today",
-        name="Forecast Remaining Today",
-        icon="mdi:solar-power",
-        suggested_display_precision=2,
-    ),
-    "forecast_next_hour": SensorEntityDescription(
-        key="forecast_next_hour",
-        device_class=SensorDeviceClass.ENERGY,
-        native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
-        translation_key="forecast_next_hour",
-        name="Forecast Next Hour",
-        icon="mdi:solar-power",
-        suggested_display_precision=0,
-    ),
-    "forecast_custom_hours": SensorEntityDescription(
-        key="forecast_custom_hours",
-        device_class=SensorDeviceClass.ENERGY,
-        native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
-        translation_key="forecast_custom_hours",
-        name="Forecast Custom Hours",
-        icon="mdi:solar-power",
-        suggested_display_precision=0,
-    ),
-    "total_kwh_forecast_tomorrow": SensorEntityDescription(
-        key="total_kwh_forecast_tomorrow",
-        device_class=SensorDeviceClass.ENERGY,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        translation_key="total_kwh_forecast_tomorrow",
-        name="Forecast Tomorrow",
-        icon="mdi:solar-power",
-        suggested_display_precision=2,
-        state_class=SensorStateClass.TOTAL,
-    ),
-    "peak_w_tomorrow": SensorEntityDescription(
-        key="peak_w_tomorrow",
-        device_class=SensorDeviceClass.POWER,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        translation_key="peak_w_tomorrow",
-        name="Peak Forecast Tomorrow",
-        icon="mdi:solar-power",
-        suggested_display_precision=0,
-    ),
-    "peak_w_time_tomorrow": SensorEntityDescription(
-        key="peak_w_time_tomorrow",
-        translation_key="peak_w_time_tomorrow",
-        name="Peak Time Tomorrow",
-        icon="mdi:clock",
-        device_class=SensorDeviceClass.TIMESTAMP,
-    ),
-    "api_counter": SensorEntityDescription(
-        key="api_counter",
-        translation_key="api_counter",
-        name="API Used",
-        icon="mdi:web-check",
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    "api_limit": SensorEntityDescription(
-        key="api_limit",
-        translation_key="api_limit",
-        name="API Limit",
-        icon="mdi:web-check",
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    "lastupdated": SensorEntityDescription(
-        key="lastupdated",
-        device_class=SensorDeviceClass.TIMESTAMP,
-        translation_key="lastupdated",
-        name="API Last Polled",
-        icon="mdi:clock",
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    "total_kwh_forecast_d3": SensorEntityDescription(
-        key="total_kwh_forecast_d3",
-        device_class=SensorDeviceClass.ENERGY,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        translation_key="total_kwh_forecast_d3",
-        name="Forecast D3",
-        icon="mdi:solar-power",
-        suggested_display_precision=2,
-        state_class=SensorStateClass.TOTAL,
-    ),
-    "total_kwh_forecast_d4": SensorEntityDescription(
-        key="total_kwh_forecast_d4",
-        device_class=SensorDeviceClass.ENERGY,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        translation_key="total_kwh_forecast_d4",
-        name="Forecast D4",
-        icon="mdi:solar-power",
-        suggested_display_precision=2,
-        state_class=SensorStateClass.TOTAL,
-    ),
-    "total_kwh_forecast_d5": SensorEntityDescription(
-        key="total_kwh_forecast_d5",
-        device_class=SensorDeviceClass.ENERGY,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        translation_key="total_kwh_forecast_d5",
-        name="Forecast D5",
-        icon="mdi:solar-power",
-        suggested_display_precision=2,
-        state_class=SensorStateClass.TOTAL,
-    ),
-    "total_kwh_forecast_d6": SensorEntityDescription(
-        key="total_kwh_forecast_d6",
-        device_class=SensorDeviceClass.ENERGY,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        translation_key="total_kwh_forecast_d6",
-        name="Forecast D6",
-        icon="mdi:solar-power",
-        suggested_display_precision=2,
-        state_class=SensorStateClass.TOTAL,
-    ),
-    "total_kwh_forecast_d7": SensorEntityDescription(
-        key="total_kwh_forecast_d7",
-        device_class=SensorDeviceClass.ENERGY,
-        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-        translation_key="total_kwh_forecast_d7",
-        name="Forecast D7",
-        icon="mdi:solar-power",
-        suggested_display_precision=2,
-        state_class=SensorStateClass.TOTAL,
-    ),
-    "power_now": SensorEntityDescription(
-        key="power_now",
-        device_class=SensorDeviceClass.POWER,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        translation_key="power_now",
-        name="Power Now",
-        suggested_display_precision=0,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    "power_now_30m": SensorEntityDescription(
-        key="power_now_30m",
-        device_class=SensorDeviceClass.POWER,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        translation_key="power_now_30m",
-        name="Power in 30 Minutes",
-        suggested_display_precision=0,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
-    "power_now_1hr": SensorEntityDescription(
-        key="power_now_1hr",
-        device_class=SensorDeviceClass.POWER,
-        native_unit_of_measurement=UnitOfPower.WATT,
-        translation_key="power_now_1hr",
-        name="Power in 1 Hour",
-        suggested_display_precision=0,
-        state_class=SensorStateClass.MEASUREMENT,
-    ),
+    "api_counter": {
+        "description": SensorEntityDescription(
+            key="api_counter",
+            translation_key="api_counter",
+            name="API Used",
+            icon="mdi:web-check",
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+    },
+    "api_limit": {
+        "description": SensorEntityDescription(
+            key="api_limit",
+            translation_key="api_limit",
+            name="API Limit",
+            icon="mdi:web-check",
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+    },
+    "forecast_this_hour": {
+        "description": SensorEntityDescription(
+            key="forecast_this_hour",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+            translation_key="forecast_this_hour",
+            name="Forecast This Hour",
+            icon="mdi:solar-power",
+            suggested_display_precision=0,
+        )
+    },
+    "forecast_custom_hours": {
+        "description": SensorEntityDescription(
+            key="forecast_custom_hours",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+            translation_key="forecast_custom_hours",
+            name="Forecast Custom Hours",
+            icon="mdi:solar-power",
+            suggested_display_precision=0,
+        ),
+        "enabled_by_default": False,
+    },
+    "forecast_next_hour": {
+        "description": SensorEntityDescription(
+            key="forecast_next_hour",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
+            translation_key="forecast_next_hour",
+            name="Forecast Next Hour",
+            icon="mdi:solar-power",
+            suggested_display_precision=0,
+        )
+    },
+    "forecast_remaining_today": {
+        "description": SensorEntityDescription(
+            key="get_remaining_today",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            translation_key="get_remaining_today",
+            name="Forecast Remaining Today",
+            icon="mdi:solar-power",
+            suggested_display_precision=2,
+        )
+    },
+    "lastupdated": {
+        "description": SensorEntityDescription(
+            key="lastupdated",
+            device_class=SensorDeviceClass.TIMESTAMP,
+            translation_key="lastupdated",
+            name="API Last Polled",
+            icon="mdi:clock",
+            entity_category=EntityCategory.DIAGNOSTIC,
+        )
+    },
+    "peak_w_time_today": {
+        "description": SensorEntityDescription(
+            key="peak_w_time_today",
+            translation_key="peak_w_time_today",
+            name="Peak Time Today",
+            icon="mdi:clock",
+            device_class=SensorDeviceClass.TIMESTAMP,
+        )
+    },
+    "peak_w_time_tomorrow": {
+        "description": SensorEntityDescription(
+            key="peak_w_time_tomorrow",
+            translation_key="peak_w_time_tomorrow",
+            name="Peak Time Tomorrow",
+            icon="mdi:clock",
+            device_class=SensorDeviceClass.TIMESTAMP,
+        )
+    },
+    "peak_w_today": {
+        "description": SensorEntityDescription(
+            key="peak_w_today",
+            translation_key="peak_w_today",
+            device_class=SensorDeviceClass.POWER,
+            native_unit_of_measurement=UnitOfPower.WATT,
+            name="Peak Forecast Today",
+            icon="mdi:solar-power",
+            suggested_display_precision=0,
+            state_class=SensorStateClass.MEASUREMENT,
+        )
+    },
+    "peak_w_tomorrow": {
+        "description": SensorEntityDescription(
+            key="peak_w_tomorrow",
+            device_class=SensorDeviceClass.POWER,
+            native_unit_of_measurement=UnitOfPower.WATT,
+            translation_key="peak_w_tomorrow",
+            name="Peak Forecast Tomorrow",
+            icon="mdi:solar-power",
+            suggested_display_precision=0,
+        )
+    },
+    "power_now": {
+        "description": SensorEntityDescription(
+            key="power_now",
+            device_class=SensorDeviceClass.POWER,
+            native_unit_of_measurement=UnitOfPower.WATT,
+            translation_key="power_now",
+            name="Power Now",
+            suggested_display_precision=0,
+            state_class=SensorStateClass.MEASUREMENT,
+        )
+    },
+    "power_now_1hr": {
+        "description": SensorEntityDescription(
+            key="power_now_1hr",
+            device_class=SensorDeviceClass.POWER,
+            native_unit_of_measurement=UnitOfPower.WATT,
+            translation_key="power_now_1hr",
+            name="Power in 1 Hour",
+            suggested_display_precision=0,
+            state_class=SensorStateClass.MEASUREMENT,
+        )
+    },
+    "power_now_30m": {
+        "description": SensorEntityDescription(
+            key="power_now_30m",
+            device_class=SensorDeviceClass.POWER,
+            native_unit_of_measurement=UnitOfPower.WATT,
+            translation_key="power_now_30m",
+            name="Power in 30 Minutes",
+            suggested_display_precision=0,
+            state_class=SensorStateClass.MEASUREMENT,
+        )
+    },
+    "total_kwh_forecast_d3": {
+        "description": SensorEntityDescription(
+            key="total_kwh_forecast_d3",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            translation_key="total_kwh_forecast_d3",
+            name="Forecast D3",
+            icon="mdi:solar-power",
+            suggested_display_precision=2,
+            state_class=SensorStateClass.TOTAL,
+        ),
+        "enabled_by_default": False,
+    },
+    "total_kwh_forecast_d4": {
+        "description": SensorEntityDescription(
+            key="total_kwh_forecast_d4",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            translation_key="total_kwh_forecast_d4",
+            name="Forecast D4",
+            icon="mdi:solar-power",
+            suggested_display_precision=2,
+            state_class=SensorStateClass.TOTAL,
+        ),
+        "enabled_by_default": False,
+    },
+    "total_kwh_forecast_d5": {
+        "description": SensorEntityDescription(
+            key="total_kwh_forecast_d5",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            translation_key="total_kwh_forecast_d5",
+            name="Forecast D5",
+            icon="mdi:solar-power",
+            suggested_display_precision=2,
+            state_class=SensorStateClass.TOTAL,
+        ),
+        "enabled_by_default": False,
+    },
+    "total_kwh_forecast_d6": {
+        "description": SensorEntityDescription(
+            key="total_kwh_forecast_d6",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            translation_key="total_kwh_forecast_d6",
+            name="Forecast D6",
+            icon="mdi:solar-power",
+            suggested_display_precision=2,
+            state_class=SensorStateClass.TOTAL,
+        ),
+        "enabled_by_default": False,
+    },
+    "total_kwh_forecast_d7": {
+        "description": SensorEntityDescription(
+            key="total_kwh_forecast_d7",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            translation_key="total_kwh_forecast_d7",
+            name="Forecast D7",
+            icon="mdi:solar-power",
+            suggested_display_precision=2,
+            state_class=SensorStateClass.TOTAL,
+        ),
+        "enabled_by_default": False,
+    },
+    "total_kwh_forecast_today": {
+        "description": SensorEntityDescription(
+            key="total_kwh_forecast_today",
+            translation_key="total_kwh_forecast_today",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            name="Forecast Today",
+            icon="mdi:solar-power",
+            suggested_display_precision=2,
+            state_class=SensorStateClass.TOTAL,
+        )
+    },
+    "total_kwh_forecast_tomorrow": {
+        "description": SensorEntityDescription(
+            key="total_kwh_forecast_tomorrow",
+            device_class=SensorDeviceClass.ENERGY,
+            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+            translation_key="total_kwh_forecast_tomorrow",
+            name="Forecast Tomorrow",
+            icon="mdi:solar-power",
+            suggested_display_precision=2,
+            state_class=SensorStateClass.TOTAL,
+        )
+    },
 }
 
 
@@ -249,26 +297,24 @@ def get_sensor_update_policy(key: str) -> SensorUpdatePolicy:
     Some sensors update every five minutes (EVERY_TIME_INTERVAL), while others only update on startup or forecast fetch.
 
     Arguments:
-        key (str): The sensor name.
+        key (str): The sensor key.
 
     Returns:
         SensorUpdatePolicy: The update policy.
 
     """
-    match key:
-        case (
-            "forecast_this_hour"
-            | "forecast_next_hour"
-            | "forecast_custom_hours"
-            | "forecast_remaining_today"
-            | "get_remaining_today"
-            | "power_now"
-            | "power_now_30m"
-            | "power_now_1hr"
-        ):
-            return SensorUpdatePolicy.EVERY_TIME_INTERVAL
-        case _:
-            return SensorUpdatePolicy.DEFAULT
+    if key in (
+        "forecast_this_hour",
+        "forecast_next_hour",
+        "forecast_custom_hours",
+        "forecast_remaining_today",
+        "get_remaining_today",
+        "power_now",
+        "power_now_30m",
+        "power_now_1hr",
+    ):
+        return SensorUpdatePolicy.EVERY_TIME_INTERVAL
+    return SensorUpdatePolicy.DEFAULT
 
 
 async def async_setup_entry(
@@ -289,7 +335,7 @@ async def async_setup_entry(
     entities = []
 
     for sensor in SENSORS.values():
-        sen = SolcastSensor(coordinator, sensor, entry)
+        sen = SolcastSensor(coordinator, sensor["description"], entry, sensor.get("enabled_by_default", True))
         entities.append(sen)
 
     hard_limits = coordinator.solcast.options.hard_limit.split(",")
@@ -343,6 +389,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
     _attr_attribution = ATTRIBUTION
     _attr_has_entity_name = True
+
     # _unrecorded_attributes = frozenset({MATCH_ALL}) # Large attributes now excluded dynamically in async_added_to_hass()
 
     def __init__(
@@ -350,6 +397,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         coordinator: SolcastUpdateCoordinator,
         entity_description: SensorEntityDescription,
         entry: SolcastConfigEntry,
+        enabled_by_default: bool = True,
     ) -> None:
         """Initialise the sensor.
 
@@ -357,17 +405,19 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             coordinator (SolcastUpdateCoordinator): The integration coordinator instance.
             entity_description (SensorEntityDescription): The details of the entity.
             entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
+            enabled_by_default (bool): The default state of the sensor.
 
         """
         super().__init__(coordinator)
 
         self.entity_description = entity_description
-        self._coordinator = coordinator
-        self._update_policy = get_sensor_update_policy(entity_description.key)
+        self._attr_extra_state_attributes = {}
         self._attr_unique_id = f"{entity_description.key}"
         self._attributes = {}
+        self._coordinator = coordinator
+        self._attr_entity_registry_enabled_default = enabled_by_default
         self._sensor_data = None
-        self._attr_extra_state_attributes = {}
+        self._update_policy = get_sensor_update_policy(entity_description.key)
 
         try:
             self._sensor_data = self._coordinator.get_sensor_value(self.entity_description.key)

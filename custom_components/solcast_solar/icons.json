@@ -1,10 +1,40 @@
 {
+    "entity": {
+        "select": {
+            "estimate_mode" : "mdi:sun-angle"
+        },
+        "sensor": {
+            "api_counter": "mdi:web-check",
+            "api_limit": "mdi:web-check",
+            "forecast_custom_hours": "mdi:solar-power",
+            "forecast_next_hour": "mdi:solar-power",
+            "forecast_this_hour": "mdi:solar-power",
+            "get_remaining_today": "mdi:solar-power",
+            "hard_limit": "mdi:speedometer",
+            "hard_limit_api": "mdi:speedometer",
+            "lastupdated": "mdi:clock",
+            "peak_w_time_today": "mdi:clock",
+            "peak_w_today": "mdi:solar-power",
+            "peak_w_time_tomorrow": "mdi:clock",
+            "peak_w_tomorrow": "mdi:solar-power",
+            "power_now": "mdi:flash",
+            "power_now_1hr": "mdi:flash",
+            "power_now_30m": "mdi:flash",
+            "total_kwh_forecast_d3": "mdi:solar-power",
+            "total_kwh_forecast_d4": "mdi:solar-power",
+            "total_kwh_forecast_d5": "mdi:solar-power",
+            "total_kwh_forecast_d6": "mdi:solar-power",
+            "total_kwh_forecast_d7": "mdi:solar-power",
+            "total_kwh_forecast_today": "mdi:solar-power",
+            "total_kwh_forecast_tomorrow": "mdi:solar-power"
+        }
+    },
     "services": {
-        "update_forecasts": "mdi:sun-wireless-outline",
-        "force_update_forecasts": "mdi:sun-wireless-outline",
         "clear_all_solcast_data": "mdi:database-off",
-        "query_forecast_data": "mdi:table-question",
+        "force_update_forecasts": "mdi:sun-wireless-outline",
         "get_dampening": "mdi:format-align-middle",
-        "set_dampening": "mdi:format-align-middle"
+        "set_dampening": "mdi:format-align-middle",
+        "query_forecast_data": "mdi:table-question",
+        "update_forecasts": "mdi:sun-wireless-outline"
     }
 }

@@ -1880,13 +1880,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 df.append(estimate)
 
         def get_start_and_end(forecasts: list) -> int:
-            start, end = self.__get_forecast_list_slice(forecasts, self.get_day_start_utc())  # Get start of day index.
-            if start:
-                xx = list(range(0, 1800 * len(self._spline_period), 300))
-            else:
-                # Data is missing at the start of the set, so adjust the start time to the first available forecast.
-                start, end = self.__get_forecast_list_slice(forecasts, forecasts[0]["period_start"], self.get_day_start_utc(future=1))
-                xx = list(range((48 - start) * 300, 1800 * len(self._spline_period), 300))
+            try:
+                start, end = self.__get_forecast_list_slice(forecasts, self.get_day_start_utc())  # Get start of day index.
+                if start:
+                    xx = list(range(0, 1800 * len(self._spline_period), 300))
+                else:
+                    # Data is missing at the start of the set, so adjust the start time to the first available forecast.
+                    start, end = self.__get_forecast_list_slice(forecasts, forecasts[0]["period_start"], self.get_day_start_utc(future=1))
+                    xx = list(range((48 - start) * 300, 1800 * len(self._spline_period), 300))
+            except IndexError:
+                start = 0
+                end = 0
+                xx = []
             return start, end, xx
 
         variant["all"] = {}
@@ -2723,235 +2728,227 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             bool: A flag indicating success or failure.
 
         """
-        try:
-            today = dt.now(self._tz).date()
-            commencing = dt.now(self._tz).date() - timedelta(days=730)
-            commencing_undampened = dt.now(self._tz).date() - timedelta(days=14)
-            last_day = dt.now(self._tz).date() + timedelta(days=8)
-            logged_hard_limit = []
+        today = dt.now(self._tz).date()
+        commencing = dt.now(self._tz).date() - timedelta(days=730)
+        commencing_undampened = dt.now(self._tz).date() - timedelta(days=14)
+        last_day = dt.now(self._tz).date() + timedelta(days=8)
+        logged_hard_limit = []
 
-            forecasts = {}
-            forecasts_undampened = {}
+        forecasts = {}
+        forecasts_undampened = {}
 
-            self._data_forecasts = []
-            self._data_forecasts_undampened = []
+        self._data_forecasts = []
+        self._data_forecasts_undampened = []
 
-            build_success = True
+        build_success = True
 
-            def build_data(  # noqa: C901
-                data: dict,
-                commencing: dt,
-                forecasts: dict,
-                site_data_forecasts: list,
-                sites_hard_limit: defaultdict,
-                update_tally: bool = False,
-            ):
-                nonlocal build_success
+        def build_data(  # noqa: C901
+            data: dict,
+            commencing: dt,
+            forecasts: dict,
+            site_data_forecasts: list,
+            sites_hard_limit: defaultdict,
+            update_tally: bool = False,
+        ):
+            nonlocal build_success
 
-                site = None
-                try:
-                    # Build per-site hard limit.
-                    # The API key hard limit for each site is calculated as proportion of the site contribution for the account.
-                    start_time = time.time()
-                    hard_limit_set, multi_key = self.hard_limit_set()
-                    if hard_limit_set:
-                        api_key_sites = defaultdict(dict)
-                        for site in self.sites:
-                            api_key_sites[site["api_key"] if multi_key else "all"][site["resource_id"]] = {
-                                "earliest_period": data["siteinfo"][site["resource_id"]]["forecasts"][0]["period_start"],
-                                "last_period": data["siteinfo"][site["resource_id"]]["forecasts"][-1]["period_start"],
-                            }
-                        if update_tally:
-                            _LOGGER.debug("Hard limit for individual API keys: %s", multi_key)
-                        for api_key, sites in api_key_sites.items():
-                            hard_limit = self.__hard_limit_for_key(api_key)
-                            _api_key = self.__redact_api_key(api_key) if multi_key else "all"
-                            if _api_key not in logged_hard_limit:
-                                logged_hard_limit.append(_api_key)
-                                _LOGGER.debug(
-                                    "Hard limit for API key %s: %s",
-                                    _api_key,
-                                    hard_limit,
-                                )
-                            siteinfo = {
-                                site: {forecast["period_start"]: forecast for forecast in data["siteinfo"][site]["forecasts"]}
-                                for site in sites
-                            }
-                            earliest = dt.now(self._tz)
-                            latest = None
-                            for limits in sites.values():
-                                if len(sites_hard_limit[api_key]) == 0:
-                                    _LOGGER.debug(
-                                        "Build hard limit period values from scratch for %s",
-                                        "dampened" if update_tally else "un-dampened",
-                                    )
-                                    earliest = min(earliest, limits["earliest_period"])
-                                else:
-                                    earliest = self.get_day_start_utc()  # Past hard limits done, so re-calculate from today onwards
-                                latest = limits["last_period"]
+            site = None
+            try:
+                # Build per-site hard limit.
+                # The API key hard limit for each site is calculated as proportion of the site contribution for the account.
+                start_time = time.time()
+                hard_limit_set, multi_key = self.hard_limit_set()
+                if hard_limit_set:
+                    api_key_sites = defaultdict(dict)
+                    for site in self.sites:
+                        api_key_sites[site["api_key"] if multi_key else "all"][site["resource_id"]] = {
+                            "earliest_period": data["siteinfo"][site["resource_id"]]["forecasts"][0]["period_start"],
+                            "last_period": data["siteinfo"][site["resource_id"]]["forecasts"][-1]["period_start"],
+                        }
+                    if update_tally:
+                        _LOGGER.debug("Hard limit for individual API keys: %s", multi_key)
+                    for api_key, sites in api_key_sites.items():
+                        hard_limit = self.__hard_limit_for_key(api_key)
+                        _api_key = self.__redact_api_key(api_key) if multi_key else "all"
+                        if _api_key not in logged_hard_limit:
+                            logged_hard_limit.append(_api_key)
                             _LOGGER.debug(
-                                "Earliest period: %s, latest period: %s",
-                                dt.strftime(earliest.astimezone(self._tz), DATE_FORMAT),
-                                dt.strftime(latest.astimezone(self._tz), DATE_FORMAT),
+                                "Hard limit for API key %s: %s",
+                                _api_key,
+                                hard_limit,
                             )
-                            periods = [earliest + timedelta(minutes=30 * x) for x in range(int((latest - earliest).total_seconds() / 1800))]
-                            for pv_estimate in [
-                                "pv_estimate",
-                                "pv_estimate10",
-                                "pv_estimate90",
-                            ]:
-                                sites_hard_limit[api_key][pv_estimate] = {}
-                            for period in periods:
-                                for pv_estimate in [
-                                    "pv_estimate",
-                                    "pv_estimate10",
-                                    "pv_estimate90",
-                                ]:
-                                    estimate = {site: siteinfo[site].get(period, {}).get(pv_estimate) for site in sites}
-                                    total_estimate = sum(estimate[site] for site in sites if estimate[site] is not None)
-                                    if estimate is not None and total_estimate is not None:
-                                        if total_estimate == 0:
-                                            continue
-                                        sites_hard_limit[api_key][pv_estimate][period] = {
-                                            site: estimate[site] / total_estimate * hard_limit
-                                            for site in sites
-                                            if estimate[site] is not None
-                                        }
+                        siteinfo = {
+                            site: {forecast["period_start"]: forecast for forecast in data["siteinfo"][site]["forecasts"]} for site in sites
+                        }
+                        earliest = dt.now(self._tz)
+                        latest = None
+                        for limits in sites.values():
+                            if len(sites_hard_limit[api_key]) == 0:
+                                _LOGGER.debug(
+                                    "Build hard limit period values from scratch for %s",
+                                    "dampened" if update_tally else "un-dampened",
+                                )
+                                earliest = min(earliest, limits["earliest_period"])
+                            else:
+                                earliest = self.get_day_start_utc()  # Past hard limits done, so re-calculate from today onwards
+                            latest = limits["last_period"]
                         _LOGGER.debug(
-                            "Build hard limit processing took %.3f seconds for %s",
-                            time.time() - start_time,
-                            "dampened" if update_tally else "un-dampened",
+                            "Earliest period: %s, latest period: %s",
+                            dt.strftime(earliest.astimezone(self._tz), DATE_FORMAT),
+                            dt.strftime(latest.astimezone(self._tz), DATE_FORMAT),
                         )
-                    elif multi_key:
-                        for api_key in self.options.api_key.split(","):
-                            for pv_estimate in [
-                                "pv_estimate",
-                                "pv_estimate10",
-                                "pv_estimate90",
-                            ]:
-                                sites_hard_limit[api_key][pv_estimate] = {}
-                    else:
+                        periods = [earliest + timedelta(minutes=30 * x) for x in range(int((latest - earliest).total_seconds() / 1800))]
                         for pv_estimate in [
                             "pv_estimate",
                             "pv_estimate10",
                             "pv_estimate90",
                         ]:
-                            sites_hard_limit["all"][pv_estimate] = {}
-
-                    # Build per-site and total forecasts with proportionate hard limit applied.
-                    for site, siteinfo in data.get("siteinfo", {}).items():
-                        api_key = self.__site_api_key(site) if multi_key else "all"
-                        if update_tally:
-                            tally = None
-                        site_forecasts = {}
-
-                        for forecast in siteinfo["forecasts"]:
-                            period_start = forecast["period_start"]
-                            period_start_local = period_start.astimezone(self._tz)
-
-                            if commencing < period_start_local.date() < last_day:
-                                # Record the individual site forecast.
-                                site_forecasts[period_start] = {
-                                    "period_start": period_start,
-                                    "pv_estimate": round(
-                                        min(
-                                            forecast["pv_estimate"],
-                                            sites_hard_limit[api_key]["pv_estimate"].get(period_start, {}).get(site, 100),
-                                        ),
-                                        4,
-                                    ),
-                                    "pv_estimate10": round(
-                                        min(
-                                            forecast["pv_estimate10"],
-                                            sites_hard_limit[api_key]["pv_estimate10"].get(period_start, {}).get(site, 100),
-                                        ),
-                                        4,
-                                    ),
-                                    "pv_estimate90": round(
-                                        min(
-                                            forecast["pv_estimate90"],
-                                            sites_hard_limit[api_key]["pv_estimate90"].get(period_start, {}).get(site, 100),
-                                        ),
-                                        4,
-                                    ),
-                                }
-
-                                if update_tally and period_start_local.date() == today:
-                                    if tally is None:
-                                        tally = 0.0
-                                    tally += (
-                                        min(
-                                            forecast[self._use_forecast_confidence],
-                                            sites_hard_limit[api_key][self._use_forecast_confidence].get(period_start, {}).get(site, 100),
-                                        )
-                                        * 0.5
-                                    )
-
-                                # Add the forecast for this site to the total.
-                                extant = forecasts.get(period_start)
-                                if extant:
-                                    extant["pv_estimate"] = round(
-                                        extant["pv_estimate"] + site_forecasts[period_start]["pv_estimate"],
-                                        4,
-                                    )
-                                    extant["pv_estimate10"] = round(
-                                        extant["pv_estimate10"] + site_forecasts[period_start]["pv_estimate10"],
-                                        4,
-                                    )
-                                    extant["pv_estimate90"] = round(
-                                        extant["pv_estimate90"] + site_forecasts[period_start]["pv_estimate90"],
-                                        4,
-                                    )
-                                else:
-                                    forecasts[period_start] = {
-                                        "period_start": period_start,
-                                        "pv_estimate": site_forecasts[period_start]["pv_estimate"],
-                                        "pv_estimate10": site_forecasts[period_start]["pv_estimate10"],
-                                        "pv_estimate90": site_forecasts[period_start]["pv_estimate90"],
+                            sites_hard_limit[api_key][pv_estimate] = {}
+                        for period in periods:
+                            for pv_estimate in [
+                                "pv_estimate",
+                                "pv_estimate10",
+                                "pv_estimate90",
+                            ]:
+                                estimate = {site: siteinfo[site].get(period, {}).get(pv_estimate) for site in sites}
+                                total_estimate = sum(estimate[site] for site in sites if estimate[site] is not None)
+                                if estimate is not None and total_estimate is not None:
+                                    if total_estimate == 0:
+                                        continue
+                                    sites_hard_limit[api_key][pv_estimate][period] = {
+                                        site: estimate[site] / total_estimate * hard_limit for site in sites if estimate[site] is not None
                                     }
-                        site_data_forecasts[site] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
-                        if update_tally:
-                            siteinfo["tally"] = round(tally, 4) if tally is not None else None
-                            self._tally[site] = siteinfo["tally"]
-                    if update_tally:
-                        self._data_forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
-                    else:
-                        self._data_forecasts_undampened = sorted(forecasts.values(), key=itemgetter("period_start"))
-                except Exception as e:  # noqa: BLE001, handle all exceptions
-                    _LOGGER.error("Exception in build_data(): %s: %s", e, traceback.format_exc())
-                    if update_tally:
-                        self._data_forecasts = []
-                        for site in self.sites:
-                            self._tally[site["resource_id"]] = None
-                    build_success = False
+                    _LOGGER.debug(
+                        "Build hard limit processing took %.3f seconds for %s",
+                        time.time() - start_time,
+                        "dampened" if update_tally else "un-dampened",
+                    )
+                elif multi_key:
+                    for api_key in self.options.api_key.split(","):
+                        for pv_estimate in [
+                            "pv_estimate",
+                            "pv_estimate10",
+                            "pv_estimate90",
+                        ]:
+                            sites_hard_limit[api_key][pv_estimate] = {}
+                else:
+                    for pv_estimate in [
+                        "pv_estimate",
+                        "pv_estimate10",
+                        "pv_estimate90",
+                    ]:
+                        sites_hard_limit["all"][pv_estimate] = {}
 
-            start_time = time.time()
-            with ThreadPoolExecutor() as ex:
-                ex.submit(
-                    build_data,
-                    self._data,
-                    commencing,
-                    forecasts,
-                    self._site_data_forecasts,
-                    self._sites_hard_limit,
-                    update_tally=True,
-                )
-                ex.submit(
-                    build_data,
-                    self._data_undampened,
-                    commencing_undampened,
-                    forecasts_undampened,
-                    self._site_data_forecasts_undampened,
-                    self._sites_hard_limit_undampened,
-                )
-            _LOGGER.debug("Task build_data took %.3f seconds", time.time() - start_time)
-            self._data_energy_dashboard = self.__make_energy_dict()
+                # Build per-site and total forecasts with proportionate hard limit applied.
+                for site, siteinfo in data.get("siteinfo", {}).items():
+                    api_key = self.__site_api_key(site) if multi_key else "all"
+                    if update_tally:
+                        tally = None
+                    site_forecasts = {}
 
-            await self.check_data_records()
-            await self.recalculate_splines()
-        except Exception as e:  # noqa: BLE001
-            _LOGGER.error("Exception in build_forecast_data(): %s: %s", e, traceback.format_exc())
-            return False
+                    for forecast in siteinfo["forecasts"]:
+                        period_start = forecast["period_start"]
+                        period_start_local = period_start.astimezone(self._tz)
+
+                        if commencing < period_start_local.date() < last_day:
+                            # Record the individual site forecast.
+                            site_forecasts[period_start] = {
+                                "period_start": period_start,
+                                "pv_estimate": round(
+                                    min(
+                                        forecast["pv_estimate"],
+                                        sites_hard_limit[api_key]["pv_estimate"].get(period_start, {}).get(site, 100),
+                                    ),
+                                    4,
+                                ),
+                                "pv_estimate10": round(
+                                    min(
+                                        forecast["pv_estimate10"],
+                                        sites_hard_limit[api_key]["pv_estimate10"].get(period_start, {}).get(site, 100),
+                                    ),
+                                    4,
+                                ),
+                                "pv_estimate90": round(
+                                    min(
+                                        forecast["pv_estimate90"],
+                                        sites_hard_limit[api_key]["pv_estimate90"].get(period_start, {}).get(site, 100),
+                                    ),
+                                    4,
+                                ),
+                            }
+
+                            if update_tally and period_start_local.date() == today:
+                                if tally is None:
+                                    tally = 0.0
+                                tally += (
+                                    min(
+                                        forecast[self._use_forecast_confidence],
+                                        sites_hard_limit[api_key][self._use_forecast_confidence].get(period_start, {}).get(site, 100),
+                                    )
+                                    * 0.5
+                                )
+
+                            # Add the forecast for this site to the total.
+                            extant = forecasts.get(period_start)
+                            if extant:
+                                extant["pv_estimate"] = round(
+                                    extant["pv_estimate"] + site_forecasts[period_start]["pv_estimate"],
+                                    4,
+                                )
+                                extant["pv_estimate10"] = round(
+                                    extant["pv_estimate10"] + site_forecasts[period_start]["pv_estimate10"],
+                                    4,
+                                )
+                                extant["pv_estimate90"] = round(
+                                    extant["pv_estimate90"] + site_forecasts[period_start]["pv_estimate90"],
+                                    4,
+                                )
+                            else:
+                                forecasts[period_start] = {
+                                    "period_start": period_start,
+                                    "pv_estimate": site_forecasts[period_start]["pv_estimate"],
+                                    "pv_estimate10": site_forecasts[period_start]["pv_estimate10"],
+                                    "pv_estimate90": site_forecasts[period_start]["pv_estimate90"],
+                                }
+                    site_data_forecasts[site] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
+                    if update_tally:
+                        siteinfo["tally"] = round(tally, 4) if tally is not None else None
+                        self._tally[site] = siteinfo["tally"]
+                if update_tally:
+                    self._data_forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
+                else:
+                    self._data_forecasts_undampened = sorted(forecasts.values(), key=itemgetter("period_start"))
+            except Exception as e:  # noqa: BLE001, handle all exceptions
+                _LOGGER.error("Exception in build_data(): %s: %s", e, traceback.format_exc())
+                self._data_forecasts = []
+                self._data_forecasts_undampened = []
+                if update_tally:
+                    for site in self.sites:
+                        self._tally[site["resource_id"]] = None
+                build_success = False
+
+        start_time = time.time()
+        build_data(
+            self._data,
+            commencing,
+            forecasts,
+            self._site_data_forecasts,
+            self._sites_hard_limit,
+            update_tally=True,
+        )
+        if build_success:
+            build_data(
+                self._data_undampened,
+                commencing_undampened,
+                forecasts_undampened,
+                self._site_data_forecasts_undampened,
+                self._sites_hard_limit_undampened,
+            )
+        _LOGGER.debug("Task build_data took %.3f seconds", time.time() - start_time)
+        self._data_energy_dashboard = self.__make_energy_dict()
+
+        await self.check_data_records()
+        await self.recalculate_splines()
         return build_success
 
     def __calc_forecast_start_index(self, data: list) -> int:

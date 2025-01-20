@@ -1,5 +1,6 @@
 """Tests for the Solcast Solar sensors."""
 
+import asyncio
 import contextlib
 import copy
 from datetime import datetime as dt, timedelta
@@ -15,6 +16,7 @@ from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoor
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.const import STATE_UNAVAILABLE, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from . import (
     DEFAULT_INPUT1,
@@ -199,6 +201,7 @@ SENSORS: dict[str, dict] = {
             },
         },
         "can_be_unavailable": True,
+        "should_be_disabled": True,
     },
     "peak_forecast_tomorrow": {
         "state": {"2": "7200", "1": "9900"},
@@ -340,11 +343,9 @@ for attrs in SENSORS.values():
         del attrs["breakdown"]
 
 SENSORS["forecast_tomorrow"] = SENSORS["forecast_today"]
-SENSORS["forecast_day_3"] = SENSORS["forecast_today"]
-SENSORS["forecast_day_4"] = SENSORS["forecast_today"]
-SENSORS["forecast_day_5"] = SENSORS["forecast_today"]
-SENSORS["forecast_day_6"] = SENSORS["forecast_today"]
-SENSORS["forecast_day_7"] = SENSORS["forecast_today"]
+for day in range(3, 7):  # Do not test day 7, as values will vary based on the time of day the test is run.
+    SENSORS[f"forecast_day_{day}"] = copy.deepcopy(SENSORS["forecast_today"])
+    SENSORS[f"forecast_day_{day}"]["should_be_disabled"] = True
 
 
 def _no_exception(caplog: pytest.LogCaptureFixture):
@@ -374,12 +375,29 @@ async def test_sensor_states(
     solcast = coordinator.solcast
 
     try:
+        # Verify that the entities that should be disabled by default are, then enable them.
+        begin = dt.now()
+        for sensor, attrs in SENSORS.items():
+            entry_id = f"sensor.solcast_pv_forecast_{sensor}"
+            if not attrs.get("should_be_disabled", False):
+                continue
+            assert hass.states.get(entry_id) is None
+            er.async_get(hass).async_update_entity(entry_id, disabled_by=None)
+        # await hass.config_entries.async_reload(entry.entry_id)
+        async with asyncio.timeout(300):
+            while "Reloading configuration entries because disabled_by changed" not in caplog.text:
+                freezer.tick(0.01)
+                await hass.async_block_till_done()
+        now = dt.now()
+        target_delta = now - begin
+        # target_delta= target_delta +
+
         # Test number of site sensors that exist.
         assert len(hass.states.async_all("sensor")) == len(SENSORS) + (3 if key == "2" else 4)
         _no_exception(caplog)
         caplog.clear()
 
-        # Remove unusied options for DEFAULT_INPUT1.
+        # Remove unused options for DEFAULT_INPUT1.
         if key == "2":
             for attrs in SENSORS.values():
                 attrs["attributes"] = {}
@@ -412,17 +430,17 @@ async def test_sensor_states(
         _no_exception(caplog)
         caplog.clear()
 
-        # Test day change and last sensor update time.
-        freezer.tick(timedelta(minutes=2, seconds=33))  # Will trigger periodic five minute update
+        # Test last sensor update time.
+        freezer.move_to(now.replace(hour=2, minute=30, second=0, microsecond=0))
         async_fire_time_changed(hass)
         await hass.async_block_till_done()
         coordinator._data_updated = True  # Will trigger all sensor update
-        freezer.tick(timedelta(minutes=5))  # Time is now 02:35:00
-        async_fire_time_changed(hass)
-        await hass.async_block_till_done()
 
-        state = hass.states.get("sensor.solcast_pv_forecast_forecast_remaining_today")
-        assert state.last_updated.strftime("%H:%M:%S") == "02:35:00"
+        assert "Updating sensor" in caplog.text
+        state = hass.states.get("sensor.solcast_pv_forecast_power_now")  # A per-five minute sensor
+        assert state.last_updated.strftime("%H:%M:%S") == "02:30:00"
+        state = hass.states.get("sensor.solcast_pv_forecast_forecast_remaining_today")  # A per-update/midnight sensor
+        assert state.last_updated.strftime("%H:%M:%S") == "02:30:00"
         _no_exception(caplog)
 
         # Simulate date change
@@ -430,7 +448,8 @@ async def test_sensor_states(
         coordinator._last_day = (dt.now(solcast.options.tz) - timedelta(days=1)).day
         await coordinator.update_integration_listeners()
         assert "Date has changed, recalculate splines and set up auto-updates" in caplog.text
-        assert "Updating sensor" in caplog.text
+        assert "Previous auto update would have been" in caplog.text
+        assert "Auto forecast updates for" in caplog.text
 
         # Test get bad key and site.
         assert coordinator.get_sensor_value("badkey") is None
@@ -453,9 +472,13 @@ async def test_sensor_x_hours_long(
 
     options = copy.deepcopy(DEFAULT_INPUT1)
     options[CUSTOM_HOUR_SENSOR] = 48
-    await async_init_integration(hass, options)
+    entry = await async_init_integration(hass, options)
 
     try:
+        er.async_get(hass).async_update_entity("sensor.solcast_pv_forecast_forecast_next_x_hours", disabled_by=None)
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_next_x_hours")
         assert state
         assert int(state.state) == 86910
@@ -493,7 +516,7 @@ async def test_sensor_unavailable(
         coordinator.async_update_listeners()
 
         for sensor, assertions in SENSORS.items():
-            if assertions.get("can_be_unavailable", False):
+            if assertions.get("can_be_unavailable", False) and not assertions.get("should_be_disabled", False):
                 state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
                 assert state
                 assert state.state == STATE_UNAVAILABLE
@@ -517,7 +540,7 @@ async def test_sensor_unavailable(
         for sensor, assertions in SENSORS.items():
             if "forecast_day_" not in sensor and "forecast_next_x_hours" not in sensor:
                 continue
-            if assertions.get("can_be_unavailable", False):
+            if assertions.get("can_be_unavailable", False) and not assertions.get("should_be_disabled", False):
                 state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
                 assert state
                 assert state.state == STATE_UNAVAILABLE
@@ -587,7 +610,9 @@ async def test_sensor_unavailble_exception(
         await coordinator.async_refresh()
         await hass.async_block_till_done()
 
-        for sensor in SENSORS:
+        for sensor, attrs in SENSORS.items():
+            if attrs.get("should_be_disabled", False):
+                continue
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
             _ = state.attributes
             assert state
