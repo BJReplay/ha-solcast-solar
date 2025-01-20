@@ -561,7 +561,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             api_keys = self.options.api_key.split(",")
             for api_key in api_keys:
                 api_key = api_key.strip()
-                no_sites = True
                 cache_filename = self.__get_sites_cache_filename(api_key)
                 _LOGGER.debug(
                     "%s",
@@ -579,7 +578,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 (_LOGGER.debug if status == 200 else _LOGGER.warning)(
                     "HTTP session returned status %s%s",
                     self.__translate(status),
-                    ", trying cache" if status != 200 and cache_exists else "",
+                    ", trying cache" if status not in (200, 403) and cache_exists else "",
                 )
                 try:
                     response_json = await response.text()
@@ -589,14 +588,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     status = 500
 
                 if status == 200:
-                    for site in response_json["sites"]:
+                    for site in response_json.get("sites", []):
                         site["api_key"] = api_key
                     if response_json["total_records"] > 0:
                         set_sites(response_json, api_key)
                         check_rekey(response_json, api_key)
                         await save_cache(cache_filename, response_json)
                         success = True
-                        no_sites = False
                         self.sites_status = SitesStatus.OK
                     else:
                         _LOGGER.error(
@@ -604,6 +602,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             self.__redact_api_key(api_key),
                         )
                         cache_exists = False  # Prevent cache load if no sites
+                        self.sites_status = SitesStatus.NO_SITES
+                        break
 
                 if not success:
                     if cache_exists:
@@ -616,30 +616,32 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             "Get sites failed, last call result: %s",
                             self.__translate(status),
                         )
-                    if status == 200 and no_sites:
-                        self.sites_status = SitesStatus.NO_SITES
-                    elif cache_exists:
+                    if status != 200 and cache_exists:
                         response_json = await load_cache(cache_filename)
                         success = True
                         set_sites(response_json, api_key)
                         self.sites_status = SitesStatus.OK
                         if status == 403:
                             self.sites_status = SitesStatus.BAD_KEY
-                        else:
-                            status = 200
-                            if not check_rekey(response_json, api_key):
-                                self.sites_status = SitesStatus.CACHE_INVALID
-                                _LOGGER.info(
-                                    "API key %s has changed and sites are different invalidating the cache, not loading cached data",
-                                    self.__redact_api_key(api_key),
-                                )
-                                success = False
-                    elif status != 200:
+                            break
+                        status = 200
+                        if not check_rekey(response_json, api_key):
+                            self.sites_status = SitesStatus.CACHE_INVALID
+                            _LOGGER.info(
+                                "API key %s has changed and sites are different invalidating the cache, not loading cached data",
+                                self.__redact_api_key(api_key),
+                            )
+                            success = False
+                    elif not cache_exists:
                         cached_sites_unavailable()
                         if status in (401, 403):
                             self.sites_status = SitesStatus.BAD_KEY
-                        else:
-                            self.sites_status = SitesStatus.ERROR
+                            break
+                        if status == 429:
+                            self.sites_status = SitesStatus.API_BUSY
+                            break
+                        self.sites_status = SitesStatus.ERROR
+                        break
 
                 if status == 200 and success:
                     pass

@@ -225,7 +225,7 @@ async def test_api_failure(
             assert "API did not return a json object, returned" in caplog.text
 
         def assertions1_except(entry: SolcastConfigEntry):
-            assert entry.state is ConfigEntryState.SETUP_RETRY
+            assert entry.state is ConfigEntryState.SETUP_ERROR
             assert "Error retrieving sites, attempting to continue" in caplog.text
             assert "Cached sites are not yet available" in caplog.text
             caplog.clear()
@@ -478,8 +478,9 @@ async def test_integration(
 
     if options == DEFAULT_INPUT_NO_SITES:
         assert entry.state is ConfigEntryState.SETUP_ERROR
+        assert "HTTP session returned status 200/Success" in caplog.text
         assert "No sites for the API key ******_sites are configured at solcast.com" in caplog.text
-        assert "Get sites failed, last call result: 200/Success" in caplog.text
+        assert "No sites found for API key" in caplog.text
         return
 
     assert entry.state is ConfigEntryState.LOADED
@@ -1036,7 +1037,6 @@ async def test_integration_scenarios(
         assert "Options updated, action: The integration will reload" in caplog.text
         assert "has changed and sites are different invalidating the cache" in caplog.text
         session_clear(MOCK_BUSY)
-        _no_exception(caplog)
         caplog.clear()
         coordinator, solcast = await _reload(hass, entry)
         assert "An API key has changed, resetting usage" in caplog.text

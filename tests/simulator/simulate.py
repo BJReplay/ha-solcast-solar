@@ -194,7 +194,7 @@ class SimulatedSolcast:
         meta = {
             "page_count": 1,
             "current_page": 1,
-            "total_records": len(API_KEY_SITES.get(api_key, {})["sites"]),
+            "total_records": len(API_KEY_SITES.get(api_key, {}).get("sites", [])),
         }
         if meta["total_records"] is None:
             meta["total_records"] = 0

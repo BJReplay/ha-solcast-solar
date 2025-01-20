@@ -45,6 +45,7 @@ class SitesStatus(Enum):
     ERROR = 2
     NO_SITES = 3
     CACHE_INVALID = 4
+    API_BUSY = 5
     UNKNOWN = 99
 
 
