@@ -11,7 +11,14 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.sensor import SensorStateClass
-from homeassistant.components.solcast_solar.const import API_QUOTA, CUSTOM_HOUR_SENSOR
+from homeassistant.components.solcast_solar.const import (
+    API_QUOTA,
+    BRK_ESTIMATE,
+    BRK_ESTIMATE10,
+    BRK_ESTIMATE90,
+    BRK_SITE,
+    CUSTOM_HOUR_SENSOR,
+)
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.const import STATE_UNAVAILABLE, UnitOfEnergy, UnitOfPower
@@ -333,16 +340,7 @@ SENSORS: dict[str, dict] = {
     "api_last_polled": {"state": {"2": "isodate", "1": "isodate"}},
 }
 
-for attrs in SENSORS.values():
-    if "attributes" in attrs:
-        attrs["breakdown"]["3"] = {}
-        for breakdown, value in attrs["breakdown"]["2"].items():
-            attrs["breakdown"]["3"][breakdown.replace("2", "3")] = value
-        attrs["attributes"]["1"] |= attrs["breakdown"]["1"] | attrs["breakdown"]["2"]
-        attrs["attributes"]["2"] |= attrs["breakdown"]["1"] | attrs["breakdown"]["2"] | attrs["breakdown"]["3"]
-        del attrs["breakdown"]
-
-SENSORS["forecast_tomorrow"] = SENSORS["forecast_today"]
+SENSORS["forecast_tomorrow"] = copy.deepcopy(SENSORS["forecast_today"])
 for day in range(3, 7):  # Do not test day 7, as values will vary based on the time of day the test is run.
     SENSORS[f"forecast_day_{day}"] = copy.deepcopy(SENSORS["forecast_today"])
     SENSORS[f"forecast_day_{day}"]["should_be_disabled"] = True
@@ -356,8 +354,8 @@ def _no_exception(caplog: pytest.LogCaptureFixture):
 @pytest.mark.parametrize(
     ("key", "settings"),
     [
-        ("1", DEFAULT_INPUT2),
         ("2", DEFAULT_INPUT1),
+        ("1", DEFAULT_INPUT2),
     ],
 )
 async def test_sensor_states(
@@ -374,9 +372,51 @@ async def test_sensor_states(
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
     solcast = coordinator.solcast
 
+    def get_estimate_set() -> list[str]:
+        estimate_set = []
+        if settings[BRK_ESTIMATE]:
+            estimate_set.append("estimate")
+        if settings[BRK_ESTIMATE10]:
+            estimate_set.append("estimate10")
+        if settings[BRK_ESTIMATE90]:
+            estimate_set.append("estimate90")
+        return estimate_set
+
     try:
+        sensors = copy.deepcopy(SENSORS)
+        estimate_set = get_estimate_set()
+        estimate_set_hyphen = [e + "-" for e in estimate_set]
+        _LOGGER.critical(estimate_set_hyphen)
+
+        # Consolidate breakdowns for the key scenarios
+        if settings[BRK_SITE]:
+            match key:
+                case "1":
+                    for values in sensors.values():
+                        if values.get("breakdown"):
+                            values["breakdown"]["3"] = {}
+                            for breakdown, value in values["breakdown"]["2"].items():
+                                values["breakdown"]["3"][breakdown.replace("2", "3")] = value
+                            values["attributes"]["1"] |= values["breakdown"]["1"] | values["breakdown"]["2"] | values["breakdown"]["3"]
+                case "2":
+                    for values in sensors.values():
+                        if values.get("breakdown"):
+                            values["attributes"]["2"] |= values["breakdown"]["1"] | values["breakdown"]["2"]
+
+        # Remove unused options for the key scenarios based on settings.
+        for values in sensors.values():
+            to_pop = [
+                attr
+                for attr in values.get("attributes", {}).get(key, {})
+                if (attr not in estimate_set and "-" not in attr)
+                or (attr[4:5] == "-" and not settings[BRK_SITE])
+                or ("estimate" in attr and "-" in attr and attr[: attr.find("-") + 1] not in estimate_set_hyphen)
+            ]
+            for attr in to_pop:
+                values["attributes"][key].pop(attr)
+
         # Verify that the entities that should be disabled by default are, then enable them.
-        for sensor, attrs in SENSORS.items():
+        for sensor, attrs in sensors.items():
             entry_id = f"sensor.solcast_pv_forecast_{sensor}"
             if not attrs.get("should_be_disabled", False):
                 continue
@@ -390,17 +430,12 @@ async def test_sensor_states(
         now = dt.now()
 
         # Test number of site sensors that exist.
-        assert len(hass.states.async_all("sensor")) == len(SENSORS) + (3 if key == "2" else 4)
+        assert len(hass.states.async_all("sensor")) == len(sensors) + (3 if key == "2" else 4)
         _no_exception(caplog)
         caplog.clear()
 
-        # Remove unused options for DEFAULT_INPUT1.
-        if key == "2":
-            for attrs in SENSORS.values():
-                attrs["attributes"] = {}
-
         # Test initial sensor values.
-        for sensor, attrs in SENSORS.items():
+        for sensor, attrs in sensors.items():
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
             assert state
             assert state.state != STATE_UNAVAILABLE
@@ -416,8 +451,6 @@ async def test_sensor_states(
             if attrs.get("attributes"):
                 for attribute in attrs["attributes"][key]:
                     test = state.attributes.get(attribute)
-                    if test is None and ("estimate-" in attribute or attribute == "estimate"):
-                        continue
                     with contextlib.suppress(AttributeError, ValueError):
                         test = test.replace(year=2024, month=1, day=1).isoformat()
                     assert test == attrs["attributes"][key][attribute]
