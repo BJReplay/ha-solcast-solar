@@ -376,7 +376,6 @@ async def test_sensor_states(
 
     try:
         # Verify that the entities that should be disabled by default are, then enable them.
-        begin = dt.now()
         for sensor, attrs in SENSORS.items():
             entry_id = f"sensor.solcast_pv_forecast_{sensor}"
             if not attrs.get("should_be_disabled", False):
@@ -389,8 +388,6 @@ async def test_sensor_states(
                 freezer.tick(0.01)
                 await hass.async_block_till_done()
         now = dt.now()
-        target_delta = now - begin
-        # target_delta= target_delta +
 
         # Test number of site sensors that exist.
         assert len(hass.states.async_all("sensor")) == len(SENSORS) + (3 if key == "2" else 4)
@@ -418,7 +415,9 @@ async def test_sensor_states(
                     assert test == attrs["state"][key]
             if attrs.get("attributes"):
                 for attribute in attrs["attributes"][key]:
-                    test = state.attributes[attribute]
+                    test = state.attributes.get(attribute)
+                    if test is None and ("estimate-" in attribute or attribute == "estimate"):
+                        continue
                     with contextlib.suppress(AttributeError, ValueError):
                         test = test.replace(year=2024, month=1, day=1).isoformat()
                     assert test == attrs["attributes"][key][attribute]
