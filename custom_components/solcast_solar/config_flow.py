@@ -190,7 +190,8 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 self.hass.data[DOMAIN]["reset_old_key"] = True
                 data = {**self.entry.data, **all_config_data}
                 self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
-                if self.hass.data[DOMAIN].get("presumed_dead"):
+                if self.hass.data[DOMAIN].get("presumed_dead", True):
+                    _LOGGER.debug("Loading presumed dead integration")
                     self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
 
@@ -236,7 +237,8 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 self.hass.data[DOMAIN]["reset_old_key"] = True
                 data = {**self.entry.data, **all_config_data}
                 self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
-                if self.hass.data[DOMAIN].get("presumed_dead"):
+                if self.hass.data[DOMAIN].get("presumed_dead", True):
+                    _LOGGER.debug("Loading presumed dead integration")
                     self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
                 return self.async_abort(reason="reconfigured")
 

@@ -553,8 +553,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> 
             _LOGGER.debug("Remove action: %s.%s", DOMAIN, action)
             hass.services.async_remove(DOMAIN, action)
 
-        if hass.data[DOMAIN].get("presumed_dead"):
-            hass.data[DOMAIN].pop("presumed_dead")
+    if hass.data[DOMAIN].get("presumed_dead") is not None:
+        _LOGGER.debug("Removing presumed dead flag")
+        hass.data[DOMAIN].pop("presumed_dead")
     return unload_ok
 
 

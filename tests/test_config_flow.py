@@ -295,6 +295,17 @@ async def test_reauth_api_key(
         await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
 
+        # Test start after reauth when presumed dead...
+        simulator.API_KEY_SITES["4"] = simulator.API_KEY_SITES.pop("1")  # Change the key
+        result = await entry.start_reauth_flow(hass)
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"],
+            user_input={CONF_API_KEY: "4" + "," + KEY2},
+        )
+        assert "Test connection to https://api.solcast.com.au/rooftop_sites?format=json&api_key=******4" in caplog.text
+        assert "Loading presumed dead integration" in caplog.text
+        simulator.API_KEY_SITES["1"] = simulator.API_KEY_SITES.pop("4")  # Restore the key
+
     finally:
         assert await async_cleanup_integration_tests(hass)
 
@@ -303,6 +314,7 @@ async def test_reconfigure_api_key(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test that valid/invalid API key is handled in reconfigure.
 
@@ -352,6 +364,23 @@ async def test_reconfigure_api_key(
                 assert test["assert"] in result["errors"]["base"]
             else:
                 assert result["reason"] == "reconfigured"
+
+        await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Test start after reconfigure when presumed dead...
+        simulator.API_KEY_SITES["4"] = simulator.API_KEY_SITES.pop("1")  # Change the key
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id}, data=entry.data
+        )
+        await hass.async_block_till_done()
+        result = await hass.config_entries.flow.async_configure(
+            result["flow_id"], user_input={CONF_API_KEY: "4" + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "0"}
+        )
+        await hass.async_block_till_done()
+        assert "Test connection to https://api.solcast.com.au/rooftop_sites?format=json&api_key=******4" in caplog.text
+        assert "Loading presumed dead integration" in caplog.text
+        simulator.API_KEY_SITES["1"] = simulator.API_KEY_SITES.pop("4")  # Restore the key
 
     finally:
         assert await async_cleanup_integration_tests(hass)
