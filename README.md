@@ -96,6 +96,8 @@ Sign up for an API key (https://solcast.com/).
 
 Configure your rooftop sites correctly at `solcast.com`.
 
+Remove any sample sites from your Solcast dashboard (see [Known issues](#known-issues) for examples of sample sites and the issue that might occur if you don't remove them.)
+
 Copy the API key for use with this integration (See [Configuration](#Configuration) below).
 
 ## Installation
@@ -780,7 +782,10 @@ series:
 ## Known issues
 
 * Altering hard limit will alter recorded forecast history. This is currently by design and may not change.
-
+* Sample Sites (if set up in your Solcast dashboard) will be included in your forecasts retrieved by this integration and returned to Home Assistant.
+<details>
+    If you see sample sites (such as these [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSites.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSites.png)) remove them from your Solcast dashboard.
+</details>
 ## Changes
 
 v4.2.8
