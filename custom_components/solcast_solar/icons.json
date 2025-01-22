@@ -1,7 +1,7 @@
 {
     "entity": {
         "select": {
-            "estimate_mode": "mdi:sun-angle"
+            "estimate_mode": {"default": "mdi:sun-angle"}
         },
         "sensor": {
             "api_counter": {"default": "mdi:web-check"},
