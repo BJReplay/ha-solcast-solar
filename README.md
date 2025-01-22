@@ -782,7 +782,7 @@ series:
 ## Known issues
 
 * Altering hard limit will alter recorded forecast history. This is currently by design and may not change.
-* Sample Sites (if set up in your Solcast dashboard) will be included in your forecasts retrieved by this integration and returned to Home Assistant.
+* Sample sites (if set up in your Solcast dashboard) will be included in your forecasts retrieved by this integration and returned to Home Assistant.
 <details>
     If you see sample sites (such as these [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSites.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSites.png)) remove them from your Solcast dashboard.
 </details>
@@ -800,6 +800,8 @@ v4.2.8
 * Catch duplicate API key being specified by @autoSteve
 * Remove check for conflicting integration by @autoSteve
 * Add integration and unit tests by @autoSteve
+* Notes about removing any sample sites from Solcast dashboard by @BJReplay
+* Updated issue template by @BJReplay
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.7...v4.2.8
 
