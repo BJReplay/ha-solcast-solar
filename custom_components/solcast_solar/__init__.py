@@ -10,6 +10,7 @@ import aiofiles
 import voluptuous as vol
 
 from homeassistant import loader
+from homeassistant.config_entries import ConfigType
 from homeassistant.const import CONF_API_KEY, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import (
@@ -519,6 +520,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
 
     for action, call in service_actions.items():
         _LOGGER.debug("Register action: %s.%s", DOMAIN, action)
+        hass.services.async_remove(DOMAIN, action)  # Remove the error action
         if call.get("supports_response"):
             hass.services.async_register(DOMAIN, action, call["action"], call["schema"], call["supports_response"])
             continue
@@ -527,6 +529,48 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
             continue
         hass.services.async_register(DOMAIN, action, call["action"])
 
+    return True
+
+
+async def stub_action(call: ServiceCall):
+    """Raise an exception on action when the entry is not loaded.
+
+    Arguments:
+        call (ServiceCall): Not used.
+
+    Raises:
+        HomeAssistantError: Notify the caller that the integration is not loaded.
+
+    """
+    _LOGGER.error("Integration not loaded")
+    raise ServiceValidationError(translation_domain=DOMAIN, translation_key="integration_not_loaded")
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the integration.
+
+    Sets up all actions to return an error state initially.
+
+    Arguments:
+        hass (HomeAssistant): The Home Assistant instance.
+        config (ConfigType): The configuration dictionary.
+
+    Returns:
+        bool: Whether setup has completed successfully.
+
+    """
+    actions = [
+        SERVICE_CLEAR_DATA,
+        SERVICE_FORCE_UPDATE,
+        SERVICE_GET_DAMPENING,
+        SERVICE_QUERY_FORECAST_DATA,
+        SERVICE_REMOVE_HARD_LIMIT,
+        SERVICE_SET_DAMPENING,
+        SERVICE_SET_HARD_LIMIT,
+        SERVICE_UPDATE,
+    ]
+    for action in actions:
+        hass.services.async_register(DOMAIN, action, stub_action)
     return True
 
 
@@ -552,6 +596,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> 
         for action in hass.services.async_services_for_domain(DOMAIN):
             _LOGGER.debug("Remove action: %s.%s", DOMAIN, action)
             hass.services.async_remove(DOMAIN, action)
+            hass.services.async_register(DOMAIN, action, stub_action)  # Switch to an error action
 
     if hass.data[DOMAIN].get("presumed_dead") is not None:
         _LOGGER.debug("Removing presumed dead flag")

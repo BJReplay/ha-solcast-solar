@@ -12,7 +12,7 @@
 - [X] `has-entity-name` - Entities use has_entity_name = True
 - [N/A] `entity-event-setup` - Entities event setup
 - [N/A] `dependency-transparency` - Dependency transparency
-- [ ] `action-setup` - Service actions are registered in async_setup
+- [X] `action-setup` - Service actions are registered in async_setup
 - [X] `common-modules` - Place common patterns in common modules
 - [X] `docs-high-level-description` - The documentation includes a high-level description of the integration brand, product, or service
 - [X] `docs-installation-instructions` - The documentation provides step-by-step installation instructions for the integration, including, if needed, prerequisites

@@ -81,6 +81,7 @@
         "init_no_sites": {"message": "کلید کے لیے کوئی سائٹ نہیں ملی۔"},
         "init_unknown": {"message": "استثناء لوڈنگ سائٹس کا ڈیٹا۔"},
         "init_usage_corrupt": {"message": "استعمال کا ڈیٹا کرپٹ ہے، `config/solcast-usage.json` کو چیک کریں یا حذف کریں۔"},
+        "integration_not_loaded": {"message": "انضمام لوڈ نہیں ہوا، عمل نہیں کر رہا ہے۔"},
         "remove_cache_failed": {"message": "تمام سولکاسٹ ڈیٹا کو صاف کرنا ناکام ہوگیا۔"}
     },
     "options": {

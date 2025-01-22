@@ -81,6 +81,7 @@
         "init_no_sites": {"message": "No sites found for API key."},
         "init_unknown": {"message": "Exception loading sites data."},
         "init_usage_corrupt": {"message": "Usage data is corrupt, check or delete `config/solcast-usage.json`."},
+        "integration_not_loaded": {"message": "Integration not loaded, not performing action."},
         "remove_cache_failed": {"message": "Clear all Solcast data failed."}
     },
     "options": {

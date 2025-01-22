@@ -81,6 +81,7 @@
         "init_no_sites": {"message": "Nie znaleziono witryn dla klucza API."},
         "init_unknown": {"message": "Wyjątek podczas ładowania danych witryn."},
         "init_usage_corrupt": {"message": "Dane użytkowania są uszkodzone. Sprawdź lub usuń plik `config/solcast-usage.json`."},
+        "integration_not_loaded": {"message": "Integracja nie została załadowana, nie wykonuje akcji."},
         "remove_cache_failed": {"message": "Wyczyść wszystkie dane Solcast nie powiodło się."}
     },
     "options": {

@@ -73,7 +73,7 @@ from . import (
 
 _LOGGER = logging.getLogger(__name__)
 
-SERVICES = [
+ACTIONS = [
     "clear_all_solcast_data",
     "force_update_forecasts",
     "get_dampening",
@@ -521,8 +521,8 @@ async def test_integration(
         assert coordinator.tasks["midnight_update"]
 
         # Test expected services are registered
-        assert len(hass.services.async_services_for_domain(DOMAIN).keys()) == len(SERVICES)
-        for service in SERVICES:
+        assert len(hass.services.async_services_for_domain(DOMAIN).keys()) == len(ACTIONS)
+        for service in ACTIONS:
             assert hass.services.has_service(DOMAIN, service) is True
 
         # Test refused update without forcing
@@ -923,6 +923,14 @@ async def test_integration_remaining_actions(
                 blocking=True,
                 return_response=True,
             )
+
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # Test call an action with no entry loaded
+        with pytest.raises(ServiceValidationError):
+            await hass.services.async_call(DOMAIN, "update_forecasts", {}, blocking=True)
+        assert "Integration not loaded" in caplog.text
 
         _no_exception(caplog)
 

@@ -81,6 +81,7 @@
         "init_no_sites": {"message": "Für den API-Schlüssel wurden keine Websites gefunden."},
         "init_unknown": {"message": "Ausnahme beim Laden von Site-Daten."},
         "init_usage_corrupt": {"message": "Die Nutzungsdaten sind beschädigt. Überprüfen oder löschen Sie „config/solcast-usage.json“."},
+        "integration_not_loaded": {"message": "Integration nicht geladen, keine Aktion ausgeführt."},
         "remove_cache_failed": {"message": "Das Löschen aller Solcast-Daten ist fehlgeschlagen."}
     },
     "options": {

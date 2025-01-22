@@ -81,6 +81,7 @@
         "init_no_sites": {"message": "Aucun site trouvé pour la clé API."},
         "init_unknown": {"message": "Exception lors du chargement des données des sites."},
         "init_usage_corrupt": {"message": "Les données d'utilisation sont corrompues, vérifiez ou supprimez `config/solcast-usage.json`."},
+        "integration_not_loaded": {"message": "L'intégration n'est pas chargée, n'effectue aucune action."},
         "remove_cache_failed": {"message": "Échec de l'effacement de toutes les données Solcast."}
     },
     "options": {

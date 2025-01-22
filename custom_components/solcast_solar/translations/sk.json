@@ -81,6 +81,7 @@
         "init_no_sites": {"message": "Nenašli sa žiadne stránky pre kľúč API."},
         "init_unknown": {"message": "Výnimka pri načítavaní údajov stránok."},
         "init_usage_corrupt": {"message": "Údaje o používaní sú poškodené, skontrolujte alebo odstráňte súbor `config/solcast-usage.json`."},
+        "integration_not_loaded": {"message": "Integrácia nie je načítaná, nevykonáva akciu."},
         "remove_cache_failed": {"message": "Vymazanie všetkých údajov Solcast zlyhalo."}
     },
     "options": {
