@@ -50,7 +50,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             key="api_counter",
             translation_key="api_counter",
             name="API Used",
-            icon="mdi:web-check",
             entity_category=EntityCategory.DIAGNOSTIC,
         )
     },
@@ -59,7 +58,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             key="api_limit",
             translation_key="api_limit",
             name="API Limit",
-            icon="mdi:web-check",
             entity_category=EntityCategory.DIAGNOSTIC,
         )
     },
@@ -70,7 +68,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
             translation_key="forecast_this_hour",
             name="Forecast This Hour",
-            icon="mdi:solar-power",
             suggested_display_precision=0,
         )
     },
@@ -81,7 +78,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
             translation_key="forecast_custom_hours",
             name="Forecast Custom Hours",
-            icon="mdi:solar-power",
             suggested_display_precision=0,
         ),
         "enabled_by_default": False,
@@ -93,7 +89,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
             translation_key="forecast_next_hour",
             name="Forecast Next Hour",
-            icon="mdi:solar-power",
             suggested_display_precision=0,
         )
     },
@@ -104,7 +99,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             translation_key="get_remaining_today",
             name="Forecast Remaining Today",
-            icon="mdi:solar-power",
             suggested_display_precision=2,
         )
     },
@@ -114,7 +108,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             device_class=SensorDeviceClass.TIMESTAMP,
             translation_key="lastupdated",
             name="API Last Polled",
-            icon="mdi:clock",
             entity_category=EntityCategory.DIAGNOSTIC,
         )
     },
@@ -123,7 +116,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             key="peak_w_time_today",
             translation_key="peak_w_time_today",
             name="Peak Time Today",
-            icon="mdi:clock",
             device_class=SensorDeviceClass.TIMESTAMP,
         )
     },
@@ -132,7 +124,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             key="peak_w_time_tomorrow",
             translation_key="peak_w_time_tomorrow",
             name="Peak Time Tomorrow",
-            icon="mdi:clock",
             device_class=SensorDeviceClass.TIMESTAMP,
         )
     },
@@ -143,7 +134,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             device_class=SensorDeviceClass.POWER,
             native_unit_of_measurement=UnitOfPower.WATT,
             name="Peak Forecast Today",
-            icon="mdi:solar-power",
             suggested_display_precision=0,
             state_class=SensorStateClass.MEASUREMENT,
         )
@@ -155,7 +145,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             native_unit_of_measurement=UnitOfPower.WATT,
             translation_key="peak_w_tomorrow",
             name="Peak Forecast Tomorrow",
-            icon="mdi:solar-power",
             suggested_display_precision=0,
         )
     },
@@ -199,7 +188,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             translation_key="total_kwh_forecast_d3",
             name="Forecast D3",
-            icon="mdi:solar-power",
             suggested_display_precision=2,
             state_class=SensorStateClass.TOTAL,
         ),
@@ -212,7 +200,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             translation_key="total_kwh_forecast_d4",
             name="Forecast D4",
-            icon="mdi:solar-power",
             suggested_display_precision=2,
             state_class=SensorStateClass.TOTAL,
         ),
@@ -225,7 +212,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             translation_key="total_kwh_forecast_d5",
             name="Forecast D5",
-            icon="mdi:solar-power",
             suggested_display_precision=2,
             state_class=SensorStateClass.TOTAL,
         ),
@@ -238,7 +224,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             translation_key="total_kwh_forecast_d6",
             name="Forecast D6",
-            icon="mdi:solar-power",
             suggested_display_precision=2,
             state_class=SensorStateClass.TOTAL,
         ),
@@ -251,7 +236,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             translation_key="total_kwh_forecast_d7",
             name="Forecast D7",
-            icon="mdi:solar-power",
             suggested_display_precision=2,
             state_class=SensorStateClass.TOTAL,
         ),
@@ -264,7 +248,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             device_class=SensorDeviceClass.ENERGY,
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             name="Forecast Today",
-            icon="mdi:solar-power",
             suggested_display_precision=2,
             state_class=SensorStateClass.TOTAL,
         )
@@ -276,7 +259,6 @@ SENSORS: dict[str, SensorEntityDescription] = {
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             translation_key="total_kwh_forecast_tomorrow",
             name="Forecast Tomorrow",
-            icon="mdi:solar-power",
             suggested_display_precision=2,
             state_class=SensorStateClass.TOTAL,
         )
@@ -344,7 +326,6 @@ async def async_setup_entry(
             key="hard_limit",
             translation_key="hard_limit",
             name="Hard Limit Set",
-            icon="mdi:speedometer",
             entity_category=EntityCategory.DIAGNOSTIC,
         )
         sen = SolcastSensor(coordinator, k, entry)
@@ -357,7 +338,6 @@ async def async_setup_entry(
                 translation_placeholders={
                     "api_key": "*" * 6 + api_key[-6:],
                 },
-                icon="mdi:speedometer",
                 entity_category=EntityCategory.DIAGNOSTIC,
             )
             sen = SolcastSensor(coordinator, k, entry)
@@ -365,8 +345,8 @@ async def async_setup_entry(
     for site in coordinator.get_solcast_sites():
         k = RooftopSensorEntityDescription(
             key=site["resource_id"],
+            translation_key="site_data",
             name=site["name"],
-            icon="mdi:home",
             device_class=SensorDeviceClass.ENERGY,
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             suggested_display_precision=2,
@@ -519,7 +499,6 @@ class RooftopSensorEntityDescription(SensorEntityDescription):
 
     key: str | None = None
     name: str | None = None
-    icon: str | None = None
     device_class: SensorDeviceClass = SensorDeviceClass.ENERGY
     native_unit_of_measurement: UnitOfEnergy = UnitOfEnergy.KILO_WATT_HOUR
     suggested_display_precision: int = 2

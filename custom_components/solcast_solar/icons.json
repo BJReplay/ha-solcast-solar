@@ -1,4 +1,35 @@
 {
+    "entity": {
+        "select": {
+            "estimate_mode": "mdi:sun-angle"
+        },
+        "sensor": {
+            "api_counter": {"default": "mdi:web-check"},
+            "api_limit": {"default": "mdi:web-check"},
+            "forecast_custom_hours": {"default": "mdi:solar-power"},
+            "forecast_next_hour": {"default": "mdi:solar-power"},
+            "forecast_this_hour": {"default": "mdi:solar-power"},
+            "get_remaining_today": {"default": "mdi:solar-power"},
+            "hard_limit": {"default": "mdi:speedometer"},
+            "hard_limit_api": {"default": "mdi:speedometer"},
+            "lastupdated": {"default": "mdi:clock"},
+            "peak_w_time_today": {"default": "mdi:clock"},
+            "peak_w_today": {"default": "mdi:solar-power"},
+            "peak_w_time_tomorrow": {"default": "mdi:clock"},
+            "peak_w_tomorrow": {"default": "mdi:solar-power"},
+            "power_now": {"default": "mdi:flash"},
+            "power_now_1hr": {"default": "mdi:flash"},
+            "power_now_30m": {"default": "mdi:flash"},
+            "site_data": {"default": "mdi:home"},
+            "total_kwh_forecast_d3": {"default": "mdi:solar-power"},
+            "total_kwh_forecast_d4": {"default": "mdi:solar-power"},
+            "total_kwh_forecast_d5": {"default": "mdi:solar-power"},
+            "total_kwh_forecast_d6": {"default": "mdi:solar-power"},
+            "total_kwh_forecast_d7": {"default": "mdi:solar-power"},
+            "total_kwh_forecast_today": {"default": "mdi:solar-power"},
+            "total_kwh_forecast_tomorrow": {"default": "mdi:solar-power"}
+        }
+    },
     "services": {
         "clear_all_solcast_data": "mdi:database-off",
         "force_update_forecasts": "mdi:sun-wireless-outline",

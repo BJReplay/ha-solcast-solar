@@ -42,7 +42,7 @@
 - [N/A] `stale-devices` - Clean up stale devices
 - [X] `diagnostics` - Implements diagnostics
 - [X] `exception-translations` - Exception messages are translatable
-- [ ] `icon-translations` - Icon translations
+- [X] `icon-translations` - Icon translations
 - [X] `reconfiguration-flow` - Integrations should have a reconfigure flow
 - [N/A] `dynamic-devices` - Devices added after integration setup
 - [N/A] `discovery-update-info` - Integration uses discovery info to update network information
