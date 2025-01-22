@@ -800,7 +800,7 @@ v4.2.8
 * Catch duplicate API key being specified by @autoSteve
 * Remove check for conflicting integration by @autoSteve
 * Add integration and unit tests by @autoSteve
-* Notes about removing any sample sites from Solcast dashboard by @BJReplay
+* Fix an issue of incorrect forecasts with notes to remove any sample sites from Solcast dashboard by @BJReplay
 * Updated issue template by @BJReplay
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.7...v4.2.8
