@@ -386,7 +386,6 @@ async def test_sensor_states(
         sensors = copy.deepcopy(SENSORS)
         estimate_set = get_estimate_set()
         estimate_set_hyphen = [e + "-" for e in estimate_set]
-        _LOGGER.critical(estimate_set_hyphen)
 
         # Consolidate breakdowns for the key scenarios
         if settings[BRK_SITE]:
