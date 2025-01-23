@@ -21,6 +21,7 @@ import re
 import sys
 import time
 import traceback
+from types import MappingProxyType
 from typing import Any, Final, cast
 
 import aiofiles
@@ -287,7 +288,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Cancelling solcastapi task %s", task)
             cancel.cancel()
 
-    async def set_options(self, options: dict):
+    async def set_options(self, options: MappingProxyType[str, Any]):
         """Set the class option variables (called by __init__ to avoid an integration reload).
 
         Arguments:

@@ -499,7 +499,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
         opt[HARD_LIMIT_API] = "100.0"
         hass.config_entries.async_update_entry(entry, options=opt)
 
-    service_actions = {
+    service_actions: dict[str, dict[str, Any]] = {
         SERVICE_CLEAR_DATA: {"action": action_call_clear_solcast_data},
         SERVICE_FORCE_UPDATE: {"action": action_call_force_update_forecast},
         SERVICE_GET_DAMPENING: {
@@ -616,6 +616,8 @@ async def tasks_cancel(hass: HomeAssistant, entry: SolcastConfigEntry) -> bool:
     await coordinator.solcast.tasks_cancel()
     await coordinator.tasks_cancel()
 
+    return True
+
 
 async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry):
     """Reconfigure the integration when options get updated.
@@ -695,7 +697,7 @@ async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry):
         coordinator.set_data_updated(False)
 
         hass.data[DOMAIN]["entry_options"] = {**entry.options}
-        coordinator.solcast.entry_options = entry.options
+        coordinator.solcast.entry_options = {**entry.options}
     else:
         # Reload
         await tasks_cancel(hass, entry)
@@ -774,13 +776,13 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SolcastConfigEntry) ->
 
     async def __v9(hass: HomeAssistant, new_options):
         try:
-            default = []
+            default_list = []
             for api_key in new_options[CONF_API_KEY].split(","):
                 api_cache_filename = f"{hass.config.config_dir}/solcast-usage{'' if len(new_options[CONF_API_KEY].split(',')) < 2 else '-' + api_key.strip()}.json"
                 async with aiofiles.open(api_cache_filename) as f:
                     usage = json.loads(await f.read())
-                default.append(str(usage["daily_limit"]))
-            default = ",".join(default)
+                default_list.append(str(usage["daily_limit"]))
+            default = ",".join(default_list)
         except Exception as e:  # noqa: BLE001
             _LOGGER.warning(
                 "Could not load API usage cached limit while upgrading config, using default of ten: %s",
@@ -801,7 +803,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SolcastConfigEntry) ->
         with contextlib.suppress(Exception):
             new_options.pop(HARD_LIMIT)
 
-    for upgrade in (
+    upgrades: list[dict[str, Any]] = [
         {"version": 4, "function": __v4},
         {"version": 5, "function": __v5},
         {"version": 6, "function": __v6},
@@ -810,7 +812,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SolcastConfigEntry) ->
         {"version": 9, "function": __v9},
         {"version": 12, "function": __v12},
         {"version": 14, "function": __v14},
-    ):
+    ]
+    for upgrade in upgrades:
         if entry.version < upgrade["version"]:
             await upgrade_to(upgrade["version"], entry, upgrade["function"])
 
