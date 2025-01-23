@@ -2,6 +2,7 @@
 
 from enum import IntEnum
 import logging
+from typing import Any
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
 from homeassistant.const import (
@@ -15,6 +16,7 @@ from homeassistant.const import (
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType
+from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import ATTR_ENTRY_TYPE, ATTRIBUTION, DOMAIN, KEY_ESTIMATE, MANUFACTURER
@@ -110,9 +112,9 @@ class EstimateModeEntity(SelectEntity):
         self._attr_options = supported_options
         self._attr_current_option = current_option
         self._attr_entity_category = EntityCategory.CONFIG
-        self._attributes = {}
-        self._attr_extra_state_attributes = {}
-        self._attr_device_info = {
+        self._attributes: dict[str, Any] = {}
+        self._attr_extra_state_attributes: dict[str, Any] = {}
+        self._attr_device_info: DeviceInfo = {
             ATTR_IDENTIFIERS: {(DOMAIN, entry.entry_id)},
             ATTR_NAME: "Solcast PV Forecast",
             ATTR_MANUFACTURER: MANUFACTURER,
