@@ -46,7 +46,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         """
         self.hass: HomeAssistant = hass
-        self.interval_just_passed: dt = None
+        self.interval_just_passed: dt
         self.solcast: SolcastApi = solcast
         self.tasks: dict[str, Any] = {}
         self.version: str = version
@@ -54,17 +54,17 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._date_changed: bool = False
         self._data_updated: bool = False
         self._intervals: list[dt] = []
-        self._last_day: dt = None
-        self._sunrise: dt = None
-        self._sunrise_tomorrow: dt = None
-        self._sunrise_yesterday: dt = None
-        self._sunset: dt = None
-        self._sunset_tomorrow: dt = None
-        self._sunset_yesterday: dt = None
+        self._last_day: int = dt.now(self.solcast.options.tz).day
+        self._sunrise: dt
+        self._sunrise_tomorrow: dt
+        self._sunrise_yesterday: dt
+        self._sunset: dt
+        self._sunset_tomorrow: dt
+        self._sunset_yesterday: dt
         self._update_sequence: list = []
 
         # First list item is the sensor value method, additional items are only used for sensor attributes.
-        self.__get_value = {
+        self.__get_value: dict[str, list[dict[str, Any]]] = {
             "forecast_this_hour": [{"method": self.solcast.get_forecast_n_hour, "value": 0}],
             "forecast_next_hour": [{"method": self.solcast.get_forecast_n_hour, "value": 1}],
             "forecast_custom_hours": [{"method": self.solcast.get_forecast_custom_hours, "value": self.solcast.custom_hour_sensor}],
@@ -105,7 +105,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     async def setup(self) -> bool:
         """Set up time change tracking."""
-        self._last_day = dt.now(self.solcast.options.tz).day
         self.__auto_update_setup(init=True)
         await self.__check_forecast_fetch()
 
@@ -118,6 +117,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         )
         for timer in sorted(self.tasks):
             _LOGGER.debug("Running task %s", timer)
+
+        return True
 
     async def update_integration_listeners(self, *args):
         """Get updated sensor values."""
@@ -253,7 +254,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     (self._sunrise_yesterday + timedelta(seconds=int(seconds / divisions * i))).replace(microsecond=0)
                     for i in range(divisions)
                 ]
-            seconds = (sunset - sunrise).total_seconds()
+            seconds = int((sunset - sunrise).total_seconds())
             interval = seconds / divisions
             intervals = intervals_yesterday + [(sunrise + timedelta(seconds=interval * i)).replace(microsecond=0) for i in range(divisions)]
             _now = self.solcast.get_real_now_utc()
@@ -373,16 +374,16 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """Return forecast data requested by a service call."""
         return await self.solcast.get_forecast_list(*args)
 
-    def get_solcast_sites(self) -> dict[str, Any]:
+    def get_solcast_sites(self) -> list[Any]:
         """Return the active solcast sites.
 
         Returns:
-            dict[str, Any]: The presently known solcast.com sites.
+            list[Any]: The presently known solcast.com sites.
 
         """
         return self.solcast.sites
 
-    def get_energy_tab_data(self) -> dict[str, Any]:
+    def get_energy_tab_data(self) -> dict[str, Any] | None:
         """Return an energy dictionary.
 
         Returns:
@@ -457,7 +458,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         if self.__get_value.get(key) is None:
             return None
-        ret = {}
+        ret: dict[str, Any] = {}
         for fetch in self.__get_value[key] if key not in NO_ATTRIBUTES else []:
             to_return = (
                 self.solcast.get_forecast_attributes(fetch["method"], fetch.get("value", 0))
