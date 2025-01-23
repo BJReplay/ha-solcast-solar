@@ -27,7 +27,6 @@ from typing import Any, Final, cast
 import aiofiles
 from aiohttp import ClientConnectionError, ClientResponseError, ClientSession
 from aiohttp.client_reqrep import ClientResponse
-from isodate import parse_datetime
 
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -2402,7 +2401,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 oldest = (dt.now(self._tz).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)).astimezone(datetime.UTC)
 
                 for estimate_actual in estimate_actuals:
-                    period_start = parse_datetime(estimate_actual["period_end"]).astimezone(datetime.UTC).replace(
+                    period_start = dt.fromisoformat(estimate_actual["period_end"]).astimezone(datetime.UTC).replace(
                         second=0, microsecond=0
                     ) - timedelta(minutes=30)
                     if period_start > oldest:
@@ -2448,9 +2447,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             start_time = time.time()
             for forecast in latest_forecasts:
-                period_start = parse_datetime(forecast["period_end"]).astimezone(datetime.UTC).replace(second=0, microsecond=0) - timedelta(
-                    minutes=30
-                )
+                period_start = dt.fromisoformat(forecast["period_end"]).astimezone(datetime.UTC).replace(
+                    second=0, microsecond=0
+                ) - timedelta(minutes=30)
                 if period_start < last_day:
                     new_data.append(
                         {
