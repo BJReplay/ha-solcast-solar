@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import asyncio
 from collections import OrderedDict, defaultdict
-from concurrent.futures import ThreadPoolExecutor
 import contextlib
 import copy
 from dataclasses import dataclass
@@ -157,7 +156,7 @@ class ConnectionOptions:
     api_quota: str
     host: str
     file_path: str
-    tz: timezone
+    tz: timezone.tzinfo
     auto_update: int
     dampening: dict
     custom_hour_sensor: int
@@ -229,7 +228,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         self.custom_hour_sensor: int = options.custom_hour_sensor
         self.damp: dict = options.dampening
-        self.entry: SolcastConfigEntry = entry
+        self.entry: SolcastConfigEntry | None = entry
         self.entry_options: dict[str, Any] = {}
         if self.entry is not None:
             self.entry_options = {**self.entry.options}

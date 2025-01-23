@@ -11,14 +11,16 @@ import math
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-type SolcastConfigEntry = ConfigEntry[SolcastData]
-
 
 @dataclass
 class SolcastData:
     """Runtime data definition."""
 
     coordinator: DataUpdateCoordinator[None]
+
+
+class SolcastConfigEntry(ConfigEntry[SolcastData]):
+    """Solcast config entry."""
 
 
 class SolcastApiStatus(Enum):
@@ -77,14 +79,14 @@ def cubic_interp(x0: list, x: list, y: list) -> list:
 
     """
 
-    def diff(lst: list):  # numpy-like diff
+    def diff(lst: list) -> list:  # numpy-like diff
         size = len(lst) - 1
         r = [0] * size
         for i in range(size):
             r[i] = lst[i + 1] - lst[i]
         return r
 
-    def clip(lst: list, min_val: float, max_val: float, in_place: bool = False):  # numpy-like clip
+    def clip(lst: list, min_val: float, max_val: float, in_place: bool = False) -> list:  # numpy-like clip
         if not in_place:
             lst = lst[:]
         for i in range(len(lst)):
@@ -94,7 +96,7 @@ def cubic_interp(x0: list, x: list, y: list) -> list:
                 lst[i] = max_val
         return lst
 
-    def search_sorted(list_to_insert: list, insert_into: list):  # numpy-like search_sorted
+    def search_sorted(list_to_insert: list, insert_into: list) -> list:  # numpy-like search_sorted
         def float_search_sorted(float_to_insert, insert_into):
             for i in range(len(insert_into)):
                 if float_to_insert <= insert_into[i]:
@@ -103,21 +105,23 @@ def cubic_interp(x0: list, x: list, y: list) -> list:
 
         return [float_search_sorted(i, insert_into) for i in list_to_insert]
 
-    def subtract(a: float, b: float):
+    def subtract(a: float, b: float) -> float:
         return a - b
 
-    size = len(x)
-    x_diff = diff(x)
-    y_diff = diff(y)
+    size: int = len(x)
+    x_diff: list = diff(x)
+    y_diff: list = diff(y)
 
-    li = [0] * size
-    li_1 = [0] * (size - 1)
-    z = [0] * (size)
+    li: list = [0] * size
+    li_1: list = [0] * (size - 1)
+    z: list = [0] * (size)
 
     li[0] = math.sqrt(2 * x_diff[0])
     li_1[0] = 0.0
-    b0 = 0.0
+    b0: float = 0.0
     z[0] = b0 / li[0]
+
+    bi: float = 0.0
 
     for i in range(1, size - 1, 1):
         li_1[i] = x_diff[i - 1] / li[i - 1]

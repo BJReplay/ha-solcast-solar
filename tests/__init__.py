@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 from aiohttp import ClientConnectionError
 
-from homeassistant.components.solcast_solar import const, solcastapi
+from homeassistant.components.solcast_solar import const
 from homeassistant.components.solcast_solar.const import (
     API_QUOTA,
     AUTO_UPDATE,

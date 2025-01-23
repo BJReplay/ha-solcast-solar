@@ -147,7 +147,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
     VERSION = CONFIG_VERSION
 
-    entry: SolcastConfigEntry | None = None
+    entry: SolcastConfigEntry
 
     @staticmethod
     @callback
@@ -338,7 +338,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         """
         self._entry = config_entry
         self._options = config_entry.options
-        self._all_config_data = None
+        self._all_config_data: dict[str, Any] = None
 
     async def check_dead(self) -> None:
         """Check if the integration is presumed dead and reload if so."""
