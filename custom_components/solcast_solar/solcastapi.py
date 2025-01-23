@@ -10,7 +10,7 @@ import contextlib
 import copy
 from dataclasses import dataclass
 import datetime
-from datetime import datetime as dt, timedelta, timezone
+from datetime import datetime as dt, timedelta, tzinfo
 import json
 import logging
 import math
@@ -156,7 +156,7 @@ class ConnectionOptions:
     api_quota: str
     host: str
     file_path: str
-    tz: timezone.tzinfo
+    tz: tzinfo
     auto_update: int
     dampening: dict
     custom_hour_sensor: int
