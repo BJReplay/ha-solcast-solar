@@ -7,16 +7,23 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 import math
+from typing import TYPE_CHECKING
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+
+if TYPE_CHECKING:
+    from . import coordinator
 
 
 @dataclass
 class SolcastData:
     """Runtime data definition."""
 
-    coordinator: DataUpdateCoordinator[None]
+    if TYPE_CHECKING:
+        coordinator: coordinator.SolcastUpdateCoordinator
+    else:
+        coordinator: DataUpdateCoordinator[None]
 
 
 class SolcastConfigEntry(ConfigEntry[SolcastData]):

@@ -1,4 +1,3 @@
-[run]
-omit =
-    # omit anything in the simulator folder
-    */sim/*
+[report]
+exclude_lines =
+    if TYPE_CHECKING:

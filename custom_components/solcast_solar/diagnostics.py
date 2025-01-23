@@ -35,6 +35,8 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: Solcast
                 hard_set = True
         return hard_set
 
+    energy_data = coordinator.solcast.get_energy_data()
+
     return {
         "tz_conversion": coordinator.solcast.options.tz,
         "used_api_requests": coordinator.solcast.get_api_used_count(),
@@ -42,5 +44,5 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: Solcast
         "rooftop_site_count": len(coordinator.solcast.sites),
         "forecast_hard_limit_set": hard_limit_set(),
         "data": (coordinator.data, TO_REDACT),
-        "energy_forecasts_graph": coordinator.solcast.get_energy_data()["wh_hours"],
+        "energy_forecasts_graph": energy_data["wh_hours"] if energy_data is not None else {},
     }
