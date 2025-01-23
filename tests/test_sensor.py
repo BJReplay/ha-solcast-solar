@@ -512,7 +512,7 @@ async def test_sensor_x_hours_long(
 
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_next_x_hours")
         assert state
-        assert int(state.state) == 86910
+        assert state.state == "86910"
         _no_exception(caplog)
 
     finally:
