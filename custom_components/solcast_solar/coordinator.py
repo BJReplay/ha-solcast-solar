@@ -176,7 +176,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         update_in = int((interval - _now).total_seconds())
                         if update_in >= 0:
                             task_name = f"pending_update_{update_in:03}"
-                            _LOGGER.debug("Create task %s", task_name)
+                            _LOGGER.debug(
+                                f"Create task %s to fire at {interval.hour:02d}:{interval.minute:02d}:{interval.second:02d}",  # noqa: G004
+                                task_name,
+                            )
                             self._update_sequence.append(update_in)
                             self.tasks[task_name] = async_track_utc_time_change(
                                 self.hass,
