@@ -58,4 +58,17 @@
 ## Platinum
 - [N/A] `async-dependency` - Dependency is async
 - [N/A] `inject-websession` - The integration dependency supports passing in a websession
-- [ ] `strict-typing` - Strict typing
+- [X] `strict-typing` - Strict typing
+
+## Notes on applicability
+- `entity-event-setup`: Entity event are not used by the integration, so there is nothing to set up.
+- `dependency-transparency`: The integration does not utilise an externally hosted dependency.
+- `log-when-unavailable`: It is not desirable to log once when the Solcast REST API is unavailable and then once more when re-connected. Each interaction is atomic, and a connection is not held open.
+- `parallel-updates`: Parallel updates of local devices are not applicable given the nature of the integration.
+- `discovery`: Local devices are not used, so discovery of any is irrelevant.
+- `stale-devices`: A single device is created for the integration instance. There can only be one instance.
+- `dynamic-devices`: A single device is created for the integration instance. There can only be one instance.
+- `discovery-update-info`: Local devices are not used, so updating network information is irrelevant.
+- `docs-supported-devices`: Local devices are not used, and API variability is irrelevant.
+- `async-dependency`: The integration does not utilise an externally hosted dependency.
+- `inject-websession`: The integration does not utilise an externally hosted dependency.

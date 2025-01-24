@@ -44,7 +44,7 @@ from .util import SolcastConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
-SENSORS: dict[str, SensorEntityDescription] = {
+SENSORS: dict[str, dict[str, Any]] = {
     "api_counter": {
         "description": SensorEntityDescription(
             key="api_counter",
@@ -314,7 +314,7 @@ async def async_setup_entry(
     """
 
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-    entities = []
+    entities: list[RooftopSensor | SolcastSensor] = []
 
     for sensor in SENSORS.values():
         sen = SolcastSensor(coordinator, sensor["description"], entry, sensor.get("enabled_by_default", True))
@@ -343,23 +343,22 @@ async def async_setup_entry(
             sen = SolcastSensor(coordinator, k, entry)
             entities.append(sen)
     for site in coordinator.get_solcast_sites():
-        k = RooftopSensorEntityDescription(
+        k = SensorEntityDescription(
             key=site["resource_id"],
             translation_key="site_data",
             name=site["name"],
             device_class=SensorDeviceClass.ENERGY,
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
             suggested_display_precision=2,
-            rooftop_id=site["resource_id"],
         )
-        sen = RooftopSensor(
+        site_sen = RooftopSensor(
             key="site_data",
             coordinator=coordinator,
             entity_description=k,
             entry=entry,
+            rooftop_id=site["resource_id"],
         )
-
-        entities.append(sen)
+        entities.append(site_sen)
 
     async_add_entities(entities)
 
@@ -369,8 +368,6 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
     _attr_attribution = ATTRIBUTION
     _attr_has_entity_name = True
-
-    # _unrecorded_attributes = frozenset({MATCH_ALL}) # Large attributes now excluded dynamically in async_added_to_hass()
 
     def __init__(
         self,
@@ -393,7 +390,6 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         self.entity_description = entity_description
         self._attr_extra_state_attributes = {}
         self._attr_unique_id = f"{entity_description.key}"
-        self._attributes = {}
         self._coordinator = coordinator
         self._attr_entity_registry_enabled_default = enabled_by_default
         self._sensor_data = None
@@ -493,18 +489,6 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         self.async_write_ha_state()
 
 
-@dataclass
-class RooftopSensorEntityDescription(SensorEntityDescription):
-    """Representation of a rooftop entity description."""
-
-    key: str | None = None
-    name: str | None = None
-    device_class: SensorDeviceClass = SensorDeviceClass.ENERGY
-    native_unit_of_measurement: UnitOfEnergy = UnitOfEnergy.KILO_WATT_HOUR
-    suggested_display_precision: int = 2
-    rooftop_id: str | None = None
-
-
 class RooftopSensor(CoordinatorEntity, SensorEntity):
     """Representation of a rooftop sensor device."""
 
@@ -517,6 +501,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         coordinator: SolcastUpdateCoordinator,
         entity_description: SensorEntityDescription,
         entry: SolcastConfigEntry,
+        rooftop_id: str,
     ) -> None:
         """Initialise the sensor.
 
@@ -525,6 +510,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
             coordinator (SolcastUpdateCoordinator): The integration coordinator instance.
             entity_description (SensorEntityDescription): The details of the entity.
             entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
+            rooftop_id (str): The site name to use as the senor name.
 
         """
         super().__init__(coordinator)
@@ -532,8 +518,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         self.entity_description = entity_description
         self._key = key
         self._coordinator = coordinator
-        self._rooftop_id = entity_description.rooftop_id
-        self._attributes = {}
+        self._rooftop_id = rooftop_id  # entity_description.
         self._attr_extra_state_attributes = {}
         self._attr_entity_category = EntityCategory.DIAGNOSTIC
         self._sensor_data = None
