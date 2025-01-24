@@ -42,7 +42,6 @@ from .const import (
     BRK_SITE_DETAILED,
     CUSTOM_HOUR_SENSOR,
     DATE_FORMAT,
-    # DATE_FORMAT_UTC,
     DOMAIN,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
@@ -172,42 +171,7 @@ class ConnectionOptions:
 
 
 class SolcastApi:  # pylint: disable=too-many-public-methods
-    """The Solcast API.
-
-    Public functions:
-        get_forecast_update: Request forecast data for all sites.
-        set_next_update: Set the next forecast update time displayed.
-        get_data: Return the data dictionary.
-        build_forecast_data: Build the forecast, adjusting if dampening or setting a hard limit.
-        check_data_records: Verify that forecasts for day 0..7 contain all forecast periods
-
-        get_real_now_utc: Get the complete time now, including seconds and microseconds
-        get_forecast_list: Service event to get list of forecasts.
-        delete_solcast_file: Service event to delete the solcast.json file.
-        get_sites_and_usage: Get the sites and usage, and validate API key changes against the cache files in use.
-        reset_api_usage: Reset the daily API usage counter.
-        load_saved_data: Load the saved solcast.json data.
-        serialise_granular_dampening: Serialise the granular dampening file.
-        granular_dampening_data: Read the current granular dampening file.
-        get_dampening: Return the currently set dampening factors for a service call.
-
-        get_last_updated: Return when the forecast was last updated.
-        is_stale_data: Return whether the forecast was last updated some time ago (i.e. is stale).
-        is_stale_usage_cache: Return whether the API usage cache needs to be reset
-        get_api_limit: Return API polling limit for this UTC 24hr period (minimum of all API keys).
-        get_api_used_count: Return API polling count for this UTC 24hr period (minimum of all API keys).
-
-        get_rooftop_site_total_today: Return total kW for today for a site.
-        get_rooftop_site_extra_data: Return information about a site.
-        get_forecast_day: Return forecast for the Nth day ahead.
-        get_forecast_n_hour: Return forecast for the Nth hour. Based from prior hour point.
-        get_forecast_custom_hours: Return forecast for the next N hours. Interpolated, based from prior 5-minute point.
-        get_power_n_minutes: Return expected power generation in the next N minutes. Based from prior half-hour point.
-        get_peak_power_day: Return max kW for site N days ahead.
-        get_peak_time_day: Return hour of max kW for site N days ahead.
-        get_forecast_remaining_today: Return remaining forecasted production for today. Interpolated, based from prior 5-minute point.
-        get_total_energy_forecast_day: Return forecast kWh total for site N days ahead.
-    """
+    """The Solcast API."""
 
     def __init__(
         self,

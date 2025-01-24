@@ -177,7 +177,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         if update_in >= 0:
                             task_name = f"pending_update_{update_in:03}"
                             _LOGGER.debug(
-                                f"Create task %s to fire at {interval.hour:02d}:{interval.minute:02d}:{interval.second:02d}",  # noqa: G004
+                                f"Create task %s to fire at {interval.hour:02d}:{interval.minute:02d}:{interval.second:02d} UTC",  # noqa: G004
                                 task_name,
                             )
                             self._update_sequence.append(update_in)
