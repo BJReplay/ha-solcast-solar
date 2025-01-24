@@ -90,7 +90,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         super().__init__(hass, _LOGGER, name=DOMAIN)
 
-    async def _async_update_data(self):
+    async def _async_update_data(self) -> dict[str, Any]:
         """Update data via library.
 
         Returns:
@@ -120,7 +120,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         return True
 
-    async def update_integration_listeners(self, *args):
+    async def update_integration_listeners(self, *args) -> None:
         """Get updated sensor values."""
 
         current_day = dt.now(self.solcast.options.tz).day
@@ -133,7 +133,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         self.async_update_listeners()
 
-    async def __restart_time_track_midnight_update(self):
+    async def __restart_time_track_midnight_update(self) -> None:
         """Cancel and restart UTC time change tracker."""
         _LOGGER.warning("Restarting midnight UTC timer")
         if self.tasks.get("midnight_update"):
@@ -144,7 +144,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         )
         _LOGGER.debug("Started task midnight_update")
 
-    def set_next_update(self):
+    def set_next_update(self) -> None:
         """Set the next forecast update message time."""
         self.solcast.set_next_update(None)
         if len(self._intervals) > 0:
@@ -153,7 +153,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 next_update.strftime(TIME_FORMAT) if next_update.date() == dt.now().date() else next_update.strftime(DATE_FORMAT)
             )
 
-    async def __fetch(self, *args):
+    async def __fetch(self, *args) -> None:
         if len(self._update_sequence) > 0:
             task_name = f"pending_update_{self._update_sequence.pop(0):03}"
             _LOGGER.info("Auto update forecast")
@@ -163,7 +163,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             if task_name in self.tasks:
                 self.tasks.pop(task_name)
 
-    async def __check_forecast_fetch(self, *args):
+    async def __check_forecast_fetch(self, *args) -> None:
         """Check for an auto forecast update event."""
         if self.solcast.options.auto_update:
             if len(self._intervals) > 0:
@@ -196,19 +196,19 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     self._intervals = [interval for i, interval in enumerate(self._intervals) if i not in pop_expired]
                     self.set_next_update()
 
-    async def __update_utc_midnight_usage_sensor_data(self, *args):
+    async def __update_utc_midnight_usage_sensor_data(self, *args) -> None:
         """Reset tracked API usage at midnight UTC."""
         await self.solcast.reset_api_usage()
         self._data_updated = True
         await self.update_integration_listeners()
         self._data_updated = False
 
-    async def __update_midnight_spline_recalculate(self):
+    async def __update_midnight_spline_recalculate(self) -> None:
         """Re-calculates splines at midnight local time."""
         await self.solcast.check_data_records()
         await self.solcast.recalculate_splines()
 
-    def __auto_update_setup(self, init: bool = False):
+    def __auto_update_setup(self, init: bool = False) -> None:
         """Set up of auto-updates."""
         match self.solcast.options.auto_update:
             case 1:
@@ -225,10 +225,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             case _:
                 pass
 
-    def __get_sun_rise_set(self):
+    def __get_sun_rise_set(self) -> None:
         """Get the sunrise and sunset times for today and tomorrow."""
 
-        def sun_rise_set(day_start):
+        def sun_rise_set(day_start) -> tuple[dt, dt]:
             sunrise = get_astral_event_next(self.hass, "sunrise", day_start).replace(microsecond=0)
             sunset = get_astral_event_next(self.hass, "sunset", day_start).replace(microsecond=0)
             return sunrise, sunset
@@ -242,7 +242,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             self._sunset.astimezone(self.solcast.options.tz).strftime("%H:%M:%S"),
         )
 
-    def __calculate_forecast_updates(self, init: bool = False):
+    def __calculate_forecast_updates(self, init: bool = False) -> None:
         """Calculate all automated forecast update UTC events for the day.
 
         This is an even spread between sunrise and sunset.
@@ -282,7 +282,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.debug("Previous auto update would have been at %s", just_passed)
             return intervals
 
-        def format_intervals(intervals):
+        def format_intervals(intervals) -> list[str]:
             return [
                 i.astimezone(self.solcast.options.tz).strftime("%H:%M")
                 if len(intervals) > 10
@@ -307,7 +307,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 ", ".join(format_intervals(intervals_tomorrow)),
             )
 
-    async def __forecast_update(self, force: bool = False, completion: str = ""):
+    async def __forecast_update(self, force: bool = False, completion: str = "") -> None:
         """Get updated forecast data."""
 
         try:
@@ -330,7 +330,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 # Clean up a task created by a service call action
                 self.tasks.pop("forecast_update")
 
-    async def service_event_update(self, **kwargs):
+    async def service_event_update(self, **kwargs) -> None:
         """Get updated forecast data when requested by a service call.
 
         Arguments:
@@ -350,7 +350,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         )
         self.tasks["forecast_update"] = task.cancel
 
-    async def service_event_force_update(self):
+    async def service_event_force_update(self) -> None:
         """Force the update of forecast data when requested by a service call. Ignores API usage/limit counts.
 
         Raises:
@@ -365,7 +365,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         task = asyncio.create_task(self.__forecast_update(force=True, completion="Completed task force_update"))
         self.tasks["forecast_update"] = task.cancel
 
-    async def service_event_delete_old_solcast_json_file(self):
+    async def service_event_delete_old_solcast_json_file(self) -> None:
         """Delete the solcast.json file when requested by a service call."""
         await self.solcast.tasks_cancel()
         await self.solcast.delete_solcast_file()
@@ -404,7 +404,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """
         return self._data_updated
 
-    def set_data_updated(self, updated: bool):
+    def set_data_updated(self, updated: bool) -> None:
         """Set the state of the data updated flag.
 
         Arguments:
@@ -425,7 +425,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     def get_sensor_value(self, key: str = "") -> int | dt | float | str | bool | None:  # noqa: C901
         """Return the value of a sensor."""
 
-        def unit_adjusted(hard_limit):
+        def unit_adjusted(hard_limit) -> str:
             if hard_limit >= 1000000:
                 return f"{round(hard_limit/1000000, 1)} GW"
             if hard_limit >= 1000:
@@ -488,7 +488,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             case _:
                 return None
 
-    async def tasks_cancel(self):
+    async def tasks_cancel(self) -> None:
         """Cancel all tasks."""
         for task, cancel in self.tasks.items():
             _LOGGER.debug("Cancelling coordinator task %s", task)

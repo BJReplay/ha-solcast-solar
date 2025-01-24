@@ -2201,7 +2201,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             status = f"At least one site forecast get failed: {reason}"
         return status
 
-    def set_next_update(self, next_update: str) -> None:
+    def set_next_update(self, next_update: str | None) -> None:
         """Set the next update time.
 
         Arguments:
