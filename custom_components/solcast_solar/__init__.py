@@ -108,9 +108,7 @@ def __setup_storage(hass: HomeAssistant) -> None:
 
 async def __get_time_zone(hass: HomeAssistant) -> dt_util.dt.tzinfo:
     tz = await dt_util.async_get_time_zone(hass.config.time_zone)
-    if tz is not None:
-        return tz
-    return dt_util.UTC
+    return tz if tz is not None else dt_util.UTC
 
 
 async def __get_options(hass: HomeAssistant, entry: SolcastConfigEntry) -> ConnectionOptions:
