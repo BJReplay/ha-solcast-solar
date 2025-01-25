@@ -826,7 +826,7 @@ In the event that solcast.com cannot be reached you should generally look elsewh
 
 ### Forecast update issues
 
-When a forecast update occurs, the integration incorporates a retry mechanism to cope with transient `429/Try again later` situations. It is very rare that all ten attempts fail, however it has been know to happen early in the European morning. If it does happen, then the next update will almost certainly succeed.
+When a forecast update occurs, the integration incorporates a retry mechanism to cope with transient `429/Try again later` situations. It is very rare that all ten attempts fail, however it has been known to happen early in the European morning. If it does happen, then the next update will almost certainly succeed.
 
 An API usage counter is maintained to track the number of calls made to solcast.com each day (which begins at UTC midnight). If this counter is mis-aligned with reality then upon encountering an API call refusal it will be set to its maximum value, and not reset until UTC midnight.
 
@@ -842,9 +842,13 @@ Exceptions should never be logged unless something is seriously wrong. If they a
 
 When exceptions occur it is likely that sensor states will become `Unavailable`, which is also a symptom of an exception occurring.
 
-If you are "upgrading" from a very old or completely different Solcast integration then this is not an "upgrade". It is a migration, so view it as such. Some migration scenarios are covered, but others may require complete removal of all incompatible data. See [Complete integration removal](#complete-integration-removal) to get an understanding of the location of some files that may be interfering.
+If you are "upgrading" from a very old or completely different Solcast integration then this is not an "upgrade". It is a migration, so view it as such. Some migration scenarios are covered, but others may require complete removal of all incompatible data that may be causing serious issues. See [Complete integration removal](#complete-integration-removal) to get an understanding of the location of some files that may be interfering.
 
-That said, code defects can happen, but they should not be the first suspicion. Extensive automated testing of this code is done using PyTest before a release, with the tests covering a vast range of scenarios and executing every line of code.
+That said, code defects can happen, but they should not be the first suspicion. Extensive automated testing of this code is done using PyTest before a release, with the tests covering a vast range of scenarios and executing every line of code. Some of these tests do expect the worst regarding situations that can cause exceptions, like corruption of cached data, and in these situations exceptions are expected.
+
+### Final word
+
+If behaviour most odd is encountered, filled with exceptions occurring, then a quick fix may be to back up all `/homeassistant/solcast*.json` files, remove them, and then restart the integration.
 </details>
 
 ## Changes
