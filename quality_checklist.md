@@ -52,7 +52,7 @@
 - [X] `docs-supported-functions` - The documentation describes the supported functionality, including entities, and platforms
 - [X] `docs-data-update` - The documentation describes how data is updated
 - [X] `docs-known-limitations` - The documentation describes known limitations of the integration (not to be confused with bugs)
-- [ ] `docs-troubleshooting` - The documentation provides troubleshooting information
+- [X] `docs-troubleshooting` - The documentation provides troubleshooting information
 - [X] `docs-examples` - The documentation provides automation examples the user can use.
 
 ## Platinum

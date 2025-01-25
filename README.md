@@ -67,6 +67,7 @@ The integration is not currently in the HACS database, but this is planned. [Thi
 1. [Sample template sensors](#sample-template-sensors)
 1. [Sample Apex chart for dashboard](#sample-apex-chart-for-dashboard)
 1. [Known issues](#known-issues)
+1. [Troubleshooting](#troubleshooting)
 1. [Changes](#Changes)
 
 ## Key Solcast concepts
@@ -797,6 +798,56 @@ series:
 <details>
     If you see sample sites (such as these [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSites.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSites.png)) remove them from your Solcast dashboard.
 </details>
+
+## Troubleshooting
+
+<details><summary><i>Click here to expand troubleshooting tips.</i></summary>
+
+This integration aims to log very little when things are working fine. When issues occur `ERROR` or `CRITICAL` log entries will be produced, and when temporary or minor issues occur then `WARNING` entries. Always check the logs as the first step in troubleshooting an issue.
+
+To enable greater detail for logging, many entries are issued at `DEBUG` level. Enabling debug logging as an aid to troubleshooting is advised. Note that changing the log level will require a Home Assistant restart, which will rename the current `homeassistant.log` file to `homeassistant.log.1` (there is no `.2`, so only this session and the prior session are accessible.)
+
+In `/homeassistant/configuration.yaml`:
+
+```
+logger:
+  default: warn
+  logs:
+    custom_components.solcast_solar: debug
+```
+
+Reviewing logs is quite simple, but debug logs cannot be reviewed from the UI. The file `/homeassistant/home-assistant.log` must be viewed. From an SSH session use `less /homeassistant/home-assistant.log`. You may have other ways to view this file depending on the add-ons installed.
+
+### API key issues
+
+During configuration you enter an API key (or keys), and the sites configured at solcast.com will be retrieved at this time to test the key. A failure generally falls into a limited number of categories. The key is incorrect, or the Solcast account has no sites configured, or solcast.com cannot be reached. These situations are mostly self-evident.
+
+In the event that solcast.com cannot be reached you should generally look elsewhere for issues. If a transient condition occurs, like receiving a `429/Try again later` error, then literally follow the instruction by waiting, then trying initial setup again. (The Solcast site generally gets swamped with requests on fifteen minute time boundaries, and mostly at the top of each hour.)
+
+### Forecast update issues
+
+When a forecast update occurs, the integration incorporates a retry mechanism to cope with transient `429/Try again later` situations. It is very rare that all ten attempts fail, however it has been know to happen early in the European morning. If it does happen, then the next update will almost certainly succeed.
+
+An API usage counter is maintained to track the number of calls made to solcast.com each day (which begins at UTC midnight). If this counter is mis-aligned with reality then upon encountering an API call refusal it will be set to its maximum value, and not reset until UTC midnight.
+
+### Forecasted values look "just wrong"
+
+There may still be demo sites configured at solcast.com. Check this, and if they are still configured then delete them.
+
+Double check your azimuth/tilt/location and other settings for sites also. "Just wrong" values are not caused by the integration, rather are a symptom that something is wrong with the overall set up.
+
+### Exceptions in logs
+
+Exceptions should never be logged unless something is seriously wrong. If they are logged then they are usually a symptom of the underlying cause, not a code defect, and generally not directly related to the root cause of any issue. Look to potential causes being something that has changed.
+
+When exceptions occur it is likely that sensor states will become `Unavailable`, which is also a symptom of an exception occurring.
+
+If you are "upgrading" from a very old or completely different Solcast integration then this is not an "upgrade". It is a migration, so view it as such. Some migration scenarios are covered, but others may require complete removal of all incompatible data. See [Complete integration removal](#complete-integration-removal) to get an understanding of the location of some files that may be interfering.
+
+That said, code defects can happen, but they should not be the first suspicion. Extensive automated testing of this code is done using PyTest before a release, with the tests covering a vast range of scenarios and executing every line of code.
+
+</summary>
+
 ## Changes
 
 v4.2.8
@@ -811,6 +862,7 @@ v4.2.8
 * Catch duplicate API key being specified by @autoSteve
 * Remove check for conflicting integration by @autoSteve
 * Add integration and unit tests by @autoSteve
+* Strict type checking by @autoSteve
 * Fix an issue of incorrect forecasts with notes to remove any sample sites from Solcast dashboard by @BJReplay
 * Updated issue template by @BJReplay
 
@@ -1409,29 +1461,10 @@ v3.0.5 beta
 v3.0.4 beta
 - bug fixes.
 
-Complete re write. v3.0 now 
-**Do not update this if you like the way the older version worked**
-*There are many changes to this integration*
+v3.0
+- complete re write
 
-Simple setup.. just need the API key
-
-- This is now as it should be, a 'forecast' integration (it does not graph past data *currently*)
-- Forecast includes sensors for "today" and "tomorrow" total production, max hour production and time.. this hour and next production
-- Forecast graph info for the next 7 days of data available
-
-Integration contains
-  - API Counter             (int)
-  - API Last Polled         (date/time)
-  - Forecast Next Hour      (Wh)
-  - Forecast This Hour      (Wh)
-  - Forecast Today          (kWh) (Attributes calculated from 'pv_estimate')
-  - Forecast Tomorrow       (kWh) (Attributes calculated from 'pv_estimate')
-  - Peak Forecast Today     (Wh)
-  - Peak Forecast Tomorrow  (Wh)
-  - Peak Time Today         (date/time)
-  - Peak Time Tomorrow      (date/time)
-
-[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolcastService.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolcastService.png)
+Earlier history is unavailable.
 </details>
 
 ## Credits
