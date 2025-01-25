@@ -2487,7 +2487,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return DataCallStatus.ABORT, "Cancelled"
         return DataCallStatus.SUCCESS, ""
 
-    async def fetch_data(  # noqa: C901
+    async def fetch_data(
         self,
         hours: int,
         path: str = "error",

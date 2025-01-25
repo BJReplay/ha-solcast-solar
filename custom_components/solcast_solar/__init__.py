@@ -243,7 +243,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
     * Add unload hook on options change.
     * Trigger a forecast update after a 'stale' start.
     * Trigger a forecast update after a missed auto-update.
-    * Set up service call actions.
+    * Replace stub service call actions with the real thing now config entry is available.
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
