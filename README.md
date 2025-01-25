@@ -845,8 +845,7 @@ When exceptions occur it is likely that sensor states will become `Unavailable`,
 If you are "upgrading" from a very old or completely different Solcast integration then this is not an "upgrade". It is a migration, so view it as such. Some migration scenarios are covered, but others may require complete removal of all incompatible data. See [Complete integration removal](#complete-integration-removal) to get an understanding of the location of some files that may be interfering.
 
 That said, code defects can happen, but they should not be the first suspicion. Extensive automated testing of this code is done using PyTest before a release, with the tests covering a vast range of scenarios and executing every line of code.
-
-</summary>
+</details>
 
 ## Changes
 
