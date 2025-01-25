@@ -58,6 +58,7 @@ The integration is not currently in the HACS database, but this is planned. [Thi
         1. [Reading dampening values](#reading-dampening-values)
     1. [Sensor attributes configuration](#sensor-attributes-configuration)
     1. [Hard limit configuration](#hard-limit-configuration)
+1. [Complete integration removal](#complete-integration-removal)
 1. [Interacting](#interacting)
     1. [Actions](#actions)
     1. [Sensors](#sensors)
@@ -501,6 +502,16 @@ The scenario requiring use of this limit is straightforward but note that hardly
 Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
 
 The hard limit may be set in the integration configuration or set via manually invoking an action in `Developer Tools`.
+
+## Complete integration removal
+
+To completely remove all traces of the integration start with navigating to `Settings` | `Devices & Services` | `Solcast PV Forecast`, click the three dots next to `CONFIGURE` and select `Delete`.
+
+At this point the configuration settings have been reset, but the code and forecast information caches will still exist (setting up the integration again will re-use this cached data, which may or may not be desirable).
+
+The caches reside in the Home Assistant configuration folder (usually `/homeassistant/`, but its location can vary based on HASS deployment type). These files are named after the integration, and may be removed with `rm solcast*.json`.
+
+The code itself resides at `/homeassistant/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
 
 ## Interacting
 

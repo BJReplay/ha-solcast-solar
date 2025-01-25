@@ -16,7 +16,7 @@
 - [X] `common-modules` - Place common patterns in common modules
 - [X] `docs-high-level-description` - The documentation includes a high-level description of the integration brand, product, or service
 - [X] `docs-installation-instructions` - The documentation provides step-by-step installation instructions for the integration, including, if needed, prerequisites
-- [ ] `docs-removal-instructions` - The documentation provides removal instructions
+- [X] `docs-removal-instructions` - The documentation provides removal instructions
 - [X] `docs-actions` - The documentation describes the provided service actions that can be used
 - [X] `brands` - Has branding assets available for the integration
 
