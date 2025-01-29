@@ -190,9 +190,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                                 self.__fetch,
                                 interval,
                             )
-                            """
-                            self.tasks[task_name] = async_call_later(self.hass, update_in, self.__fetch)
-                            """
                     if interval < _from:
                         pop_expired.append(index)
                 # Remove expired intervals if any have been missed
@@ -349,15 +346,18 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             ServiceValidationError: Notify Home Assistant that an error has occurred.
 
         """
-        if self.solcast.reauth_required:
-            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
+        if self.tasks.get("forecast_update") is None:
+            if self.solcast.reauth_required:
+                raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
 
-        if self.solcast.options.auto_update > 0 and "ignore_auto_enabled" not in kwargs:
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_force")
-        task = asyncio.create_task(
-            self.__forecast_update(completion="Completed task update" if not kwargs.get("completion") else kwargs["completion"])
-        )
-        self.tasks["forecast_update"] = task.cancel
+            if self.solcast.options.auto_update > 0 and "ignore_auto_enabled" not in kwargs:
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_force")
+            task = asyncio.create_task(
+                self.__forecast_update(completion="Completed task update" if not kwargs.get("completion") else kwargs["completion"])
+            )
+            self.tasks["forecast_update"] = task.cancel
+        else:
+            _LOGGER.warning("Forecast update already requested, ignoring")
 
     async def service_event_force_update(self) -> None:
         """Force the update of forecast data when requested by a service call. Ignores API usage/limit counts.
@@ -366,17 +366,21 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             ServiceValidationError: Notify Home Assistant that an error has occurred.
 
         """
-        if self.solcast.reauth_required:
-            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
+        if self.tasks.get("forecast_update") is None:
+            if self.solcast.reauth_required:
+                raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
 
-        if self.solcast.options.auto_update == 0:
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_normal")
-        task = asyncio.create_task(self.__forecast_update(force=True, completion="Completed task force_update"))
-        self.tasks["forecast_update"] = task.cancel
+            if self.solcast.options.auto_update == 0:
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_normal")
+            task = asyncio.create_task(self.__forecast_update(force=True, completion="Completed task force_update"))
+            self.tasks["forecast_update"] = task.cancel
+        else:
+            _LOGGER.warning("Forecast update already requested, ignoring")
 
     async def service_event_delete_old_solcast_json_file(self) -> None:
         """Delete the solcast.json file when requested by a service call."""
         await self.solcast.tasks_cancel()
+        await self.tasks_cancel_specific("forecast_update")
         await self.hass.async_block_till_done()
         await self.solcast.delete_solcast_file()
         self._data_updated = True
@@ -504,3 +508,11 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Cancelling coordinator task %s", task)
             cancel()
         self.tasks = {}
+
+    async def tasks_cancel_specific(self, task: str) -> None:
+        """Cancel a specific task."""
+        cancel = self.tasks.get(task)
+        if cancel is not None:
+            _LOGGER.debug("Cancelling coordinator task %s", task)
+            cancel()
+            self.tasks.pop(task)

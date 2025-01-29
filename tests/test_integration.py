@@ -167,6 +167,7 @@ async def _wait_for_update(caplog: any) -> None:
             and "aborting forecast update" not in caplog.text
             and "pausing" not in caplog.text
             and "Completed task update" not in caplog.text
+            and "Completed task force_update" not in caplog.text
             and "ConfigEntryAuthFailed" not in caplog.text
         ):  # Wait for task to complete
             await asyncio.sleep(0.01)
@@ -176,7 +177,9 @@ async def _wait_for_abort(caplog: any) -> None:
     """Wait for forecast update completion."""
 
     async with asyncio.timeout(5):
-        while "Forecast update aborted" not in caplog.text:  # Wait for task to abort
+        while (
+            "Forecast update aborted" not in caplog.text and "Forecast update already requested, ignoring" not in caplog.text
+        ):  # Wait for task to abort
             await asyncio.sleep(0.01)
 
 
@@ -1007,7 +1010,7 @@ async def test_integration_scenarios(
             data = json.loads(data_file.read_text(encoding="utf-8"))
             data["last_updated"] = (dt.now(datetime.UTC) - timedelta(days=5)).isoformat()
             data["last_attempt"] = data["last_updated"]
-            data["auto_updated"] = True
+            data["auto_updated"] = 10
             # Remove forecasts today up to "now"
             for site in data["siteinfo"].values():
                 site["forecasts"] = [f for f in site["forecasts"] if f["period_start"] > dt.now(datetime.UTC).isoformat()]
