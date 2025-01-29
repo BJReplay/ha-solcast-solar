@@ -2157,7 +2157,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             async def set_metadata_and_serialise(data):
                 data["last_updated"] = dt.now(datetime.UTC).replace(microsecond=0)
                 data["last_attempt"] = last_attempt
-                data["auto_updated"] = self.auto_update_divisions if self.options.auto_update > 0 else 0
+                # Set to divisions if auto update is enabled, but not forced, in which case set to 99999 (otherwise zero).
+                data["auto_updated"] = (
+                    self.auto_update_divisions if self.options.auto_update > 0 and not force else 0 if not force else 99999
+                )
                 return await self.serialise_data(data, self._filename if data == self._data else self._filename_undampened)
 
             s_status = await set_metadata_and_serialise(self._data)
@@ -2357,10 +2360,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
                     await self.tasks["fetch"]
                 finally:
-                    if self.tasks.get("fetch") is not None:
-                        response = self.tasks.pop("fetch").result()
-                    else:
-                        response = None
+                    response = self.tasks.pop("fetch").result() if self.tasks.get("fetch") is not None else None
                 if not isinstance(response, dict):
                     _LOGGER.error(
                         "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
@@ -2403,10 +2403,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 await self.tasks["fetch"]
             finally:
-                if self.tasks.get("fetch") is not None:
-                    response = self.tasks.pop("fetch").result()
-                else:
-                    response = None
+                response = self.tasks.pop("fetch").result() if self.tasks.get("fetch") is not None else None
             if response is None:
                 _LOGGER.error("No data was returned for forecasts")
                 return DataCallStatus.FAIL, "No data returned for forecasts"
@@ -2908,7 +2905,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     }
                         site_data_forecasts[site] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
                         if update_tally:
-                            rounded_tally = round(tally, 4)
+                            rounded_tally = round(tally, 4) if tally is not None else 0.0
                             if tally is not None:
                                 siteinfo["tally"] = rounded_tally
                             self._tally[site] = rounded_tally

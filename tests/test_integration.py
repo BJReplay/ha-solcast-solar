@@ -553,8 +553,11 @@ async def test_integration(
         # Test force, force abort because running and clear data actions
         await _exec_update(hass, solcast, caplog, "force_update_forecasts", wait=False)
         caplog.clear()
-        await _exec_update(hass, solcast, caplog, "force_update_forecasts", wait=False)  # Twice to cover abort
+        await _exec_update(hass, solcast, caplog, "force_update_forecasts", wait=False)  # Twice to cover abort force
         await _wait_for_abort(caplog)
+        await _exec_update(hass, solcast, caplog, "update_forecasts", wait=False)  # Thrice to cover abort normal
+        await _wait_for_abort(caplog)
+        await hass.async_block_till_done()
         await _exec_update(hass, solcast, caplog, "clear_all_solcast_data")  # Will cancel active fetch
 
         # Test update within ten seconds of prior update
@@ -1006,7 +1009,7 @@ async def test_integration_scenarios(
         data_file = Path(f"{config_dir}/solcast.json")
         original_data = json.loads(data_file.read_text(encoding="utf-8"))
 
-        def alter_last_updated():
+        def alter_last_updated_as_stale():
             data = json.loads(data_file.read_text(encoding="utf-8"))
             data["last_updated"] = (dt.now(datetime.UTC) - timedelta(days=5)).isoformat()
             data["last_attempt"] = data["last_updated"]
@@ -1017,12 +1020,20 @@ async def test_integration_scenarios(
             data_file.write_text(json.dumps(data), encoding="utf-8")
             session_reset_usage()
 
+        def alter_last_updated_as_fresh(last_update: str):
+            data = json.loads(data_file.read_text(encoding="utf-8"))
+            data["last_updated"] = dt.now(datetime.UTC).isoformat()
+            data["last_updated"] = data["last_updated"].split("T")[0] + "T" + last_update + "+10:00"
+            data["last_attempt"] = data["last_updated"]
+            data["auto_updated"] = 10
+            data_file.write_text(json.dumps(data), encoding="utf-8")
+
         def restore_data():
             data_file.write_text(json.dumps(original_data), encoding="utf-8")
 
         # Test stale start with auto update enabled
         _LOGGER.debug("Testing stale start with auto update enabled")
-        alter_last_updated()
+        alter_last_updated_as_stale()
         coordinator, solcast = await _reload(hass, entry)
         await _wait_for_update(caplog)
         assert "is older than expected, should be" in caplog.text
@@ -1037,12 +1048,26 @@ async def test_integration_scenarios(
         opt[AUTO_UPDATE] = 0
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
-        alter_last_updated()
+        alter_last_updated_as_stale()
         coordinator, solcast = await _reload(hass, entry)
         _no_exception(caplog)
         caplog.clear()
 
         restore_data()
+
+        # Re-load integration, test forecast is fresh
+        opt = {**entry.options}
+        opt[AUTO_UPDATE] = 1
+        hass.config_entries.async_update_entry(entry, options=opt)
+        await hass.async_block_till_done()
+        last_update = ""
+        for line in caplog.messages:
+            if line.startswith("Previous auto update would have been at "):
+                last_update = line[-8:]
+                break
+        alter_last_updated_as_fresh(last_update)
+        coordinator, solcast = await _reload(hass, entry)
+        assert "Auto update forecast is fresh" in caplog.text
 
         # Test API key change, start with an API failure and invalid sites cache
         # Verify API key change removes sites, and migrates undampened history for new site
