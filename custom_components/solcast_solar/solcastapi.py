@@ -66,7 +66,7 @@ if API == Api.HOBBYIST:
 
 GRANULAR_DAMPENING_OFF: Final = False
 GRANULAR_DAMPENING_ON: Final = True
-JSON_VERSION: Final = 5
+JSON_VERSION: Final = 6
 SET_ALLOW_RESET: Final = True
 
 # Status code translation, HTTP and more.
@@ -94,7 +94,7 @@ FRESH_DATA: dict[str, Any] = {
     "siteinfo": {},
     "last_updated": dt.fromtimestamp(0, datetime.UTC),
     "last_attempt": dt.fromtimestamp(0, datetime.UTC),
-    "auto_updated": False,
+    "auto_updated": 0,
     "version": JSON_VERSION,
 }
 
@@ -190,6 +190,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
 
+        self.auto_update_divisions: int = 0
         self.custom_hour_sensor: int = options.custom_hour_sensor
         self.damp: dict = options.dampening
         self.entry: SolcastConfigEntry | None = entry
@@ -1162,6 +1163,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             data.pop("forecasts", None)
                                             data.pop("energy", None)
                                     json_version = 5
+                                # Alter "auto_updated" boolean flag to be the integer number of auto-update divisions, introduced v4.2.8.
+                                if json_version < 6:
+                                    data["version"] = 6
+                                    data["auto_updated"] = 99999 if self.options.auto_update > 0 else 0
+                                    json_version = 6
 
                                 if json_version > on_version:
                                     await self.serialise_data(data, filename)
@@ -2151,7 +2157,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             async def set_metadata_and_serialise(data):
                 data["last_updated"] = dt.now(datetime.UTC).replace(microsecond=0)
                 data["last_attempt"] = last_attempt
-                data["auto_updated"] = self.options.auto_update > 0
+                data["auto_updated"] = self.auto_update_divisions if self.options.auto_update > 0 else 0
                 return await self.serialise_data(data, self._filename if data == self._data else self._filename_undampened)
 
             s_status = await set_metadata_and_serialise(self._data)
@@ -2339,20 +2345,22 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             # Fetch past data. (Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.)
 
             if do_past:
-                self.tasks["fetch"] = asyncio.create_task(
-                    self.fetch_data(
-                        168,
-                        path="estimated_actuals",
-                        site=site,
-                        api_key=api_key,
-                        force=force,
+                try:
+                    self.tasks["fetch"] = asyncio.create_task(
+                        self.fetch_data(
+                            168,
+                            path="estimated_actuals",
+                            site=site,
+                            api_key=api_key,
+                            force=force,
+                        )
                     )
-                )
-                await self.tasks["fetch"]
-                response = None
-                if self.tasks.get("fetch") is not None:
-                    response = self.tasks["fetch"].result()
-                    self.tasks.pop("fetch")
+                    await self.tasks["fetch"]
+                finally:
+                    if self.tasks.get("fetch") is not None:
+                        response = self.tasks.pop("fetch").result()
+                    else:
+                        response = None
                 if not isinstance(response, dict):
                     _LOGGER.error(
                         "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
@@ -2383,20 +2391,22 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if self.tasks.get("fetch") is not None:
                 _LOGGER.warning("A fetch task is already running, so aborting forecast update")
                 return DataCallStatus.ABORT, "Fetch already running"
-            self.tasks["fetch"] = asyncio.create_task(
-                self.fetch_data(
-                    hours,
-                    path="forecasts",
-                    site=site,
-                    api_key=api_key,
-                    force=force,
+            try:
+                self.tasks["fetch"] = asyncio.create_task(
+                    self.fetch_data(
+                        hours,
+                        path="forecasts",
+                        site=site,
+                        api_key=api_key,
+                        force=force,
+                    )
                 )
-            )
-            response = None
-            await self.tasks["fetch"]
-            if self.tasks.get("fetch") is not None:
-                response = self.tasks["fetch"].result()
-                self.tasks.pop("fetch")
+                await self.tasks["fetch"]
+            finally:
+                if self.tasks.get("fetch") is not None:
+                    response = self.tasks.pop("fetch").result()
+                else:
+                    response = None
             if response is None:
                 _LOGGER.error("No data was returned for forecasts")
                 return DataCallStatus.FAIL, "No data returned for forecasts"
@@ -2487,6 +2497,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return DataCallStatus.ABORT, "Cancelled"
         return DataCallStatus.SUCCESS, ""
 
+    async def _sleep(self, delay: float):
+        """Sleep for a specified number of seconds."""
+        await asyncio.sleep(delay)
+
     async def fetch_data(
         self,
         hours: int,
@@ -2558,16 +2572,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 # Test for API limit exceeded.
                                 # {"response_status":{"error_code":"TooManyRequests","message":"You have exceeded your free daily limit.","errors":[]}}
                                 response_json = await response.json(content_type=None)
-                                response_status = response_json.get("response_status")
-                                if response_status is not None:
-                                    if response_status.get("error_code") == "TooManyRequests":
-                                        status = 998
-                                        self._api_used[api_key] = self._api_limit[api_key]
-                                        await self.__serialise_usage(api_key)
+                                if response_json is not None:
+                                    response_status = response_json.get("response_status")
+                                    if response_status is not None:
+                                        if response_status.get("error_code") == "TooManyRequests":
+                                            status = 998
+                                            self._api_used[api_key] = self._api_limit[api_key]
+                                            await self.__serialise_usage(api_key)
+                                            break
+                                        status = 1000
+                                        _LOGGER.warning("An unexpected error occurred: %s", response_status.get("message"))
                                         break
-                                    status = 1000
-                                    _LOGGER.warning("An unexpected error occurred: %s", response_status.get("message"))
-                                    break
                                 if counter >= tries:
                                     _LOGGER.error("API was tried %d times, but all attempts failed", tries)
                                     break
@@ -2579,7 +2594,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 self.__translate(status),
                                 delay,
                             )
-                            await asyncio.sleep(delay)
+                            await self._sleep(delay)
 
                         if status == 200:
                             if not force:
@@ -2717,7 +2732,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         build_success = True
 
-        def build_data(  # noqa: C901
+        async def build_data(  # noqa: C901
             data: dict[str, Any],
             commencing: datetime.date,
             forecasts: dict[dt, dict[str, dt | float]],
@@ -2911,7 +2926,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 build_success = False
 
         start_time = time.time()
-        build_data(
+        await build_data(
             self._data,
             commencing,
             forecasts,
@@ -2920,7 +2935,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             update_tally=True,
         )
         if build_success:
-            build_data(
+            await build_data(
                 self._data_undampened,
                 commencing_undampened,
                 forecasts_undampened,

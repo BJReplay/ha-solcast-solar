@@ -10,7 +10,10 @@ from typing import Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
-from homeassistant.helpers.event import async_track_utc_time_change
+from homeassistant.helpers.event import (
+    async_track_point_in_utc_time,
+    async_track_utc_time_change,
+)
 from homeassistant.helpers.sun import get_astral_event_next
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -45,6 +48,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             version (str): The integration version from manifest.json.
 
         """
+        self.divisions: int = 0
         self.hass: HomeAssistant = hass
         self.interval_just_passed: dt
         self.solcast: SolcastApi = solcast
@@ -172,22 +176,23 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
                 pop_expired = []
                 for index, interval in enumerate(self._intervals):
+                    # _LOGGER.critical("%s %s %s", _from, interval, _from + timedelta(minutes=5))
                     if _from <= interval < _from + timedelta(minutes=5):
                         update_in = int((interval - _now).total_seconds())
                         if update_in >= 0:
                             task_name = f"pending_update_{update_in:03}"
                             _LOGGER.debug(
-                                f"Create task %s to fire at {interval.hour:02d}:{interval.minute:02d}:{interval.second:02d} UTC",  # noqa: G004
-                                task_name,
+                                "Create task %s to fire at %02d:%02d:%02d UTC", task_name, interval.hour, interval.minute, interval.second
                             )
                             self._update_sequence.append(update_in)
-                            self.tasks[task_name] = async_track_utc_time_change(
+                            self.tasks[task_name] = async_track_point_in_utc_time(
                                 self.hass,
                                 self.__fetch,
-                                hour=interval.hour,
-                                minute=interval.minute,
-                                second=interval.second,
+                                interval,
                             )
+                            """
+                            self.tasks[task_name] = async_call_later(self.hass, update_in, self.__fetch)
+                            """
                     if interval < _from:
                         pop_expired.append(index)
                 # Remove expired intervals if any have been missed
@@ -247,19 +252,21 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         This is an even spread between sunrise and sunset.
         """
-        divisions = int(self.solcast.get_api_limit() / min(len(self.solcast.sites), 2))
+        self.divisions = int(self.solcast.get_api_limit() / min(len(self.solcast.sites), 2))
 
         def get_intervals(sunrise: dt, sunset: dt, log=True):
             intervals_yesterday = []
             if sunrise == self._sunrise:
                 seconds = int((self._sunset_yesterday - self._sunrise_yesterday).total_seconds())
                 intervals_yesterday = [
-                    (self._sunrise_yesterday + timedelta(seconds=int(seconds / divisions * i))).replace(microsecond=0)
-                    for i in range(divisions)
+                    (self._sunrise_yesterday + timedelta(seconds=int(seconds / self.divisions * i))).replace(microsecond=0)
+                    for i in range(self.divisions)
                 ]
             seconds = int((sunset - sunrise).total_seconds())
-            interval = seconds / divisions
-            intervals = intervals_yesterday + [(sunrise + timedelta(seconds=interval * i)).replace(microsecond=0) for i in range(divisions)]
+            interval = seconds / self.divisions
+            intervals = intervals_yesterday + [
+                (sunrise + timedelta(seconds=interval * i)).replace(microsecond=0) for i in range(self.divisions)
+            ]
             _now = self.solcast.get_real_now_utc()
             for i in intervals:
                 if i < _now:
@@ -268,7 +275,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     break
             intervals = [i for i in intervals if i > _now]
             if log:
-                _LOGGER.debug("Auto update total seconds: %d, divisions: %d, interval: %d seconds", seconds, divisions, interval)
+                _LOGGER.debug("Auto update total seconds: %d, self.divisions: %d, interval: %d seconds", seconds, self.divisions, interval)
                 if init:
                     _LOGGER.debug(
                         "Auto update forecasts %s",
@@ -293,6 +300,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         intervals_today = get_intervals(self._sunrise, self._sunset)
         intervals_tomorrow = get_intervals(self._sunrise_tomorrow, self._sunset_tomorrow, log=False)
         self._intervals = intervals_today + intervals_tomorrow
+        self.solcast.auto_update_divisions = self.divisions
 
         if len(intervals_today) > 0:
             _LOGGER.info(
@@ -300,7 +308,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 "s" if len(intervals_today) > 1 else "",
                 ", ".join(format_intervals(intervals_today)),
             )
-        if len(intervals_today) < divisions:
+        if len(intervals_today) < self.divisions:
             _LOGGER.info(
                 "Auto forecast update%s for tomorrow at %s",
                 "s" if len(intervals_tomorrow) > 1 else "",
@@ -324,6 +332,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             await self.update_integration_listeners()
             self._data_updated = False
             await self.async_request_refresh()
+
             _LOGGER.debug(completion)
         finally:
             with contextlib.suppress(Exception):
@@ -368,6 +377,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     async def service_event_delete_old_solcast_json_file(self) -> None:
         """Delete the solcast.json file when requested by a service call."""
         await self.solcast.tasks_cancel()
+        await self.hass.async_block_till_done()
         await self.solcast.delete_solcast_file()
         self._data_updated = True
         await self.update_integration_listeners()

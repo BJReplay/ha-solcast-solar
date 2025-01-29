@@ -172,8 +172,16 @@ async def _wait_for_update(caplog: any) -> None:
             await asyncio.sleep(0.01)
 
 
-async def _wait_for_raise(hass: HomeAssistant, exception: Exception) -> None:
+async def _wait_for_abort(caplog: any) -> None:
     """Wait for forecast update completion."""
+
+    async with asyncio.timeout(5):
+        while "Forecast update aborted" not in caplog.text:  # Wait for task to abort
+            await asyncio.sleep(0.01)
+
+
+async def _wait_for_raise(hass: HomeAssistant, exception: Exception) -> None:
+    """Wait for exception."""
 
     async def wait_for_exception():
         async with asyncio.timeout(5):
@@ -401,7 +409,7 @@ async def test_schema_upgrade(
 
         def verify_new_solcast_schema(data_file):
             data = json.loads(data_file.read_text(encoding="utf-8"))
-            assert data["version"] == 5
+            assert data["version"] == 6
             assert "last_attempt" in data
             assert "auto_updated" in data
 
@@ -413,7 +421,7 @@ async def test_schema_upgrade(
         kill_undampened_cache()
         set_old_solcast_schema(data_file)
         coordinator, solcast = await _reload(hass, entry)
-        assert "version from v4 to v5" in caplog.text
+        assert "version from v4 to v6" in caplog.text
         assert "Migrating un-dampened history" in caplog.text
         verify_new_solcast_schema(data_file)
         caplog.clear()
@@ -422,7 +430,7 @@ async def test_schema_upgrade(
         kill_undampened_cache()
         set_ancient_solcast_schema(data_file)
         coordinator, solcast = await _reload(hass, entry)
-        assert "version from v1 to v5" in caplog.text
+        assert "version from v1 to v6" in caplog.text
         assert "Migrating un-dampened history" in caplog.text
         verify_new_solcast_schema(data_file)
         caplog.clear()
@@ -531,9 +539,6 @@ async def test_integration(
 
         # Test forced update and clear data actions
         await _exec_update(hass, solcast, caplog, "force_update_forecasts")
-        await _exec_update(hass, solcast, caplog, "force_update_forecasts", wait=False)
-        await _exec_update(hass, solcast, caplog, "force_update_forecasts", wait=False)  # Twice to cover abort
-        await _exec_update(hass, solcast, caplog, "clear_all_solcast_data")
 
         # Test for API key redaction
         for api_key in options["api_key"].split(","):
@@ -541,6 +546,13 @@ async def test_integration(
             assert "key: " + api_key not in caplog.text
             assert "sites-" + api_key not in caplog.text
             assert "usage-" + api_key not in caplog.text
+
+        # Test force, force abort because running and clear data actions
+        await _exec_update(hass, solcast, caplog, "force_update_forecasts", wait=False)
+        caplog.clear()
+        await _exec_update(hass, solcast, caplog, "force_update_forecasts", wait=False)  # Twice to cover abort
+        await _wait_for_abort(caplog)
+        await _exec_update(hass, solcast, caplog, "clear_all_solcast_data")  # Will cancel active fetch
 
         # Test update within ten seconds of prior update
         solcast.options.auto_update = 0
