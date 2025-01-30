@@ -189,7 +189,7 @@ def validate_call(api_key, site_id=None, counter=True):
     if api_key not in API_KEY_SITES:
         return error(ERROR_INVALID_KEY)
     if GENERATE_429 and dt.now(datetime.UTC).minute in BOMB_429:
-        return 429, {}, None
+        return 429, "", None
     if dt.now(datetime.UTC).minute in BOMB_KEY:
         if API_KEY_SITES.get("1"):
             API_KEY_SITES["4"] = copy.deepcopy(API_KEY_SITES["1"])
@@ -198,7 +198,7 @@ def validate_call(api_key, site_id=None, counter=True):
     if counter and API_KEY_SITES.get(api_key, {}).get("counter", 0) >= API_LIMIT:
         return error(ERROR_TOO_MANY_REQUESTS)
     if GENERATE_418 and random.random() < 0.01:
-        return 418, {}, None  # An unusual status returned for fun, infrequently
+        return 418, "", None  # An unusual status returned for fun, infrequently
     if site_id is not None:
         # Find the site by site_id
         site = next((site for site in API_KEY_SITES.get(api_key, {}).get("sites", {}) if site["resource_id"] == site_id), None)
@@ -226,7 +226,7 @@ def get_sites():
 
     response_code, issue, _ = validate_call(api_key, counter=False)
     if response_code != 200:
-        return jsonify(issue), response_code
+        return jsonify(issue) if issue != "" else "", response_code
 
     get_sites = simulate.raw_get_sites(api_key)
     if get_sites is not None:
@@ -241,7 +241,7 @@ def get_site_estimated_actuals(site_id):
     api_key = request.args.get("api_key")
     response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
-        return jsonify(issue), response_code
+        return jsonify(issue) if issue != "" else "", response_code
 
     return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, int(request.args.get("hours")))), 200
 
@@ -253,7 +253,7 @@ def get_site_forecasts(site_id):
     api_key = request.args.get("api_key")
     response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
-        return jsonify(issue), response_code
+        return jsonify(issue) if issue != "" else "", response_code
     return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, int(request.args.get("hours")))), 200
 
 
@@ -289,7 +289,7 @@ def get_site_estimated_actuals_advanced():
     period_end = simulate.get_period(start, timedelta(minutes=30))
     response_code, issue, site = validate_call(api_key, site_id)
     if response_code != 200:
-        return jsonify(issue), response_code
+        return jsonify(issue) if issue != "" else "", response_code
 
     return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200
 
@@ -304,7 +304,7 @@ def get_site_forecasts_advanced():
     period_end = simulate.get_period(dt.now(datetime.UTC), timedelta(minutes=30))
     response_code, issue, site = validate_call(api_key, site_id)
     if response_code != 200:
-        return jsonify(issue), response_code
+        return jsonify(issue) if issue != "" else "", response_code
 
     return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200
 
