@@ -513,15 +513,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         def check_rekey(response_json: dict, api_key: str) -> bool:
             _LOGGER.debug("Checking rekey for %s", self.__redact_api_key(api_key))
 
+            cache_status = False
             all_sites = sorted([site["resource_id"] for site in response_json["sites"]])
             self._rekey[api_key] = None
             for key in self._extant_sites:
                 extant_sites = sorted([site["resource_id"] for site in self._extant_sites[key]])
-                if all_sites == extant_sites and api_key != key:
-                    # Re-keyed API key, so adjust the content and declare it valid
-                    self._rekey[api_key] = key
-                    _LOGGER.info("API key %s has changed, migrating API usage", self.__redact_api_key(api_key))
-            return self._rekey[api_key] is not None
+                if all_sites == extant_sites:
+                    if api_key != key:
+                        # Re-keyed API key, so adjust the cache content for all sites and declare it valid
+                        self._rekey[api_key] = key  # Will trigger migration of API usage
+                        _LOGGER.info("API key %s has changed, migrating API usage", self.__redact_api_key(api_key))
+                        for site in response_json["sites"]:
+                            site["resource_id"] = api_key
+                    cache_status = True
+                break  # API key will be the same for all sites, loop only inspects the first site
+            return cache_status
 
         try:
             self.sites = []
@@ -550,7 +556,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 try:
                     text_response = await response.text()
-                    response_json = json.loads(text_response)
+                    if text_response != "":
+                        response_json = json.loads(text_response)
                 except json.decoder.JSONDecodeError:
                     _LOGGER.error("API did not return a json object, returned `%s`", text_response)
                     status = 500
@@ -587,7 +594,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if status != 200 and cache_exists:
                         response_json = await load_cache(cache_filename)
                         success = True
-                        set_sites(response_json, api_key)
                         self.sites_status = SitesStatus.OK
                         if status == 403:
                             self.sites_status = SitesStatus.BAD_KEY
@@ -596,10 +602,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         if not check_rekey(response_json, api_key):
                             self.sites_status = SitesStatus.CACHE_INVALID
                             _LOGGER.info(
-                                "API key %s has changed and sites are different invalidating the cache, not loading cached data",
+                                "API key %s has changed and sites are different invalidating the cache, not using cached data",
                                 self.__redact_api_key(api_key),
                             )
                             success = False
+                        if success:
+                            set_sites(response_json, api_key)
                     elif not cache_exists:
                         cached_sites_unavailable()
                         if status in (401, 403):
@@ -2333,69 +2341,25 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             tuple[DataCallStatus, str]: A flag indicating success, failure or abort, and a reason for failure.
 
         """
-        try:
-            last_day = self.get_day_start_utc(future=8)
-            hours = math.ceil((last_day - self.get_now_utc()).total_seconds() / 3600)
-            _LOGGER.debug(
-                "Polling API for site %s, last day %s, %d hours",
-                site,
-                last_day.strftime("%Y-%m-%d"),
-                hours,
-            )
+        last_day = self.get_day_start_utc(future=8)
+        hours = math.ceil((last_day - self.get_now_utc()).total_seconds() / 3600)
+        _LOGGER.debug(
+            "Polling API for site %s, last day %s, %d hours",
+            site,
+            last_day.strftime("%Y-%m-%d"),
+            hours,
+        )
 
-            new_data = []
+        new_data = []
 
-            # Fetch past data. (Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.)
+        # Fetch past data. (Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.)
 
-            if do_past:
-                try:
-                    self.tasks["fetch"] = asyncio.create_task(
-                        self.fetch_data(
-                            168,
-                            path="estimated_actuals",
-                            site=site,
-                            api_key=api_key,
-                            force=force,
-                        )
-                    )
-                    await self.tasks["fetch"]
-                finally:
-                    response = self.tasks.pop("fetch").result() if self.tasks.get("fetch") is not None else None
-                if not isinstance(response, dict):
-                    _LOGGER.error(
-                        "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
-                    )
-                    _LOGGER.error("API did not return a json object, returned `%s`", response)
-                    return DataCallStatus.FAIL, "No valid json returned"
-
-                estimate_actuals = response.get("estimated_actuals", [])
-
-                oldest = (dt.now(self._tz).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)).astimezone(datetime.UTC)
-
-                for estimate_actual in estimate_actuals:
-                    period_start = dt.fromisoformat(estimate_actual["period_end"]).astimezone(datetime.UTC).replace(
-                        second=0, microsecond=0
-                    ) - timedelta(minutes=30)
-                    if period_start > oldest:
-                        new_data.append(
-                            {
-                                "period_start": period_start,
-                                "pv_estimate": estimate_actual[FORECAST],
-                                "pv_estimate10": estimate_actual.get(FORECAST10, 0),  # Only the simulator returns 10/90 for past actuals
-                                "pv_estimate90": estimate_actual.get(FORECAST90, 0),
-                            }
-                        )
-
-            # Fetch latest data.
-
-            if self.tasks.get("fetch") is not None:
-                _LOGGER.warning("A fetch task is already running, so aborting forecast update")
-                return DataCallStatus.ABORT, "Fetch already running"
+        if do_past:
             try:
                 self.tasks["fetch"] = asyncio.create_task(
                     self.fetch_data(
-                        hours,
-                        path="forecasts",
+                        168,
+                        path="estimated_actuals",
                         site=site,
                         api_key=api_key,
                         force=force,
@@ -2404,94 +2368,134 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 await self.tasks["fetch"]
             finally:
                 response = self.tasks.pop("fetch").result() if self.tasks.get("fetch") is not None else None
-            if response is None:
-                _LOGGER.error("No data was returned for forecasts")
-                return DataCallStatus.FAIL, "No data returned for forecasts"
-
             if not isinstance(response, dict):
-                _LOGGER.error("API did not return a json object. Returned %s", response)
+                _LOGGER.error(
+                    "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
+                )
+                _LOGGER.error("API did not return a json object, returned `%s`", response)
                 return DataCallStatus.FAIL, "No valid json returned"
 
-            latest_forecasts = response.get("forecasts", [])
+            estimate_actuals = response.get("estimated_actuals", [])
 
-            _LOGGER.debug("%d records returned", len(latest_forecasts))
+            oldest = (dt.now(self._tz).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)).astimezone(datetime.UTC)
 
-            start_time = time.time()
-            for forecast in latest_forecasts:
-                period_start = dt.fromisoformat(forecast["period_end"]).astimezone(datetime.UTC).replace(
+            for estimate_actual in estimate_actuals:
+                period_start = dt.fromisoformat(estimate_actual["period_end"]).astimezone(datetime.UTC).replace(
                     second=0, microsecond=0
                 ) - timedelta(minutes=30)
-                if period_start < last_day:
+                if period_start > oldest:
                     new_data.append(
                         {
                             "period_start": period_start,
-                            "pv_estimate": forecast[FORECAST],
-                            "pv_estimate10": forecast[FORECAST10],
-                            "pv_estimate90": forecast[FORECAST90],
+                            "pv_estimate": estimate_actual[FORECAST],
+                            "pv_estimate10": estimate_actual.get(FORECAST10, 0),  # Only the simulator returns 10/90 for past actuals
+                            "pv_estimate90": estimate_actual.get(FORECAST90, 0),
                         }
                     )
 
-            # Add or update forecasts with the latest data.
+        # Fetch latest data.
 
-            # Load the forecast history.
-            try:
-                forecasts = {forecast["period_start"]: forecast for forecast in self._data["siteinfo"][site]["forecasts"]}
-            except:  # noqa: E722
-                forecasts = {}
-            try:
-                forecasts_undampened = {
-                    forecast["period_start"]: forecast for forecast in self._data_undampened["siteinfo"][site]["forecasts"]
-                }
-            except:  # noqa: E722
-                forecasts_undampened = {}
-
-            _LOGGER.debug("Task load_new_data took %.3f seconds", time.time() - start_time)
-
-            # Apply dampening to the new data
-            start_time = time.time()
-            for forecast in new_data:
-                period_start = forecast["period_start"]
-                dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz))
-
-                # Add or update the new entries.
-                self.__forecast_entry_update(
-                    forecasts,
-                    period_start,
-                    round(forecast["pv_estimate"] * dampening_factor, 4),
-                    round(forecast["pv_estimate10"] * dampening_factor, 4),
-                    round(forecast["pv_estimate90"] * dampening_factor, 4),
+        if self.tasks.get("fetch") is not None:
+            _LOGGER.warning("A fetch task is already running, so aborting forecast update")
+            return DataCallStatus.ABORT, "Fetch already running"
+        try:
+            self.tasks["fetch"] = asyncio.create_task(
+                self.fetch_data(
+                    hours,
+                    path="forecasts",
+                    site=site,
+                    api_key=api_key,
+                    force=force,
                 )
-                self.__forecast_entry_update(
-                    forecasts_undampened,
-                    period_start,
-                    round(forecast["pv_estimate"], 4),
-                    round(forecast["pv_estimate10"], 4),
-                    round(forecast["pv_estimate90"], 4),
-                )
-            _LOGGER.debug(
-                "Task apply_dampening took %.3f seconds",
-                time.time() - start_time,
             )
+            await self.tasks["fetch"]
+        finally:
+            response = self.tasks.pop("fetch").result() if self.tasks.get("fetch") is not None else None
+        if response is None:
+            _LOGGER.error("No data was returned for forecasts")
+            return DataCallStatus.FAIL, "No data returned for forecasts"
 
-            async def sort_and_prune(data, past_days, forecasts):
-                past_days = self.get_day_start_utc(future=past_days * -1)
-                forecasts = sorted(
-                    filter(
-                        lambda forecast: forecast["period_start"] >= past_days,
-                        forecasts.values(),
-                    ),
-                    key=itemgetter("period_start"),
+        if not isinstance(response, dict):
+            _LOGGER.error("API did not return a json object. Returned %s", response)
+            return DataCallStatus.FAIL, "No valid json returned"
+
+        latest_forecasts = response.get("forecasts", [])
+
+        _LOGGER.debug("%d records returned", len(latest_forecasts))
+
+        start_time = time.time()
+        for forecast in latest_forecasts:
+            period_start = dt.fromisoformat(forecast["period_end"]).astimezone(datetime.UTC).replace(second=0, microsecond=0) - timedelta(
+                minutes=30
+            )
+            if period_start < last_day:
+                new_data.append(
+                    {
+                        "period_start": period_start,
+                        "pv_estimate": forecast[FORECAST],
+                        "pv_estimate10": forecast[FORECAST10],
+                        "pv_estimate90": forecast[FORECAST90],
+                    }
                 )
-                data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts)}})
 
-            start_time = time.time()
-            await sort_and_prune(self._data, 730, forecasts)
-            await sort_and_prune(self._data_undampened, 14, forecasts_undampened)
-            _LOGGER.debug("Task sort_and_prune took %.3f seconds", time.time() - start_time)
+        # Add or update forecasts with the latest data.
 
-            _LOGGER.debug("Forecasts dictionary length %s (%s un-dampened)", len(forecasts), len(forecasts_undampened))
-        except asyncio.InvalidStateError:
-            return DataCallStatus.ABORT, "Cancelled"
+        # Load the forecast history.
+        try:
+            forecasts = {forecast["period_start"]: forecast for forecast in self._data["siteinfo"][site]["forecasts"]}
+        except:  # noqa: E722
+            forecasts = {}
+        try:
+            forecasts_undampened = {forecast["period_start"]: forecast for forecast in self._data_undampened["siteinfo"][site]["forecasts"]}
+        except:  # noqa: E722
+            forecasts_undampened = {}
+
+        _LOGGER.debug("Task load_new_data took %.3f seconds", time.time() - start_time)
+
+        # Apply dampening to the new data
+        start_time = time.time()
+        for forecast in new_data:
+            period_start = forecast["period_start"]
+            dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz))
+
+            # Add or update the new entries.
+            self.__forecast_entry_update(
+                forecasts,
+                period_start,
+                round(forecast["pv_estimate"] * dampening_factor, 4),
+                round(forecast["pv_estimate10"] * dampening_factor, 4),
+                round(forecast["pv_estimate90"] * dampening_factor, 4),
+            )
+            self.__forecast_entry_update(
+                forecasts_undampened,
+                period_start,
+                round(forecast["pv_estimate"], 4),
+                round(forecast["pv_estimate10"], 4),
+                round(forecast["pv_estimate90"], 4),
+            )
+        _LOGGER.debug(
+            "Task apply_dampening took %.3f seconds",
+            time.time() - start_time,
+        )
+
+        async def sort_and_prune(data, past_days, forecasts):
+            past_days = self.get_day_start_utc(future=past_days * -1)
+            forecasts = sorted(
+                filter(
+                    lambda forecast: forecast["period_start"] >= past_days,
+                    forecasts.values(),
+                ),
+                key=itemgetter("period_start"),
+            )
+            data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts)}})
+
+        start_time = time.time()
+        await sort_and_prune(self._data, 730, forecasts)
+        await sort_and_prune(self._data_undampened, 14, forecasts_undampened)
+        _LOGGER.debug("Task sort_and_prune took %.3f seconds", time.time() - start_time)
+
+        _LOGGER.debug("Forecasts dictionary length %s (%s un-dampened)", len(forecasts), len(forecasts_undampened))
+
         return DataCallStatus.SUCCESS, ""
 
     async def _sleep(self, delay: float):

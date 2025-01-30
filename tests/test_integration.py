@@ -334,6 +334,7 @@ async def test_api_failure(
         await bad_response(assertions1_bad_data)
 
         # Normal start and teardown to create caches
+        session_clear(MOCK_BUSY)
         entry: SolcastConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
         await hass.async_block_till_done()
         assert await hass.config_entries.async_unload(entry.entry_id)
@@ -1022,8 +1023,7 @@ async def test_integration_scenarios(
 
         def alter_last_updated_as_fresh(last_update: str):
             data = json.loads(data_file.read_text(encoding="utf-8"))
-            data["last_updated"] = dt.now(datetime.UTC).isoformat()
-            data["last_updated"] = data["last_updated"].split("T")[0] + "T" + last_update + "+10:00"
+            data["last_updated"] = last_update
             data["last_attempt"] = data["last_updated"]
             data["auto_updated"] = 10
             data_file.write_text(json.dumps(data), encoding="utf-8")
@@ -1040,6 +1040,14 @@ async def test_integration_scenarios(
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
         assert "ERROR" not in caplog.text
         _no_exception(caplog)
+
+        # Get last auto-update time for a subsequent test
+        last_update = ""
+        for line in caplog.messages:
+            if line.startswith("Previous auto update UTC "):
+                last_update = line[-25:]
+                break
+
         caplog.clear()
 
         # Test stale start with auto update disabled
@@ -1055,18 +1063,13 @@ async def test_integration_scenarios(
 
         restore_data()
 
-        # Re-load integration, test forecast is fresh
+        # Re-enable auto-update, re-load integration, test forecast is fresh
+        _LOGGER.debug("Testing start with fresh auto updated data")
+        alter_last_updated_as_fresh(last_update)
         opt = {**entry.options}
         opt[AUTO_UPDATE] = 1
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
-        last_update = ""
-        for line in caplog.messages:
-            if line.startswith("Previous auto update would have been at "):
-                last_update = line[-8:]
-                break
-        alter_last_updated_as_fresh(last_update)
-        coordinator, solcast = await _reload(hass, entry)
         assert "Auto update forecast is fresh" in caplog.text
 
         # Test API key change, start with an API failure and invalid sites cache

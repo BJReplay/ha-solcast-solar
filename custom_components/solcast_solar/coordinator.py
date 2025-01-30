@@ -284,6 +284,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 else:
                     just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
                 _LOGGER.debug("Previous auto update would have been at %s", just_passed)
+                _LOGGER.debug("Previous auto update UTC %s", self.interval_just_passed.isoformat())
             return intervals
 
         def format_intervals(intervals) -> list[str]:

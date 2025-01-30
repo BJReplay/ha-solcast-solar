@@ -90,7 +90,7 @@ STATUS_403 = {
         "errors": [],
     }
 }
-STATUS_EMPTY = {}
+STATUS_EMPTY = ""
 STATUS_429_OVER = {
     "response_status": {
         "error_code": "TooManyRequests",
@@ -142,7 +142,7 @@ simulated: SimulatedSolcast = SimulatedSolcast()
 
 def _check_abend(api_key, site=None) -> CallbackResult | None:
     if MOCK_SESSION_CONFIG[MOCK_BUSY] or (MOCK_SESSION_CONFIG[MOCK_BUSY_SITE] and site == MOCK_SESSION_CONFIG[MOCK_BUSY_SITE]):
-        return CallbackResult(status=429, payload=STATUS_EMPTY)
+        return CallbackResult(status=429, body=STATUS_EMPTY)
     if MOCK_SESSION_CONFIG["api_used"].get(api_key, 0) >= MOCK_SESSION_CONFIG["api_limit"]:
         return CallbackResult(status=429, payload=STATUS_429_OVER)
     if MOCK_SESSION_CONFIG[MOCK_BUSY_UNEXPECTED]:
@@ -150,13 +150,13 @@ def _check_abend(api_key, site=None) -> CallbackResult | None:
     if MOCK_SESSION_CONFIG[MOCK_OVER_LIMIT]:
         return CallbackResult(status=429, payload=STATUS_429_OVER)
     if MOCK_SESSION_CONFIG[MOCK_BAD_REQUEST]:
-        return CallbackResult(status=400, payload=STATUS_EMPTY)
+        return CallbackResult(status=400, body=STATUS_EMPTY)
     if API_KEY_SITES.get(api_key) is None:
         return CallbackResult(status=403, payload=STATUS_403)
     if MOCK_SESSION_CONFIG[MOCK_FORBIDDEN]:
         return CallbackResult(status=403, payload=STATUS_403)
     if MOCK_SESSION_CONFIG[MOCK_NOT_FOUND]:
-        return CallbackResult(status=404, payload=STATUS_EMPTY)
+        return CallbackResult(status=404, body=STATUS_EMPTY)
     return None
 
 
