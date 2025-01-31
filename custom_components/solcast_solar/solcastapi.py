@@ -3069,7 +3069,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 is_persistent=True,
                 severity=ir.IssueSeverity.WARNING,
                 translation_key="records_missing",
-                learn_more_url="",
+                learn_more_url="https://github.com/BJReplay/ha-solcast-solar",
             )
         else:
             ir.async_delete_issue(self.hass, DOMAIN, "records_missing")
