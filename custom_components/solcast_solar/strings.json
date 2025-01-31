@@ -84,6 +84,12 @@
         "integration_not_loaded": {"message": "Integration not loaded, not performing action."},
         "remove_cache_failed": {"message": "Clear all Solcast data failed."}
     },
+    "issues": {
+        "records_missing": {
+            "title": "Future forecasts missing",
+            "description": "Future forecast data is missing, check that your update automation is running."
+        }
+    },
     "options": {
         "abort": {
             "reconfigured": "New configuration applied successfully"

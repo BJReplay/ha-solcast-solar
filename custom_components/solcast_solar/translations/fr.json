@@ -84,6 +84,12 @@
         "integration_not_loaded": {"message": "L'intégration n'est pas chargée, n'effectue aucune action."},
         "remove_cache_failed": {"message": "Échec de l'effacement de toutes les données Solcast."}
     },
+    "issues": {
+        "records_missing": {
+            "title": "Prévisions manquantes",
+            "description": "Les données de prévisions futures sont manquantes, vérifiez que votre automatisation des mises à jour est en cours d'exécution."
+        }
+    },
     "options": {
         "abort": {
             "reconfigured": "Nouvelle configuration appliquée"

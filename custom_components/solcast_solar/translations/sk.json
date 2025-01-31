@@ -84,6 +84,12 @@
         "integration_not_loaded": {"message": "Integrácia nie je načítaná, nevykonáva akciu."},
         "remove_cache_failed": {"message": "Vymazanie všetkých údajov Solcast zlyhalo."}
     },
+    "issues": {
+        "records_missing": {
+            "title": "Predpovede do budúcnosti chýbajú",
+            "description": "Údaje budúcej prognózy chýbajú. Skontrolujte, či je spustená automatizácia aktualizácií."
+        }
+    },
     "options": {
         "abort": {
             "reconfigured": "Použila sa nová konfigurácia"

@@ -31,6 +31,7 @@ from aiohttp.client_reqrep import ClientResponse
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import issue_registry as ir
 
 from .const import (
     BRK_ESTIMATE,
@@ -3058,3 +3059,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             assessment["expected_intervals"],
                             ", which may be expected" if contiguous == 7 else ", so is missing forecast data",
                         )
+        if contiguous < 7:
+            _LOGGER.warning("Raise issue for missing forecast data")
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                "records_missing",
+                is_fixable=False,
+                is_persistent=True,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="records_missing",
+                learn_more_url="",
+            )
+        else:
+            ir.async_delete_issue(self.hass, DOMAIN, "records_missing")

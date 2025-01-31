@@ -84,6 +84,12 @@
         "integration_not_loaded": {"message": "Integration nicht geladen, keine Aktion ausgeführt."},
         "remove_cache_failed": {"message": "Das Löschen aller Solcast-Daten ist fehlgeschlagen."}
     },
+    "issues": {
+        "records_missing": {
+            "title": "Zukunftsprognosen fehlen",
+            "description": "Zukünftige Prognosedaten fehlen. Überprüfen Sie, ob Ihre Update-Automatisierung ausgeführt wird."
+        }
+    },
     "options": {
         "abort": {
             "reconfigured": "Neue Konfiguration angewendet"

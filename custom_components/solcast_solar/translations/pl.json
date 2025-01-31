@@ -84,6 +84,12 @@
         "integration_not_loaded": {"message": "Integracja nie została załadowana, nie wykonuje akcji."},
         "remove_cache_failed": {"message": "Wyczyść wszystkie dane Solcast nie powiodło się."}
     },
+    "issues": {
+        "records_missing": {
+            "title": "Brak prognoz na przyszłość",
+            "description": "Brak danych prognozy na przyszłość. Sprawdź, czy działa automatyzacja aktualizacji."
+        }
+    },
     "options": {
         "abort": {
             "reconfigured": "Zastosowano nową konfigurację"
