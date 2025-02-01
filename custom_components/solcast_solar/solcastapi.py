@@ -3064,7 +3064,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             raise_issue: str = "records_missing_fixable" if self.entry.options["auto_update"] == 0 else "records_missing"
             if issue_registry.async_get_issue(DOMAIN, raise_issue) is None:
                 _LOGGER.warning("Raise issue for missing forecast data")
-                _LOGGER.critical(raise_issue)
                 ir.async_create_issue(
                     self.hass,
                     DOMAIN,

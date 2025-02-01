@@ -122,7 +122,7 @@ def get_hour_start_utc() -> dt:
 def patch_solcast_api(solcast):
     """Patch SolcastApi to return a fixed time.
 
-    Cannot use freezegun with these tests because time must tick (the teck= option won't work).
+    Cannot use freezegun with these tests because time must tick (the tick= option won't work).
     """
     solcast.get_now_utc = get_now_utc
     solcast.get_real_now_utc = get_real_now_utc
