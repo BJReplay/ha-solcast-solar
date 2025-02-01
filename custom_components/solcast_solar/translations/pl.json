@@ -92,6 +92,9 @@
         "records_missing_fixable": {
             "title": "Brak prognoz na przyszłość",
             "fix_flow": {
+                "abort": {
+                    "reconfigured": "Zastosowano nową konfigurację"
+                },
                 "step": {
                     "offer_auto": {
                         "data": {

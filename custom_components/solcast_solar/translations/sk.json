@@ -92,6 +92,9 @@
         "records_missing_fixable": {
             "title": "Predpovede do budúcnosti chýbajú",
             "fix_flow": {
+                "abort": {
+                    "reconfigured": "Použila sa nová konfigurácia"
+                },
                 "step": {
                     "offer_auto": {
                         "data": {

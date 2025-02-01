@@ -61,6 +61,7 @@ class RecordsMissingRepairFlow(SolcastRepair):
             opts = {AUTO_UPDATE: int(user_input[AUTO_UPDATE])}
             new_options = {**self.entry.options, **opts}
             self.hass.config_entries.async_update_entry(self.entry, options=new_options)
+            return self.async_abort(reason="reconfigured")
 
         placeholders = self._async_get_placeholders()
         return self.async_show_form(

@@ -92,6 +92,9 @@
         "records_missing_fixable": {
             "title": "Prévisions manquantes",
             "fix_flow": {
+                "abort": {
+                    "reconfigured": "Nouvelle configuration appliquée"
+                },
                 "step": {
                     "offer_auto": {
                         "data": {

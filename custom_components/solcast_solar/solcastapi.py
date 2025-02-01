@@ -3059,21 +3059,30 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             assessment["expected_intervals"],
                             ", which may be expected" if contiguous == 7 else ", so is missing forecast data",
                         )
+        issue_registry = ir.async_get(self.hass)
         if contiguous < 7:
-            _LOGGER.warning("Raise issue for missing forecast data")
-            issue = "records_missing_fixable" if self.entry.options["auto_update"] == 0 else "records_missing"
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                issue,
-                is_fixable=self.entry.options["auto_update"] == 0,
-                data={
-                    "contiguous": contiguous,
-                    "entry": self.entry,
-                },
-                severity=ir.IssueSeverity.WARNING,
-                translation_key=issue,
-                learn_more_url="https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#updating-forecasts",
-            )
+            raise_issue: str = "records_missing_fixable" if self.entry.options["auto_update"] == 0 else "records_missing"
+            if issue_registry.async_get_issue(DOMAIN, raise_issue) is None:
+                _LOGGER.warning("Raise issue for missing forecast data")
+                _LOGGER.critical(raise_issue)
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    raise_issue,
+                    is_fixable=self.entry.options["auto_update"] == 0,
+                    data={
+                        "contiguous": contiguous,
+                        "entry": self.entry,
+                    },
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key=raise_issue,
+                    learn_more_url="https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#updating-forecasts",
+                )
+            # Check whether the other issue is present, and if so, delete it.
+            check_issue: str = "records_missing" if raise_issue == "records_missing_fixable" else "records_missing_fixable"
+            if issue_registry.async_get_issue(DOMAIN, check_issue) is not None:
+                ir.async_delete_issue(self.hass, DOMAIN, check_issue)
         else:
-            ir.async_delete_issue(self.hass, DOMAIN, "records_missing")
+            for delete_issue in ("records_missing", "records_missing_fixable"):
+                if issue_registry.async_get_issue(DOMAIN, delete_issue) is not None:
+                    ir.async_delete_issue(self.hass, DOMAIN, delete_issue)

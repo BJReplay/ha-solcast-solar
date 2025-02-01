@@ -92,6 +92,9 @@
         "records_missing_fixable": {
             "title": "Future forecasts missing",
             "fix_flow": {
+                "abort": {
+                    "reconfigured": "New configuration applied successfully"
+                },
                 "step": {
                     "offer_auto": {
                         "data": {

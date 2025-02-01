@@ -92,6 +92,9 @@
         "records_missing_fixable": {
             "title": "مستقبل کی پیشن گوئیاں غائب ہیں۔",
             "fix_flow": {
+                "abort": {
+                    "reconfigured": "نئی کنفیگریشن لاگو کر دی گئی۔"
+                },
                 "step": {
                     "offer_auto": {
                         "data": {
