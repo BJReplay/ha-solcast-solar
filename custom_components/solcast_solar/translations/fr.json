@@ -87,7 +87,21 @@
     "issues": {
         "records_missing": {
             "title": "Prévisions manquantes",
-            "description": "Les données de prévisions futures sont manquantes, vérifiez que votre automatisation des mises à jour est en cours d'exécution."
+            "description": "Les données de prévisions futures sont manquantes, ce qui est inattendu car la mise à jour automatique est activée."
+        },
+        "records_missing_fixable": {
+            "title": "Prévisions manquantes",
+            "fix_flow": {
+                "step": {
+                    "offer_auto": {
+                        "data": {
+                            "auto_update": "Mise à jour automatique"
+                        },
+                        "description": "Aucune automatisation de mise à jour des prévisions n’a été exécutée. Souhaitez-vous activer la mise à jour automatique ? (En savoir plus : {learn_more})",
+                        "title": "Prévisions manquantes"
+                    }
+                }
+            }
         }
     },
     "options": {

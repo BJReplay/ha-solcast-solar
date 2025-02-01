@@ -87,7 +87,21 @@
     "issues": {
         "records_missing": {
             "title": "Zukunftsprognosen fehlen",
-            "description": "Zukünftige Prognosedaten fehlen. Überprüfen Sie, ob Ihre Update-Automatisierung ausgeführt wird."
+            "description": "Zukünftige Prognosedaten fehlen, was unerwartet ist, da die automatische Aktualisierung aktiviert ist."
+        },
+        "records_missing_fixable": {
+            "title": "Zukunftsprognosen fehlen",
+            "fix_flow": {
+                "step": {
+                    "offer_auto": {
+                        "data": {
+                            "auto_update": "Automatische Aktualisierung"
+                        },
+                        "description": "Es wurde keine Prognoseaktualisierungsautomatisierung ausgeführt. Möchten Sie die automatische Aktualisierung aktivieren? (Weitere Informationen: {learn_more})",
+                        "title": "Zukunftsprognosen fehlen"
+                    }
+                }
+            }
         }
     },
     "options": {

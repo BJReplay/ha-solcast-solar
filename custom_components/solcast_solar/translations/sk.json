@@ -87,7 +87,21 @@
     "issues": {
         "records_missing": {
             "title": "Predpovede do budúcnosti chýbajú",
-            "description": "Údaje budúcej prognózy chýbajú. Skontrolujte, či je spustená automatizácia aktualizácií."
+            "description": "Údaje budúcej prognózy chýbajú, čo je neočakávané, pretože je povolená automatická aktualizácia."
+        },
+        "records_missing_fixable": {
+            "title": "Predpovede do budúcnosti chýbajú",
+            "fix_flow": {
+                "step": {
+                    "offer_auto": {
+                        "data": {
+                            "auto_update": "Automatická aktualizácia"
+                        },
+                        "description": "Automatizácia aktualizácie prognózy nebola spustená. Chcete povoliť automatickú aktualizáciu? (Viac informácií: {learn_more})",
+                        "title": "Predpovede do budúcnosti chýbajú"
+                    }
+                }
+            }
         }
     },
     "options": {

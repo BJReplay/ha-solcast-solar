@@ -87,7 +87,21 @@
     "issues": {
         "records_missing": {
             "title": "Brak prognoz na przyszłość",
-            "description": "Brak danych prognozy na przyszłość. Sprawdź, czy działa automatyzacja aktualizacji."
+            "description": "Brak danych prognozy na przyszłość, co jest nieoczekiwane, ponieważ włączona jest automatyczna aktualizacja."
+        },
+        "records_missing_fixable": {
+            "title": "Brak prognoz na przyszłość",
+            "fix_flow": {
+                "step": {
+                    "offer_auto": {
+                        "data": {
+                            "auto_update": "Automatyczna aktualizacja"
+                        },
+                        "description": "Automatyzacja aktualizacji prognozy nie została uruchomiona. Czy chcesz włączyć automatyczną aktualizację? (Dowiedz się więcej: {learn_more})",
+                        "title": "Brak prognoz na przyszłość"
+                    }
+                }
+            }
         }
     },
     "options": {

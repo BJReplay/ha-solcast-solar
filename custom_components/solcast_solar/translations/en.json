@@ -87,7 +87,21 @@
     "issues": {
         "records_missing": {
             "title": "Future forecasts missing",
-            "description": "Future forecast data is missing, check that your update automation is running."
+            "description": "Future forecast data is missing, which is unexpected because auto-update is enabled."
+        },
+        "records_missing_fixable": {
+            "title": "Future forecasts missing",
+            "fix_flow": {
+                "step": {
+                    "offer_auto": {
+                        "data": {
+                            "auto_update": "Auto-update"
+                        },
+                        "description": "A forecast update automation has not been running. Would you like to enable auto-update? (Learn more: {learn_more})",
+                        "title": "Future forecasts missing"
+                    }
+                }
+            }
         }
     },
     "options": {

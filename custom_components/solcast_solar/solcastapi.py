@@ -3061,14 +3061,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         )
         if contiguous < 7:
             _LOGGER.warning("Raise issue for missing forecast data")
+            issue = "records_missing_fixable" if self.entry.options["auto_update"] == 0 else "records_missing"
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
-                "records_missing",
-                is_fixable=False,
-                is_persistent=True,
+                issue,
+                is_fixable=self.entry.options["auto_update"] == 0,
+                data={
+                    "contiguous": contiguous,
+                    "entry": self.entry,
+                },
                 severity=ir.IssueSeverity.WARNING,
-                translation_key="records_missing",
+                translation_key=issue,
                 learn_more_url="https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#updating-forecasts",
             )
         else:
