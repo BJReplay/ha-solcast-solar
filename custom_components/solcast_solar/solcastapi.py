@@ -3060,7 +3060,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             ", which may be expected" if contiguous == 7 else ", so is missing forecast data",
                         )
         issue_registry = ir.async_get(self.hass)
-        if contiguous < 7:
+        if 0 < contiguous < 7:
             if self.entry is not None:
                 raise_issue: str = "records_missing_fixable" if self.entry.options["auto_update"] == 0 else "records_missing"
                 if issue_registry.async_get_issue(DOMAIN, raise_issue) is None:
