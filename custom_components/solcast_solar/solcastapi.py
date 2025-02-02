@@ -2910,7 +2910,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     }
                         site_data_forecasts[site] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
                         if update_tally:
-                            rounded_tally = round(tally, 4) if tally is not None else 0.0
+                            rounded_tally: Any = round(tally, 4) if tally is not None else 0.0
                             if tally is not None:
                                 siteinfo["tally"] = rounded_tally
                             self._tally[site] = rounded_tally
@@ -3061,22 +3061,23 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         )
         issue_registry = ir.async_get(self.hass)
         if contiguous < 7:
-            raise_issue: str = "records_missing_fixable" if self.entry.options["auto_update"] == 0 else "records_missing"
-            if issue_registry.async_get_issue(DOMAIN, raise_issue) is None:
-                _LOGGER.warning("Raise issue for missing forecast data")
-                ir.async_create_issue(
-                    self.hass,
-                    DOMAIN,
-                    raise_issue,
-                    is_fixable=self.entry.options["auto_update"] == 0,
-                    data={
-                        "contiguous": contiguous,
-                        "entry": self.entry,
-                    },
-                    severity=ir.IssueSeverity.WARNING,
-                    translation_key=raise_issue,
-                    learn_more_url="https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#updating-forecasts",
-                )
+            if self.entry is not None:
+                raise_issue: str = "records_missing_fixable" if self.entry.options["auto_update"] == 0 else "records_missing"
+                if issue_registry.async_get_issue(DOMAIN, raise_issue) is None:
+                    _LOGGER.warning("Raise issue for missing forecast data")
+                    ir.async_create_issue(
+                        self.hass,
+                        DOMAIN,
+                        raise_issue,
+                        is_fixable=self.entry.options["auto_update"] == 0,
+                        data={
+                            "contiguous": contiguous,
+                            "entry": self.entry,
+                        },
+                        severity=ir.IssueSeverity.WARNING,
+                        translation_key=raise_issue,
+                        learn_more_url="https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#updating-forecasts",
+                    )
             # Check whether the other issue is present, and if so, delete it.
             check_issue: str = "records_missing" if raise_issue == "records_missing_fixable" else "records_missing_fixable"
             if issue_registry.async_get_issue(DOMAIN, check_issue) is not None:

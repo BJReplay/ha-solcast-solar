@@ -104,6 +104,11 @@ def validate_api_limit(user_input: dict[str, Any], api_count: int) -> tuple[str,
     return api_quota, None
 
 
+async def __get_time_zone(hass: HomeAssistant) -> dt_util.dt.tzinfo:
+    tz = await dt_util.async_get_time_zone(hass.config.time_zone)
+    return tz if tz is not None else dt_util.UTC
+
+
 async def validate_sites(hass: HomeAssistant, user_input: dict[str, Any]) -> tuple[int, str]:
     """Validate the keys and sites with an API call.
 
@@ -121,7 +126,7 @@ async def validate_sites(hass: HomeAssistant, user_input: dict[str, Any]) -> tup
         user_input[API_QUOTA],
         SOLCAST_URL,
         hass.config.path(f"{hass.config.config_dir}/solcast.json"),
-        await dt_util.async_get_time_zone(hass.config.time_zone),
+        await __get_time_zone(hass),
         user_input[AUTO_UPDATE],
         {str(a): 1.0 for a in range(24)},
         user_input[CUSTOM_HOUR_SENSOR],
@@ -338,7 +343,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         """
         self._entry = config_entry
         self._options = config_entry.options
-        self._all_config_data: dict[str, Any] = None
+        self._all_config_data: dict[str, Any] | None = None
 
     async def check_dead(self) -> None:
         """Check if the integration is presumed dead and reload if so."""
