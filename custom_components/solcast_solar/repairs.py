@@ -1,5 +1,6 @@
 """Repairs for the Solcast Solar integration."""
 
+import logging
 from typing import Any
 
 import voluptuous as vol
@@ -15,8 +16,10 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
-from .const import AUTO_UPDATE
+from .const import AUTO_UPDATE, DOMAIN
 from .util import SolcastConfigEntry
+
+_LOGGER = logging.getLogger(__name__)
 
 AUTO_UPDATE_OPTIONS: list[SelectOptionDict] = [
     SelectOptionDict(label="sunrise_sunset", value="1"),
@@ -39,7 +42,7 @@ class SolcastRepair(RepairsFlow):
     def _async_get_placeholders(self) -> dict[str, str]:
         issue_registry = ir.async_get(self.hass)
         placeholders: dict = {}
-        if issue := issue_registry.async_get_issue(self.handler, self.issue_id):
+        if issue := issue_registry.issues.get((DOMAIN, self.issue_id)):
             if issue.learn_more_url:
                 placeholders["learn_more"] = issue.learn_more_url
 
@@ -87,5 +90,5 @@ async def async_create_fix_flow(
     match issue_id:
         case "records_missing_fixable":
             return RecordsMissingRepairFlow(entry=data["entry"])
-        case _:
-            return ConfirmRepairFlow()
+
+    return ConfirmRepairFlow()
