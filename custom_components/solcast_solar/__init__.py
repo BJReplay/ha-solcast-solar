@@ -198,7 +198,7 @@ async def __get_granular_dampening(hass: HomeAssistant, entry: SolcastConfigEntr
 
 def __need_history_hours(coordinator: SolcastUpdateCoordinator) -> int:
     need_history_hours: int = 0
-    if coordinator.solcast.latest_period < dt_util.now(dt_util.UTC):
+    if coordinator.solcast.latest_period is not None and coordinator.solcast.latest_period < dt_util.now(dt_util.UTC):
         need_history_hours = min(int((dt_util.now(dt_util.UTC) - coordinator.solcast.latest_period).total_seconds() / 3600) + 1, 168)
         _LOGGER.debug("Need to fetch %s hours of history because very stale start", need_history_hours)
     return need_history_hours
