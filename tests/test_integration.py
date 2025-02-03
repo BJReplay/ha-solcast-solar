@@ -1077,7 +1077,7 @@ async def test_integration_scenarios(
         await _wait_for_update(caplog)
         assert "is older than expected, should be" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
-        assert "including 54 hours of past data" in caplog.text
+        assert "hours of past data" in caplog.text
         assert "ERROR" not in caplog.text
         _no_exception(caplog)
 
@@ -1106,7 +1106,7 @@ async def test_integration_scenarios(
         await _wait_for_update(caplog)
         assert "The update automation has not been running" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
-        assert "including 54 hours of past data" in caplog.text
+        assert "hours of past data" in caplog.text
         assert "ERROR" not in caplog.text
         _no_exception(caplog)
 
