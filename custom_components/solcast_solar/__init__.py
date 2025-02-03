@@ -196,13 +196,25 @@ async def __get_granular_dampening(hass: HomeAssistant, entry: SolcastConfigEntr
     hass.config_entries.async_update_entry(entry, options=opt)
 
 
+def __need_history_hours(coordinator: SolcastUpdateCoordinator) -> int:
+    need_history_hours: int = 0
+    if coordinator.solcast.latest_period < dt_util.now(dt_util.UTC):
+        need_history_hours = min(int((dt_util.now(dt_util.UTC) - coordinator.solcast.latest_period).total_seconds() / 3600) + 1, 168)
+        _LOGGER.debug("Need to fetch %s hours of history because very stale start", need_history_hours)
+    return need_history_hours
+
+
 async def __check_stale_start(coordinator: SolcastUpdateCoordinator) -> bool:
     """Check whether the integration has been failed for some time and then is restarted, and if so update forecast."""
     _LOGGER.debug("Checking for stale start")
     stale = False
     if coordinator.solcast.is_stale_data():
         _LOGGER.warning("The update automation has not been running, updating forecast")
-        await coordinator.service_event_update(ignore_auto_enabled=True, completion="Completed task stale_update")
+        await coordinator.service_event_update(
+            ignore_auto_enabled=True,
+            completion="Completed task stale_update",
+            need_history_hours=__need_history_hours(coordinator),
+        )
         stale = True
     else:
         _LOGGER.debug("Start is not stale")
@@ -228,7 +240,11 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> b
                     coordinator.solcast.get_data()["last_attempt"].astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
                     coordinator.interval_just_passed.astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
                 )
-                await coordinator.service_event_update(ignore_auto_enabled=True, completion="Completed task update_missed")
+                await coordinator.service_event_update(
+                    ignore_auto_enabled=True,
+                    completion="Completed task update_missed",
+                    need_history_hours=__need_history_hours(coordinator),
+                )
                 stale = True
             else:
                 _LOGGER.debug("Auto update forecast is fresh")

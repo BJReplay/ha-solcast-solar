@@ -176,7 +176,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
                 pop_expired = []
                 for index, interval in enumerate(self._intervals):
-                    # _LOGGER.critical("%s %s %s", _from, interval, _from + timedelta(minutes=5))
                     if _from <= interval < _from + timedelta(minutes=5):
                         update_in = int((interval - _now).total_seconds())
                         if update_in >= 0:
@@ -313,7 +312,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 ", ".join(format_intervals(intervals_tomorrow)),
             )
 
-    async def __forecast_update(self, force: bool = False, completion: str = "") -> None:
+    async def __forecast_update(self, force: bool = False, completion: str = "", need_history_hours: int = 0) -> None:
         """Get updated forecast data."""
 
         try:
@@ -324,7 +323,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 await self.solcast.reset_usage_cache()
                 await self.__restart_time_track_midnight_update()
 
-            await self.solcast.get_forecast_update(do_past=False, force=force)
+            await self.solcast.get_forecast_update(do_past_hours=need_history_hours, force=force)
 
             self._data_updated = True
             await self.update_integration_listeners()
@@ -354,7 +353,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             if self.solcast.options.auto_update > 0 and "ignore_auto_enabled" not in kwargs:
                 raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_force")
             task = asyncio.create_task(
-                self.__forecast_update(completion="Completed task update" if not kwargs.get("completion") else kwargs["completion"])
+                self.__forecast_update(
+                    completion="Completed task update" if not kwargs.get("completion") else kwargs["completion"],
+                    need_history_hours=kwargs.get("need_history_hours", 0),
+                )
             )
             self.tasks["forecast_update"] = task.cancel
         else:

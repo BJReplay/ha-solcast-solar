@@ -1021,6 +1021,25 @@ async def test_integration_scenarios(
             data_file.write_text(json.dumps(data), encoding="utf-8")
             session_reset_usage()
 
+        def alter_last_updated_as_very_stale():
+            data = json.loads(data_file.read_text(encoding="utf-8"))
+            data["last_updated"] = (dt.now(datetime.UTC) - timedelta(days=9)).isoformat()
+            data["last_attempt"] = data["last_updated"]
+            data["auto_updated"] = 10
+            # Shift all forecast intervals back nine days
+            for site in data["siteinfo"].values():
+                site["forecasts"] = [
+                    {
+                        "period_start": (dt.fromisoformat(f["period_start"]) - timedelta(days=9)).isoformat(),
+                        "pv_estimate": f["pv_estimate"],
+                        "pv_estimate10": f["pv_estimate10"],
+                        "pv_estimate90": f["pv_estimate90"],
+                    }
+                    for f in site["forecasts"]
+                ]
+            data_file.write_text(json.dumps(data), encoding="utf-8")
+            session_reset_usage()
+
         def alter_last_updated_as_fresh(last_update: str):
             data = json.loads(data_file.read_text(encoding="utf-8"))
             data["last_updated"] = last_update
@@ -1049,6 +1068,21 @@ async def test_integration_scenarios(
                 break
 
         caplog.clear()
+        restore_data()
+
+        # Test very stale start with auto update enabled
+        _LOGGER.debug("Testing very stale start with auto update enabled")
+        alter_last_updated_as_very_stale()
+        coordinator, solcast = await _reload(hass, entry)
+        await _wait_for_update(caplog)
+        assert "is older than expected, should be" in caplog.text
+        assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
+        assert "including 54 hours of past data" in caplog.text
+        assert "ERROR" not in caplog.text
+        _no_exception(caplog)
+
+        caplog.clear()
+        restore_data()
 
         # Test stale start with auto update disabled
         _LOGGER.debug("Testing stale start with auto update disabled")
@@ -1058,9 +1092,25 @@ async def test_integration_scenarios(
         await hass.async_block_till_done()
         alter_last_updated_as_stale()
         coordinator, solcast = await _reload(hass, entry)
+        await _wait_for_update(caplog)
+        assert "The update automation has not been running" in caplog.text
         _no_exception(caplog)
-        caplog.clear()
 
+        caplog.clear()
+        restore_data()
+
+        # Test very stale start with auto update disabled
+        _LOGGER.debug("Testing very stale start with auto update disabled")
+        alter_last_updated_as_very_stale()
+        coordinator, solcast = await _reload(hass, entry)
+        await _wait_for_update(caplog)
+        assert "The update automation has not been running" in caplog.text
+        assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
+        assert "including 54 hours of past data" in caplog.text
+        assert "ERROR" not in caplog.text
+        _no_exception(caplog)
+
+        caplog.clear()
         restore_data()
 
         # Re-enable auto-update, re-load integration, test forecast is fresh

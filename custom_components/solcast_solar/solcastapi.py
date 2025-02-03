@@ -203,6 +203,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.hard_limit: str = options.hard_limit
         self.hass: HomeAssistant = hass
         self.headers: dict = {}
+        self.latest_period: dt | None = None
         self.options: ConnectionOptions = options
         self.reauth_required: bool = False
         self.sites: list = []
@@ -1212,7 +1213,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         # Do not alter self._data['last_attempt'], as this is not a scheduled thing
                         _LOGGER.info("New site(s) have been added, so getting forecast data for them")
                         for site, api_key in new_sites.items():
-                            await self.__http_data_call(site=site, api_key=api_key, do_past=True)
+                            await self.__http_data_call(site=site, api_key=api_key, do_past_hours=168)
 
                         _now = dt.now(datetime.UTC).replace(microsecond=0)
                         self._data["last_updated"] = _now
@@ -1272,7 +1273,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # No file to load.
                     _LOGGER.warning("There is no solcast.json to load, so fetching solar forecast, including past forecasts")
                     # Could be a brand new install of the integration, or the file has been removed. Get the forecast and past actuals.
-                    status = await self.get_forecast_update(do_past=True)
+                    status = await self.get_forecast_update(do_past_hours=168)
                     self._loaded_data = True
 
                 if self._loaded_data:
@@ -2102,11 +2103,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return self._data_energy_dashboard
 
-    async def get_forecast_update(self, do_past: bool = False, force: bool = False) -> str:
+    async def get_forecast_update(self, do_past_hours: int = 0, force: bool = False) -> str:
         """Request forecast data for all sites.
 
         Arguments:
-            do_past (bool): A optional flag to indicate that past actual forecasts should be retrieved.
+            do_past_hours (int): A optional number of past actual forecast hours that should be retrieved.
             force (bool): A forced update, which does not update the internal API use counter.
 
         Returns:
@@ -2136,11 +2137,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         sites_succeeded = 0
         for site in self.sites:
             sites_attempted += 1
-            _LOGGER.info("Getting forecast update for site %s%s", site["resource_id"], ", including past data" if do_past else "")
+            _LOGGER.info(
+                "Getting forecast update for site %s%s",
+                site["resource_id"],
+                f", including {do_past_hours} hours of past data" if do_past_hours > 0 else "",
+            )
             result, reason = await self.__http_data_call(
                 site=site["resource_id"],
                 api_key=site["api_key"],
-                do_past=do_past,
+                do_past_hours=do_past_hours,
                 force=force,
             )
             if result == DataCallStatus.FAIL:
@@ -2327,7 +2332,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self,
         site: str | None = None,
         api_key: str | None = None,
-        do_past: bool = False,
+        do_past_hours: int = 0,
         force: bool = False,
     ) -> tuple[DataCallStatus, str]:
         """Request forecast data via the Solcast API.
@@ -2335,7 +2340,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Arguments:
             site (str): A Solcast site ID
             api_key (str): A Solcast API key appropriate to use for the site
-            do_past (bool): A optional flag to indicate that past actual forecasts should be retrieved.
+            do_past_hours (int): A optional number of past actual forecast hours that should be retrieved.
             force (bool): A forced update, which does not update the internal API use counter.
 
         Returns:
@@ -2355,11 +2360,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         # Fetch past data. (Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.)
 
-        if do_past:
+        if do_past_hours > 0:
             try:
                 self.tasks["fetch"] = asyncio.create_task(
                     self.fetch_data(
-                        168,
+                        hours=do_past_hours,
                         path="estimated_actuals",
                         site=site,
                         api_key=api_key,
@@ -2402,7 +2407,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         try:
             self.tasks["fetch"] = asyncio.create_task(
                 self.fetch_data(
-                    hours,
+                    hours=hours,
                     path="forecasts",
                     site=site,
                     api_key=api_key,
@@ -2505,7 +2510,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     async def fetch_data(
         self,
-        hours: int,
+        hours: int = 0,
         path: str = "error",
         site: str | None = None,
         api_key: str | None = None,
@@ -2993,6 +2998,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if interval["period_start"] is not None
                 else None
             )
+
+        # The latest period is used to determine whether any history should be updated on stale start.
+        self.latest_period = self._data_forecasts[-1]["period_start"] if len(self._data_forecasts) > 0 else None
 
         for future_day in range(8):
             start_utc = self.get_day_start_utc(future=future_day)
