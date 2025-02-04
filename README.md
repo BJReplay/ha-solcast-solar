@@ -862,6 +862,7 @@ v4.2.8
 * Config and options flows check valid API key and sites available by @autoSteve
 * Add re-auth and reconfigure flows by @autoSteve
 * Add repair flows for forecasts not updating by @autoSteve
+* Fetch estimated actuals on super-stale start by @autoSteve
 * Set sensors to unavailable on integration failure by @autoSteve
 * Catch duplicate API key being specified by @autoSteve
 * Remove check for conflicting integration by @autoSteve
