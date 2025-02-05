@@ -1232,7 +1232,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     for site in cache_sites:
                         if site not in configured_sites:
                             _LOGGER.warning(
-                                "Site resource id %s is no longer configured, will remove saved data from cached files %s, %s",
+                                "Site resource id %s is no longer configured, will remove saved data from %s, %s",
                                 site,
                                 self._filename,
                                 self._filename_undampened,
@@ -3070,22 +3070,28 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         issue_registry = ir.async_get(self.hass)
         if 0 < contiguous < 7:
             if self.entry is not None:
+                # If auto-update is enabled then raise an un-fixable issue, otherwise raise a fixable issue.
                 raise_issue: str = "records_missing_fixable" if self.entry.options["auto_update"] == 0 else "records_missing"
-                if issue_registry.async_get_issue(DOMAIN, raise_issue) is None:
-                    _LOGGER.warning("Raise issue for missing forecast data")
-                    ir.async_create_issue(
-                        self.hass,
-                        DOMAIN,
-                        raise_issue,
-                        is_fixable=self.entry.options["auto_update"] == 0,
-                        data={
-                            "contiguous": contiguous,
-                            "entry": self.entry,
-                        },
-                        severity=ir.IssueSeverity.WARNING,
-                        translation_key=raise_issue,
-                        learn_more_url="https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#updating-forecasts",
-                    )
+                # If auto-update is enabled yet the prior forecast update was manual then do not raise an issue.
+                raise_issue = None if self._data_undampened["auto_updated"] == 0 and self.entry.options["auto_update"] != 0 else raise_issue
+                if raise_issue:
+                    if issue_registry.async_get_issue(DOMAIN, raise_issue) is None:
+                        _LOGGER.warning("Raise issue for missing forecast data")
+                        ir.async_create_issue(
+                            self.hass,
+                            DOMAIN,
+                            raise_issue,
+                            is_fixable=self.entry.options["auto_update"] == 0,
+                            data={
+                                "contiguous": contiguous,
+                                "entry": self.entry,
+                            },
+                            severity=ir.IssueSeverity.WARNING,
+                            translation_key=raise_issue,
+                            learn_more_url="https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#updating-forecasts",
+                        )
+                    else:
+                        _LOGGER.debug("Issue already raised for missing forecast data")
             # Check whether the other issue is present, and if so, delete it.
             check_issue: str = "records_missing" if raise_issue == "records_missing_fixable" else "records_missing_fixable"
             if issue_registry.async_get_issue(DOMAIN, check_issue) is not None:
