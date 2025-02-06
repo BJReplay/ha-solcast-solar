@@ -598,12 +598,28 @@ Utilise the Solcast Developer Tools to examine exposed attributes, as their stru
 
 | Name | Type | Attributes | Unit | Description |
 | ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
-| `API Last Polled` | date/time | N | `datetime` | Date/time when the API data was polled. |
+| `API Last Polled` | date/time | Y | `datetime` | Date/time when the API data was polled. |
 | `API Limit` | number | N | `integer` | Total times the API can been called in a 24 hour period[^1]. |
 | `API used` | number | N | `integer` | Total times the API has been called today (API counter resets to zero at midnight UTC)[^1]. |  
 | `Hard Limit Set` | number | N | `float` | `False` if not set, else value in `kilowatts`. |
 | `Hard Limit Set ******AaBbCc` | number | N | `float` | Individual account hard limit. `False` if not set, else value in `kilowatts`. |
-| `Rooftop(s) name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the solcast rooftop setup)[^2]. |
+| `Rooftop name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the solcast rooftop setup)[^2]. |
+
+`API Last Polled` attributes include the following, but only if auto-update is enabled:
+
+* `next_auto_update`: The UTC time of the next scheduled auto-update.
+* `auto_update_divisions`: The number of configured auto-updates for each day.
+* `auto_update_queue`: A maximum of 48 future auto-updates currently in the queue.
+
+`Rooftop name` attributes include:
+
+* `name`: The site name configured at solcast.com.
+* `resource_id`: The site ID.
+* `capacity`: Site capacity in AC power.
+* `capacity_dc`: Site capacity in DC power.
+* `azimuth` / `tilt`: Panel orientation.
+* `install_date`: Configured installation date.
+* `loss_factor`: Configured "loss factor".
 
 [^1]: API usage information is internally tracked and may not match actual account usage.
 
@@ -858,6 +874,7 @@ v4.2.8
 * Fix an issue with transitioning from granular to legacy dampening by @autoSteve
 * Fix an issue with using multiple hard limits by @autoSteve
 * Fix an issue with stale start when auto-update is enabled by @autoSteve
+* Add auto-update attributes to api_last_polled by @autoSteve
 * Upgrade data files from v3 integration by @autoSteve
 * Config and options flows check valid API key and sites available by @autoSteve
 * Add re-auth and reconfigure flows by @autoSteve

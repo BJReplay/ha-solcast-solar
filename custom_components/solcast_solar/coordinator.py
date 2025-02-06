@@ -312,6 +312,17 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 ", ".join(format_intervals(intervals_tomorrow)),
             )
 
+    def _get_auto_update_details(self) -> dict[str, Any]:
+        """Return attributes for the last updated sensor."""
+
+        if self.solcast.options.auto_update > 0:
+            return {
+                "next_auto_update": self._intervals[0],
+                "auto_update_divisions": self.divisions,
+                "auto_update_queue": self._intervals[:48],
+            }
+        return {}
+
     async def __forecast_update(self, force: bool = False, completion: str = "", need_history_hours: int = 0) -> None:
         """Get updated forecast data."""
 
@@ -487,6 +498,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             )
             if to_return is not None:
                 ret.update(to_return)
+        if key == "lastupdated":
+            ret.update(self._get_auto_update_details())
         return ret
 
     def get_site_sensor_value(self, roof_id: str, key: str) -> float | None:

@@ -3084,7 +3084,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 # If auto-update is enabled yet the prior forecast update was manual then do not raise an issue.
                 raise_issue = None if self._data["auto_updated"] == 0 and self.entry.options["auto_update"] != 0 else raise_issue
                 if raise_issue is not None and issue_registry.async_get_issue(DOMAIN, raise_issue) is None:
-                    _LOGGER.warning("Raise issue for missing forecast data")
+                    _LOGGER.warning("Raise issue `%s` for missing forecast data", raise_issue)
                     ir.async_create_issue(
                         self.hass,
                         DOMAIN,
