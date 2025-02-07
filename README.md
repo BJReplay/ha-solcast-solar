@@ -869,13 +869,13 @@ If behaviour most odd is encountered, filled with exceptions occurring, then a q
 
 ## Changes
 
-v4.2.8
+v4.3.0
 * Fix an issue when half-hourly breakdown is disabled but hourly is enabled by @autoSteve
 * Fix an issue with transitioning from granular to legacy dampening by @autoSteve
 * Fix an issue with using multiple hard limits by @autoSteve
 * Fix an issue with stale start when auto-update is enabled by @autoSteve
 * Add auto-update attributes to api_last_polled by @autoSteve
-* Upgrade data files from v3 integration by @autoSteve
+* Upgrade data files from v3 integration schema by @autoSteve
 * Config and options flows check valid API key and sites available by @autoSteve
 * Add re-auth and reconfigure flows by @autoSteve
 * Add repair flows for forecasts not updating by @autoSteve
@@ -885,10 +885,14 @@ v4.2.8
 * Remove check for conflicting integration by @autoSteve
 * Add integration and unit tests by @autoSteve
 * Strict type checking by @autoSteve
+* Add troubleshooting section in README.md by @autoSteve
 * Fix an issue of incorrect forecasts with notes to remove any sample sites from Solcast dashboard by @BJReplay
 * Updated issue template by @BJReplay
 
-Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.7...v4.2.8
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.7...v4.3.0
+
+### Prior changes
+<details><summary><i>Click here for changes back to v3.0</i></summary>
 
 v4.2.7
 * Fix an issue with API key validation by @autoSteve
@@ -945,9 +949,6 @@ v4.2.0
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.7...v4.2.0
 
 Most recent changes: https://github.com/BJReplay/ha-solcast-solar/compare/v4.1.9...v4.2.0
-
-### Prior changes
-<details><summary><i>Click here for changes back to v3.0</i></summary>
 
 v4.1.9 pre-release
 * Granular dampening to dampen per half hour period by @autoSteve and @isorin
