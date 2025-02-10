@@ -1173,7 +1173,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             data.pop("forecasts", None)
                                             data.pop("energy", None)
                                     json_version = 5
-                                # Alter "auto_updated" boolean flag to be the integer number of auto-update divisions, introduced v4.2.8.
+                                # Alter "auto_updated" boolean flag to be the integer number of auto-update divisions, introduced v4.3.0.
                                 if json_version < 6:
                                     data["version"] = 6
                                     data["auto_updated"] = 99999 if self.options.auto_update > 0 else 0
