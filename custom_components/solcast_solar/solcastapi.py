@@ -1541,12 +1541,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             result["detailedForecast"] = _tuple
             if self.options.attr_brk_site_detailed:
                 for site in self.sites:
-                    result[f"detailedForecast-{site['resource_id']}"] = tuples[site["resource_id"]]
+                    result[f"detailedForecast_{site['resource_id'].replace("-", "_")}"] = tuples[site["resource_id"]]
         if self.options.attr_brk_hourly:
             result["detailedHourly"] = hourly_tuple
             if self.options.attr_brk_site_detailed:
                 for site in self.sites:
-                    result[f"detailedHourly-{site['resource_id']}"] = hourly_tuples[site["resource_id"]]
+                    result[f"detailedHourly_{site['resource_id'].replace("-", "_")}"] = hourly_tuples[site["resource_id"]]
         return result
 
     def get_forecast_n_hour(
@@ -1722,9 +1722,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         result = {}
         if self.options.attr_brk_site:
             for site in self.sites:
-                result[site["resource_id"]] = get_forecast_value(n, site=site["resource_id"])
+                result[site["resource_id"].replace("-", "_")] = get_forecast_value(n, site=site["resource_id"])
                 for forecast_confidence in self.estimate_set:
-                    result[forecast_confidence.replace("pv_", "") + "-" + site["resource_id"]] = get_forecast_value(
+                    result[forecast_confidence.replace("pv_", "") + "_" + site["resource_id"].replace("-", "_")] = get_forecast_value(
                         n,
                         site=site["resource_id"],
                         forecast_confidence=forecast_confidence,

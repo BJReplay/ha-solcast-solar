@@ -424,8 +424,8 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             exclude = ["detailedForecast", "detailedHourly"]
             if self._coordinator.solcast.options.attr_brk_site_detailed:
                 for s in self._coordinator.solcast.sites:
-                    exclude.append("detailedForecast-" + s["resource_id"])
-                    exclude.append("detailedHourly-" + s["resource_id"])
+                    exclude.append("detailedForecast_" + s["resource_id"].replace("-", "_"))
+                    exclude.append("detailedHourly_" + s["resource_id"].replace("-", "_"))
             self._state_info["unrecorded_attributes"] = self._state_info["unrecorded_attributes"] | frozenset(exclude)
 
     @property
