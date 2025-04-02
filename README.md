@@ -869,6 +869,8 @@ If behaviour most odd is encountered, filled with exceptions occurring, then a q
 
 v4.3.2
 * Replace hyphen with underscore for site breakdown attribute names by @autoSteve
+* Add Spanish translation by @autoSteve
+* Add Italian translation by @Ndrinta (thanks!)
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.1...v4.3.2
 
