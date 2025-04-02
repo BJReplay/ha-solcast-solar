@@ -557,7 +557,7 @@ Utilise the Solcast Developer Tools to examine exposed attributes, as their stru
 > [!NOTE]
 >
 > 
-> Where a site breakdown is available as an attribute, the attribute name is the Solcast site resource ID.
+> Where a site breakdown is available as an attribute, the attribute name is the Solcast site resource ID (with hyphens replaced by underscores).
 >
 > 
 > Most sensors also include an attribute for `estimate`, `estimate10` and `estimate90`. Template sensors may be created to expose their value, or the `state_attr()` can be used directly in automations.
@@ -567,9 +567,9 @@ Utilise the Solcast Developer Tools to examine exposed attributes, as their stru
 >
 > 
 > ```
-> {{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', '1234-5678-9012-3456') | float(0) }}
+> {{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', '1234_5678_9012_3456') | float(0) }}
 > {{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', 'estimate10') | float(0) }}
-> {{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', 'estimate10-1234-5678-9012-3456') | float(0) }}
+> {{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', 'estimate10_1234_5678_9012_3456') | float(0) }}
 > ```
 >
 > 
@@ -640,8 +640,8 @@ template:
       - name: "Solcast Combined API 1"
         unique_id: "solcast_combined_api_1"
         state: >
-          {% set sensor1 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast-b68d-c05a-c2b3-2cf9') %}
-          {% set sensor2 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast-83d5-ab72-2a9a-2397') %}
+          {% set sensor1 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast_b68d_c05a_c2b3_2cf9') %}
+          {% set sensor2 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast_83d5_ab72_2a9a_2397') %}
           {% set ns = namespace(i=0, combined=0) %}
           {% for interval in sensor1 %}
             {% set ns.combined = ns.combined + interval['pv_estimate'] * 0.5 + sensor2[ns.i]['pv_estimate'] * 0.5 %}
@@ -651,8 +651,8 @@ template:
         unit_of_measurement: "kWh"
         attributes:
           detailedForecast: >
-            {% set sensor1 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast-b68d-c05a-c2b3-2cf9') %}
-            {% set sensor2 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast-83d5-ab72-2a9a-2397') %}
+            {% set sensor1 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast_b68d_c05a_c2b3_2cf9') %}
+            {% set sensor2 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast_83d5_ab72_2a9a_2397') %}
             {% set ns = namespace(i=0, combined=[]) %}
             {% for interval in sensor1 %}
               {% set ns.combined = ns.combined + [
@@ -866,6 +866,11 @@ If behaviour most odd is encountered, filled with exceptions occurring, then a q
 </details>
 
 ## Changes
+
+v4.3.2
+* Replace hyphen with underscore for site breakdown attribute names by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.1...v4.3.2
 
 v4.3.1
 * Add HACS Default installation instructions by @BJReplay
