@@ -867,6 +867,11 @@ If behaviour most odd is encountered, filled with exceptions occurring, then a q
 
 ## Changes
 
+v4.3.3
+* Fix remove orphaned cache where API key contains non-alphanumeric characters by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.2...v4.3.3
+
 v4.3.2
 * Replace hyphen with underscore for site breakdown attribute names by @autoSteve
 * Add Spanish translation by @autoSteve

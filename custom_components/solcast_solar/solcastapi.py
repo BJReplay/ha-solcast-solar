@@ -823,12 +823,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             """Remove orphaned cache files."""
             for file in all_cached:
                 if file not in multi_cached:
-                    component_parts = re.search(r"(.+solcast-.+-)([0-9a-zA-Z]+)(\.json)", file)
-                    _LOGGER.warning(
-                        "Removing orphaned %s",
-                        component_parts.group(1) + "******" + component_parts.group(2)[:6] + component_parts.group(3),
-                    )
-                    Path(file).unlink()
+                    component_parts = re.search(r"(.+solcast-.+-)(.+)(\.json)", file)
+                    if component_parts is not None:
+                        _LOGGER.warning(
+                            "Removing orphaned %s",
+                            component_parts.group(1) + "******" + component_parts.group(2)[:6] + component_parts.group(3),
+                        )
+                        Path(file).unlink()
 
         def list_all_files() -> tuple[list[str], list[str]]:
             sites = [str(sites) for sites in Path(self._config_dir).glob("solcast-sites*.json")]
