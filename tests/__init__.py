@@ -23,6 +23,7 @@ from homeassistant.components.solcast_solar.const import (
     CONFIG_VERSION,
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
+    EXCLUDE_SITES,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE_DAMP,
@@ -53,6 +54,7 @@ DEFAULT_INPUT1_NO_DAMP = {
     BRK_HALFHOURLY: False,
     BRK_HOURLY: False,
     BRK_SITE_DETAILED: False,
+    EXCLUDE_SITES: [],
 }
 
 BAD_INPUT = copy.deepcopy(DEFAULT_INPUT1_NO_DAMP)

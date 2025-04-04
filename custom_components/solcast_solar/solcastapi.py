@@ -44,6 +44,7 @@ from .const import (
     CUSTOM_HOUR_SENSOR,
     DATE_FORMAT,
     DOMAIN,
+    EXCLUDE_SITES,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE_DAMP,
@@ -51,6 +52,9 @@ from .const import (
 from .util import (
     Api,
     DataCallStatus,
+    DateTimeEncoder,
+    JSONDecoder,
+    NoIndentEncoder,
     SitesStatus,
     SolcastApiStatus,
     SolcastConfigEntry,
@@ -105,49 +109,6 @@ _LOGGER = logging.getLogger(__name__)
 FunctionName = lambda n=0: sys._getframe(n + 1).f_code.co_name  # noqa: E731, SLF001
 
 
-class DateTimeEncoder(json.JSONEncoder):
-    """Helper to convert datetime dict values to ISO format."""
-
-    def default(self, o: Any) -> str | Any:
-        """Convert to ISO format if datetime."""
-        return o.isoformat() if isinstance(o, dt) else super().default(o)
-
-
-class NoIndentEncoder(json.JSONEncoder):
-    """Helper to output semi-indented json."""
-
-    def iterencode(self, o: Any, _one_shot: bool = False):
-        """Recursive encoder to indent only top level keys."""
-        list_lvl = 0
-        for s in super().iterencode(o, _one_shot=_one_shot):
-            if s.startswith("["):
-                list_lvl += 1
-                s = s.replace(" ", "").replace("\n", "").rstrip()
-            elif list_lvl > 0:
-                s = s.replace(" ", "").replace("\n", "").rstrip()
-            if s.endswith("]"):
-                list_lvl -= 1
-            yield s
-
-
-class JSONDecoder(json.JSONDecoder):
-    """Helper to convert ISO format dict values to datetime."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        """Initialise the decoder."""
-        json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)  # noqa: B026
-
-    def object_hook(self, o: Any) -> dict:
-        """Return converted datetimes."""
-        result = {}
-        for key, value in o.items():
-            try:
-                result[key] = dt.fromisoformat(value)
-            except:  # noqa: E722
-                result[key] = value
-        return result
-
-
 @dataclass
 class ConnectionOptions:
     """Solcast options for the integration."""
@@ -169,6 +130,7 @@ class ConnectionOptions:
     attr_brk_halfhourly: bool
     attr_brk_hourly: bool
     attr_brk_site_detailed: bool
+    exclude_sites: list[str]
 
 
 class SolcastApi:  # pylint: disable=too-many-public-methods
@@ -282,6 +244,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             options[BRK_HALFHOURLY],
             options[BRK_HOURLY],
             options[BRK_SITE_DETAILED],
+            options[EXCLUDE_SITES],
         )
         self.hard_limit = self.options.hard_limit
         self._use_forecast_confidence = f"pv_{self.options.key_estimate}"
@@ -2884,36 +2847,40 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 if update_tally and period_start_local.date() == today:
                                     if tally is None:
                                         tally = 0.0
-                                    tally += (
-                                        min(
-                                            forecast[self._use_forecast_confidence],
-                                            sites_hard_limit[api_key][self._use_forecast_confidence].get(period_start, {}).get(site, 100),
+                                    if site not in self.options.exclude_sites:
+                                        tally += (
+                                            min(
+                                                forecast[self._use_forecast_confidence],
+                                                sites_hard_limit[api_key][self._use_forecast_confidence]
+                                                .get(period_start, {})
+                                                .get(site, 100),
+                                            )
+                                            * 0.5
                                         )
-                                        * 0.5
-                                    )
 
-                                # Add the forecast for this site to the total.
-                                extant = forecasts.get(period_start)
-                                if extant:
-                                    extant["pv_estimate"] = round(
-                                        extant["pv_estimate"] + site_forecasts[period_start]["pv_estimate"],
-                                        4,
-                                    )
-                                    extant["pv_estimate10"] = round(
-                                        extant["pv_estimate10"] + site_forecasts[period_start]["pv_estimate10"],
-                                        4,
-                                    )
-                                    extant["pv_estimate90"] = round(
-                                        extant["pv_estimate90"] + site_forecasts[period_start]["pv_estimate90"],
-                                        4,
-                                    )
-                                else:
-                                    forecasts[period_start] = {
-                                        "period_start": period_start,
-                                        "pv_estimate": site_forecasts[period_start]["pv_estimate"],
-                                        "pv_estimate10": site_forecasts[period_start]["pv_estimate10"],
-                                        "pv_estimate90": site_forecasts[period_start]["pv_estimate90"],
-                                    }
+                                # If the forecast is for today, and the site is not excluded, add to the total.
+                                if site not in self.options.exclude_sites:
+                                    extant = forecasts.get(period_start)
+                                    if extant:
+                                        extant["pv_estimate"] = round(
+                                            extant["pv_estimate"] + site_forecasts[period_start]["pv_estimate"],
+                                            4,
+                                        )
+                                        extant["pv_estimate10"] = round(
+                                            extant["pv_estimate10"] + site_forecasts[period_start]["pv_estimate10"],
+                                            4,
+                                        )
+                                        extant["pv_estimate90"] = round(
+                                            extant["pv_estimate90"] + site_forecasts[period_start]["pv_estimate90"],
+                                            4,
+                                        )
+                                    else:
+                                        forecasts[period_start] = {
+                                            "period_start": period_start,
+                                            "pv_estimate": site_forecasts[period_start]["pv_estimate"],
+                                            "pv_estimate10": site_forecasts[period_start]["pv_estimate10"],
+                                            "pv_estimate90": site_forecasts[period_start]["pv_estimate90"],
+                                        }
                         site_data_forecasts[site] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
                         if update_tally:
                             rounded_tally: Any = round(tally, 4) if tally is not None else 0.0

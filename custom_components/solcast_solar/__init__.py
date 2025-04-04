@@ -38,6 +38,7 @@ from .const import (
     DOMAIN,
     EVENT_END_DATETIME,
     EVENT_START_DATETIME,
+    EXCLUDE_SITES,
     HARD_LIMIT,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
@@ -143,6 +144,7 @@ async def __get_options(hass: HomeAssistant, entry: SolcastConfigEntry) -> Conne
         entry.options.get(BRK_HALFHOURLY, True),
         entry.options.get(BRK_HOURLY, True),
         entry.options.get(BRK_SITE_DETAILED, False),
+        entry.options.get(EXCLUDE_SITES, []),
     )
 
 
@@ -307,6 +309,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
             pass
 
     await __get_granular_dampening(hass, entry, solcast)
+    hass.data[DOMAIN]["solcast"] = solcast
     hass.data[DOMAIN]["entry_options"] = {**entry.options}
 
     if (status := await solcast.load_saved_data()) != "":
@@ -682,6 +685,10 @@ async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry) -
         if recalculate_and_refresh:
             coordinator.solcast.damp = damp_factors
 
+        # Site exclusion changes
+        if changed(EXCLUDE_SITES):
+            recalculate_and_refresh = True
+
         # Attribute changes, which will need a recalculation of splines
         if not recalculate_and_refresh:
             recalculate_splines = (
@@ -823,6 +830,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SolcastConfigEntry) ->
         with contextlib.suppress(Exception):
             new_options.pop(HARD_LIMIT)
 
+    async def __v15(hass: HomeAssistant, new_options) -> None:
+        new_options[EXCLUDE_SITES] = []
+
     upgrades: list[dict[str, Any]] = [
         {"version": 4, "function": __v4},
         {"version": 5, "function": __v5},
@@ -832,6 +842,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SolcastConfigEntry) ->
         {"version": 9, "function": __v9},
         {"version": 12, "function": __v12},
         {"version": 14, "function": __v14},
+        {"version": 15, "function": __v15},
     ]
     for upgrade in upgrades:
         if entry.version < upgrade["version"]:

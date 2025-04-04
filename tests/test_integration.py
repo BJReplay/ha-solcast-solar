@@ -31,6 +31,7 @@ from homeassistant.components.solcast_solar.const import (
     DOMAIN,
     EVENT_END_DATETIME,
     EVENT_START_DATETIME,
+    EXCLUDE_SITES,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE,
@@ -363,7 +364,7 @@ async def test_schema_upgrade(
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test various integration scenarios."""
+    """Test schema upgrade."""
 
     config_dir = hass.config.config_dir
 
@@ -994,6 +995,7 @@ async def test_integration_scenarios(
                 DEFAULT_INPUT1[BRK_HALFHOURLY],
                 DEFAULT_INPUT1[BRK_HOURLY],
                 DEFAULT_INPUT1[BRK_SITE_DETAILED],
+                DEFAULT_INPUT1[EXCLUDE_SITES],
             )
             solcast_bad: SolcastApi = SolcastApi(session, connection_options, hass, entry)
             await solcast_bad.serialise_data(solcast_bad._data, Path(f"{config_dir}/solcast.json"))

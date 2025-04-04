@@ -157,6 +157,7 @@
                     "customhoursensor": "Custom next X hours sensor (min=1, max=144)",
                     "hard_limit_api": "Inverter hard limit in kW (see integration documentation)",
                     "key_estimate": "Preferred forecast likelihood to use for sensors",
+                    "exclude_sites": "Site(s) to exclude from the Energy dashboard and sensor totals",
                     "site_damp": "Granular dampening is set: Clear to revert to overall hourly dampening"
                 },
                 "description": "Solcast configuration options"
