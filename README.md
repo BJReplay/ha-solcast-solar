@@ -56,6 +56,7 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
         1. [Reading dampening values](#reading-dampening-values)
     1. [Sensor attributes configuration](#sensor-attributes-configuration)
     1. [Hard limit configuration](#hard-limit-configuration)
+    1. [Excluded sites configuration](#excluded-sites-configuration)
 1. [Complete integration removal](#complete-integration-removal)
 1. [Interacting](#interacting)
     1. [Actions](#actions)
@@ -502,6 +503,22 @@ Consider a scenario where you have a single 6kW string inverter, and attached ar
 
 The hard limit may be set in the integration configuration or set via manually invoking an action in `Developer Tools`.
 
+### Excluded sites configuration
+
+It is possible to exclude one or more Solcast sites when sensor totals and the Energy dashboard forecast are calculated.
+
+The use case is to allow a local "main" site or sites to be the overall combined forecast values, and a "remote" site to be visualised separately with Apex charts and/or template sensors that get their value from site breakdown sensor attributes. Note that it is not possible to build a separate Energy dashboard feed from templated sensors (this data comes directly from the integration as a data dictionary).
+
+Utilising this advanced feature alongside template sensors and Apex charts is not a simple thing, however examples are provided throughout the readme for both templated sensors built from attribute data, and for an Apex chart.
+
+Configuration is by way of the `CONFIGURE` dialogue.
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites1.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites1.png)
+
+Selecting sites to exclude and clicking `SUBMIT` will take effect immediately. It is not required to wait for a forecast update.
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites1.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png)
+
 ## Complete integration removal
 
 To completely remove all traces of the integration start with navigating to `Settings` | `Devices & Services` | `Solcast PV Forecast`, click the three dots next to `CONFIGURE` and select `Delete`.
@@ -870,6 +887,7 @@ If behaviour most odd is encountered, filled with exceptions occurring, then a q
 v4.3.3
 * Fix remove orphaned cache where API key contains non-alphanumeric characters by @autoSteve
 * Add Portuguese translation by @ViPeR5000
+* Add sites to exclude from totals and Energy dashboard by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.2...v4.3.3
 
