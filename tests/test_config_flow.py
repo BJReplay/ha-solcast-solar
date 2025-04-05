@@ -29,6 +29,7 @@ from homeassistant.components.solcast_solar.const import (
     BRK_SITE_DETAILED,
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
+    EXCLUDE_SITES,
     HARD_LIMIT,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
@@ -165,6 +166,7 @@ async def test_create_entry(hass: HomeAssistant) -> None:
         BRK_HALFHOURLY: True,
         BRK_HOURLY: True,
         BRK_SITE_DETAILED: False,
+        EXCLUDE_SITES: [],
     }
 
     user_input = {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}
@@ -583,7 +585,7 @@ async def test_entry_options_upgrade(
     """Test that entry options are upgraded as expected."""
 
     START_VERSION = 3
-    FINAL_VERSION = 14
+    FINAL_VERSION = 15
     V3OPTIONS = {
         CONF_API_KEY: "1",
         "const_disableautopoll": False,
@@ -619,6 +621,8 @@ async def test_entry_options_upgrade(
         # V14
         assert entry.options.get(HARD_LIMIT) is None
         assert entry.options.get(HARD_LIMIT_API) == "100.0"
+        # V15
+        assert entry.options.get(EXCLUDE_SITES) == []
 
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()

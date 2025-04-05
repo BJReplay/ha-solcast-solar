@@ -38,6 +38,7 @@ from .const import (
     CONFIG_VERSION,
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
+    EXCLUDE_SITES,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE_DAMP,
@@ -139,6 +140,7 @@ async def validate_sites(hass: HomeAssistant, user_input: dict[str, Any]) -> tup
         user_input[BRK_HALFHOURLY],
         user_input[BRK_HOURLY],
         user_input[BRK_SITE_DETAILED],
+        user_input.get(EXCLUDE_SITES, []),
     )
     solcast = SolcastApi(session, options, hass)
     solcast.headers = get_session_headers(await get_version(hass))
@@ -301,6 +303,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     BRK_HALFHOURLY: True,
                     BRK_HOURLY: True,
                     BRK_SITE_DETAILED: False,
+                    EXCLUDE_SITES: [],
                 }
                 damp = {f"damp{factor:02d}": 1.0 for factor in range(24)}
 
@@ -419,6 +422,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     all_config_data[BRK_SITE] = site_breakdown
                     site_detailed = user_input[BRK_SITE_DETAILED]
                     all_config_data[BRK_SITE_DETAILED] = site_detailed
+                    all_config_data[EXCLUDE_SITES] = user_input.get(EXCLUDE_SITES, [])
 
                     self._all_config_data = all_config_data
 
@@ -449,6 +453,13 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             SelectOptionDict(label="estimate90", value="estimate90"),
         ]
 
+        solcast = self.hass.data.get(DOMAIN, {}).get("solcast")
+        exclude: list[SelectOptionDict] = [SelectOptionDict(label="not_loaded", value="")]
+        if solcast is not None:
+            exclude = [
+                SelectOptionDict(label=site["name"] + " (" + site["resource_id"] + ")", value=site["resource_id"]) for site in solcast.sites
+            ]
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -470,6 +481,9 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     vol.Optional(BRK_HALFHOURLY, default=self._options[BRK_HALFHOURLY]): bool,
                     vol.Optional(BRK_HOURLY, default=self._options[BRK_HOURLY]): bool,
                     vol.Optional(BRK_SITE_DETAILED, default=self._options[BRK_SITE_DETAILED]): bool,
+                    vol.Optional(EXCLUDE_SITES, default=self._options.get(EXCLUDE_SITES, [])): SelectSelector(
+                        SelectSelectorConfig(options=exclude, mode=SelectSelectorMode.DROPDOWN, multiple=True)
+                    ),
                     (
                         vol.Optional(CONFIG_DAMP, default=False)
                         if not self._options[SITE_DAMP]
