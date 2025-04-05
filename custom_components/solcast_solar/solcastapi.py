@@ -2847,16 +2847,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 if update_tally and period_start_local.date() == today:
                                     if tally is None:
                                         tally = 0.0
-                                    if site not in self.options.exclude_sites:
-                                        tally += (
-                                            min(
-                                                forecast[self._use_forecast_confidence],
-                                                sites_hard_limit[api_key][self._use_forecast_confidence]
-                                                .get(period_start, {})
-                                                .get(site, 100),
-                                            )
-                                            * 0.5
+                                    tally += (
+                                        min(
+                                            forecast[self._use_forecast_confidence],
+                                            sites_hard_limit[api_key][self._use_forecast_confidence].get(period_start, {}).get(site, 100),
                                         )
+                                        * 0.5
+                                    )
 
                                 # If the forecast is for today, and the site is not excluded, add to the total.
                                 if site not in self.options.exclude_sites:
