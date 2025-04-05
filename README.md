@@ -517,7 +517,7 @@ Configuration is by way of the `CONFIGURE` dialogue.
 
 Selecting sites to exclude and clicking `SUBMIT` will take effect immediately. It is not required to wait for a forecast update.
 
-[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites1.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png)
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png)
 
 ## Complete integration removal
 
