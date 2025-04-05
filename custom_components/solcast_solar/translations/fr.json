@@ -128,6 +128,7 @@
                     "attr_brk_hourly": "Activer les attributs de détail horaire des prévisions",
                     "attr_brk_detailed": "Activer la répartition du site pour les attributs de détail demi-horaires/horaires (ceux-ci ne seront pas enregistrés dans les attributs d'état de la base de données)",
                     "config_damp": "Modifier les facteurs d'amortissement horaires (après avoir cliqué sur soumettre)",
+                    "exclude_sites": "Site(s) à exclure du tableau de bord Énergie et des totaux des capteurs",
                     "site_damp": "L'amortissement granulaire est défini : Effacer pour revenir à l'amortissement horaire global"
                 },
                 "description": "Options de configuration Solcast"

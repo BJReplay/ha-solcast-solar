@@ -157,6 +157,7 @@
                     "customhoursensor": "Sensor personalizado para las próximas X horas (mín.=1, máx.=144)",
                     "hard_limit_api": "Límite máximo del inversor en kW (consulte la documentación de integración)",
                     "key_estimate": "Probabilidad de pronóstico preferida para usar con sensores",
+                    "exclude_sites": "Sitio(s) a excluir del panel de energía y de los totales de los sensores",
                     "site_damp": "La amortiguación granular está configurada: desmarque para volver a la amortiguación horaria general"
                 },
                 "description": "Opciones de configuración de Solcast"

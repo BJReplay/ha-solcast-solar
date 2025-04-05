@@ -157,6 +157,7 @@
                     "customhoursensor": "Sensore personalizzato per le prossime X ore (min=1, max=144)",
                     "hard_limit_api": "Limite rigido dell'inverter in kW (vedere la documentazione dell'integrazione)",
                     "key_estimate": "Probabilità di previsione preferita da utilizzare per i sensori",
+                    "exclude_sites": "Sito/i da escludere dal dashboard Energia e dai totali dei sensori",
                     "site_damp": "Lo smorzamento granulare è impostato: Cancella per ripristinare lo smorzamento orario generale"
                 },
                 "description": "Opzioni di configurazione di Solcast"
