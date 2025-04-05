@@ -509,7 +509,7 @@ It is possible to exclude one or more Solcast sites when sensor totals and the E
 
 The use case is to allow a local "main" site or sites to be the overall combined forecast values, and a "remote" site to be visualised separately with Apex charts and/or template sensors that get their value from site breakdown sensor attributes. Note that it is not possible to build a separate Energy dashboard feed from templated sensors (this data comes directly from the integration as a data dictionary).
 
-Utilising this advanced feature alongside template sensors and Apex charts is not a simple thing, however examples are provided throughout the readme for both templated sensors built from attribute data, and for an Apex chart.
+Utilising this advanced feature alongside template sensors and Apex charts is not a simple thing, however examples are provided throughout the readme for both templated sensors built from attribute data, and for an Apex chart. See [Interacting](#interacting), [Sample template sensors](#sample-template-sensors) and [Sample Apex chart for dashboard](#sample-apex-chart-for-dashboard).
 
 Configuration is by way of the `CONFIGURE` dialogue.
 
