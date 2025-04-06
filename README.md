@@ -61,6 +61,7 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
 1. [Interacting](#interacting)
     1. [Actions](#actions)
     1. [Sensors](#sensors)
+    1. [Attributes](#attributes)
     1. [Configuration](#configuration)
     1. [Diagnostic](#diagnostic)
 1. [Sample template sensors](#sample-template-sensors)
@@ -533,7 +534,7 @@ The code itself resides at `/homeassistant/custom_components/solcast_solar`, and
 
 There are many actions, sensors and configuration items exposed by the integration, along with many sensor attributes that may be enabled.
 
-Utilise the Solcast Developer Tools to examine exposed attributes, as their structure is not well documented here. Refer to examples elsewhere in this readme to gain an insight as to how they may be used.
+Utilise the Home Assistant `Developer tools` to examine exposed attributes, as their naming is mostly deployment specific. Refer to examples elsewhere in this readme to gain an insight as to how they may be used.
 
 ### Actions
 
@@ -602,6 +603,29 @@ Utilise the Solcast Developer Tools to examine exposed attributes, as their stru
 >
 > 
 > This will likely yield a different result, depending on the time the value is requested, so it is not wrong. It's just different.
+
+### Attributes
+
+As stated, sensor attributes are created to enable sensor state variations to be used. An example is the estimate to use, `estimate10`/`estimate50`/`estimate90`, which is the chosen forecast confidence. The sensor state is generally left at the default of `estimate50`, but displaying the tenth percentile on a dashboard may be desired and this is enabled by the use of attribute values.
+
+Some attribute names are deployment specific (examples are given here), and some attributes are disabled by default or by user preference to clear clutter. See the `CONFIGURE` dialogue.
+
+For all sensors:
+
+* `estimate10`: Tenth percentile forecast value (float)
+* `estimate50`: Fiftieth percentile forecast value (float)
+* `estimate90`: Ninetieth percentile forecast value (float)
+* `1234_5678_9012_3456`: An individual site value, i.e. a component of the total (float)
+* `estimate10_1234_5678_9012_3456`: 10th for an individual site value (float)
+* `estimate50_1234_5678_9012_3456`: 50th for an individual site value (float)
+* `estimate90_1234_5678_9012_3456`: 90th for an individual site value (float)
+
+For daily forecast sensors only:
+
+* `detailedForecast`: A half-hourly breakdown of expected power generation (list of dicts, i.e. `[{period_start: datetime, pv_estimate10: float, pv_estimate50: float, pv_estimate90: float}, ...]`)
+* `detailedHourly`: An hourly breakdown of expected power generation (same list of dicts)
+* `detailedForecast_1234_5678_9012_3456`: A half-hourly breakdown of expected power generation (same list of dicts)
+* `detailedHourly_1234_5678_9012_3456`: An hourly breakdown of expected power generation (same list of dicts)
 
 ### Configuration
 
