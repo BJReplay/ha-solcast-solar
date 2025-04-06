@@ -606,26 +606,50 @@ Utilise the Home Assistant `Developer tools` to examine exposed attributes, as t
 
 ### Attributes
 
-As stated, sensor attributes are created to enable sensor state variations to be used. An example is the estimate to use, `estimate10`/`estimate50`/`estimate90`, which is the chosen forecast confidence. The sensor state is generally left at the default of `estimate50`, but displaying the tenth percentile on a dashboard may be desired and this is enabled by the use of attribute values.
+As stated, sensor attributes are created to enable sensor state variations to be used. An example is the estimate to use, `estimate10`/`estimate50`/`estimate90`, which is the desired forecast confidence. The sensor state is generally left at the default of `estimate50`, but displaying the tenth percentile of a sensor on a dashboard may be desired and this is enabled by the use of attribute values.
 
-Some attribute names are deployment specific (examples are given here), and some attributes are disabled by default or by user preference to clear clutter. See the `CONFIGURE` dialogue.
+Some attribute names are deployment specific (examples are given here), and some attributes are disabled by default or by user preference to clear clutter. These preferences are set in the `CONFIGURE` dialogue.
 
 For all sensors:
 
-* `estimate10`: Tenth percentile forecast value (float)
-* `estimate50`: Fiftieth percentile forecast value (float)
-* `estimate90`: Ninetieth percentile forecast value (float)
-* `1234_5678_9012_3456`: An individual site value, i.e. a component of the total (float)
-* `estimate10_1234_5678_9012_3456`: 10th for an individual site value (float)
-* `estimate50_1234_5678_9012_3456`: 50th for an individual site value (float)
-* `estimate90_1234_5678_9012_3456`: 90th for an individual site value (float)
+* `estimate10`: 10th percentile forecast value (number)
+* `estimate50`: 50th percentile forecast value (number)
+* `estimate90`: 90th percentile forecast value (number)
+* `1234_5678_9012_3456`: An individual site value, i.e. a component of the total (number)
+* `estimate10_1234_5678_9012_3456`: 10th for an individual site value (number)
+* `estimate50_1234_5678_9012_3456`: 50th for an individual site value (number)
+* `estimate90_1234_5678_9012_3456`: 90th for an individual site value (number)
 
 For daily forecast sensors only:
 
-* `detailedForecast`: A half-hourly breakdown of expected power generation (list of dicts, i.e. `[{period_start: datetime, pv_estimate10: float, pv_estimate50: float, pv_estimate90: float}, ...]`)
-* `detailedHourly`: An hourly breakdown of expected power generation (same list of dicts)
-* `detailedForecast_1234_5678_9012_3456`: A half-hourly breakdown of expected power generation (same list of dicts)
-* `detailedHourly_1234_5678_9012_3456`: An hourly breakdown of expected power generation (same list of dicts)
+* `detailedForecast`: A half-hourly breakdown of expected power generation (list of dicts)
+* `detailedHourly`: An hourly breakdown of expected power generation (list of dicts)
+* `detailedForecast_1234_5678_9012_3456`: A half-hourly breakdown of expected power generation (list of dicts)
+* `detailedHourly_1234_5678_9012_3456`: An hourly breakdown of expected power generation (list of dicts)
+
+The "list of dicts" has this format: (Note the inconsistency in `pv_estimateXX` vs. `estimateXX` elsewhere. History is to blame.)
+
+JSON:
+``` json
+[
+  {
+    "period_start": datetime,
+    "pv_estimate10": float,
+    "pv_estimate50": float,
+    "pv_estimate90": float
+  },
+  ...
+]
+```
+
+YAML:
+``` yaml
+- period_start: datetime
+  pv_estimate10: float
+  pv_estimate50: float
+  pv_estimate90: float
+- ...
+```
 
 ### Configuration
 
