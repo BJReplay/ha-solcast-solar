@@ -962,9 +962,9 @@ To completely remove all traces of the integration start with navigating to `Set
 
 At this point the configuration settings have been reset, but the code and forecast information caches will still exist (setting up the integration again will re-use this cached data, which may or may not be desirable).
 
-The caches reside in the Home Assistant configuration folder (usually `/homeassistant/`, but its location can vary based on Home Assistant deployment type). These files are named after the integration, and may be removed with `rm solcast*.json`.
+The caches reside in the Home Assistant configuration folder (usually `/config/` or `/homeassistant/`, but its location can vary based on Home Assistant deployment type). These files are named after the integration, and may be removed with `rm solcast*.json`.
 
-The code itself resides at `/homeassistant/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
+The code itself resides at `/config/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
 
 ## Changes
 
