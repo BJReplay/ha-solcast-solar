@@ -59,9 +59,9 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
     1. [Excluded sites configuration](#excluded-sites-configuration)
 1. [Complete integration removal](#complete-integration-removal)
 1. [Interacting](#interacting)
-    1. [Actions](#actions)
     1. [Sensors](#sensors)
     1. [Attributes](#attributes)
+    1. [Actions](#actions)
     1. [Configuration](#configuration)
     1. [Diagnostic](#diagnostic)
 1. [Sample template sensors](#sample-template-sensors)
@@ -536,41 +536,30 @@ There are many actions, sensors and configuration items exposed by the integrati
 
 Utilise the Home Assistant `Developer tools` to examine exposed attributes, as their naming is mostly deployment specific. Refer to examples elsewhere in this readme to gain an insight as to how they may be used.
 
-### Actions
-
-| Action | Description |
-| --- | --- |
-| `solcast_solar.update_forecasts` | Updates the forecast data (refused if auto-update is enabled). |
-| `solcast_solar.force_update_forecasts` | Force updates the forecast data (performs an update regardless of API usage tracking or auto-update setting, and does not increment the API use counter, refused if auto-update is not enabled.) |
-| `solcast_solar.clear_all_solcast_data` | Deletes cached data, and initiates an immediate fetch of new past actual and forecast values. |
-| `solcast_solar.query_forecast_data` | Returns a list of forecast data using a datetime range start - end. |
-| `solcast_solar.set_dampening` | Updates the dampening factors. |
-| `solcast_solar.get_dampening` | Get the currently set dampening factors. |
-| `solcast_solar.set_hard_limit` | Set inverter forecast hard limit. |
-| `solcast_solar.remove_hard_limit` | Remove inverter forecast hard limit. |
-
 ### Sensors
+
+All sensor names are preceded by `Solcast PV Forecast`.
 
 | Name | Type | Attributes | Unit | Description |
 | ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
-| `Today` | number | Y | `kWh` | Total forecast solar production for today. |
-| `Tomorrow` | number | Y | `kWh` | Total forecast solar production for day + 1 (tomorrow). |
-| `D3` | number | Y | `kWh` | Total forecast solar production for day + 2 (day 3). |
-| `D4` | number | Y | `kWh` | Total forecast solar production for day + 3 (day 4). |
-| `D5` | number | Y | `kWh` | Total forecast solar production for day + 4 (day 5). |
-| `D6` | number | Y | `kWh`| Total forecast solar production for day + 5 (day 6). |
-| `D7` | number | Y | `kWh` | Total forecast solar production for day + 6 (day 7). |
-| `This Hour` | number | Y | `Wh` | Forecasted solar production current hour (attributes contain site breakdown). |
-| `Next Hour` | number | Y | `Wh` | Forecasted solar production next hour (attributes contain site breakdown). |
+| `Forecast Today` | number | Y | `kWh` | Total forecast solar production for today. |
+| `Forecast Tomorrow` | number | Y | `kWh` | Total forecast solar production for day + 1 (tomorrow). |
+| `Forecast Day 3` | number | Y | `kWh` | Total forecast solar production for day + 2 (day 3). |
+| `Forecast Day 4` | number | Y | `kWh` | Total forecast solar production for day + 3 (day 4). |
+| `Forecast Day 5` | number | Y | `kWh` | Total forecast solar production for day + 4 (day 5). |
+| `Forecast Day 6` | number | Y | `kWh`| Total forecast solar production for day + 5 (day 6). |
+| `Forecast Day 7` | number | Y | `kWh` | Total forecast solar production for day + 6 (day 7). |
+| `ForecastThis Hour` | number | Y | `Wh` | Forecasted solar production current hour (attributes contain site breakdown). |
+| `ForecastNext Hour` | number | Y | `Wh` | Forecasted solar production next hour (attributes contain site breakdown). |
 | `Forecast Next X Hours` | number | Y | `Wh` | Custom user defined forecasted solar production for next X hours<br>Note: This forecast starts at current time, it is not aligned on the hour like "This hour", "Next Hour". |
-| `Remaining Today` | number | Y | `kWh` | Predicted remaining solar production today. |
+| `Forecast Remaining Today` | number | Y | `kWh` | Predicted remaining solar production today. |
 | `Peak Forecast Today` | number | Y | `W` | Highest predicted production within an hour period today (attributes contain site breakdown). |
 | `Peak Time Today` | date/time | Y |  | Hour of max forecasted production of solar today (attributes contain site breakdown). |
 | `Peak Forecast Tomorrow` | number | Y | `W` | Highest predicted production within an hour period tomorrow (attributes contain site breakdown). |
 | `Peak Time Tomorrow` | date/time | Y |  | Hour of max forecasted production of solar tomorrow (attributes contain site breakdown). |
-| `Power Now` | number | Y | `W` | Predicted nominal solar power this moment (attributes contain site breakdown). |
-| `Power in 30 Mins` | number | Y | `W` | Predicted nominal solar power in 30 minutes (attributes contain site breakdown). |
-| `Power in 1 Hour` | number | Y | `W` | Predicted nominal solar power in 1 hour (attributes contain site breakdown). |
+| `Forecast Power Now` | number | Y | `W` | Predicted nominal solar power this moment (attributes contain site breakdown). |
+| `Forecast Power in 30 Minutes` | number | Y | `W` | Predicted nominal solar power in 30 minutes (attributes contain site breakdown). |
+| `Forecast Power in 1 Hour` | number | Y | `W` | Predicted nominal solar power in 1 hour (attributes contain site breakdown). |
 
 > [!NOTE]
 >
@@ -627,37 +616,82 @@ For daily forecast sensors only:
 * `detailedForecast_1234_5678_9012_3456`: A half-hourly breakdown of expected power generation (list of dicts)
 * `detailedHourly_1234_5678_9012_3456`: An hourly breakdown of expected power generation (list of dicts)
 
-The "list of dicts" has this format: (Note the inconsistency in `pv_estimateXX` vs. `estimateXX` elsewhere. History is to blame.)
+The "list of dicts" has this format with example values: (Note the inconsistency in `pv_estimateXX` vs. `estimateXX` elsewhere. History is to blame.)
 
 JSON:
-``` json
+```json
 [
   {
-    "period_start": datetime,
-    "pv_estimate10": float,
-    "pv_estimate50": float,
-    "pv_estimate90": float
+    "period_start": "2025-04-06T08:00:00+10:00",
+    "pv_estimate10": 10.000,
+    "pv_estimate50": 50.000,
+    "pv_estimate90": 90.000
   },
   ...
 ]
 ```
 
 YAML:
-``` yaml
-- period_start: datetime
-  pv_estimate10: float
-  pv_estimate50: float
-  pv_estimate90: float
+```yaml
+- period_start: '2025-04-06T08:00:00+10:00'
+  pv_estimate10: 10.000
+  pv_estimate50: 50.000
+  pv_estimate90: 90.000
 - ...
+```
+
+### Actions
+
+| Action | Description |
+| --- | --- |
+| `solcast_solar.update_forecasts` | Updates the forecast data (refused if auto-update is enabled). |
+| `solcast_solar.force_update_forecasts` | Force updates the forecast data (performs an update regardless of API usage tracking or auto-update setting, and does not increment the API use counter, refused if auto-update is not enabled.) |
+| `solcast_solar.clear_all_solcast_data` | Deletes cached data, and initiates an immediate fetch of new past actual and forecast values. |
+| `solcast_solar.query_forecast_data` | Returns a list of forecast data using a datetime range start - end. |
+| `solcast_solar.set_dampening` | Updates the dampening factors. |
+| `solcast_solar.get_dampening` | Get the currently set dampening factors. |
+| `solcast_solar.set_hard_limit` | Set inverter forecast hard limit. |
+| `solcast_solar.remove_hard_limit` | Remove inverter forecast hard limit. |
+
+Example parameters are provided here for each `query`, `set` and `get` action. Use `Developer tools` | `Actions` to show the available parameters for each with a description. 
+
+```yaml
+action: solcast_solar.query_forecast_data
+data:
+  start_date_time: 2024-10-06T00:00:00.000Z
+  end_date_time: 2024-10-06T10:00:00.000Z
+  undampened: false (optional)
+  site: 1234-5678-9012-3456 (optional)
+```
+
+```yaml
+action: solcast_solar.set_dampening
+data:
+  damp_factor: 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+  site: 1234-5678-9012-3456 (optional)
+```
+
+```yaml
+action: solcast_solar.set_hard_limit
+data:
+  hard_limit: 6
+```
+
+```yaml
+action: solcast_solar.get_dampening
+data:
+  site: 1234-5678-9012-3456 (optional)
 ```
 
 ### Configuration
 
 | Name | Type | Attributes | Unit | Description |
 | ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
-| `Forecast Field` | selector | N |  | Selector to select the Solcast value field for calculations either 'estimate', 'estimate10' or 'estimate90'. |
+| `Forecast Field` | selector | N |  | Selector to select the forecast confidence used for sensor states either 'estimate', 'estimate10' or 'estimate90'. |
 
 ### Diagnostic
+
+All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Rooftop site name`.
 
 | Name | Type | Attributes | Unit | Description |
 | ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
@@ -666,7 +700,7 @@ YAML:
 | `API used` | number | N | `integer` | Total times the API has been called today (API counter resets to zero at midnight UTC)[^1]. |  
 | `Hard Limit Set` | number | N | `float` | `False` if not set, else value in `kilowatts`. |
 | `Hard Limit Set ******AaBbCc` | number | N | `float` | Individual account hard limit. `False` if not set, else value in `kilowatts`. |
-| `Rooftop name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the solcast rooftop setup)[^2]. |
+| `Rooftop site name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the solcast rooftop setup)[^2]. |
 
 `API Last Polled` attributes include the following, but only if auto-update is enabled:
 
@@ -674,7 +708,7 @@ YAML:
 * `auto_update_divisions`: The number of configured auto-updates for each day.
 * `auto_update_queue`: A maximum of 48 future auto-updates currently in the queue.
 
-`Rooftop name` attributes include:
+`Rooftop site name` attributes include:
 
 * `name`: The site name configured at solcast.com.
 * `resource_id`: The site ID.
