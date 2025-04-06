@@ -1126,11 +1126,13 @@ async def test_integration_scenarios(
 
         # Excluding site
         _LOGGER.debug("Testing site exclusion")
+        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "39.888"
         opt = {**entry.options}
         opt[EXCLUDE_SITES] = ["2222-2222-2222-2222"]
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         assert "Recalculate forecasts and refresh sensors" in caplog.text
+        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "24.93"
 
         # Test API key change, start with an API failure and invalid sites cache
         # Verify API key change removes sites, and migrates undampened history for new site
