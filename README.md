@@ -57,7 +57,6 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
     1. [Sensor attributes configuration](#sensor-attributes-configuration)
     1. [Hard limit configuration](#hard-limit-configuration)
     1. [Excluded sites configuration](#excluded-sites-configuration)
-1. [Complete integration removal](#complete-integration-removal)
 1. [Interacting](#interacting)
     1. [Sensors](#sensors)
     1. [Attributes](#attributes)
@@ -68,6 +67,7 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
 1. [Sample Apex chart for dashboard](#sample-apex-chart-for-dashboard)
 1. [Known issues](#known-issues)
 1. [Troubleshooting](#troubleshooting)
+1. [Complete integration removal](#complete-integration-removal)
 1. [Changes](#Changes)
 
 ## Key Solcast concepts
@@ -520,16 +520,6 @@ Selecting sites to exclude and clicking `SUBMIT` will take effect immediately. I
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png)
 
-## Complete integration removal
-
-To completely remove all traces of the integration start with navigating to `Settings` | `Devices & Services` | `Solcast PV Forecast`, click the three dots next to `CONFIGURE` and select `Delete`.
-
-At this point the configuration settings have been reset, but the code and forecast information caches will still exist (setting up the integration again will re-use this cached data, which may or may not be desirable).
-
-The caches reside in the Home Assistant configuration folder (usually `/homeassistant/`, but its location can vary based on HASS deployment type). These files are named after the integration, and may be removed with `rm solcast*.json`.
-
-The code itself resides at `/homeassistant/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
-
 ## Interacting
 
 There are many actions, sensors and configuration items exposed by the integration, along with many sensor attributes that may be enabled.
@@ -595,16 +585,18 @@ All sensor names are preceded by `Solcast PV Forecast`.
 
 ### Attributes
 
-As stated, sensor attributes are created to enable sensor state variations to be used. An example is the estimate to use, `estimate10`/`estimate50`/`estimate90`, which is the desired forecast confidence. The sensor state is generally left at the default of `estimate50`, but displaying the tenth percentile of a sensor on a dashboard may be desired and this is enabled by the use of attribute values.
+As stated above, sensor attributes are created to enable sensor state variations to be used in templates. Examples are the estimate confidence, `estimate10`/`estimate50`/`estimate90`. The sensor _state_ is generally left at the default of `estimate50`, but displaying the tenth percentile of a sensor on a dashboard may be desired and this is enabled by the use of _attribute_ values.
 
 Some attribute names are deployment specific (examples are given here), and some attributes are disabled by default or by user preference to clear clutter. These preferences are set in the `CONFIGURE` dialogue.
+
+Attribute names must not contain a hyphen. Solcast sites _are_ named using a hyphen, so where an attribute is named for the site ID that it represents its hyphens are changed to underscores.
 
 For all sensors:
 
 * `estimate10`: 10th percentile forecast value (number)
 * `estimate50`: 50th percentile forecast value (number)
 * `estimate90`: 90th percentile forecast value (number)
-* `1234_5678_9012_3456`: An individual site value, i.e. a component of the total (number)
+* `1234_5678_9012_3456`: An individual site value, i.e. a portion of the total (number)
 * `estimate10_1234_5678_9012_3456`: 10th for an individual site value (number)
 * `estimate50_1234_5678_9012_3456`: 50th for an individual site value (number)
 * `estimate90_1234_5678_9012_3456`: 90th for an individual site value (number)
@@ -613,10 +605,10 @@ For daily forecast sensors only:
 
 * `detailedForecast`: A half-hourly breakdown of expected power generation (list of dicts)
 * `detailedHourly`: An hourly breakdown of expected power generation (list of dicts)
-* `detailedForecast_1234_5678_9012_3456`: A half-hourly breakdown of expected power generation (list of dicts)
-* `detailedHourly_1234_5678_9012_3456`: An hourly breakdown of expected power generation (list of dicts)
+* `detailedForecast_1234_5678_9012_3456`: A half-hourly breakdown of expected site power generation (list of dicts)
+* `detailedHourly_1234_5678_9012_3456`: An hourly breakdown of expected site power generation (list of dicts)
 
-The "list of dicts" has this format with example values: (Note the inconsistency in `pv_estimateXX` vs. `estimateXX` elsewhere. History is to blame.)
+The "list of dicts" has the following format, with example values used: (Note the inconsistency in `pv_estimateXX` vs. `estimateXX` used elsewhere. History is to blame.)
 
 JSON:
 ```json
@@ -644,11 +636,11 @@ YAML:
 
 | Action | Description |
 | --- | --- |
-| `solcast_solar.update_forecasts` | Updates the forecast data (refused if auto-update is enabled). |
-| `solcast_solar.force_update_forecasts` | Force updates the forecast data (performs an update regardless of API usage tracking or auto-update setting, and does not increment the API use counter, refused if auto-update is not enabled.) |
+| `solcast_solar.update_forecasts` | Update the forecast data (refused if auto-update is enabled). |
+| `solcast_solar.force_update_forecasts` | Force update the forecast data (performs an update regardless of API usage tracking or auto-update setting, and does not increment the API use counter, refused if auto-update is not enabled.) |
 | `solcast_solar.clear_all_solcast_data` | Deletes cached data, and initiates an immediate fetch of new past actual and forecast values. |
-| `solcast_solar.query_forecast_data` | Returns a list of forecast data using a datetime range start - end. |
-| `solcast_solar.set_dampening` | Updates the dampening factors. |
+| `solcast_solar.query_forecast_data` | Return a list of forecast data using a datetime range start - end. |
+| `solcast_solar.set_dampening` | Update the dampening factors. |
 | `solcast_solar.get_dampening` | Get the currently set dampening factors. |
 | `solcast_solar.set_hard_limit` | Set inverter forecast hard limit. |
 | `solcast_solar.remove_hard_limit` | Remove inverter forecast hard limit. |
@@ -685,9 +677,9 @@ data:
 
 ### Configuration
 
-| Name | Type | Attributes | Unit | Description |
-| ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
-| `Forecast Field` | selector | N |  | Selector to select the forecast confidence used for sensor states either 'estimate', 'estimate10' or 'estimate90'. |
+| Name | Type | Description |
+| ------------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
+| `Forecast Field` | selector | Select the forecast confidence used for sensor states as 'estimate', 'estimate10' or 'estimate90'. |
 
 ### Diagnostic
 
@@ -700,7 +692,7 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 | `API used` | number | N | `integer` | Total times the API has been called today (API counter resets to zero at midnight UTC)[^1]. |  
 | `Hard Limit Set` | number | N | `float` | `False` if not set, else value in `kilowatts`. |
 | `Hard Limit Set ******AaBbCc` | number | N | `float` | Individual account hard limit. `False` if not set, else value in `kilowatts`. |
-| `Rooftop site name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the solcast rooftop setup)[^2]. |
+| `Rooftop site name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the site setup)[^2]. |
 
 `API Last Polled` attributes include the following, but only if auto-update is enabled:
 
@@ -963,6 +955,16 @@ That said, code defects can happen, but they should not be the first suspicion. 
 
 If behaviour most odd is encountered, filled with exceptions occurring, then a quick fix may be to back up all `/homeassistant/solcast*.json` files, remove them, and then restart the integration.
 </details>
+
+## Complete integration removal
+
+To completely remove all traces of the integration start with navigating to `Settings` | `Devices & Services` | `Solcast PV Forecast`, click the three dots next to `CONFIGURE` and select `Delete`.
+
+At this point the configuration settings have been reset, but the code and forecast information caches will still exist (setting up the integration again will re-use this cached data, which may or may not be desirable).
+
+The caches reside in the Home Assistant configuration folder (usually `/homeassistant/`, but its location can vary based on Home Assistant deployment type). These files are named after the integration, and may be removed with `rm solcast*.json`.
+
+The code itself resides at `/homeassistant/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
 
 ## Changes
 
