@@ -970,7 +970,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 v4.3.3
 * Fix remove orphaned cache where API key contains non-alphanumeric characters by @autoSteve
-* Add Portuguese translation by @ViPeR5000
+* Add Portuguese translation by @ViPeR5000 (thanks!)
 * Add sites to exclude from totals and Energy dashboard by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.2...v4.3.3
