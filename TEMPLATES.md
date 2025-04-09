@@ -2,7 +2,7 @@
 
 These example templates might help newcomers get started with Solcast template sensors and automation. Feel free to contribute.
 
-When getting started with Jinja2 read up on its core concepts. It is a brilliant templating language where placeholders allow writing statements in a format very similar to Python syntax. If you know python this makes it fairly natural. If not, learn some python, in particular number and datetime manipulations.
+When getting started with Jinja2 read up on its core concepts. It is a brilliant templating language where placeholders allow writing statements in a format very similar to Python syntax. If you know Python this makes it fairly natural. If not, learn some Python, in particular number and datetime manipulations.
 
 This document is a collection of Solcast example templates presented in the context of scenarios. It can not teach you Jinja2 or Python, which is up to you to learn.
 
@@ -18,7 +18,7 @@ Jinja2 templates are super handy to use when building template sensors, but don'
 {{ state_attr('sensor.solcast_pv_forecast_forecast_today', 'estimate10') | float(0) }}
 ```
 
-The conversion to float (with a default value of zero) is not strictly required. So what does that bit do? If the `state_attr()` result is null, or not a number then zero will be used.
+The conversion to float (with a default value of zero) is not strictly required. So what does that bit do? If the `state_attr()` result is null, or not a number then zero will be used. If the `| float(0)` were absent then an error would be logged should the attribute not exist.
 
 **Scenario**:  Again, sensors use `forecast` 50%, and you want to show the 10% estimate of just one Solcast site, identified by its resource ID.
 
@@ -81,3 +81,198 @@ The second part works out how many hours there are from sunset today to next sun
 The third part determines how much power the sun must give over the two hour period to prevent total battery discharge. If it is not expected that the sun will deliver what is required then the "base_minimum" is increased by the anticipated shortfall.
 
 Again, will it always work? Nope. It's a forecast, and evening power usage can be quite variable. It could be improved to account for differing seasonal or daily overnight consumption averages. For example, if Friday night is Pizza Night then the oven won't be used and average overnight consumption will be less.
+
+## Advanced example: A scale-modifying Apex chart
+
+This example varies the X axis scale of an Apex chart showing forecast and solar production based on the time of day.
+
+It's not perfect in the early evening, I know, but that is left up to the reader (or I) to perfect. The root of the issue is that the "Sun" integration needs to be combined with the custom "Sun2" integration values... I'll get to that some day.
+
+It utilises the Lovelace Card Templater HACS add-on. Plus a per-five-minute template sensor to cause it to update. Some sensors used are implementation specific. Change them.
+
+```
+type: custom:card-templater
+card:
+  type: custom:apexcharts-card
+  graph_span_template: |-
+    {% set sunrise = as_datetime(states('sensor.sun_next_rising'))  %}
+    {% set sunset = as_datetime(states('sensor.sun_next_setting'))  %}
+    {% if sunrise != none and sunset != none %}
+      {% set compressed = (
+        (as_local(sunset).hour - as_local(sunrise).hour) + 1 +
+        (
+          (
+            max(now().hour - as_local(sunset).hour, 0)
+          )
+          if now().hour > as_local(sunrise).hour
+          else (as_local(sunrise).hour - now().hour + 2)
+        ) * 2
+      ) %}
+      {% set compressed = compressed + 1 if now().time() > as_local(sunset).time() else compressed %}
+      {{ compressed if compressed <= 24 else 24 }}h
+    {% else %}
+      24h
+    {% endif %}
+  span:
+    start: day
+    offset_template: |-
+      {% set sunrise = as_datetime(states('sensor.sun_next_rising'))  %}
+      {% set sunset = as_datetime(states('sensor.sun_next_setting'))  %}
+      {% if sunrise != none and sunset != none %}
+        +{{
+          (
+            as_local(sunrise).hour - max((now().hour - as_local(sunset).hour) + 1, 0)
+          )
+          if now().hour > as_local(sunrise).hour else now().hour
+        }}h
+      {% else %}
+        +0h
+      {% endif %}
+  header:
+    title: Solar
+    show: true
+    show_states: true
+    colorize_states: true
+  apex_config:
+    chart:
+      height: 300px
+    tooltip:
+      enabled: true
+      shared: true
+      followCursor: true
+  yaxis:
+    - id: capacity
+      show: true
+      opposite: true
+      decimals: 0
+      max: 100
+      min: 0
+      apex_config:
+        tickAmount: 10
+    - id: kWh
+      show: true
+      min: 0
+      apex_config:
+        tickAmount: 10
+    - id: header_only
+      show: false
+  series:
+    - entity: sensor.my_home_solar_power
+      name: Solar power (5 min avg)
+      type: line
+      stroke_width: 2
+      float_precision: 2
+      color: Orange
+      yaxis_id: kWh
+      unit: kW
+      extend_to: now
+      show:
+        legend_value: true
+        in_header: false
+      group_by:
+        func: avg
+        duration: 5m
+    - entity: sensor.solcast_pv_forecast_forecast_today
+      name: Forecast 10-50%
+      color: LightGrey
+      opacity: 0.5
+      stroke_width: 2
+      type: area
+      time_delta: +15min
+      curve: monotoneCubic
+      extend_to: false
+      yaxis_id: kWh
+      show:
+        legend_value: false
+        in_legend: true
+        in_header: false
+      data_generator: |
+        return entity.attributes.detailedForecast.map((entry) => {
+              return [new Date(entry.period_start), entry.pv_estimate];
+            });
+    - entity: sensor.powerwall_charge_actual
+      name: Battery
+      yaxis_id: capacity
+      type: line
+      stroke_width: 1
+      float_precision: 2
+      color: DarkGreen
+      extend_to: now
+      group_by:
+        func: avg
+        duration: 1s
+      show:
+        in_legend: true
+        legend_value: false
+        in_header: false
+    - entity: sensor.solcast_pv_forecast_forecast_today
+      name: Forecast 10%
+      color: White
+      opacity: 1
+      stroke_width: 0
+      type: area
+      time_delta: +15min
+      curve: monotoneCubic
+      extend_to: false
+      yaxis_id: kWh
+      show:
+        in_legend: false
+        in_header: false
+      data_generator: |
+        return entity.attributes.detailedForecast.map((entry) => {
+              return [new Date(entry.period_start), entry.pv_estimate10];
+            });
+    - entity: sensor.solar_generation_today
+      yaxis_id: header_only
+      name: Actual today
+      stroke_width: 2
+      color: Orange
+      show:
+        legend_value: true
+        in_header: true
+        in_chart: false
+    - entity: sensor.solcast_pv_forecast_forecast_today
+      yaxis_id: header_only
+      name: Forecast today
+      color: Grey
+      float_precision: 1
+      show:
+        legend_value: true
+        in_header: true
+        in_chart: false
+    - entity: sensor.solcast_pv_forecast_forecast_today
+      attribute: estimate10
+      yaxis_id: header_only
+      name: Forecast today 10%
+      color: Grey
+      float_precision: 1
+      opacity: 0.3
+      show:
+        legend_value: true
+        in_header: true
+        in_chart: false
+    - entity: sensor.solcast_pv_forecast_forecast_remaining_today
+      yaxis_id: header_only
+      name: Forecast remaining
+      color: Grey
+      show:
+        legend_value: true
+        in_header: true
+        in_chart: false
+entities:
+  - entity: sensor.five_minute_update
+```
+
+And the per-five-minute template sensor updater...
+
+```
+template:
+  - trigger:
+      - platform: time_pattern
+        minutes: "/5"
+    sensor:
+      - name: "Five Minute Update"
+        unique_id: "five_minute_update"
+        state: "{{ now().minute }}"
+        unit_of_measurement: "Minutes"
+```
