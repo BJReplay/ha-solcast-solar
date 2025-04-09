@@ -49,6 +49,13 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
         1. [Auto-update of forecasts](#auto-update-of-forecasts)
         1. [Using an HA automation to update forecasts](#using-an-ha-automation-to-update-forecasts)
     1. [Set up HA energy dashboard settings](#set-up-ha-energy-dashboard-settings)
+1. [Interacting](#interacting)
+    1. [Sensors](#sensors)
+    1. [Attributes](#attributes)
+    1. [Actions](#actions)
+    1. [Configuration](#configuration)
+    1. [Diagnostic](#diagnostic)
+1. [Advanced configuration](#advanced-configuration)
     1. [Dampening configuration](#dampening-configuration)
         1. [Simple hourly dampening](#simple-hourly-dampening)
         1. [Granular dampening](#granular-dampening)
@@ -57,12 +64,6 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
     1. [Sensor attributes configuration](#sensor-attributes-configuration)
     1. [Hard limit configuration](#hard-limit-configuration)
     1. [Excluded sites configuration](#excluded-sites-configuration)
-1. [Interacting](#interacting)
-    1. [Sensors](#sensors)
-    1. [Attributes](#attributes)
-    1. [Actions](#actions)
-    1. [Configuration](#configuration)
-    1. [Diagnostic](#diagnostic)
 1. [Sample template sensors](#sample-template-sensors)
 1. [Sample Apex chart for dashboard](#sample-apex-chart-for-dashboard)
 1. [Known issues](#known-issues)
@@ -76,7 +77,7 @@ Solcast will produce a forecast of solar PV generation from today through seven 
 
 Separate sensors are also available that contain the expected peak generation power, peak generation time, and various forecasts of next hour, 30 minutes, and more.
 
-If multiple arrays exist on different roof orientations, these can be configured in Solcast as separate 'sites' with differing azimuth, tilt and peak generation, to a maximum of two sites for a free hobbyist account. These sites are combined to form the integration sensor values.
+If multiple arrays exist on different roof orientations, these can be configured in Solcast as separate 'sites' with differing azimuth, tilt and peak generation, to a maximum of two sites for a free hobbyist account. These separate site forecasts are combined to form the integration sensor values and Energy dashboard forecast data.
 
 Three solar generation estimates are produced by Solcast for every half hour period of all forecasted days.
 
@@ -84,7 +85,7 @@ Three solar generation estimates are produced by Solcast for every half hour per
 * '10%' or 1 in 10 'worst case' forecast assuming more cloud coverage than expected, exposed as `forecast10`.
 * '90%' or 1 in 10 'best case' forecast assuming less cloud coverage than expected, exposed as `forecast90`.
 
-The detail of these different forecast estimates can be found in sensor attributes, which contain both 30-minute daily intervals, and calculated hourly intervals across the day. Separate attributes sum the available estimates or break things down by site.
+The detail of these different forecast estimates can be found in sensor attributes, which contain both 30-minute daily intervals, and calculated hourly intervals across the day. Separate attributes sum the available estimates or break things down by Solcast site. (A Solcast site is usually referred to by its 'site resource ID', and this can be found at the Solcast site https://toolkit.solcast.com.au/)
 
 The Energy dashboard in Home Assistant is populated with a specific data structure that is provided by the integration. (This does not come from sensor data.) Manipulation of forecasted values to account for shading is possible by setting dampening factors for hourly or half-hourly periods, and a "hard limit" may be set for over-sized solar arrays where expected generation cannot exceed an inverter maximum rating. These two mechanisms are the only ways to manipulate the data.
 
@@ -349,177 +350,6 @@ Select `Forecast Production` and select the `Solcast Solar` option. Click `SAVE`
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/solar_production.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/solar_production.png)
 
-### Dampening configuration
-
-It is possible to configure periodic dampening values to account for shading. This may be configured by automation or the integration configuration for total dampening (overall hourly dampening only in configuration).
-
-Dampening is applied to future forecasts whenever a forecast is fetched, so forecast history retains the dampening that had been applied at the time.
-
-> [!NOTE]
->
-> Retained dampened historical forecasts is a recent change, and may require automation modification to read un-dampened forecast history instead. See [Reading forecast values in an automation](#reading-forecast-values-in-an-automation) and [Changes](#changes) below.
-
-Per-site and per-half hour dampening is possible only by using the `solcast_solar.set_dampening` action or modifying a dampening configuration file. See [Granular dampening](#granular-dampening) below.
-
-[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png)
-
-[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/damp.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/damp.png)
-
-#### Simple hourly dampening
-
-You can change the dampening factor value for any hour. Values from 0.0 - 1.0 are valid. Setting 0.95 will dampen each Solcast forecast data value by 5%. This is reflected in the sensor values and attributes and also in the Home Assistant Energy dashboard.
-
-[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/dampopt.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/dampopt.png)
-
-> [!TIP]
->
-> 
-> Most users of dampening configuration do not enter values in the configuration settings directly. Rather, they build automations to set values that are appropriate for their location at different days or seasons, and these call the `solcast_solar.set_dampening` action.
->
-> 
-> Factors causing dampening to be appropriate might be when different degrees of shading occur at the start or end of a day in different seasons, when the sun is close to the horizon and might cause nearby buildings or trees to cast a long shadow.
-
-#### Granular dampening
-
-Setting dampening for individual Solcast sites or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` action, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
-
-The action accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the action creates or updates the file `solcast-dampening.json` when either a site or 48 factor values are specified. If setting overall dampening with 48 factors, then an optional 'all' site may be specified (or simply omitted for this use case).
-
-```yaml
-action: solcast_solar.set_dampening
-data:
-  damp_factor: 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
-  #site: 1234-5678-9012-3456
-```
-
-If a site is not specified, and 24 dampening values are given then granular dampening will be removed, and the overall configured hourly dampening will apply to all sites. (Granular dampening may also be disabled using the integration `CONFIGURE` dialogue.)
-
-The action need not be called. The file itself may be updated directly, and if modified will be read on forecast update and used.
-
-If granular dampening is configured for a single site in a multi-site set up then that dampening will only apply to the forecasts for that site. Other sites will not be dampened.
-
-Dampening for all individual sites may of course be set, and when this is the case all sites must specify the same number of dampening values, either 24 or 48.
-
-<details><summary><i>Click for examples of dampening files</i></summary>
-
-The following examples can be used as a starter for the format for file-based granular dampening. Make sure that you use your own site IDs rather than the examples. The file should be saved in the Home Assistant config folder and named `solcast-dampening.json`.
-
-Example of hourly dampening for two sites:
-
-```yaml
-{
-  "1111-aaaa-bbbb-2222": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0],
-  "cccc-4444-5555-dddd": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
-}
-```
-
-Example of hourly dampening for a single site:
-
-```yaml
-{
-  "eeee-6666-7777-ffff": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
-}
-```
-
-Example of half-hourly dampening for two sites:
-
-```yaml
-{
-  "8888-gggg-hhhh-9999": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0],
-  "0000-iiii-jjjj-1111": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
-}
-```
-
-Example of half-hourly dampening for all sites:
-
-```yaml
-{
-  "all": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
-}
-```
-</details>
-
-#### Reading forecast values in an automation
-
-When calculating dampening using an automation it may be beneficial to use un-dampened forecast values as input.
-
-This is possible by using the action `solcast_solar.query_forecast_data`, and including `undampened: true` in the parameters. The site may also be included in the action parameters if a breakdown is desired.
-
-```yaml
-action: solcast_solar.query_forecast_data
-data:
-  start_date_time: 2024-10-08T12:00:00+11:00
-  end_date_time: 2024-10-08T19:00:00+11:00
-  undampened: true
-  #site: 1111-aaaa-bbbb-2222
-```
-
-Un-dampened forecast history is retained for just 14 days.
-
-#### Reading dampening values
-
-The currently set dampening factors may be retrieved using the action "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
-
-If granular dampening is set to specify both individual site factors and an 'all' factors, then attempting retrieval of an individual site factors will result in the 'all' factors being returned, with the 'all' site being noted in the response. This is because an 'all' set of factors overrides the individual site settings in this circumstance.
-
-Example call:
-
-```yaml
-action: solcast_solar.get_dampening
-data:
-  site: b68d-c05a-c2b3-2cf9
-```
-
-Example response:
-
-```yaml
-data:
-  - site: b68d-c05a-c2b3-2cf9
-    damp_factor: >-
-      1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
-```
-
-### Sensor attributes configuration
-
-There are quite a few sensor attributes that can be used as a data source for template sensors, charts, etc., including a per-site breakdown, estimate 10/50/90 values, and per-hour and half hour detailed breakdown for each forecast day.
-
-Many users will not use these attributes, so to cut the clutter (especially in the UI and also database statistics storage) generation all of these can be disabled if they are not needed.
-
-By default, all of them are enabled, except for per-site detailedForecast and detailedHourly. (All hourly and half-hourly detail attributes are excluded from being sent to the Home Assistant recorder, as these attributes are very large, would result in excessive database growth, and are of little use when considered long-term.)
-
-> [!NOTE]
->
-> 
-> If you want to implement the sample PV graph below then you'll need to keep half-hourly detail breakdown enabled, along with `estimate10`.
-
-### Hard limit configuration
-
-There is an option to set a "hard limit" for projected inverter output, and this limit will 'clip' the Solcast forecasts to a maximum value.
-
-The hard limit may be set as an "overall" value (applying to all sites in all Solcast accounts configured), or it may be set by Solcast account with a separate hard limit value for each API key. (In the latter case, comma-separate the desired hard limit values.)
-
-The scenario requiring use of this limit is straightforward but note that hardly any PV installations will need to do so. (And if you have micro-inverters, or one inverter per string then definitely not. The same goes for all panels with identical orientation in a single Solcast site.)
-
-Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
-
-The hard limit may be set in the integration configuration or set via manually invoking an action in `Developer Tools`.
-
-### Excluded sites configuration
-
-It is possible to exclude one or more Solcast sites when sensor totals and the Energy dashboard forecast are calculated.
-
-The use case is to allow a local "main" site or sites to be the overall combined forecast values, and a "remote" site to be visualised separately with Apex charts and/or template sensors that get their value from site breakdown sensor attributes. Note that it is not possible to build a separate Energy dashboard feed from templated sensors (this data comes directly from the integration as a data dictionary).
-
-Utilising this advanced feature alongside template sensors and Apex charts is not a simple thing, however examples are provided throughout the readme for both templated sensors built from attribute data, and for an Apex chart. See [Interacting](#interacting), [Sample template sensors](#sample-template-sensors) and [Sample Apex chart for dashboard](#sample-apex-chart-for-dashboard).
-
-Configuration is by way of the `CONFIGURE` dialogue.
-
-[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites1.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites1.png)
-
-Selecting sites to exclude and clicking `SUBMIT` will take effect immediately. It is not required to wait for a forecast update.
-
-[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png)
-
 ## Interacting
 
 There are many actions, sensors and configuration items exposed by the integration, along with many sensor attributes that may be enabled.
@@ -589,7 +419,7 @@ As stated above, sensor attributes are created to enable sensor state variations
 
 Some attribute names are deployment specific (examples are given here), and some attributes are disabled by default or by user preference to clear clutter. These preferences are set in the `CONFIGURE` dialogue.
 
-Attribute names must not contain a hyphen. Solcast sites _are_ named using a hyphen, so where an attribute is named for the site ID that it represents its hyphens are changed to underscores.
+Attribute names must not contain a hyphen. Solcast site resource IDs _are_ named using a hyphen, so where an attribute is named for the site resource ID that it represents the hyphens are replaced with underscores.
 
 For all sensors:
 
@@ -647,6 +477,8 @@ YAML:
 
 Example parameters are provided here for each `query`, `set` and `get` action. Use `Developer tools` | `Actions` to show the available parameters for each with a description. 
 
+Where a 'site' parameter is needed, use the Solcast site resource ID and not the site name.
+
 ```yaml
 action: solcast_solar.query_forecast_data
 data:
@@ -703,7 +535,7 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 `Rooftop site name` attributes include:
 
 * `name`: The site name configured at solcast.com.
-* `resource_id`: The site ID.
+* `resource_id`: The site resource ID.
 * `capacity`: Site capacity in AC power.
 * `capacity_dc`: Site capacity in DC power.
 * `azimuth` / `tilt`: Panel orientation.
@@ -713,6 +545,179 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 [^1]: API usage information is internally tracked and may not match actual account usage.
 
 [^2]: Each rooftop created in Solcast will be listed separately.
+
+## Advanced configuration
+
+### Dampening configuration
+
+It is possible to configure periodic dampening values to account for shading. This may be configured by automation or the integration configuration for total dampening (overall hourly dampening only in configuration).
+
+Dampening is applied to future forecasts whenever a forecast is fetched, so forecast history retains the dampening that had been applied at the time.
+
+> [!NOTE]
+>
+> Retained dampened historical forecasts is a recent change, and may require automation modification to read un-dampened forecast history instead. See [Reading forecast values in an automation](#reading-forecast-values-in-an-automation) and [Changes](#changes) below.
+
+Per-site and per-half hour dampening is possible only by using the `solcast_solar.set_dampening` action or modifying a dampening configuration file. See [Granular dampening](#granular-dampening) below.
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png)
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/damp.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/damp.png)
+
+#### Simple hourly dampening
+
+You can change the dampening factor value for any hour. Values from 0.0 - 1.0 are valid. Setting 0.95 will dampen each Solcast forecast data value by 5%. This is reflected in the sensor values and attributes and also in the Home Assistant Energy dashboard.
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/dampopt.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/dampopt.png)
+
+> [!TIP]
+>
+> 
+> Most users of dampening configuration do not enter values in the configuration settings directly. Rather, they build automations to set values that are appropriate for their location at different days or seasons, and these call the `solcast_solar.set_dampening` action.
+>
+> 
+> Factors causing dampening to be appropriate might be when different degrees of shading occur at the start or end of a day in different seasons, when the sun is close to the horizon and might cause nearby buildings or trees to cast a long shadow.
+
+#### Granular dampening
+
+Setting dampening for individual Solcast sites or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` action, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
+
+The action accepts a string of dampening factors, and also an optional site resource ID. For hourly dampening supply 24 values. For half-hourly 48. Calling the action creates or updates the file `solcast-dampening.json` when either a site or 48 factor values are specified. If setting overall dampening with 48 factors, then an optional 'all' site may be specified (or simply omitted for this use case).
+
+```yaml
+action: solcast_solar.set_dampening
+data:
+  damp_factor: 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+  #site: 1234-5678-9012-3456
+```
+
+If a site resource ID is not specified, and 24 dampening values are given then granular dampening will be removed, and the overall configured hourly dampening will apply to all sites. (Granular dampening may also be disabled using the integration `CONFIGURE` dialogue.)
+
+The action need not be called. The file itself may be updated directly, and if modified will be read on forecast update and used.
+
+If granular dampening is configured for a single site in a multi-site set up then that dampening will only apply to the forecasts for that site. Other sites will not be dampened.
+
+Dampening for all individual sites may of course be set, and when this is the case all sites must specify the same number of dampening values, either 24 or 48.
+
+<details><summary><i>Click for examples of dampening files</i></summary>
+
+The following examples can be used as a starter for the format for file-based granular dampening. Make sure that you use your own site resource IDs rather than the examples. The file should be saved in the Home Assistant config folder and named `solcast-dampening.json`.
+
+Example of hourly dampening for two sites:
+
+```yaml
+{
+  "1111-aaaa-bbbb-2222": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0],
+  "cccc-4444-5555-dddd": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+}
+```
+
+Example of hourly dampening for a single site:
+
+```yaml
+{
+  "eeee-6666-7777-ffff": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+}
+```
+
+Example of half-hourly dampening for two sites:
+
+```yaml
+{
+  "8888-gggg-hhhh-9999": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0],
+  "0000-iiii-jjjj-1111": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+}
+```
+
+Example of half-hourly dampening for all sites:
+
+```yaml
+{
+  "all": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
+}
+```
+</details>
+
+#### Reading forecast values in an automation
+
+When calculating dampening using an automation it may be beneficial to use un-dampened forecast values as input.
+
+This is possible by using the action `solcast_solar.query_forecast_data`, and including `undampened: true` in the parameters. The site may also be included in the action parameters if a breakdown is desired.
+
+```yaml
+action: solcast_solar.query_forecast_data
+data:
+  start_date_time: 2024-10-08T12:00:00+11:00
+  end_date_time: 2024-10-08T19:00:00+11:00
+  undampened: true
+  #site: 1111-aaaa-bbbb-2222
+```
+
+Un-dampened forecast history is retained for just 14 days.
+
+#### Reading dampening values
+
+The currently set dampening factors may be retrieved using the action "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site resource ID, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
+
+If granular dampening is set to specify both individual site factors and an 'all' factors, then attempting retrieval of an individual site factors will result in the 'all' factors being returned, with the 'all' site being noted in the response. This is because an 'all' set of factors overrides the individual site settings in this circumstance.
+
+Example call:
+
+```yaml
+action: solcast_solar.get_dampening
+data:
+  site: b68d-c05a-c2b3-2cf9
+```
+
+Example response:
+
+```yaml
+data:
+  - site: b68d-c05a-c2b3-2cf9
+    damp_factor: >-
+      1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0
+```
+
+### Sensor attributes configuration
+
+There are quite a few sensor attributes that can be used as a data source for template sensors, charts, etc., including a per-site breakdown, estimate 10/50/90 values, and per-hour and half hour detailed breakdown for each forecast day.
+
+Many users will not use these attributes, so to cut the clutter (especially in the UI and also database statistics storage) generation all of these can be disabled if they are not needed.
+
+By default, all of them are enabled, except for per-site detailedForecast and detailedHourly. (All hourly and half-hourly detail attributes are excluded from being sent to the Home Assistant recorder, as these attributes are very large, would result in excessive database growth, and are of little use when considered long-term.)
+
+> [!NOTE]
+>
+> 
+> If you want to implement the sample PV graph below then you'll need to keep half-hourly detail breakdown enabled, along with `estimate10`.
+
+### Hard limit configuration
+
+There is an option to set a "hard limit" for projected inverter output, and this limit will 'clip' the Solcast forecasts to a maximum value.
+
+The hard limit may be set as an "overall" value (applying to all sites in all Solcast accounts configured), or it may be set by Solcast account with a separate hard limit value for each API key. (In the latter case, comma-separate the desired hard limit values.)
+
+The scenario requiring use of this limit is straightforward but note that hardly any PV installations will need to do so. (And if you have micro-inverters, or one inverter per string then definitely not. The same goes for all panels with identical orientation in a single Solcast site.)
+
+Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
+
+The hard limit may be set in the integration configuration or set via manually invoking an action in `Developer Tools`.
+
+### Excluded sites configuration
+
+It is possible to exclude one or more Solcast sites from the calculation of sensor totals and the Energy dashboard forecast.
+
+The use case is to allow a local "main" site or sites to be the overall combined forecast values, and a "remote" site to be visualised separately with Apex charts and/or template sensors that get their value from site breakdown sensor attributes. Note that it is not possible to build a separate Energy dashboard feed from templated sensors (this data comes directly from the integration as a data dictionary).
+
+Utilising this advanced feature alongside template sensors and Apex charts is not a simple thing, however examples are provided throughout the readme for both templated sensors built from attribute data, and for an Apex chart. See [Interacting](#interacting), [Sample template sensors](#sample-template-sensors) and [Sample Apex chart for dashboard](#sample-apex-chart-for-dashboard).
+
+Configuration is by way of the `CONFIGURE` dialogue.
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites1.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites1.png)
+
+Selecting sites to exclude and clicking `SUBMIT` will take effect immediately. It is not required to wait for a forecast update.
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png)
 
 ## Sample template sensors
 
