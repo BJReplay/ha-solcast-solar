@@ -14,7 +14,7 @@ Home Assistant (https://www.home-assistant.io) Integration component.
 
 This custom component integrates the Solcast PV Forecast for hobbyists into Home Assistant.
 
-It allows forecast visualisation in the Energy dashboard, and supports flexible forecast dampening, the application of a hard limit for over-sized PV systems, a comprehensive set of sensor and configuration entities, along with sensor attributes containing full forecast detail to support automation and visualisation.
+It allows visualisation of the solar forecast in the Energy dashboard, and supports flexible forecast dampening, the application of a hard limit for over-sized PV systems, a comprehensive set of sensor and configuration entities, along with sensor attributes containing full forecast detail to support automation and visualisation.
 
 It is a mature integration with an active community, and responsive developers.
 
@@ -73,11 +73,11 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
 
 ## Key Solcast concepts
 
-Solcast will produce a forecast of solar PV generation from today through seven days into the future. Each of these day forecasts are exposed by the integration as a separate sensor, with the value being the total predicted solar generation for each day.
+Solcast will produce a forecast of solar PV generation from today through to seven days into the future. Each of these day forecasts are exposed by the integration as a separate sensor, with the value being the total predicted solar generation for each day.
 
 Separate sensors are also available that contain the expected peak generation power, peak generation time, and various forecasts of next hour, 30 minutes, and more.
 
-If multiple arrays exist on different roof orientations, these can be configured in Solcast as separate 'sites' with differing azimuth, tilt and peak generation, to a maximum of two sites for a free hobbyist account. These separate site forecasts are combined to form the integration sensor values and Energy dashboard forecast data.
+If multiple arrays exist on different roof orientations, these can be configured in your Solcast account as separate 'sites' with differing azimuth, tilt and peak generation, to a maximum of two sites for a free hobbyist account. These separate site forecasts are combined to form the integration sensor values and Energy dashboard forecast data.
 
 Three solar generation estimates are produced by Solcast for every half hour period of all forecasted days.
 
@@ -85,11 +85,13 @@ Three solar generation estimates are produced by Solcast for every half hour per
 * '10%' or 1 in 10 'worst case' forecast assuming more cloud coverage than expected, exposed as `forecast10`.
 * '90%' or 1 in 10 'best case' forecast assuming less cloud coverage than expected, exposed as `forecast90`.
 
-The detail of these different forecast estimates can be found in sensor attributes, which contain both 30-minute daily intervals, and calculated hourly intervals across the day. Separate attributes sum the available estimates or break things down by Solcast site. (A Solcast site is usually referred to by its 'site resource ID', and this can be found at the Solcast site https://toolkit.solcast.com.au/)
+The detail of these different forecast estimates can be found in sensor attributes, which contain both 30-minute daily intervals, and calculated hourly intervals across the day. Separate attributes sum the available estimates or break things down by Solcast site. (This integration usually references a Solcast site by by its 'site resource ID', and this can be found at the Solcast site https://toolkit.solcast.com.au/)
 
-The Energy dashboard in Home Assistant is populated with a specific data structure that is provided by the integration. (This does not come from sensor data.) Manipulation of forecasted values to account for shading is possible by setting dampening factors for hourly or half-hourly periods, and a "hard limit" may be set for over-sized solar arrays where expected generation cannot exceed an inverter maximum rating. These two mechanisms are the only ways to manipulate the data.
+The Energy dashboard in Home Assistant is populated with historical forecast data that is provided by the integration, with data retained for up to two years.
 
-Historical forecast data is retained by the integration for up to two years, and this is stored in an integration data file. Forecast history is not stored as Home Assistant statistics.
+Manipulation of forecasted values to account for shading is possible by setting dampening factors for hourly or half-hourly periods, and a "hard limit" may be set for over-sized solar arrays where expected generation cannot exceed an inverter maximum rating. These two mechanisms are the only ways to manipulate the Solcast forecast data.
+
+Forecast history is not stored as Home Assistant statistics.
 
 ## Solcast requirements
 
@@ -139,7 +141,7 @@ Click on settings, and you should see a Repair notification for `Restart require
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SuccessIssueRepaired.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SuccessIssueRepaired.png)
 
-If you don't see this (you might be running an older version of Home Assistant), navigate to `System`, `Settings`, click on the power Icon, and `Restart Home Assistant`.  You need to restart Home Assistant before you can then install the custom component that you've just downloaded.
+If you don't see this (you might be running an older version of Home Assistant), navigate to `System`, `Settings`, click on the power Icon, and `Restart Home Assistant`.  You need to restart Home Assistant before you can then configure the Solcast PV Forecast custom component that you've just downloaded.
 
 Once you've restarted, follow along at [Configuration](#configuration) to continue setting up the Solcast PV Forecast integration component.
 
@@ -178,7 +180,7 @@ You probably **do not** want to do this! Use the HACS method above unless you kn
  
  [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/Setupanewintegration.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/Setupanewintegration.png)
 
-1. Enter your `Solcast API Key`, `API limit`, desired auto-update choice and click `Submit`. If you have more than one Solcast account because you have more than two rooftop setups, enter both account API keys separated by a comma `xxxxxxxx-xxxxx-xxxx,yyyyyyyy-yyyyy-yyyy` (_Note: this goes against Solcast T&C's by having more than one account_). If the API limit is the same for multiple accounts then enter a single value for that, or both values separated by a comma.
+1. Enter your `Solcast API Key`, `API limit`, desired auto-update choice and click `Submit`. If you have more than one Solcast account because you have more than two rooftop setups, enter all Solcast account API keys separated by a comma `xxxxxxxx-xxxxx-xxxx,yyyyyyyy-yyyyy-yyyy` (_Note: this goes against Solcast T&C's by having more than one account_). Your API limit will be 10 for new Solcast users or 50 for historical users. If the API limit is the same for multiple accounts then enter a single value for that, or both values separated by a comma.
 1. If an auto-update option was not chosen then create your own automation to call the action `solcast_solar.update_forecasts` at the times you would like to update the solar forecast.
 1. Set up the Home Assistant Energy dashboard settings.
 1. To change other configuration options after installation, select the integration in `Devices & Services` then `CONFIGURE`.
@@ -337,7 +339,11 @@ DEBUG (MainThread) [custom_components.solcast_solar.solcastapi] HTTP session sta
 
 Go to `Settings`, `Dashboards`, `Energy`
 
-Edit the `Solar Panels` `Solar production` item you have previously created (or will create now). Do not add a separate `Solar production` item as things will just get weird.
+The solar forecast has to be associated with a solar generation item in your Energy dashboard.
+
+Edit a `Solar Panels` `Solar production` item you have previously created (or will create now). Do not add a separate `Solar production` item as things will just get weird.
+
+There can only be a single configuration of the total Solcast PV Forecast in the Energy dashboard, it is not possible to split the forecast for different solar arrays/Solcast sites.
 
 > [!IMPORTANT]  
 > If you do not have a solar generation sensor in your system then this integration will not work in the Energy dashboard. The graph and adding the forecast integration rely on there being a generation sensor set up.
@@ -358,7 +364,7 @@ Utilise the Home Assistant `Developer tools` to examine exposed attributes, as t
 
 ### Sensors
 
-All sensor names are preceded by `Solcast PV Forecast`.
+All sensor names are preceded by the integration name `Solcast PV Forecast`.
 
 | Name | Type | Attributes | Unit | Description |
 | ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
@@ -415,7 +421,7 @@ All sensor names are preceded by `Solcast PV Forecast`.
 
 ### Attributes
 
-As stated above, sensor attributes are created to enable sensor state variations to be used in templates. Examples are the estimate confidence, `estimate10`/`estimate50`/`estimate90`. The sensor _state_ is generally left at the default of `estimate50`, but displaying the tenth percentile of a sensor on a dashboard may be desired and this is enabled by the use of _attribute_ values.
+As stated above, sensor attributes are created to enable sensor state variations to be used in templates. Examples are the estimate confidence, `estimate10`/`estimate`/`estimate90`. The sensor _state_ is generally left at the default of `estimate`, but displaying the tenth percentile of a sensor on a dashboard may be desired and this is enabled by the use of _attribute_ values.
 
 Some attribute names are deployment specific (examples are given here), and some attributes are disabled by default or by user preference to clear clutter. These preferences are set in the `CONFIGURE` dialogue.
 
@@ -424,11 +430,11 @@ Attribute names must not contain a hyphen. Solcast site resource IDs _are_ named
 For all sensors:
 
 * `estimate10`: 10th percentile forecast value (number)
-* `estimate50`: 50th percentile forecast value (number)
+* `estimate`: 50th percentile forecast value (number)
 * `estimate90`: 90th percentile forecast value (number)
 * `1234_5678_9012_3456`: An individual site value, i.e. a portion of the total (number)
 * `estimate10_1234_5678_9012_3456`: 10th for an individual site value (number)
-* `estimate50_1234_5678_9012_3456`: 50th for an individual site value (number)
+* `estimate_1234_5678_9012_3456`: 50th for an individual site value (number)
 * `estimate90_1234_5678_9012_3456`: 90th for an individual site value (number)
 
 For daily forecast sensors only:
@@ -446,7 +452,7 @@ JSON:
   {
     "period_start": "2025-04-06T08:00:00+10:00",
     "pv_estimate10": 10.000,
-    "pv_estimate50": 50.000,
+    "pv_estimate": 50.000,
     "pv_estimate90": 90.000
   },
   ...
@@ -457,7 +463,7 @@ YAML:
 ```yaml
 - period_start: '2025-04-06T08:00:00+10:00'
   pv_estimate10: 10.000
-  pv_estimate50: 50.000
+  pv_estimate: 50.000
   pv_estimate90: 90.000
 - ...
 ```
@@ -566,7 +572,7 @@ Per-site and per-half hour dampening is possible only by using the `solcast_sola
 
 #### Simple hourly dampening
 
-You can change the dampening factor value for any hour. Values from 0.0 - 1.0 are valid. Setting 0.95 will dampen each Solcast forecast data value by 5%. This is reflected in the sensor values and attributes and also in the Home Assistant Energy dashboard.
+You can change the dampening factor value for any hour. Values from 0.0 - 1.0 are valid. Setting 0.95 will dampen (reduce) each Solcast forecast data value by 5%. This is reflected in the sensor values and attributes and also in the Home Assistant Energy dashboard..
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/dampopt.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/dampopt.png)
 
@@ -659,7 +665,7 @@ Un-dampened forecast history is retained for just 14 days.
 
 The currently set dampening factors may be retrieved using the action "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site resource ID, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
 
-If granular dampening is set to specify both individual site factors and an 'all' factors, then attempting retrieval of an individual site factors will result in the 'all' factors being returned, with the 'all' site being noted in the response. This is because an 'all' set of factors overrides the individual site settings in this circumstance.
+If granular dampening is set to specify both individual site dampening factors and "all" sites dampening factors, then attempting retrieval of an individual site dampening factors will result in the "all" sites dampening factors being returned, with the "all" site being noted in the response. This is because an "all" set of dampening factors overrides the individual site settings in this circumstance.
 
 Example call:
 
