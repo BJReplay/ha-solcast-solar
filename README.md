@@ -362,6 +362,8 @@ There are many actions, sensors and configuration items exposed by the integrati
 
 Utilise the Home Assistant `Developer tools` to examine exposed attributes, as their naming is mostly deployment specific. Refer to examples elsewhere in this readme to gain an insight as to how they may be used.
 
+There is also a collection of Jinja2 templates provided at https://github.com/BJReplay/ha-solcast-solar/blob/main/TEMPLATES.md containing basic, intermediate and advanced templating examples.
+
 ### Sensors
 
 All sensor names are preceded by the integration name `Solcast PV Forecast`.
