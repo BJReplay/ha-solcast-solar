@@ -10,6 +10,15 @@ This document is a collection of Solcast example templates presented in the cont
 
 Jinja2 templates are super handy to use when building template sensors, but don't forget that templates can be used elsewhere. For example, a Lovelace Card Templater Dashboard add-on is available in HACS that allows use of Jinja2 in all manner of things, not least of which are Apex charts. Things like that open up a world of advanced possibility.
 
+# Contents
+
+1. [Some simple examples](#some-simple-examples)
+1. [Intermediate examples](#intermediate-exmaples)
+    1. [Combining data from multiple sites](#combining-data-from-multiple-sites)
+1. [Advanced examples](#advanced-exmaples)
+    1. [Virtual Power Plant adaptive battery discharge](#virtual-power-plant-adaptive-battery-discharge)
+    1. [A scale-modifying Apex chart](#a-scale-modifying-apex-chart)
+
 ## Some simple examples
 
 **Scenario**: Sensors are set to use the `forecast` or 50% estimate, but you want to show the 10% estimate on a dashboard. This can be retrieved from a sensor "attribute". Note that this sensor attribute must be enabled in the integration `CONFIGURE` options. It is by default, but if that has been disabled then this template will result in a zero value.
@@ -26,7 +35,53 @@ The conversion to float (with a default value of zero) is not strictly required.
 {{ state_attr('sensor.solcast_pv_forecast_forecast_today', 'estimate10_1234_5678_9012_3456') | float(0) }}
 ```
 
-## Advanced example: Virtual Power Plant adaptive battery discharge
+## Intermediate examples
+
+### Combining data from multiple sites
+
+**Scenario**: You have two Solcast API keys, with two rooftop sites on one main location, plus two rooftop sites at a holiday house. You want to see all the data in a single Home Assistant deployment at the main location.
+
+It is possible to exclude sites from the sensor total, so you do so from the `CONFIGURE` dialogue for the integration. This leaves the sensor states and Energy dashboard data being for just the two rooftop sites at the main residence.
+
+To visualise the holiday house you are going to create an Apex chart on a dashboard, as well as show some entity states like 'forecast today'.
+
+Here is how to combine the two holiday house sites
+
+``` yaml
+  - sensor:
+      - name: "Holiday house forecast today"
+        unique_id: "solcast_holiday_house_forecast_today"
+        state: >
+          {% set sensor1 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'b68d_c05a_c2b3_2cf9') %}
+          {% set sensor2 = state_attr('sensor.solcast_pv_forecast_forecast_today', '83d5_ab72_2a9a_2397') %}
+          {{ sensor1 + sensor2 }}
+        unit_of_measurement: "kWh"
+        attributes:
+          detailedForecast: >
+            {% set sensor1 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast_b68d_c05a_c2b3_2cf9') %}
+            {% set sensor2 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast_83d5_ab72_2a9a_2397') %}
+            {% set ns = namespace(i=0, combined=[]) %}
+            {% for interval in sensor1 %}
+              {% set ns.combined = ns.combined + [
+                {
+                  'period_start': interval['period_start'].isoformat(),
+                  'pv_estimate': (interval['pv_estimate'] + sensor2[ns.i]['pv_estimate']),
+                  'pv_estimate10': (interval['pv_estimate10'] + sensor2[ns.i]['pv_estimate10']),
+                  'pv_estimate90': (interval['pv_estimate90'] + sensor2[ns.i]['pv_estimate90']),
+                }
+              ] %}
+              {% set ns.i = ns.i + 1 %}
+            {% endfor %}
+            {{ ns.combined | to_json() }}
+        availability: >
+          {{ states('sensor.solcast_pv_forecast_forecast_today') | is_number }}
+```
+
+Using a `namespace` for the looped addition is significant. If `i` and `combined` were simple variables then this would not work.
+
+## Advanced examples
+
+### Virtual Power Plant adaptive battery discharge
 
 **Scenario**: Your power utility offers a cost free period during daytime that can be used to charge a battery from the grid, plus they offer rewarding evening peak feed-in rates to give some power back for others to use, giving you cash credit.
 
@@ -71,7 +126,8 @@ template:
           {% else %}
             {{ base_minimum }}
           {% endif %}
-
+        availability: >
+          {{ now() > states('sensor.home_sun_rising') | as_datetime }}
 ```
 
 The first part of the template gets the time that the sun will next rise, and then calculates the first two hours of expected solar generation thereafter. When iterating the forecast values they are multiplied by 0.5, and this is because the detailed forecast breakdown values are "power" (kW) and not "energy" (kWh). Each interval is one half hour expected average, so divide by two and add two intervals per hour to get forecast _energy_ production.
@@ -80,9 +136,11 @@ The second part works out how many hours there are from sunset today to next sun
 
 The third part determines how much power the sun must give over the two hour period to prevent total battery discharge. If it is not expected that the sun will deliver what is required then the "base_minimum" is increased by the anticipated shortfall.
 
+The sensor becomes unavailable between midnight and sunrise. If it did not have the availability template then the sensor state would become a nonsensical negative number until sunrise next occurs. That would not impact any battery discharging (because early morning is never considered a peak time for power export) but it would mess with the state history of the sensor.
+
 Again, will it always work? Nope. It's a forecast, and evening power usage can be quite variable. It could be improved to account for differing seasonal or daily overnight consumption averages. For example, if Friday night is Pizza Night then the oven won't be used and average overnight consumption will be less.
 
-## Advanced example: A scale-modifying Apex chart
+### A scale-modifying Apex chart
 
 This example varies the X axis scale of an Apex chart showing forecast and solar production based on the time of day.
 
@@ -90,7 +148,7 @@ It's not perfect in the early evening, I know, but that is left up to the reader
 
 It utilises the Lovelace Card Templater HACS add-on. Plus a per-five-minute template sensor to cause it to update. Some sensors used are implementation specific. Change them.
 
-```
+``` yaml
 type: custom:card-templater
 card:
   type: custom:apexcharts-card
@@ -265,7 +323,7 @@ entities:
 
 And the per-five-minute template sensor updater...
 
-```
+``` yaml
 template:
   - trigger:
       - platform: time_pattern
