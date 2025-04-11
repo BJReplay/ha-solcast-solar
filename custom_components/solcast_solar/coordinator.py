@@ -478,10 +478,13 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         i = 0
         for api_key in api_keys.split(","):
             if key == "hard_limit_" + api_key[-6:]:
-                hard_limit = float(self.solcast.hard_limit.split(",")[i])
-                if hard_limit == 100:
-                    return False
-                return unit_adjusted(hard_limit)
+                break
+            i += 1
+        if key.startswith("hard_limit_"):
+            hard_limit = float(self.solcast.hard_limit.split(",")[i])
+            if hard_limit == 100:
+                return False
+            return unit_adjusted(hard_limit)
         return None
 
     def get_sensor_extra_attributes(self, key: str = "") -> dict[str, Any] | None:

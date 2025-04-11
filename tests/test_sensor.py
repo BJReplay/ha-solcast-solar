@@ -429,7 +429,7 @@ async def test_sensor_states(
         now = dt.now()
 
         # Test number of site sensors that exist.
-        assert len(hass.states.async_all("sensor")) == len(sensors) + (3 if key == "2" else 4)
+        assert len(hass.states.async_all("sensor")) == len(sensors) + (3 if key == "2" else 5)
         _no_exception(caplog)
         caplog.clear()
 
@@ -460,6 +460,15 @@ async def test_sensor_states(
                 assert state.attributes["state_class"] == attrs["state_class"]
         _no_exception(caplog)
         caplog.clear()
+
+        if key == "1":
+            assert hass.states.get("sensor.first_site").state == "26.595"
+            assert hass.states.get("sensor.second_site").state == "15.957"
+            assert hass.states.get("sensor.third_site").state == "15.957"
+            assert hass.states.get("sensor.solcast_pv_forecast_api_limit").state == "20"
+            assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "4"
+            assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "12.0 kW"
+            assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "6.0 kW"
 
         # Test last sensor update time.
         freezer.move_to(now.replace(hour=2, minute=30, second=0, microsecond=0))
