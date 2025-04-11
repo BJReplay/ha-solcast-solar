@@ -4,9 +4,7 @@ These example templates might help newcomers get started with Solcast template s
 
 When getting started with Jinja2 read up on its core concepts. It is a brilliant templating language where placeholders allow writing statements in a format very similar to Python syntax. If you know Python this makes it fairly natural. If not, learn some Python, in particular number and datetime manipulations.
 
-This document is a collection of Solcast example templates presented in the context of scenarios. It can not teach you Jinja2 or Python, which is up to you to learn.
-
-## General
+This document is a collection of Solcast example templates presented in the context of scenarios. It can not teach you Jinja2 or Python, which is up to you to learn, but for simple applications having a few examples to copy concepts from can avoid needing to spend hours learning.
 
 Jinja2 templates are super handy to use when building template sensors, but don't forget that templates can be used elsewhere. For example, a Lovelace Card Templater Dashboard add-on is available in HACS that allows use of Jinja2 in all manner of things, not least of which are Apex charts. Things like that open up a world of advanced possibility.
 
@@ -34,6 +32,22 @@ The conversion to float (with a default value of zero) is not strictly required.
 ```
 {{ state_attr('sensor.solcast_pv_forecast_forecast_today', 'estimate10_1234_5678_9012_3456') | float(0) }}
 ```
+
+**Scenario**: You're not using the GUI to create a template sensor, rather `configuration.yaml`. You would like to display the peak PV generation expected today for just one rooftop site.
+
+``` yaml
+template
+  - sensor:
+      - name: "West array peak solar forecast today"
+        unique_id: "solcast_pv_forecast_peak_forecast_today_west_array"
+        unit_of_measurement: "W"
+        state: >
+          {{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', 'b68d_c05a_c2b3_2cf9') | float(0) }}
+        availability: >
+          {{ states('sensor.solcast_pv_forecast_peak_forecast_today') | is_number }}
+```
+
+If the `availability` is not set then the log will likely be spammed with errors should the sensor entity be unavailable.
 
 ## Intermediate examples
 
