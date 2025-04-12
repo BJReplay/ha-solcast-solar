@@ -371,6 +371,7 @@ async def test_reconfigure_api_key(
         await hass.async_block_till_done()
 
         # Test start after reconfigure when presumed dead...
+        hass.data[DOMAIN]["presumed_dead"] = True
         simulator.API_KEY_SITES["4"] = simulator.API_KEY_SITES.pop("1")  # Change the key
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id}, data=entry.data

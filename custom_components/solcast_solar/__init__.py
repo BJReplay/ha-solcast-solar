@@ -19,7 +19,11 @@ from homeassistant.exceptions import (
     ConfigEntryNotReady,
     ServiceValidationError,
 )
-from homeassistant.helpers import aiohttp_client, config_validation as cv
+from homeassistant.helpers import (
+    aiohttp_client,
+    config_validation as cv,
+    entity_registry as er,
+)
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -282,7 +286,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
     version = await get_version(hass)
     options = await __get_options(hass, entry)
     __setup_storage(hass)
-    hass.data[DOMAIN]["presumed_dead"] = True
+    hass.data[DOMAIN]["presumed_dead"] = True  # Presumption that init will not be successful.
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options, hass, entry)
 
     solcast.headers = get_session_headers(version)
@@ -333,7 +337,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
 
     __log_hard_limit_set(solcast)
 
-    hass.data[DOMAIN]["presumed_dead"] = False
+    hass.data[DOMAIN]["presumed_dead"] = False  # Initialisation was successful, so we're not dead.
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = True
 
     if not await __check_auto_update_missed(coordinator):
@@ -621,9 +625,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> 
             hass.services.async_remove(DOMAIN, action)
             hass.services.async_register(DOMAIN, action, stub_action)  # Switch to an error action
 
-    if hass.data[DOMAIN].get("presumed_dead") is not None:
-        _LOGGER.debug("Removing presumed dead flag")
-        hass.data[DOMAIN].pop("presumed_dead")
     return unload_ok
 
 
@@ -663,13 +664,33 @@ async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry) -
     def changed(config) -> bool:
         return hass.data[DOMAIN]["entry_options"].get(config) != entry.options.get(config)
 
-    # Config changes, which when changed will cause a reload.
+    # Old API key tracking.
     if changed(CONF_API_KEY):
         if hass.data[DOMAIN].get("reset_old_key"):
             hass.data[DOMAIN].pop("reset_old_key")
             hass.data[DOMAIN]["old_api_key"] = entry.options.get(CONF_API_KEY)
         else:
             hass.data[DOMAIN]["old_api_key"] = hass.data[DOMAIN]["entry_options"].get(CONF_API_KEY)
+
+    # Multi-API key hard limit tracking and clean up.
+    if hass.data[DOMAIN].get("old_hard_limit", coordinator.solcast.hard_limit) != entry.options[HARD_LIMIT_API]:
+        old_multi_key = len(hass.data[DOMAIN].get("old_hard_limit", coordinator.solcast.hard_limit).split(",")) > 1
+        new_multi_key = len(entry.options[HARD_LIMIT_API].split(",")) > 1
+        if old_multi_key != new_multi_key:  # Changing from single to multi or vice versa
+            entity_registry = er.async_get(hass)
+            entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+            if old_multi_key:
+                _LOGGER.warning("Hard limit changed from multi to single, cleaning up entities")
+                clean_up = [f"sensor.solcast_pv_forecast_hard_limit_set_{api_key}" for api_key in entry.options[CONF_API_KEY].split(",")]
+            else:
+                _LOGGER.warning("Hard limit changed from single to multi, cleaning up entity")
+                clean_up = ["sensor.solcast_pv_forecast_hard_limit_set"]
+            for entity in entities:
+                if entity.entity_id in clean_up:
+                    entity_registry.async_remove(entity.entity_id)
+    hass.data[DOMAIN]["old_hard_limit"] = entry.options[HARD_LIMIT_API]
+
+    # Config changes, which when changed will cause a reload.
     reload = changed(CONF_API_KEY) or changed(API_QUOTA) or changed(AUTO_UPDATE) or changed(HARD_LIMIT_API) or changed(CUSTOM_HOUR_SENSOR)
 
     # Config changes, which when changed will cause a forecast recalculation only, without reload.

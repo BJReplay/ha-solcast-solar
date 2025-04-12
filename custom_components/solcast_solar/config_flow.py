@@ -391,6 +391,8 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 if not errors:
                     # Validate the hard limit
                     hard_limit = user_input[HARD_LIMIT_API]
+                    if hard_limit == "0":  # Hard limit can be disabled by setting to zero or 100
+                        hard_limit = "100.0"
                     to_set = []
                     for h in hard_limit.split(","):
                         h = h.strip()
