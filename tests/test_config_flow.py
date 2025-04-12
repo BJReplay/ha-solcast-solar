@@ -514,6 +514,7 @@ async def test_options_custom_hour_sensor(hass: HomeAssistant, options, value, r
         ((DEFAULT_INPUT1, "6", None)),
         ((DEFAULT_INPUT2, "6,6.0", None)),
         ((DEFAULT_INPUT2, "6", None)),
+        ((DEFAULT_INPUT2, "0", None)),
     ],
 )
 async def test_options_hard_limit(hass: HomeAssistant, options, value, reason) -> None:

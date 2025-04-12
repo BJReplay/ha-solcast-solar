@@ -30,6 +30,7 @@ from homeassistant.components.solcast_solar.const import (
 )
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from .aioresponses import CallbackResult, aioresponses
 from .simulator import API_KEY_SITES, SimulatedSolcast
@@ -288,6 +289,10 @@ async def async_init_integration(
 
     if mock_api:
         await async_setup_aioresponses()
+
+    # Ensure that a potentially orphaned simple hard limit diagnostic entity is always present.
+    entity_registry = er.async_get(hass)
+    entity_registry.async_get_or_create("sensor", DOMAIN, unique_id="solcast_pv_forecast_hard_limit_set", config_entry=entry)
 
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()

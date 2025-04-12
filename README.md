@@ -984,8 +984,9 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 v4.3.3
 * Add sites to exclude from totals and Energy dashboard by @autoSteve
 * Add Portuguese translation by @ViPeR5000 (thanks!)
-* Fix remove orphaned cache where API key contains non-alphanumeric characters by @autoSteve
+* Clean up orphaned hard limit diagnostic sensors by @autoSteve
 * Fix diagnostic sensor values for multi-api key hard limit by @autoSteve
+* Fix remove orphaned cache where API key contains non-alphanumeric characters by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.2...v4.3.3
 

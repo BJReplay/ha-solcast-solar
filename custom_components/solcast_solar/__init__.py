@@ -680,13 +680,16 @@ async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry) -
             entity_registry = er.async_get(hass)
             entities = er.async_entries_for_config_entry(entity_registry, entry.entry_id)
             if old_multi_key:
-                _LOGGER.warning("Hard limit changed from multi to single, cleaning up entities")
-                clean_up = [f"sensor.solcast_pv_forecast_hard_limit_set_{api_key}" for api_key in entry.options[CONF_API_KEY].split(",")]
+                _LOGGER.debug("Hard limit changed from multi to single")
+                clean_up = [
+                    f"sensor.solcast_pv_forecast_hard_limit_set_{api_key[-6:]}" for api_key in entry.options[CONF_API_KEY].split(",")
+                ]
             else:
-                _LOGGER.warning("Hard limit changed from single to multi, cleaning up entity")
+                _LOGGER.debug("Hard limit changed from single to multi")
                 clean_up = ["sensor.solcast_pv_forecast_hard_limit_set"]
             for entity in entities:
                 if entity.entity_id in clean_up:
+                    _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
                     entity_registry.async_remove(entity.entity_id)
     hass.data[DOMAIN]["old_hard_limit"] = entry.options[HARD_LIMIT_API]
 

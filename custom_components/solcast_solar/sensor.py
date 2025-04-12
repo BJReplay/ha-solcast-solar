@@ -26,6 +26,7 @@ from homeassistant.const import (
     UnitOfPower,
 )
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -329,6 +330,7 @@ async def async_setup_entry(
         )
         sen = SolcastSensor(coordinator, k, entry)
         entities.append(sen)
+        expecting_limits = ["sensor.solcast_pv_forecast_hard_limit_set"]
     else:
         for api_key in coordinator.solcast.options.api_key.split(","):
             k = SensorEntityDescription(
@@ -341,6 +343,17 @@ async def async_setup_entry(
             )
             sen = SolcastSensor(coordinator, k, entry)
             entities.append(sen)
+        expecting_limits = [
+            f"sensor.solcast_pv_forecast_hard_limit_set_{api_key[-6:]}" for api_key in coordinator.solcast.options.api_key.split(",")
+        ]
+    # Clean up any orphaned hard limit sensors.
+    # Clean up should only occur here once for any install, as operational cleanup is done when the entry options are changed.
+    entity_registry = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
+        if "hard_limit_set" in entity.entity_id and entity.entity_id not in expecting_limits:
+            entity_registry.async_remove(entity.entity_id)
+            _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
+
     for site in coordinator.get_solcast_sites():
         k = SensorEntityDescription(
             key=site["resource_id"],
