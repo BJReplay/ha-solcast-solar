@@ -727,13 +727,20 @@ Selecting sites to exclude and clicking `SUBMIT` will take effect immediately. I
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png)
 
+> [!NOTE]
+>
+> 
+> The site names and resource IDs are sourced from the sites that are known at the time of last sites fetch from Solcast (this is at startup). It is not possible to both add a new API key and select a site to exclude from the new account being added. The new account must first be added, which will cause the integration to restart and load the new sites. After that the sites to exclude from the new account may be selected.
+
 ## Sample template sensors
 
 ### Combining site data
 
 A potential desire is to combine the forecast data for multiple sites common to a Solcast account, enabling visualisation of individual account detailed data in an Apex chart.
 
-This code is an example of how to do so by using template sensors, which sums all pv50 forecast intervals to give a daily account total, plus builds a detailedForecast attribute of all combined interval data to use in a visualisation.
+This code is an example of how to do so by using a template sensor, which sums all pv50 forecast intervals to give a daily account total, plus builds a detailedForecast attribute of all combined interval data to use in a visualisation.
+
+Site breakdowns must be enabled in the integration options (the detailed forecast breakdown is not enabled by default).
 
 **Reveal code**
 <details><summary><i>Click here</i></summary>
@@ -744,14 +751,9 @@ template:
       - name: "Solcast Combined API 1"
         unique_id: "solcast_combined_api_1"
         state: >
-          {% set sensor1 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast_b68d_c05a_c2b3_2cf9') %}
-          {% set sensor2 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast_83d5_ab72_2a9a_2397') %}
-          {% set ns = namespace(i=0, combined=0) %}
-          {% for interval in sensor1 %}
-            {% set ns.combined = ns.combined + interval['pv_estimate'] * 0.5 + sensor2[ns.i]['pv_estimate'] * 0.5 %}
-            {% set ns.i = ns.i + 1 %}
-          {% endfor %}
-          {{ ns.combined }}
+          {% set sensor1 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'b68d_c05a_c2b3_2cf9') %}
+          {% set sensor2 = state_attr('sensor.solcast_pv_forecast_forecast_today', '83d5_ab72_2a9a_2397') %}
+          {{ sensor1 + sensor2 }}
         unit_of_measurement: "kWh"
         attributes:
           detailedForecast: >
