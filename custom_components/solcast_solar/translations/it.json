@@ -5,6 +5,13 @@
             "reauth_successful": "Nuova chiave API applicata con successo",
             "single_instance_allowed": "È consentita una sola istanza di Solcast"
         },
+        "error": {
+            "api_duplicate": "Chiave API duplicata specificata",
+            "api_looks_like_site": "La chiave API sembra un ID sito",
+            "limit_one_or_greater": "Il limite API deve essere uno o superiore",
+            "limit_too_many": "Sono stati inseriti più conteggi dei limiti API rispetto alle chiavi",
+            "limit_not_number": "Il limite API non è un numero"
+        },
         "step": {
             "reauth_confirm": {
                 "data": {
@@ -110,6 +117,16 @@
     "options": {
         "abort": {
             "reconfigured": "Nuova configurazione applicata con successo"
+        },
+        "error": {
+            "api_duplicate": "Chiave API duplicata specificata",
+            "api_looks_like_site": "La chiave API sembra un ID sito",
+            "limit_one_or_greater": "Il limite API deve essere uno o superiore",
+            "limit_too_many": "Sono stati inseriti più conteggi dei limiti API rispetto alle chiavi",
+            "limit_not_number": "Il limite API non è un numero",
+            "custom_invalid": "Sensore personalizzato non compreso tra 1 e 144",
+            "hard_not_number": "Il limite massimo non è un numero positivo",
+            "hard_too_many": "Sono stati inseriti più limiti rigidi che chiavi"
         },
         "step": {
             "dampen": {

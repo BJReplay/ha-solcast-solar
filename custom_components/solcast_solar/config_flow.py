@@ -72,10 +72,10 @@ def validate_api_key(user_input: dict[str, Any]) -> tuple[str, int, str | None]:
     api_key = [s for s in api_key.split(",") if s]
     for index, key in enumerate(api_key):
         if re.match(LIKE_SITE_ID, key):
-            return "", 0, "API key looks like a site ID"
+            return "", 0, "api_looks_like_site"
         for i, k in enumerate(api_key):
             if index != i and key == k:
-                return "", 0, "Duplicate API key specified"
+                return "", 0, "api_duplicate"
     api_count = len(api_key)
     api_key = ",".join(api_key)
     return api_key, api_count, None
@@ -96,11 +96,11 @@ def validate_api_limit(user_input: dict[str, Any], api_count: int) -> tuple[str,
     api_quota = [s for s in api_quota.split(",") if s]
     for q in api_quota:
         if not q.isnumeric():
-            return "", "API limit is not a number"
+            return "", "limit_not_number"
         if int(q) < 1:
-            return "", "API limit must be one or greater"
+            return "", "limit_one_or_greater"
     if len(api_quota) > api_count:
-        return "", "There are more API limit counts entered than keys"
+        return "", "limit_too_many"
     api_quota = ",".join(api_quota)
     return api_quota, None
 
@@ -385,7 +385,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     # Validate the custom hours sensor
                     custom_hour_sensor = user_input[CUSTOM_HOUR_SENSOR]
                     if custom_hour_sensor < 1 or custom_hour_sensor > 144:
-                        errors["base"] = "Custom sensor not between 1 and 144"
+                        errors["base"] = "custom_invalid"
                     all_config_data[CUSTOM_HOUR_SENSOR] = custom_hour_sensor
 
                 if not errors:
@@ -397,13 +397,13 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     for h in hard_limit.split(","):
                         h = h.strip()
                         if not h.replace(".", "", 1).isdigit():
-                            errors["base"] = "Hard limit is not a positive number"
+                            errors["base"] = "hard_not_number"
                             break
                         val = float(h)
                         to_set.append(f"{val:.1f}")
                     if not errors:
                         if len(to_set) > api_count:
-                            errors["base"] = "There are more hard limits entered than keys"
+                            errors["base"] = "hard_too_many"
                         else:
                             hard_limit = ",".join(to_set)
                             all_config_data[HARD_LIMIT_API] = hard_limit

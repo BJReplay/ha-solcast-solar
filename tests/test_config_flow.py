@@ -75,59 +75,50 @@ MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1_COP
 MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2_COPY)
 
 TEST_API_KEY = [
-    ({CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"}, "API key looks like a site ID"),
-    ({CONF_API_KEY: KEY1 + "," + KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, "Duplicate API key specified"),
+    ({CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"}, "api_looks_like_site"),
+    ({CONF_API_KEY: KEY1 + "," + KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, "api_duplicate"),
     ({CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "0"}, None),
     ({CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, None),
     ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "2"}, None),
-    ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "0", AUTO_UPDATE: "2"}, "API limit must be one or greater"),
+    ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "0", AUTO_UPDATE: "2"}, "limit_one_or_greater"),
 ]
 
 TEST_REAUTH_API_KEY = [
-    ({CONF_API_KEY: "1234-5678-8765-4321"}, "API key looks like a site ID"),
-    ({CONF_API_KEY: KEY1 + "," + KEY1}, "Duplicate API key specified"),
+    ({CONF_API_KEY: "1234-5678-8765-4321"}, "api_looks_like_site"),
+    ({CONF_API_KEY: KEY1 + "," + KEY1}, "api_duplicate"),
     ({CONF_API_KEY: "555"}, "Bad API key, 403/Forbidden"),
     ({CONF_API_KEY: KEY1 + "," + KEY2}, None),
 ]
 
 TEST_KEY_CHANGES = [
-    {
-        "options": {CONF_API_KEY: "555", API_QUOTA: "10", AUTO_UPDATE: "1"},
-        "assert": "Bad API key, 403/Forbidden",
-        "set": None,
-    },
-    {
-        "options": {CONF_API_KEY: "no_sites", API_QUOTA: "10", AUTO_UPDATE: "1"},
-        "assert": "No sites found for API key",
-        "set": None,
-    },
-    {
-        "options": {CONF_API_KEY: "1", API_QUOTA: "10", AUTO_UPDATE: "1"},
-        "assert": "Error 429/Try again later for API key",
-        "set": MOCK_BUSY,
-    },
-    {
-        "options": {CONF_API_KEY: "2", API_QUOTA: "10", AUTO_UPDATE: "1"},
-        "assert": None,
-        "set": None,
-    },
+    (
+        None,
+        {CONF_API_KEY: "555", API_QUOTA: "10", AUTO_UPDATE: "1"},
+        "Bad API key, 403/Forbidden",
+        "component.solcast_solar.config.error.Bad API key, 403/Forbidden returned for 555",
+    ),
+    (
+        None,
+        {CONF_API_KEY: "no_sites", API_QUOTA: "10", AUTO_UPDATE: "1"},
+        "No sites found for API key",
+        "component.solcast_solar.config.error.No sites found for API key no_sites",
+    ),
+    (
+        MOCK_BUSY,
+        {CONF_API_KEY: "1", API_QUOTA: "10", AUTO_UPDATE: "1"},
+        "Error 429/Try again later for API key",
+        "component.solcast_solar.config.error.Error 429/Try again later for API key 1",
+    ),
+    (None, {CONF_API_KEY: "2", API_QUOTA: "10", AUTO_UPDATE: "1"}, None, []),
 ]
 
 TEST_API_QUOTA = [
-    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "invalid", AUTO_UPDATE: "1"}, "API limit is not a number"),
-    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "0", AUTO_UPDATE: "1"}, "API limit must be one or greater"),
-    (
-        DEFAULT_INPUT1,
-        {CONF_API_KEY: KEY1, API_QUOTA: "10,10", AUTO_UPDATE: "1"},
-        "There are more API limit counts entered than keys",
-    ),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "invalid", AUTO_UPDATE: "1"}, "limit_not_number"),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "0", AUTO_UPDATE: "1"}, "limit_one_or_greater"),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "10,10", AUTO_UPDATE: "1"}, "limit_too_many"),
     (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, None),
     (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10,10", AUTO_UPDATE: "1"}, None),
-    (
-        DEFAULT_INPUT2,
-        {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10,10,10", AUTO_UPDATE: "1"},
-        "There are more API limit counts entered than keys",
-    ),
+    (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10,10,10", AUTO_UPDATE: "1"}, "limit_too_many"),
     (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "1"}, None),
 ]
 
@@ -228,6 +219,10 @@ async def test_config_api_quota(hass: HomeAssistant, options, user_input, reason
         assert result["errors"]["base"] == reason
 
 
+@pytest.mark.parametrize(
+    "ignore_translations",
+    ["component.solcast_solar.config.error.Bad API key, 403/Forbidden returned for 555"],
+)
 async def test_reauth_api_key(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -312,7 +307,7 @@ async def test_reauth_api_key(
         assert await async_cleanup_integration_tests(hass)
 
 
-async def test_reconfigure_api_key(
+async def test_reconfigure_api_key1(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
@@ -346,27 +341,6 @@ async def test_reconfigure_api_key(
             if result.get("reason") != "reconfigured":
                 assert result["errors"]["base"] == test[REASON]
 
-        for test in TEST_KEY_CHANGES:
-            flow = await hass.config_entries.flow.async_init(
-                DOMAIN,
-                context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
-                data=entry.data,
-            )
-            await hass.async_block_till_done()
-            if test["set"]:
-                session_set(test["set"])
-            result = await hass.config_entries.flow.async_configure(
-                flow["flow_id"],
-                user_input=test["options"],
-            )
-            await hass.async_block_till_done()
-            if test["set"]:
-                session_clear(test["set"])
-            if test["assert"]:
-                assert test["assert"] in result["errors"]["base"]
-            else:
-                assert result["reason"] == "reconfigured"
-
         await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
 
@@ -384,6 +358,47 @@ async def test_reconfigure_api_key(
         assert "Test connection to https://api.solcast.com.au/rooftop_sites?format=json&api_key=******4" in caplog.text
         assert "Loading presumed dead integration" in caplog.text
         simulator.API_KEY_SITES["1"] = simulator.API_KEY_SITES.pop("4")  # Restore the key
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+@pytest.mark.parametrize(("set", "options", "to_assert", "ignore_translations"), TEST_KEY_CHANGES)
+async def test_reconfigure_api_key2(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+    set,
+    options,
+    to_assert,
+    ignore_translations,
+) -> None:
+    """Test that valid/invalid API key is handled in reconfigure."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+
+        flow = await hass.config_entries.flow.async_init(
+            DOMAIN,
+            context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
+            data=entry.data,
+        )
+        await hass.async_block_till_done()
+        if set:
+            session_set(set)
+        result = await hass.config_entries.flow.async_configure(
+            flow["flow_id"],
+            user_input=options,
+        )
+        await hass.async_block_till_done()
+        if set:
+            session_clear(set)
+        if to_assert:
+            assert to_assert in result["errors"]["base"]
+        else:
+            assert result["reason"] == "reconfigured"
 
     finally:
         assert await async_cleanup_integration_tests(hass)
@@ -487,8 +502,8 @@ async def test_options_api_quota(hass: HomeAssistant, options, user_input, reaso
 @pytest.mark.parametrize(
     ("options", "value", "reason"),
     [
-        ((DEFAULT_INPUT1, 0, "Custom sensor not between 1 and 144")),
-        ((DEFAULT_INPUT1, 145, "Custom sensor not between 1 and 144")),
+        ((DEFAULT_INPUT1, 0, "custom_invalid")),
+        ((DEFAULT_INPUT1, 145, "custom_invalid")),
         ((DEFAULT_INPUT1, 8, None)),
     ],
 )
@@ -508,9 +523,9 @@ async def test_options_custom_hour_sensor(hass: HomeAssistant, options, value, r
 @pytest.mark.parametrize(
     ("options", "value", "reason"),
     [
-        ((DEFAULT_INPUT1, "invalid", "Hard limit is not a positive number")),
-        ((DEFAULT_INPUT1, "-1", "Hard limit is not a positive number")),
-        ((DEFAULT_INPUT1, "6,6.0", "There are more hard limits entered than keys")),
+        ((DEFAULT_INPUT1, "invalid", "hard_not_number")),
+        ((DEFAULT_INPUT1, "-1", "hard_not_number")),
+        ((DEFAULT_INPUT1, "6,6.0", "hard_too_many")),
         ((DEFAULT_INPUT1, "6", None)),
         ((DEFAULT_INPUT2, "6,6.0", None)),
         ((DEFAULT_INPUT2, "6", None)),

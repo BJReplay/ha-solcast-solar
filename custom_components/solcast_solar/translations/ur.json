@@ -5,6 +5,13 @@
             "reauth_successful": "نئی کلید کامیابی کے ساتھ لاگو ہو گئی۔",
             "single_instance_allowed": "صرف ایک سولکاسٹ مثال کی اجازت ہے۔"
         },
+        "error": {
+            "api_duplicate": "پلیکیٹ API کلید بتائی گئی ہے۔",
+            "api_looks_like_site": "API کلید سائٹ ID کی طرح نظر آتی ہے۔",
+            "limit_one_or_greater": "API کی حد ایک یا اس سے زیادہ ہونی چاہیے۔",
+            "limit_too_many": "چابیاں سے زیادہ API کی حد کی تعداد درج کی گئی ہے۔",
+            "limit_not_number": "API کی حد نمبر نہیں ہے۔"
+        },
         "step": {
             "reauth_confirm": {
                 "data": {
@@ -110,6 +117,16 @@
     "options": {
         "abort": {
             "reconfigured": "نئی کنفیگریشن لاگو کر دی گئی۔"
+        },
+        "error": {
+            "api_duplicate": "پلیکیٹ API کلید بتائی گئی ہے۔",
+            "api_looks_like_site": "API کلید سائٹ ID کی طرح نظر آتی ہے۔",
+            "limit_one_or_greater": "API کی حد ایک یا اس سے زیادہ ہونی چاہیے۔",
+            "limit_too_many": "چابیاں سے زیادہ API کی حد کی تعداد درج کی گئی ہے۔",
+            "limit_not_number": "API کی حد نمبر نہیں ہے۔",
+            "custom_invalid": "حسب ضرورت سینسر 1 اور 144 کے درمیان نہیں ہے۔",
+            "hard_not_number": "سخت حد ایک مثبت نمبر نہیں ہے۔",
+            "hard_too_many": "چابیاں سے زیادہ سخت حدود درج ہیں۔"
         },
         "step": {
             "init": {

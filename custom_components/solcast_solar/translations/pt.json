@@ -5,6 +5,13 @@
       "reauth_successful": "Nova chave API aplicada com sucesso",
       "single_instance_allowed": "Apenas uma instância Solcast permitida"
     },
+    "error": {
+      "api_duplicate": "Chave de API duplicada especificada",
+      "api_looks_like_site": "A chave da API parece um ID de site",
+      "limit_one_or_greater": "O limite da API deve ser um ou maior",
+      "limit_too_many": "Há mais contagens de limite de API inseridas do que chaves",
+      "limit_not_number": "O limite da API não é um número"
+    },
     "step": {
       "reauth_confirm": {
         "data": {
@@ -203,6 +210,16 @@
     "abort": {
       "reconfigured": "Nova configuração aplicada com sucesso"
     },
+    "error": {
+      "api_duplicate": "Chave de API duplicada especificada",
+      "api_looks_like_site": "A chave da API parece um ID de site",
+      "limit_one_or_greater": "O limite da API deve ser um ou maior",
+      "limit_too_many": "Há mais contagens de limite de API inseridas do que chaves",
+      "limit_not_number": "O limite da API não é um número",
+      "custom_invalid": "Sensor personalizado não entre 1 e 144",
+      "hard_not_number": "Limite rígido não é um número positivo",
+      "hard_too_many": "Existem mais limites rígidos inseridos do que chaves"
+    },
     "step": {
       "dampen": {
         "data": {
@@ -344,11 +361,11 @@
     "update_forecasts": {
       "description": "Busca os dados de previsão mais recentes do Solcast.",
       "name": "Atualizar"
-        }
-    },
-    "system_health":{
-        "info":{
-            "can_reach_server":"Conexão do servidor Solcast"
-        }
     }
+  },
+  "system_health": {
+    "info": {
+      "can_reach_server": "Conexão do servidor Solcast"
+    }
+  }
 }
