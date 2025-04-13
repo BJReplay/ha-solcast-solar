@@ -469,6 +469,9 @@ async def test_sensor_states(
             assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "4"
             assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "12.0 kW"
             assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "6.0 kW"
+            # The single overall limit sensor should not exist (this always gets created during PyTest entry
+            # load, then is cleaned up when all sensors are defined when more than one limit is specified).
+            assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set") is None
 
         # Test last sensor update time.
         freezer.move_to(now.replace(hour=2, minute=30, second=0, microsecond=0))
