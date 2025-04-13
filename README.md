@@ -531,7 +531,7 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 | `API Limit` | number | N | `integer` | Total times the API can been called in a 24 hour period[^1]. |
 | `API used` | number | N | `integer` | Total times the API has been called today (API counter resets to zero at midnight UTC)[^1]. |  
 | `Hard Limit Set` | number | N | `float` | `False` if not set, else value in `kilowatts`. |
-| `Hard Limit Set ******AaBbCc` | number | N | `float` | Individual account hard limit. `False` if not set, else value in `kilowatts`. |
+| `Hard Limit Set ******AaBbCc` | number | N | `float` | Individual account hard limit. Value in `kilowatts`. |
 | `Rooftop site name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the site setup)[^2]. |
 
 `API Last Polled` attributes include the following, but only if auto-update is enabled:
@@ -709,7 +709,7 @@ The scenario requiring use of this limit is straightforward but note that hardly
 
 Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
 
-The hard limit may be set in the integration configuration or set via manually invoking an action in `Developer Tools`.
+The hard limit may be set in the integration configuration or set by using the service action `solcast_solar.set_hard_limit` in `Developer Tools`. To disable the hard limit enter a value of zero or 100 in the configuration dialogue. To disable using a service action call use `solcast_solar.remove_hard_limit`. (Zero cannot be specified when performing the set action.)
 
 ### Excluded sites configuration
 
