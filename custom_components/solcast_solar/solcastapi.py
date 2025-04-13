@@ -459,7 +459,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return re.sub(r"itude\': [0-9\-\.]+", "itude': **.******", s)
 
         def set_sites(response_json: dict, api_key: str) -> None:
-            sites_data = cast(dict, response_json)
+            sites_data = response_json
             _LOGGER.debug(
                 "Sites data: %s",
                 self.__redact_msg_api_key(redact_lat_lon(str(sites_data)), api_key),
@@ -1505,12 +1505,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             result["detailedForecast"] = _tuple
             if self.options.attr_brk_site_detailed:
                 for site in self.sites:
-                    result[f"detailedForecast_{site['resource_id'].replace("-", "_")}"] = tuples[site["resource_id"]]
+                    result[f"detailedForecast_{site['resource_id'].replace('-', '_')}"] = tuples[site["resource_id"]]
         if self.options.attr_brk_hourly:
             result["detailedHourly"] = hourly_tuple
             if self.options.attr_brk_site_detailed:
                 for site in self.sites:
-                    result[f"detailedHourly_{site['resource_id'].replace("-", "_")}"] = hourly_tuples[site["resource_id"]]
+                    result[f"detailedHourly_{site['resource_id'].replace('-', '_')}"] = hourly_tuples[site["resource_id"]]
         return result
 
     def get_forecast_n_hour(

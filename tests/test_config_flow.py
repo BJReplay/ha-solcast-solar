@@ -95,19 +95,19 @@ TEST_KEY_CHANGES = [
         None,
         {CONF_API_KEY: "555", API_QUOTA: "10", AUTO_UPDATE: "1"},
         "Bad API key, 403/Forbidden",
-        "component.solcast_solar.config.error.Bad API key, 403/Forbidden returned for 555",
+        ["component.solcast_solar.config.error.Bad API key, 403/Forbidden returned for 555"],
     ),
     (
         None,
         {CONF_API_KEY: "no_sites", API_QUOTA: "10", AUTO_UPDATE: "1"},
         "No sites found for API key",
-        "component.solcast_solar.config.error.No sites found for API key no_sites",
+        ["component.solcast_solar.config.error.No sites found for API key no_sites"],
     ),
     (
         MOCK_BUSY,
         {CONF_API_KEY: "1", API_QUOTA: "10", AUTO_UPDATE: "1"},
         "Error 429/Try again later for API key",
-        "component.solcast_solar.config.error.Error 429/Try again later for API key 1",
+        ["component.solcast_solar.config.error.Error 429/Try again later for API key 1"],
     ),
     (None, {CONF_API_KEY: "2", API_QUOTA: "10", AUTO_UPDATE: "1"}, None, []),
 ]
