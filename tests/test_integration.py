@@ -502,8 +502,7 @@ async def test_integration(
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
     solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
     granular_dampening_file = Path(f"{config_dir}/solcast-dampening.json")
-    if options == DEFAULT_INPUT2:
-        assert granular_dampening_file.is_file()
+    assert granular_dampening_file.is_file() is False
     coordinator.set_next_update()
 
     try:
@@ -636,6 +635,7 @@ async def test_integration(
         set_file_last_modified(str(granular_dampening_file), dt.now(datetime.UTC) - timedelta(minutes=5))
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "JSONDecodeError, dampening ignored" in caplog.text
+        granular_dampening_file.unlink()
         caplog.clear()
 
         # Test reset usage cache when fresh

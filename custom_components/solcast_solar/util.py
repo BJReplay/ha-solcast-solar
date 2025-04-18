@@ -89,15 +89,20 @@ class NoIndentEncoder(json.JSONEncoder):
     def iterencode(self, o: Any, _one_shot: bool = False):
         """Recursive encoder to indent only top level keys."""
         list_lvl = 0
-        for s in super().iterencode(o, _one_shot=_one_shot):
-            if s.startswith("["):
+        raw = super().iterencode(o, _one_shot=_one_shot)
+        output = ""
+        for s in raw[0].splitlines():
+            if "[" in s:
                 list_lvl += 1
-                s = s.replace(" ", "").replace("\n", "").rstrip()
             elif list_lvl > 0:
-                s = s.replace(" ", "").replace("\n", "").rstrip()
-            if s.endswith("]"):
-                list_lvl -= 1
-            yield s
+                s = s.replace(" ", "").rstrip()
+                if "]" in s:
+                    list_lvl -= 1
+                    s += "\n"
+            else:
+                s += "\n"
+            output += s
+        yield output
 
 
 class JSONDecoder(json.JSONDecoder):
