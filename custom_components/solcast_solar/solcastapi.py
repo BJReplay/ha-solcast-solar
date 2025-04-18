@@ -3057,7 +3057,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         is_fixable=self.entry.options["auto_update"] == 0,
                         data={
                             "contiguous": contiguous,
-                            "entry": self.entry,
                         },
                         severity=ir.IssueSeverity.WARNING,
                         translation_key=raise_issue,

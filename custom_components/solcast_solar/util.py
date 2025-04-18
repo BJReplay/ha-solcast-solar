@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime as dt
 from enum import Enum
@@ -89,9 +90,9 @@ class NoIndentEncoder(json.JSONEncoder):
     def iterencode(self, o: Any, _one_shot: bool = False):
         """Recursive encoder to indent only top level keys."""
         list_lvl = 0
-        raw = super().iterencode(o, _one_shot=_one_shot)
+        raw: Iterator[str] = super().iterencode(o, _one_shot=_one_shot)
         output = ""
-        for s in raw[0].splitlines():
+        for s in list(raw)[0].splitlines():
             if "[" in s:
                 list_lvl += 1
             elif list_lvl > 0:

@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import timezone
 import logging
 from pathlib import Path
 import re
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -105,7 +112,7 @@ def validate_api_limit(user_input: dict[str, Any], api_count: int) -> tuple[str,
     return api_quota, None
 
 
-async def __get_time_zone(hass: HomeAssistant) -> dt_util.dt.tzinfo:
+async def __get_time_zone(hass: HomeAssistant) -> ZoneInfo | timezone:
     tz = await dt_util.async_get_time_zone(hass.config.time_zone)
     return tz if tz is not None else dt_util.UTC
 
@@ -158,9 +165,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     @callback
-    def async_get_options_flow(
-        config_entry: SolcastConfigEntry,
-    ) -> SolcastSolarOptionFlowHandler:
+    def async_get_options_flow(config_entry: ConfigEntry) -> SolcastSolarOptionFlowHandler:
         """Get the options flow for this handler.
 
         Arguments:

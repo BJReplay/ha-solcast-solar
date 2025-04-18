@@ -455,9 +455,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         def unit_adjusted(hard_limit) -> str:
             if hard_limit >= 1000000:
-                return f"{round(hard_limit/1000000, 1)} GW"
+                return f"{round(hard_limit / 1000000, 1)} GW"
             if hard_limit >= 1000:
-                return f"{round(hard_limit/1000, 1)} MW"
+                return f"{round(hard_limit / 1000, 1)} MW"
             return f"{round(hard_limit, 1)} kW"
 
         # Most sensors

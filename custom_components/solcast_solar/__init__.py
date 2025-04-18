@@ -1,6 +1,7 @@
 """Solcast PV forecast, initialisation."""
 
 import contextlib
+from contextvars import ContextVar
 import json
 import logging
 import random
@@ -93,6 +94,8 @@ SERVICE_QUERY_SCHEMA: Final = vol.All(
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+current_entry: ContextVar[SolcastConfigEntry] = ContextVar("current_entry", default=None)
 
 
 def __log_init_message(entry: SolcastConfigEntry, version: str, solcast: SolcastApi) -> None:
@@ -281,8 +284,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
         bool: Whether setup has completed successfully.
 
     """
+
     random.seed()
 
+    current_entry.set(entry)
     version = await get_version(hass)
     options = await __get_options(hass, entry)
     __setup_storage(hass)
@@ -624,6 +629,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> 
             _LOGGER.debug("Remove action: %s.%s", DOMAIN, action)
             hass.services.async_remove(DOMAIN, action)
             hass.services.async_register(DOMAIN, action, stub_action)  # Switch to an error action
+
+    current_entry.set(None)
 
     return unload_ok
 
