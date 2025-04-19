@@ -23,12 +23,14 @@ from homeassistant.components.solcast_solar.const import (
     CONFIG_VERSION,
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
+    EXCLUDE_SITES,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE_DAMP,
 )
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from .aioresponses import CallbackResult, aioresponses
 from .simulator import API_KEY_SITES, SimulatedSolcast
@@ -53,6 +55,7 @@ DEFAULT_INPUT1_NO_DAMP = {
     BRK_HALFHOURLY: False,
     BRK_HOURLY: False,
     BRK_SITE_DETAILED: False,
+    EXCLUDE_SITES: [],
 }
 
 BAD_INPUT = copy.deepcopy(DEFAULT_INPUT1_NO_DAMP)
@@ -72,6 +75,7 @@ DEFAULT_INPUT2[BRK_ESTIMATE10] = True
 DEFAULT_INPUT2[BRK_ESTIMATE90] = True
 DEFAULT_INPUT2[BRK_SITE_DETAILED] = True
 DEFAULT_INPUT2[BRK_SITE] = True
+DEFAULT_INPUT2[HARD_LIMIT_API] = "12,6"
 
 DEFAULT_INPUT_NO_SITES = copy.deepcopy(DEFAULT_INPUT1)
 DEFAULT_INPUT_NO_SITES[CONF_API_KEY] = KEY_NO_SITES
@@ -285,6 +289,10 @@ async def async_init_integration(
 
     if mock_api:
         await async_setup_aioresponses()
+
+    # Ensure that a potentially orphaned simple hard limit diagnostic entity is always present.
+    entity_registry = er.async_get(hass)
+    entity_registry.async_get_or_create("sensor", DOMAIN, unique_id="solcast_pv_forecast_hard_limit_set", config_entry=entry)
 
     await hass.config_entries.async_setup(entry.entry_id)
     await hass.async_block_till_done()

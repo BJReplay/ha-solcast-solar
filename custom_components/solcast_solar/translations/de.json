@@ -5,6 +5,13 @@
             "reauth_successful": "Neuer API-Schlüssel erfolgreich angewendet",
             "single_instance_allowed": "Es ist nur eine Solcast-Instanz zulässig"
         },
+        "error": {
+            "api_duplicate": "Doppelter API-Schlüssel angegeben",
+            "api_looks_like_site": "Der API-Schlüssel sieht aus wie eine Site-ID",
+            "limit_one_or_greater": "Das API-Limit muss eins oder größer sein",
+            "limit_too_many": "Es wurden mehr API-Limit-Zähler als Schlüssel eingegeben",
+            "limit_not_number": "Das API-Limit ist keine Zahl"
+        },
         "step": {
             "reauth_confirm": {
                 "data": {
@@ -71,9 +78,9 @@
         "damp_not_site": {"message": "Keine konfigurierte Site."},
         "damp_error_parsing": {"message": "Fehler beim Parsen der durch Kommas getrennten Zahlen des Dämpfungsfaktors."},
         "damp_outside_range": {"message": "Es liegt ein Wert des Dämpfungsfaktors vor, der nicht zwischen 0,0 und 1,0 liegt."},
-        "hard_empty": {"message": "Leerer harter Grenzwert."},
-        "hard_too_many": {"message": "Es werden mehr harte Limits angegeben als API-Schlüssel vorhanden sind."},
-        "hard_not_positive_number": {"message": "Der harte Grenzwert ist keine positive Zahl."},
+        "hard_empty": {"message": "Leerer fester Grenzwert."},
+        "hard_too_many": {"message": "Es werden mehr fester Grenzwert angegeben als API-Schlüssel vorhanden sind."},
+        "hard_not_positive_number": {"message": "Der fester Grenzwert ist keine positive Zahl."},
         "init_cannot_get_sites": {"message": "Site-Daten konnten nicht abgerufen werden."},
         "init_cannot_get_sites_cache_invalid": {"message": "Die Site-Daten konnten nicht abgerufen werden und der Cache ist ungültig."},
         "init_incompatible": {"message": "Zwischengespeicherte „config/solcast.json“-Daten sind nicht kompatibel, löschen Sie sie."},
@@ -111,6 +118,16 @@
         "abort": {
             "reconfigured": "Neue Konfiguration angewendet"
         },
+        "error": {
+            "api_duplicate": "Doppelter API-Schlüssel angegeben",
+            "api_looks_like_site": "Der API-Schlüssel sieht aus wie eine Site-ID",
+            "limit_one_or_greater": "Das API-Limit muss eins oder größer sein",
+            "limit_too_many": "Es wurden mehr API-Limit-Zähler als Schlüssel eingegeben",
+            "limit_not_number": "Das API-Limit ist keine Zahl",
+            "custom_invalid": "Benutzerdefinierter Sensor nicht zwischen 1 und 144",
+            "hard_not_number": "Der fester Grenzwert ist keine positive Zahl",
+            "hard_too_many": "Es sind mehr harte Grenzen als Schlüssel eingegeben"
+        },
         "step": {
             "init": {
                 "data": {
@@ -118,7 +135,7 @@
                     "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)",
                     "auto_update": "Automatische Aktualisierung (wenn keine automatische Aktualisierung vorhanden ist, muss stattdessen eine Automatisierung verwendet werden)",
                     "customhoursensor": "Nächster X-Stunden-Sensor (min=1, max=144)",
-                    "hard_limit": "Harter Grenzwert des Wechselrichters in kW (siehe Integrationsdokumentation)",
+                    "hard_limit": "Fester Grenzwert des Wechselrichters in kW (siehe Integrationsdokumentation)",
                     "key_estimate": "Bevorzugte Prognosewahrscheinlichkeit für Sensoren",
                     "attr_brk_estimate10": "Aktivieren Sie die Schätzung von 10 Sensorattributen",
                     "attr_brk_estimate": "Aktivieren Sie die Schätzung von 50 Sensorattributen",
@@ -128,6 +145,7 @@
                     "attr_brk_hourly": "Aktivieren Sie prognostizierte stündliche Detailattribute",
                     "attr_brk_detailed": "Aktivieren Sie die Site-Aufschlüsselung für halbstündliche/stündliche Detailattribute (diese werden nicht in Datenbankstatusattributen gespeichert)",
                     "config_damp": "Ändern Sie die stündlichen Dämpfungsfaktoren (nachdem Sie auf „Senden“ geklickt haben)",
+                    "exclude_sites": "Vom Energie-Dashboard und den Sensorgesamtwerten auszuschließende Site(s)",
                     "site_damp": "Die granulare Dämpfung ist eingestellt: Löschen, um zur stündlichen Gesamtdämpfung zurückzukehren"
 
                 },
@@ -240,7 +258,7 @@
             }
         },
         "set_hard_limit": {
-            "name": "Legen Sie den harten Grenzwert für die Wechselrichterprognose fest",
+            "name": "Legen Sie den fester Grenzwert für die Wechselrichterprognose fest",
             "description": "Vermeiden Sie, dass die prognostizierten Werte höher sind, als der Wechselrichter erzeugen kann.",
             "fields": {
                 "hard_limit": {
@@ -250,7 +268,7 @@
             }
         },
         "remove_hard_limit": {
-            "name": "Entfernen Sie die harte Grenze der Wechselrichterprognose",
+            "name": "Entfernen Sie die fester Grenze der Wechselrichterprognose",
             "description": "Eingestelltes Limit entfernen."
         }
     },

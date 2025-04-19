@@ -3,15 +3,22 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import timezone
 import logging
 from pathlib import Path
 import re
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import voluptuous as vol
 
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigFlow, ConfigFlowResult, OptionsFlow
+from homeassistant.config_entries import (
+    ConfigEntry,
+    ConfigFlow,
+    ConfigFlowResult,
+    OptionsFlow,
+)
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
@@ -38,6 +45,7 @@ from .const import (
     CONFIG_VERSION,
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
+    EXCLUDE_SITES,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE_DAMP,
@@ -45,7 +53,6 @@ from .const import (
     TITLE,
 )
 from .solcastapi import ConnectionOptions, SolcastApi
-from .util import SolcastConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -71,10 +78,10 @@ def validate_api_key(user_input: dict[str, Any]) -> tuple[str, int, str | None]:
     api_key = [s for s in api_key.split(",") if s]
     for index, key in enumerate(api_key):
         if re.match(LIKE_SITE_ID, key):
-            return "", 0, "API key looks like a site ID"
+            return "", 0, "api_looks_like_site"
         for i, k in enumerate(api_key):
             if index != i and key == k:
-                return "", 0, "Duplicate API key specified"
+                return "", 0, "api_duplicate"
     api_count = len(api_key)
     api_key = ",".join(api_key)
     return api_key, api_count, None
@@ -95,16 +102,16 @@ def validate_api_limit(user_input: dict[str, Any], api_count: int) -> tuple[str,
     api_quota = [s for s in api_quota.split(",") if s]
     for q in api_quota:
         if not q.isnumeric():
-            return "", "API limit is not a number"
+            return "", "limit_not_number"
         if int(q) < 1:
-            return "", "API limit must be one or greater"
+            return "", "limit_one_or_greater"
     if len(api_quota) > api_count:
-        return "", "There are more API limit counts entered than keys"
+        return "", "limit_too_many"
     api_quota = ",".join(api_quota)
     return api_quota, None
 
 
-async def __get_time_zone(hass: HomeAssistant) -> dt_util.dt.tzinfo:
+async def __get_time_zone(hass: HomeAssistant) -> ZoneInfo | timezone:
     tz = await dt_util.async_get_time_zone(hass.config.time_zone)
     return tz if tz is not None else dt_util.UTC
 
@@ -139,6 +146,7 @@ async def validate_sites(hass: HomeAssistant, user_input: dict[str, Any]) -> tup
         user_input[BRK_HALFHOURLY],
         user_input[BRK_HOURLY],
         user_input[BRK_SITE_DETAILED],
+        user_input.get(EXCLUDE_SITES, []),
     )
     solcast = SolcastApi(session, options, hass)
     solcast.headers = get_session_headers(await get_version(hass))
@@ -152,17 +160,15 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
     VERSION = CONFIG_VERSION
 
-    entry: SolcastConfigEntry
+    entry: ConfigEntry | None = None
 
     @staticmethod
     @callback
-    def async_get_options_flow(
-        config_entry: SolcastConfigEntry,
-    ) -> SolcastSolarOptionFlowHandler:
+    def async_get_options_flow(config_entry: ConfigEntry) -> SolcastSolarOptionFlowHandler:
         """Get the options flow for this handler.
 
         Arguments:
-            config_entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
+            config_entry (ConfigEntry): The integration entry instance, contains the configuration.
 
         Returns:
             SolcastSolarOptionFlowHandler: The config flow handler instance.
@@ -179,7 +185,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         """Handle a re-key flow."""
         errors: dict[str, str] = {}
 
-        all_config_data = {**self.entry.options}
+        all_config_data = {**self.entry.options} if self.entry is not None else {}
 
         if user_input is not None:
             api_key, _, abort = validate_api_key(user_input)
@@ -193,12 +199,15 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     errors["base"] = message
             if not errors:
                 self.hass.data[DOMAIN]["reset_old_key"] = True
-                data = {**self.entry.data, **all_config_data}
-                self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
-                if self.hass.data[DOMAIN].get("presumed_dead", True):
-                    _LOGGER.debug("Loading presumed dead integration")
-                    self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
-                return self.async_abort(reason="reauth_successful")
+                result = self.async_abort(reason="Internal error")
+                if self.entry is not None:
+                    data = {**self.entry.data, **all_config_data}
+                    self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
+                    if self.hass.data[DOMAIN].get("presumed_dead", True):
+                        _LOGGER.debug("Loading presumed dead integration")
+                        self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
+                    result = self.async_abort(reason="reauth_successful")
+                return result
 
         return self.async_show_form(
             step_id="reauth_confirm",
@@ -207,7 +216,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_API_KEY, default=all_config_data[CONF_API_KEY]): str,
                 }
             ),
-            description_placeholders={"device_name": self.entry.title},
+            description_placeholders={"device_name": self.entry.title if self.entry is not None else "unknown"},
             errors=errors,
         )
 
@@ -220,7 +229,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         """Handle a reconfiguration flow."""
         errors: dict[str, str] = {}
 
-        all_config_data = {**self.entry.options}
+        all_config_data = {**self.entry.options} if self.entry is not None else {}
 
         if user_input is not None:
             api_key, api_count, abort = validate_api_key(user_input)
@@ -240,12 +249,15 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     errors["base"] = message
             if not errors:
                 self.hass.data[DOMAIN]["reset_old_key"] = True
-                data = {**self.entry.data, **all_config_data}
-                self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
-                if self.hass.data[DOMAIN].get("presumed_dead", True):
-                    _LOGGER.debug("Loading presumed dead integration")
-                    self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
-                return self.async_abort(reason="reconfigured")
+                result = self.async_abort(reason="Internal error")
+                if self.entry is not None:
+                    data = {**self.entry.data, **all_config_data}
+                    self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
+                    if self.hass.data[DOMAIN].get("presumed_dead", True):
+                        _LOGGER.debug("Loading presumed dead integration")
+                        self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
+                    result = self.async_abort(reason="reconfigured")
+                return result
 
         return self.async_show_form(
             step_id="reconfigure_confirm",
@@ -258,7 +270,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     ),
                 }
             ),
-            description_placeholders={"device_name": self.entry.title},
+            description_placeholders={"device_name": self.entry.title if self.entry is not None else "unknown"},
             errors=errors,
         )
 
@@ -301,6 +313,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     BRK_HALFHOURLY: True,
                     BRK_HOURLY: True,
                     BRK_SITE_DETAILED: False,
+                    EXCLUDE_SITES: [],
                 }
                 damp = {f"damp{factor:02d}": 1.0 for factor in range(24)}
 
@@ -334,11 +347,11 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 class SolcastSolarOptionFlowHandler(OptionsFlow):
     """Handle options."""
 
-    def __init__(self, config_entry: SolcastConfigEntry) -> None:
+    def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow.
 
         Arguments:
-            config_entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
+            config_entry (ConfigEntry): The integration entry instance, contains the configuration.
 
         """
         self._entry = config_entry
@@ -382,23 +395,25 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     # Validate the custom hours sensor
                     custom_hour_sensor = user_input[CUSTOM_HOUR_SENSOR]
                     if custom_hour_sensor < 1 or custom_hour_sensor > 144:
-                        errors["base"] = "Custom sensor not between 1 and 144"
+                        errors["base"] = "custom_invalid"
                     all_config_data[CUSTOM_HOUR_SENSOR] = custom_hour_sensor
 
                 if not errors:
                     # Validate the hard limit
                     hard_limit = user_input[HARD_LIMIT_API]
+                    if hard_limit == "0":  # Hard limit can be disabled by setting to zero or 100
+                        hard_limit = "100.0"
                     to_set = []
                     for h in hard_limit.split(","):
                         h = h.strip()
                         if not h.replace(".", "", 1).isdigit():
-                            errors["base"] = "Hard limit is not a positive number"
+                            errors["base"] = "hard_not_number"
                             break
                         val = float(h)
                         to_set.append(f"{val:.1f}")
                     if not errors:
                         if len(to_set) > api_count:
-                            errors["base"] = "There are more hard limits entered than keys"
+                            errors["base"] = "hard_too_many"
                         else:
                             hard_limit = ",".join(to_set)
                             all_config_data[HARD_LIMIT_API] = hard_limit
@@ -419,6 +434,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     all_config_data[BRK_SITE] = site_breakdown
                     site_detailed = user_input[BRK_SITE_DETAILED]
                     all_config_data[BRK_SITE_DETAILED] = site_detailed
+                    all_config_data[EXCLUDE_SITES] = user_input.get(EXCLUDE_SITES, [])
 
                     self._all_config_data = all_config_data
 
@@ -449,6 +465,13 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             SelectOptionDict(label="estimate90", value="estimate90"),
         ]
 
+        solcast = self.hass.data.get(DOMAIN, {}).get("solcast")
+        exclude: list[SelectOptionDict] = [SelectOptionDict(label="not_loaded", value="")]
+        if solcast is not None:
+            exclude = [
+                SelectOptionDict(label=site["name"] + " (" + site["resource_id"] + ")", value=site["resource_id"]) for site in solcast.sites
+            ]
+
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -470,6 +493,9 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     vol.Optional(BRK_HALFHOURLY, default=self._options[BRK_HALFHOURLY]): bool,
                     vol.Optional(BRK_HOURLY, default=self._options[BRK_HOURLY]): bool,
                     vol.Optional(BRK_SITE_DETAILED, default=self._options[BRK_SITE_DETAILED]): bool,
+                    vol.Optional(EXCLUDE_SITES, default=self._options.get(EXCLUDE_SITES, [])): SelectSelector(
+                        SelectSelectorConfig(options=exclude, mode=SelectSelectorMode.DROPDOWN, multiple=True)
+                    ),
                     (
                         vol.Optional(CONFIG_DAMP, default=False)
                         if not self._options[SITE_DAMP]

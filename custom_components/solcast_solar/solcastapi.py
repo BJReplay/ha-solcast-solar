@@ -28,6 +28,7 @@ import aiofiles
 from aiohttp import ClientConnectionError, ClientResponseError, ClientSession
 from aiohttp.client_reqrep import ClientResponse
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
@@ -44,6 +45,7 @@ from .const import (
     CUSTOM_HOUR_SENSOR,
     DATE_FORMAT,
     DOMAIN,
+    EXCLUDE_SITES,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE_DAMP,
@@ -51,9 +53,11 @@ from .const import (
 from .util import (
     Api,
     DataCallStatus,
+    DateTimeEncoder,
+    JSONDecoder,
+    NoIndentEncoder,
     SitesStatus,
     SolcastApiStatus,
-    SolcastConfigEntry,
     UsageStatus,
     cubic_interp,
 )
@@ -105,49 +109,6 @@ _LOGGER = logging.getLogger(__name__)
 FunctionName = lambda n=0: sys._getframe(n + 1).f_code.co_name  # noqa: E731, SLF001
 
 
-class DateTimeEncoder(json.JSONEncoder):
-    """Helper to convert datetime dict values to ISO format."""
-
-    def default(self, o: Any) -> str | Any:
-        """Convert to ISO format if datetime."""
-        return o.isoformat() if isinstance(o, dt) else super().default(o)
-
-
-class NoIndentEncoder(json.JSONEncoder):
-    """Helper to output semi-indented json."""
-
-    def iterencode(self, o: Any, _one_shot: bool = False):
-        """Recursive encoder to indent only top level keys."""
-        list_lvl = 0
-        for s in super().iterencode(o, _one_shot=_one_shot):
-            if s.startswith("["):
-                list_lvl += 1
-                s = s.replace(" ", "").replace("\n", "").rstrip()
-            elif list_lvl > 0:
-                s = s.replace(" ", "").replace("\n", "").rstrip()
-            if s.endswith("]"):
-                list_lvl -= 1
-            yield s
-
-
-class JSONDecoder(json.JSONDecoder):
-    """Helper to convert ISO format dict values to datetime."""
-
-    def __init__(self, *args, **kwargs) -> None:
-        """Initialise the decoder."""
-        json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)  # noqa: B026
-
-    def object_hook(self, o: Any) -> dict:
-        """Return converted datetimes."""
-        result = {}
-        for key, value in o.items():
-            try:
-                result[key] = dt.fromisoformat(value)
-            except:  # noqa: E722
-                result[key] = value
-        return result
-
-
 @dataclass
 class ConnectionOptions:
     """Solcast options for the integration."""
@@ -169,6 +130,7 @@ class ConnectionOptions:
     attr_brk_halfhourly: bool
     attr_brk_hourly: bool
     attr_brk_site_detailed: bool
+    exclude_sites: list[str]
 
 
 class SolcastApi:  # pylint: disable=too-many-public-methods
@@ -179,7 +141,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         aiohttp_session: ClientSession,
         options: ConnectionOptions,
         hass: HomeAssistant,
-        entry: SolcastConfigEntry | None = None,
+        entry: ConfigEntry | None = None,
     ) -> None:
         """Initialise the API interface.
 
@@ -187,14 +149,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             aiohttp_session (ClientSession): The aiohttp client session provided by Home Assistant
             options (ConnectionOptions): The integration stored configuration options.
             hass (HomeAssistant): The Home Assistant instance.
-            entry (SolcastConfigEntry): The entry options.
+            entry (ConfigEntry): The entry options.
 
         """
 
         self.auto_update_divisions: int = 0
         self.custom_hour_sensor: int = options.custom_hour_sensor
         self.damp: dict = options.dampening
-        self.entry: SolcastConfigEntry | None = entry
+        self.entry: ConfigEntry = entry  # type: ignore[assignment]
         self.entry_options: dict[str, Any] = {}
         if self.entry is not None:
             self.entry_options = {**self.entry.options}
@@ -282,6 +244,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             options[BRK_HALFHOURLY],
             options[BRK_HOURLY],
             options[BRK_SITE_DETAILED],
+            options[EXCLUDE_SITES],
         )
         self.hard_limit = self.options.hard_limit
         self._use_forecast_confidence = f"pv_{self.options.key_estimate}"
@@ -496,7 +459,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return re.sub(r"itude\': [0-9\-\.]+", "itude': **.******", s)
 
         def set_sites(response_json: dict, api_key: str) -> None:
-            sites_data = cast(dict, response_json)
+            sites_data = response_json
             _LOGGER.debug(
                 "Sites data: %s",
                 self.__redact_msg_api_key(redact_lat_lon(str(sites_data)), api_key),
@@ -1542,12 +1505,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             result["detailedForecast"] = _tuple
             if self.options.attr_brk_site_detailed:
                 for site in self.sites:
-                    result[f"detailedForecast_{site['resource_id'].replace("-", "_")}"] = tuples[site["resource_id"]]
+                    result[f"detailedForecast_{site['resource_id'].replace('-', '_')}"] = tuples[site["resource_id"]]
         if self.options.attr_brk_hourly:
             result["detailedHourly"] = hourly_tuple
             if self.options.attr_brk_site_detailed:
                 for site in self.sites:
-                    result[f"detailedHourly_{site['resource_id'].replace("-", "_")}"] = hourly_tuples[site["resource_id"]]
+                    result[f"detailedHourly_{site['resource_id'].replace('-', '_')}"] = hourly_tuples[site["resource_id"]]
         return result
 
     def get_forecast_n_hour(
@@ -2892,28 +2855,29 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                         * 0.5
                                     )
 
-                                # Add the forecast for this site to the total.
-                                extant = forecasts.get(period_start)
-                                if extant:
-                                    extant["pv_estimate"] = round(
-                                        extant["pv_estimate"] + site_forecasts[period_start]["pv_estimate"],
-                                        4,
-                                    )
-                                    extant["pv_estimate10"] = round(
-                                        extant["pv_estimate10"] + site_forecasts[period_start]["pv_estimate10"],
-                                        4,
-                                    )
-                                    extant["pv_estimate90"] = round(
-                                        extant["pv_estimate90"] + site_forecasts[period_start]["pv_estimate90"],
-                                        4,
-                                    )
-                                else:
-                                    forecasts[period_start] = {
-                                        "period_start": period_start,
-                                        "pv_estimate": site_forecasts[period_start]["pv_estimate"],
-                                        "pv_estimate10": site_forecasts[period_start]["pv_estimate10"],
-                                        "pv_estimate90": site_forecasts[period_start]["pv_estimate90"],
-                                    }
+                                # If the forecast is for today, and the site is not excluded, add to the total.
+                                if site not in self.options.exclude_sites:
+                                    extant = forecasts.get(period_start)
+                                    if extant:
+                                        extant["pv_estimate"] = round(
+                                            extant["pv_estimate"] + site_forecasts[period_start]["pv_estimate"],
+                                            4,
+                                        )
+                                        extant["pv_estimate10"] = round(
+                                            extant["pv_estimate10"] + site_forecasts[period_start]["pv_estimate10"],
+                                            4,
+                                        )
+                                        extant["pv_estimate90"] = round(
+                                            extant["pv_estimate90"] + site_forecasts[period_start]["pv_estimate90"],
+                                            4,
+                                        )
+                                    else:
+                                        forecasts[period_start] = {
+                                            "period_start": period_start,
+                                            "pv_estimate": site_forecasts[period_start]["pv_estimate"],
+                                            "pv_estimate10": site_forecasts[period_start]["pv_estimate10"],
+                                            "pv_estimate90": site_forecasts[period_start]["pv_estimate90"],
+                                        }
                         site_data_forecasts[site] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
                         if update_tally:
                             rounded_tally: Any = round(tally, 4) if tally is not None else 0.0
@@ -3093,7 +3057,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         is_fixable=self.entry.options["auto_update"] == 0,
                         data={
                             "contiguous": contiguous,
-                            "entry": self.entry,
                         },
                         severity=ir.IssueSeverity.WARNING,
                         translation_key=raise_issue,

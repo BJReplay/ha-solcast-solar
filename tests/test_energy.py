@@ -6,7 +6,7 @@ from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import CONFIG_VERSION, DOMAIN
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.energy import async_get_solar_forecast
-from homeassistant.components.solcast_solar.util import SolcastConfigEntry
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
@@ -26,7 +26,7 @@ async def test_energy_data(
     )
     assert await async_get_solar_forecast(hass, entry.entry_id) is None
 
-    entry: SolcastConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
+    entry: ConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
     # Test that the function returns None if the coordinator does not exist

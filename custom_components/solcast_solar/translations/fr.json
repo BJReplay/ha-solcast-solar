@@ -5,6 +5,13 @@
             "reauth_successful": "Nouvelle clé API appliquée avec succès",
             "single_instance_allowed": "Une seule instance Solcast autorisée"
         },
+        "error": {
+            "api_duplicate": "Clé API en double spécifiée",
+            "api_looks_like_site": "La clé API ressemble à un identifiant de site",
+            "limit_one_or_greater": "La limite de l'API doit être égale ou supérieure à un",
+            "limit_too_many": "Il y a plus de limites d'API saisies que de clés",
+            "limit_not_number": "La limite de l'API n'est pas un nombre"
+        },
         "step": {
             "reauth_confirm": {
                 "data": {
@@ -111,6 +118,16 @@
         "abort": {
             "reconfigured": "Nouvelle configuration appliquée"
         },
+        "error": {
+            "api_duplicate": "Clé API en double spécifiée",
+            "api_looks_like_site": "La clé API ressemble à un identifiant de site",
+            "limit_one_or_greater": "La limite de l'API doit être égale ou supérieure à un",
+            "limit_too_many": "Il y a plus de limites d'API saisies que de clés",
+            "limit_not_number": "La limite de l'API n'est pas un nombre",
+            "custom_invalid": "Capteur personnalisé non compris entre 1 et 144",
+            "hard_not_number": "La limite dure n'est pas un nombre positif",
+            "hard_too_many": "Il y a plus de limites strictes saisies que de clés"
+        },
         "step": {
             "init": {
                 "data": {
@@ -128,6 +145,7 @@
                     "attr_brk_hourly": "Activer les attributs de détail horaire des prévisions",
                     "attr_brk_detailed": "Activer la répartition du site pour les attributs de détail demi-horaires/horaires (ceux-ci ne seront pas enregistrés dans les attributs d'état de la base de données)",
                     "config_damp": "Modifier les facteurs d'amortissement horaires (après avoir cliqué sur soumettre)",
+                    "exclude_sites": "Site(s) à exclure du tableau de bord Énergie et des totaux des capteurs",
                     "site_damp": "L'amortissement granulaire est défini : Effacer pour revenir à l'amortissement horaire global"
                 },
                 "description": "Options de configuration Solcast"

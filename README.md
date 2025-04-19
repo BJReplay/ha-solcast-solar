@@ -14,7 +14,7 @@ Home Assistant (https://www.home-assistant.io) Integration component.
 
 This custom component integrates the Solcast PV Forecast for hobbyists into Home Assistant.
 
-It allows forecast visualisation in the Energy dashboard, and supports flexible forecast dampening, the application of a hard limit for over-sized PV systems, a comprehensive set of sensor and configuration entities, along with sensor attributes containing full forecast detail to support automation and visualisation.
+It allows visualisation of the solar forecast in the Energy dashboard, and supports flexible forecast dampening, the application of a hard limit for over-sized PV systems, a comprehensive set of sensor and configuration entities, along with sensor attributes containing full forecast detail to support automation and visualisation.
 
 It is a mature integration with an active community, and responsive developers.
 
@@ -49,6 +49,13 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
         1. [Auto-update of forecasts](#auto-update-of-forecasts)
         1. [Using an HA automation to update forecasts](#using-an-ha-automation-to-update-forecasts)
     1. [Set up HA energy dashboard settings](#set-up-ha-energy-dashboard-settings)
+1. [Interacting](#interacting)
+    1. [Sensors](#sensors)
+    1. [Attributes](#attributes)
+    1. [Actions](#actions)
+    1. [Configuration](#configuration)
+    1. [Diagnostic](#diagnostic)
+1. [Advanced configuration](#advanced-configuration)
     1. [Dampening configuration](#dampening-configuration)
         1. [Simple hourly dampening](#simple-hourly-dampening)
         1. [Granular dampening](#granular-dampening)
@@ -56,25 +63,21 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
         1. [Reading dampening values](#reading-dampening-values)
     1. [Sensor attributes configuration](#sensor-attributes-configuration)
     1. [Hard limit configuration](#hard-limit-configuration)
-1. [Complete integration removal](#complete-integration-removal)
-1. [Interacting](#interacting)
-    1. [Actions](#actions)
-    1. [Sensors](#sensors)
-    1. [Configuration](#configuration)
-    1. [Diagnostic](#diagnostic)
+    1. [Excluded sites configuration](#excluded-sites-configuration)
 1. [Sample template sensors](#sample-template-sensors)
 1. [Sample Apex chart for dashboard](#sample-apex-chart-for-dashboard)
 1. [Known issues](#known-issues)
 1. [Troubleshooting](#troubleshooting)
+1. [Complete integration removal](#complete-integration-removal)
 1. [Changes](#Changes)
 
 ## Key Solcast concepts
 
-Solcast will produce a forecast of solar PV generation from today through seven days into the future. Each of these day forecasts are exposed by the integration as a separate sensor, with the value being the total predicted solar generation for each day.
+Solcast will produce a forecast of solar PV generation from today through to seven days into the future. Each of these day forecasts are exposed by the integration as a separate sensor, with the value being the total predicted solar generation for each day.
 
 Separate sensors are also available that contain the expected peak generation power, peak generation time, and various forecasts of next hour, 30 minutes, and more.
 
-If multiple arrays exist on different roof orientations, these can be configured in Solcast as separate 'sites' with differing azimuth, tilt and peak generation, to a maximum of two sites for a free hobbyist account. These sites are combined to form the integration sensor values.
+If multiple arrays exist on different roof orientations, these can be configured in your Solcast account as separate 'sites' with differing azimuth, tilt and peak generation, to a maximum of two sites for a free hobbyist account. These separate site forecasts are combined to form the integration sensor values and Energy dashboard forecast data.
 
 Three solar generation estimates are produced by Solcast for every half hour period of all forecasted days.
 
@@ -82,11 +85,13 @@ Three solar generation estimates are produced by Solcast for every half hour per
 * '10%' or 1 in 10 'worst case' forecast assuming more cloud coverage than expected, exposed as `forecast10`.
 * '90%' or 1 in 10 'best case' forecast assuming less cloud coverage than expected, exposed as `forecast90`.
 
-The detail of these different forecast estimates can be found in sensor attributes, which contain both 30-minute daily intervals, and calculated hourly intervals across the day. Separate attributes sum the available estimates or break things down by site.
+The detail of these different forecast estimates can be found in sensor attributes, which contain both 30-minute daily intervals, and calculated hourly intervals across the day. Separate attributes sum the available estimates or break things down by Solcast site. (This integration usually references a Solcast site by by its 'site resource ID', and this can be found at the Solcast site https://toolkit.solcast.com.au/)
 
-The Energy dashboard in Home Assistant is populated with a specific data structure that is provided by the integration. (This does not come from sensor data.) Manipulation of forecasted values to account for shading is possible by setting dampening factors for hourly or half-hourly periods, and a "hard limit" may be set for over-sized solar arrays where expected generation cannot exceed an inverter maximum rating. These two mechanisms are the only ways to manipulate the data.
+The Energy dashboard in Home Assistant is populated with historical forecast data that is provided by the integration, with data retained for up to two years.
 
-Historical forecast data is retained by the integration for up to two years, and this is stored in an integration data file. Forecast history is not stored as Home Assistant statistics.
+Manipulation of forecasted values to account for shading is possible by setting dampening factors for hourly or half-hourly periods, and a "hard limit" may be set for over-sized solar arrays where expected generation cannot exceed an inverter maximum rating. These two mechanisms are the only ways to manipulate the Solcast forecast data.
+
+Forecast history is not stored as Home Assistant statistics.
 
 ## Solcast requirements
 
@@ -136,7 +141,7 @@ Click on settings, and you should see a Repair notification for `Restart require
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SuccessIssueRepaired.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SuccessIssueRepaired.png)
 
-If you don't see this (you might be running an older version of Home Assistant), navigate to `System`, `Settings`, click on the power Icon, and `Restart Home Assistant`.  You need to restart Home Assistant before you can then install the custom component that you've just downloaded.
+If you don't see this (you might be running an older version of Home Assistant), navigate to `System`, `Settings`, click on the power Icon, and `Restart Home Assistant`.  You need to restart Home Assistant before you can then configure the Solcast PV Forecast custom component that you've just downloaded.
 
 Once you've restarted, follow along at [Configuration](#configuration) to continue setting up the Solcast PV Forecast integration component.
 
@@ -175,7 +180,7 @@ You probably **do not** want to do this! Use the HACS method above unless you kn
  
  [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/Setupanewintegration.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/Setupanewintegration.png)
 
-1. Enter your `Solcast API Key`, `API limit`, desired auto-update choice and click `Submit`. If you have more than one Solcast account because you have more than two rooftop setups, enter both account API keys separated by a comma `xxxxxxxx-xxxxx-xxxx,yyyyyyyy-yyyyy-yyyy` (_Note: this goes against Solcast T&C's by having more than one account_). If the API limit is the same for multiple accounts then enter a single value for that, or both values separated by a comma.
+1. Enter your `Solcast API Key`, `API limit`, desired auto-update choice and click `Submit`. If you have more than one Solcast account because you have more than two rooftop setups, enter all Solcast account API keys separated by a comma `xxxxxxxx-xxxxx-xxxx,yyyyyyyy-yyyyy-yyyy` (_Note: this goes against Solcast T&C's by having more than one account_). Your API limit will be 10 for new Solcast users or 50 for historical users. If the API limit is the same for multiple accounts then enter a single value for that, or both values separated by a comma.
 1. If an auto-update option was not chosen then create your own automation to call the action `solcast_solar.update_forecasts` at the times you would like to update the solar forecast.
 1. Set up the Home Assistant Energy dashboard settings.
 1. To change other configuration options after installation, select the integration in `Devices & Services` then `CONFIGURE`.
@@ -334,7 +339,11 @@ DEBUG (MainThread) [custom_components.solcast_solar.solcastapi] HTTP session sta
 
 Go to `Settings`, `Dashboards`, `Energy`
 
-Edit the `Solar Panels` `Solar production` item you have previously created (or will create now). Do not add a separate `Solar production` item as things will just get weird.
+The solar forecast has to be associated with a solar generation item in your Energy dashboard.
+
+Edit a `Solar Panels` `Solar production` item you have previously created (or will create now). Do not add a separate `Solar production` item as things will just get weird.
+
+There can only be a single configuration of the total Solcast PV Forecast in the Energy dashboard, it is not possible to split the forecast for different solar arrays/Solcast sites.
 
 > [!IMPORTANT]  
 > If you do not have a solar generation sensor in your system then this integration will not work in the Energy dashboard. The graph and adding the forecast integration rely on there being a generation sensor set up.
@@ -346,6 +355,206 @@ Select `Forecast Production` and select the `Solcast Solar` option. Click `SAVE`
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolcastSolar.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolcastSolar.png)
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/solar_production.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/solar_production.png)
+
+## Interacting
+
+There are many actions, sensors and configuration items exposed by the integration, along with many sensor attributes that may be enabled.
+
+Utilise the Home Assistant `Developer tools` to examine exposed attributes, as their naming is mostly deployment specific. Refer to examples elsewhere in this readme to gain an insight as to how they may be used.
+
+There is also a collection of Jinja2 templates provided at https://github.com/BJReplay/ha-solcast-solar/blob/main/TEMPLATES.md containing basic, intermediate and advanced templating examples.
+
+### Sensors
+
+All sensor names are preceded by the integration name `Solcast PV Forecast`.
+
+| Name | Type | Attributes | Unit | Description |
+| ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
+| `Forecast Today` | number | Y | `kWh` | Total forecast solar production for today. |
+| `Forecast Tomorrow` | number | Y | `kWh` | Total forecast solar production for day + 1 (tomorrow). |
+| `Forecast Day 3` | number | Y | `kWh` | Total forecast solar production for day + 2 (day 3). |
+| `Forecast Day 4` | number | Y | `kWh` | Total forecast solar production for day + 3 (day 4). |
+| `Forecast Day 5` | number | Y | `kWh` | Total forecast solar production for day + 4 (day 5). |
+| `Forecast Day 6` | number | Y | `kWh`| Total forecast solar production for day + 5 (day 6). |
+| `Forecast Day 7` | number | Y | `kWh` | Total forecast solar production for day + 6 (day 7). |
+| `ForecastThis Hour` | number | Y | `Wh` | Forecasted solar production current hour (attributes contain site breakdown). |
+| `ForecastNext Hour` | number | Y | `Wh` | Forecasted solar production next hour (attributes contain site breakdown). |
+| `Forecast Next X Hours` | number | Y | `Wh` | Custom user defined forecasted solar production for next X hours<br>Note: This forecast starts at current time, it is not aligned on the hour like "This hour", "Next Hour". |
+| `Forecast Remaining Today` | number | Y | `kWh` | Predicted remaining solar production today. |
+| `Peak Forecast Today` | number | Y | `W` | Highest predicted production within an hour period today (attributes contain site breakdown). |
+| `Peak Time Today` | date/time | Y |  | Hour of max forecasted production of solar today (attributes contain site breakdown). |
+| `Peak Forecast Tomorrow` | number | Y | `W` | Highest predicted production within an hour period tomorrow (attributes contain site breakdown). |
+| `Peak Time Tomorrow` | date/time | Y |  | Hour of max forecasted production of solar tomorrow (attributes contain site breakdown). |
+| `Forecast Power Now` | number | Y | `W` | Predicted nominal solar power this moment (attributes contain site breakdown). |
+| `Forecast Power in 30 Minutes` | number | Y | `W` | Predicted nominal solar power in 30 minutes (attributes contain site breakdown). |
+| `Forecast Power in 1 Hour` | number | Y | `W` | Predicted nominal solar power in 1 hour (attributes contain site breakdown). |
+
+> [!NOTE]
+>
+> 
+> Where a site breakdown is available as an attribute, the attribute name is the Solcast site resource ID (with hyphens replaced by underscores).
+>
+> 
+> Most sensors also include an attribute for `estimate`, `estimate10` and `estimate90`. Template sensors may be created to expose their value, or the `state_attr()` can be used directly in automations.
+>
+> 
+> Access these in a template sensor or automation using something like:
+>
+> 
+> ```
+> {{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', '1234_5678_9012_3456') | float(0) }}
+> {{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', 'estimate10') | float(0) }}
+> {{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', 'estimate10_1234_5678_9012_3456') | float(0) }}
+> ```
+>
+> 
+> Also see the sample PV graph below for how to chart forecast detail from the detailedForecast attribute.
+
+> [!NOTE]
+>
+> 
+> The values for `Next Hour` and `Forecast Next X Hours` may be different if the custom X hour setting is 1. This has a simple explanation.
+>
+> 
+> They are calculated using a different start and end time. One is from the start of this hour, i.e. in the past, e.g. 14:00:00 to 15:00:00. The custom sensor is from "now" on five minute boundaries, e.g. 14:20:00 to 15:20:00 using interpolated values.
+>
+> 
+> This will likely yield a different result, depending on the time the value is requested, so it is not wrong. It's just different.
+
+### Attributes
+
+As stated above, sensor attributes are created to enable sensor state variations to be used in templates. Examples are the estimate confidence, `estimate10`/`estimate`/`estimate90`. The sensor _state_ is generally left at the default of `estimate`, but displaying the tenth percentile of a sensor on a dashboard may be desired and this is enabled by the use of _attribute_ values.
+
+Some attribute names are deployment specific (examples are given here), and some attributes are disabled by default or by user preference to clear clutter. These preferences are set in the `CONFIGURE` dialogue.
+
+Attribute names must not contain a hyphen. Solcast site resource IDs _are_ named using a hyphen, so where an attribute is named for the site resource ID that it represents the hyphens are replaced with underscores.
+
+For all sensors:
+
+* `estimate10`: 10th percentile forecast value (number)
+* `estimate`: 50th percentile forecast value (number)
+* `estimate90`: 90th percentile forecast value (number)
+* `1234_5678_9012_3456`: An individual site value, i.e. a portion of the total (number)
+* `estimate10_1234_5678_9012_3456`: 10th for an individual site value (number)
+* `estimate_1234_5678_9012_3456`: 50th for an individual site value (number)
+* `estimate90_1234_5678_9012_3456`: 90th for an individual site value (number)
+
+For daily forecast sensors only:
+
+* `detailedForecast`: A half-hourly breakdown of expected power generation (list of dicts)
+* `detailedHourly`: An hourly breakdown of expected power generation (list of dicts)
+* `detailedForecast_1234_5678_9012_3456`: A half-hourly breakdown of expected site power generation (list of dicts)
+* `detailedHourly_1234_5678_9012_3456`: An hourly breakdown of expected site power generation (list of dicts)
+
+The "list of dicts" has the following format, with example values used: (Note the inconsistency in `pv_estimateXX` vs. `estimateXX` used elsewhere. History is to blame.)
+
+JSON:
+```json
+[
+  {
+    "period_start": "2025-04-06T08:00:00+10:00",
+    "pv_estimate10": 10.000,
+    "pv_estimate": 50.000,
+    "pv_estimate90": 90.000
+  },
+  ...
+]
+```
+
+YAML:
+```yaml
+- period_start: '2025-04-06T08:00:00+10:00'
+  pv_estimate10: 10.000
+  pv_estimate: 50.000
+  pv_estimate90: 90.000
+- ...
+```
+
+### Actions
+
+| Action | Description |
+| --- | --- |
+| `solcast_solar.update_forecasts` | Update the forecast data (refused if auto-update is enabled). |
+| `solcast_solar.force_update_forecasts` | Force update the forecast data (performs an update regardless of API usage tracking or auto-update setting, and does not increment the API use counter, refused if auto-update is not enabled.) |
+| `solcast_solar.clear_all_solcast_data` | Deletes cached data, and initiates an immediate fetch of new past actual and forecast values. |
+| `solcast_solar.query_forecast_data` | Return a list of forecast data using a datetime range start - end. |
+| `solcast_solar.set_dampening` | Update the dampening factors. |
+| `solcast_solar.get_dampening` | Get the currently set dampening factors. |
+| `solcast_solar.set_hard_limit` | Set inverter forecast hard limit. |
+| `solcast_solar.remove_hard_limit` | Remove inverter forecast hard limit. |
+
+Example parameters are provided here for each `query`, `set` and `get` action. Use `Developer tools` | `Actions` to show the available parameters for each with a description. 
+
+Where a 'site' parameter is needed, use the Solcast site resource ID and not the site name.
+
+```yaml
+action: solcast_solar.query_forecast_data
+data:
+  start_date_time: 2024-10-06T00:00:00.000Z
+  end_date_time: 2024-10-06T10:00:00.000Z
+  undampened: false (optional)
+  site: 1234-5678-9012-3456 (optional)
+```
+
+```yaml
+action: solcast_solar.set_dampening
+data:
+  damp_factor: 1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1
+  site: 1234-5678-9012-3456 (optional)
+```
+
+```yaml
+action: solcast_solar.set_hard_limit
+data:
+  hard_limit: 6
+```
+
+```yaml
+action: solcast_solar.get_dampening
+data:
+  site: 1234-5678-9012-3456 (optional)
+```
+
+### Configuration
+
+| Name | Type | Description |
+| ------------------------------ | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
+| `Forecast Field` | selector | Select the forecast confidence used for sensor states as 'estimate', 'estimate10' or 'estimate90'. |
+
+### Diagnostic
+
+All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Rooftop site name`.
+
+| Name | Type | Attributes | Unit | Description |
+| ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
+| `API Last Polled` | date/time | Y | `datetime` | Date/time when the API data was polled. |
+| `API Limit` | number | N | `integer` | Total times the API can been called in a 24 hour period[^1]. |
+| `API used` | number | N | `integer` | Total times the API has been called today (API counter resets to zero at midnight UTC)[^1]. |  
+| `Hard Limit Set` | number | N | `float` | `False` if not set, else value in `kilowatts`. |
+| `Hard Limit Set ******AaBbCc` | number | N | `float` | Individual account hard limit. Value in `kilowatts`. |
+| `Rooftop site name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the site setup)[^2]. |
+
+`API Last Polled` attributes include the following, but only if auto-update is enabled:
+
+* `next_auto_update`: The UTC time of the next scheduled auto-update.
+* `auto_update_divisions`: The number of configured auto-updates for each day.
+* `auto_update_queue`: A maximum of 48 future auto-updates currently in the queue.
+
+`Rooftop site name` attributes include:
+
+* `name`: The site name configured at solcast.com.
+* `resource_id`: The site resource ID.
+* `capacity`: Site capacity in AC power.
+* `capacity_dc`: Site capacity in DC power.
+* `azimuth` / `tilt`: Panel orientation.
+* `install_date`: Configured installation date.
+* `loss_factor`: Configured "loss factor".
+
+[^1]: API usage information is internally tracked and may not match actual account usage.
+
+[^2]: Each rooftop created in Solcast will be listed separately.
+
+## Advanced configuration
 
 ### Dampening configuration
 
@@ -365,7 +574,7 @@ Per-site and per-half hour dampening is possible only by using the `solcast_sola
 
 #### Simple hourly dampening
 
-You can change the dampening factor value for any hour. Values from 0.0 - 1.0 are valid. Setting 0.95 will dampen each Solcast forecast data value by 5%. This is reflected in the sensor values and attributes and also in the Home Assistant Energy dashboard.
+You can change the dampening factor value for any hour. Values from 0.0 - 1.0 are valid. Setting 0.95 will dampen (reduce) each Solcast forecast data value by 5%. This is reflected in the sensor values and attributes and also in the Home Assistant Energy dashboard..
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/dampopt.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/dampopt.png)
 
@@ -381,7 +590,7 @@ You can change the dampening factor value for any hour. Values from 0.0 - 1.0 ar
 
 Setting dampening for individual Solcast sites or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` action, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
 
-The action accepts a string of dampening factors, and also an optional site identifier. For hourly dampening supply 24 values. For half-hourly 48. Calling the action creates or updates the file `solcast-dampening.json` when either a site or 48 factor values are specified. If setting overall dampening with 48 factors, then an optional 'all' site may be specified (or simply omitted for this use case).
+The action accepts a string of dampening factors, and also an optional site resource ID. For hourly dampening supply 24 values. For half-hourly 48. Calling the action creates or updates the file `solcast-dampening.json` when either a site or 48 factor values are specified. If setting overall dampening with 48 factors, then an optional 'all' site may be specified (or simply omitted for this use case).
 
 ```yaml
 action: solcast_solar.set_dampening
@@ -390,7 +599,7 @@ data:
   #site: 1234-5678-9012-3456
 ```
 
-If a site is not specified, and 24 dampening values are given then granular dampening will be removed, and the overall configured hourly dampening will apply to all sites. (Granular dampening may also be disabled using the integration `CONFIGURE` dialogue.)
+If a site resource ID is not specified, and 24 dampening values are given then granular dampening will be removed, and the overall configured hourly dampening will apply to all sites. (Granular dampening may also be disabled using the integration `CONFIGURE` dialogue.)
 
 The action need not be called. The file itself may be updated directly, and if modified will be read on forecast update and used.
 
@@ -400,7 +609,7 @@ Dampening for all individual sites may of course be set, and when this is the ca
 
 <details><summary><i>Click for examples of dampening files</i></summary>
 
-The following examples can be used as a starter for the format for file-based granular dampening. Make sure that you use your own site IDs rather than the examples. The file should be saved in the Home Assistant config folder and named `solcast-dampening.json`.
+The following examples can be used as a starter for the format for file-based granular dampening. Make sure that you use your own site resource IDs rather than the examples. The file should be saved in the Home Assistant config folder and named `solcast-dampening.json`.
 
 Example of hourly dampening for two sites:
 
@@ -456,9 +665,9 @@ Un-dampened forecast history is retained for just 14 days.
 
 #### Reading dampening values
 
-The currently set dampening factors may be retrieved using the action "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
+The currently set dampening factors may be retrieved using the action "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site resource ID, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
 
-If granular dampening is set to specify both individual site factors and an 'all' factors, then attempting retrieval of an individual site factors will result in the 'all' factors being returned, with the 'all' site being noted in the response. This is because an 'all' set of factors overrides the individual site settings in this circumstance.
+If granular dampening is set to specify both individual site dampening factors and "all" sites dampening factors, then attempting retrieval of an individual site dampening factors will result in the "all" sites dampening factors being returned, with the "all" site being noted in the response. This is because an "all" set of dampening factors overrides the individual site settings in this circumstance.
 
 Example call:
 
@@ -500,128 +709,28 @@ The scenario requiring use of this limit is straightforward but note that hardly
 
 Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
 
-The hard limit may be set in the integration configuration or set via manually invoking an action in `Developer Tools`.
+The hard limit may be set in the integration configuration or set by using the service action `solcast_solar.set_hard_limit` in `Developer Tools`. To disable the hard limit enter a value of zero or 100 in the configuration dialogue. To disable using a service action call use `solcast_solar.remove_hard_limit`. (Zero cannot be specified when performing the set action.)
 
-## Complete integration removal
+### Excluded sites configuration
 
-To completely remove all traces of the integration start with navigating to `Settings` | `Devices & Services` | `Solcast PV Forecast`, click the three dots next to `CONFIGURE` and select `Delete`.
+It is possible to exclude one or more Solcast sites from the calculation of sensor totals and the Energy dashboard forecast.
 
-At this point the configuration settings have been reset, but the code and forecast information caches will still exist (setting up the integration again will re-use this cached data, which may or may not be desirable).
+The use case is to allow a local "main" site or sites to be the overall combined forecast values, and a "remote" site to be visualised separately with Apex charts and/or template sensors that get their value from site breakdown sensor attributes. Note that it is not possible to build a separate Energy dashboard feed from templated sensors (this data comes directly from the integration as a data dictionary).
 
-The caches reside in the Home Assistant configuration folder (usually `/homeassistant/`, but its location can vary based on HASS deployment type). These files are named after the integration, and may be removed with `rm solcast*.json`.
+Utilising this advanced feature alongside template sensors and Apex charts is not a simple thing, however examples are provided throughout the readme for both templated sensors built from attribute data, and for an Apex chart. See [Interacting](#interacting), [Sample template sensors](#sample-template-sensors) and [Sample Apex chart for dashboard](#sample-apex-chart-for-dashboard).
 
-The code itself resides at `/homeassistant/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
+Configuration is by way of the `CONFIGURE` dialogue.
 
-## Interacting
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites1.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites1.png)
 
-There are many actions, sensors and configuration items exposed by the integration, along with many sensor attributes that may be enabled.
+Selecting sites to exclude and clicking `SUBMIT` will take effect immediately. It is not required to wait for a forecast update.
 
-Utilise the Solcast Developer Tools to examine exposed attributes, as their structure is not well documented here. Refer to examples elsewhere in this readme to gain an insight as to how they may be used.
-
-### Actions
-
-| Action | Description |
-| --- | --- |
-| `solcast_solar.update_forecasts` | Updates the forecast data (refused if auto-update is enabled). |
-| `solcast_solar.force_update_forecasts` | Force updates the forecast data (performs an update regardless of API usage tracking or auto-update setting, and does not increment the API use counter, refused if auto-update is not enabled.) |
-| `solcast_solar.clear_all_solcast_data` | Deletes cached data, and initiates an immediate fetch of new past actual and forecast values. |
-| `solcast_solar.query_forecast_data` | Returns a list of forecast data using a datetime range start - end. |
-| `solcast_solar.set_dampening` | Updates the dampening factors. |
-| `solcast_solar.get_dampening` | Get the currently set dampening factors. |
-| `solcast_solar.set_hard_limit` | Set inverter forecast hard limit. |
-| `solcast_solar.remove_hard_limit` | Remove inverter forecast hard limit. |
-
-### Sensors
-
-| Name | Type | Attributes | Unit | Description |
-| ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
-| `Today` | number | Y | `kWh` | Total forecast solar production for today. |
-| `Tomorrow` | number | Y | `kWh` | Total forecast solar production for day + 1 (tomorrow). |
-| `D3` | number | Y | `kWh` | Total forecast solar production for day + 2 (day 3). |
-| `D4` | number | Y | `kWh` | Total forecast solar production for day + 3 (day 4). |
-| `D5` | number | Y | `kWh` | Total forecast solar production for day + 4 (day 5). |
-| `D6` | number | Y | `kWh`| Total forecast solar production for day + 5 (day 6). |
-| `D7` | number | Y | `kWh` | Total forecast solar production for day + 6 (day 7). |
-| `This Hour` | number | Y | `Wh` | Forecasted solar production current hour (attributes contain site breakdown). |
-| `Next Hour` | number | Y | `Wh` | Forecasted solar production next hour (attributes contain site breakdown). |
-| `Forecast Next X Hours` | number | Y | `Wh` | Custom user defined forecasted solar production for next X hours<br>Note: This forecast starts at current time, it is not aligned on the hour like "This hour", "Next Hour". |
-| `Remaining Today` | number | Y | `kWh` | Predicted remaining solar production today. |
-| `Peak Forecast Today` | number | Y | `W` | Highest predicted production within an hour period today (attributes contain site breakdown). |
-| `Peak Time Today` | date/time | Y |  | Hour of max forecasted production of solar today (attributes contain site breakdown). |
-| `Peak Forecast Tomorrow` | number | Y | `W` | Highest predicted production within an hour period tomorrow (attributes contain site breakdown). |
-| `Peak Time Tomorrow` | date/time | Y |  | Hour of max forecasted production of solar tomorrow (attributes contain site breakdown). |
-| `Power Now` | number | Y | `W` | Predicted nominal solar power this moment (attributes contain site breakdown). |
-| `Power in 30 Mins` | number | Y | `W` | Predicted nominal solar power in 30 minutes (attributes contain site breakdown). |
-| `Power in 1 Hour` | number | Y | `W` | Predicted nominal solar power in 1 hour (attributes contain site breakdown). |
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/ExcludeSites2.png)
 
 > [!NOTE]
 >
 > 
-> Where a site breakdown is available as an attribute, the attribute name is the Solcast site resource ID (with hyphens replaced by underscores).
->
-> 
-> Most sensors also include an attribute for `estimate`, `estimate10` and `estimate90`. Template sensors may be created to expose their value, or the `state_attr()` can be used directly in automations.
->
-> 
-> Access these in a template sensor or automation using something like:
->
-> 
-> ```
-> {{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', '1234_5678_9012_3456') | float(0) }}
-> {{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', 'estimate10') | float(0) }}
-> {{ state_attr('sensor.solcast_pv_forecast_peak_forecast_today', 'estimate10_1234_5678_9012_3456') | float(0) }}
-> ```
->
-> 
-> Also see the sample PV graph below for how to chart forecast detail from the detailedForecast attribute.
-
-> [!NOTE]
->
-> 
-> The values for `Next Hour` and `Forecast Next X Hours` may be different if the custom X hour setting is 1. This has a simple explanation.
->
-> 
-> They are calculated using a different start and end time. One is from the start of this hour, i.e. in the past, e.g. 14:00:00 to 15:00:00. The custom sensor is from "now" on five minute boundaries, e.g. 14:20:00 to 15:20:00 using interpolated values.
->
-> 
-> This will likely yield a different result, depending on the time the value is requested, so it is not wrong. It's just different.
-
-### Configuration
-
-| Name | Type | Attributes | Unit | Description |
-| ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
-| `Forecast Field` | selector | N |  | Selector to select the Solcast value field for calculations either 'estimate', 'estimate10' or 'estimate90'. |
-
-### Diagnostic
-
-| Name | Type | Attributes | Unit | Description |
-| ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
-| `API Last Polled` | date/time | Y | `datetime` | Date/time when the API data was polled. |
-| `API Limit` | number | N | `integer` | Total times the API can been called in a 24 hour period[^1]. |
-| `API used` | number | N | `integer` | Total times the API has been called today (API counter resets to zero at midnight UTC)[^1]. |  
-| `Hard Limit Set` | number | N | `float` | `False` if not set, else value in `kilowatts`. |
-| `Hard Limit Set ******AaBbCc` | number | N | `float` | Individual account hard limit. `False` if not set, else value in `kilowatts`. |
-| `Rooftop name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the solcast rooftop setup)[^2]. |
-
-`API Last Polled` attributes include the following, but only if auto-update is enabled:
-
-* `next_auto_update`: The UTC time of the next scheduled auto-update.
-* `auto_update_divisions`: The number of configured auto-updates for each day.
-* `auto_update_queue`: A maximum of 48 future auto-updates currently in the queue.
-
-`Rooftop name` attributes include:
-
-* `name`: The site name configured at solcast.com.
-* `resource_id`: The site ID.
-* `capacity`: Site capacity in AC power.
-* `capacity_dc`: Site capacity in DC power.
-* `azimuth` / `tilt`: Panel orientation.
-* `install_date`: Configured installation date.
-* `loss_factor`: Configured "loss factor".
-
-[^1]: API usage information is internally tracked and may not match actual account usage.
-
-[^2]: Each rooftop created in Solcast will be listed separately.
+> The site names and resource IDs are sourced from the sites that are known at the time of last sites fetch from Solcast (this is at startup). It is not possible to both add a new API key and select a site to exclude from the new account being added. The new account must first be added, which will cause the integration to restart and load the new sites. After that the sites to exclude from the new account may be selected.
 
 ## Sample template sensors
 
@@ -629,7 +738,9 @@ Utilise the Solcast Developer Tools to examine exposed attributes, as their stru
 
 A potential desire is to combine the forecast data for multiple sites common to a Solcast account, enabling visualisation of individual account detailed data in an Apex chart.
 
-This code is an example of how to do so by using template sensors, which sums all pv50 forecast intervals to give a daily account total, plus builds a detailedForecast attribute of all combined interval data to use in a visualisation.
+This code is an example of how to do so by using a template sensor, which sums all pv50 forecast intervals to give a daily account total, plus builds a detailedForecast attribute of all combined interval data to use in a visualisation.
+
+Site breakdowns must be enabled in the integration options (the detailed forecast breakdown is not enabled by default).
 
 **Reveal code**
 <details><summary><i>Click here</i></summary>
@@ -640,14 +751,9 @@ template:
       - name: "Solcast Combined API 1"
         unique_id: "solcast_combined_api_1"
         state: >
-          {% set sensor1 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast_b68d_c05a_c2b3_2cf9') %}
-          {% set sensor2 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast_83d5_ab72_2a9a_2397') %}
-          {% set ns = namespace(i=0, combined=0) %}
-          {% for interval in sensor1 %}
-            {% set ns.combined = ns.combined + interval['pv_estimate'] * 0.5 + sensor2[ns.i]['pv_estimate'] * 0.5 %}
-            {% set ns.i = ns.i + 1 %}
-          {% endfor %}
-          {{ ns.combined }}
+          {% set sensor1 = state_attr('sensor.solcast_pv_forecast_forecast_today', 'b68d_c05a_c2b3_2cf9') %}
+          {% set sensor2 = state_attr('sensor.solcast_pv_forecast_forecast_today', '83d5_ab72_2a9a_2397') %}
+          {{ sensor1 + sensor2 }}
         unit_of_measurement: "kWh"
         attributes:
           detailedForecast: >
@@ -865,11 +971,25 @@ That said, code defects can happen, but they should not be the first suspicion. 
 If behaviour most odd is encountered, filled with exceptions occurring, then a quick fix may be to back up all `/homeassistant/solcast*.json` files, remove them, and then restart the integration.
 </details>
 
+## Complete integration removal
+
+To completely remove all traces of the integration start with navigating to `Settings` | `Devices & Services` | `Solcast PV Forecast`, click the three dots next to `CONFIGURE` and select `Delete`.
+
+At this point the configuration settings have been reset, but the code and forecast information caches will still exist (setting up the integration again will re-use this cached data, which may or may not be desirable).
+
+The caches reside in the Home Assistant configuration folder (usually `/config/` or `/homeassistant/`, but its location can vary based on Home Assistant deployment type). These files are named after the integration, and may be removed with `rm solcast*.json`.
+
+The code itself resides at `/config/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
+
 ## Changes
 
 v4.3.3
+* Add sites to exclude from totals and Energy dashboard by @autoSteve
+* Add Portuguese translation by @ViPeR5000 (thanks!)
+* Clean up orphaned hard limit diagnostic sensors by @autoSteve
+* Fix diagnostic sensor values for multi-api key hard limit by @autoSteve
 * Fix remove orphaned cache where API key contains non-alphanumeric characters by @autoSteve
-* Add Portuguese translation by @ViPeR5000
+* Fix solcast-dampening.json granular dampening formatting to be semi-indented by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.2...v4.3.3
 

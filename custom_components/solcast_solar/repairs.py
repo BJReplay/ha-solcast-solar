@@ -7,6 +7,7 @@ import voluptuous as vol
 
 from homeassistant import data_entry_flow
 from homeassistant.components.repairs import ConfirmRepairFlow, RepairsFlow
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.selector import (
@@ -16,8 +17,8 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
+from . import current_entry
 from .const import AUTO_UPDATE, DOMAIN
-from .util import SolcastConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,9 +31,9 @@ AUTO_UPDATE_OPTIONS: list[SelectOptionDict] = [
 class SolcastRepair(RepairsFlow):
     """Handler for an issue fixing flow."""
 
-    entry: SolcastConfigEntry
+    entry: ConfigEntry | None
 
-    def __init__(self, *, entry: SolcastConfigEntry) -> None:
+    def __init__(self, *, entry: ConfigEntry | None) -> None:
         """Create flow."""
 
         self.entry = entry
@@ -60,7 +61,7 @@ class RecordsMissingRepairFlow(SolcastRepair):
     async def async_step_offer_auto(self, user_input: dict[str, str] | None = None) -> data_entry_flow.FlowResult:
         """Handle the offer to enable auto-update."""
 
-        if user_input is not None:
+        if user_input is not None and self.entry is not None:
             opts = {AUTO_UPDATE: int(user_input[AUTO_UPDATE])}
             new_options = {**self.entry.options, **opts}
             self.hass.config_entries.async_update_entry(self.entry, options=new_options)
@@ -89,6 +90,6 @@ async def async_create_fix_flow(
 
     match issue_id:
         case "records_missing_fixable":
-            return RecordsMissingRepairFlow(entry=data["entry"])
+            return RecordsMissingRepairFlow(entry=current_entry.get())
 
     return ConfirmRepairFlow()

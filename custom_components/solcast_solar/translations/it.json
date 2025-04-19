@@ -5,6 +5,13 @@
             "reauth_successful": "Nuova chiave API applicata con successo",
             "single_instance_allowed": "È consentita una sola istanza di Solcast"
         },
+        "error": {
+            "api_duplicate": "Chiave API duplicata specificata",
+            "api_looks_like_site": "La chiave API sembra un ID sito",
+            "limit_one_or_greater": "Il limite API deve essere uno o superiore",
+            "limit_too_many": "Sono stati inseriti più conteggi dei limiti API rispetto alle chiavi",
+            "limit_not_number": "Il limite API non è un numero"
+        },
         "step": {
             "reauth_confirm": {
                 "data": {
@@ -111,6 +118,16 @@
         "abort": {
             "reconfigured": "Nuova configurazione applicata con successo"
         },
+        "error": {
+            "api_duplicate": "Chiave API duplicata specificata",
+            "api_looks_like_site": "La chiave API sembra un ID sito",
+            "limit_one_or_greater": "Il limite API deve essere uno o superiore",
+            "limit_too_many": "Sono stati inseriti più conteggi dei limiti API rispetto alle chiavi",
+            "limit_not_number": "Il limite API non è un numero",
+            "custom_invalid": "Sensore personalizzato non compreso tra 1 e 144",
+            "hard_not_number": "Il limite massimo non è un numero positivo",
+            "hard_too_many": "Sono stati inseriti più limiti rigidi che chiavi"
+        },
         "step": {
             "dampen": {
                 "data": {
@@ -157,6 +174,7 @@
                     "customhoursensor": "Sensore personalizzato per le prossime X ore (min=1, max=144)",
                     "hard_limit_api": "Limite rigido dell'inverter in kW (vedere la documentazione dell'integrazione)",
                     "key_estimate": "Probabilità di previsione preferita da utilizzare per i sensori",
+                    "exclude_sites": "Sito/i da escludere dal dashboard Energia e dai totali dei sensori",
                     "site_damp": "Lo smorzamento granulare è impostato: Cancella per ripristinare lo smorzamento orario generale"
                 },
                 "description": "Opzioni di configurazione di Solcast"

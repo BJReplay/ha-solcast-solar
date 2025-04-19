@@ -5,6 +5,13 @@
             "reauth_successful": "New API key applied successfully",
             "single_instance_allowed": "Only one Solcast instance allowed"
         },
+        "error": {
+            "api_duplicate": "Duplicate API key specified",
+            "api_looks_like_site": "API key looks like a site ID",
+            "limit_one_or_greater": "API limit must be one or greater",
+            "limit_too_many": "There are more API limit counts entered than keys",
+            "limit_not_number": "API limit is not a number"
+        },
         "step": {
             "reauth_confirm": {
                 "data": {
@@ -111,7 +118,17 @@
         "abort": {
             "reconfigured": "New configuration applied successfully"
         },
-        "step": {
+        "error": {
+            "api_duplicate": "Duplicate API key specified",
+            "api_looks_like_site": "API key looks like a site ID",
+            "limit_one_or_greater": "API limit must be one or greater",
+            "limit_too_many": "There are more API limit counts entered than keys",
+            "limit_not_number": "API limit is not a number",
+            "custom_invalid": "Custom sensor not between 1 and 144",
+            "hard_not_number": "Hard limit is not a positive number",
+            "hard_too_many": "There are more hard limits entered than keys"
+        },
+       "step": {
             "dampen": {
                 "data": {
                     "damp00": "00:00",
@@ -157,6 +174,7 @@
                     "customhoursensor": "Custom next X hours sensor (min=1, max=144)",
                     "hard_limit_api": "Inverter hard limit in kW (see integration documentation)",
                     "key_estimate": "Preferred forecast likelihood to use for sensors",
+                    "exclude_sites": "Site(s) to exclude from the Energy dashboard and sensor totals",
                     "site_damp": "Granular dampening is set: Clear to revert to overall hourly dampening"
                 },
                 "description": "Solcast configuration options"

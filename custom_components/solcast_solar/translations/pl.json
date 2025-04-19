@@ -5,6 +5,13 @@
             "reauth_successful": "Nowy klucz API został pomyślnie zastosowany",
             "single_instance_allowed": "Dozwolona tylko jedna instancja Solcast"
         },
+        "error": {
+            "api_duplicate": "Określono duplikat klucza API",
+            "api_looks_like_site": "Klucz API wygląda jak identyfikator witryny",
+            "limit_one_or_greater": "Limit API musi wynosić jeden lub więcej",
+            "limit_too_many": "Wprowadzono więcej limitów API niż kluczy",
+            "limit_not_number": "Limit API nie jest liczbą"
+        },
         "step": {
             "reauth_confirm": {
                 "data": {
@@ -111,6 +118,16 @@
         "abort": {
             "reconfigured": "Zastosowano nową konfigurację"
         },
+        "error": {
+            "api_duplicate": "Określono duplikat klucza API",
+            "api_looks_like_site": "Klucz API wygląda jak identyfikator witryny",
+            "limit_one_or_greater": "Limit API musi wynosić jeden lub więcej",
+            "limit_too_many": "Wprowadzono więcej limitów API niż kluczy",
+            "limit_not_number": "Limit API nie jest liczbą",
+            "custom_invalid": "Niestandardowy czujnik nie znajduje się pomiędzy 1 a 144",
+            "hard_not_number": "Twardy limit nie jest liczbą dodatnią",
+            "hard_too_many": "Wprowadzono więcej sztywnych limitów niż kluczy"
+        },
         "step": {
             "init": {
                 "data": {
@@ -128,6 +145,7 @@
                     "attr_brk_hourly": "Włącz atrybuty szczegółów prognozy godzinowej",
                     "attr_brk_detailed": "Włącz podział witryny dla atrybutów szczegółów półgodzinnych/godzinnych (nie zostaną one zapisane w atrybutach stanu bazy danych)",
                     "config_damp": "Zmodyfikuj godzinowe współczynniki tłumienia (po kliknięciu przycisku „ZATWIERDŹ”)",
+                    "exclude_sites": "Miejsca, które należy wykluczyć z pulpitu nawigacyjnego Energy i sum czujników",
                     "site_damp": "Ustawiono tłumienie szczegółowe: Wyczyść, aby powrócić do ogólnego tłumienia godzinowego"
 
                 },

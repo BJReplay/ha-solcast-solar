@@ -26,7 +26,7 @@ def pytest_configure():
 
 
 @pytest.fixture(autouse=True)
-def frozen_time() -> Generator[FrozenDateTimeFactory, None, None]:
+def frozen_time() -> Generator[FrozenDateTimeFactory]:
     """Freeze test time."""
 
     with freezegun.freeze_time(f"{dt.now().date()} 12:27:27", tz_offset=-10) as freeze:

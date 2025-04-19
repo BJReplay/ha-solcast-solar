@@ -4,12 +4,14 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import datetime as dt
 from enum import Enum
+import json
 import math
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 if TYPE_CHECKING:
@@ -24,10 +26,6 @@ class SolcastData:
         coordinator: coordinator.SolcastUpdateCoordinator
     else:
         coordinator: DataUpdateCoordinator[None]
-
-
-class SolcastConfigEntry(ConfigEntry[SolcastData]):
-    """Solcast config entry."""
 
 
 class SolcastApiStatus(Enum):
@@ -71,6 +69,54 @@ class Api(Enum):
 
     HOBBYIST = 0
     ADVANCED = 1
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Helper to convert datetime dict values to ISO format."""
+
+    def default(self, o: Any) -> str | Any:
+        """Convert to ISO format if datetime."""
+        return o.isoformat() if isinstance(o, dt) else super().default(o)
+
+
+class NoIndentEncoder(json.JSONEncoder):
+    """Helper to output semi-indented json."""
+
+    def iterencode(self, o: Any, _one_shot: bool = False):
+        """Recursive encoder to indent only top level keys."""
+        list_lvl = 0
+        raw: Iterator[str] = super().iterencode(o, _one_shot=_one_shot)
+        output = ""
+        for s in list(raw)[0].splitlines():
+            if "[" in s:
+                list_lvl += 1
+            elif list_lvl > 0:
+                s = s.replace(" ", "").rstrip()
+                if "]" in s:
+                    list_lvl -= 1
+                    s += "\n"
+            else:
+                s += "\n"
+            output += s
+        yield output
+
+
+class JSONDecoder(json.JSONDecoder):
+    """Helper to convert ISO format dict values to datetime."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        """Initialise the decoder."""
+        json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)  # noqa: B026
+
+    def object_hook(self, o: Any) -> dict:
+        """Return converted datetimes."""
+        result = {}
+        for key, value in o.items():
+            try:
+                result[key] = dt.fromisoformat(value)
+            except:  # noqa: E722
+                result[key] = value
+        return result
 
 
 def cubic_interp(x0: list, x: list, y: list) -> list:

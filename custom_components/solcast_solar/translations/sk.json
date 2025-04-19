@@ -5,6 +5,13 @@
             "reauth_successful": "Nový kľúč API bol úspešne použitý",
             "single_instance_allowed": "Povolená je iba jedna inštancia Solcast"
         },
+        "error": {
+            "api_duplicate": "Bol zadaný duplicitný kľúč API",
+            "api_looks_like_site": "Kľúč API vyzerá ako ID lokality",
+            "limit_one_or_greater": "Limit API musí byť jeden alebo väčší",
+            "limit_too_many": "Je zadaných viac limitov API ako kľúčov",
+            "limit_not_number": "Limit API nie je číslo"
+        },
         "step": {
             "reauth_confirm": {
                 "data": {
@@ -111,6 +118,16 @@
         "abort": {
             "reconfigured": "Použila sa nová konfigurácia"
         },
+        "error": {
+            "api_duplicate": "Bol zadaný duplicitný kľúč API",
+            "api_looks_like_site": "Kľúč API vyzerá ako ID lokality",
+            "limit_one_or_greater": "Limit API musí byť jeden alebo väčší",
+            "limit_too_many": "Je zadaných viac limitov API ako kľúčov",
+            "limit_not_number": "Limit API nie je číslo",
+            "custom_invalid": "Vlastný snímač nie medzi 1 a 144",
+            "hard_not_number": "Pevný limit nie je kladné číslo",
+            "hard_too_many": "Je zadaných viac tvrdých limitov ako kľúčov"
+        },
         "step": {
             "init": {
                 "data": {
@@ -128,6 +145,7 @@
                     "attr_brk_hourly": "Povoliť hodinové podrobné atribúty prognózy",
                     "attr_brk_detailed": "Povoliť rozdelenie stránok pre polhodinové/hodinové atribúty podrobností (tieto sa neuložia do atribútov stavu databázy)",
                     "config_damp": "Upravte hodinové faktory tlmenia (po kliknutí na odoslať)",
+                    "exclude_sites": "Lokality, ktoré sa majú vylúčiť zo súčtu energie a senzorov",
                     "site_damp": "Granulované tlmenie je nastavené: Clear pre návrat k celkovému hodinovému tlmeniu"
 
                 },
