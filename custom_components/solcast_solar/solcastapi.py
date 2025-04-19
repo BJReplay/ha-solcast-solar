@@ -28,6 +28,7 @@ import aiofiles
 from aiohttp import ClientConnectionError, ClientResponseError, ClientSession
 from aiohttp.client_reqrep import ClientResponse
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
@@ -57,7 +58,6 @@ from .util import (
     NoIndentEncoder,
     SitesStatus,
     SolcastApiStatus,
-    SolcastConfigEntry,
     UsageStatus,
     cubic_interp,
 )
@@ -141,7 +141,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         aiohttp_session: ClientSession,
         options: ConnectionOptions,
         hass: HomeAssistant,
-        entry: SolcastConfigEntry | None = None,
+        entry: ConfigEntry | None = None,
     ) -> None:
         """Initialise the API interface.
 
@@ -149,14 +149,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             aiohttp_session (ClientSession): The aiohttp client session provided by Home Assistant
             options (ConnectionOptions): The integration stored configuration options.
             hass (HomeAssistant): The Home Assistant instance.
-            entry (SolcastConfigEntry): The entry options.
+            entry (ConfigEntry): The entry options.
 
         """
 
         self.auto_update_divisions: int = 0
         self.custom_hour_sensor: int = options.custom_hour_sensor
         self.damp: dict = options.dampening
-        self.entry: SolcastConfigEntry | None = entry
+        self.entry: ConfigEntry = entry  # type: ignore[assignment]
         self.entry_options: dict[str, Any] = {}
         if self.entry is not None:
             self.entry_options = {**self.entry.options}

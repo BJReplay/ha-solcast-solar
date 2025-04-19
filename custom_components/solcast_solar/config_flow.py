@@ -53,7 +53,6 @@ from .const import (
     TITLE,
 )
 from .solcastapi import ConnectionOptions, SolcastApi
-from .util import SolcastConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -161,7 +160,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
     VERSION = CONFIG_VERSION
 
-    entry: SolcastConfigEntry
+    entry: ConfigEntry
 
     @staticmethod
     @callback
@@ -169,7 +168,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         """Get the options flow for this handler.
 
         Arguments:
-            config_entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
+            config_entry (ConfigEntry): The integration entry instance, contains the configuration.
 
         Returns:
             SolcastSolarOptionFlowHandler: The config flow handler instance.
@@ -179,7 +178,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reauth(self, entry: Mapping[str, Any]) -> ConfigFlowResult:
         """Set a new API key."""
-        self.entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        self.entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])  # type: ignore[assignment]
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -220,7 +219,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reconfigure(self, entry: Mapping[str, Any]) -> ConfigFlowResult:
         """Reconfigure API key, limit and auto-update."""
-        self.entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        self.entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])  # type: ignore[assignment]
         return await self.async_step_reconfigure_confirm()
 
     async def async_step_reconfigure_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
@@ -342,11 +341,11 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 class SolcastSolarOptionFlowHandler(OptionsFlow):
     """Handle options."""
 
-    def __init__(self, config_entry: SolcastConfigEntry) -> None:
+    def __init__(self, config_entry: ConfigEntry) -> None:
         """Initialize options flow.
 
         Arguments:
-            config_entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
+            config_entry (ConfigEntry): The integration entry instance, contains the configuration.
 
         """
         self._entry = config_entry

@@ -11,7 +11,7 @@ import aiofiles
 import voluptuous as vol
 
 from homeassistant import loader
-from homeassistant.config_entries import ConfigType
+from homeassistant.config_entries import ConfigEntry, ConfigType
 from homeassistant.const import CONF_API_KEY, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import (
@@ -61,7 +61,7 @@ from .const import (
     UNDAMPENED,
 )
 from .coordinator import SolcastUpdateCoordinator
-from .solcastapi import ConnectionOptions, SolcastApi, SolcastConfigEntry
+from .solcastapi import ConnectionOptions, SolcastApi
 from .util import SitesStatus, SolcastApiStatus, SolcastData, UsageStatus
 
 PLATFORMS: Final = [
@@ -95,10 +95,10 @@ SERVICE_QUERY_SCHEMA: Final = vol.All(
 
 _LOGGER = logging.getLogger(__name__)
 
-current_entry: ContextVar[SolcastConfigEntry] = ContextVar("current_entry", default=None)
+current_entry: ContextVar[ConfigEntry] = ContextVar("current_entry", default=None)
 
 
-def __log_init_message(entry: SolcastConfigEntry, version: str, solcast: SolcastApi) -> None:
+def __log_init_message(entry: ConfigEntry, version: str, solcast: SolcastApi) -> None:
     _LOGGER.debug("UTC times are converted to %s", solcast.options.tz)
     _LOGGER.debug("Successful init")
     _LOGGER.info("Solcast integration version: %s", version)
@@ -119,7 +119,7 @@ async def __get_time_zone(hass: HomeAssistant) -> dt_util.dt.tzinfo:
     return tz if tz is not None else dt_util.UTC
 
 
-async def __get_options(hass: HomeAssistant, entry: SolcastConfigEntry) -> ConnectionOptions:
+async def __get_options(hass: HomeAssistant, entry: ConfigEntry) -> ConnectionOptions:
     __log_entry_options(entry)
 
     try:
@@ -155,7 +155,7 @@ async def __get_options(hass: HomeAssistant, entry: SolcastConfigEntry) -> Conne
     )
 
 
-def __log_entry_options(entry: SolcastConfigEntry) -> None:
+def __log_entry_options(entry: ConfigEntry) -> None:
     _LOGGER.debug(
         "Auto-update options: %s",
         {k: v for k, v in entry.options.items() if k.startswith("auto_")},
@@ -198,7 +198,7 @@ def get_session_headers(version: str) -> dict[str, str]:
     return headers
 
 
-async def __get_granular_dampening(hass: HomeAssistant, entry: SolcastConfigEntry, solcast: SolcastApi) -> None:
+async def __get_granular_dampening(hass: HomeAssistant, entry: ConfigEntry, solcast: SolcastApi) -> None:
     opt = {**entry.options}
     # Set internal per-site dampening set flag. This is a hidden option until True.
     opt[SITE_DAMP] = await solcast.granular_dampening_data()
@@ -260,7 +260,7 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> b
     return stale
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> bool:  # noqa: C901
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  # noqa: C901
     """Set up the integration.
 
     * Get and sanitise options.
@@ -275,7 +275,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> b
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (SolcastConfigEntry): The integration entry instance, contains the options and other information.
+        entry (ConfigEntry): The integration entry instance, contains the options and other information.
 
     Raises:
         ConfigEntryNotReady: Instructs Home Assistant that the integration is not yet ready when a load failure occurs.
@@ -606,14 +606,14 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload config entry.
 
     This also removes the actions available and terminates running tasks.
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (SolcastConfigEntry): The integration entry instance.
+        entry (ConfigEntry): The integration entry instance.
 
     Returns:
         bool: Whether the unload completed successfully.
@@ -635,7 +635,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> 
     return unload_ok
 
 
-async def tasks_cancel(hass: HomeAssistant, entry: SolcastConfigEntry) -> bool:
+async def tasks_cancel(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Cancel all tasks, both coordinator and solcast.
 
     Returns:
@@ -650,7 +650,7 @@ async def tasks_cancel(hass: HomeAssistant, entry: SolcastConfigEntry) -> bool:
     return True
 
 
-async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry) -> None:
+async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reconfigure the integration when options get updated.
 
     * Changing API key or limit, auto-update or turning detailed site breakdown on results in a restart.
@@ -659,7 +659,7 @@ async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry) -
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (SolcastConfigEntry): The integration entry instance.
+        entry (ConfigEntry): The integration entry instance.
 
     """
     coordinator = entry.runtime_data.coordinator
@@ -760,7 +760,7 @@ async def async_update_options(hass: HomeAssistant, entry: SolcastConfigEntry) -
         await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_migrate_entry(hass: HomeAssistant, entry: SolcastConfigEntry) -> bool:
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Upgrade configuration.
 
     v4:  (ancient)  Remove option for auto-poll
@@ -788,7 +788,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SolcastConfigEntry) ->
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (SolcastConfigEntry): The integration entry instance, contains the options and other information.
+        entry (ConfigEntry): The integration entry instance, contains the options and other information.
 
     Returns:
         bool: Whether the config upgrade completed successfully.

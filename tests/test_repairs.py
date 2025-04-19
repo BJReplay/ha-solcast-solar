@@ -15,7 +15,7 @@ from homeassistant.components.solcast_solar.const import AUTO_UPDATE, DOMAIN
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.repairs import async_create_fix_flow
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
-from homeassistant.components.solcast_solar.util import SolcastConfigEntry
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import issue_registry as ir
@@ -27,7 +27,7 @@ from tests.typing import ClientSessionGenerator
 _LOGGER = logging.getLogger(__name__)
 
 
-async def _reload(hass: HomeAssistant, entry: SolcastConfigEntry) -> tuple[SolcastUpdateCoordinator | None, SolcastApi | None]:
+async def _reload(hass: HomeAssistant, entry: ConfigEntry) -> tuple[SolcastUpdateCoordinator | None, SolcastApi | None]:
     """Reload the integration."""
 
     _LOGGER.warning("Reloading integration")

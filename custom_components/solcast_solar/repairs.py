@@ -7,6 +7,7 @@ import voluptuous as vol
 
 from homeassistant import data_entry_flow
 from homeassistant.components.repairs import ConfirmRepairFlow, RepairsFlow
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.selector import (
@@ -18,7 +19,6 @@ from homeassistant.helpers.selector import (
 
 from . import current_entry
 from .const import AUTO_UPDATE, DOMAIN
-from .util import SolcastConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -31,9 +31,9 @@ AUTO_UPDATE_OPTIONS: list[SelectOptionDict] = [
 class SolcastRepair(RepairsFlow):
     """Handler for an issue fixing flow."""
 
-    entry: SolcastConfigEntry | None
+    entry: ConfigEntry | None
 
-    def __init__(self, *, entry: SolcastConfigEntry | None) -> None:
+    def __init__(self, *, entry: ConfigEntry | None) -> None:
         """Create flow."""
 
         self.entry = entry

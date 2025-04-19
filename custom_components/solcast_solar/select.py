@@ -5,6 +5,7 @@ import logging
 from typing import Any
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     ATTR_CONFIGURATION_URL,
     ATTR_IDENTIFIERS,
@@ -20,7 +21,6 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import ATTR_ENTRY_TYPE, ATTRIBUTION, DOMAIN, KEY_ESTIMATE, MANUFACTURER
 from .coordinator import SolcastUpdateCoordinator
-from .util import SolcastConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,14 +54,14 @@ ESTIMATE_MODE = SelectEntityDescription(
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: SolcastConfigEntry,
+    entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up a Solcast select.
 
     Arguments:
         hass (HomeAssistant): The Home Assistant instance.
-        entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
+        entry (ConfigEntry): The integration entry instance, contains the configuration.
         async_add_entities (AddEntitiesCallback): The Home Assistant callback to add entities.
 
     """
@@ -90,7 +90,7 @@ class EstimateModeEntity(SelectEntity):
         entity_description: SelectEntityDescription,
         supported_options: list[str],
         current_option: str,
-        entry: SolcastConfigEntry,
+        entry: ConfigEntry,
     ) -> None:
         """Initialise the sensor.
 
@@ -99,7 +99,7 @@ class EstimateModeEntity(SelectEntity):
             entity_description (SensorEntityDescription): The details of the entity.
             supported_options (list[str]): All select options available.
             current_option (str): The currently selected option.
-            entry (SolcastConfigEntry): The integration entry instance, contains the configuration.
+            entry (ConfigEntry): The integration entry instance, contains the configuration.
 
         """
 

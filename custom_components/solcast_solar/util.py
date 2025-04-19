@@ -12,7 +12,6 @@ import json
 import math
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 if TYPE_CHECKING:
@@ -27,10 +26,6 @@ class SolcastData:
         coordinator: coordinator.SolcastUpdateCoordinator
     else:
         coordinator: DataUpdateCoordinator[None]
-
-
-class SolcastConfigEntry(ConfigEntry[SolcastData]):
-    """Solcast config entry."""
 
 
 class SolcastApiStatus(Enum):

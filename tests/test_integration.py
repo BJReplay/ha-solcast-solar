@@ -43,8 +43,7 @@ from homeassistant.components.solcast_solar.solcastapi import (
     SitesStatus,
     SolcastApi,
 )
-from homeassistant.components.solcast_solar.util import SolcastConfigEntry
-from homeassistant.config_entries import ConfigEntryState
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
@@ -197,7 +196,7 @@ async def _wait_for_raise(hass: HomeAssistant, exception: Exception) -> None:
         await wait_for_exception()
 
 
-async def _reload(hass: HomeAssistant, entry: SolcastConfigEntry) -> tuple[SolcastUpdateCoordinator | None, SolcastApi | None]:
+async def _reload(hass: HomeAssistant, entry: ConfigEntry) -> tuple[SolcastUpdateCoordinator | None, SolcastApi | None]:
     """Reload the integration."""
 
     _LOGGER.warning("Reloading integration")
@@ -227,27 +226,27 @@ async def test_api_failure(
     await async_cleanup_integration_tests(hass)
     try:
 
-        def assertions1_busy(entry: SolcastConfigEntry):
+        def assertions1_busy(entry: ConfigEntry):
             assert entry.state is ConfigEntryState.SETUP_RETRY
             assert "Get sites failed, last call result: 429/Try again later" in caplog.text
             assert "Cached sites are not yet available" in caplog.text
             caplog.clear()
 
-        def assertions1_bad_data(entry: SolcastConfigEntry):
+        def assertions1_bad_data(entry: ConfigEntry):
             assert "API did not return a json object, returned" in caplog.text
 
-        def assertions1_except(entry: SolcastConfigEntry):
+        def assertions1_except(entry: ConfigEntry):
             assert entry.state is ConfigEntryState.SETUP_ERROR
             assert "Error retrieving sites, attempting to continue" in caplog.text
             assert "Cached sites are not yet available" in caplog.text
             caplog.clear()
 
-        def assertions2_busy(entry: SolcastConfigEntry):
+        def assertions2_busy(entry: ConfigEntry):
             assert "Get sites failed, last call result: 429/Try again later, using cached data" in caplog.text
             assert "Sites data:" in caplog.text
             caplog.clear()
 
-        def assertions2_except(entry: SolcastConfigEntry):
+        def assertions2_except(entry: ConfigEntry):
             assert "Error retrieving sites, attempting to continue" in caplog.text
             assert "Sites data:" in caplog.text
             caplog.clear()
@@ -292,7 +291,7 @@ async def test_api_failure(
                 if not isinstance(test["exception"], str):
                     session_set(MOCK_EXCEPTION, exception=test["exception"])
 
-                entry: SolcastConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
+                entry: ConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
                 coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
                 solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
                 solcast.options.auto_update = 0
@@ -336,7 +335,7 @@ async def test_api_failure(
 
         # Normal start and teardown to create caches
         session_clear(MOCK_BUSY)
-        entry: SolcastConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
+        entry: ConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
         await hass.async_block_till_done()
         assert await hass.config_entries.async_unload(entry.entry_id)
 
@@ -370,7 +369,7 @@ async def test_schema_upgrade(
 
     options = copy.deepcopy(DEFAULT_INPUT1)
     options[CONF_API_KEY] = "2"
-    entry: SolcastConfigEntry = await async_init_integration(hass, options)
+    entry: ConfigEntry = await async_init_integration(hass, options)
     coordinator = entry.runtime_data.coordinator
     solcast = patch_solcast_api(coordinator.solcast)
     try:
@@ -479,7 +478,7 @@ async def test_integration(
     config_dir = hass.config.config_dir
 
     # Test startup
-    entry: SolcastConfigEntry = await async_init_integration(hass, options)
+    entry: ConfigEntry = await async_init_integration(hass, options)
 
     if options == BAD_INPUT:
         assert entry.state is ConfigEntryState.SETUP_ERROR
