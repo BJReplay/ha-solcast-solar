@@ -160,7 +160,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
     VERSION = CONFIG_VERSION
 
-    entry: ConfigEntry
+    entry: ConfigEntry | None = None
 
     @staticmethod
     @callback
@@ -178,14 +178,14 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reauth(self, entry: Mapping[str, Any]) -> ConfigFlowResult:
         """Set a new API key."""
-        self.entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])  # type: ignore[assignment]
+        self.entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a re-key flow."""
         errors: dict[str, str] = {}
 
-        all_config_data = {**self.entry.options}
+        all_config_data = {**self.entry.options} if self.entry is not None else {}
 
         if user_input is not None:
             api_key, _, abort = validate_api_key(user_input)
@@ -199,12 +199,15 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     errors["base"] = message
             if not errors:
                 self.hass.data[DOMAIN]["reset_old_key"] = True
-                data = {**self.entry.data, **all_config_data}
-                self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
-                if self.hass.data[DOMAIN].get("presumed_dead", True):
-                    _LOGGER.debug("Loading presumed dead integration")
-                    self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
-                return self.async_abort(reason="reauth_successful")
+                result = self.async_abort(reason="Internal error")
+                if self.entry is not None:
+                    data = {**self.entry.data, **all_config_data}
+                    self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
+                    if self.hass.data[DOMAIN].get("presumed_dead", True):
+                        _LOGGER.debug("Loading presumed dead integration")
+                        self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
+                    result = self.async_abort(reason="reauth_successful")
+                return result
 
         return self.async_show_form(
             step_id="reauth_confirm",
@@ -213,20 +216,20 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_API_KEY, default=all_config_data[CONF_API_KEY]): str,
                 }
             ),
-            description_placeholders={"device_name": self.entry.title},
+            description_placeholders={"device_name": self.entry.title if self.entry is not None else "unknown"},
             errors=errors,
         )
 
     async def async_step_reconfigure(self, entry: Mapping[str, Any]) -> ConfigFlowResult:
         """Reconfigure API key, limit and auto-update."""
-        self.entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])  # type: ignore[assignment]
+        self.entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
         return await self.async_step_reconfigure_confirm()
 
     async def async_step_reconfigure_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle a reconfiguration flow."""
         errors: dict[str, str] = {}
 
-        all_config_data = {**self.entry.options}
+        all_config_data = {**self.entry.options} if self.entry is not None else {}
 
         if user_input is not None:
             api_key, api_count, abort = validate_api_key(user_input)
@@ -246,12 +249,15 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     errors["base"] = message
             if not errors:
                 self.hass.data[DOMAIN]["reset_old_key"] = True
-                data = {**self.entry.data, **all_config_data}
-                self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
-                if self.hass.data[DOMAIN].get("presumed_dead", True):
-                    _LOGGER.debug("Loading presumed dead integration")
-                    self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
-                return self.async_abort(reason="reconfigured")
+                result = self.async_abort(reason="Internal error")
+                if self.entry is not None:
+                    data = {**self.entry.data, **all_config_data}
+                    self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
+                    if self.hass.data[DOMAIN].get("presumed_dead", True):
+                        _LOGGER.debug("Loading presumed dead integration")
+                        self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
+                    result = self.async_abort(reason="reconfigured")
+                return result
 
         return self.async_show_form(
             step_id="reconfigure_confirm",
@@ -264,7 +270,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     ),
                 }
             ),
-            description_placeholders={"device_name": self.entry.title},
+            description_placeholders={"device_name": self.entry.title if self.entry is not None else "unknown"},
             errors=errors,
         )
 
