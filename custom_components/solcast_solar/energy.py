@@ -30,7 +30,7 @@ async def async_get_solar_forecast(hass: HomeAssistant, config_entry_id: str) ->
         _LOGGER.warning("Domain %s is not yet available to provide forecast data", DOMAIN)
         return None
 
-    entry: ConfigEntry = hass.config_entries.async_get_entry(config_entry_id)  # type: ignore[assignment]
+    entry: ConfigEntry | None = hass.config_entries.async_get_entry(config_entry_id)
     if (
         entry is None
         or (coordinator := entry.runtime_data.coordinator) is None
