@@ -989,6 +989,7 @@ v4.3.3
 * Clean up orphaned hard limit diagnostic sensors by @autoSteve
 * Fix diagnostic sensor values for multi-api key hard limit by @autoSteve
 * Fix remove orphaned cache where API key contains non-alphanumeric characters by @autoSteve
+* Fix solcast-dampening.json granular dampening formatting to be semi-indented by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.2...v4.3.3
 
