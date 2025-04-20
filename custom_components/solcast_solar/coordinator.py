@@ -450,7 +450,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """
         return self._date_changed
 
-    def get_sensor_value(self, key: str = "") -> int | dt | float | str | bool | None:  # noqa: C901
+    def get_sensor_value(self, key: str = "") -> int | dt | float | str | bool | None:
         """Return the value of a sensor."""
 
         def unit_adjusted(hard_limit) -> str:

@@ -2943,7 +2943,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         except UnboundLocalError:
             return 0
 
-    async def check_data_records(self) -> None:
+    async def check_data_records(self) -> None:  # noqa: C901
         """Log whether all records are present for each day.
 
         Returns:

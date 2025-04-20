@@ -6,12 +6,13 @@ import json
 import logging
 import random
 from typing import Any, Final
+import zoneinfo
 
 import aiofiles
 import voluptuous as vol
 
 from homeassistant import loader
-from homeassistant.config_entries import ConfigEntry, ConfigType
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import (
@@ -25,6 +26,7 @@ from homeassistant.helpers import (
     config_validation as cv,
     entity_registry as er,
 )
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -95,7 +97,7 @@ SERVICE_QUERY_SCHEMA: Final = vol.All(
 
 _LOGGER = logging.getLogger(__name__)
 
-current_entry: ContextVar[ConfigEntry] = ContextVar("current_entry", default=None)
+current_entry: ContextVar[ConfigEntry] = ContextVar("current_entry", default=NotImplemented)
 
 
 def __log_init_message(entry: ConfigEntry, version: str, solcast: SolcastApi) -> None:
@@ -114,9 +116,9 @@ def __setup_storage(hass: HomeAssistant) -> None:
         hass.data[DOMAIN] = {}
 
 
-async def __get_time_zone(hass: HomeAssistant) -> dt_util.dt.tzinfo:
+async def __get_time_zone(hass: HomeAssistant) -> zoneinfo.ZoneInfo:
     tz = await dt_util.async_get_time_zone(hass.config.time_zone)
-    return tz if tz is not None else dt_util.UTC
+    return tz if tz is not None else zoneinfo.ZoneInfo("UTC")
 
 
 async def __get_options(hass: HomeAssistant, entry: ConfigEntry) -> ConnectionOptions:
@@ -630,7 +632,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             hass.services.async_remove(DOMAIN, action)
             hass.services.async_register(DOMAIN, action, stub_action)  # Switch to an error action
 
-    current_entry.set(None)
+    current_entry.set(NotImplemented)
 
     return unload_ok
 
