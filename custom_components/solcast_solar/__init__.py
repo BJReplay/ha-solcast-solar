@@ -158,26 +158,22 @@ async def __get_options(hass: HomeAssistant, entry: ConfigEntry) -> ConnectionOp
 
 
 def __log_entry_options(entry: ConfigEntry) -> None:
-    _LOGGER.debug(
-        "Auto-update options: %s",
-        {k: v for k, v in entry.options.items() if k.startswith("auto_")},
-    )
-    _LOGGER.debug(
-        "Estimate to use options: %s",
-        {k: v for k, v in entry.options.items() if k.startswith("key_est")},
-    )
-    _LOGGER.debug(
-        "Attribute options: %s",
-        {k: v for k, v in entry.options.items() if k.startswith("attr_")},
-    )
-    _LOGGER.debug(
-        "Custom sensor options: %s",
-        {k: v for k, v in entry.options.items() if k.startswith("custom")},
-    )
-    _LOGGER.debug(
-        "Hard limit: %s",
-        {k: v for k, v in entry.options.items() if k.startswith("hard_")},
-    )
+    display_options: dict[str, str] = {
+        "Options - Attributes": "attr_",
+        "Options - Custom": "custom",
+        "Options - Estimate": "key_est",
+        "Options - Exclude": "exclude_",
+        "Options - Limit": "hard_",
+        "Options - Schema": "VERSION",
+        "Options - Update": "auto_",
+        "Options - UpdateMax": "api_quota",
+    }
+    for display, starts in display_options.items():
+        _LOGGER.debug(
+            "%s: %s",
+            display,
+            {k: v for k, v in entry.options.items() if k.startswith(starts)} if starts != "VERSION" else "v" + str(entry.version),
+        )
 
 
 def __log_hard_limit_set(solcast: SolcastApi) -> None:
