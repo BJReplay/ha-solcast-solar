@@ -156,7 +156,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.auto_update_divisions: int = 0
         self.custom_hour_sensor: int = options.custom_hour_sensor
         self.damp: dict = options.dampening
-        self.entry: ConfigEntry = entry  # type: ignore[assignment]
+        self.entry = entry
         self.entry_options: dict[str, Any] = {}
         if self.entry is not None:
             self.entry_options = {**self.entry.options}
@@ -907,7 +907,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 options[SITE_DAMP] = enable
                 if set_allow_reset:
                     self._granular_allow_reset = enable
-                self.hass.config_entries.async_update_entry(self.entry, options=options)
+                if self.entry is not None:
+                    self.hass.config_entries.async_update_entry(self.entry, options=options)
             return enable
 
         error = False
