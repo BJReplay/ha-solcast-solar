@@ -30,4 +30,4 @@ def frozen_time() -> Generator[FrozenDateTimeFactory]:
     """Freeze test time."""
 
     with freezegun.freeze_time(f"{dt.now().date()} 12:27:27", tz_offset=-10) as freeze:
-        yield freeze
+        yield freeze  # type: ignore[misc]

@@ -2537,7 +2537,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 _LOGGER.error("Client error: %s", e)
                                 status = 1000
                                 break
-                            if status in (200, 400, 401, 403, 404):  # Do not retry for these statuses.
+                            if status in (200, 400, 401, 403, 404, 500):  # Do not retry for these statuses.
                                 break
                             if status == 429:
                                 # Test for API limit exceeded.

@@ -38,7 +38,7 @@ Experimental support for advanced_pv_power:
 * Should Solcast deprecate the legacy hobbyist API, then the advanced_pv_power API calls will probably be preferred, just with capabilities limited by Solcast.
 * This simulator, and the integration are prepared should this occur.
 
-"""  # noqa: INP001
+"""
 
 import argparse
 import copy
@@ -118,7 +118,6 @@ ERROR_MESSAGE = {
     ERROR_SITE_NOT_FOUND: {"message": "The specified site cannot be found.", "status": 404},
 }
 GENERATE_418 = False
-CHANGE_KEY = []
 GENERATE_429 = True
 
 dictConfig(  # Logger configuration
@@ -159,7 +158,6 @@ try:
         if "api.solcast.com.au" not in hosts:
             _LOGGER.error("Hosts file contains:\n\n%s", hosts)
             _LOGGER.error("Please add api.solcast.com.au as /etc/hosts localhost alias")
-            app = None
             sys.exit()
 except Exception as e:  # noqa: BLE001
     _LOGGER.error("%s: %s", e, traceback.format_exc())

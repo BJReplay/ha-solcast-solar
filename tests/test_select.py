@@ -2,7 +2,6 @@
 
 import logging
 
-from datetime import datetime as dt
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
@@ -55,7 +54,7 @@ async def test_select_change_value(
                 "estimate_mode",
             )
         ) is not None
-        assert hass.states.get(select_entity_id).state == "estimate"
+        assert hass.states.get(select_entity_id).state == "estimate"  # type: ignore[union-attr]
 
         await hass.services.async_call(
             SELECT_DOMAIN,
@@ -68,9 +67,9 @@ async def test_select_change_value(
         await coordinator.async_refresh()
         await hass.async_block_till_done()
 
-        assert hass.states.get(select_entity_id).state == resulting_state
+        assert hass.states.get(select_entity_id).state == resulting_state  # type: ignore[union-attr]
         assert coordinator.solcast.options.key_estimate == resulting_state
-        assert hass.states.get(f"sensor.solcast_pv_forecast_{test_entity}").state == expected_value
+        assert hass.states.get(f"sensor.solcast_pv_forecast_{test_entity}").state == expected_value  # type: ignore[union-attr]
 
     finally:
         assert await async_cleanup_integration_tests(hass)

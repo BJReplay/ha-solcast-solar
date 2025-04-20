@@ -85,11 +85,11 @@ async def test_missing_data_fixable(
         flow.hass = hass
         flow.issue_id = "records_missing_fixable"
 
-        result = await flow.async_step_init()
+        result = await flow.async_step_init()  # type: ignore[attr-defined]
         assert result["type"] == FlowResultType.FORM
         assert result["step_id"] == "offer_auto"
 
-        result = await flow.async_step_offer_auto({AUTO_UPDATE: "1"})
+        result = await flow.async_step_offer_auto({AUTO_UPDATE: "1"})  # type: ignore[attr-defined]
         await hass.async_block_till_done()
 
         assert "Options updated, action: The integration will reload" in caplog.text

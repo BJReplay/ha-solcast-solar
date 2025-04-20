@@ -8,7 +8,6 @@ from freezegun.api import FrozenDateTimeFactory
 import pytest
 
 from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.core import HomeAssistant
 
 from . import (
@@ -40,7 +39,7 @@ def frozen_time() -> None:
 _LOGGER = logging.getLogger(__name__)
 
 
-def _occurs_in_log(caplog: pytest.LogCaptureFixture, text: str, occurrences: int) -> int:
+def _occurs_in_log(caplog: pytest.LogCaptureFixture, text: str, occurrences: int) -> None:
     occurs = 0
     for entry in caplog.messages:
         if text in entry:

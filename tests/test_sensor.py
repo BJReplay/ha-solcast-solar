@@ -358,7 +358,7 @@ def _no_exception(caplog: pytest.LogCaptureFixture):
         ("1", DEFAULT_INPUT2),
     ],
 )
-async def test_sensor_states(
+async def test_sensor_states(  # noqa: C901
     recorder_mock: Recorder,
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
@@ -441,18 +441,18 @@ async def test_sensor_states(
             if "state" in attrs:
                 test = state.state
                 with contextlib.suppress(AttributeError, ValueError):
-                    test = dt.fromisoformat(test)
-                    test = test.replace(year=2024, month=1, day=1).isoformat()
+                    testd = dt.fromisoformat(test)
+                    test = testd.replace(year=2024, month=1, day=1).isoformat()
                 if attrs["state"][key] == "isodate":
                     assert dt.fromisoformat(test)
                 else:
                     assert test == attrs["state"][key]
             if attrs.get("attributes"):
                 for attribute in attrs["attributes"][key]:
-                    test = state.attributes.get(attribute)
+                    testa = state.attributes.get(attribute)
                     with contextlib.suppress(AttributeError, ValueError):
-                        test = test.replace(year=2024, month=1, day=1).isoformat()
-                    assert test == attrs["attributes"][key][attribute]
+                        testa = testa.replace(year=2024, month=1, day=1).isoformat()  # type: ignore[union-attr] # This is an assumed datetime, but that may not be
+                    assert testa == attrs["attributes"][key][attribute]
             assert state.attributes["attribution"] == "Data retrieved from Solcast"
             if "unit_of_measurement" in attrs:
                 assert state.attributes["unit_of_measurement"] == attrs["unit_of_measurement"]
@@ -462,13 +462,13 @@ async def test_sensor_states(
         caplog.clear()
 
         if key == "1":
-            assert hass.states.get("sensor.first_site").state == "26.595"
-            assert hass.states.get("sensor.second_site").state == "15.957"
-            assert hass.states.get("sensor.third_site").state == "15.957"
-            assert hass.states.get("sensor.solcast_pv_forecast_api_limit").state == "20"
-            assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "4"
-            assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "12.0 kW"
-            assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "6.0 kW"
+            assert hass.states.get("sensor.first_site").state == "26.595"  # type: ignore[union-attr]
+            assert hass.states.get("sensor.second_site").state == "15.957"  # type: ignore[union-attr]
+            assert hass.states.get("sensor.third_site").state == "15.957"  # type: ignore[union-attr]
+            assert hass.states.get("sensor.solcast_pv_forecast_api_limit").state == "20"  # type: ignore[union-attr]
+            assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "4"  # type: ignore[union-attr]
+            assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "12.0 kW"  # type: ignore[union-attr]
+            assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "6.0 kW"  # type: ignore[union-attr]
             # The single overall limit sensor should not exist (this always gets created during PyTest entry
             # load, then is cleaned up when all sensors are defined when more than one limit is specified).
             assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set") is None
@@ -481,9 +481,9 @@ async def test_sensor_states(
 
         assert "Updating sensor" in caplog.text
         state = hass.states.get("sensor.solcast_pv_forecast_power_now")  # A per-five minute sensor
-        assert state.last_updated.strftime("%H:%M:%S") == "02:30:00"
+        assert state.last_updated.strftime("%H:%M:%S") == "02:30:00"  # type: ignore[union-attr]
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_remaining_today")  # A per-update/midnight sensor
-        assert state.last_updated.strftime("%H:%M:%S") == "02:30:00"
+        assert state.last_updated.strftime("%H:%M:%S") == "02:30:00"  # type: ignore[union-attr]
         _no_exception(caplog)
 
         # Simulate date change
@@ -641,10 +641,10 @@ async def test_sensor_unavailble_exception(
     old_get_site_sensor_value = SolcastUpdateCoordinator.get_site_sensor_value
     old_get_site_sensor_extra_attributes = SolcastUpdateCoordinator.get_site_sensor_extra_attributes
 
-    SolcastUpdateCoordinator.get_sensor_value = get_sensor_value
-    SolcastUpdateCoordinator.get_sensor_extra_attributes = get_sensor_extra_attributes
-    SolcastUpdateCoordinator.get_site_sensor_value = get_site_sensor_value
-    SolcastUpdateCoordinator.get_site_sensor_extra_attributes = get_site_sensor_extra_attributes
+    SolcastUpdateCoordinator.get_sensor_value = get_sensor_value  # type: ignore[method-assign, assignment]
+    SolcastUpdateCoordinator.get_sensor_extra_attributes = get_sensor_extra_attributes  # type: ignore[method-assign, assignment]
+    SolcastUpdateCoordinator.get_site_sensor_value = get_site_sensor_value  # type: ignore[method-assign, assignment]
+    SolcastUpdateCoordinator.get_site_sensor_extra_attributes = get_site_sensor_extra_attributes  # type: ignore[method-assign, assignment]
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
@@ -657,19 +657,19 @@ async def test_sensor_unavailble_exception(
             if attrs.get("should_be_disabled", False):
                 continue
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
-            _ = state.attributes
+            _ = state.attributes  # type: ignore[union-attr]
             assert state
             assert state.state == STATE_UNAVAILABLE
 
         for site in ("first_site", "second_site"):
             state = hass.states.get(f"sensor.{site}")
-            _ = state.attributes
+            _ = state.attributes  # type: ignore[union-attr]
             assert state
             assert state.state == STATE_UNAVAILABLE
 
     finally:
         assert await async_cleanup_integration_tests(hass)
-        SolcastUpdateCoordinator.get_sensor_value = old_get_sensor_value
-        SolcastUpdateCoordinator.get_sensor_extra_attributes = old_get_sensor_extra_attributes
-        SolcastUpdateCoordinator.get_site_sensor_value = old_get_site_sensor_value
-        SolcastUpdateCoordinator.get_site_sensor_extra_attributes = old_get_site_sensor_extra_attributes
+        SolcastUpdateCoordinator.get_sensor_value = old_get_sensor_value  # type: ignore[method-assign]
+        SolcastUpdateCoordinator.get_sensor_extra_attributes = old_get_sensor_extra_attributes  # type: ignore[method-assign]
+        SolcastUpdateCoordinator.get_site_sensor_value = old_get_site_sensor_value  # type: ignore[method-assign]
+        SolcastUpdateCoordinator.get_site_sensor_extra_attributes = old_get_site_sensor_extra_attributes  # type: ignore[method-assign]

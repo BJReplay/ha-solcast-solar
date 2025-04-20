@@ -1,6 +1,7 @@
 """Tests for the Solcast Solar integration startup, options and scenarios."""
 
 import asyncio
+from collections.abc import Callable
 import contextlib
 import copy
 import datetime
@@ -133,7 +134,7 @@ def patch_solcast_api(solcast):
 async def _exec_update(
     hass: HomeAssistant,
     solcast: SolcastApi,
-    caplog: any,
+    caplog: pytest.LogCaptureFixture,
     action: str,
     last_update_delta: int = 0,
     wait: bool = True,
@@ -157,7 +158,7 @@ async def _exec_update(
     await hass.async_block_till_done()
 
 
-async def _wait_for_update(caplog: any) -> None:
+async def _wait_for_update(caplog: pytest.LogCaptureFixture) -> None:
     """Wait for forecast update completion."""
 
     async with asyncio.timeout(5):
@@ -173,7 +174,7 @@ async def _wait_for_update(caplog: any) -> None:
             await asyncio.sleep(0.01)
 
 
-async def _wait_for_abort(caplog: any) -> None:
+async def _wait_for_abort(caplog: pytest.LogCaptureFixture) -> None:
     """Wait for forecast update completion."""
 
     async with asyncio.timeout(5):
@@ -192,7 +193,7 @@ async def _wait_for_raise(hass: HomeAssistant, exception: Exception) -> None:
                 await hass.async_block_till_done()
                 await asyncio.sleep(0.01)
 
-    with pytest.raises(exception):
+    with pytest.raises(exception):  # type: ignore[call-overload]
         await wait_for_exception()
 
 
@@ -251,20 +252,20 @@ async def test_api_failure(
             assert "Sites data:" in caplog.text
             caplog.clear()
 
-        async def too_busy(assertions: callable):
+        async def too_busy(assertions: Callable):
             session_set(MOCK_BUSY)
             entry = await async_init_integration(hass, DEFAULT_INPUT1)
             assertions(entry)
             session_clear(MOCK_BUSY)
 
-        async def bad_response(assertions: callable):
+        async def bad_response(assertions: Callable):
             for returned in [MOCK_CORRUPT_SITES, MOCK_CORRUPT_ACTUALS, MOCK_CORRUPT_FORECAST]:
                 session_set(returned)
                 entry = await async_init_integration(hass, DEFAULT_INPUT1)
                 assertions(entry)
                 session_clear(returned)
 
-        async def exceptions(assertions: callable):
+        async def exceptions(assertions: Callable):
             session_set(MOCK_EXCEPTION, exception=ConnectionRefusedError)
             entry = await async_init_integration(hass, DEFAULT_INPUT1)
             assertions(entry)
@@ -638,12 +639,15 @@ async def test_integration(
         caplog.clear()
 
         # Test reset usage cache when fresh
-        for api_key in options["api_key"].split(","):
-            solcast._api_used_reset[api_key] = solcast._api_used_reset[api_key] - timedelta(hours=24)
-        await solcast.reset_api_usage()
-        assert "Reset API usage" in caplog.text
-        await solcast.reset_api_usage()
-        assert "Usage cache is fresh, so not resetting" in caplog.text
+        if solcast._api_used_reset is not None:
+            for api_key in options["api_key"].split(","):
+                solcast._api_used_reset[api_key] = solcast._api_used_reset[api_key] - timedelta(hours=24)  # type: ignore[assignment, operator]
+            await solcast.reset_api_usage()
+            assert "Reset API usage" in caplog.text
+            await solcast.reset_api_usage()
+            assert "Usage cache is fresh, so not resetting" in caplog.text
+        else:
+            pytest.fail("API usage reset is None")
 
         # Test clear data action when no solcast.json exists
         if options == DEFAULT_INPUT2:
@@ -695,7 +699,7 @@ async def test_integration_remaining_actions(
     solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
     assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
-    def occurs_in_log(text: str, occurrences: int) -> int:
+    def occurs_in_log(text: str, occurrences: int) -> None:
         occurs = 0
         for entry in caplog.messages:
             if text in entry:
@@ -728,38 +732,47 @@ async def test_integration_remaining_actions(
             }
 
         dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
-        assert dampening.get("data", [{}])[0] == {
-            "site": "all",
-            "damp_factor": ("1.0," * 24)[:-1],
-        }
-        odd_factors = [
-            {"set": {}, "expect": MultipleInvalid},  # No factors
-            {"set": {"damp_factor": "  "}, "expect": ServiceValidationError},  # No factors
-            {"set": {"damp_factor": ("0.5," * 5)[:-1]}, "expect": ServiceValidationError},  # Insufficient factors
-            {"set": {"damp_factor": ("0.5," * 15)[:-1]}, "expect": ServiceValidationError},  # Not 24 or 48 factors
-            {"set": {"damp_factor": ("1.5," * 24)[:-1]}, "expect": ServiceValidationError},  # Out of range factors
-            {"set": {"damp_factor": ("0.8f," * 24)[:-1]}, "expect": ServiceValidationError},  # Weird factors
-            {
-                "set": {"site": "all", "damp_factor": ("1.0," * 24)[:-1]},
-                "expect": ServiceValidationError,
-            },  # Site with 24 dampening factors
-        ]
-        for factors in odd_factors:
-            _LOGGER.debug("Test set odd dampening factors: %s", factors)
-            with pytest.raises(factors["expect"]):
-                await hass.services.async_call(DOMAIN, "set_dampening", factors["set"], blocking=True)
+        if dampening is not None:
+            if isinstance(dampening.get("data", [{}]), list):
+                assert (
+                    dampening.get("data", [{}])[0]  # type: ignore[index]
+                    == {
+                        "site": "all",
+                        "damp_factor": ("1.0," * 24)[:-1],
+                    }
+                )
+                odd_factors = [
+                    {"set": {}, "expect": MultipleInvalid},  # No factors
+                    {"set": {"damp_factor": "  "}, "expect": ServiceValidationError},  # No factors
+                    {"set": {"damp_factor": ("0.5," * 5)[:-1]}, "expect": ServiceValidationError},  # Insufficient factors
+                    {"set": {"damp_factor": ("0.5," * 15)[:-1]}, "expect": ServiceValidationError},  # Not 24 or 48 factors
+                    {"set": {"damp_factor": ("1.5," * 24)[:-1]}, "expect": ServiceValidationError},  # Out of range factors
+                    {"set": {"damp_factor": ("0.8f," * 24)[:-1]}, "expect": ServiceValidationError},  # Weird factors
+                    {
+                        "set": {"site": "all", "damp_factor": ("1.0," * 24)[:-1]},
+                        "expect": ServiceValidationError,
+                    },  # Site with 24 dampening factors
+                ]
+                for factors in odd_factors:
+                    _LOGGER.debug("Test set odd dampening factors: %s", factors)
+                    with pytest.raises(factors["expect"]):  # type: ignore[call-overload]
+                        await hass.services.async_call(DOMAIN, "set_dampening", factors["set"], blocking=True)  # type: ignore[arg-type]
+            else:
+                pytest.fail("Dampening data is not a list")
+        else:
+            pytest.fail("Dampening is None")
 
         _LOGGER.debug("Test set various dampening factors")
         await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("0.5," * 24)[:-1]}, blocking=True)
         await hass.async_block_till_done()  # Because options change
         dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
-        assert dampening.get("data", [{}])[0] == {"site": "all", "damp_factor": ("0.5," * 24)[:-1]}
+        assert dampening.get("data", [{}])[0] == {"site": "all", "damp_factor": ("0.5," * 24)[:-1]}  # type: ignore[union-attr, index]
         # Granular dampening
         await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("0.5," * 48)[:-1]}, blocking=True)
         await hass.async_block_till_done()  # Because options change
         assert Path(f"{config_dir}/solcast-dampening.json").is_file()
         dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
-        assert dampening.get("data", [{}])[0] == {"site": "all", "damp_factor": ("0.5," * 48)[:-1]}
+        assert dampening.get("data", [{}])[0] == {"site": "all", "damp_factor": ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
         # Trigger re-apply forward dampening
         await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("0.75," * 48)[:-1]}, blocking=True)
         await hass.async_block_till_done()  # Because options change
@@ -777,11 +790,11 @@ async def test_integration_remaining_actions(
         )
         await hass.async_block_till_done()  # Because options change
         dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
-        assert dampening.get("data", [{}])[0] == {"site": "1111-1111-1111-1111", "damp_factor": ("0.5," * 48)[:-1]}
+        assert dampening.get("data", [{}])[0] == {"site": "1111-1111-1111-1111", "damp_factor": ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
         dampening = await hass.services.async_call(
             DOMAIN, "get_dampening", {"site": "1111-1111-1111-1111"}, blocking=True, return_response=True
         )
-        assert dampening.get("data", [{}])[0] == {"site": "1111-1111-1111-1111", "damp_factor": ("0.5," * 48)[:-1]}
+        assert dampening.get("data", [{}])[0] == {"site": "1111-1111-1111-1111", "damp_factor": ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
         with pytest.raises(ServiceValidationError):
             dampening = await hass.services.async_call(
                 DOMAIN, "set_dampening", {"site": "9999-9999-9999-9999", "damp_factor": ("0.5," * 48)[:-1]}, blocking=True
@@ -811,15 +824,15 @@ async def test_integration_remaining_actions(
         ]
         for limits in odd_limits:
             _LOGGER.debug("Test set odd hard limit: %s", limits)
-            with pytest.raises(limits["expect"]):
-                await hass.services.async_call(DOMAIN, "set_hard_limit", limits["set"], blocking=True)
+            with pytest.raises(limits["expect"]):  # type: ignore[call-overload]
+                await hass.services.async_call(DOMAIN, "set_hard_limit", limits["set"], blocking=True)  # type: ignore[arg-type]
 
-        async def _set_hard_limit(hard_limit: str) -> None:
+        async def _set_hard_limit(hard_limit: str) -> SolcastApi:
             await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": hard_limit}, blocking=True)
             await hass.async_block_till_done()
             return patch_solcast_api(entry.runtime_data.coordinator.solcast)  # Because integration reloads
 
-        async def _remove_hard_limit() -> None:
+        async def _remove_hard_limit() -> SolcastApi:
             await hass.services.async_call(DOMAIN, "remove_hard_limit", {}, blocking=True)
             await hass.async_block_till_done()
             return patch_solcast_api(entry.runtime_data.coordinator.solcast)  # Because integration reloads
@@ -836,12 +849,12 @@ async def test_integration_remaining_actions(
         _LOGGER.debug("Test set large hard limit")
         solcast = await _set_hard_limit("5000")
         assert solcast.hard_limit == "5000.0"
-        assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set").state == "5.0 MW"
+        assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set").state == "5.0 MW"  # type: ignore[union-attr]
 
         _LOGGER.debug("Test set huge hard limit")
         solcast = await _set_hard_limit("5000000")
         assert solcast.hard_limit == "5000000.0"
-        assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set").state == "5.0 GW"
+        assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set").state == "5.0 GW"  # type: ignore[union-attr]
 
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
@@ -863,14 +876,14 @@ async def test_integration_remaining_actions(
         _LOGGER.debug("Test disable hard limit")
         solcast = await _set_hard_limit("100.0,100.0")
         assert solcast.hard_limit == "100.0,100.0"
-        assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "False"
-        assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "False"
+        assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "False"  # type: ignore[union-attr]
+        assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "False"  # type: ignore[union-attr]
 
         _LOGGER.debug("Test set hard limit for both API keys")
         solcast = await _set_hard_limit("5.0,5.0")
         assert solcast.hard_limit == "5.0,5.0"
-        assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "5.0 kW"
-        assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "5.0 kW"
+        assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "5.0 kW"  # type: ignore[union-attr]
+        assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "5.0 kW"  # type: ignore[union-attr]
         assert "Build hard limit period values from scratch for dampened" in caplog.text
         assert "Build hard limit period values from scratch for un-dampened" in caplog.text
         for api_key in entry.options["api_key"].split(","):
@@ -923,9 +936,13 @@ async def test_integration_remaining_actions(
         for query in queries:
             _LOGGER.debug("Testing query forecast data: %s", query["query"])
             forecast_data = await hass.services.async_call(
-                DOMAIN, "query_forecast_data", query["query"], blocking=True, return_response=True
+                DOMAIN,
+                "query_forecast_data",
+                query["query"],  # type: ignore[arg-type]
+                blocking=True,
+                return_response=True,
             )
-            assert len(forecast_data.get("data", [])) == query["expect"]
+            assert len(forecast_data.get("data", [])) == query["expect"]  # type: ignore[arg-type, union-attr]
 
         assert "ERROR" not in caplog.text
 
@@ -981,7 +998,7 @@ async def test_integration_scenarios(
                 DEFAULT_INPUT1[API_QUOTA],
                 "api.whatever.com",
                 config_dir,
-                ZONE_RAW,
+                ZoneInfo(ZONE_RAW),
                 DEFAULT_INPUT1[AUTO_UPDATE],
                 {str(hour): DEFAULT_INPUT1[f"damp{hour:02}"] for hour in range(24)},
                 DEFAULT_INPUT1[CUSTOM_HOUR_SENSOR],
@@ -997,7 +1014,7 @@ async def test_integration_scenarios(
                 DEFAULT_INPUT1[EXCLUDE_SITES],
             )
             solcast_bad: SolcastApi = SolcastApi(session, connection_options, hass, entry)
-            await solcast_bad.serialise_data(solcast_bad._data, Path(f"{config_dir}/solcast.json"))
+            await solcast_bad.serialise_data(solcast_bad._data, str(Path(f"{config_dir}/solcast.json")))
             assert "Not serialising empty data" in caplog.text
 
         # Assert good start
@@ -1125,13 +1142,13 @@ async def test_integration_scenarios(
 
         # Excluding site
         _LOGGER.debug("Testing site exclusion")
-        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "39.888"
+        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "39.888"  # type: ignore[union-attr]
         opt = {**entry.options}
         opt[EXCLUDE_SITES] = ["2222-2222-2222-2222"]
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         assert "Recalculate forecasts and refresh sensors" in caplog.text
-        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "24.93"
+        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "24.93"  # type: ignore[union-attr]
 
         # Test API key change, start with an API failure and invalid sites cache
         # Verify API key change removes sites, and migrates undampened history for new site

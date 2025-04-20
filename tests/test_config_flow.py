@@ -4,6 +4,7 @@ import copy
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 from freezegun.api import FrozenDateTimeFactory
 import pytest
@@ -74,6 +75,7 @@ DEFAULT_INPUT2_COPY[CONF_API_KEY] = API_KEY1 + "," + API_KEY2
 MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1_COPY)
 MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2_COPY)
 
+TEST_API_KEY: list[tuple[Any, Any]]
 TEST_API_KEY = [
     ({CONF_API_KEY: "1234-5678-8765-4321", API_QUOTA: "10", AUTO_UPDATE: "1"}, "api_looks_like_site"),
     ({CONF_API_KEY: KEY1 + "," + KEY1, API_QUOTA: "10", AUTO_UPDATE: "1"}, "api_duplicate"),
@@ -83,6 +85,7 @@ TEST_API_KEY = [
     ({CONF_API_KEY: KEY1 + "," + KEY2, API_QUOTA: "0", AUTO_UPDATE: "2"}, "limit_one_or_greater"),
 ]
 
+TEST_REAUTH_API_KEY: list[tuple[Any, Any]]
 TEST_REAUTH_API_KEY = [
     ({CONF_API_KEY: "1234-5678-8765-4321"}, "api_looks_like_site"),
     ({CONF_API_KEY: KEY1 + "," + KEY1}, "api_duplicate"),
@@ -90,6 +93,7 @@ TEST_REAUTH_API_KEY = [
     ({CONF_API_KEY: KEY1 + "," + KEY2}, None),
 ]
 
+TEST_KEY_CHANGES: list[tuple[Any, Any, str | None, list[str]]]
 TEST_KEY_CHANGES = [
     (
         None,
@@ -112,6 +116,7 @@ TEST_KEY_CHANGES = [
     (None, {CONF_API_KEY: "2", API_QUOTA: "10", AUTO_UPDATE: "1"}, None, []),
 ]
 
+TEST_API_QUOTA: list[tuple[dict[Any, Any], dict[Any, Any], str | None]]
 TEST_API_QUOTA = [
     (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "invalid", AUTO_UPDATE: "1"}, "limit_not_number"),
     (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_QUOTA: "0", AUTO_UPDATE: "1"}, "limit_one_or_greater"),
@@ -181,7 +186,7 @@ async def test_init_api_key(hass: HomeAssistant, user_input, reason) -> None:
     assert result["step_id"] == "user"
     result = await flow.async_step_user(user_input)
     if reason is not None:
-        assert result["errors"]["base"] == reason
+        assert result["errors"]["base"] == reason  # type: ignore[index]
 
 
 async def test_config_api_key_invalid(hass: HomeAssistant) -> None:
@@ -193,14 +198,14 @@ async def test_config_api_key_invalid(hass: HomeAssistant) -> None:
     flow.hass = hass
 
     result = await flow.async_step_user({CONF_API_KEY: "555", API_QUOTA: "10", AUTO_UPDATE: "1"})
-    assert "Bad API key, 403/Forbidden" in result["errors"]["base"]
+    assert "Bad API key, 403/Forbidden" in result["errors"]["base"]  # type: ignore[index]
 
     result = await flow.async_step_user({CONF_API_KEY: "no_sites", API_QUOTA: "10", AUTO_UPDATE: "1"})
-    assert "No sites found for API key" in result["errors"]["base"]
+    assert "No sites found for API key" in result["errors"]["base"]  # type: ignore[index]
 
     session_set(MOCK_BUSY)
     result = await flow.async_step_user({CONF_API_KEY: "1", API_QUOTA: "10", AUTO_UPDATE: "1"})
-    assert "Error 429/Try again later for API key" in result["errors"]["base"]
+    assert "Error 429/Try again later for API key" in result["errors"]["base"]  # type: ignore[index]
     session_clear(MOCK_BUSY)
 
 
@@ -212,11 +217,14 @@ async def test_config_api_quota(hass: HomeAssistant, options, user_input, reason
     flow.hass = hass
 
     result = await flow.async_step_user()
-    assert result["type"] == FlowResultType.FORM
-    assert result["step_id"] == "user"
-    result = await flow.async_step_user(user_input)
-    if reason is not None:
-        assert result["errors"]["base"] == reason
+    if result is not None:
+        assert result["type"] == FlowResultType.FORM
+        assert result["step_id"] == "user"
+        result = await flow.async_step_user(user_input)
+        if reason is not None:
+            assert result["errors"]["base"] == reason  # type: ignore[index]
+    else:
+        pytest.fail("Result is None, expected a result")
 
 
 @pytest.mark.parametrize(
@@ -250,7 +258,7 @@ async def test_reauth_api_key(
             )
             await hass.async_block_till_done()
             if result.get("reason") != "reauth_successful":
-                assert test[REASON] in result["errors"]["base"]
+                assert test[REASON] in result["errors"]["base"]  # type: ignore[index]
 
         await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
@@ -339,7 +347,7 @@ async def test_reconfigure_api_key1(
             )
             await hass.async_block_till_done()
             if result.get("reason") != "reconfigured":
-                assert result["errors"]["base"] == test[REASON]
+                assert result["errors"]["base"] == test[REASON]  # type: ignore[index]
 
         await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
@@ -396,7 +404,7 @@ async def test_reconfigure_api_key2(
         if set:
             session_clear(set)
         if to_assert:
-            assert to_assert in result["errors"]["base"]
+            assert to_assert in result["errors"]["base"]  # type: ignore[index]
         else:
             assert result["reason"] == "reconfigured"
 
@@ -420,7 +428,7 @@ async def test_reconfigure_api_quota(
     try:
         _input = None
         for test in TEST_API_QUOTA:
-            entry = await async_init_integration(hass, test[OPTIONS])
+            entry = await async_init_integration(hass, test[OPTIONS])  # type: ignore[arg-type]
             assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
             if _input is None or test[OPTIONS] != _input:
@@ -435,11 +443,11 @@ async def test_reconfigure_api_quota(
             assert result["step_id"] == "reconfigure_confirm"
             result = await hass.config_entries.flow.async_configure(
                 result["flow_id"],
-                user_input=test[USER_INPUT],
+                user_input=test[USER_INPUT],  # type: ignore[arg-type]
             )
             await hass.async_block_till_done()
             if test[REASON]:
-                assert result["errors"]["base"] == test[REASON]
+                assert result["errors"]["base"] == test[REASON]  # type: ignore[index]
 
     finally:
         assert await async_cleanup_integration_tests(hass)
@@ -457,7 +465,7 @@ async def test_options_api_key(hass: HomeAssistant, user_input, reason) -> None:
     assert result["step_id"] == "init"
     result = await flow.async_step_init(user_input)
     if reason is not None:
-        assert result["errors"]["base"] == reason
+        assert result["errors"]["base"] == reason  # type: ignore[index]
 
 
 async def test_options_api_key_invalid(hass: HomeAssistant) -> None:
@@ -472,15 +480,15 @@ async def test_options_api_key_invalid(hass: HomeAssistant) -> None:
 
     inject = {CONF_API_KEY: "555"}
     result = await flow.async_step_init({**options, **inject})
-    assert "Bad API key, 403/Forbidden" in result["errors"]["base"]
+    assert "Bad API key, 403/Forbidden" in result["errors"]["base"]  # type: ignore[index]
 
     inject = {CONF_API_KEY: "no_sites"}
     result = await flow.async_step_init({**options, **inject})
-    assert "No sites found for API key" in result["errors"]["base"]
+    assert "No sites found for API key" in result["errors"]["base"]  # type: ignore[index]
 
     session_set(MOCK_BUSY)
     result = await flow.async_step_init(options)
-    assert "Error 429/Try again later for API key" in result["errors"]["base"]
+    assert "Error 429/Try again later for API key" in result["errors"]["base"]  # type: ignore[index]
     session_clear(MOCK_BUSY)
 
 
@@ -496,7 +504,7 @@ async def test_options_api_quota(hass: HomeAssistant, options, user_input, reaso
     assert result["step_id"] == "init"
     result = await flow.async_step_init({**options, **user_input})
     if reason is not None:
-        assert result["errors"]["base"] == reason
+        assert result["errors"]["base"] == reason  # type: ignore[index]
 
 
 @pytest.mark.parametrize(
@@ -517,7 +525,7 @@ async def test_options_custom_hour_sensor(hass: HomeAssistant, options, value, r
     user_input[CUSTOM_HOUR_SENSOR] = value
     result = await flow.async_step_init(user_input)
     if reason is not None:
-        assert result["errors"]["base"] == reason
+        assert result["errors"]["base"] == reason  # type: ignore[index]
 
 
 @pytest.mark.parametrize(
@@ -541,7 +549,7 @@ async def test_options_hard_limit(hass: HomeAssistant, options, value, reason) -
     user_input[HARD_LIMIT_API] = value
     result = await flow.async_step_init(user_input)
     if reason is not None:
-        assert result["errors"]["base"] == reason
+        assert result["errors"]["base"] == reason  # type: ignore[index]
 
 
 async def test_step_to_dampen(hass: HomeAssistant) -> None:

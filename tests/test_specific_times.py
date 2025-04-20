@@ -41,7 +41,7 @@ async def test_midnight(
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
-        assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "4"
+        assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "4"  # type: ignore[union-attr]
         assert "Transitioning between summer/standard time" not in caplog.text
 
         coordinator._intervals = [dt.fromisoformat("2025-01-10T00:59:30+00:00"), *coordinator._intervals]  # Inject expired interval
@@ -58,7 +58,7 @@ async def test_midnight(
                 break
 
         assert "Reset API usage" in caplog.text
-        assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "0"
+        assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "0"  # type: ignore[union-attr]
 
         # Test auto-update occurs just after midnight UTC.
         caplog.clear()

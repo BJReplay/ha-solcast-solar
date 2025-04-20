@@ -4,7 +4,7 @@ import copy
 import logging
 from pathlib import Path
 import re
-from typing import Final
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from aiohttp import ClientConnectionError
@@ -37,10 +37,11 @@ from .simulator import API_KEY_SITES, SimulatedSolcast
 
 from tests.common import MockConfigEntry
 
-KEY1: Final = "1"
-KEY2: Final = "2"
+KEY1 = "1"
+KEY2 = "2"
 KEY_NO_SITES = "no_sites"
-CUSTOM_HOURS: Final = 2
+CUSTOM_HOURS = 2
+DEFAULT_INPUT1_NO_DAMP: dict[str, Any]
 DEFAULT_INPUT1_NO_DAMP = {
     CONF_API_KEY: KEY1,
     API_QUOTA: "20",
@@ -61,9 +62,9 @@ DEFAULT_INPUT1_NO_DAMP = {
 BAD_INPUT = copy.deepcopy(DEFAULT_INPUT1_NO_DAMP)
 BAD_INPUT[CONF_API_KEY] = "badkey"
 
-SITE_DAMP_FACTORS: Final = {f"damp{factor:02d}": 1.0 for factor in range(24)}
+SITE_DAMP_FACTORS: dict[str, float] = {f"damp{factor:02d}": 1.0 for factor in range(24)}
 DEFAULT_INPUT1 = DEFAULT_INPUT1_NO_DAMP | SITE_DAMP_FACTORS | {SITE_DAMP: False}
-ZONE_RAW: Final = "Australia/Brisbane"  # Somewhere without daylight saving time by default
+ZONE_RAW = "Australia/Brisbane"  # Somewhere without daylight saving time by default
 
 DEFAULT_INPUT2 = copy.deepcopy(DEFAULT_INPUT1)
 DEFAULT_INPUT2[CONF_API_KEY] = KEY1 + "," + KEY2
@@ -122,6 +123,7 @@ MOCK_FORBIDDEN = "return_403"
 MOCK_NOT_FOUND = "return_404"
 MOCK_OVER_LIMIT = "return_429_over"
 
+MOCK_SESSION_CONFIG: dict[str, Any]
 MOCK_SESSION_CONFIG = {
     "aioresponses": None,
     "api_limit": int(min(DEFAULT_INPUT2[API_QUOTA].split(","))),
@@ -166,29 +168,35 @@ def _check_abend(api_key, site=None) -> CallbackResult | None:
 
 async def _get_sites(url, **kwargs) -> CallbackResult:
     try:
-        params = kwargs.get("params")
-        api_key = params["api_key"]
-        if (abend := _check_abend(api_key)) is not None:
-            return abend
-        if MOCK_SESSION_CONFIG[MOCK_CORRUPT_SITES]:
-            return CallbackResult(body="Not available, a string response")
-        return CallbackResult(payload=simulated.raw_get_sites(api_key))
+        params: dict[str, Any] | None = kwargs.get("params")
+        if params is not None:
+            api_key = params["api_key"]
+            if (abend := _check_abend(api_key)) is not None:
+                return abend
+            if MOCK_SESSION_CONFIG[MOCK_CORRUPT_SITES]:
+                return CallbackResult(body="Not available, a string response")
+            return CallbackResult(payload=simulated.raw_get_sites(api_key))
+        return CallbackResult(status=500, body="No params found")
     except Exception as e:  # noqa: BLE001
         _LOGGER.error("Error building sites: %s", e)
+        return CallbackResult(status=500, body=str(e))
 
 
 async def _get_solcast(url, get, **kwargs) -> CallbackResult:
     try:
-        params = kwargs.get("params")
+        params: dict[str, Any] | None = kwargs.get("params")
         site = str(url).split("_sites/")[1].split("/")[0]
-        api_key = params["api_key"]
-        hours = params.get("hours", 168)
-        if (abend := _check_abend(api_key, site=site)) is not None:
-            return abend
-        MOCK_SESSION_CONFIG["api_used"][api_key] += 1
-        return CallbackResult(payload=get(site, api_key, hours))
+        if params is not None:
+            api_key = params["api_key"]
+            hours = params.get("hours", 168)
+            if (abend := _check_abend(api_key, site=site)) is not None:
+                return abend
+            MOCK_SESSION_CONFIG["api_used"][api_key] += 1
+            return CallbackResult(payload=get(site, api_key, hours))
+        return CallbackResult(status=500, body="No params found")
     except Exception as e:  # noqa: BLE001
         _LOGGER.error("Error building past actual data: %s", e)
+        return CallbackResult(status=500, body=str(e))
 
 
 async def _get_forecasts(url, **kwargs) -> CallbackResult:
@@ -243,6 +251,7 @@ async def async_setup_aioresponses() -> None:
     aioresp = None
     aioresp = aioresponses(passthrough=["http://127.0.0.1"])
 
+    URLS: dict[str, dict[str, Any]]
     URLS = {
         "sites": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites\?.*api_key=.*$", "callback": _get_sites},
         "forecasts": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites/.+/forecasts.*$", "callback": _get_forecasts},
@@ -300,7 +309,7 @@ async def async_init_integration(
     return entry
 
 
-async def async_cleanup_integration_tests(hass: HomeAssistant, **kwargs) -> None:
+async def async_cleanup_integration_tests(hass: HomeAssistant, **kwargs) -> bool:
     """Clean up the Solcast Solar integration caches and session."""
 
     config_dir = hass.config.config_dir
