@@ -13,6 +13,7 @@ Jinja2 templates are super handy to use when building template sensors, but don'
 1. [Some simple examples](#some-simple-examples)
 1. [Intermediate examples](#intermediate-exmaples)
     1. [Combining data from multiple sites](#combining-data-from-multiple-sites)
+    1. [Visualising multiple days of PV generation forecast](#visualising-multiple-days-of-pv-generation-forecast)
 1. [Advanced examples](#advanced-exmaples)
     1. [Virtual Power Plant adaptive battery discharge](#virtual-power-plant-adaptive-battery-discharge)
     1. [A scale-modifying Apex chart](#a-scale-modifying-apex-chart)
@@ -92,6 +93,54 @@ Here is how to combine the two holiday house sites
 ```
 
 Using a `namespace` for the looped addition is significant. If `i` and `combined` were simple variables then this would not work.
+
+### Visualising multiple days of PV generation forecast
+
+**Scenario**: You want to visualise expected PV generation for today, tomorrow and the day after in a single chart.
+
+There are many ways to do this, and this is just one approach.
+
+In this approach, create a template sensor to both combine the total expected generation, as well as create a `detailedForecast` attribute for the sensor that can be visualised by an Apex chart.
+
+An alternative approach could be to utilise the intent of the attribute generation of this template in a `data_generator` section directly in the chart definition. As said, there are other approaches to get this done, but this is the only approach that both calculates the expected three-day total and builds three days of time-series data for charting.
+
+```yaml
+template:
+  - sensor:
+      - name: "Solcast Three Days"
+        unique_id: "solcast_three_day"
+        state: >
+          {%
+            set days = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast') +
+            state_attr('sensor.solcast_pv_forecast_forecast_tomorrow', 'detailedForecast') +
+            state_attr('sensor.solcast_pv_forecast_forecast_day_3', 'detailedForecast')
+          %}
+          {% set ns = namespace(combined=0) %}
+          {% for interval in days %}
+            {% set ns.combined = ns.combined + interval['pv_estimate'] * 0.5 %}
+          {% endfor %}
+          {{ ns.combined }}
+        unit_of_measurement: "kWh"
+        attributes:
+          detailedForecast: >
+            {%
+              set days = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast') +
+              state_attr('sensor.solcast_pv_forecast_forecast_tomorrow', 'detailedForecast') +
+              state_attr('sensor.solcast_pv_forecast_forecast_day_3', 'detailedForecast')
+            %}
+            {% set ns = namespace(combined_list=[]) %}
+            {% for interval in days %}
+              {% set ns.combined_list = ns.combined_list + [
+                {
+                  'period_start': interval['period_start'].isoformat(),
+                  'pv_estimate': interval['pv_estimate'],
+                  'pv_estimate10': interval['pv_estimate10'],
+                  'pv_estimate90': interval['pv_estimate90'],
+                }
+              ] %}
+            {% endfor %}
+            {{ ns.combined_list | to_json() }}
+```
 
 ## Advanced examples
 
