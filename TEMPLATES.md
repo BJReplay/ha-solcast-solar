@@ -110,16 +110,12 @@ template:
       - name: "Solcast Three Days"
         unique_id: "solcast_three_day"
         state: >
-          {%
-            set days = state_attr('sensor.solcast_pv_forecast_forecast_today', 'detailedForecast') +
-            state_attr('sensor.solcast_pv_forecast_forecast_tomorrow', 'detailedForecast') +
-            state_attr('sensor.solcast_pv_forecast_forecast_day_3', 'detailedForecast')
-          %}
-          {% set ns = namespace(combined=0) %}
-          {% for interval in days %}
-            {% set ns.combined = ns.combined + interval['pv_estimate'] * 0.5 %}
-          {% endfor %}
-          {{ ns.combined }}
+        state: >
+          {{
+            states('sensor.solcast_pv_forecast_forecast_today') | float(0) +
+            states('sensor.solcast_pv_forecast_forecast_tomorrow') | float(0) +
+            states('sensor.solcast_pv_forecast_forecast_day_3') | float(0)
+          }}
         unit_of_measurement: "kWh"
         attributes:
           detailedForecast: >
