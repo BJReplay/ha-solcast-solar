@@ -55,7 +55,7 @@ If the `availability` is not set then the log will likely be spammed with errors
 
 **Scenario**: You have two Solcast API keys, with two rooftop sites on one main location, plus two rooftop sites at a holiday house. You want to see all the data in a single Home Assistant deployment at the main location.
 
-It is possible to exclude sites from the sensor total, so you do so from the `CONFIGURE` dialogue for the integration. This leaves the sensor states and Energy dashboard data being for just the two rooftop sites at the main residence.
+It is possible to exclude sites from the sensor total from v4.3.3 of the integration, so you do so from the `CONFIGURE` dialogue for the integration. This leaves the sensor states and Energy dashboard data being for just the two rooftop sites at the main residence.
 
 To visualise the holiday house you are going to create an Apex chart on a dashboard, as well as show some entity states like 'forecast today'.
 
@@ -105,9 +105,9 @@ The aim is to not use utility power (at cost) at any time of the year if possibl
 
 Of course that likely won't happen all year round unless you use almost no power, or have a stupid number of 15kWh Powerwalls at great expense.
 
-So you need a sensor that provides guidance for how low the battery can go during discharge that an automation can reference to switch the Powerwall mode from "Autonomous" (where it can discharge to grid, hint: use the Tesla Fleet integration to control mode) to "Self-powered" mode (where it won't). This should leave enough in the tank to last the night based on typical average hourly night time consumption.
+So you need a sensor that provides guidance for how low the battery can go during discharge that an automation can reference to switch the Powerwall mode from "Autonomous" to "Self-powered" mode (Autonomous can discharge to grid, while self-powered will not). Use the Tesla Fleet integration to control mode for Powerwalls, as the standard Powerwall integration can't do this as at the time of writing.
 
-Will it get it right for complex and varied household power use? No. But if things are reasonably predictable from evening on it should.
+This template sensor should leave enough in the tank to last the night based on typical average hourly night time consumption. Will it get it right for complex and varied household power use? No. But if things are reasonably predictable from evening on it should get close.
 
 This example relies on the Sun integration and also the HACS-installed Sun2 custom repository integration ([pnbruckner/ha-sun2](https://github.com/pnbruckner/ha-sun2)). Explanation of the template below.
 
@@ -136,12 +136,13 @@ template:
 
           {% set must_generate_at_least = avg_hourly_use_overnight * 2 %}
           {% if ns.total < must_generate_at_least %}
-            {{ base_minimum + (must_generate_at_least - ns.total) }}
+            {{ [base_minimum + (must_generate_at_least - ns.total), 0] | max }}
           {% else %}
-            {{ base_minimum }}
+            {{ [base_minimum, 0] | max }}
           {% endif %}
         availability: >
-          {{ now() > states('sensor.home_sun_rising') | as_datetime }}
+          {% set now_minutes = now().hour * 60 + now().minute %}
+          {{ now() > states('sensor.home_sun_rising') | as_datetime and now_minutes > 5 and now_minutes < 1435 }}
 ```
 
 The first part of the template gets the time that the sun will next rise, and then calculates the first two hours of expected solar generation thereafter. When iterating the forecast values they are multiplied by 0.5, and this is because the detailed forecast breakdown values are "power" (kW) and not "energy" (kWh). Each interval is one half hour expected average, so divide by two and add two intervals per hour to get forecast _energy_ production.
@@ -156,19 +157,21 @@ Again, will it always work? Nope. It's a forecast, and evening power usage can b
 
 ### A scale-modifying Apex chart
 
-This example varies the X axis scale of an Apex chart showing forecast and solar production based on the time of day.
+This example varies the X axis scale of an Apex chart showing forecast and solar production with offset and span based on the time of day. During the middle of the day the offset/span will match sunrise to sunset, and early in the morning or later in the evening the chart will expand as hours pass.
 
-It's not perfect in the early evening, I know, but that is left up to the reader (or I) to perfect. The root of the issue is that the "Sun" integration needs to be combined with the custom "Sun2" integration values... I'll get to that some day.
+It utilises the Sun2 and Lovelace Card Templater HACS add-ons. Plus a per-five-minute template sensor to cause it to update. Some sensors used are implementation specific. Change them.
 
-It utilises the Lovelace Card Templater HACS add-on. Plus a per-five-minute template sensor to cause it to update. Some sensors used are implementation specific. Change them.
+Sun2 is a HACS-installed custom repository integration ([pnbruckner/ha-sun2](https://github.com/pnbruckner/ha-sun2))
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/example_span_offset_modifier.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/example_span_offset_modifier.png)
 
 ``` yaml
 type: custom:card-templater
 card:
   type: custom:apexcharts-card
   graph_span_template: |-
-    {% set sunrise = as_datetime(states('sensor.sun_next_rising'))  %}
-    {% set sunset = as_datetime(states('sensor.sun_next_setting'))  %}
+    {% set sunrise = as_datetime(states('sensor.home_sun_rising'))  %}
+    {% set sunset = as_datetime(states('sensor.home_sun_setting'))  %}
     {% if sunrise != none and sunset != none %}
       {% set compressed = (
         (as_local(sunset).hour - as_local(sunrise).hour) + 1 +
@@ -180,7 +183,6 @@ card:
           else (as_local(sunrise).hour - now().hour + 2)
         ) * 2
       ) %}
-      {% set compressed = compressed + 1 if now().time() > as_local(sunset).time() else compressed %}
       {{ compressed if compressed <= 24 else 24 }}h
     {% else %}
       24h
@@ -188,12 +190,12 @@ card:
   span:
     start: day
     offset_template: |-
-      {% set sunrise = as_datetime(states('sensor.sun_next_rising'))  %}
-      {% set sunset = as_datetime(states('sensor.sun_next_setting'))  %}
+      {% set sunrise = as_datetime(states('sensor.home_sun_rising'))  %}
+      {% set sunset = as_datetime(states('sensor.home_sun_setting'))  %}
       {% if sunrise != none and sunset != none %}
         +{{
           (
-            as_local(sunrise).hour - max((now().hour - as_local(sunset).hour) + 1, 0)
+            as_local(sunrise).hour - max((now().hour - as_local(sunset).hour), 0)
           )
           if now().hour > as_local(sunrise).hour else now().hour
         }}h
