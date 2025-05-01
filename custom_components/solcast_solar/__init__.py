@@ -190,7 +190,7 @@ def get_session_headers(version: str) -> dict[str, str]:
     raw_version = version.replace("v", "")
     headers = {
         "Accept": "application/json",
-        "User-Agent": "ha-solcast-solar-integration/" + raw_version[: raw_version.rfind(".")],
+        "User-Agent": "ha-solcast-solar-integration/" + raw_version,
     }
     _LOGGER.debug("Session headers: %s", headers)
     return headers
