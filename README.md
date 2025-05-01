@@ -987,6 +987,7 @@ v4.3.3
 * Add sites to exclude from totals and Energy dashboard by @autoSteve
 * Add Portuguese translation by @ViPeR5000 (thanks!)
 * Clean up orphaned hard limit diagnostic sensors by @autoSteve
+* Avoid init crash HA restart calling rooftop_sites repeatedly by @autoSteve
 * Fix diagnostic sensor values for multi-api key hard limit by @autoSteve
 * Fix remove orphaned cache where API key contains non-alphanumeric characters by @autoSteve
 * Fix solcast-dampening.json granular dampening formatting to be semi-indented by @autoSteve
