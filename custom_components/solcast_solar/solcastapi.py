@@ -93,6 +93,7 @@ STATUS_TRANSLATE: Final = {
     504: "Gateway timeout",
     996: "Connection refused",
     997: "Connect call failed",
+    999: "Prior crash",
 }
 
 FRESH_DATA: dict[str, Any] = {
@@ -424,13 +425,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.reauth_required = False
         return 200, ""
 
-    async def __sites_data(self) -> None:  # noqa: C901
+    async def __sites_data(self, prior_crash: bool = False) -> None:  # noqa: C901
         """Request site details.
 
         If the sites cannot be loaded then the integration cannot function, and this will
         result in Home Assistant repeatedly trying to initialise.
 
         If the sites cache exists and is valid then it is loaded on API error.
+
+        Arguments:
+            prior_crash (bool): When a prior crash during init has occurred use cached sites, and do not call Solcast.
+
         """
         one_only = False
 
@@ -501,31 +506,35 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for api_key in api_keys:
                 api_key = api_key.strip()
                 cache_filename = self.__get_sites_cache_filename(api_key)
+                cache_exists = Path(cache_filename).is_file()
+                if not cache_exists:
+                    prior_crash = False
                 _LOGGER.debug(
                     "%s",
-                    f"Sites cache {'exists' if Path(cache_filename).is_file() else 'does not yet exist'}"
-                    f" for {self.__redact_api_key(api_key)}",
+                    f"Sites cache {'exists' if cache_exists else 'does not yet exist'} for {self.__redact_api_key(api_key)}",
                 )
-                url = f"{self.options.host}/rooftop_sites"
-                params = {"format": "json", "api_key": api_key}
-                _LOGGER.debug("Connecting to %s?format=json&api_key=%s", url, self.__redact_api_key(api_key))
-
                 success = False
-                cache_exists = Path(cache_filename).is_file()
-                response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
-                status = response.status
-                (_LOGGER.debug if status == 200 else _LOGGER.warning)(
-                    "HTTP session returned status %s%s",
-                    self.__translate(status),
-                    ", trying cache" if status not in (200, 403) and cache_exists else "",
-                )
-                try:
-                    text_response = await response.text()
-                    if text_response != "":
-                        response_json = json.loads(text_response)
-                except json.decoder.JSONDecodeError:
-                    _LOGGER.error("API did not return a json object, returned `%s`", text_response)
-                    status = 500
+
+                if not prior_crash:
+                    url = f"{self.options.host}/rooftop_sites"
+                    params = {"format": "json", "api_key": api_key}
+                    _LOGGER.debug("Connecting to %s?format=json&api_key=%s", url, self.__redact_api_key(api_key))
+                    response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
+                    status = response.status
+                    (_LOGGER.debug if status == 200 else _LOGGER.warning)(
+                        "HTTP session returned status %s%s",
+                        self.__translate(status),
+                        ", trying cache" if status not in (200, 403) and cache_exists else "",
+                    )
+                    try:
+                        text_response = await response.text()
+                        if text_response != "":
+                            response_json = json.loads(text_response)
+                    except json.decoder.JSONDecodeError:
+                        _LOGGER.error("API did not return a json object, returned `%s`", text_response)
+                        status = 500
+                else:
+                    status = 999  # Force a cache load instead of using the API
 
                 if status == 200:
                     for site in response_json.get("sites", []):
@@ -742,7 +751,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             self._api_used[api_key] = 0
             await self.__serialise_usage(api_key, reset=True)
 
-    async def get_sites_and_usage(self):  # noqa: C901
+    async def get_sites_and_usage(self, prior_crash: bool = False):  # noqa: C901
         """Get the sites and usage, and validate API key changes against the cache files in use.
 
         Both the sites and usage are gathered here.
@@ -755,6 +764,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         The reason is that sites are loaded in groups of API key, and similarly for API
         usage, so these must be cached separately.
+
+        Arguments:
+            prior_crash (bool): When a prior crash during init has occurred use cached sites, and do not call Solcast.
+
         """
 
         def rename(file1, file2, api_key):
@@ -852,7 +865,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         remove_orphans(multi_key_sites, multi_sites)
         remove_orphans(multi_key_usage, multi_usage)
 
-        await self.__sites_data()
+        await self.__sites_data(prior_crash)
         if self.sites_status == SitesStatus.OK:
             await self.__sites_usage()
 

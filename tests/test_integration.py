@@ -1167,6 +1167,7 @@ async def test_integration_scenarios(
         assert "has changed and sites are different invalidating the cache" in caplog.text
         session_clear(MOCK_BUSY)
         caplog.clear()
+        hass.data[DOMAIN]["presumed_dead"] = False  # Clear presumption of death
         coordinator, solcast = await _reload(hass, entry)
         assert "An API key has changed, resetting usage" in caplog.text
         assert "Reset API usage" in caplog.text
@@ -1174,6 +1175,13 @@ async def test_integration_scenarios(
         assert "Site resource id 1111-1111-1111-1111 is no longer configured" in caplog.text
         assert "Site resource id 2222-2222-2222-2222 is no longer configured" in caplog.text
         _no_exception(caplog)
+        caplog.clear()
+
+        # Test no sites call on start when in a presumed dead state
+        hass.data[DOMAIN]["presumed_dead"] = True  # Set presumption of death
+        coordinator, solcast = await _reload(hass, entry)
+        assert "Get sites failed, last call result: 999/Prior crash" in caplog.text
+        assert "Connecting to https://api.solcast.com.au/rooftop_sites" not in caplog.text
         caplog.clear()
 
         # Test corrupt cache start, integration will mostly not load, and will not attempt reload

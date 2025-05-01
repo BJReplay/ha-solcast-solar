@@ -205,6 +205,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
                     if self.hass.data[DOMAIN].get("presumed_dead", True):
                         _LOGGER.debug("Loading presumed dead integration")
+                        self.hass.data[DOMAIN].pop("presumed_dead")
                         self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
                     result = self.async_abort(reason="reauth_successful")
                 return result
@@ -255,6 +256,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
                     if self.hass.data[DOMAIN].get("presumed_dead", True):
                         _LOGGER.debug("Loading presumed dead integration")
+                        self.hass.data[DOMAIN].pop("presumed_dead")
                         self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
                     result = self.async_abort(reason="reconfigured")
                 return result
@@ -363,6 +365,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
 
         if self.hass.data.get(DOMAIN, {}).get("presumed_dead", True):
             _LOGGER.warning("Integration presumed dead, reloading")
+            self.hass.data[DOMAIN].pop("presumed_dead")
             await self.hass.config_entries.async_reload(self._entry.entry_id)
 
     async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
