@@ -473,6 +473,21 @@ async def test_sensor_states(  # noqa: C901
             # load, then is cleaned up when all sensors are defined when more than one limit is specified).
             assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set") is None
 
+            attrs = hass.states.get("sensor.first_site").attributes  # type: ignore[union-attr]
+            assert attrs
+            assert attrs.get("resource_id")
+            assert attrs.get("name")
+            assert attrs.get("friendly_name")
+            assert attrs.get("install_date")
+            assert attrs.get("latitude") is None
+            assert attrs.get("longitude") is None
+            assert attrs.get("capacity")
+            assert attrs.get("capacity_dc")
+            assert attrs.get("azimuth")
+            assert attrs.get("tilt")
+            assert attrs.get("loss_factor")
+            assert attrs.get("tags")
+
         # Test last sensor update time.
         freezer.move_to(now.replace(hour=2, minute=30, second=0, microsecond=0))
         async_fire_time_changed(hass)

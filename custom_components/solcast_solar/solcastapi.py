@@ -1379,6 +1379,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             "tilt": _site.get("tilt"),
             "install_date": _site.get("install_date"),
             "loss_factor": _site.get("loss_factor"),
+            "tags": _site.get("tags"),
         }
         return {k: v for k, v in result.items() if v is not None}
 
@@ -2643,30 +2644,26 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             dict: An energy dashboard compatible data structure.
 
         """
-        forecast_generation = {}
-        last_value: float = -1
-        last_period_start = ""
-        for forecast in self._data_forecasts:
-            period_start = forecast["period_start"].isoformat()
-            value = forecast[self._use_forecast_confidence]
-            if value == 0.0:
-                if last_value > 0.0:
-                    forecast_generation[period_start] = 0.0
-                    forecast_generation[last_period_start] = 0.0
-            else:
-                if last_value == 0.0:
-                    forecast_generation[last_period_start] = 0.0
-                forecast_generation[period_start] = round(value * 500, 0)
-
-            last_period_start = period_start
-            last_value = value
-        return {"wh_hours": forecast_generation}
+        return {
+            "wh_hours": {
+                forecast["period_start"].isoformat(): round(forecast[self._use_forecast_confidence] * 500, 0)
+                for index, forecast in enumerate(self._data_forecasts)
+                if index > 0
+                and index < len(self._data_forecasts) - 1
+                and (
+                    forecast[self._use_forecast_confidence] > 0
+                    or self._data_forecasts[index - 1][self._use_forecast_confidence] > 0
+                    or self._data_forecasts[index + 1][self._use_forecast_confidence] > 0
+                )
+            }
+        }
 
     def __site_api_key(self, site: str) -> str | None:
         api_key: str | None = None
         for _site in self.sites:
             if _site["resource_id"] == site:
                 api_key = _site["api_key"]
+                break
         return api_key
 
     def hard_limit_set(self) -> tuple[bool, bool]:
@@ -2694,6 +2691,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for index, key in enumerate(self.options.api_key.split(",")):
                 if key == api_key:
                     limit = float(hard_limit[index])
+                    break
         return limit
 
     async def build_forecast_data(self) -> bool:  # noqa: C901

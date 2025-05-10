@@ -549,6 +549,11 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 * `azimuth` / `tilt`: Panel orientation.
 * `install_date`: Configured installation date.
 * `loss_factor`: Configured "loss factor".
+* `tags`: The tags set for the rooftop site.
+
+> [!NOTE]
+>
+> Latitude and longitude are intentionally not included in the rooftop site attributes for privacy reasons.
 
 [^1]: API usage information is internally tracked and may not match actual account usage.
 
@@ -982,6 +987,12 @@ The caches reside in the Home Assistant configuration folder (usually `/config/`
 The code itself resides at `/config/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
 
 ## Changes
+
+v4.3.4
+* Include rooftop site tags in site sensor attributes by @autoSteve
+* Remove annoying startup debug logged at critical level by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.3...v4.3.4
 
 v4.3.3
 * Add sites to exclude from totals and Energy dashboard by @autoSteve
