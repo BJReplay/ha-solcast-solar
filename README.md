@@ -549,6 +549,11 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 * `azimuth` / `tilt`: Panel orientation.
 * `install_date`: Configured installation date.
 * `loss_factor`: Configured "loss factor".
+* `tags`: The tags set for the rooftop site.
+
+> [!NOTE]
+>
+> Latitude and longitude are intentionally not included in the rooftop site attributes for privacy reasons.
 
 [^1]: API usage information is internally tracked and may not match actual account usage.
 
