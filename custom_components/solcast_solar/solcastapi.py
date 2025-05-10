@@ -1379,6 +1379,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             "tilt": _site.get("tilt"),
             "install_date": _site.get("install_date"),
             "loss_factor": _site.get("loss_factor"),
+            "tags": _site.get("tags"),
         }
         return {k: v for k, v in result.items() if v is not None}
 
@@ -2646,13 +2647,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         return {
             "wh_hours": {
                 forecast["period_start"].isoformat(): round(forecast[self._use_forecast_confidence] * 500, 0)
-                for idx, forecast in enumerate(self._data_forecasts)
-                if idx > 0
-                and idx < len(self._data_forecasts) - 1
+                for index, forecast in enumerate(self._data_forecasts)
+                if index > 0
+                and index < len(self._data_forecasts) - 1
                 and (
                     forecast[self._use_forecast_confidence] > 0
-                    or self._data_forecasts[idx - 1][self._use_forecast_confidence] > 0
-                    or self._data_forecasts[idx + 1][self._use_forecast_confidence] > 0
+                    or self._data_forecasts[index - 1][self._use_forecast_confidence] > 0
+                    or self._data_forecasts[index + 1][self._use_forecast_confidence] > 0
                 )
             }
         }
@@ -2662,6 +2663,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for _site in self.sites:
             if _site["resource_id"] == site:
                 api_key = _site["api_key"]
+                break
         return api_key
 
     def hard_limit_set(self) -> tuple[bool, bool]:
@@ -2689,6 +2691,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for index, key in enumerate(self.options.api_key.split(",")):
                 if key == api_key:
                     limit = float(hard_limit[index])
+                    break
         return limit
 
     async def build_forecast_data(self) -> bool:  # noqa: C901
