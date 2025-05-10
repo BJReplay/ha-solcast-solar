@@ -2643,24 +2643,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             dict: An energy dashboard compatible data structure.
 
         """
-        forecast_generation = {}
-        last_value: float = -1
-        last_period_start = ""
-        for forecast in self._data_forecasts:
-            period_start = forecast["period_start"].isoformat()
-            value = forecast[self._use_forecast_confidence]
-            if value == 0.0:
-                if last_value > 0.0:
-                    forecast_generation[period_start] = 0.0
-                    forecast_generation[last_period_start] = 0.0
-            else:
-                if last_value == 0.0:
-                    forecast_generation[last_period_start] = 0.0
-                forecast_generation[period_start] = round(value * 500, 0)
-
-            last_period_start = period_start
-            last_value = value
-        return {"wh_hours": forecast_generation}
+        return {
+            "wh_hours": {
+                forecast["period_start"].isoformat(): round(forecast[self._use_forecast_confidence] * 500, 0)
+                for idx, forecast in enumerate(self._data_forecasts)
+                if idx > 0
+                and idx < len(self._data_forecasts) - 1
+                and (
+                    forecast[self._use_forecast_confidence] > 0
+                    or self._data_forecasts[idx - 1][self._use_forecast_confidence] > 0
+                    or self._data_forecasts[idx + 1][self._use_forecast_confidence] > 0
+                )
+            }
+        }
 
     def __site_api_key(self, site: str) -> str | None:
         api_key: str | None = None
