@@ -983,6 +983,11 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 ## Changes
 
+v4.3.4
+* Remove annoying startup debug logged at critical level by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.3...v4.3.4
+
 v4.3.3
 * Add sites to exclude from totals and Energy dashboard by @autoSteve
 * Add Portuguese translation by @ViPeR5000 (thanks!)
