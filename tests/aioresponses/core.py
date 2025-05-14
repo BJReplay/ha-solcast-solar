@@ -370,6 +370,31 @@ class aioresponses:
             callback=callback,
         )
 
+    def change_url(self, url: URL | str | Pattern, new_url: URL | str | Pattern) -> None:
+        """Change a request url."""
+
+        for key, matcher in self._matches.items():
+            if isinstance(url, Pattern):
+                if matcher.url_or_pattern == url:
+                    if isinstance(new_url, Pattern):
+                        matcher.url_or_pattern = new_url
+                        matcher.match_func = matcher.match_regexp
+                        break
+                    else:
+                        matcher.url_or_pattern = normalize_url(new_url)
+                        matcher.match_func = matcher.match_str
+                        break
+            else:
+                if matcher.url_or_pattern == normalize_url(url):
+                    if isinstance(new_url, Pattern):
+                        matcher.url_or_pattern = new_url
+                        matcher.match_func = matcher.match_regexp
+                        break
+                    else:
+                        matcher.url_or_pattern = normalize_url(new_url)
+                        matcher.match_func = matcher.match_str
+                        break
+
     def _format_call_signature(self, *args, **kwargs) -> str:
         message = "%s(%%s)" % self.__class__.__name__ or "mock"  # noqa: UP031
         formatted_args = ""

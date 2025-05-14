@@ -53,6 +53,7 @@ from .const import (
     TITLE,
 )
 from .solcastapi import ConnectionOptions, SolcastApi
+from .util import SitesStatus
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -151,7 +152,14 @@ async def validate_sites(hass: HomeAssistant, user_input: dict[str, Any]) -> tup
     solcast = SolcastApi(session, options, hass)
     solcast.headers = get_session_headers(await get_version(hass))
 
-    return await solcast.test_api_key()
+    status, message, api_key_in_error = await solcast.get_sites_and_usage(prior_crash=False, use_cache=False)
+    if status != 200:
+        if status in (401, 403):
+            return status, f"Bad API key, {message} returned for {api_key_in_error}"
+        return status, f"Error {message} for API key {api_key_in_error}"
+    if solcast.sites_status == SitesStatus.NO_SITES:
+        return 404, f"No sites for the API key {api_key_in_error} are configured at solcast.com"
+    return 200, ""
 
 
 @config_entries.HANDLERS.register(DOMAIN)

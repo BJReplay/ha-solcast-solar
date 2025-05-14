@@ -238,7 +238,8 @@ async def test_api_failure(
 
         def assertions1_except(entry: ConfigEntry):
             assert entry.state is ConfigEntryState.SETUP_ERROR
-            assert "Error retrieving sites, attempting to continue" in caplog.text
+            assert "Error retrieving sites" in caplog.text
+            assert "Attempting to continue" in caplog.text
             assert "Cached sites are not yet available" in caplog.text
             caplog.clear()
 
@@ -248,7 +249,8 @@ async def test_api_failure(
             caplog.clear()
 
         def assertions2_except(entry: ConfigEntry):
-            assert "Error retrieving sites, attempting to continue" in caplog.text
+            assert "Error retrieving sites" in caplog.text
+            assert "Attempting to continue" in caplog.text
             assert "Sites data:" in caplog.text
             caplog.clear()
 

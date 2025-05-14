@@ -294,7 +294,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options, hass, entry)
 
     solcast.headers = get_session_headers(version)
-    await solcast.get_sites_and_usage(prior_crash)
+    await solcast.get_sites_and_usage(prior_crash=prior_crash)
     match solcast.sites_status:
         case SitesStatus.BAD_KEY:
             raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")

@@ -6,6 +6,8 @@ from pathlib import Path
 import re
 from typing import Any
 from zoneinfo import ZoneInfo
+from re import Pattern
+from yarl import URL
 
 from aiohttp import ClientConnectionError
 
@@ -244,6 +246,12 @@ def aioresponses_reset() -> None:
         MOCK_SESSION_CONFIG["aioresponses"] = None
 
 
+def aioresponses_change_url(url: URL | str | Pattern, new_url: URL | str | Pattern) -> None:
+    """Change URL for the mock session."""
+    _LOGGER.critical(MOCK_SESSION_CONFIG["aioresponses"]._matches)
+    MOCK_SESSION_CONFIG["aioresponses"].change_url(url, new_url)
+    _LOGGER.critical(MOCK_SESSION_CONFIG["aioresponses"]._matches)
+
 async def async_setup_aioresponses() -> None:
     """Set up the mock session."""
 
@@ -307,6 +315,29 @@ async def async_init_integration(
     await hass.async_block_till_done()
 
     return entry
+
+
+async def async_cleanup_integration_caches(hass: HomeAssistant, **kwargs) -> bool:
+    """Clean up the Solcast Solar integration caches and session."""
+
+    config_dir = hass.config.config_dir
+
+    def list_files() -> list[str]:
+        return [str(cache) for cache in Path(config_dir).glob("solcast*.json")]
+
+    try:
+        caches = await hass.async_add_executor_job(list_files)
+        for cache in caches:
+            if not kwargs.get("solcast_dampening", True) and "solcast-dampening" in cache:
+                continue
+            if not kwargs.get("solcast_sites", True) and "solcast-sites" in cache:
+                continue
+            _LOGGER.debug("Removing cache file: %s", cache)
+            Path(cache).unlink()
+    except Exception as e:  # noqa: BLE001
+        _LOGGER.error("Error cleaning up Solcast Solar caches: %s", e)
+        return False
+    return True
 
 
 async def async_cleanup_integration_tests(hass: HomeAssistant, **kwargs) -> bool:

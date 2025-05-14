@@ -405,27 +405,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         _LOGGER.error("Not serialising empty data")
         return False
 
-    async def test_api_key(self) -> tuple[int, str]:
-        """Test the API key. Used in the config flow."""
-        api_keys = self.options.api_key.split(",")
-        for api_key in api_keys:
-            api_key = api_key.strip()
-            url = f"{self.options.host}/rooftop_sites"
-            params = {"format": "json", "api_key": api_key}
-            _LOGGER.debug("Test connection to %s?format=json&api_key=%s", url, self.__redact_api_key(api_key))
-
-            response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
-            if response.status != 200:
-                if response.status in (401, 403):
-                    return response.status, f"Bad API key, {self.__translate(response.status)} returned for {api_key}"
-                return response.status, f"Error {self.__translate(response.status)} for API key {api_key}"
-            sites = await response.json()
-            if sites.get("total_records") == 0:
-                return 404, f"No sites found for API key {api_key}"
-        self.reauth_required = False
-        return 200, ""
-
-    async def __sites_data(self, prior_crash: bool = False) -> None:  # noqa: C901
+    async def __sites_data(self, prior_crash: bool = False, use_cache: bool = True) -> tuple[int, str, str]:  # noqa: C901
         """Request site details.
 
         If the sites cannot be loaded then the integration cannot function, and this will
@@ -435,6 +415,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         Arguments:
             prior_crash (bool): When a prior crash during init has occurred use cached sites, and do not call Solcast.
+            use_cache (bool): When True, use the cache if it exists and is valid.
+
+        Returns:
+            tuple[int, str, str]: The status code, message and relevant API key.
 
         """
         one_only = False
@@ -501,6 +485,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         try:
             self.sites = []
+            api_key_in_error = ""
 
             api_keys = self.options.api_key.split(",")
             for api_key in api_keys:
@@ -524,7 +509,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     (_LOGGER.debug if status == 200 else _LOGGER.warning)(
                         "HTTP session returned status %s%s",
                         self.__translate(status),
-                        ", trying cache" if status not in (200, 403) and cache_exists else "",
+                        ", trying cache" if status not in (200, 403) and cache_exists and use_cache else "",
                     )
                     try:
                         text_response = await response.text()
@@ -552,10 +537,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         )
                         cache_exists = False  # Prevent cache load if no sites
                         self.sites_status = SitesStatus.NO_SITES
+                        api_key_in_error = self.__redact_api_key(api_key)
                         break
 
                 if not success:
-                    if cache_exists:
+                    if cache_exists and use_cache:
                         _LOGGER.warning(
                             "Get sites failed, last call result: %s, using cached data",
                             self.__translate(status),
@@ -565,7 +551,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             "Get sites failed, last call result: %s",
                             self.__translate(status),
                         )
-                    if status != 200 and cache_exists:
+                    if status != 200:
+                        api_key_in_error = self.__redact_api_key(api_key)
+                    if status != 200 and cache_exists and use_cache:
                         response_json = await load_cache(cache_filename)
                         success = True
                         self.sites_status = SitesStatus.OK
@@ -591,6 +579,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             self.sites_status = SitesStatus.API_BUSY
                             break
                         self.sites_status = SitesStatus.ERROR
+                        api_key_in_error = self.__redact_api_key(api_key)
                         break
 
                 if status == 200 and success:
@@ -598,27 +587,42 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 else:
                     cached_sites_unavailable(at_least_one_only=True)
         except (ClientConnectionError, ClientResponseError, ConnectionRefusedError, TimeoutError) as e:
-            _LOGGER.warning("Error retrieving sites, attempting to continue: %s", e)
-            error = False
-            self.sites = []
-            for api_key in api_keys:
-                api_key = api_key.strip()
-                cache_filename = self.__get_sites_cache_filename(api_key)
-                if Path(cache_filename).is_file():  # Cache exists, so load it
-                    response_json = await load_cache(cache_filename)
-                    set_sites(response_json, api_key)
-                    check_rekey(response_json, api_key)
-                    self.sites_status = SitesStatus.OK
-                else:
-                    self.sites_status = SitesStatus.ERROR
-                    error = True
-                    cached_sites_unavailable()
-            if error:
-                _LOGGER.error(
-                    "Suggestion: Check your overall HA configuration, specifically networking related (Is IPV6 an issue for you? DNS? Proxy?)"
-                )
+            _LOGGER.error("Connection error: %s", e)
+            self.sites_status = SitesStatus.ERROR
+            api_key_in_error = ""
+            _LOGGER.error("Error retrieving sites: %s", e)
+            if use_cache:
+                _LOGGER.info("Attempting to continue with cached sites")
+                error = False
+                self.sites = []
+                for api_key in api_keys:
+                    api_key = api_key.strip()
+                    cache_filename = self.__get_sites_cache_filename(api_key)
+                    if Path(cache_filename).is_file():  # Cache exists, so load it
+                        response_json = await load_cache(cache_filename)
+                        set_sites(response_json, api_key)
+                        check_rekey(response_json, api_key)
+                        self.sites_status = SitesStatus.OK
+                    else:
+                        self.sites_status = SitesStatus.ERROR
+                        error = True
+                        cached_sites_unavailable()
+                        api_key_in_error = self.__redact_api_key(api_key)
+                        break
+                if error:
+                    _LOGGER.error(
+                        "Suggestion: Check your overall HA configuration, specifically networking related (Is IPV6 an issue for you? DNS? Proxy?)"
+                    )
+            return (
+                200 if self.sites_status == SitesStatus.OK else 999,
+                "Cached sites loaded" if self.sites_status == SitesStatus.OK else "Cached sites not loaded",
+                api_key_in_error,
+            )
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Exception in __sites_data(): %s: %s", e, traceback.format_exc())
+            return 999, f"Exception in __sites_data(): {e}", ""
+
+        return status, self.__translate(status), api_key_in_error
 
     async def __serialise_usage(self, api_key: str, reset: bool = False):
         """Serialise the usage cache file.
@@ -751,7 +755,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             self._api_used[api_key] = 0
             await self.__serialise_usage(api_key, reset=True)
 
-    async def get_sites_and_usage(self, prior_crash: bool = False):  # noqa: C901
+    async def get_sites_and_usage(self, prior_crash: bool = False, use_cache: bool = True) -> tuple[int, str, str]:  # noqa: C901
         """Get the sites and usage, and validate API key changes against the cache files in use.
 
         Both the sites and usage are gathered here.
@@ -767,6 +771,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         Arguments:
             prior_crash (bool): When a prior crash during init has occurred use cached sites, and do not call Solcast.
+            use_cache (bool): When True, use the cache if it exists and is valid.
+
+        Returns:
+            tuple[int, str, str]: The status code, message and relevant API key from load sites.
 
         """
 
@@ -865,9 +873,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         remove_orphans(multi_key_sites, multi_sites)
         remove_orphans(multi_key_usage, multi_usage)
 
-        await self.__sites_data(prior_crash)
+        status, message, api_key_in_error = await self.__sites_data(prior_crash=prior_crash, use_cache=use_cache)
         if self.sites_status == SitesStatus.OK:
             await self.__sites_usage()
+
+        return status, message, api_key_in_error
 
     async def reset_api_usage(self, force: bool = False):
         """Reset the daily API usage counter.

@@ -4,8 +4,10 @@ import copy
 import json
 import logging
 from pathlib import Path
+import re
 from typing import Any
 
+from aiohttp import ClientConnectionError
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
@@ -50,7 +52,10 @@ from . import (
     KEY1,
     KEY2,
     MOCK_BUSY,
+    MOCK_EXCEPTION,
     MOCK_FORBIDDEN,
+    aioresponses_change_url,
+    async_cleanup_integration_caches,
     async_cleanup_integration_tests,
     async_init_integration,
     async_setup_aioresponses,
@@ -99,21 +104,32 @@ TEST_KEY_CHANGES = [
         None,
         {CONF_API_KEY: "555", API_QUOTA: "10", AUTO_UPDATE: "1"},
         "Bad API key, 403/Forbidden",
-        ["component.solcast_solar.config.error.Bad API key, 403/Forbidden returned for 555"],
+        ["component.solcast_solar.config.error.Bad API key, 403/Forbidden returned for ******555"],
     ),
     (
         None,
         {CONF_API_KEY: "no_sites", API_QUOTA: "10", AUTO_UPDATE: "1"},
-        "No sites found for API key",
-        ["component.solcast_solar.config.error.No sites found for API key no_sites"],
+        "No sites for the API key",
+        ["component.solcast_solar.config.error.No sites for the API key ******_sites are configured at solcast.com"],
     ),
     (
         MOCK_BUSY,
         {CONF_API_KEY: "1", API_QUOTA: "10", AUTO_UPDATE: "1"},
         "Error 429/Try again later for API key",
-        ["component.solcast_solar.config.error.Error 429/Try again later for API key 1"],
+        ["component.solcast_solar.config.error.Error 429/Try again later for API key ******1"],
     ),
-    (None, {CONF_API_KEY: "2", API_QUOTA: "10", AUTO_UPDATE: "1"}, None, []),
+    (
+        MOCK_EXCEPTION,
+        {CONF_API_KEY: "2", API_QUOTA: "10", AUTO_UPDATE: "1"},
+        None,
+        [],
+    ),
+    (
+        None,
+        {CONF_API_KEY: "1", API_QUOTA: "10", AUTO_UPDATE: "1"},
+        None,
+        [],
+    ),
 ]
 
 TEST_API_QUOTA: list[tuple[dict[Any, Any], dict[Any, Any], str | None]]
@@ -201,7 +217,7 @@ async def test_config_api_key_invalid(hass: HomeAssistant) -> None:
     assert "Bad API key, 403/Forbidden" in result["errors"]["base"]  # type: ignore[index]
 
     result = await flow.async_step_user({CONF_API_KEY: "no_sites", API_QUOTA: "10", AUTO_UPDATE: "1"})
-    assert "No sites found for API key" in result["errors"]["base"]  # type: ignore[index]
+    assert "No sites for the API key" in result["errors"]["base"]  # type: ignore[index]
 
     session_set(MOCK_BUSY)
     result = await flow.async_step_user({CONF_API_KEY: "1", API_QUOTA: "10", AUTO_UPDATE: "1"})
@@ -229,7 +245,7 @@ async def test_config_api_quota(hass: HomeAssistant, options, user_input, reason
 
 @pytest.mark.parametrize(
     "ignore_translations",
-    ["component.solcast_solar.config.error.Bad API key, 403/Forbidden returned for 555"],
+    ["component.solcast_solar.config.error.Bad API key, 403/Forbidden returned for ******555"],
 )
 async def test_reauth_api_key(
     recorder_mock: Recorder,
@@ -307,7 +323,7 @@ async def test_reauth_api_key(
             result["flow_id"],
             user_input={CONF_API_KEY: "4" + "," + KEY2},
         )
-        assert "Test connection to https://api.solcast.com.au/rooftop_sites?format=json&api_key=******4" in caplog.text
+        assert "Connecting to https://api.solcast.com.au/rooftop_sites?format=json&api_key=******4" in caplog.text
         assert "Loading presumed dead integration" in caplog.text
         simulator.API_KEY_SITES["1"] = simulator.API_KEY_SITES.pop("4")  # Restore the key
 
@@ -363,7 +379,7 @@ async def test_reconfigure_api_key1(
             result["flow_id"], user_input={CONF_API_KEY: "4" + "," + KEY2, API_QUOTA: "10", AUTO_UPDATE: "0"}
         )
         await hass.async_block_till_done()
-        assert "Test connection to https://api.solcast.com.au/rooftop_sites?format=json&api_key=******4" in caplog.text
+        assert "Connecting to https://api.solcast.com.au/rooftop_sites?format=json&api_key=******4" in caplog.text
         assert "Loading presumed dead integration" in caplog.text
         simulator.API_KEY_SITES["1"] = simulator.API_KEY_SITES.pop("4")  # Restore the key
 
@@ -388,21 +404,30 @@ async def test_reconfigure_api_key2(
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
+        if set == MOCK_EXCEPTION:
+            await async_cleanup_integration_caches(hass)
         flow = await hass.config_entries.flow.async_init(
             DOMAIN,
             context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
             data=entry.data,
         )
         await hass.async_block_till_done()
-        if set:
+        if set and set != MOCK_EXCEPTION:
             session_set(set)
         result = await hass.config_entries.flow.async_configure(
             flow["flow_id"],
             user_input=options,
         )
+        if set == MOCK_EXCEPTION:
+            aioresponses_change_url(re.compile(r"https://api\.solcast\.com\.au/rooftop_sites\?.*api_key=.*$"), re.compile(r"https://api\.solcastxxxx\.com\.au/rooftop_sites\?.*api_key=.*$"))
         await hass.async_block_till_done()
+
         if set:
             session_clear(set)
+        if set == MOCK_EXCEPTION:
+            assert "Error retrieving sites" in caplog.text
+            assert "Attempting to continue" in caplog.text
+            assert "Sites loaded" in caplog.text
         if to_assert:
             assert to_assert in result["errors"]["base"]  # type: ignore[index]
         else:
@@ -484,7 +509,7 @@ async def test_options_api_key_invalid(hass: HomeAssistant) -> None:
 
     inject = {CONF_API_KEY: "no_sites"}
     result = await flow.async_step_init({**options, **inject})
-    assert "No sites found for API key" in result["errors"]["base"]  # type: ignore[index]
+    assert "No sites for the API key" in result["errors"]["base"]  # type: ignore[index]
 
     session_set(MOCK_BUSY)
     result = await flow.async_step_init(options)

@@ -988,6 +988,11 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 ## Changes
 
+v4.3.5
+* Fix key validation corner case that could prevent start by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.4...v4.3.5
+
 v4.3.4
 * Include rooftop site tags in site sensor attributes by @autoSteve
 * Remove annoying startup debug logged at critical level by @autoSteve
