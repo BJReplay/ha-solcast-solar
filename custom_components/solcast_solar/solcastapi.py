@@ -10,7 +10,7 @@ import contextlib
 import copy
 from dataclasses import dataclass
 import datetime
-from datetime import datetime as dt, timedelta, tzinfo
+from datetime import date, datetime as dt, timedelta, tzinfo
 import json
 import logging
 import math
@@ -22,7 +22,7 @@ import sys
 import time
 import traceback
 from types import MappingProxyType
-from typing import Any, Final, cast
+from typing import Any, Final, Literal, cast
 
 import aiofiles
 from aiohttp import ClientConnectionError, ClientResponseError, ClientSession
@@ -64,10 +64,10 @@ from .util import (
 
 API: Final = Api.HOBBYIST  # The API to use. Presently only the hobbyist API is allowed for hobbyist accounts.
 
-if API == Api.HOBBYIST:
-    FORECAST: Final = "pv_estimate"
-    FORECAST10: Final = "pv_estimate10"
-    FORECAST90: Final = "pv_estimate90"
+# if API == Api.HOBBYIST:
+FORECAST: Final = "pv_estimate"
+FORECAST10: Final = "pv_estimate10"
+FORECAST90: Final = "pv_estimate90"
 
 GRANULAR_DAMPENING_OFF: Final = False
 GRANULAR_DAMPENING_ON: Final = True
@@ -107,7 +107,7 @@ FRESH_DATA: dict[str, Any] = {
 _LOGGER = logging.getLogger(__name__)
 
 # Return the function name at a specified caller depth. 0=current, 1=caller, 2=caller of caller, etc.
-FunctionName = lambda n=0: sys._getframe(n + 1).f_code.co_name  # noqa: E731, SLF001
+FunctionName = lambda n=0: sys._getframe(n + 1).f_code.co_name  # type: ignore # noqa: E731, SLF001, PGH003
 
 
 @dataclass
@@ -120,7 +120,7 @@ class ConnectionOptions:
     file_path: str
     tz: tzinfo
     auto_update: int
-    dampening: dict
+    dampening: dict[str, float]
     custom_hour_sensor: int
     key_estimate: str
     hard_limit: str
@@ -156,23 +156,23 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         self.auto_update_divisions: int = 0
         self.custom_hour_sensor: int = options.custom_hour_sensor
-        self.damp: dict = options.dampening
+        self.damp: dict[str, float] = options.dampening
         self.entry = entry
         self.entry_options: dict[str, Any] = {}
         if self.entry is not None:
             self.entry_options = {**self.entry.options}
         self.estimate_set: list[str] = self.__get_estimate_set(options)
-        self.granular_dampening: dict = {}
+        self.granular_dampening: dict[str, list[float]] = {}
         self.hard_limit: str = options.hard_limit
         self.hass: HomeAssistant = hass
-        self.headers: dict = {}
+        self.headers: dict[str, str] = {}
         self.latest_period: dt | None = None
         self.options: ConnectionOptions = options
         self.reauth_required: bool = False
-        self.sites: list = []
+        self.sites: list[dict[str, Any]] = []
         self.sites_status: SitesStatus = SitesStatus.UNKNOWN
         self.status: SolcastApiStatus = SolcastApiStatus.OK
-        self.tasks: dict = {}
+        self.tasks: dict[str, Any] = {}
         self.usage_status: UsageStatus = UsageStatus.UNKNOWN
 
         file_path = Path(options.file_path)
@@ -181,13 +181,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._api_limit: dict[str, int] = {}
         self._api_used: dict[str, int] = {}
         self._api_used_reset: dict[str, dt | None] = {}
-        self._data = copy.deepcopy(FRESH_DATA)
+        self._data: dict[str, Any] = copy.deepcopy(FRESH_DATA)
         self._data_energy_dashboard: dict[str, Any] = {}
         self._data_forecasts: list[dict[str, Any]] = []
         self._data_forecasts_undampened: list[dict[str, Any]] = []
-        self._data_undampened = copy.deepcopy(FRESH_DATA)
-        self._extant_sites: defaultdict = defaultdict(list)
-        self._extant_usage: defaultdict = defaultdict(dict)
+        self._data_undampened: dict[str, Any] = copy.deepcopy(FRESH_DATA)
+        self._extant_sites: defaultdict[str, list[dict[str, Any]]] = defaultdict(list[dict[str, Any]])
+        self._extant_usage: defaultdict[str, dict[str, Any]] = defaultdict(dict[str, Any])
         self._filename = options.file_path
         self._filename_undampened = f"{file_path.parent / file_path.stem}-undampened{file_path.suffix}"
         self._forecasts_moment: dict[str, dict[str, list[float]]] = {}
@@ -196,7 +196,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._granular_dampening_mtime: float = 0
         self._loaded_data = False
         self._next_update: str | None = None
-        self._rekey: dict[str, str | None] = {}
+        self._rekey: dict[str, Any] = {}
         self._site_data_forecasts: dict[str, list[dict[str, Any]]] = {}
         self._site_data_forecasts_undampened: dict[str, list[dict[str, Any]]] = {}
         self._sites_hard_limit: defaultdict[str, Any] = defaultdict(dict)
@@ -252,7 +252,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.estimate_set = self.__get_estimate_set(self.options)
 
     def __get_estimate_set(self, options: ConnectionOptions) -> list[str]:
-        estimate_set = []
+        estimate_set: list[str] = []
         if options.attr_brk_estimate:
             estimate_set.append("pv_estimate")
         if options.attr_brk_estimate10:
@@ -382,7 +382,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return f"{self._config_dir}/solcast-dampening.json"
 
-    async def serialise_data(self, data: dict, filename: str) -> bool:
+    async def serialise_data(self, data: dict[str, Any], filename: str) -> bool:
         """Serialize data to file.
 
         Arguments:
@@ -422,13 +422,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
         one_only = False
+        status = 999
 
         async def load_cache(cache_filename: str) -> dict[str, Any]:
             _LOGGER.info("Loading cached sites for %s", self.__redact_api_key(api_key))
             async with aiofiles.open(cache_filename) as file:
                 return json.loads(await file.read())
 
-        async def save_cache(cache_filename: str, response_data: dict):
+        async def save_cache(cache_filename: str, response_data: dict[str, Any]):
             _LOGGER.debug("Writing sites cache for %s", self.__redact_api_key(api_key))
             async with self._serialise_lock, aiofiles.open(cache_filename, "w") as file:
                 await file.write(json.dumps(response_json, ensure_ascii=False))
@@ -444,10 +445,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.error("At least one successful API 'get sites' call is needed, so the integration will not function correctly")
                 one_only = True
 
-        def redact_lat_lon(s) -> str:
+        def redact_lat_lon(s: str) -> str:
             return re.sub(r"itude\': [0-9\-\.]+", "itude': **.******", s)
 
-        def set_sites(response_json: dict, api_key: str) -> None:
+        def set_sites(response_json: dict[str, Any], api_key: str) -> None:
             sites_data = response_json
             _LOGGER.debug(
                 "Sites data: %s",
@@ -464,7 +465,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 (" for " + self.__redact_api_key(api_key)) if self.__is_multi_key() else "",
             )
 
-        def check_rekey(response_json: dict, api_key: str) -> bool:
+        def check_rekey(response_json: dict[str, Any], api_key: str) -> bool:
             _LOGGER.debug("Checking rekey for %s", self.__redact_api_key(api_key))
 
             cache_status = False
@@ -483,12 +484,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 break  # API key will be the same for all sites, loop only inspects the first site
             return cache_status
 
-        try:
-            self.sites = []
-            api_key_in_error = ""
+        self.sites = []
+        api_key_in_error = ""
+        api_keys = self.options.api_key.split(",")
 
-            api_keys = self.options.api_key.split(",")
+        try:
             for api_key in api_keys:
+                response_json: dict[str, Any] = {}
                 api_key = api_key.strip()
                 cache_filename = self.__get_sites_cache_filename(api_key)
                 cache_exists = Path(cache_filename).is_file()
@@ -511,6 +513,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         self.__translate(status),
                         ", trying cache" if status not in (200, 403) and cache_exists and use_cache else "",
                     )
+                    text_response = ""
                     try:
                         text_response = await response.text()
                         if text_response != "":
@@ -639,7 +642,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             "Writing API usage cache file: %s",
             self.__redact_msg_api_key(filename, api_key),
         )
-        json_content = {
+        json_content: dict[str, Any] = {
             "daily_limit": self._api_limit[api_key],
             "daily_limit_consumed": self._api_used[api_key],
             "reset": self._api_used_reset[api_key],
@@ -659,7 +662,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         try:
 
-            async def sanitise_and_set_usage(api_key, usage: dict):
+            async def sanitise_and_set_usage(api_key: str, usage: dict[str, Any]):
                 self._api_limit[api_key] = usage.get("daily_limit", 10)
                 assert isinstance(self._api_limit[api_key], int), "daily_limit is not an integer"
                 self._api_used[api_key] = usage.get("daily_limit_consumed", 0)
@@ -708,8 +711,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     self.__redact_api_key(api_key),
                 )
                 cache = True
+                usage: dict[str, Any] = {}
                 if Path(cache_filename).is_file():
-                    usage = self._extant_usage.get(old_api_key)
+                    usage = self._extant_usage.get(old_api_key, {}) if old_api_key is not None else {}
                     if not old_api_key:
                         async with aiofiles.open(cache_filename) as file:
                             try:
@@ -728,7 +732,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if old_api_key:
                         # Multi-key, so the old cache has been removed
                         _LOGGER.debug("Using extant cache data for API key %s", self.__redact_api_key(api_key))
-                        usage = self._extant_usage.get(old_api_key)
+                        usage = self._extant_usage.get(old_api_key, {}) if old_api_key is not None else {}
                         await sanitise_and_set_usage(api_key, usage)
                     else:
                         _LOGGER.warning("Creating usage cache for %s, assuming zero API used", self.__redact_api_key(api_key))
@@ -778,12 +782,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
 
-        def rename(file1, file2, api_key):
+        def rename(file1: str, file2: str, api_key: str):
             if Path(file1).is_file():
                 _LOGGER.info("Renaming %s to %s", self.__redact_msg_api_key(file1, api_key), self.__redact_msg_api_key(file2, api_key))
                 Path(file1).rename(Path(file2))
 
-        async def from_single_site_to_multi(api_keys):
+        async def from_single_site_to_multi(api_keys: list[str]):
             """Transition from a single API key to multiple API keys."""
             single_sites = f"{self._config_dir}/solcast-sites.json"
             single_usage = f"{self._config_dir}/solcast-usage.json"
@@ -796,14 +800,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     rename(single_sites, multi_sites, single_api_key)
                     rename(single_usage, multi_usage, single_api_key)
 
-        async def from_multi_site_to_single(api_keys):
+        async def from_multi_site_to_single(api_keys: list[str]):
             """Transition from multiple API keys to a single API key."""
             single_sites = f"{self._config_dir}/solcast-sites.json"
             if not Path(single_sites).is_file():
                 rename(f"{self._config_dir}/solcast-sites-{api_keys[0]}.json", single_sites, api_keys[0])
                 rename(f"{self._config_dir}/solcast-usage-{api_keys[0]}.json", f"{self._config_dir}/solcast-usage.json", api_keys[0])
 
-        def remove_orphans(all_cached, multi_cached):
+        def remove_orphans(all_cached: list[str], multi_cached: list[str]):
             """Remove orphaned cache files."""
             for file in all_cached:
                 if file not in multi_cached:
@@ -825,7 +829,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             usage = [str(usage) for usage in Path(self._config_dir).glob("solcast-usage-*.json")]
             return sorted(sites), sorted(usage)
 
-        async def load_extant_sites_and_usage(sites: list, usages: list):
+        async def load_extant_sites_and_usage(sites: list[str], usages: list[str]):
             extant_sites: dict[str, list[dict[str, Any]]] = defaultdict(list)  # Existing sites in caches
             extant_usage: dict[str, dict[str, Any]] = defaultdict(dict)  # Existing usage in caches, separated by API key
             single_key = None
@@ -836,13 +840,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     except json.decoder.JSONDecodeError:
                         _LOGGER.error("JSONDecodeError, sites ignored: %s", site)
                         continue
-                    for site in response_json.get("sites", []):
-                        if site.get("api_key"):
-                            extant_sites[site["api_key"]].append(site)
+                    for _site in response_json.get("sites", []):
+                        if _site.get("api_key"):
+                            extant_sites[_site["api_key"]].append(_site)
                             if not self.__is_multi_key():
-                                single_key = site["api_key"]
+                                single_key = _site["api_key"]
                         elif not self.__is_multi_key():  # The key is unknown because old schema version
-                            extant_sites["unknown"].append(site)
+                            extant_sites["unknown"].append(_site)
             for usage in usages:
                 async with aiofiles.open(usage) as file:
                     try:
@@ -950,7 +954,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _LOGGER.error("JSONDecodeError, dampening ignored: %s", filename)
                     error = True
                     return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
-                self.granular_dampening = cast(dict, response_json)
+                self.granular_dampening = cast(dict[str, Any], response_json)
                 if self.granular_dampening:
                     first_site_len = 0
                     for site, damp_list in self.granular_dampening.items():
@@ -1002,7 +1006,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """Set/clear allow reset granular dampening file to an empty dictionary by options change."""
         self._granular_allow_reset = enable
 
-    async def get_dampening(self, site: str) -> list:
+    async def get_dampening(self, site: str) -> list[dict[str, Any]]:
         """Retrieve the currently set dampening factors.
 
         Arguments:
@@ -1095,10 +1099,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             status = ""
             if len(self.sites) > 0:
 
-                async def load_data(filename, set_loaded=True) -> dict | None:
+                async def load_data(filename: str, set_loaded: bool = True) -> dict[str, Any] | None:
                     if Path(filename).is_file():
                         async with aiofiles.open(filename) as data_file:
-                            json_data = json.loads(await data_file.read(), cls=JSONDecoder)
+                            json_data: dict[str, Any] = json.loads(await data_file.read(), cls=JSONDecoder)
                             json_version = json_data.get("version", 1)
                             _LOGGER.debug(
                                 "Data cache %s exists, file type is %s",
@@ -1177,7 +1181,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # Users having multiple API keys where one account changes will have all usage reset.
                     serialise = False
                     reset_usage = False
-                    new_sites = {}
+                    new_sites: dict[str, str] = {}
                     cache_sites = list(self._data["siteinfo"].keys())
                     old_api_keys = (
                         self.hass.data[DOMAIN].get("old_api_key", self.hass.data[DOMAIN]["entry_options"].get(CONF_API_KEY, "")).split(",")
@@ -1215,7 +1219,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         self._loaded_data = True
 
                     # Check for sites that need to be removed.
-                    remove_sites = []
+                    remove_sites: list[str] = []
                     configured_sites = [site["resource_id"] for site in self.sites]
                     for site in cache_sites:
                         if site not in configured_sites:
@@ -1273,7 +1277,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             status = "The cached data in /config/solcast.json is corrupted, suggest removing or repairing it"
         return status
 
-    async def delete_solcast_file(self, *args):
+    async def delete_solcast_file(self, *args: tuple[Any]) -> None:
         """Delete the solcast.json file.
 
         Note: This will immediately trigger a forecast get with history, so this should
@@ -1295,7 +1299,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._loaded_data = False
         await self.load_saved_data()
 
-    async def get_forecast_list(self, *args) -> tuple[dict[str, Any], ...]:
+    async def get_forecast_list(self, *args: Literal["all"]) -> tuple[dict[str, Any], ...]:
         """Get forecasts.
 
         Arguments:
@@ -1456,7 +1460,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         no_data_error = True
 
-        def build_hourly(forecast) -> list[dict[str, Any]]:
+        def build_hourly(forecast: list[dict[str, Any]]) -> list[dict[str, Any]]:
             return [
                 {
                     "period_start": forecast[index]["period_start"],
@@ -1477,7 +1481,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if len(forecast) > 0
             ]
 
-        def get_start_and_end(forecasts: list) -> tuple[int, int, dt, dt]:
+        def get_start_and_end(forecasts: list[dict[str, Any]]) -> tuple[int, int, dt, dt]:
             start_utc = self.get_day_start_utc(future=future_day)
             start, _ = self.__get_forecast_list_slice(forecasts, start_utc)
             end_utc = min(self.get_day_start_utc(future=future_day + 1), forecasts[-1]["period_start"])  # Don't go past the last forecast.
@@ -1491,30 +1495,32 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         # site_start_index = {site["resource_id"]: 0 for site in self.sites}
         # site_end_index = {site["resource_id"]: 0 for site in self.sites}
 
-        start_index, end_index, start_utc, end_utc = get_start_and_end(self._data_forecasts)
+        start_index, end_index, start_utc, _ = get_start_and_end(self._data_forecasts)
 
+        site_data_forecast: dict[str, list[dict[str, Any]]] = {}
         forecast_slice = self._data_forecasts[start_index:end_index]
         if self.options.attr_brk_site_detailed:
-            site_data_forecast = {}
             for site in self.sites:
                 site_start_index, site_end_index, _, _ = get_start_and_end(self._site_data_forecasts[site["resource_id"]])
                 site_data_forecast[site["resource_id"]] = self._site_data_forecasts[site["resource_id"]][site_start_index:site_end_index]
 
-        _tuple = tuple({**forecast, "period_start": forecast["period_start"].astimezone(self._tz)} for forecast in forecast_slice)
+        _tuple = [{**forecast, "period_start": forecast["period_start"].astimezone(self._tz)} for forecast in forecast_slice]
+        tuples: dict[str, list[dict[str, Any]]] = {}
         if self.options.attr_brk_site_detailed:
-            tuples = {}
             for site in self.sites:
-                tuples[site["resource_id"]] = tuple(
+                tuples[site["resource_id"]] = [
                     {
                         **forecast,
                         "period_start": forecast["period_start"].astimezone(self._tz),
                     }
                     for forecast in site_data_forecast[site["resource_id"]]
-                )
+                ]
 
         if len(_tuple) < 48:
             no_data_error = False
 
+        hourly_tuple: list[dict[str, Any]] = []
+        hourly_tuples: dict[str, list[dict[str, Any]]] = {}
         if self.options.attr_brk_hourly:
             hourly_tuple = build_hourly(_tuple)
             if self.options.attr_brk_site_detailed:
@@ -1522,7 +1528,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 for site in self.sites:
                     hourly_tuples[site["resource_id"]] = build_hourly(tuples[site["resource_id"]])
 
-        result = {
+        result: dict[str, Any] = {
             "dayname": start_utc.astimezone(self._tz).strftime("%A"),
             "dataCorrect": no_data_error,
         }
@@ -1697,7 +1703,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         estimate = self.__get_forecast_pv_estimates(start_utc, end_utc, site=site, forecast_confidence=forecast_confidence)
         return round(0.5 * estimate, 4) if estimate is not None else None
 
-    def get_forecast_attributes(self, get_forecast_value, n: int = 0) -> dict[str, Any]:
+    def get_forecast_attributes(self, get_forecast_value: Any, n: int = 0) -> dict[str, Any]:
         """Return forecast attributes for the 'n' forecast value for all sites and individual sites.
 
         Arguments:
@@ -1708,7 +1714,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             dict: Sensor attributes for the period, depending on the configured options.
 
         """
-        result = {}
+        result: dict[str, Any] = {}
         if self.options.attr_brk_site:
             for site in self.sites:
                 result[site["resource_id"].replace("-", "_")] = get_forecast_value(n, site=site["resource_id"])
@@ -1724,7 +1730,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     def __get_forecast_list_slice(
         self,
-        data: list,
+        data: list[dict[str, Any]],
         start_utc: dt,
         end_utc: dt | None = None,
         search_past: bool = False,
@@ -1765,8 +1771,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         spline: dict[str, list[float]],
         start: int,
         xx: list[int],
-        data: list,
-        confidences: list,
+        data: list[dict[str, Any]],
+        confidences: list[str],
         reducing: bool = False,
     ):
         """Build a forecast spline, momentary or day reducing.
@@ -1798,7 +1804,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         spline: dict[str, list[float]],
         forecast_confidence: str,
         xx: list[int],
-        y: list,
+        y: list[float],
         reducing: bool = False,
     ):
         """Ensure that no negative values are returned, and also shifts the spline to account for half-hour average input values.
@@ -1855,7 +1861,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         end: int = 0
         xx: list[int] = []
 
-        def get_start_and_end(forecasts: list) -> tuple[int, int, list[int]]:
+        def get_start_and_end(forecasts: list[dict[str, Any]]) -> tuple[int, int, list[int]]:
             try:
                 start, end = self.__get_forecast_list_slice(forecasts, self.get_day_start_utc())  # Get start of day index.
                 if start:
@@ -1904,7 +1910,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         await self.__spline_remaining()
         _LOGGER.debug("Task recalculate_splines took %.3f seconds", time.time() - start_time)
 
-    def __get_moment(self, site: str | None, forecast_confidence: str, n_min: float) -> float | None:
+    def __get_moment(self, site: str | None, forecast_confidence: str | None, n_min: float) -> float | None:
         """Get a time value from a moment spline.
 
         Arguments:
@@ -2124,6 +2130,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         failure = False
         sites_attempted = 0
         sites_succeeded = 0
+        reason = "Unknown"
         for site in self.sites:
             sites_attempted += 1
             _LOGGER.info(
@@ -2157,7 +2164,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             b_status = await self.build_forecast_data()
             self._loaded_data = True
 
-            async def set_metadata_and_serialise(data):
+            async def set_metadata_and_serialise(data: dict[str, Any]):
                 data["last_updated"] = dt.now(datetime.UTC).replace(microsecond=0)
                 data["last_attempt"] = last_attempt
                 # Set to divisions if auto update is enabled, but not forced, in which case set to 99999 (otherwise zero).
@@ -2188,8 +2195,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     async def __migrate_undampened_history(self):
         """Migrate un-dampened forecasts if un-dampened data for a site does not exist."""
-        apply_dampening = []
-        forecasts = {}
+        apply_dampening: list[str] = []
+        forecasts: dict[str, dict[dt, Any]] = {}
         past_days = self.get_day_start_utc(future=-14)
         for site in self.sites:
             site = site["resource_id"]
@@ -2204,7 +2211,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 continue
             # Load the forecast history.
             forecasts[site] = {forecast["period_start"]: forecast for forecast in self._data["siteinfo"][site]["forecasts"]}
-            forecasts_undampened = {}
+            forecasts_undampened: list[dict[str, Any]] = []
             # Migrate forecast history if un-dampened data does not yet exist.
             if len(forecasts[site]) > 0:
                 forecasts_undampened = sorted(
@@ -2250,7 +2257,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if len(apply_dampening) > 0:
             await self.serialise_data(self._data, self._filename)
 
-    def __forecast_entry_update(self, forecasts: dict, period_start: dt, pv: float, pv10: float, pv90: float):
+    def __forecast_entry_update(self, forecasts: dict[dt, Any], period_start: dt, pv: float, pv10: float, pv90: float):
         """Update an individual forecast entry."""
         extant = forecasts.get(period_start)
         if extant:  # Update existing.
@@ -2265,7 +2272,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 "pv_estimate90": pv90,
             }
 
-    def __get_dampening_granular_factor(self, site: str, period_start: dt):
+    def __get_dampening_granular_factor(self, site: str, period_start: dt) -> float:
         """Retrieve a granular dampening factor."""
         return self.granular_dampening[site][
             period_start.hour
@@ -2345,7 +2352,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             hours,
         )
 
-        new_data = []
+        new_data: list[dict[str, Any]] = []
 
         # Fetch past data. (Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.)
 
@@ -2362,7 +2369,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 await self.tasks["fetch"]
             finally:
-                response = self.tasks.pop("fetch").result() if self.tasks.get("fetch") is not None else None
+                response: dict[str, Any] | None = self.tasks.pop("fetch").result() if self.tasks.get("fetch") is not None else None
             if not isinstance(response, dict):
                 _LOGGER.error(
                     "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
@@ -2370,7 +2377,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.error("API did not return a json object, returned `%s`", response)
                 return DataCallStatus.FAIL, "No valid json returned"
 
-            estimate_actuals = response.get("estimated_actuals", [])
+            estimate_actuals: list[dict[str, Any]] = response.get("estimated_actuals", [])
 
             oldest = (dt.now(self._tz).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)).astimezone(datetime.UTC)
 
@@ -2410,7 +2417,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.error("No data was returned for forecasts")
             return DataCallStatus.FAIL, "No data returned for forecasts"
 
-        if not isinstance(response, dict):
+        if not isinstance(response, dict):  # type: ignore  # noqa: PGH003
             _LOGGER.error("API did not return a json object. Returned %s", response)
             return DataCallStatus.FAIL, "No valid json returned"
 
@@ -2473,16 +2480,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             time.time() - start_time,
         )
 
-        async def sort_and_prune(data, past_days, forecasts):
-            past_days = self.get_day_start_utc(future=past_days * -1)
-            forecasts = sorted(
+        async def sort_and_prune(data: dict[str, Any], past_days: int, forecasts: dict[Any, Any]):
+            _past_days = self.get_day_start_utc(future=past_days * -1)
+            _forecasts: list[dict[str, Any]] = sorted(
                 filter(
-                    lambda forecast: forecast["period_start"] >= past_days,
+                    lambda forecast: forecast["period_start"] >= _past_days,
                     forecasts.values(),
                 ),
                 key=itemgetter("period_start"),
             )
-            data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts)}})
+            data["siteinfo"].update({site: {"forecasts": copy.deepcopy(_forecasts)}})
 
         start_time = time.time()
         await sort_and_prune(self._data, 730, forecasts)
@@ -2535,9 +2542,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 async with asyncio.timeout(900):
                     if self._api_used[api_key] < self._api_limit[api_key] or force:
-                        if API == Api.HOBBYIST:
-                            url = f"{self.options.host}/rooftop_sites/{site}/{path}"
-                            params: dict[str, str | int] = {"format": "json", "api_key": api_key, "hours": hours}
+                        # if API == Api.HOBBYIST:
+                        url = f"{self.options.host}/rooftop_sites/{site}/{path}"
+                        params: dict[str, str | int] = {"format": "json", "api_key": api_key, "hours": hours}
+
                         tries = 10
                         counter = 0
                         backoff = 15  # On every retry the back-off increases by (at least) fifteen seconds more than the previous back-off.
@@ -2647,7 +2655,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         return None
 
-    def __make_energy_dict(self) -> dict:
+    def __make_energy_dict(self) -> dict[str, dict[str, float]]:
         """Make a Home Assistant energy dashboard compatible dictionary.
 
         Returns:
@@ -2730,7 +2738,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             commencing: datetime.date,
             forecasts: dict[dt, dict[str, dt | float]],
             site_data_forecasts: dict[str, list[dict[str, dt | float]]],
-            sites_hard_limit: defaultdict,
+            sites_hard_limit: defaultdict[str, dict[str, dict[dt, Any]]],
             update_tally: bool = False,
         ):
             nonlocal build_success
@@ -2943,7 +2951,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         await self.recalculate_splines()
         return build_success
 
-    def __calc_forecast_start_index(self, data: list) -> int:
+    def __calc_forecast_start_index(self, data: list[dict[str, Any]]) -> int:
         """Get the start of forecasts as-at just before midnight.
 
         Doesn't stop at midnight because some sensors may need the previous interval,
@@ -2956,6 +2964,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             int: The starting index of the data structure just prior to midnight local time.
 
         """
+        index = 0
         midnight_utc = self.get_day_start_utc()
         for index in range(len(data) - 1, -1, -1):
             if data[index]["period_start"] < midnight_utc:
@@ -3006,7 +3015,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             intervals = end_index - start_index
             forecasts_date = dt.now(self._tz).date() + timedelta(days=future_day)
 
-            def set_assessment(forecasts_date, expected_intervals, intervals, is_correct: bool):
+            def set_assessment(forecasts_date: date, expected_intervals: int, intervals: int, is_correct: bool):
                 nonlocal contiguous, all_records_good, contiguous_end_date
                 interval_assessment[forecasts_date] = {
                     "expected_intervals": expected_intervals,
@@ -3054,6 +3063,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             assessment["expected_intervals"],
                             ", which may be expected" if contiguous == 7 else ", so is missing forecast data",
                         )
+                    case _:
+                        pass
         issue_registry = ir.async_get(self.hass)
 
         def _remove_issues():
