@@ -22,7 +22,7 @@ import sys
 import time
 import traceback
 from types import MappingProxyType
-from typing import Any, Final, Literal, cast
+from typing import Any, Final, cast
 
 import aiofiles
 from aiohttp import ClientConnectionError, ClientResponseError, ClientSession
@@ -107,7 +107,7 @@ FRESH_DATA: dict[str, Any] = {
 _LOGGER = logging.getLogger(__name__)
 
 # Return the function name at a specified caller depth. 0=current, 1=caller, 2=caller of caller, etc.
-FunctionName = lambda n=0: sys._getframe(n + 1).f_code.co_name  # type: ignore # noqa: E731, SLF001, PGH003
+FunctionName = lambda n=0: sys._getframe(n + 1).f_code.co_name  # noqa: E731, SLF001 # type: ignore[no-redef]
 
 
 @dataclass
@@ -1006,7 +1006,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """Set/clear allow reset granular dampening file to an empty dictionary by options change."""
         self._granular_allow_reset = enable
 
-    async def get_dampening(self, site: str) -> list[dict[str, Any]]:
+    async def get_dampening(self, site: str | None) -> list[dict[str, Any]]:
         """Retrieve the currently set dampening factors.
 
         Arguments:
@@ -1299,7 +1299,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._loaded_data = False
         await self.load_saved_data()
 
-    async def get_forecast_list(self, *args: Literal["all"]) -> tuple[dict[str, Any], ...]:
+    async def get_forecast_list(self, *args: Any) -> tuple[dict[str, Any], ...]:
         """Get forecasts.
 
         Arguments:
@@ -1922,15 +1922,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             float: A splined forecasted value as kW.
 
         """
-        variant = self._forecasts_moment["all" if site is None else site].get(
-            self._use_forecast_confidence if forecast_confidence is None else forecast_confidence, []
+        variant: list[float] | None = self._forecasts_moment["all" if site is None else site].get(
+            self._use_forecast_confidence if forecast_confidence is None else forecast_confidence
         )
         offset = (
             (len(self._spline_period) * 6 - len(variant)) + 3 if variant is not None else 0
         )  # To cater for less intervals than the spline period
         return variant[int(n_min / 300) - offset] if variant and len(variant) > 0 else None
 
-    def __get_remaining(self, site: str | None, forecast_confidence: str, n_min: float) -> float | None:
+    def __get_remaining(self, site: str | None, forecast_confidence: str | None, n_min: float) -> float | None:
         """Get a remaining value at a given five-minute point from a reducing spline.
 
         Arguments:
@@ -1942,7 +1942,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             float: A splined forecasted remaining value as kWh.
 
         """
-        variant = self._forecasts_remaining["all" if site is None else site].get(
+        variant: list[float] | None = self._forecasts_remaining["all" if site is None else site].get(
             self._use_forecast_confidence if forecast_confidence is None else forecast_confidence
         )
         offset = (
@@ -2251,8 +2251,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         round(forecast["pv_estimate10"] * dampening_factor, 4),
                         round(forecast["pv_estimate90"] * dampening_factor, 4),
                     )
-            forecasts[site] = sorted(forecasts[site].values(), key=itemgetter("period_start"))
-            self._data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts[site])}})
+            forecasts_sorted: dict[str, list[Any]] = {}
+            forecasts_sorted[site] = sorted(forecasts[site].values(), key=itemgetter("period_start"))
+            self._data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts_sorted[site])}})
 
         if len(apply_dampening) > 0:
             await self.serialise_data(self._data, self._filename)
@@ -2357,6 +2358,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         # Fetch past data. (Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.)
 
         if do_past_hours > 0:
+            act_response: dict[str, Any] | None
             try:
                 self.tasks["fetch"] = asyncio.create_task(
                     self.fetch_data(
@@ -2369,15 +2371,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 await self.tasks["fetch"]
             finally:
-                response: dict[str, Any] | None = self.tasks.pop("fetch").result() if self.tasks.get("fetch") is not None else None
-            if not isinstance(response, dict):
+                act_response = self.tasks.pop("fetch").result() if self.tasks.get("fetch") is not None else None
+            if not isinstance(act_response, dict):
                 _LOGGER.error(
                     "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
                 )
-                _LOGGER.error("API did not return a json object, returned `%s`", response)
+                _LOGGER.error("API did not return a json object, returned `%s`", act_response)
                 return DataCallStatus.FAIL, "No valid json returned"
 
-            estimate_actuals: list[dict[str, Any]] = response.get("estimated_actuals", [])
+            estimate_actuals: list[dict[str, Any]] = act_response.get("estimated_actuals", [])
 
             oldest = (dt.now(self._tz).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)).astimezone(datetime.UTC)
 
@@ -2397,6 +2399,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         # Fetch latest data.
 
+        response: dict[str, Any] | None = None
         if self.tasks.get("fetch") is not None:
             _LOGGER.warning("A fetch task is already running, so aborting forecast update")
             return DataCallStatus.ABORT, "Fetch already running"
@@ -2415,9 +2418,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             response = self.tasks.pop("fetch").result() if self.tasks.get("fetch") is not None else None
         if response is None:
             _LOGGER.error("No data was returned for forecasts")
-            return DataCallStatus.FAIL, "No data returned for forecasts"
 
-        if not isinstance(response, dict):  # type: ignore  # noqa: PGH003
+        if not isinstance(response, dict):
             _LOGGER.error("API did not return a json object. Returned %s", response)
             return DataCallStatus.FAIL, "No valid json returned"
 
@@ -2525,6 +2527,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             dict: Raw forecast data points, or None if unsuccessful.
 
         """
+        response_text = ""
         try:
             if api_key is not None and site is not None:
                 # One site is fetched, and retries ensure that the site is actually fetched.
@@ -2552,12 +2555,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         while True:
                             _LOGGER.debug("Fetching forecast")
                             counter += 1
+                            response_text = ""
                             try:
                                 response: ClientResponse = await self._aiohttp_session.get(
                                     url=url, params=params, headers=self.headers, ssl=False
                                 )
                                 _LOGGER.debug("Fetch data url %s", self.__redact_msg_api_key(str(response.url), api_key))
                                 status = response.status
+                                if status == 200:
+                                    response_text = await response.text()
                             except TimeoutError:
                                 _LOGGER.error("Connection error: Timed out connecting to server")
                                 status = 1000
@@ -2611,7 +2617,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 await self.__serialise_usage(api_key)
                             else:
                                 _LOGGER.debug("API returned data, using force fetch so not incrementing API counter")
-                            response_json = await response.text()
+                            response_json = response_text
                             response_json = json.loads(response_json)
                             _LOGGER.debug(
                                 "Task fetch_data took %.3f seconds",
@@ -2651,7 +2657,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         except asyncio.exceptions.CancelledError:
             _LOGGER.info("Fetch cancelled")
         except json.decoder.JSONDecodeError:
-            return await response.text()
+            return response_text
 
         return None
 
@@ -2808,12 +2814,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             ]:
                                 estimate = {site: siteinfo[site].get(period, {}).get(pv_estimate) for site in sites}
                                 total_estimate = sum(estimate[site] for site in sites if estimate[site] is not None)
-                                if estimate is not None and total_estimate is not None:
-                                    if total_estimate == 0:
-                                        continue
-                                    sites_hard_limit[api_key][pv_estimate][period] = {
-                                        site: estimate[site] / total_estimate * hard_limit for site in sites if estimate[site] is not None
-                                    }
+                                if total_estimate == 0:
+                                    continue
+                                sites_hard_limit[api_key][pv_estimate][period] = {
+                                    site: estimate[site] / total_estimate * hard_limit for site in sites if estimate[site] is not None
+                                }
                     _LOGGER.debug(
                         "Build hard limit processing took %.3f seconds for %s",
                         time.time() - start_time,
@@ -2836,11 +2841,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         sites_hard_limit["all"][pv_estimate] = {}
 
                 # Build per-site and total forecasts with proportionate hard limit applied.
-                for site, siteinfo in data.get("siteinfo", {}).items():
-                    api_key = self.__site_api_key(site) if multi_key else "all"
+                for resource_id, siteinfo in data.get("siteinfo", {}).items():
+                    api_key = self.__site_api_key(resource_id) if multi_key else "all"
                     if update_tally:
                         tally = None
-                    site_forecasts = {}
+                    site_forecasts: dict[dt, dict[str, dt | float]] = {}
 
                     if api_key is not None:
                         for forecast in siteinfo["forecasts"]:
@@ -2854,21 +2859,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     "pv_estimate": round(
                                         min(
                                             forecast["pv_estimate"],
-                                            sites_hard_limit[api_key]["pv_estimate"].get(period_start, {}).get(site, 100),
+                                            sites_hard_limit[api_key]["pv_estimate"].get(period_start, {}).get(resource_id, 100),
                                         ),
                                         4,
                                     ),
                                     "pv_estimate10": round(
                                         min(
                                             forecast["pv_estimate10"],
-                                            sites_hard_limit[api_key]["pv_estimate10"].get(period_start, {}).get(site, 100),
+                                            sites_hard_limit[api_key]["pv_estimate10"].get(period_start, {}).get(resource_id, 100),
                                         ),
                                         4,
                                     ),
                                     "pv_estimate90": round(
                                         min(
                                             forecast["pv_estimate90"],
-                                            sites_hard_limit[api_key]["pv_estimate90"].get(period_start, {}).get(site, 100),
+                                            sites_hard_limit[api_key]["pv_estimate90"].get(period_start, {}).get(resource_id, 100),
                                         ),
                                         4,
                                     ),
@@ -2880,15 +2885,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     tally += (
                                         min(
                                             forecast[self._use_forecast_confidence],
-                                            sites_hard_limit[api_key][self._use_forecast_confidence].get(period_start, {}).get(site, 100),
+                                            sites_hard_limit[api_key][self._use_forecast_confidence]
+                                            .get(period_start, {})
+                                            .get(resource_id, 100),
                                         )
                                         * 0.5
                                     )
 
                                 # If the forecast is for today, and the site is not excluded, add to the total.
-                                if site not in self.options.exclude_sites:
-                                    extant = forecasts.get(period_start)
-                                    if extant:
+                                if resource_id not in self.options.exclude_sites:
+                                    extant: dict[str, Any] | None = forecasts.get(period_start)
+                                    if extant is not None:
                                         extant["pv_estimate"] = round(
                                             extant["pv_estimate"] + site_forecasts[period_start]["pv_estimate"],
                                             4,
@@ -2908,12 +2915,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             "pv_estimate10": site_forecasts[period_start]["pv_estimate10"],
                                             "pv_estimate90": site_forecasts[period_start]["pv_estimate90"],
                                         }
-                        site_data_forecasts[site] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
+                        site_data_forecasts[resource_id] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
                         if update_tally:
                             rounded_tally: Any = round(tally, 4) if tally is not None else 0.0
                             if tally is not None:
                                 siteinfo["tally"] = rounded_tally
-                            self._tally[site] = rounded_tally
+                            self._tally[resource_id] = rounded_tally
                 if update_tally:
                     self._data_forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
                 else:
@@ -2969,12 +2976,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for index in range(len(data) - 1, -1, -1):
             if data[index]["period_start"] < midnight_utc:
                 break
-        try:
-            return index
-        except UnboundLocalError:
-            return 0
+        return index
 
-    async def check_data_records(self) -> None:  # noqa: C901
+    async def check_data_records(self) -> None:
         """Log whether all records are present for each day.
 
         Returns:
@@ -3004,6 +3008,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             start_index, end_index = self.__get_forecast_list_slice(self._data_forecasts, start_utc, end_utc)
 
             expected_intervals = 48
+            _is_dst: bool | None = None
             for interval in range(start_index, end_index):
                 if interval == start_index:
                     _is_dst = is_dst(self._data_forecasts[interval])
@@ -3015,8 +3020,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             intervals = end_index - start_index
             forecasts_date = dt.now(self._tz).date() + timedelta(days=future_day)
 
-            def set_assessment(forecasts_date: date, expected_intervals: int, intervals: int, is_correct: bool):
-                nonlocal contiguous, all_records_good, contiguous_end_date
+            def set_assessment(forecasts_date: date, expected_intervals: int, intervals: int, contiguous: int, is_correct: bool) -> int:
+                nonlocal all_records_good, contiguous_end_date
                 interval_assessment[forecasts_date] = {
                     "expected_intervals": expected_intervals,
                     "intervals": intervals,
@@ -3028,11 +3033,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         contiguous_end_date = forecasts_date
                 else:
                     all_records_good = False
+                return contiguous
 
             if intervals == expected_intervals:
-                set_assessment(forecasts_date, expected_intervals, intervals, True)
+                contiguous = set_assessment(forecasts_date, expected_intervals, intervals, contiguous, True)
             else:
-                set_assessment(forecasts_date, expected_intervals, intervals, False)
+                contiguous = set_assessment(forecasts_date, expected_intervals, intervals, contiguous, False)
             if future_day == 0 and interval_assessment[forecasts_date]["correct"]:
                 contiguous_start_date = forecasts_date
         if summer_time_transitioning:
@@ -3055,7 +3061,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             "Forecast data for %s contains all intervals",
                             day.strftime("%Y-%m-%d"),
                         )
-                    case False:
+                    case _:
                         (_LOGGER.debug if contiguous == 7 else _LOGGER.warning)(
                             "Forecast data for %s contains %d of %d intervals%s",
                             day.strftime("%Y-%m-%d"),
@@ -3063,8 +3069,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             assessment["expected_intervals"],
                             ", which may be expected" if contiguous == 7 else ", so is missing forecast data",
                         )
-                    case _:
-                        pass
         issue_registry = ir.async_get(self.hass)
 
         def _remove_issues():

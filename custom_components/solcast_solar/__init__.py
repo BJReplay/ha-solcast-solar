@@ -1,5 +1,6 @@
 """Solcast PV forecast, initialisation."""
 
+from collections.abc import Awaitable, Callable
 import contextlib
 from contextvars import ContextVar
 import json
@@ -217,11 +218,12 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator) -> bool:
     stale = False
     if coordinator.solcast.is_stale_data():
         _LOGGER.warning("The update automation has not been running, updating forecast")
-        await coordinator.service_event_update(
-            ignore_auto_enabled=True,
-            completion="Completed task stale_update",
-            need_history_hours=__need_history_hours(coordinator),
-        )
+        kwargs: dict[str, Any] = {
+            "ignore_auto_enabled": True,
+            "completion": "Completed task stale_update",
+            "need_history_hours": __need_history_hours(coordinator),
+        }
+        await coordinator.service_event_update(**kwargs)
         stale = True
     else:
         _LOGGER.debug("Start is not stale")
@@ -247,11 +249,12 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> b
                     coordinator.solcast.get_data()["last_attempt"].astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
                     coordinator.interval_just_passed.astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
                 )
-                await coordinator.service_event_update(
-                    ignore_auto_enabled=True,
-                    completion="Completed task update_missed",
-                    need_history_hours=__need_history_hours(coordinator),
-                )
+                kwargs: dict[str, Any] = {
+                    "ignore_auto_enabled": True,
+                    "completion": "Completed task update_missed",
+                    "need_history_hours": __need_history_hours(coordinator),
+                }
+                await coordinator.service_event_update(**kwargs)
                 stale = True
             else:
                 _LOGGER.debug("Auto update forecast is fresh")
@@ -313,7 +316,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     match solcast.usage_status:
         case UsageStatus.ERROR:
             raise ConfigEntryError(translation_domain=DOMAIN, translation_key="init_usage_corrupt")
-        case UsageStatus.OK:
+        case _:
             pass
 
     await __get_granular_dampening(hass, entry, solcast)
@@ -326,7 +329,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     match solcast.status:
         case SolcastApiStatus.DATA_INCOMPATIBLE:
             raise ConfigEntryError(translation_domain=DOMAIN, translation_key="init_incompatible")
-        case SolcastApiStatus.OK:
+        case _:
             pass
 
     coordinator = SolcastUpdateCoordinator(hass, solcast, version)
@@ -413,8 +416,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         """
         _LOGGER.info("Action: Set dampening")
 
-        factors = call.data.get(DAMP_FACTOR, None)
-        site = call.data.get(SITE, None)  # Optional site.
+        factors = call.data.get(DAMP_FACTOR, "")
+        site = call.data.get(SITE)  # Optional site.
 
         factors = factors.strip().replace(" ", "")
         factors = factors.split(",")
@@ -444,7 +447,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         opt = {**entry.options}
 
         if site is None:
-            damp_factors = {}
+            damp_factors: dict[str, float] = {}
             for i in range(24):
                 factor = float(factors[i])
                 damp_factors.update({f"{i}": factor})
@@ -481,7 +484,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         """
         _LOGGER.info("Action: Get dampening")
 
-        data = await solcast.get_dampening(call.data.get(SITE, None))  # Optional site.
+        data = await solcast.get_dampening(call.data.get(SITE))  # Optional site.
         return {"data": data}
 
     async def action_call_set_hard_limit(call: ServiceCall) -> None:
@@ -498,7 +501,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         _LOGGER.info("Action: Set hard limit")
 
         hard_limit = call.data.get(HARD_LIMIT, "100.0")
-        to_set = []
+        to_set: list[str] = []
         for limit in hard_limit.split(","):
             limit = limit.strip()
             if not limit.replace(".", "", 1).isdigit():
@@ -667,7 +670,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     recalculate_and_refresh = False
     recalculate_splines = False
 
-    def changed(config) -> bool:
+    def changed(config: Any) -> bool:
         return hass.data[DOMAIN]["entry_options"].get(config) != entry.options.get(config)
 
     # Old API key tracking.
@@ -704,7 +707,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     # Dampening must be the first check with the code as-is...
     if not reload:
         damp_changed = False
-        damp_factors = {}
+        damp_factors: dict[str, float] = {}
         for i in range(24):
             damp_factors.update({f"{i}": entry.options[f"damp{i:02}"]})
             if changed(f"damp{i:02}"):
@@ -797,31 +800,34 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     with contextlib.suppress(Exception):
         _LOGGER.debug("Options version %s", entry.version)
 
-    async def upgrade_to(version, entry, upgrade_function) -> None:
+    async def upgrade_to(
+        version: int, entry: ConfigEntry, upgrade_function: Callable[[HomeAssistant, dict[str, Any]], Awaitable[None]]
+    ) -> None:
         def upgraded() -> None:
             _LOGGER.info("Upgraded to options version %s", entry.version)
 
         if entry.version < version:
-            new_options = {**entry.options}
-            await upgrade_function(hass, new_options)
-            hass.config_entries.async_update_entry(entry, options=new_options, version=version)
-            upgraded()
+            if upgrade_function is not None:
+                new_options = {**entry.options}
+                await upgrade_function(hass, new_options)
+                hass.config_entries.async_update_entry(entry, options=new_options, version=version)
+                upgraded()
 
-    async def __v4(hass: HomeAssistant, new_options) -> None:
+    async def __v4(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
         with contextlib.suppress(Exception):
             new_options.pop("const_disableautopoll", None)
 
-    async def __v5(hass: HomeAssistant, new_options) -> None:
+    async def __v5(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
         for a in range(24):
             new_options[f"damp{str(a).zfill(2)}"] = 1.0
 
-    async def __v6(hass: HomeAssistant, new_options) -> None:
+    async def __v6(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
         new_options[CUSTOM_HOUR_SENSOR] = 1
 
-    async def __v7(hass: HomeAssistant, new_options) -> None:
+    async def __v7(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
         new_options[KEY_ESTIMATE] = "estimate"
 
-    async def __v8(hass: HomeAssistant, new_options):
+    async def __v8(hass: HomeAssistant, new_options: dict[str, Any]):
         new_options[BRK_ESTIMATE] = True
         new_options[BRK_ESTIMATE10] = True
         new_options[BRK_ESTIMATE90] = True
@@ -829,9 +835,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         new_options[BRK_HALFHOURLY] = True
         new_options[BRK_HOURLY] = True
 
-    async def __v9(hass: HomeAssistant, new_options) -> None:
+    async def __v9(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
         try:
-            default_list = []
+            default_list: list[str] = []
             for api_key in new_options[CONF_API_KEY].split(","):
                 api_cache_filename = f"{hass.config.config_dir}/solcast-usage{'' if len(new_options[CONF_API_KEY].split(',')) < 2 else '-' + api_key.strip()}.json"
                 async with aiofiles.open(api_cache_filename) as f:
@@ -846,19 +852,19 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             default = "10"
         new_options[API_QUOTA] = default
 
-    async def __v12(hass: HomeAssistant, new_options) -> None:
+    async def __v12(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
         new_options[AUTO_UPDATE] = int(new_options.get(AUTO_UPDATE, 0))
         new_options[BRK_SITE_DETAILED] = False
         if new_options.get(HARD_LIMIT) is None:  # May already exist.
             new_options[HARD_LIMIT] = 100000
 
-    async def __v14(hass: HomeAssistant, new_options) -> None:
+    async def __v14(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
         hard_limit = new_options.get(HARD_LIMIT, 100000) / 1000
         new_options[HARD_LIMIT_API] = f"{hard_limit:.1f}"
         with contextlib.suppress(Exception):
             new_options.pop(HARD_LIMIT)
 
-    async def __v15(hass: HomeAssistant, new_options) -> None:
+    async def __v15(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
         new_options[EXCLUDE_SITES] = []
 
     upgrades: list[dict[str, Any]] = [

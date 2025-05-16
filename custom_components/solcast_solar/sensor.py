@@ -440,12 +440,12 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             self._state_info["unrecorded_attributes"] = self._state_info["unrecorded_attributes"] | frozenset(exclude)
 
     @property
-    def available(self) -> bool:
+    def available(self) -> bool:  # type: ignore[explicit-override]
         """Return the availability of the sensor linked to the source sensor."""
         return self._attr_available
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
+    def extra_state_attributes(self) -> dict[str, Any] | None:  # type: ignore[explicit-override]
         """Return the state extra attributes of the sensor.
 
         Returns:
@@ -455,7 +455,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         return self._coordinator.get_sensor_extra_attributes(self.entity_description.key)
 
     @property
-    def native_value(self) -> int | dt | float | str | bool | None:
+    def native_value(self) -> int | dt | float | str | bool | None:  # type: ignore[explicit-override]
         """Return the current value of the sensor.
 
         Returns:
@@ -465,7 +465,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         return self._sensor_data
 
     @property
-    def should_poll(self) -> bool:
+    def should_poll(self) -> bool:  # type: ignore[explicit-override]
         """Return whether the sensor should poll.
 
         Returns:
@@ -555,12 +555,12 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         self._unique_id = f"solcast_api_{entity_description.name}"
 
     @property
-    def available(self) -> bool:
+    def available(self) -> bool:  # type: ignore[explicit-override]
         """Return the availability of the sensor linked to the source sensor."""
         return self._attr_available
 
     @property
-    def name(self) -> str:
+    def name(self) -> str:  # type: ignore[explicit-override]
         """Return the name of the device.
 
         Returns:
@@ -570,7 +570,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         return f"{self.entity_description.name}"
 
     @property
-    def unique_id(self) -> str | None:
+    def unique_id(self) -> str | None:  # type: ignore[explicit-override]
         """Return the unique ID of the sensor.
 
         Returns:
@@ -580,7 +580,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         return f"solcast_{self._unique_id}"
 
     @property
-    def extra_state_attributes(self) -> dict[str, Any] | None:
+    def extra_state_attributes(self) -> dict[str, Any] | None:  # type: ignore[explicit-override]
         """Return the state extra attributes of the sensor.
 
         Returns:
@@ -590,7 +590,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         return self._coordinator.get_site_sensor_extra_attributes(self._rooftop_id, self._key)
 
     @property
-    def native_value(self) -> int | dt | float | str | bool | None:
+    def native_value(self) -> int | dt | float | str | bool | None:  # type: ignore[explicit-override]
         """Return the current value of the sensor.
 
         Returns:
@@ -600,7 +600,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         return self._sensor_data
 
     @property
-    def should_poll(self) -> bool:
+    def should_poll(self) -> bool:  # type: ignore[explicit-override]
         """Return whether the sensor should poll.
 
         Returns:

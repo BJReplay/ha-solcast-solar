@@ -70,7 +70,7 @@ async def async_setup_entry(
     entity = EstimateModeEntity(
         coordinator,
         ESTIMATE_MODE,
-        [v for k, v in _MODE_TO_OPTION.items()],
+        list(_MODE_TO_OPTION.values()),
         coordinator.solcast.options.key_estimate,
         entry,
     )

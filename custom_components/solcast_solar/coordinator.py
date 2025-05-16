@@ -50,7 +50,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """
         self.divisions: int = 0
         self.hass: HomeAssistant = hass
-        self.interval_just_passed: dt
+        self.interval_just_passed: dt | None
         self.solcast: SolcastApi = solcast
         self.tasks: dict[str, Any] = {}
         self.version: str = version
@@ -278,15 +278,17 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         "over 24 hours" if self.solcast.options.auto_update > 1 else "between sunrise and sunset",
                     )
             if sunrise == self._sunrise:
-                if self.interval_just_passed in intervals_yesterday:
-                    just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT)
-                else:
-                    just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
+                just_passed = "Unknown"
+                if self.interval_just_passed is not None:
+                    if self.interval_just_passed in intervals_yesterday:
+                        just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT)
+                    else:
+                        just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
+                    _LOGGER.debug("Previous auto update UTC %s", self.interval_just_passed.isoformat())
                 _LOGGER.debug("Previous auto update would have been at %s", just_passed)
-                _LOGGER.debug("Previous auto update UTC %s", self.interval_just_passed.isoformat())
             return intervals
 
-        def format_intervals(intervals) -> list[str]:
+        def format_intervals(intervals: list[dt]) -> list[str]:
             return [
                 i.astimezone(self.solcast.options.tz).strftime("%H:%M")
                 if len(intervals) > 10
@@ -347,7 +349,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 # Clean up a task created by a service call action
                 self.tasks.pop("forecast_update")
 
-    async def service_event_update(self, **kwargs) -> None:
+    async def service_event_update(self, **kwargs: dict[str, Any]) -> None:
         """Get updated forecast data when requested by a service call.
 
         Arguments:
@@ -363,12 +365,11 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
             if self.solcast.options.auto_update > 0 and "ignore_auto_enabled" not in kwargs:
                 raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_force")
-            task = asyncio.create_task(
-                self.__forecast_update(
-                    completion="Completed task update" if not kwargs.get("completion") else kwargs["completion"],
-                    need_history_hours=kwargs.get("need_history_hours", 0),
-                )
-            )
+            update_kwargs: dict[str, Any] = {
+                "completion": "Completed task update" if not kwargs.get("completion") else kwargs["completion"],
+                "need_history_hours": kwargs.get("need_history_hours", 0),
+            }
+            task = asyncio.create_task(self.__forecast_update(**update_kwargs))
             self.tasks["forecast_update"] = task.cancel
         else:
             _LOGGER.warning("Forecast update already requested, ignoring")
@@ -401,7 +402,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         await self.update_integration_listeners()
         self._data_updated = False
 
-    async def service_query_forecast_data(self, *args) -> tuple:
+    async def service_query_forecast_data(self, *args: Any) -> tuple[dict[str, Any], ...]:
         """Return forecast data requested by a service call."""
         return await self.solcast.get_forecast_list(*args)
 
@@ -453,7 +454,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     def get_sensor_value(self, key: str = "") -> int | dt | float | str | bool | None:
         """Return the value of a sensor."""
 
-        def unit_adjusted(hard_limit) -> str:
+        def unit_adjusted(hard_limit: float) -> str:
             if hard_limit >= 1000000:
                 return f"{round(hard_limit / 1000000, 1)} GW"
             if hard_limit >= 1000:
