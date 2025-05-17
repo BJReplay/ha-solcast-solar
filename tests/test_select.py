@@ -63,7 +63,7 @@ async def test_select_change_value(
             blocking=True,
         )
 
-        coordinator._data_updated = True
+        coordinator._data_updated = True  # pyright:ignore[reportPrivateUsage]
         await coordinator.async_refresh()
         await hass.async_block_till_done()
 

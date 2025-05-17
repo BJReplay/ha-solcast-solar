@@ -124,7 +124,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         return True
 
-    async def update_integration_listeners(self, *args: tuple[Any]) -> None:
+    async def update_integration_listeners(self, _: dt | None = None) -> None:
         """Get updated sensor values."""
 
         current_day = dt.now(self.solcast.options.tz).day
@@ -157,7 +157,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 next_update.strftime(TIME_FORMAT) if next_update.date() == dt.now().date() else next_update.strftime(DATE_FORMAT)
             )
 
-    async def __fetch(self, *args: tuple[Any]) -> None:
+    async def __fetch(self, _: dt | None = None) -> None:
         if len(self._update_sequence) > 0:
             task_name = f"pending_update_{self._update_sequence.pop(0):03}"
             _LOGGER.info("Auto update forecast")
@@ -167,7 +167,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             if task_name in self.tasks:
                 self.tasks.pop(task_name)
 
-    async def __check_forecast_fetch(self, *args: tuple[Any]) -> None:
+    async def __check_forecast_fetch(self, _: dt | None = None) -> None:
         """Check for an auto forecast update event."""
         if self.solcast.options.auto_update:
             if len(self._intervals) > 0:
@@ -197,7 +197,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     self._intervals = [interval for i, interval in enumerate(self._intervals) if i not in pop_expired]
                     self.set_next_update()
 
-    async def __update_utc_midnight_usage_sensor_data(self, *args: tuple[Any]) -> None:
+    async def __update_utc_midnight_usage_sensor_data(self, _: dt | None = None) -> None:
         """Reset tracked API usage at midnight UTC."""
         await self.solcast.reset_api_usage()
         self._data_updated = True

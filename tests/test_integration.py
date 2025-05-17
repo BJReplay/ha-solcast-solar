@@ -10,6 +10,7 @@ import json
 import logging
 import os
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -120,14 +121,14 @@ def get_hour_start_utc() -> dt:
     return NOW.replace(hour=12, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
 
 
-def patch_solcast_api(solcast):
+def patch_solcast_api(solcast: SolcastApi):
     """Patch SolcastApi to return a fixed time.
 
     Cannot use freezegun with these tests because time must tick (the tick= option won't work).
     """
-    solcast.get_now_utc = get_now_utc
-    solcast.get_real_now_utc = get_real_now_utc
-    solcast.get_hour_start_utc = get_hour_start_utc
+    solcast.get_now_utc = get_now_utc  # type: ignore[method-assign]
+    solcast.get_real_now_utc = get_real_now_utc  # type: ignore[method-assign]
+    solcast.get_hour_start_utc = get_hour_start_utc  # type: ignore[method-assign]
     return solcast
 
 
@@ -146,9 +147,9 @@ async def _exec_update(
     if last_update_delta == 0:
         last_updated = dt(year=2020, month=1, day=1, hour=1, minute=1, second=1, tzinfo=datetime.UTC)
     else:
-        last_updated = solcast._data["last_updated"] - timedelta(seconds=last_update_delta)
+        last_updated = solcast._data["last_updated"] - timedelta(seconds=last_update_delta)  # pyright: ignore[reportPrivateUsage]
         _LOGGER.info("Mock last updated: %s", last_updated)
-    solcast._data["last_updated"] = last_updated
+    solcast._data["last_updated"] = last_updated  # pyright: ignore[reportPrivateUsage]
     await hass.services.async_call(DOMAIN, action, {}, blocking=True)
     if wait_exception:
         await _wait_for_raise(hass, wait_exception)
@@ -254,20 +255,20 @@ async def test_api_failure(
             assert "Sites data:" in caplog.text
             caplog.clear()
 
-        async def too_busy(assertions: Callable):
+        async def too_busy(assertions: Callable[[ConfigEntry], None]):
             session_set(MOCK_BUSY)
             entry = await async_init_integration(hass, DEFAULT_INPUT1)
             assertions(entry)
             session_clear(MOCK_BUSY)
 
-        async def bad_response(assertions: Callable):
+        async def bad_response(assertions: Callable[[ConfigEntry], None]):
             for returned in [MOCK_CORRUPT_SITES, MOCK_CORRUPT_ACTUALS, MOCK_CORRUPT_FORECAST]:
                 session_set(returned)
                 entry = await async_init_integration(hass, DEFAULT_INPUT1)
                 assertions(entry)
                 session_clear(returned)
 
-        async def exceptions(assertions: Callable):
+        async def exceptions(assertions: Callable[[ConfigEntry], None]):
             session_set(MOCK_EXCEPTION, exception=ConnectionRefusedError)
             entry = await async_init_integration(hass, DEFAULT_INPUT1)
             assertions(entry)
@@ -280,7 +281,7 @@ async def test_api_failure(
             session_clear(MOCK_EXCEPTION)
 
         async def exceptions_update():
-            for test in [
+            tests: list[dict[str, Any]] = [
                 {"exception": TimeoutError, "assertion": "Connection error: Timed out", "fatal": True},
                 {"exception": ClientConnectionError, "assertion": "Client error", "fatal": True},
                 {"exception": ConnectionRefusedError, "assertion": "Connection error, connection refused", "fatal": True},
@@ -290,7 +291,8 @@ async def test_api_failure(
                 {"exception": MOCK_BUSY_UNEXPECTED, "assertion": "Unexpected response received", "fatal": True},
                 # Forbidden must be last
                 {"exception": MOCK_FORBIDDEN, "assertion": "ConfigEntryAuthFailed: API key is invalid", "fatal": True},
-            ]:
+            ]
+            for test in tests:
                 if not isinstance(test["exception"], str):
                     session_set(MOCK_EXCEPTION, exception=test["exception"])
 
@@ -380,14 +382,14 @@ async def test_schema_upgrade(
         undampened_file = Path(f"{config_dir}/solcast-undampened.json")
         original_data = json.loads(data_file.read_text(encoding="utf-8"))
 
-        def set_old_solcast_schema(data_file):
+        def set_old_solcast_schema(data_file: Path):
             data = copy.deepcopy(original_data)
             data["version"] = 4
             data.pop("last_attempt")
             data.pop("auto_updated")
             data_file.write_text(json.dumps(data), encoding="utf-8")
 
-        def set_ancient_solcast_schema(data_file):
+        def set_ancient_solcast_schema(data_file: Path):
             data = copy.deepcopy(original_data)
             data.pop("version")
             data.pop("last_attempt")
@@ -396,7 +398,7 @@ async def test_schema_upgrade(
             data.pop("siteinfo")
             data_file.write_text(json.dumps(data), encoding="utf-8")
 
-        def set_incompatible_schema1(data_file):
+        def set_incompatible_schema1(data_file: Path):
             data = copy.deepcopy(original_data)
             data.pop("version")
             data.pop("siteinfo")
@@ -405,7 +407,7 @@ async def test_schema_upgrade(
             data["some_stuff"] = {"fraggle": "rock"}
             data_file.write_text(json.dumps(data), encoding="utf-8")
 
-        def set_incompatible_schema2(data_file):
+        def set_incompatible_schema2(data_file: Path):
             data = copy.deepcopy(original_data)
             data.pop("version")
             data["siteinfo"] = {"weird": "stuff"}
@@ -414,7 +416,7 @@ async def test_schema_upgrade(
             data.pop("auto_updated")
             data_file.write_text(json.dumps(data), encoding="utf-8")
 
-        def verify_new_solcast_schema(data_file):
+        def verify_new_solcast_schema(data_file: Path):
             data = json.loads(data_file.read_text(encoding="utf-8"))
             assert data["version"] == 6
             assert "last_attempt" in data
@@ -474,7 +476,7 @@ async def test_integration(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
-    options: dict,
+    options: dict[str, Any],
 ) -> None:
     """Test integration init."""
 
@@ -509,9 +511,9 @@ async def test_integration(
 
     try:
         assert solcast.sites_status is SitesStatus.OK
-        assert solcast._loaded_data is True
+        assert solcast._loaded_data is True  # pyright: ignore[reportPrivateUsage]
         assert "Dampening factors corrupt or not found, setting to 1.0" not in caplog.text
-        assert solcast._tz == ZONE
+        assert solcast._tz == ZONE  # pyright: ignore[reportPrivateUsage]
 
         # Test cache files are as expected
         if len(options["api_key"].split(",")) == 1:
@@ -611,7 +613,7 @@ async def test_integration(
         # Test update beyond ten seconds of prior update, also with stale usage cache and dodgy dampening file
         session_reset_usage()
         for api_key in options["api_key"].split(","):
-            solcast._api_used_reset[api_key] = dt.now(datetime.UTC) - timedelta(days=5)
+            solcast._api_used_reset[api_key] = dt.now(datetime.UTC) - timedelta(days=5)  # pyright: ignore[reportPrivateUsage]
         solcast.options.auto_update = 0
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "Not requesting a solar forecast because time is within ten seconds of last update" not in caplog.text
@@ -629,8 +631,8 @@ async def test_integration(
         _no_exception(caplog)
         caplog.clear()
 
-        def set_file_last_modified(file_path, dt):
-            dt_epoch = dt.timestamp()
+        def set_file_last_modified(file_path: str, dtm: dt):
+            dt_epoch = dtm.timestamp()
             os.utime(file_path, (dt_epoch, dt_epoch))
 
         granular_dampening_file.write_text("really dodgy", encoding="utf-8")
@@ -641,15 +643,12 @@ async def test_integration(
         caplog.clear()
 
         # Test reset usage cache when fresh
-        if solcast._api_used_reset is not None:
-            for api_key in options["api_key"].split(","):
-                solcast._api_used_reset[api_key] = solcast._api_used_reset[api_key] - timedelta(hours=24)  # type: ignore[assignment, operator]
-            await solcast.reset_api_usage()
-            assert "Reset API usage" in caplog.text
-            await solcast.reset_api_usage()
-            assert "Usage cache is fresh, so not resetting" in caplog.text
-        else:
-            pytest.fail("API usage reset is None")
+        for api_key in options["api_key"].split(","):
+            solcast._api_used_reset[api_key] = solcast._api_used_reset[api_key] - timedelta(hours=24)  # type: ignore[assignment, operator]
+        await solcast.reset_api_usage()
+        assert "Reset API usage" in caplog.text
+        await solcast.reset_api_usage()
+        assert "Usage cache is fresh, so not resetting" in caplog.text
 
         # Test clear data action when no solcast.json exists
         if options == DEFAULT_INPUT2:
@@ -728,10 +727,16 @@ async def test_integration_remaining_actions(
             await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("1.0," * 24)[:-1]}, blocking=True)
             await hass.async_block_till_done()  # Because options change
             dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
-            assert dampening.get("data", [{}])[0] == {
-                "site": "all",
-                "damp_factor": ("1.0," * 24)[:-1],
-            }
+            if dampening is not None:
+                assert (
+                    dampening.get("data", [{}])[0]  # pyright: ignore[reportArgumentType, reportIndexIssue, reportOptionalSubscript] # Response is always a list
+                    == {
+                        "site": "all",
+                        "damp_factor": ("1.0," * 24)[:-1],
+                    }
+                )
+            else:
+                pytest.fail("Dampening is None")
 
         dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
         if dampening is not None:
@@ -743,7 +748,7 @@ async def test_integration_remaining_actions(
                         "damp_factor": ("1.0," * 24)[:-1],
                     }
                 )
-                odd_factors = [
+                odd_factors: list[dict[str, Any]] = [
                     {"set": {}, "expect": MultipleInvalid},  # No factors
                     {"set": {"damp_factor": "  "}, "expect": ServiceValidationError},  # No factors
                     {"set": {"damp_factor": ("0.5," * 5)[:-1]}, "expect": ServiceValidationError},  # Insufficient factors
@@ -757,8 +762,8 @@ async def test_integration_remaining_actions(
                 ]
                 for factors in odd_factors:
                     _LOGGER.debug("Test set odd dampening factors: %s", factors)
-                    with pytest.raises(factors["expect"]):  # type: ignore[call-overload]
-                        await hass.services.async_call(DOMAIN, "set_dampening", factors["set"], blocking=True)  # type: ignore[arg-type]
+                    with pytest.raises(factors["expect"]):
+                        await hass.services.async_call(DOMAIN, "set_dampening", factors["set"], blocking=True)
             else:
                 pytest.fail("Dampening data is not a list")
         else:
@@ -818,7 +823,7 @@ async def test_integration_remaining_actions(
         await _clear_granular_dampening()
 
         # Test set/clear hard limit
-        odd_limits = [
+        odd_limits: list[dict[str, Any]] = [
             {"set": {}, "expect": MultipleInvalid},  # No hard limit
             {"set": {"hard_limit": "zzzzzz"}, "expect": ServiceValidationError},  # Silly hard limit
             {"set": {"hard_limit": "-5"}, "expect": ServiceValidationError},  # Negative hard limit
@@ -826,8 +831,8 @@ async def test_integration_remaining_actions(
         ]
         for limits in odd_limits:
             _LOGGER.debug("Test set odd hard limit: %s", limits)
-            with pytest.raises(limits["expect"]):  # type: ignore[call-overload]
-                await hass.services.async_call(DOMAIN, "set_hard_limit", limits["set"], blocking=True)  # type: ignore[arg-type]
+            with pytest.raises(limits["expect"]):
+                await hass.services.async_call(DOMAIN, "set_hard_limit", limits["set"], blocking=True)
 
         async def _set_hard_limit(hard_limit: str) -> SolcastApi:
             await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": hard_limit}, blocking=True)
@@ -845,8 +850,8 @@ async def test_integration_remaining_actions(
         assert "Build hard limit period values from scratch for dampened" in caplog.text
         assert "Build hard limit period values from scratch for un-dampened" in caplog.text
         for estimate in ["pv_estimate", "pv_estimate10", "pv_estimate90"]:
-            assert len(solcast._sites_hard_limit["all"][estimate]) > 0
-            assert len(solcast._sites_hard_limit_undampened["all"][estimate]) > 0
+            assert len(solcast._sites_hard_limit["all"][estimate]) > 0  # pyright: ignore[reportPrivateUsage]
+            assert len(solcast._sites_hard_limit_undampened["all"][estimate]) > 0  # pyright: ignore[reportPrivateUsage]
 
         _LOGGER.debug("Test set large hard limit")
         solcast = await _set_hard_limit("5000")
@@ -890,18 +895,18 @@ async def test_integration_remaining_actions(
         assert "Build hard limit period values from scratch for un-dampened" in caplog.text
         for api_key in entry.options["api_key"].split(","):
             for estimate in ["pv_estimate", "pv_estimate10", "pv_estimate90"]:
-                assert len(solcast._sites_hard_limit[api_key][estimate]) > 0
-                assert len(solcast._sites_hard_limit_undampened[api_key][estimate]) > 0
+                assert len(solcast._sites_hard_limit[api_key][estimate]) > 0  # pyright: ignore[reportPrivateUsage]
+                assert len(solcast._sites_hard_limit_undampened[api_key][estimate]) > 0  # pyright: ignore[reportPrivateUsage]
 
         _LOGGER.debug("Test set single hard limit value for both API keys")
         solcast = await _remove_hard_limit()
         assert solcast.hard_limit == "100.0"
         for estimate in ["pv_estimate", "pv_estimate10", "pv_estimate90"]:
-            assert len(solcast._sites_hard_limit["all"][estimate]) == 0
-            assert len(solcast._sites_hard_limit_undampened["all"][estimate]) == 0
+            assert len(solcast._sites_hard_limit["all"][estimate]) == 0  # pyright: ignore[reportPrivateUsage]
+            assert len(solcast._sites_hard_limit_undampened["all"][estimate]) == 0  # pyright: ignore[reportPrivateUsage]
 
         # Test query forecast data
-        queries = [
+        queries: list[dict[str, Any]] = [
             {
                 "query": {
                     EVENT_START_DATETIME: solcast.get_day_start_utc().isoformat(),
@@ -940,7 +945,7 @@ async def test_integration_remaining_actions(
             forecast_data = await hass.services.async_call(
                 DOMAIN,
                 "query_forecast_data",
-                query["query"],  # type: ignore[arg-type]
+                query["query"],
                 blocking=True,
                 return_response=True,
             )
@@ -1016,7 +1021,7 @@ async def test_integration_scenarios(
                 DEFAULT_INPUT1[EXCLUDE_SITES],
             )
             solcast_bad: SolcastApi = SolcastApi(session, connection_options, hass, entry)
-            await solcast_bad.serialise_data(solcast_bad._data, str(Path(f"{config_dir}/solcast.json")))
+            await solcast_bad.serialise_data(solcast_bad._data, str(Path(f"{config_dir}/solcast.json")))  # pyright: ignore[reportPrivateUsage]
             assert "Not serialising empty data" in caplog.text
 
         # Assert good start
@@ -1074,9 +1079,11 @@ async def test_integration_scenarios(
         _LOGGER.debug("Testing stale start with auto update enabled")
         alter_last_updated_as_stale()
         coordinator, solcast = await _reload(hass, entry)
+        if coordinator is None or solcast is None:
+            pytest.fail("Reload failed")
         await _wait_for_update(caplog)
         assert "is older than expected, should be" in caplog.text
-        assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
+        assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)  # pyright: ignore[reportPrivateUsage]
         assert "ERROR" not in caplog.text
         _no_exception(caplog)
 
@@ -1094,9 +1101,11 @@ async def test_integration_scenarios(
         _LOGGER.debug("Testing very stale start with auto update enabled")
         alter_last_updated_as_very_stale()
         coordinator, solcast = await _reload(hass, entry)
+        if coordinator is None or solcast is None:
+            pytest.fail("Reload failed")
         await _wait_for_update(caplog)
         assert "is older than expected, should be" in caplog.text
-        assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
+        assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)  # pyright: ignore[reportPrivateUsage]
         assert "hours of past data" in caplog.text
         assert "ERROR" not in caplog.text
         _no_exception(caplog)
@@ -1112,6 +1121,8 @@ async def test_integration_scenarios(
         await hass.async_block_till_done()
         alter_last_updated_as_stale()
         coordinator, solcast = await _reload(hass, entry)
+        if coordinator is None or solcast is None:
+            pytest.fail("Reload failed")
         await _wait_for_update(caplog)
         assert "The update automation has not been running" in caplog.text
         _no_exception(caplog)
@@ -1123,9 +1134,11 @@ async def test_integration_scenarios(
         _LOGGER.debug("Testing very stale start with auto update disabled")
         alter_last_updated_as_very_stale()
         coordinator, solcast = await _reload(hass, entry)
+        if coordinator is None or solcast is None:
+            pytest.fail("Reload failed")
         await _wait_for_update(caplog)
         assert "The update automation has not been running" in caplog.text
-        assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
+        assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)  # pyright: ignore[reportPrivateUsage]
         assert "hours of past data" in caplog.text
         assert "ERROR" not in caplog.text
         _no_exception(caplog)
@@ -1171,6 +1184,8 @@ async def test_integration_scenarios(
         caplog.clear()
         hass.data[DOMAIN]["presumed_dead"] = False  # Clear presumption of death
         coordinator, solcast = await _reload(hass, entry)
+        if coordinator is None or solcast is None:
+            pytest.fail("Reload failed")
         assert "An API key has changed, resetting usage" in caplog.text
         assert "Reset API usage" in caplog.text
         assert "New site(s) have been added" in caplog.text
@@ -1182,6 +1197,8 @@ async def test_integration_scenarios(
         # Test no sites call on start when in a presumed dead state
         hass.data[DOMAIN]["presumed_dead"] = True  # Set presumption of death
         coordinator, solcast = await _reload(hass, entry)
+        if coordinator is None or solcast is None:
+            pytest.fail("Reload failed")
         assert "Get sites failed, last call result: 999/Prior crash" in caplog.text
         assert "Connecting to https://api.solcast.com.au/rooftop_sites" not in caplog.text
         caplog.clear()
@@ -1214,7 +1231,7 @@ async def test_integration_scenarios(
         caplog.clear()
 
         # Corrupt usage.json
-        usage_corruption = [
+        usage_corruption: list[dict[str, Any]] = [
             {"daily_limit": "10", "daily_limit_consumed": 8, "reset": "2025-01-05T00:00:00+00:00"},
             {"daily_limit": 10, "daily_limit_consumed": "8", "reset": "2025-01-05T00:00:00+00:00"},
             {"daily_limit": 10, "daily_limit_consumed": 8, "reset": "notadate"},

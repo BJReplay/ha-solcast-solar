@@ -44,13 +44,16 @@ async def test_midnight(
         assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "4"  # type: ignore[union-attr]
         assert "Transitioning between summer/standard time" not in caplog.text
 
-        coordinator._intervals = [dt.fromisoformat("2025-01-10T00:59:30+00:00"), *coordinator._intervals]  # Inject expired interval
+        coordinator._intervals = [  # Inject expired interval  # pyright: ignore[reportPrivateUsage]
+            dt.fromisoformat("2025-01-10T00:59:30+00:00"),
+            *coordinator._intervals,  # Inject expired interval  # pyright: ignore[reportPrivateUsage]
+        ]
         caplog.clear()
-        coordinator._data_updated = False  # Improve test coverage
+        coordinator._data_updated = False  # Improve test coverage  # pyright: ignore[reportPrivateUsage]
         await coordinator.async_refresh()
         for _ in range(30):
             freezer.tick()
-            coordinator._data_updated = True
+            coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
             await coordinator.async_refresh()
             await hass.async_block_till_done()
             # Result is used for the next test. An update task must be pending, which should occur at nine minutes past the hour.

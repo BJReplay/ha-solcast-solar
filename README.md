@@ -990,6 +990,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 v4.3.5
 * Fix key validation corner case that could prevent start by @autoSteve
+* Stricter type checking by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.4...v4.3.5
 

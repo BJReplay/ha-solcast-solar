@@ -22,7 +22,9 @@ from homeassistant.helpers import issue_registry as ir
 
 from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
 
-from tests.typing import ClientSessionGenerator
+from tests.typing import (
+    ClientSessionGenerator,  # pyright: ignore[reportUnknownVariableType]
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -46,7 +48,7 @@ async def test_missing_data_fixable(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     issue_registry: ir.IssueRegistry,
-    hass_client: ClientSessionGenerator,
+    hass_client: ClientSessionGenerator,  # pyright: ignore[reportUnknownParameterType]
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test missing fixable."""

@@ -52,6 +52,7 @@ import random
 import subprocess
 import sys
 import traceback
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from simulator import API_KEY_SITES, SimulatedSolcast
@@ -76,7 +77,7 @@ except (ModuleNotFoundError, ImportError):
     subprocess.check_call([sys.executable, "-m", "pip", "install", "flask"])
     need_restart = True
 try:
-    import isodate
+    import isodate  # pyright: ignore[reportMissingTypeStubs]
 except (ModuleNotFoundError, ImportError):
     subprocess.check_call([sys.executable, "-m", "pip", "install", "isodate"])
     need_restart = True
@@ -111,7 +112,7 @@ ERROR_KEY_REQUIRED = "KeyRequired"
 ERROR_INVALID_KEY = "InvalidKey"
 ERROR_TOO_MANY_REQUESTS = "TooManyRequests"
 ERROR_SITE_NOT_FOUND = "SiteNotFound"
-ERROR_MESSAGE = {
+ERROR_MESSAGE: dict[str, Any] = {
     ERROR_KEY_REQUIRED: {"message": "An API key must be specified.", "status": 400},
     ERROR_INVALID_KEY: {"message": "Invalid API key.", "status": 403},
     ERROR_TOO_MANY_REQUESTS: {"message": "You have exceeded your free daily limit.", "status": 429},
@@ -136,10 +137,10 @@ dictConfig(  # Logger configuration
 )
 
 
-class DtJSONProvider(DefaultJSONProvider):
+class DtJSONProvider(DefaultJSONProvider):  # pyright: ignore[reportPossiblyUnboundVariable]
     """Custom JSON provider converting datetime to ISO format."""
 
-    def default(self, o):
+    def default(self, o: Any) -> Any:  # pyright: ignore[reportIncompatibleMethodOverride]
         """Convert datetime to ISO format."""
         if isinstance(o, dt):
             return o.isoformat()
@@ -147,7 +148,7 @@ class DtJSONProvider(DefaultJSONProvider):
         return super().default(o)
 
 
-app = Flask(__name__)
+app = Flask(__name__)  # pyright: ignore[reportPossiblyUnboundVariable]
 app.json = DtJSONProvider(app)
 _LOGGER = app.logger
 counter_last_reset = dt.now(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)  # Previous UTC midnight
@@ -163,7 +164,7 @@ except Exception as e:  # noqa: BLE001
     _LOGGER.error("%s: %s", e, traceback.format_exc())
 
 
-def validate_call(api_key, site_id=None, counter=True):
+def validate_call(api_key: str, site_id: str | None = None, counter: bool = True) -> tuple[int, Any, Any]:
     """Return the state of the API call."""
     global counter_last_reset  # noqa: PLW0603 pylint: disable=global-statement
 
@@ -175,7 +176,7 @@ def validate_call(api_key, site_id=None, counter=True):
             v["counter"] = 0
         counter_last_reset = dt.now(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)
 
-    def error(code):
+    def error(code: str) -> tuple[int, Any, None]:
         return (
             ERROR_MESSAGE[code]["status"],
             {"response_status": {"error_code": code, "message": ERROR_MESSAGE[code]["message"]}},
@@ -217,94 +218,109 @@ def validate_call(api_key, site_id=None, counter=True):
 
 
 @app.route("/rooftop_sites", methods=["GET"])
-def get_sites():
+def get_sites() -> tuple[Any, int]:
     """Return sites for an API key."""
 
-    api_key = request.args.get("api_key")
+    api_key = request.args.get("api_key")  # pyright: ignore[reportPossiblyUnboundVariable]
+    if api_key is None:
+        return "{}", 500
 
     response_code, issue, _ = validate_call(api_key, counter=False)
     if response_code != 200:
-        return jsonify(issue) if issue != "" else "", response_code
+        return jsonify(issue) if issue != "" else "{}", response_code  # pyright: ignore[reportPossiblyUnboundVariable]
 
     get_sites = simulate.raw_get_sites(api_key)
     if get_sites is not None:
-        return jsonify(get_sites), 200
-    return {}, 403
+        return jsonify(get_sites), 200  # pyright: ignore[reportPossiblyUnboundVariable]
+    return "{}", 403
 
 
 @app.route("/rooftop_sites/<site_id>/estimated_actuals", methods=["GET"])
-def get_site_estimated_actuals(site_id):
+def get_site_estimated_actuals(site_id: str) -> tuple[Any, int]:
     """Return simulated estimated actials for a site."""
 
-    api_key = request.args.get("api_key")
+    api_key = request.args.get("api_key")  # pyright: ignore[reportPossiblyUnboundVariable]
+    if api_key is None:
+        return "{}", 500
+
     response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
-        return jsonify(issue) if issue != "" else "", response_code
+        return jsonify(issue) if issue != "" else "", response_code  # pyright: ignore[reportPossiblyUnboundVariable]
 
-    return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, int(request.args.get("hours")))), 200
+    if request.args.get("hours") is None:  # pyright: ignore[reportPossiblyUnboundVariable]
+        return "{}", 500
+    return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, int(request.args["hours"]))), 200  # pyright: ignore[reportPossiblyUnboundVariable]
 
 
 @app.route("/rooftop_sites/<site_id>/forecasts", methods=["GET"])
-def get_site_forecasts(site_id):
+def get_site_forecasts(site_id: str) -> tuple[Any, int]:
     """Return simulated forecasts for a site."""
 
-    api_key = request.args.get("api_key")
+    api_key = request.args.get("api_key")  # pyright: ignore[reportPossiblyUnboundVariable]
+    if api_key is None:
+        return "{}", 500
+
     response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
-        return jsonify(issue) if issue != "" else "", response_code
-    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, int(request.args.get("hours")))), 200
+        return jsonify(issue) if issue != "" else "", response_code  # pyright: ignore[reportPossiblyUnboundVariable]
+    if request.args.get("hours") is None:  # pyright: ignore[reportPossiblyUnboundVariable]
+        return "{}", 500
+    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, int(request.args["hours"]))), 200  # pyright: ignore[reportPossiblyUnboundVariable]
 
 
 @app.route("/data/historic/advanced_pv_power", methods=["GET"])
-def get_site_estimated_actuals_advanced():
+def get_site_estimated_actuals_advanced() -> tuple[Any, int]:
     """Return simulated advanced pv power history for a site."""
 
     def missing_parameter():
         _LOGGER.info("Missing parameter")
-        return jsonify({"response_status": {"error_code": "MissingParameter", "message": "Missing parameter."}}), 400
+        return jsonify({"response_status": {"error_code": "MissingParameter", "message": "Missing parameter."}}), 400  # pyright: ignore[reportPossiblyUnboundVariable]
 
-    api_key = request.args.get("api_key")
-    site_id = request.args.get("resource_id")
+    api_key = request.args.get("api_key")  # pyright: ignore[reportPossiblyUnboundVariable]
+    site_id = request.args.get("resource_id")  # pyright: ignore[reportPossiblyUnboundVariable]
+    if api_key is None or site_id is None:
+        return "{}", 500
+
     try:
-        start = dt.fromisoformat(request.args.get("start"))
+        start = dt.fromisoformat(request.args.get("start"))  # type:ignore[arg-type]
     except:  # noqa: E722
-        _LOGGER.info("Missing start parameter %s", request.args.get("start"))
+        _LOGGER.info("Missing start parameter %s", request.args.get("start"))  # pyright: ignore[reportPossiblyUnboundVariable]
         return missing_parameter()
     try:
-        end = dt.fromisoformat(request.args.get("end"))
+        end = dt.fromisoformat(request.args.get("end"))  # type: ignore[arg-type]
     except:  # noqa: E722
         end = None
     try:
-        duration = isodate.parse_duration(request.args.get("duration"))
-        end = start + duration
+        duration = isodate.parse_duration(request.args.get("duration"))  # pyright: ignore[reportPossiblyUnboundVariable, reportUnknownMemberType]
+        end = start + duration  # pyright: ignore[reportUnknownVariableType]
     except:  # noqa: E722
         duration = None
     if not end and not duration:
         _LOGGER.info("Missing end or duration parameter")
         return missing_parameter()
-    if not duration:
-        _hours = int((end - start).total_seconds() / 3600)
+    if duration is None:
+        _hours = int((end - start).total_seconds() / 3600)  # type: ignore[operator]
     period_end = simulate.get_period(start, timedelta(minutes=30))
-    response_code, issue, site = validate_call(api_key, site_id)
+    response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
-        return jsonify(issue) if issue != "" else "", response_code
+        return jsonify(issue) if issue != "" else "", response_code  # pyright: ignore[reportPossiblyUnboundVariable]
 
-    return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200
+    return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200  # pyright:ignore[reportPossiblyUnboundVariable, reportCallIssue]
 
 
 @app.route("/data/forecast/advanced_pv_power", methods=["GET"])
-def get_site_forecasts_advanced():
+def get_site_forecasts_advanced() -> tuple[Any, int]:
     """Return simulated advanced pv power forecasts for a site."""
 
-    api_key = request.args.get("api_key")
-    site_id = request.args.get("resource_id")
-    _hours = int(request.args.get("hours"))
+    api_key = request.args.get("api_key")  # pyright: ignore[reportPossiblyUnboundVariable]
+    site_id = request.args.get("resource_id")  # pyright: ignore[reportPossiblyUnboundVariable]
+    _hours = int(request.args.get("hours"))  # type:ignore[arg-type]
     period_end = simulate.get_period(dt.now(datetime.UTC), timedelta(minutes=30))
-    response_code, issue, site = validate_call(api_key, site_id)
+    response_code, issue, _ = validate_call(api_key, site_id)  # type:ignore[arg-type]
     if response_code != 200:
-        return jsonify(issue) if issue != "" else "", response_code
+        return jsonify(issue) if issue != "" else "", response_code  # pyright: ignore[reportPossiblyUnboundVariable]
 
-    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200
+    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200  # pyright:ignore[reportPossiblyUnboundVariable, reportCallIssue]
 
 
 def get_time_zone():
@@ -345,36 +361,40 @@ if __name__ == "__main__":
     parser.add_argument("--debug", help="Set Flask debug mode on", action="store_true", required=False, default=False)
     args = parser.parse_args()
     if args.limit:
-        API_LIMIT = args.limit
+        API_LIMIT = args.limit  # pyright: ignore[reportConstantRedefinition]
         _LOGGER.info("API limit has been set to %s", API_LIMIT)
     if args.no429:
-        GENERATE_429 = False
+        GENERATE_429 = False  # pyright: ignore[reportConstantRedefinition]
         _LOGGER.info("429 responses will not be generated")
     if args.bomb429:
         if not GENERATE_429:
             _LOGGER.error("Cannot specify --bomb429 with --no429")
             sys.exit()
-        BOMB_429 = [int(x) for x in args.bomb429.split(",") if "-" not in x]  # Simple minutes of the hour.
+        BOMB_429 = [  # pyright: ignore[reportConstantRedefinition]
+            int(x) for x in args.bomb429.split(",") if "-" not in x
+        ]  # Simple minutes of the hour. # pyright: ignore[reportConstantRedefinition]
         if "-" in args.bomb429:
             for x_to_y in [x for x in args.bomb429.split(",") if "-" in x]:  # Minute of the hour ranges.
                 split = x_to_y.split("-")
                 if len(split) != 2:
                     _LOGGER.error("Not two hyphen separated values for --bomb429")
-                BOMB_429 += list(range(int(split[0]), int(split[1]) + 1))
-        list.sort(BOMB_429)
+                BOMB_429 += list(range(int(split[0]), int(split[1]) + 1))  # pyright: ignore[reportConstantRedefinition]
+        list.sort(BOMB_429)  # pyright:ignore[reportUnknownMemberType]
         _LOGGER.info("API too busy responses will be returned at minute(s) %s", BOMB_429)
     if args.bombkey:
-        BOMB_KEY = [int(x) for x in args.bombkey.split(",") if "-" not in x]  # Simple minutes of the hour.
+        BOMB_KEY = [  # pyright: ignore[reportConstantRedefinition]
+            int(x) for x in args.bombkey.split(",") if "-" not in x
+        ]  # Simple minutes of the hour. # pyright: ignore[reportConstantRedefinition]
         if "-" in args.bombkey:
             for x_to_y in [x for x in args.bombkey.split(",") if "-" in x]:  # Minute of the hour ranges.
                 split = x_to_y.split("-")
                 if len(split) != 2:
                     _LOGGER.error("Not two hyphen separated values for --bombkey")
-                BOMB_KEY += list(range(int(split[0]), int(split[1]) + 1))
-        list.sort(BOMB_KEY)
+                BOMB_KEY += list(range(int(split[0]), int(split[1]) + 1))  # pyright: ignore[reportConstantRedefinition]
+        list.sort(BOMB_KEY)  # pyright:ignore[reportUnknownMemberType]
         _LOGGER.info("API key changes will be happen at minute(s) %s", BOMB_KEY)
     if args.teapot:
-        GENERATE_418 = True
+        GENERATE_418 = True  # pyright: ignore[reportConstantRedefinition]
         _LOGGER.info("I'm a teapot response will be sometimes generated")
 
     if API_LIMIT == 50:

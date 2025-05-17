@@ -15,31 +15,14 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import (
-    ATTR_CONFIGURATION_URL,
-    ATTR_IDENTIFIERS,
-    ATTR_MANUFACTURER,
-    ATTR_MODEL,
-    ATTR_NAME,
-    ATTR_SW_VERSION,
-    EntityCategory,
-    # MATCH_ALL,
-    UnitOfEnergy,
-    UnitOfPower,
-)
+from homeassistant.const import EntityCategory, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.device_registry import DeviceEntryType
+from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (
-    ATTR_ENTRY_TYPE,
-    ATTRIBUTION,
-    DOMAIN,
-    MANUFACTURER,
-    SENSOR_UPDATE_LOGGING,
-)
+from .const import ATTRIBUTION, DOMAIN, MANUFACTURER, SENSOR_UPDATE_LOGGING
 from .coordinator import SolcastUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -412,15 +395,15 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
         self._attr_available = self._sensor_data is not None
 
-        self._attr_device_info = {
-            ATTR_IDENTIFIERS: {(DOMAIN, entry.entry_id)},
-            ATTR_NAME: "Solcast PV Forecast",
-            ATTR_MANUFACTURER: MANUFACTURER,
-            ATTR_MODEL: "Solcast PV Forecast",
-            ATTR_ENTRY_TYPE: DeviceEntryType.SERVICE,
-            ATTR_SW_VERSION: coordinator.version,
-            ATTR_CONFIGURATION_URL: "https://toolkit.solcast.com.au/",
-        }
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name="Solcast PV Forecast",
+            manufacturer=MANUFACTURER,
+            model="Solcast PV Forecast",
+            entry_type=DeviceEntryType.SERVICE,
+            sw_version=coordinator.version,
+            configuration_url="https://toolkit.solcast.com.au/",
+        )
 
     async def async_added_to_hass(self) -> None:
         """Entity about to be added to hass, so set recorder excluded attributes."""
@@ -542,15 +525,15 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
 
         self._attr_available = self._sensor_data is not None
 
-        self._attr_device_info = {
-            ATTR_IDENTIFIERS: {(DOMAIN, entry.entry_id)},
-            ATTR_NAME: "Solcast PV Forecast",
-            ATTR_MANUFACTURER: MANUFACTURER,
-            ATTR_MODEL: "Solcast PV Forecast",
-            ATTR_ENTRY_TYPE: DeviceEntryType.SERVICE,
-            ATTR_SW_VERSION: coordinator.version,
-            ATTR_CONFIGURATION_URL: "https://toolkit.solcast.com.au/",
-        }
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, entry.entry_id)},
+            name="Solcast PV Forecast",
+            manufacturer=MANUFACTURER,
+            model="Solcast PV Forecast",
+            entry_type=DeviceEntryType.SERVICE,
+            sw_version=coordinator.version,
+            configuration_url="https://toolkit.solcast.com.au/",
+        )
 
         self._unique_id = f"solcast_api_{entity_description.name}"
 

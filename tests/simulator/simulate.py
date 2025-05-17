@@ -5,7 +5,7 @@ from datetime import datetime as dt, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo
 
-API_KEY_SITES = {
+API_KEY_SITES: dict[str, Any] = {
     "1": {
         "sites": [
             {
@@ -125,7 +125,7 @@ API_KEY_SITES = {
 FORECAST = 0.9
 FORECAST_10 = 0.75
 FORECAST_90 = 1.0
-GENERATION_FACTOR = [
+GENERATION_FACTOR: list[float] = [
     0,
     0,
     0,
@@ -184,20 +184,18 @@ class SimulatedSolcast:
     def __init__(self) -> None:
         """Initialize the API."""
         self.timezone: ZoneInfo = TIMEZONE
-        self.cached_actuals = {}
-        self.cached_forecasts = {}
+        self.cached_actuals: dict[str, Any] = {}
+        self.cached_forecasts: dict[str, Any] = {}
 
-    def raw_get_sites(self, api_key) -> dict[str, Any] | None:
+    def raw_get_sites(self, api_key: str) -> dict[str, Any] | None:
         """Return sites for an API key."""
 
-        sites = API_KEY_SITES.get(api_key, {})
+        sites = API_KEY_SITES.get(api_key)
         meta = {
             "page_count": 1,
             "current_page": 1,
             "total_records": len(API_KEY_SITES.get(api_key, {}).get("sites", [])),
         }
-        if meta["total_records"] is None:
-            meta["total_records"] = 0
         return sites | meta if sites is not None else None
 
     def raw_get_site_estimated_actuals(
@@ -209,10 +207,8 @@ class SimulatedSolcast:
         This is to enable testing of the integration.
         """
 
-        sites = API_KEY_SITES.get(api_key, {}).get("sites")
-        if sites is None:
-            sites = {}
-        site = next((site for site in sites if site.get("resource_id") == site_id), None)
+        sites: list[dict[str, Any]] | int | None = API_KEY_SITES.get(api_key, {}).get("sites", [])
+        site: dict[str, Any] | None = next((s for s in sites if s["resource_id"] == site_id), None) if isinstance(sites, list) else None
         if not site:
             return {}
         period_end = self.get_period(dt.now(datetime.UTC), timedelta(hours=hours) * -1) if period_end is None else period_end
@@ -241,10 +237,8 @@ class SimulatedSolcast:
     ) -> dict[str, list[dict[str, Any]]]:
         """Return simulated forecasts for a site."""
 
-        sites = API_KEY_SITES.get(api_key, {}).get("sites")
-        if sites is None:
-            sites = {}
-        site = next((site for site in sites if site.get("resource_id") == site_id), None)
+        sites: list[dict[str, Any]] | int | None = API_KEY_SITES.get(api_key, {}).get("sites")
+        site: dict[str, Any] | None = next((s for s in sites if s["resource_id"] == site_id), None) if isinstance(sites, list) else None
         if not site:
             return {}
         period_end = self.get_period(dt.now(datetime.UTC), timedelta(minutes=30))
