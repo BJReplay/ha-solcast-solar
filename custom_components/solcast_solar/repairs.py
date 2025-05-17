@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.selector import (
     SelectOptionDict,
-    SelectSelector,
+    SelectSelector,  # pyright: ignore[reportUnknownVariableType]
     SelectSelectorConfig,
     SelectSelectorMode,
 )
@@ -42,7 +42,7 @@ class SolcastRepair(RepairsFlow):
     @callback
     def _async_get_placeholders(self) -> dict[str, str]:
         issue_registry = ir.async_get(self.hass)
-        placeholders: dict = {}
+        placeholders: dict[str, Any] = {}
         if issue := issue_registry.issues.get((DOMAIN, self.issue_id)):
             if issue.learn_more_url:
                 placeholders["learn_more"] = issue.learn_more_url
@@ -63,7 +63,7 @@ class RecordsMissingRepairFlow(SolcastRepair):
 
         if user_input is not None and self.entry is not None:
             opts = {AUTO_UPDATE: int(user_input[AUTO_UPDATE])}
-            new_options = {**self.entry.options, **opts}
+            new_options: dict[str, Any] = {**self.entry.options, **opts}
             self.hass.config_entries.async_update_entry(self.entry, options=new_options)
             return self.async_abort(reason="reconfigured")
 
@@ -88,8 +88,7 @@ async def async_create_fix_flow(
 ) -> RepairsFlow:
     """Create flow."""
 
-    match issue_id:
-        case "records_missing_fixable":
-            return RecordsMissingRepairFlow(entry=current_entry.get())
+    if issue_id == "records_missing_fixable":
+        return RecordsMissingRepairFlow(entry=current_entry.get())
 
     return ConfirmRepairFlow()

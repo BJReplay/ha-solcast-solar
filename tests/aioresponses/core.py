@@ -13,7 +13,7 @@ from functools import wraps
 import inspect
 import json
 from re import Pattern
-from typing import Any, NamedTuple, Optional, TypeVar, cast
+from typing import Any, NamedTuple, TypeVar, cast
 from unittest.mock import Mock, patch
 from urllib.parse import parse_qsl, urlencode
 from uuid import uuid4
@@ -35,16 +35,16 @@ from yarl import URL
 _FuncT = TypeVar("_FuncT", bound=Callable[..., Any])
 
 
-def stream_reader_factory(
-    loop: asyncio.AbstractEventLoop | None = None,
-) -> StreamReader:
+def stream_reader_factory(loop: asyncio.AbstractEventLoop) -> StreamReader:
     """Create a StreamReader instance."""
     protocol = ResponseHandler(loop=loop)
     return StreamReader(protocol, limit=2**16, loop=loop)
 
 
-def merge_params(url: URL | str, params: dict | None = None) -> "URL":
+def merge_params(url: URL | str | Pattern[Any], params: dict[str, Any] | None = None) -> URL:
     """Merge URL and params."""
+    if isinstance(url, Pattern):
+        return URL("pattern_not_supported")
     url = URL(url)
     if params:
         query_params = MultiDict(url.query)
@@ -53,8 +53,10 @@ def merge_params(url: URL | str, params: dict | None = None) -> "URL":
     return url
 
 
-def normalize_url(url: URL | str) -> "URL":
+def normalize_url(url: URL | str | Pattern[Any]) -> URL:
     """Normalize URL to make comparisons."""
+    if isinstance(url, Pattern):
+        return URL("pattern_not_supported")
     url = URL(url)
     return url.with_query(urlencode(sorted(parse_qsl(url.query_string))))
 
@@ -68,8 +70,8 @@ class CallbackResult:
         status: int = 200,
         body: str | bytes = "",
         content_type: str = "application/json",
-        payload: dict | None = None,
-        headers: dict | None = None,
+        payload: dict[str, Any] | None = None,
+        headers: dict[str, Any] | None = None,
         response_class: type[ClientResponse] | None = None,
         reason: str | None = None,
     ) -> None:
@@ -87,23 +89,23 @@ class CallbackResult:
 class RequestMatch:
     """Execute a request based on the URL and method."""
 
-    url_or_pattern: URL | Pattern = None
+    url_or_pattern: URL | Pattern[Any]
 
     def __init__(
         self,
-        url: URL | str | Pattern,
+        url: URL | str | Pattern[Any],
         method: str = hdrs.METH_GET,
         status: int = 200,
         body: str | bytes = "",
-        payload: dict | None = None,
+        payload: dict[str, Any] | None = None,
         exception: Exception | None = None,
-        headers: dict | None = None,
+        headers: dict[str, Any] | None = None,
         content_type: str = "application/json",
         response_class: type[ClientResponse] | None = None,
         timeout: bool = False,
         repeat: bool | int = False,
         reason: str | None = None,
-        callback: Callable | None = None,
+        callback: Callable[[Any], Any] | None = None,
     ) -> None:
         """Initialize the request match."""
         if isinstance(url, Pattern):
@@ -137,6 +139,8 @@ class RequestMatch:
 
     def match_regexp(self, url: URL) -> bool:
         """Match the URL as a regular expression."""
+        if isinstance(self.url_or_pattern, URL):
+            return False
         return bool(self.url_or_pattern.match(str(url)))
 
     def match(self, method: str, url: URL) -> bool:
@@ -145,9 +149,9 @@ class RequestMatch:
             return False
         return self.match_func(url)
 
-    def _build_raw_headers(self, headers: dict) -> tuple:
+    def _build_raw_headers(self, headers: CIMultiDict[Any]) -> tuple[Any, ...]:
         """Convert a dict of headers to a tuple of tuples. Mimics the format of ClientResponse."""
-        raw_headers = []
+        raw_headers: list[tuple[bytes, Any]] = []
         for k, v in headers.items():
             raw_headers.append((k.encode("utf8"), v.encode("utf8")))
         return tuple(raw_headers)
@@ -156,12 +160,12 @@ class RequestMatch:
         self,
         url: URL | str,
         method: str = hdrs.METH_GET,
-        request_headers: dict | None = None,
+        request_headers: dict[str, Any] | None = None,
         status: int = 200,
         body: str | bytes = "",
         content_type: str = "application/json",
-        payload: dict | None = None,
-        headers: dict | None = None,
+        payload: dict[str, Any] | None = None,
+        headers: dict[str, Any] | None = None,
         response_class: type[ClientResponse] | None = None,
         reason: str | None = None,
     ) -> ClientResponse:
@@ -170,34 +174,40 @@ class RequestMatch:
         if payload is not None:
             body = json.dumps(payload)
         if not isinstance(body, bytes):
-            body = str.encode(body)
+            if isinstance(body, str):
+                body = body.encode()
+            else:
+                body = bytes(body)
         if request_headers is None:
             request_headers = {}
         loop = Mock()
         loop.get_debug = Mock()
         loop.get_debug.return_value = True
-        kwargs: dict[str, Any] = {}
-        kwargs["request_info"] = RequestInfo(url=url, method=method, headers=CIMultiDictProxy(CIMultiDict(**request_headers)), real_url=url)
-        kwargs["writer"] = None
-        kwargs["continue100"] = None
-        kwargs["timer"] = TimerNoop()
-        kwargs["traces"] = []
-        kwargs["loop"] = loop
-        kwargs["session"] = None
+        kwargs: dict[str, Any] = {
+            "request_info": RequestInfo(
+                url=URL(url), method=method, headers=CIMultiDictProxy(CIMultiDict(**request_headers)), real_url=URL(url)
+            ),
+            "writer": None,
+            "continue100": None,
+            "timer": TimerNoop(),
+            "traces": [],
+            "loop": loop,
+            "session": None,
+        }
 
         # We need to initialize headers manually
         _headers = CIMultiDict({hdrs.CONTENT_TYPE: content_type})
         if headers:
             _headers.update(headers)
         raw_headers = self._build_raw_headers(_headers)
-        resp = response_class(method, url, **kwargs)
+        resp = response_class(method, URL(url), **kwargs)
 
         for hdr in _headers.getall(hdrs.SET_COOKIE, ()):
             resp.cookies.load(hdr)
 
         # Reified attributes
-        resp._headers = _headers
-        resp._raw_headers = raw_headers
+        resp._headers = CIMultiDictProxy(_headers)  # pyright: ignore[reportPrivateUsage]
+        resp._raw_headers = raw_headers  # pyright: ignore[reportPrivateUsage]
 
         resp.status = status
         resp.reason = reason
@@ -241,16 +251,16 @@ class RequestMatch:
 class RequestCall(NamedTuple):
     """Named tuple for the request call."""
 
-    args: tuple
-    kwargs: dict
+    args: tuple[Any, ...]
+    kwargs: dict[str, Any]
 
 
 class aioresponses:
     """Mock aiohttp requests made by ClientSession."""
 
-    _matches: str | RequestMatch = None
-    _responses: list[ClientResponse] = None
-    requests: dict = None
+    _matches: dict[str, RequestMatch] = {}
+    _responses: list[ClientResponse] = []
+    requests: dict[tuple[str, URL], Any] = {}
 
     def __init__(self, **kwargs: Any) -> None:
         """Initialize aioresponses."""
@@ -263,10 +273,17 @@ class aioresponses:
 
         self.start()
 
+    def __enter__(self):
+        """Enter the context manager."""
+        return self
+
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object):
+        """Exit the context manager."""
+
     def __call__(self, f: _FuncT) -> _FuncT:
         """Class __call__. Allows for use as a decorator."""
 
-        def _pack_arguments(ctx, *args, **kwargs) -> tuple[tuple, dict]:
+        def _pack_arguments(ctx: Any, *args: Any, **kwargs: Any) -> tuple[tuple[Any, ...], dict[str, Any]]:
             if self._param:
                 kwargs[self._param] = ctx
             else:
@@ -276,14 +293,14 @@ class aioresponses:
         if asyncio.iscoroutinefunction(f):
 
             @wraps(f)
-            async def wrapped(*args, **kwargs):
+            async def wrapped(*args: Any, **kwargs: Any):  # pyright: ignore[reportRedeclaration]
                 with self as ctx:
                     args, kwargs = _pack_arguments(ctx, *args, **kwargs)
                     return await f(*args, **kwargs)
         else:
 
             @wraps(f)
-            def wrapped(*args, **kwargs):
+            def wrapped(*args: Any, **kwargs: Any):
                 with self as ctx:
                     args, kwargs = _pack_arguments(ctx, *args, **kwargs)
                     return f(*args, **kwargs)
@@ -292,15 +309,15 @@ class aioresponses:
 
     def clear(self) -> None:
         """Clear all the responses and matches."""
-        self._responses.clear()
-        self._matches.clear()
+        self._responses = []
+        self._matches = {}
 
     def start(self) -> None:
         """Patch aiohttp."""
         self._responses = []
         self._matches = {}
         self.patcher.start()
-        self.patcher.return_value = self._request_mock
+        self.patcher.return_value = self._request_mock  # type: ignore[attr-defined]
 
     def stop(self) -> None:
         """Stop patching aiohttp."""
@@ -309,49 +326,49 @@ class aioresponses:
         self.patcher.stop()
         self.clear()
 
-    def head(self, url: URL | str | Pattern, **kwargs: Any) -> None:
+    def head(self, url: URL | str | Pattern[Any], **kwargs: Any) -> None:
         """Add a HEAD request."""
         self.add(url, method=hdrs.METH_HEAD, **kwargs)
 
-    def get(self, url: URL | str | Pattern, **kwargs: Any) -> None:
+    def get(self, url: URL | str | Pattern[Any], **kwargs: Any) -> None:
         """Add a GET request."""
         self.add(url, method=hdrs.METH_GET, **kwargs)
 
-    def post(self, url: URL | str | Pattern, **kwargs: Any) -> None:
+    def post(self, url: URL | str | Pattern[Any], **kwargs: Any) -> None:
         """Add a POST request."""
         self.add(url, method=hdrs.METH_POST, **kwargs)
 
-    def put(self, url: URL | str | Pattern, **kwargs: Any) -> None:
+    def put(self, url: URL | str | Pattern[Any], **kwargs: Any) -> None:
         """Add a PUT request."""
         self.add(url, method=hdrs.METH_PUT, **kwargs)
 
-    def patch(self, url: URL | str | Pattern, **kwargs: Any) -> None:
+    def patch(self, url: URL | str | Pattern[Any], **kwargs: Any) -> None:
         """Add a PATCH request."""
         self.add(url, method=hdrs.METH_PATCH, **kwargs)
 
-    def delete(self, url: URL | str | Pattern, **kwargs: Any) -> None:
+    def delete(self, url: URL | str | Pattern[Any], **kwargs: Any) -> None:
         """Add a DELETE request."""
         self.add(url, method=hdrs.METH_DELETE, **kwargs)
 
-    def options(self, url: URL | str | Pattern, **kwargs: Any) -> None:
+    def options(self, url: URL | str | Pattern[Any], **kwargs: Any) -> None:
         """Add an OPTIONS request."""
         self.add(url, method=hdrs.METH_OPTIONS, **kwargs)
 
     def add(
         self,
-        url: URL | str | Pattern,
+        url: URL | str | Pattern[Any],
         method: str = hdrs.METH_GET,
         status: int = 200,
         body: str | bytes = "",
         exception: Exception | None = None,
         content_type: str = "application/json",
-        payload: dict | None = None,
-        headers: dict | None = None,
+        payload: dict[str, Any] | None = None,
+        headers: dict[str, Any] | None = None,
         response_class: type[ClientResponse] | None = None,
         repeat: bool | int = False,
         timeout: bool = False,
         reason: str | None = None,
-        callback: Callable | None = None,
+        callback: Callable[[Any], Any] | None = None,
     ) -> None:
         """Add a request."""
         self._matches[str(uuid4())] = RequestMatch(
@@ -370,32 +387,29 @@ class aioresponses:
             callback=callback,
         )
 
-    def change_url(self, url: URL | str | Pattern, new_url: URL | str | Pattern) -> None:
+    def change_url(self, url: URL | str | Pattern[Any], new_url: URL | str | Pattern[Any]) -> None:
         """Change a request url."""
 
-        for key, matcher in self._matches.items():
+        for matcher in self._matches.values():
             if isinstance(url, Pattern):
                 if matcher.url_or_pattern == url:
                     if isinstance(new_url, Pattern):
                         matcher.url_or_pattern = new_url
                         matcher.match_func = matcher.match_regexp
                         break
-                    else:
-                        matcher.url_or_pattern = normalize_url(new_url)
-                        matcher.match_func = matcher.match_str
-                        break
-            else:
-                if matcher.url_or_pattern == normalize_url(url):
-                    if isinstance(new_url, Pattern):
-                        matcher.url_or_pattern = new_url
-                        matcher.match_func = matcher.match_regexp
-                        break
-                    else:
-                        matcher.url_or_pattern = normalize_url(new_url)
-                        matcher.match_func = matcher.match_str
-                        break
+                    matcher.url_or_pattern = normalize_url(new_url)
+                    matcher.match_func = matcher.match_str
+                    break
+            elif matcher.url_or_pattern == normalize_url(url):
+                if isinstance(new_url, Pattern):
+                    matcher.url_or_pattern = new_url
+                    matcher.match_func = matcher.match_regexp
+                    break
+                matcher.url_or_pattern = normalize_url(new_url)
+                matcher.match_func = matcher.match_str
+                break
 
-    def _format_call_signature(self, *args, **kwargs) -> str:
+    def _format_call_signature(self, *args: Any, **kwargs: Any) -> str:
         message = "%s(%%s)" % self.__class__.__name__ or "mock"  # noqa: UP031
         formatted_args = ""
         args_string = ", ".join([repr(arg) for arg in args])
@@ -431,7 +445,7 @@ class aioresponses:
 
             raise AssertionError(msg)
 
-    def assert_called_with(self, url: URL | str | Pattern, method: str = hdrs.METH_GET, *args: Any, **kwargs: Any):
+    def assert_called_with(self, url: URL | str | Pattern[Any], method: str = hdrs.METH_GET, *args: Any, **kwargs: Any):
         """Assert that the last call was made with the specified arguments.
 
         Raises an AssertionError if the args and keyword args passed in are
@@ -449,7 +463,7 @@ class aioresponses:
         if expected != actual:
             raise AssertionError(f"{self._format_call_signature(expected)} != {self._format_call_signature(actual)}")
 
-    def assert_any_call(self, url: URL | str | Pattern, method: str = hdrs.METH_GET, *args: Any, **kwargs: Any):
+    def assert_any_call(self, url: URL | str | Pattern[Any], method: str = hdrs.METH_GET, *args: Any, **kwargs: Any):
         """Assert the mock has been called with the specified arguments.
 
         The assert passes if the mock has *ever* been called, unlike
@@ -485,9 +499,9 @@ class aioresponses:
             return True
         return False
 
-    async def match(self, method: str, url: URL, allow_redirects: bool = True, **kwargs: Any) -> Optional["ClientResponse"]:
+    async def match(self, method: str, url: URL, allow_redirects: bool = True, **kwargs: Any) -> ClientResponse | Exception | None:
         """Match the request."""
-        history = []
+        history: list[ClientResponse | Exception] = []
         while True:
             for key, matcher in self._matches.items():  # noqa: B007
                 if matcher.match(method, url):
@@ -505,12 +519,12 @@ class aioresponses:
                 matcher.repeat -= 1
 
             if self.is_exception(response_or_exc):
-                raise response_or_exc
+                raise response_or_exc  # type: ignore[misc]
             # If response_or_exc was an exception, it would have been raised.
             # At this point we can be sure it's a ClientResponse
-            response: ClientResponse = response_or_exc
-            is_redirect = response.status in (301, 302, 303, 307, 308)
-            if is_redirect and allow_redirects:
+            response: ClientResponse | Exception = response_or_exc
+            is_redirect = response.status in (301, 302, 303, 307, 308) if isinstance(response, ClientResponse) else False
+            if isinstance(response, ClientResponse) and is_redirect and allow_redirects:
                 if hdrs.LOCATION not in response.headers:
                     break
                 history.append(response)
@@ -524,20 +538,23 @@ class aioresponses:
             else:  # noqa: RET507
                 break
 
-        response._history = tuple(history)
+        if isinstance(response, ClientResponse):
+            response._history = tuple(h for h in history if isinstance(h, ClientResponse))  # pyright: ignore[reportPrivateUsage]
         return response
 
-    async def _request_mock(self, orig_self: ClientSession, method: str, url: URL | str, *args: tuple, **kwargs: Any) -> "ClientResponse":
+    async def _request_mock(
+        self, orig_self: ClientSession, method: str, url: URL | str, *args: Any, **kwargs: Any
+    ) -> ClientResponse | Exception:
         """Return mocked response object or raise connection error."""
         if orig_self.closed:
             raise RuntimeError("Session is closed")
 
         # Join url with ClientSession._base_url
-        url = orig_self._build_url(url)
+        url = orig_self._build_url(url)  # pyright: ignore[reportPrivateUsage]
         url_origin = str(url)
         # Combine ClientSession headers with passed headers
         if orig_self.headers:
-            kwargs["headers"] = orig_self._prepare_headers(kwargs.get("headers"))
+            kwargs["headers"] = orig_self._prepare_headers(kwargs.get("headers"))  # pyright: ignore[reportPrivateUsage]
 
         url = normalize_url(merge_params(url, kwargs.get("params")))
         url_str = str(url)
@@ -556,7 +573,8 @@ class aioresponses:
             if self.passthrough_unmatched:
                 return await self.patcher.temp_original(orig_self, method, url_origin, *args, **kwargs)
             raise ClientConnectionError(f"Connection refused: {method} {url}")
-        self._responses.append(response)
+        if isinstance(response, ClientResponse):
+            self._responses.append(response)
 
         # Automatically call response.raise_for_status() on a request if the
         # request was initialized with raise_for_status=True. Also call
@@ -568,9 +586,10 @@ class aioresponses:
             raise_for_status = getattr(orig_self, "_raise_for_status", False)
 
         if callable(raise_for_status):
-            await raise_for_status(response)
+            await raise_for_status(response)  # pyright: ignore[reportGeneralTypeIssues]
         elif raise_for_status:
-            response.raise_for_status()
+            if isinstance(response, ClientResponse):
+                response.raise_for_status()
 
         return response
 

@@ -14,7 +14,7 @@ from .const import SOLCAST_URL
 def async_register(hass: HomeAssistant, register: system_health.SystemHealthRegistration) -> None:
     """Register system health callbacks."""
     register.domain = "Solcast Solar"
-    register.async_register_info(system_health_info)
+    register.async_register_info(system_health_info)  # pyright: ignore[reportUnknownMemberType]
 
 
 async def system_health_info(hass: HomeAssistant) -> dict[str, Any]:

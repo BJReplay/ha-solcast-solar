@@ -104,13 +104,13 @@ class NoIndentEncoder(json.JSONEncoder):
 class JSONDecoder(json.JSONDecoder):
     """Helper to convert ISO format dict values to datetime."""
 
-    def __init__(self, *args, **kwargs) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         """Initialise the decoder."""
-        json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args, **kwargs)  # noqa: B026
+        json.JSONDecoder.__init__(self, object_hook=self.date_hook, *args, **kwargs)  # noqa: B026
 
-    def object_hook(self, o: Any) -> dict:
+    def date_hook(self, o: Any) -> dict[str, Any]:
         """Return converted datetimes."""
-        result = {}
+        result: dict[str, Any] = {}
         for key, value in o.items():
             try:
                 result[key] = dt.fromisoformat(value)
@@ -119,7 +119,7 @@ class JSONDecoder(json.JSONDecoder):
         return result
 
 
-def cubic_interp(x0: list, x: list, y: list) -> list:
+def cubic_interp(x0: list[Any], x: list[Any], y: list[Any]) -> list[Any]:
     """Build a cubic spline.
 
     Arguments:
@@ -132,14 +132,14 @@ def cubic_interp(x0: list, x: list, y: list) -> list:
 
     """
 
-    def diff(lst: list) -> list:  # numpy-like diff
+    def diff(lst: list[Any]) -> list[Any]:  # numpy-like diff
         size = len(lst) - 1
-        r = [0] * size
+        r: list[int | float] = [0] * size
         for i in range(size):
             r[i] = lst[i + 1] - lst[i]
         return r
 
-    def clip(lst: list, min_val: float, max_val: float, in_place: bool = False) -> list:  # numpy-like clip
+    def clip(lst: list[Any], min_val: float, max_val: float, in_place: bool = False) -> list[Any]:  # numpy-like clip
         if not in_place:
             lst = lst[:]
         for i in range(len(lst)):
@@ -149,8 +149,8 @@ def cubic_interp(x0: list, x: list, y: list) -> list:
                 lst[i] = max_val
         return lst
 
-    def search_sorted(list_to_insert: list, insert_into: list) -> list:  # numpy-like search_sorted
-        def float_search_sorted(float_to_insert, insert_into):
+    def search_sorted(list_to_insert: list[Any], insert_into: list[Any]) -> list[Any]:  # numpy-like search_sorted
+        def float_search_sorted(float_to_insert: float, insert_into: list[Any]) -> int:
             for i in range(len(insert_into)):
                 if float_to_insert <= insert_into[i]:
                     return i
@@ -162,12 +162,12 @@ def cubic_interp(x0: list, x: list, y: list) -> list:
         return a - b
 
     size: int = len(x)
-    x_diff: list = diff(x)
-    y_diff: list = diff(y)
+    x_diff: list[Any] = diff(x)
+    y_diff: list[Any] = diff(y)
 
-    li: list = [0] * size
-    li_1: list = [0] * (size - 1)
-    z: list = [0] * (size)
+    li: list[Any] = [0] * size
+    li_1: list[Any] = [0] * (size - 1)
+    z: list[Any] = [0] * (size)
 
     li[0] = math.sqrt(2 * x_diff[0])
     li_1[0] = 0.0
@@ -196,15 +196,15 @@ def cubic_interp(x0: list, x: list, y: list) -> list:
     index = search_sorted(x0, x)
     index = clip(index, 1, size - 1)
 
-    xi1 = [x[num] for num in index]
-    xi0 = [x[num - 1] for num in index]
-    yi1 = [y[num] for num in index]
-    yi0 = [y[num - 1] for num in index]
-    zi1 = [z[num] for num in index]
-    zi0 = [z[num - 1] for num in index]
+    xi1: list[Any] = [x[num] for num in index]
+    xi0: list[Any] = [x[num - 1] for num in index]
+    yi1: list[Any] = [y[num] for num in index]
+    yi0: list[Any] = [y[num - 1] for num in index]
+    zi1: list[Any] = [z[num] for num in index]
+    zi0: list[Any] = [z[num - 1] for num in index]
     hi1 = list(map(subtract, xi1, xi0))
 
-    f0 = [0] * len(hi1)
+    f0: list[Any] = [0] * len(hi1)
     for j in range(len(f0)):
         f0[j] = round(
             zi0[j] / (6 * hi1[j]) * (xi1[j] - x0[j]) ** 3

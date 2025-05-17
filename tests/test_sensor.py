@@ -5,6 +5,7 @@ import contextlib
 import copy
 from datetime import datetime as dt, timedelta
 import logging
+from typing import Any
 
 from freezegun.api import FrozenDateTimeFactory
 import pytest
@@ -24,6 +25,7 @@ from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.const import STATE_UNAVAILABLE, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util.read_only_dict import ReadOnlyDict
 
 from . import (
     DEFAULT_INPUT1,
@@ -38,7 +40,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 # Site breakdown for 2222-2222-2222-2222 and 3333-3333-3333-3333 are identical.
-SENSORS: dict[str, dict] = {
+SENSORS: dict[str, dict[str, Any]] = {
     "forecast_today": {
         "state": {"2": "42.552", "1": "58.509"},
         "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
@@ -364,7 +366,7 @@ async def test_sensor_states(  # noqa: C901
     freezer: FrozenDateTimeFactory,
     caplog: pytest.LogCaptureFixture,
     key: str,
-    settings: dict,
+    settings: dict[str, Any],
 ) -> None:
     """Test state and attributes of sensors including expected state class and unit of measurement."""
 
@@ -373,7 +375,7 @@ async def test_sensor_states(  # noqa: C901
     solcast = coordinator.solcast
 
     def get_estimate_set() -> list[str]:
-        estimate_set = []
+        estimate_set: list[str] = []
         if settings[BRK_ESTIMATE]:
             estimate_set.append("estimate")
         if settings[BRK_ESTIMATE10]:
@@ -383,7 +385,7 @@ async def test_sensor_states(  # noqa: C901
         return estimate_set
 
     try:
-        sensors = copy.deepcopy(SENSORS)
+        sensors: dict[str, Any] = copy.deepcopy(SENSORS)
         estimate_set = get_estimate_set()
         estimate_set_hyphen = [e + "-" for e in estimate_set]
 
@@ -401,6 +403,8 @@ async def test_sensor_states(  # noqa: C901
                     for values in sensors.values():
                         if values.get("breakdown"):
                             values["attributes"]["2"] |= values["breakdown"]["1"] | values["breakdown"]["2"]
+                case _:
+                    pass
 
         # Remove unused options for the key scenarios based on settings.
         for values in sensors.values():
@@ -447,17 +451,18 @@ async def test_sensor_states(  # noqa: C901
                     assert dt.fromisoformat(test)
                 else:
                     assert test == attrs["state"][key]
+            state_attributes: ReadOnlyDict[str, Any] = state.attributes  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
             if attrs.get("attributes"):
                 for attribute in attrs["attributes"][key]:
-                    testa = state.attributes.get(attribute)
+                    testa = state_attributes.get(attribute)
                     with contextlib.suppress(AttributeError, ValueError):
                         testa = testa.replace(year=2024, month=1, day=1).isoformat()  # type: ignore[union-attr] # This is an assumed datetime, but that may not be
                     assert testa == attrs["attributes"][key][attribute]
-            assert state.attributes["attribution"] == "Data retrieved from Solcast"
+            assert state_attributes["attribution"] == "Data retrieved from Solcast"
             if "unit_of_measurement" in attrs:
-                assert state.attributes["unit_of_measurement"] == attrs["unit_of_measurement"]
+                assert state_attributes["unit_of_measurement"] == attrs["unit_of_measurement"]
             if "state_class" in attrs:
-                assert state.attributes["state_class"] == attrs["state_class"]
+                assert state_attributes["state_class"] == attrs["state_class"]
         _no_exception(caplog)
         caplog.clear()
 
@@ -473,26 +478,26 @@ async def test_sensor_states(  # noqa: C901
             # load, then is cleaned up when all sensors are defined when more than one limit is specified).
             assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set") is None
 
-            attrs = hass.states.get("sensor.first_site").attributes  # type: ignore[union-attr]
-            assert attrs
-            assert attrs.get("resource_id")
-            assert attrs.get("name")
-            assert attrs.get("friendly_name")
-            assert attrs.get("install_date")
-            assert attrs.get("latitude") is None
-            assert attrs.get("longitude") is None
-            assert attrs.get("capacity")
-            assert attrs.get("capacity_dc")
-            assert attrs.get("azimuth")
-            assert attrs.get("tilt")
-            assert attrs.get("loss_factor")
-            assert attrs.get("tags")
+            attribs: ReadOnlyDict[str, Any] = hass.states.get("sensor.first_site").attributes  # type: ignore[union-attr]
+            assert attribs
+            assert attribs.get("resource_id")
+            assert attribs.get("name")
+            assert attribs.get("friendly_name")
+            assert attribs.get("install_date")
+            assert attribs.get("latitude") is None
+            assert attribs.get("longitude") is None
+            assert attribs.get("capacity")
+            assert attribs.get("capacity_dc")
+            assert attribs.get("azimuth")
+            assert attribs.get("tilt")
+            assert attribs.get("loss_factor")
+            assert attribs.get("tags")
 
         # Test last sensor update time.
         freezer.move_to(now.replace(hour=2, minute=30, second=0, microsecond=0))
         async_fire_time_changed(hass)
         await hass.async_block_till_done()
-        coordinator._data_updated = True  # Will trigger all sensor update
+        coordinator._data_updated = True  # Will trigger all sensor update # pyright: ignore[reportPrivateUsage]
 
         assert "Updating sensor" in caplog.text
         state = hass.states.get("sensor.solcast_pv_forecast_power_now")  # A per-five minute sensor
@@ -503,7 +508,7 @@ async def test_sensor_states(  # noqa: C901
 
         # Simulate date change
         caplog.clear()
-        coordinator._last_day = (dt.now(solcast.options.tz) - timedelta(days=1)).day
+        coordinator._last_day = (dt.now(solcast.options.tz) - timedelta(days=1)).day  # pyright: ignore[reportPrivateUsage]
         await coordinator.update_integration_listeners()
         assert "Date has changed, recalculate splines and set up auto-updates" in caplog.text
         assert "Previous auto update would have been" in caplog.text
@@ -562,15 +567,15 @@ async def test_sensor_unavailable(
 
     try:
         # Turn SolcastApi to custard.
-        old_solcast_data = copy.deepcopy(solcast._data)
-        old_solcast_data_undampened = copy.deepcopy(solcast._data_undampened)
-        solcast._data["siteinfo"]["1111-1111-1111-1111"]["forecasts"] = ["blah"]
-        solcast._data["siteinfo"]["2222-2222-2222-2222"]["forecasts"] = []
-        solcast._data_undampened["siteinfo"]["1111-1111-1111-1111"]["forecasts"] = []
-        solcast._data_undampened["siteinfo"]["2222-2222-2222-2222"]["forecasts"] = []
+        old_solcast_data = copy.deepcopy(solcast._data)  # pyright: ignore[reportPrivateUsage]
+        old_solcast_data_undampened = copy.deepcopy(solcast._data_undampened)  # pyright: ignore[reportPrivateUsage]
+        solcast._data["siteinfo"]["1111-1111-1111-1111"]["forecasts"] = ["blah"]  # pyright: ignore[reportPrivateUsage]
+        solcast._data["siteinfo"]["2222-2222-2222-2222"]["forecasts"] = []  # pyright: ignore[reportPrivateUsage]
+        solcast._data_undampened["siteinfo"]["1111-1111-1111-1111"]["forecasts"] = []  # pyright: ignore[reportPrivateUsage]
+        solcast._data_undampened["siteinfo"]["2222-2222-2222-2222"]["forecasts"] = []  # pyright: ignore[reportPrivateUsage]
 
         await solcast.build_forecast_data()
-        coordinator._data_updated = True
+        coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
         coordinator.async_update_listeners()
 
         for sensor, assertions in SENSORS.items():
@@ -588,11 +593,11 @@ async def test_sensor_unavailable(
         caplog.clear()
 
         # Test when some future day data is missing (remove D3 onwards).
-        solcast._data_undampened = old_solcast_data_undampened
+        solcast._data_undampened = old_solcast_data_undampened  # pyright: ignore[reportPrivateUsage]
         for site in ("1111-1111-1111-1111", "2222-2222-2222-2222"):
-            solcast._data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][:-269]
+            solcast._data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][:-269]  # pyright: ignore[reportPrivateUsage]
         await solcast.build_forecast_data()
-        coordinator._data_updated = True
+        coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
         coordinator.async_update_listeners()
 
         for sensor, assertions in SENSORS.items():
@@ -607,16 +612,17 @@ async def test_sensor_unavailable(
         caplog.clear()
 
         # Test when 'today' is partial (remove D3 onwards).
-        solcast._data_undampened = old_solcast_data_undampened
+        solcast._data_undampened = old_solcast_data_undampened  # pyright: ignore[reportPrivateUsage]
         for site in ("1111-1111-1111-1111", "2222-2222-2222-2222"):
-            solcast._data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][:-325]
+            solcast._data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][:-325]  # pyright: ignore[reportPrivateUsage]
         await solcast.build_forecast_data()
-        coordinator._data_updated = True
+        coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
         coordinator.async_update_listeners()
 
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_today")
         assert state
-        assert state.attributes["dataCorrect"] is False
+        state_attributes: ReadOnlyDict[str, Any] = state.attributes  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        assert state_attributes["dataCorrect"] is False
 
         _no_exception(caplog)
 
@@ -624,22 +630,22 @@ async def test_sensor_unavailable(
         assert await async_cleanup_integration_tests(hass)
 
 
-def get_sensor_value(self, key: str):
+def get_sensor_value(self: Any, key: str):
     """Raise an exception getting the value of a sensor."""
     return 1 / 0
 
 
-def get_site_sensor_value(self, rooftop: str, key: str):
+def get_site_sensor_value(self: Any, rooftop: str, key: str):
     """Raise an exception getting the value of a sensor."""
     return 1 / 0
 
 
-def get_sensor_extra_attributes(self, key: str):
+def get_sensor_extra_attributes(self: Any, key: str):
     """Raise an exception getting the value of a sensor."""
     return 1 / 0
 
 
-def get_site_sensor_extra_attributes(self, rooftop: str, key: str):
+def get_site_sensor_extra_attributes(self: Any, rooftop: str, key: str):
     """Raise an exception getting the value of a sensor."""
     return 1 / 0
 
@@ -664,7 +670,7 @@ async def test_sensor_unavailble_exception(
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
     try:
-        coordinator._data_updated = True
+        coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
         await coordinator.async_refresh()
         await hass.async_block_till_done()
 

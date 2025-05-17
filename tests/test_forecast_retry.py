@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 import logging
+from typing import Any
 from unittest import mock
 
 from freezegun.api import FrozenDateTimeFactory
@@ -22,7 +23,7 @@ from . import (
 class AsyncMockDoNothing(mock.MagicMock):
     """Do nothing. Used to replace asyncio sleep."""
 
-    async def __call__(self, *args, **kwargs):
+    async def __call__(self, *args: Any, **kwargs: Any) -> None:
         """Do nothing."""
         return super().__call__(*args, **kwargs)
 

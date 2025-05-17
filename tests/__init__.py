@@ -4,12 +4,12 @@ import copy
 import logging
 from pathlib import Path
 import re
+from re import Pattern
 from typing import Any
 from zoneinfo import ZoneInfo
-from re import Pattern
-from yarl import URL
 
 from aiohttp import ClientConnectionError
+from yarl import URL
 
 from homeassistant.components.solcast_solar import const
 from homeassistant.components.solcast_solar.const import (
@@ -43,8 +43,7 @@ KEY1 = "1"
 KEY2 = "2"
 KEY_NO_SITES = "no_sites"
 CUSTOM_HOURS = 2
-DEFAULT_INPUT1_NO_DAMP: dict[str, Any]
-DEFAULT_INPUT1_NO_DAMP = {
+DEFAULT_INPUT1_NO_DAMP: dict[str, Any] = {
     CONF_API_KEY: KEY1,
     API_QUOTA: "20",
     AUTO_UPDATE: "1",
@@ -83,14 +82,14 @@ DEFAULT_INPUT2[HARD_LIMIT_API] = "12,6"
 DEFAULT_INPUT_NO_SITES = copy.deepcopy(DEFAULT_INPUT1)
 DEFAULT_INPUT_NO_SITES[CONF_API_KEY] = KEY_NO_SITES
 
-STATUS_401 = {
+STATUS_401: dict[str, Any] = {
     "response_status": {
         "error_code": "InvalidApiKey",
         "message": "The API key is invalid.",
         "errors": [],
     }
 }
-STATUS_403 = {
+STATUS_403: dict[str, Any] = {
     "response_status": {
         "error_code": "Forbidden",
         "message": "The request cannot be made using this API key.",
@@ -98,14 +97,14 @@ STATUS_403 = {
     }
 }
 STATUS_EMPTY = ""
-STATUS_429_OVER = {
+STATUS_429_OVER: dict[str, Any] = {
     "response_status": {
         "error_code": "TooManyRequests",
         "message": "You have exceeded your free daily limit.",
         "errors": [],
     }
 }
-STATUS_429_UNEXPECTED = {
+STATUS_429_UNEXPECTED: dict[str, Any] = {
     "response_status": {
         "error_code": "NoIdea",
         "message": "I have no idea what you want, but I am busy.",
@@ -125,8 +124,7 @@ MOCK_FORBIDDEN = "return_403"
 MOCK_NOT_FOUND = "return_404"
 MOCK_OVER_LIMIT = "return_429_over"
 
-MOCK_SESSION_CONFIG: dict[str, Any]
-MOCK_SESSION_CONFIG = {
+MOCK_SESSION_CONFIG: dict[str, Any] = {
     "aioresponses": None,
     "api_limit": int(min(DEFAULT_INPUT2[API_QUOTA].split(","))),
     "api_used": {api_key: 0 for api_key in DEFAULT_INPUT2[CONF_API_KEY].split(",")},
@@ -148,7 +146,7 @@ _LOGGER = logging.getLogger(__name__)
 simulated: SimulatedSolcast = SimulatedSolcast()
 
 
-def _check_abend(api_key, site=None) -> CallbackResult | None:
+def _check_abend(api_key: str, site: str | None = None) -> CallbackResult | None:
     if MOCK_SESSION_CONFIG[MOCK_BUSY] or (MOCK_SESSION_CONFIG[MOCK_BUSY_SITE] and site == MOCK_SESSION_CONFIG[MOCK_BUSY_SITE]):
         return CallbackResult(status=429, body=STATUS_EMPTY)
     if MOCK_SESSION_CONFIG["api_used"].get(api_key, 0) >= MOCK_SESSION_CONFIG["api_limit"]:
@@ -168,7 +166,7 @@ def _check_abend(api_key, site=None) -> CallbackResult | None:
     return None
 
 
-async def _get_sites(url, **kwargs) -> CallbackResult:
+async def _get_sites(url: str, **kwargs: Any) -> CallbackResult:
     try:
         params: dict[str, Any] | None = kwargs.get("params")
         if params is not None:
@@ -184,7 +182,7 @@ async def _get_sites(url, **kwargs) -> CallbackResult:
         return CallbackResult(status=500, body=str(e))
 
 
-async def _get_solcast(url, get, **kwargs) -> CallbackResult:
+async def _get_solcast(url: str, get: Any, **kwargs: Any) -> CallbackResult:
     try:
         params: dict[str, Any] | None = kwargs.get("params")
         site = str(url).split("_sites/")[1].split("/")[0]
@@ -201,14 +199,14 @@ async def _get_solcast(url, get, **kwargs) -> CallbackResult:
         return CallbackResult(status=500, body=str(e))
 
 
-async def _get_forecasts(url, **kwargs) -> CallbackResult:
+async def _get_forecasts(url: str, **kwargs: Any) -> CallbackResult:
     if MOCK_SESSION_CONFIG[MOCK_CORRUPT_FORECAST]:
         return CallbackResult(body="Not available, a string response")
     kwargs["params"]["hours"] -= 12  # Intentionally return less hours for testing.
     return await _get_solcast(url, simulated.raw_get_site_forecasts, **kwargs)
 
 
-async def _get_actuals(url, **kwargs) -> CallbackResult:
+async def _get_actuals(url: str, **kwargs: Any) -> CallbackResult:
     if MOCK_SESSION_CONFIG[MOCK_CORRUPT_ACTUALS]:
         return CallbackResult(body="Not available, a string response")
     return await _get_solcast(url, simulated.raw_get_site_estimated_actuals, **kwargs)
@@ -219,7 +217,7 @@ def session_reset_usage() -> None:
     MOCK_SESSION_CONFIG["api_used"] = {api_key: 0 for api_key in DEFAULT_INPUT2[CONF_API_KEY].split(",")}
 
 
-def session_set(setting: str, **kwargs) -> None:
+def session_set(setting: str, **kwargs: Any) -> None:
     """Set mock session behaviour."""
     if setting == MOCK_BUSY_SITE:
         MOCK_SESSION_CONFIG[setting] = kwargs.get("site")
@@ -246,11 +244,12 @@ def aioresponses_reset() -> None:
         MOCK_SESSION_CONFIG["aioresponses"] = None
 
 
-def aioresponses_change_url(url: URL | str | Pattern, new_url: URL | str | Pattern) -> None:
+def aioresponses_change_url(url: URL | str | Pattern[Any], new_url: URL | str | Pattern[Any]) -> None:
     """Change URL for the mock session."""
     _LOGGER.critical(MOCK_SESSION_CONFIG["aioresponses"]._matches)
     MOCK_SESSION_CONFIG["aioresponses"].change_url(url, new_url)
     _LOGGER.critical(MOCK_SESSION_CONFIG["aioresponses"]._matches)
+
 
 async def async_setup_aioresponses() -> None:
     """Set up the mock session."""
@@ -259,8 +258,7 @@ async def async_setup_aioresponses() -> None:
     aioresp = None
     aioresp = aioresponses(passthrough=["http://127.0.0.1"])
 
-    URLS: dict[str, dict[str, Any]]
-    URLS = {
+    URLS: dict[str, dict[str, Any]] = {
         "sites": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites\?.*api_key=.*$", "callback": _get_sites},
         "forecasts": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites/.+/forecasts.*$", "callback": _get_forecasts},
         "estimated_actuals": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites/.+/estimated_actuals.*$", "callback": _get_actuals},
@@ -282,7 +280,7 @@ async def async_setup_aioresponses() -> None:
 
 
 async def async_init_integration(
-    hass: HomeAssistant, options: dict, version: int = CONFIG_VERSION, mock_api: bool = True, timezone: str = ZONE_RAW
+    hass: HomeAssistant, options: dict[str, Any], version: int = CONFIG_VERSION, mock_api: bool = True, timezone: str = ZONE_RAW
 ) -> MockConfigEntry:
     """Set up the Solcast Solar integration in HomeAssistant."""
 
@@ -317,7 +315,7 @@ async def async_init_integration(
     return entry
 
 
-async def async_cleanup_integration_caches(hass: HomeAssistant, **kwargs) -> bool:
+async def async_cleanup_integration_caches(hass: HomeAssistant, **kwargs: Any) -> bool:
     """Clean up the Solcast Solar integration caches and session."""
 
     config_dir = hass.config.config_dir
@@ -340,7 +338,7 @@ async def async_cleanup_integration_caches(hass: HomeAssistant, **kwargs) -> boo
     return True
 
 
-async def async_cleanup_integration_tests(hass: HomeAssistant, **kwargs) -> bool:
+async def async_cleanup_integration_tests(hass: HomeAssistant, **kwargs: Any) -> bool:
     """Clean up the Solcast Solar integration caches and session."""
 
     config_dir = hass.config.config_dir
