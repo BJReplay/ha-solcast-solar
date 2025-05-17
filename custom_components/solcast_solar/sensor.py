@@ -8,6 +8,8 @@ import logging
 import traceback
 from typing import Any
 
+from propcache.api import cached_property
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -423,7 +425,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             self._state_info["unrecorded_attributes"] = self._state_info["unrecorded_attributes"] | frozenset(exclude)
 
     @property
-    def available(self) -> bool:  # type: ignore[explicit-override]
+    def available(self) -> bool:  # type: ignore[explicit-override]  # Explicitly overridden because parent is a cached property
         """Return the availability of the sensor linked to the source sensor."""
         return self._attr_available
 
@@ -447,8 +449,8 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         """
         return self._sensor_data
 
-    @property
-    def should_poll(self) -> bool:  # type: ignore[explicit-override]
+    @cached_property
+    def should_poll(self) -> bool:
         """Return whether the sensor should poll.
 
         Returns:
@@ -538,12 +540,12 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         self._unique_id = f"solcast_api_{entity_description.name}"
 
     @property
-    def available(self) -> bool:  # type: ignore[explicit-override]
+    def available(self) -> bool:  # type: ignore[explicit-override]  # Explicitly overridden because parent is a cached property
         """Return the availability of the sensor linked to the source sensor."""
         return self._attr_available
 
-    @property
-    def name(self) -> str:  # type: ignore[explicit-override]
+    @cached_property
+    def name(self) -> str:
         """Return the name of the device.
 
         Returns:
@@ -582,8 +584,8 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         """
         return self._sensor_data
 
-    @property
-    def should_poll(self) -> bool:  # type: ignore[explicit-override]
+    @cached_property
+    def should_poll(self) -> bool:
         """Return whether the sensor should poll.
 
         Returns:

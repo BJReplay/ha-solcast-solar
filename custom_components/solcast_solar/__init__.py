@@ -670,7 +670,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     recalculate_and_refresh = False
     recalculate_splines = False
 
-    def changed(config: Any) -> bool:
+    def changed(config: str) -> bool:
         return hass.data[DOMAIN]["entry_options"].get(config) != entry.options.get(config)
 
     # Old API key tracking.
