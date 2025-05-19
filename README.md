@@ -99,9 +99,13 @@ Remove any sample sites from your Solcast dashboard (see [Known issues](#known-i
 
 Copy the API key for use with this integration (See [Configuration](#Configuration) below).
 
-Note the importance of getting your Solcast site configuration correct. Use the "Site is facing" hint to ensure the azimuth is signed correctly, as if this is incorrect then forecasts will be shifted by what looks like an hour during the day.
+Note the importance of getting your Solcast site configuration correct. Use the "Site is facing" hint to ensure the azimuth is signed correctly, as if this is incorrect then forecasts will appear shifted, possibly by up to an hour during the day.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_tilt.png" width="600">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_tilt.png)
+
+Azimuth is not set as a 0-359 degree value, but rather as 0-179 for westerly facing , or zero to _minus_ 179 for easterly facing.
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth.png" width="300">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth.png)
 
 
 ## Installation
