@@ -246,13 +246,13 @@ async def test_api_failure(
 
         def assertions2_busy(entry: ConfigEntry):
             assert "Get sites failed, last call result: 429/Try again later, using cached data" in caplog.text
-            assert "Sites data:" in caplog.text
+            assert "Sites data" in caplog.text
             caplog.clear()
 
         def assertions2_except(entry: ConfigEntry):
             assert "Error retrieving sites" in caplog.text
             assert "Attempting to continue" in caplog.text
-            assert "Sites data:" in caplog.text
+            assert "Sites data" in caplog.text
             caplog.clear()
 
         async def too_busy(assertions: Callable[[ConfigEntry], None]):
@@ -618,7 +618,7 @@ async def test_integration(
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "Not requesting a solar forecast because time is within ten seconds of last update" not in caplog.text
         assert "resetting API usage" in caplog.text
-        assert "Writing API usage cache file" in caplog.text
+        assert "Writing API usage cache" in caplog.text
         assert "Started task midnight_update" in caplog.text
         if options == DEFAULT_INPUT2:
             assert "Number of dampening factors for all sites must be the same" in caplog.text
