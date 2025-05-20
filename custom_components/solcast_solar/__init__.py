@@ -655,8 +655,8 @@ async def tasks_cancel(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """Reconfigure the integration when options get updated.
 
-    * Changing API key or limit, auto-update or turning detailed site breakdown on results in a restart.
-    * Changing dampening results in forecast recalculation.
+    * Changing API key or limit, auto-update, hard limit or the custom hour sensor results in a restart.
+    * Changing dampening results in forecast recalculation and sensor refresh.
     * Other alterations simply refresh sensor values and attributes.
 
     Arguments:
@@ -776,6 +776,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     v12: (4.1.8)    Auto-update as 0=off, 1=sunrise/sunset, 2=24-hour, plus add missing hard limit
     v13:            Unlucky for some, skipped
     v14: (4.2.4)    Hard limit adjustable by Solcast account
+    v15: (4.3.3)    Exclude sites from core forecast
 
     An upgrade of the integration will sequentially upgrade options to the current
     version, with this function needing to consider all upgrade history and new defaults.
