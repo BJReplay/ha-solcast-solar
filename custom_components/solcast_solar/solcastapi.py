@@ -451,7 +451,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         def set_sites(response_json: dict[str, Any], api_key: str) -> None:
             sites_data = response_json
             _LOGGER.debug(
-                "Sites data: %s",
+                "Sites data received %s",
                 self.__redact_msg_api_key(redact_lat_lon(str(sites_data)), api_key),
             )
             for site in sites_data["sites"]:
@@ -639,7 +639,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if reset:
             self._api_used_reset[api_key] = self.__get_utc_previous_midnight()
         _LOGGER.debug(
-            "Writing API usage cache file: %s",
+            "Writing API usage cache %s",
             self.__redact_msg_api_key(filename, api_key),
         )
         json_content: dict[str, Any] = {
@@ -901,7 +901,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def serialise_granular_dampening(self):
         """Serialise the site dampening file."""
         filename = self.__get_granular_dampening_filename()
-        _LOGGER.debug("Writing granular dampening file: %s", filename)
+        _LOGGER.debug("Writing granular dampening to %s", filename)
         payload = json.dumps(
             self.granular_dampening,
             ensure_ascii=False,
@@ -912,7 +912,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             await file.write(payload)
         self._granular_dampening_mtime = Path(filename).stat().st_mtime
         _LOGGER.debug(
-            "Granular dampening file mtime: %s",
+            "Granular dampening file mtime %s",
             dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT),
         )
 
@@ -976,7 +976,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             error = True
                     if error:
                         return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
-                    _LOGGER.debug("Granular dampening: %s", str(self.granular_dampening))
+                    _LOGGER.debug("Granular dampening %s", str(self.granular_dampening))
                     return option(GRANULAR_DAMPENING_ON, SET_ALLOW_RESET)
                 _LOGGER.debug("Using legacy hourly dampening")
                 return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
@@ -994,7 +994,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 await self.granular_dampening_data(info_suppression=True)
                 _LOGGER.info("Granular dampening reloaded")
                 _LOGGER.debug(
-                    "Granular dampening file mtime: %s",
+                    "Granular dampening file mtime %s",
                     dt.fromtimestamp(mtime, self._tz).strftime(DATE_FORMAT),
                 )
 
@@ -2766,14 +2766,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             "last_period": data["siteinfo"][site["resource_id"]]["forecasts"][-1]["period_start"],
                         }
                     if update_tally:
-                        _LOGGER.debug("Hard limit for individual API keys: %s", multi_key)
+                        _LOGGER.debug("Hard limit for individual API keys %s", multi_key)
                     for api_key, sites in api_key_sites.items():
                         hard_limit = self.__hard_limit_for_key(api_key)
                         _api_key = self.__redact_api_key(api_key) if multi_key else "all"
                         if _api_key not in logged_hard_limit:
                             logged_hard_limit.append(_api_key)
                             _LOGGER.debug(
-                                "Hard limit for API key %s: %s",
+                                "Hard limit for API key %s is %s",
                                 _api_key,
                                 hard_limit,
                             )
@@ -2793,7 +2793,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 earliest = self.get_day_start_utc()  # Past hard limits done, so re-calculate from today onwards
                             latest = limits["last_period"]
                         _LOGGER.debug(
-                            "Earliest period: %s, latest period: %s",
+                            "Earliest period %s, latest period %s",
                             dt.strftime(earliest.astimezone(self._tz), DATE_FORMAT),
                             dt.strftime(latest.astimezone(self._tz), DATE_FORMAT),
                         )

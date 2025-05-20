@@ -104,7 +104,7 @@ current_entry: ContextVar[ConfigEntry] = ContextVar("current_entry", default=Not
 def __log_init_message(entry: ConfigEntry, version: str, solcast: SolcastApi) -> None:
     _LOGGER.debug("UTC times are converted to %s", solcast.options.tz)
     _LOGGER.debug("Successful init")
-    _LOGGER.info("Solcast integration version: %s", version)
+    _LOGGER.info("Solcast integration version %s", version)
 
 
 async def get_version(hass: HomeAssistant) -> str:
@@ -160,14 +160,14 @@ async def __get_options(hass: HomeAssistant, entry: ConfigEntry) -> ConnectionOp
 
 def __log_entry_options(entry: ConfigEntry) -> None:
     display_options: dict[str, str] = {
-        "Options - Attributes": "attr_",
-        "Options - Custom": "custom",
-        "Options - Estimate": "key_est",
-        "Options - Exclude": "exclude_",
-        "Options - Limit": "hard_",
-        "Options - Schema": "VERSION",
-        "Options - Update": "auto_",
-        "Options - UpdateMax": "api_quota",
+        "Options attributes": "attr_",
+        "Options custom": "custom",
+        "Options estimate": "key_est",
+        "Options exclude": "exclude_",
+        "Options limit": "hard_",
+        "Options schema": "VERSION",
+        "Options update": "auto_",
+        "Options update_max": "api_quota",
     }
     for display, starts in display_options.items():
         _LOGGER.debug(
@@ -193,7 +193,7 @@ def get_session_headers(version: str) -> dict[str, str]:
         "Accept": "application/json",
         "User-Agent": "ha-solcast-solar-integration/" + raw_version,
     }
-    _LOGGER.debug("Session headers: %s", headers)
+    _LOGGER.debug("Session headers %s", headers)
     return headers
 
 
@@ -553,7 +553,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     }
 
     for action, call in service_actions.items():
-        _LOGGER.debug("Register action: %s.%s", DOMAIN, action)
+        _LOGGER.debug("Register action %s.%s", DOMAIN, action)
         hass.services.async_remove(DOMAIN, action)  # Remove the error action
         if call.get("supports_response"):
             hass.services.async_register(DOMAIN, action, call["action"], call["schema"], call["supports_response"])
@@ -628,7 +628,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         # Remove all actions
         for action in hass.services.async_services_for_domain(DOMAIN):
-            _LOGGER.debug("Remove action: %s.%s", DOMAIN, action)
+            _LOGGER.debug("Remove action %s.%s", DOMAIN, action)
             hass.services.async_remove(DOMAIN, action)
             hass.services.async_register(DOMAIN, action, stub_action)  # Switch to an error action
 

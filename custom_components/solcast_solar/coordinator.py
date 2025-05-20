@@ -238,7 +238,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._sunrise, self._sunset = sun_rise_set(self.solcast.get_day_start_utc())
         self._sunrise_tomorrow, self._sunset_tomorrow = sun_rise_set(self.solcast.get_day_start_utc(future=1))
         _LOGGER.debug(
-            "Sun rise / set today: %s / %s",
+            "Sun rise / set today at %s / %s",
             self._sunrise.astimezone(self.solcast.options.tz).strftime("%H:%M:%S"),
             self._sunset.astimezone(self.solcast.options.tz).strftime("%H:%M:%S"),
         )
@@ -271,7 +271,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     break
             intervals = [i for i in intervals if i > _now]
             if log:
-                _LOGGER.debug("Auto update total seconds: %d, self.divisions: %d, interval: %d seconds", seconds, self.divisions, interval)
+                _LOGGER.debug("Auto update total seconds %d, divisions %d, interval %d seconds", seconds, self.divisions, interval)
                 if init:
                     _LOGGER.debug(
                         "Auto update forecasts %s",
