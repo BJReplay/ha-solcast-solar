@@ -475,11 +475,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 extant_sites = sorted([site["resource_id"] for site in self._extant_sites[key]])
                 if all_sites == extant_sites:
                     if api_key != key:
-                        # Re-keyed API key, so adjust the cache content for all sites and declare it valid
-                        self._rekey[api_key] = key  # Will trigger migration of API usage
+                        # Re-keyed API key...
+                        # * Trigger migration of API usage when the usage cache(s) load.
+                        # * Update the sites cache to the new key (an API failure may have occurred on load).
+                        # Note that if an API failure had occurred then the sites are not really known, so this key change is a guess at best.
                         _LOGGER.info("API key %s has changed, migrating API usage", self.__redact_api_key(api_key))
+                        self._rekey[api_key] = key
                         for site in response_json["sites"]:
-                            site["resource_id"] = api_key
+                            site["api_key"] = api_key
                     cache_status = True
             return cache_status
 
@@ -528,7 +531,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         site["api_key"] = api_key
                     if response_json["total_records"] > 0:
                         set_sites(response_json, api_key)
-                        check_rekey(response_json, api_key)
+                        _ = check_rekey(response_json, api_key)
                         await save_cache(cache_filename, response_json)
                         success = True
                         self.sites_status = SitesStatus.OK
@@ -603,7 +606,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if Path(cache_filename).is_file():  # Cache exists, so load it
                         response_json = await load_cache(cache_filename)
                         set_sites(response_json, api_key)
-                        check_rekey(response_json, api_key)
+                        _ = check_rekey(response_json, api_key)
                         self.sites_status = SitesStatus.OK
                     else:
                         self.sites_status = SitesStatus.ERROR
