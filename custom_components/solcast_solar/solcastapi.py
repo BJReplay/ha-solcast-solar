@@ -481,7 +481,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         for site in response_json["sites"]:
                             site["resource_id"] = api_key
                     cache_status = True
-                break  # API key will be the same for all sites, loop only inspects the first site
             return cache_status
 
         self.sites = []

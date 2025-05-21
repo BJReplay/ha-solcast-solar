@@ -1002,6 +1002,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 ## Changes
 
 v4.3.5
+* Fix API key change detection on 429 when using multi-key by @autoSteve
 * Fix key validation corner case that could prevent start by @autoSteve
 * Stricter type checking by @autoSteve
 

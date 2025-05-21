@@ -246,39 +246,46 @@ async def test_api_failure(
 
         def assertions2_busy(entry: ConfigEntry):
             assert "Get sites failed, last call result: 429/Try again later, using cached data" in caplog.text
-            assert "Sites data" in caplog.text
+            assert "Sites loaded for ******1" in caplog.text
+            assert "Sites loaded for ******2" in caplog.text
             caplog.clear()
 
         def assertions2_except(entry: ConfigEntry):
             assert "Error retrieving sites" in caplog.text
             assert "Attempting to continue" in caplog.text
-            assert "Sites data" in caplog.text
+            assert "Sites loaded for ******1" in caplog.text
+            assert "Sites loaded for ******2" in caplog.text
             caplog.clear()
 
         async def too_busy(assertions: Callable[[ConfigEntry], None]):
             session_set(MOCK_BUSY)
-            entry = await async_init_integration(hass, DEFAULT_INPUT1)
+            entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
             session_clear(MOCK_BUSY)
+            hass.data[DOMAIN]["presumed_dead"] = False
 
         async def bad_response(assertions: Callable[[ConfigEntry], None]):
             for returned in [MOCK_CORRUPT_SITES, MOCK_CORRUPT_ACTUALS, MOCK_CORRUPT_FORECAST]:
                 session_set(returned)
-                entry = await async_init_integration(hass, DEFAULT_INPUT1)
+                entry = await async_init_integration(hass, DEFAULT_INPUT2)
                 assertions(entry)
                 session_clear(returned)
+                hass.data[DOMAIN]["presumed_dead"] = False
 
         async def exceptions(assertions: Callable[[ConfigEntry], None]):
             session_set(MOCK_EXCEPTION, exception=ConnectionRefusedError)
-            entry = await async_init_integration(hass, DEFAULT_INPUT1)
+            entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
+            hass.data[DOMAIN]["presumed_dead"] = False
             session_set(MOCK_EXCEPTION, exception=TimeoutError)
-            entry = await async_init_integration(hass, DEFAULT_INPUT1)
+            entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
+            hass.data[DOMAIN]["presumed_dead"] = False
             session_set(MOCK_EXCEPTION, exception=ClientConnectionError)
-            entry = await async_init_integration(hass, DEFAULT_INPUT1)
+            entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
             session_clear(MOCK_EXCEPTION)
+            hass.data[DOMAIN]["presumed_dead"] = False
 
         async def exceptions_update():
             tests: list[dict[str, Any]] = [
@@ -296,11 +303,11 @@ async def test_api_failure(
                 if not isinstance(test["exception"], str):
                     session_set(MOCK_EXCEPTION, exception=test["exception"])
 
-                entry: ConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
+                entry: ConfigEntry = await async_init_integration(hass, DEFAULT_INPUT2)
                 coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
                 solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
                 solcast.options.auto_update = 0
-                assert hass.data[DOMAIN].get("presumed_dead", True) is False
+                hass.data[DOMAIN]["presumed_dead"] = False
                 await hass.async_block_till_done()
                 caplog.clear()
 
@@ -340,7 +347,7 @@ async def test_api_failure(
 
         # Normal start and teardown to create caches
         session_clear(MOCK_BUSY)
-        entry: ConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
+        entry: ConfigEntry = await async_init_integration(hass, DEFAULT_INPUT2)
         await hass.async_block_till_done()
         assert await hass.config_entries.async_unload(entry.entry_id)
 
