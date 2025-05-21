@@ -650,7 +650,7 @@ def get_site_sensor_extra_attributes(self: Any, rooftop: str, key: str):
     return 1 / 0
 
 
-async def test_sensor_unavailble_exception(
+async def test_sensor_unavailable_exception(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
