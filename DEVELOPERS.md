@@ -11,7 +11,7 @@ As a custom component (no simulator, no tests):
   ],
 ```
 
-As a core component (to run tests the integration must be mounted under core components, and this also makes the simulator available):
+As a core component (to run tests the integration must be mounted under core components):
 
 ```
   "mounts": [
@@ -20,16 +20,18 @@ As a core component (to run tests the integration must be mounted under core com
   ],
 ```
 
-Note that should a folder called `config/custom_components/solcast_solar` exist, even if empty then the core component will not be found. This can happen if a mount to `custom_components` has been done previously, and if that's the case then remove that empty folder.
+Before running as core, set up and start the simulator, then add the integration as a custom component in HA and then modify the mount locations. Things are not set up to be able to add the component as core, but an already added component will use core component code on HA start once the mount is modified.
 
-To get the simulator to work `/etc/hosts` needs to be modified to specify `127.0.0.1 localhost api.solcast.com.au` (use sudo). For a quick start, `cd tests/components/solcast_solar` and execute `python3 -u wsgi_sim.py --limit 5000 --no429`, which gets 5,000 API calls max, and no 'too busy' errors generated on the hour. (`python3 -u wsgi_sim.py --help` for options, or inspect `wsgi_sim.py` for documentation.) Note that if the integration or simulator has never been started then dependencies will not yet be installed. The simulator will `pip install` missing dependencies and also create a new self-signed certificate. /etc/hosts is inspected but not modified automatically. To avoid needing `python3 -u` make `wsgi_sim.py` executable.
+To get the simulator to work `/etc/hosts` needs to be modified to specify `127.0.0.1 localhost api.solcast.com.au` (use sudo). For a quick start, `cd tests/components/solcast_solar` and execute `python3 -u wsgi_sim.py --limit 5000 --no429`, which gets 5,000 API calls max, and no 'too busy' errors generated on the hour. (`python3 -u wsgi_sim.py --help` for options, or inspect `wsgi_sim.py` for the documentation.) Note that if the integration or simulator has never been started then dependencies will not yet be installed. The simulator will `pip install` missing dependencies and also create a new self-signed certificate. /etc/hosts is inspected for correctness but not modified automatically. To avoid needing `python3 -u` make `wsgi_sim.py` executable.
 
-The tests will show up at `tests/components/solcast_solar`. `cd` to there and execute `pytest`. To inspect logging, `pytest -o log_cli=true --log-cli-level=DEBUG`. For a test coverage report, `pytest --cov=homeassistant.components.solcast_solar --cov-report term-missing -v`.
+Re-building the dev container will require `/etc/hosts` to be modified again for the simulator to work.
 
-Additional test contributions will be most welcome. In fact, test contributions will be required if your code modifications introduce lines of code that are not properly tested using PyTest.
+The tests will show up at `tests/components/solcast_solar`. `cd` to there and execute `pytest` for all, or `pytest test_xxxx.py` for just one test module. To inspect logging, `pytest -o log_cli=true --log-cli-level=DEBUG [module.py ...]`. For a test coverage report, `pytest --cov=homeassistant.components.solcast_solar --cov-report term-missing -v`.
 
-Current PyTest coverage of all modules is 100%. _Every_ line of code is currently exercised, and it is expected that every circumstance is covered by a test. (This may be accomplished by extending an existing test, or by creating a new one.) This is something that should be aspired to for every pull request to this integration, and if test coverage is completely ignored and your pull request is extensive, then it will likely be rejected, even if it appears to work perfectly. (If your test does not hit PyTest 100% coverage then _someone else_ will need to code the test before the PR is merged. And they won't like that...)
+Additional test contributions will be most welcome. In fact, test contributions will be required if your code modifications introduce lines of code that are not properly tested by the current PyTest modules.
 
-Home Assistant development standards, with type hint inclusion are also a thing here, and non-conformance will also result in PR rejection. A strict type checking standard is maintained. Our recommendation is to develop suggested changes in a Home Assistant dev container, which incorporates much automated checking of code standards to help out. GitHub CoPilot is also pretty neat at calling out inefficient or poorly constructed code. Verify type checking with `mypy` (e.g. `mypy solcastapi.py`)
+PyTest coverage of all modules is 100%. _Every_ line of code is currently exercised, and it is expected that every circumstance is covered by a test. (This may be accomplished by extending an existing test, or by creating a new one.) This is something that should be aspired to for every pull request to this integration, and if test coverage is completely ignored and your pull request is extensive, then it will likely be rejected, even if it appears to work perfectly. (If your test does not hit PyTest 100% coverage then _someone else_ will need to code the test before the code is released. And they won't like that...)
 
-Welcome! Make this an even better integration!
+Home Assistant development standards to Platinum level is also a thing here, and non-conformance will also result in PR revisions required, or rejection. A strict type checking standard is maintained. The Home Assistant dev container incorporates much automated checking of code standards to help out, but you will likely need to add PyLance and configure type checking to strict standard. GitHub CoPilot is also pretty neat at calling out inefficient or poorly constructed code, and this can also be used in the dev container.
+
+Welcome! Let's make this an even better integration!
