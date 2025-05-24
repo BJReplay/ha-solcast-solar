@@ -356,6 +356,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     __log_hard_limit_set(solcast)
 
     hass.data[DOMAIN]["presumed_dead"] = False  # Initialisation was successful, so we're not dead.
+    if hass.data[DOMAIN].get("prior_crash_allow_sites") is not None:
+        del hass.data[DOMAIN]["prior_crash_allow_sites"]
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = True
 
     if not await __check_auto_update_missed(coordinator):
