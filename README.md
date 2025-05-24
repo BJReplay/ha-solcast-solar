@@ -547,7 +547,12 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 | `Hard Limit Set ******AaBbCc` | number | N | `float` | Individual account hard limit. Value in `kilowatts`. |
 | `Rooftop site name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the site setup)[^2]. |
 
-`API Last Polled` attributes include the following, but only if auto-update is enabled:
+`API Last Polled` attributes include the following:
+
+* `failure_count_today`: The count of failures (like `429/Too busy`) that have occurred since midnight local time.
+* `failure_count_7_day`: The count of failures that have occurred over the past seven days.
+
+If auto-update is enabled then last polled also features these attributes:
 
 * `next_auto_update`: The UTC time of the next scheduled auto-update.
 * `auto_update_divisions`: The number of configured auto-updates for each day.
@@ -1004,6 +1009,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 v4.3.5
 * Fix API key change detection on 429 when using multi-key by @autoSteve
 * Fix key validation corner case that could prevent start by @autoSteve
+* Add update failure count attributes to last polled sensor by @autoSteve
 * Stricter type checking by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.4...v4.3.5

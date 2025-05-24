@@ -79,7 +79,7 @@ async def test_midnight(
         for _ in range(30):
             freezer.tick()
             await hass.async_block_till_done()
-            if "Date has changed" in caplog.text:
+            if "Updating sensor" in caplog.text:
                 break
 
         assert "Date has changed" in caplog.text

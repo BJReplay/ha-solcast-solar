@@ -185,6 +185,14 @@ async def _wait_for_abort(caplog: pytest.LogCaptureFixture) -> None:
             await asyncio.sleep(0.01)
 
 
+async def _wait_for_no_data(caplog: pytest.LogCaptureFixture) -> None:
+    """Wait for forecast update completion."""
+
+    async with asyncio.timeout(5):
+        while "Forecast has not been updated" not in caplog.text:  # Wait for task to abort
+            await asyncio.sleep(0.01)
+
+
 async def _wait_for_raise(hass: HomeAssistant, exception: Exception) -> None:
     """Wait for exception."""
 
@@ -425,7 +433,7 @@ async def test_schema_upgrade(
 
         def verify_new_solcast_schema(data_file: Path):
             data = json.loads(data_file.read_text(encoding="utf-8"))
-            assert data["version"] == 6
+            assert data["version"] == 7
             assert "last_attempt" in data
             assert "auto_updated" in data
 
@@ -437,7 +445,7 @@ async def test_schema_upgrade(
         kill_undampened_cache()
         set_old_solcast_schema(data_file)
         coordinator, solcast = await _reload(hass, entry)
-        assert "version from v4 to v6" in caplog.text
+        assert "version from v4 to v7" in caplog.text
         assert "Migrating un-dampened history" in caplog.text
         verify_new_solcast_schema(data_file)
         caplog.clear()
@@ -446,7 +454,7 @@ async def test_schema_upgrade(
         kill_undampened_cache()
         set_ancient_solcast_schema(data_file)
         coordinator, solcast = await _reload(hass, entry)
-        assert "version from v1 to v6" in caplog.text
+        assert "version from v1 to v7" in caplog.text
         assert "Migrating un-dampened history" in caplog.text
         verify_new_solcast_schema(data_file)
         caplog.clear()
@@ -588,18 +596,22 @@ async def test_integration(
         assert "seconds before retry" in caplog.text
         assert "ERROR" not in caplog.text
         await hass.async_block_till_done()
+        await _wait_for_no_data(caplog)
         session_clear(MOCK_BUSY)
 
         # Simulate exceed API limit and beyond
         caplog.clear()
+        _LOGGER.info("Simulating API limit exceeded")
         session_set(MOCK_OVER_LIMIT)
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
+        await _wait_for_no_data(caplog)
         assert "API allowed polling limit has been exceeded" in caplog.text
         assert "No data was returned for forecasts" in caplog.text
         caplog.clear()
         _no_exception(caplog)
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "API polling limit exhausted, not getting forecast" in caplog.text
+        assert "No data was returned for forecasts" in caplog.text
         caplog.clear()
         _no_exception(caplog)
         session_clear(MOCK_OVER_LIMIT)

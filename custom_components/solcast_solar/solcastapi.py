@@ -71,7 +71,7 @@ FORECAST90: Final = "pv_estimate90"
 
 GRANULAR_DAMPENING_OFF: Final = False
 GRANULAR_DAMPENING_ON: Final = True
-JSON_VERSION: Final = 6
+JSON_VERSION: Final = 7
 SET_ALLOW_RESET: Final = True
 
 # Status code translation, HTTP and more.
@@ -101,6 +101,7 @@ FRESH_DATA: dict[str, Any] = {
     "last_updated": dt.fromtimestamp(0, datetime.UTC),
     "last_attempt": dt.fromtimestamp(0, datetime.UTC),
     "auto_updated": 0,
+    "failure": {"last_24h": 0, "last_7d": [0] * 7},
     "version": JSON_VERSION,
 }
 
@@ -1172,6 +1173,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     data["version"] = 6
                                     data["auto_updated"] = 99999 if self.options.auto_update > 0 else 0
                                     json_version = 6
+                                # Add "failure" statistics to cache structure, introduced v4.3.5.
+                                if json_version < 7:
+                                    data["version"] = 7
+                                    data["failure"] = {"last_24h": 0, "last_7d": [0] * 7}
+                                    json_version = 7
 
                                 if json_version > on_version:
                                     await self.serialise_data(data, filename)
@@ -1278,6 +1284,32 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.error("The cached data in solcast.json is corrupt in load_saved_data()")
             status = "The cached data in /config/solcast.json is corrupted, suggest removing or repairing it"
         return status
+
+    async def reset_failure_stats(self) -> None:
+        """Reset the failure statistics."""
+
+        _LOGGER.debug("Resetting failure statistics")
+        self._data["failure"]["last_24h"] = 0
+        self._data["failure"]["last_7d"] = [0] + self._data["failure"]["last_7d"][:-1]
+        await self.serialise_data(self._data, self._filename)
+
+    def get_failures_last_24h(self) -> int:
+        """Get the number of failures in the last 24 hours.
+
+        Returns:
+            int: The number of failures in the last 24 hours.
+
+        """
+        return self._data["failure"]["last_24h"]
+
+    def get_failures_last_7d(self) -> int:
+        """Get the number of failures in the last 7 days.
+
+        Returns:
+            list[int]: The number of failures in the last 7 days.
+
+        """
+        return sum(self._data["failure"]["last_7d"])
 
     async def delete_solcast_file(self, *args: tuple[Any]) -> None:
         """Delete the solcast.json file.
@@ -2182,6 +2214,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if b_status and s_status:
                 _LOGGER.info("Forecast update completed successfully%s", next_update())
         else:
+            await self.serialise_data(self._data, self._filename)
             _LOGGER.warning("Forecast has not been updated%s", next_update())
             status = f"At least one site forecast get failed: {reason}"
         return status
@@ -2531,6 +2564,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         response_text = ""
         try:
+
+            def increment_failure_count():
+                self._data["failure"]["last_24h"] += 1
+                self._data["failure"]["last_7d"][0] += 1
+
             if api_key is not None and site is not None:
                 # One site is fetched, and retries ensure that the site is actually fetched.
                 # Occasionally the Solcast API is busy, and returns a 429 status, which is a
@@ -2569,18 +2607,24 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             except TimeoutError:
                                 _LOGGER.error("Connection error: Timed out connecting to server")
                                 status = 1000
+                                increment_failure_count()
                                 break
                             except ConnectionRefusedError as e:
                                 _LOGGER.error("Connection error, connection refused: %s", e)
                                 status = 1000
+                                increment_failure_count()
                                 break
                             except (ClientConnectionError, ClientResponseError) as e:
                                 _LOGGER.error("Client error: %s", e)
                                 status = 1000
+                                increment_failure_count()
                                 break
                             if status in (200, 400, 401, 403, 404, 500):  # Do not retry for these statuses.
+                                if status != 200:
+                                    increment_failure_count()
                                 break
                             if status == 429:
+                                increment_failure_count()
                                 # Test for API limit exceeded.
                                 # {"response_status":{"error_code":"TooManyRequests","message":"You have exceeded your free daily limit.","errors":[]}}
                                 response_json = await response.json(content_type=None)
@@ -2588,6 +2632,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     response_status = response_json.get("response_status")
                                     if response_status is not None:
                                         if response_status.get("error_code") == "TooManyRequests":
+                                            _LOGGER.debug("Set status to 998, API limit exceeded")
                                             status = 998
                                             self._api_used[api_key] = self._api_limit[api_key]
                                             await self.__serialise_usage(api_key)

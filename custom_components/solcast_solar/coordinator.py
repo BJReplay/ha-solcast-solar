@@ -206,6 +206,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     async def __update_midnight_spline_recalculate(self) -> None:
         """Re-calculates splines at midnight local time."""
+        await self.solcast.reset_failure_stats()
         await self.solcast.check_data_records()
         await self.solcast.recalculate_splines()
 
@@ -317,13 +318,17 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     def _get_auto_update_details(self) -> dict[str, Any]:
         """Return attributes for the last updated sensor."""
 
+        failure_count = {
+            "failure_count_today": self.solcast.get_failures_last_24h(),
+            "failure_count_7_day": self.solcast.get_failures_last_7d(),
+        }
         if self.solcast.options.auto_update > 0:
-            return {
+            return failure_count | {
                 "next_auto_update": self._intervals[0],
                 "auto_update_divisions": self.divisions,
                 "auto_update_queue": self._intervals[:48],
             }
-        return {}
+        return failure_count
 
     async def __forecast_update(self, force: bool = False, completion: str = "", need_history_hours: int = 0) -> None:
         """Get updated forecast data."""
