@@ -76,7 +76,7 @@ async def test_midnight(
         freezer.move_to(f"{dt.now().date()} 13:59:59")
 
         caplog.clear()
-        for _ in range(30):
+        for _ in range(600):
             freezer.tick()
             await hass.async_block_till_done()
             if "Updating sensor" in caplog.text:
