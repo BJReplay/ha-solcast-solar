@@ -1010,6 +1010,7 @@ v4.3.5
 * Fix API key change detection on 429 when using multi-key by @autoSteve
 * Fix key validation corner case that could prevent start by @autoSteve
 * Add update failure count attributes to last polled sensor by @autoSteve
+* Allow get sites when failed every 30 minutes in 429 storm by @autoSteve
 * Stricter type checking by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.4...v4.3.5

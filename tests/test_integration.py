@@ -49,6 +49,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
+from homeassistant.util import dt as dt_util
 
 from . import (
     BAD_INPUT,
@@ -1213,7 +1214,9 @@ async def test_integration_scenarios(
         _no_exception(caplog)
         caplog.clear()
 
-        # Test no sites call on start when in a presumed dead state
+        # Test no sites call on start when in a presumed dead state, then an allowed call after thirty minutes.
+        session_set(MOCK_BUSY)
+
         hass.data[DOMAIN]["presumed_dead"] = True  # Set presumption of death
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
@@ -1221,6 +1224,17 @@ async def test_integration_scenarios(
         assert "Get sites failed, last call result: 999/Prior crash" in caplog.text
         assert "Connecting to https://api.solcast.com.au/rooftop_sites" not in caplog.text
         caplog.clear()
+
+        hass.data[DOMAIN]["prior_crash_allow_sites"] = dt_util.now(dt_util.UTC) - timedelta(minutes=31)
+        coordinator, solcast = await _reload(hass, entry)
+        if coordinator is None or solcast is None:
+            pytest.fail("Reload failed")
+        assert "Connecting to https://api.solcast.com.au/rooftop_sites" in caplog.text
+        assert "HTTP session returned status 429/Try again later" in caplog.text
+        caplog.clear()
+
+        hass.data[DOMAIN]["presumed_dead"] = False  # Clear presumption of death
+        session_clear(MOCK_BUSY)
 
         # Test corrupt cache start, integration will mostly not load, and will not attempt reload
         # Must be the final test because it will leave the integration in a bad state

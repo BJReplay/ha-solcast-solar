@@ -3,6 +3,7 @@
 from collections.abc import Awaitable, Callable
 import contextlib
 from contextvars import ContextVar
+from datetime import datetime as dt, timedelta
 import json
 import logging
 import random
@@ -292,7 +293,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     version = await get_version(hass)
     options = await __get_options(hass, entry)
     __setup_storage(hass)
+
     prior_crash = hass.data[DOMAIN].get("presumed_dead", False)
+    prior_crash_allow_sites: dt | None = hass.data[DOMAIN].get("prior_crash_allow_sites")
+    if prior_crash:
+        if prior_crash_allow_sites is None:
+            hass.data[DOMAIN]["prior_crash_allow_sites"] = dt_util.now(dt_util.UTC)  # Set the time of the crash.
+        elif prior_crash_allow_sites < dt_util.now(dt_util.UTC) - timedelta(minutes=30):
+            _LOGGER.info("Prior crash was more than 30 minutes ago, allowing sites to be reloaded")
+            hass.data[DOMAIN]["prior_crash_allow_sites"] = dt_util.now(dt_util.UTC)
+            prior_crash = False
+
     hass.data[DOMAIN]["presumed_dead"] = True  # Presumption that init will not be successful.
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options, hass, entry)
 
