@@ -298,6 +298,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     prior_crash_allow_sites: dt | None = hass.data[DOMAIN].get("prior_crash_allow_sites")
     if prior_crash:
         if prior_crash_allow_sites is None:
+            _LOGGER.debug("Prior crash detected, set the time of crash")
             hass.data[DOMAIN]["prior_crash_allow_sites"] = dt_util.now(dt_util.UTC)  # Set the time of the crash.
         elif prior_crash_allow_sites < dt_util.now(dt_util.UTC) - timedelta(minutes=30):
             _LOGGER.info("Prior crash was more than 30 minutes ago, allowing sites to be reloaded")
@@ -355,6 +356,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
     __log_hard_limit_set(solcast)
 
+    _LOGGER.debug("Clear presumed dead flag")
     hass.data[DOMAIN]["presumed_dead"] = False  # Initialisation was successful, so we're not dead.
     if hass.data[DOMAIN].get("prior_crash_allow_sites") is not None:
         del hass.data[DOMAIN]["prior_crash_allow_sites"]

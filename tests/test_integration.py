@@ -1214,6 +1214,9 @@ async def test_integration_scenarios(
         _no_exception(caplog)
         caplog.clear()
 
+        sites_file = Path(f"{config_dir}/solcast-sites.json")
+        sites = json.loads(sites_file.read_text(encoding="utf-8"))
+
         # Test no sites call on start when in a presumed dead state, then an allowed call after thirty minutes.
         session_set(MOCK_BUSY)
 
@@ -1225,12 +1228,16 @@ async def test_integration_scenarios(
         assert "Connecting to https://api.solcast.com.au/rooftop_sites" not in caplog.text
         caplog.clear()
 
+        _LOGGER.debug("Unlinking sites cache files")
+        for f in ["solcast-sites.json", "solcast-sites-1.json", "solcast-sites-2.json"]:
+            Path(f"{config_dir}/{f}").unlink(missing_ok=True)  # Remove sites cache file
         hass.data[DOMAIN]["prior_crash_allow_sites"] = dt_util.now(dt_util.UTC) - timedelta(minutes=31)
         coordinator, solcast = await _reload(hass, entry)
-        if coordinator is None or solcast is None:
-            pytest.fail("Reload failed")
+        assert "Sites data could not be retrieved" in caplog.text
+        assert hass.data[DOMAIN].get("prior_crash_allow_sites")
         assert "Connecting to https://api.solcast.com.au/rooftop_sites" in caplog.text
         assert "HTTP session returned status 429/Try again later" in caplog.text
+        assert "At least one successful API 'get sites' call is needed" in caplog.text
         caplog.clear()
 
         hass.data[DOMAIN]["presumed_dead"] = False  # Clear presumption of death
@@ -1240,8 +1247,6 @@ async def test_integration_scenarios(
         # Must be the final test because it will leave the integration in a bad state
 
         corrupt = "Purple monkey dishwasher 🤣🤣🤣"
-        sites_file = Path(f"{config_dir}/solcast-sites.json")
-        sites = json.loads(sites_file.read_text(encoding="utf-8"))
         usage_file = Path(f"{config_dir}/solcast-usage.json")
         usage = json.loads(usage_file.read_text(encoding="utf-8"))
 
