@@ -1293,6 +1293,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._data["failure"]["last_7d"] = [0] + self._data["failure"]["last_7d"][:-1]
         await self.serialise_data(self._data, self._filename)
 
+    def get_last_attempt(self) -> dt:
+        """Get the date/time of last attempted forecast update.
+
+        Returns:
+            dt: The date/time of last attempt.
+
+        """
+        return self._data["last_attempt"].replace(microsecond=0)
+
     def get_failures_last_24h(self) -> int:
         """Get the number of failures in the last 24 hours.
 

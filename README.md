@@ -540,10 +540,10 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 
 | Name | Type | Attributes | Unit | Description |
 | ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
-| `API Last Polled` | date/time | Y | `datetime` | Date/time when the API data was polled. |
+| `API Last Polled` | date/time | Y | `datetime` | Date/time when the forecast was last updated successfully. |
 | `API Limit` | number | N | `integer` | Total times the API can been called in a 24 hour period[^1]. |
 | `API used` | number | N | `integer` | Total times the API has been called today (API counter resets to zero at midnight UTC)[^1]. |  
-| `Hard Limit Set` | number | N | `float` | `False` if not set, else value in `kilowatts`. |
+| `Hard Limit Set` | number | N | `float` or `bool` | `False` if not set, else value in `kilowatts`. |
 | `Hard Limit Set ******AaBbCc` | number | N | `float` | Individual account hard limit. Value in `kilowatts`. |
 | `Rooftop site name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the site setup)[^2]. |
 
@@ -551,22 +551,23 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 
 * `failure_count_today`: The count of failures (like `429/Too busy`) that have occurred since midnight local time.
 * `failure_count_7_day`: The count of failures that have occurred over the past seven days.
+* `last_attempt`: The date/time of last attempted forecast update. "Currently healthy" is considered last polled >= last attempt.
 
 If auto-update is enabled then last polled also features these attributes:
 
-* `next_auto_update`: The UTC time of the next scheduled auto-update.
 * `auto_update_divisions`: The number of configured auto-updates for each day.
 * `auto_update_queue`: A maximum of 48 future auto-updates currently in the queue.
+* `next_auto_update`: The UTC time of the next scheduled auto-update.
 
 `Rooftop site name` attributes include:
 
-* `name`: The site name configured at solcast.com.
-* `resource_id`: The site resource ID.
+* `azimuth` / `tilt`: Panel orientation.
 * `capacity`: Site capacity in AC power.
 * `capacity_dc`: Site capacity in DC power.
-* `azimuth` / `tilt`: Panel orientation.
 * `install_date`: Configured installation date.
 * `loss_factor`: Configured "loss factor".
+* `name`: The site name configured at solcast.com.
+* `resource_id`: The site resource ID.
 * `tags`: The tags set for the rooftop site.
 
 > [!NOTE]
@@ -1005,6 +1006,11 @@ The caches reside in the Home Assistant configuration folder (usually `/config/`
 The code itself resides at `/config/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
 
 ## Changes
+
+v4.3.6
+* Add last_attempt attribute to api_last_polled entity by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.5...v4.3.6
 
 v4.3.5
 * Fix API key change detection on 429 when using multi-key by @autoSteve

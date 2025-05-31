@@ -318,17 +318,18 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     def _get_auto_update_details(self) -> dict[str, Any]:
         """Return attributes for the last updated sensor."""
 
-        failure_count = {
+        base: dict[str, int | dt] = {
+            "last_attempt": self.solcast.get_last_attempt(),
             "failure_count_today": self.solcast.get_failures_last_24h(),
             "failure_count_7_day": self.solcast.get_failures_last_7d(),
         }
         if self.solcast.options.auto_update > 0:
-            return failure_count | {
+            return base | {
                 "next_auto_update": self._intervals[0],
                 "auto_update_divisions": self.divisions,
                 "auto_update_queue": self._intervals[:48],
             }
-        return failure_count
+        return base
 
     async def __forecast_update(self, force: bool = False, completion: str = "", need_history_hours: int = 0) -> None:
         """Get updated forecast data."""
