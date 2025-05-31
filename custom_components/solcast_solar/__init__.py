@@ -410,7 +410,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
             data = await coordinator.service_query_forecast_data(
                 dt_util.as_utc(call.data.get(EVENT_START_DATETIME, dt_util.now())),
                 dt_util.as_utc(call.data.get(EVENT_END_DATETIME, dt_util.now())),
-                call.data.get(SITE, "all"),
+                call.data.get(SITE, "all").replace("_", "-"),
                 call.data.get(UNDAMPENED, False),
             )
         except ValueError as e:
@@ -441,7 +441,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         if len(factors) not in (24, 48):
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_count_not_correct")
         if site is not None:
-            site = site.lower()
+            site = site.lower().replace("_", "-")
             if site == "all":
                 if (len(factors)) != 48:
                     raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_no_all_24")
@@ -499,7 +499,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         """
         _LOGGER.info("Action: Get dampening")
 
-        data = await solcast.get_dampening(call.data.get(SITE))  # Optional site.
+        site = call.data.get(SITE)  # Optional site.
+        if site is not None:
+            site = site.lower().replace("_", "-")
+        data = await solcast.get_dampening(site)
         return {"data": data}
 
     async def action_call_set_hard_limit(call: ServiceCall) -> None:
