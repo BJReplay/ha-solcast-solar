@@ -557,7 +557,7 @@ If auto-update is enabled then last polled also features these attributes:
 
 * `auto_update_divisions`: The number of configured auto-updates for each day.
 * `auto_update_queue`: A maximum of 48 future auto-updates currently in the queue.
-* `next_auto_update`: The UTC time of the next scheduled auto-update.
+* `next_auto_update`: The date/time of the next scheduled auto-update.
 
 `Rooftop site name` attributes include:
 
