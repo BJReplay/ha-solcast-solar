@@ -813,13 +813,13 @@ async def test_integration_remaining_actions(
         # Granular dampening with site
         _LOGGER.debug("Test granular dampening with site")
         await hass.services.async_call(
-            DOMAIN, "set_dampening", {"site": "1111-1111-1111-1111", "damp_factor": ("0.5," * 48)[:-1]}, blocking=True
+            DOMAIN, "set_dampening", {"site": "1111_1111_1111_1111", "damp_factor": ("0.5," * 48)[:-1]}, blocking=True
         )
         await hass.async_block_till_done()  # Because options change
         dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
         assert dampening.get("data", [{}])[0] == {"site": "1111-1111-1111-1111", "damp_factor": ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
         dampening = await hass.services.async_call(
-            DOMAIN, "get_dampening", {"site": "1111-1111-1111-1111"}, blocking=True, return_response=True
+            DOMAIN, "get_dampening", {"site": "1111_1111_1111_1111"}, blocking=True, return_response=True
         )
         assert dampening.get("data", [{}])[0] == {"site": "1111-1111-1111-1111", "damp_factor": ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
         with pytest.raises(ServiceValidationError):
@@ -954,7 +954,7 @@ async def test_integration_remaining_actions(
                 "query": {
                     EVENT_START_DATETIME: solcast.get_day_start_utc(future=-3).isoformat(),
                     EVENT_END_DATETIME: solcast.get_day_start_utc(future=-1).isoformat(),
-                    SITE: "2222-2222-2222-2222",
+                    SITE: "2222_2222_2222_2222",
                     UNDAMPENED: True,
                 },
                 "expect": 96,
