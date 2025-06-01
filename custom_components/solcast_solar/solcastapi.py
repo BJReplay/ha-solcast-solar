@@ -2726,12 +2726,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             "wh_hours": {
                 forecast["period_start"].isoformat(): round(forecast[self._use_forecast_confidence] * 500, 0)
                 for index, forecast in enumerate(self._data_forecasts)
-                if index > 0
-                and index < len(self._data_forecasts) - 1
+                if index > 1
+                and index < len(self._data_forecasts) - 2
                 and (
                     forecast[self._use_forecast_confidence] > 0
                     or self._data_forecasts[index - 1][self._use_forecast_confidence] > 0
                     or self._data_forecasts[index + 1][self._use_forecast_confidence] > 0
+                    or (forecast["period_start"].minute == 30 and self._data_forecasts[index - 2][self._use_forecast_confidence] > 0.2)
+                    or (forecast["period_start"].minute == 30 and self._data_forecasts[index + 2][self._use_forecast_confidence] > 0.2)
                 )
             }
         }
