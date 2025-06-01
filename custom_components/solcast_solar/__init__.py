@@ -501,8 +501,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
         site = call.data.get(SITE)  # Optional site.
         if site is not None:
+            site_underscores = "_" in site
             site = site.lower().replace("_", "-")
-        data = await solcast.get_dampening(site)
+        else:
+            site_underscores = False
+        data = await solcast.get_dampening(site=site, site_underscores=site_underscores)
         return {"data": data}
 
     async def action_call_set_hard_limit(call: ServiceCall) -> None:

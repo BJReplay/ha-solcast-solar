@@ -821,7 +821,7 @@ async def test_integration_remaining_actions(
         dampening = await hass.services.async_call(
             DOMAIN, "get_dampening", {"site": "1111_1111_1111_1111"}, blocking=True, return_response=True
         )
-        assert dampening.get("data", [{}])[0] == {"site": "1111-1111-1111-1111", "damp_factor": ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
+        assert dampening.get("data", [{}])[0] == {"site": "1111_1111_1111_1111", "damp_factor": ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
         with pytest.raises(ServiceValidationError):
             dampening = await hass.services.async_call(
                 DOMAIN, "set_dampening", {"site": "9999-9999-9999-9999", "damp_factor": ("0.5," * 48)[:-1]}, blocking=True

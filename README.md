@@ -614,7 +614,7 @@ You can change the dampening factor value for any hour. Values from 0.0 - 1.0 ar
 
 Setting dampening for individual Solcast sites or using half-hour intervals is possible. This requires use of either the `solcast_solar.set_dampening` action, or creation/modification of a file in the Home Assistant config folder called `solcast-dampening.json`.
 
-The action accepts a string of dampening factors, and also an optional site resource ID. (The optional site may be specified with either hyphens or underscores.) For hourly dampening supply 24 values. For half-hourly 48. Calling the action creates or updates the file `solcast-dampening.json` when either a site or 48 factor values are specified. If setting overall dampening with 48 factors, then an optional 'all' site may be specified (or simply omitted for this use case).
+The action accepts a string of dampening factors, and also an optional site resource ID. (The optional site may be specified using either hyphens or underscores.) For hourly dampening supply 24 values. For half-hourly 48. Calling the action creates or updates the file `solcast-dampening.json` when either a site or 48 factor values are specified. If setting overall dampening with 48 factors, then an optional 'all' site may be specified (or simply omitted for this use case).
 
 ```yaml
 action: solcast_solar.set_dampening
@@ -674,7 +674,7 @@ Example of half-hourly dampening for all sites:
 
 When calculating dampening using an automation it may be beneficial to use un-dampened forecast values as input.
 
-This is possible by using the action `solcast_solar.query_forecast_data`, and including `undampened: true` in the parameters. The site may also be included in the action parameters if a breakdown is desired. (The optional site may be specified with either hyphens or underscores.)
+This is possible by using the action `solcast_solar.query_forecast_data`, and including `undampened: true` in the parameters. The site may also be included in the action parameters if a breakdown is desired. (The optional site may be specified using either hyphens or underscores.)
 
 ```yaml
 action: solcast_solar.query_forecast_data
@@ -689,7 +689,9 @@ Un-dampened forecast history is retained for just 14 days.
 
 #### Reading dampening values
 
-The currently set dampening factors may be retrieved using the action "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site resource ID, or specify no site or the site 'all'. (The optional site may be specified with either hyphens or underscores.) Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
+The currently set dampening factors may be retrieved using the action "Solcast PV Forecast: Get forecasts dampening" (`solcast_solar.get_dampening`). This may specify an optional site resource ID, or specify no site or the site 'all'. Where no site is specified then all sites with dampening set will be returned. An error is raised should a site not have dampening set.
+
+The optional site may be specified using either hyphens or underscores. If the service call uses underscores, then the response will also use underscores.
 
 If granular dampening is set to specify both individual site dampening factors and "all" sites dampening factors, then attempting retrieval of an individual site dampening factors will result in the "all" sites dampening factors being returned, with the "all" site being noted in the response. This is because an "all" set of dampening factors overrides the individual site settings in this circumstance.
 

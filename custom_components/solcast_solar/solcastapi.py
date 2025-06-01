@@ -1009,11 +1009,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """Set/clear allow reset granular dampening file to an empty dictionary by options change."""
         self._granular_allow_reset = enable
 
-    async def get_dampening(self, site: str | None) -> list[dict[str, Any]]:
+    async def get_dampening(self, site: str | None, site_underscores: bool) -> list[dict[str, Any]]:
         """Retrieve the currently set dampening factors.
 
         Arguments:
             site (str): An optional site.
+            site_underscores (bool): Whether to replace dashes with underscores in returned site names.
 
         Returns:
             (list): The action response for the presently set dampening factors.
@@ -1030,7 +1031,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if site in self.granular_dampening:
                         return [
                             {
-                                "site": _site,
+                                "site": _site if not site_underscores else _site.replace("-", "_"),
                                 "damp_factor": ",".join(str(factor) for factor in self.granular_dampening[_site]),
                             }
                             for _site in sites
@@ -1041,53 +1042,50 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         translation_key="damp_not_for_site",
                         translation_placeholders={"site": site},
                     )
-                else:  # noqa: RET506
-                    if site != "all":
-                        if site in self.granular_dampening:
-                            _LOGGER.warning(
-                                "There is dampening for site %s, but it is being overridden by an all sites entry, returning the 'all' entries instead",
-                                site,
-                            )
-                        else:
-                            _LOGGER.warning(
-                                "There is no dampening set for site %s, but it is being overridden by an all sites entry, returning the 'all' entries instead",
-                                site,
-                            )
-                    return [
-                        {
-                            "site": "all",
-                            "damp_factor": ",".join(str(factor) for factor in self.granular_dampening["all"]),
-                        }
-                    ]
-            else:
-                if all_set:
-                    return [
-                        {
-                            "site": "all",
-                            "damp_factor": ",".join(str(factor) for factor in self.granular_dampening["all"]),
-                        }
-                    ]
-                return [
-                    {
-                        "site": _site,
-                        "damp_factor": ",".join(str(factor) for factor in self.granular_dampening[_site]),
-                    }
-                    for _site in sites
-                    if self.granular_dampening.get(_site)
-                ]
-        else:
-            if not site or site == "all":
+                if site != "all":
+                    if site in self.granular_dampening:
+                        _LOGGER.warning(
+                            "There is dampening for site %s, but it is being overridden by an all sites entry, returning the 'all' entries instead",
+                            site,
+                        )
+                    else:
+                        _LOGGER.warning(
+                            "There is no dampening set for site %s, but it is being overridden by an all sites entry, returning the 'all' entries instead",
+                            site,
+                        )
                 return [
                     {
                         "site": "all",
-                        "damp_factor": ",".join(str(factor) for _, factor in self.damp.items()),
+                        "damp_factor": ",".join(str(factor) for factor in self.granular_dampening["all"]),
                     }
                 ]
-            raise ServiceValidationError(
-                translation_domain=DOMAIN,
-                translation_key="damp_use_all",
-                translation_placeholders={"site": site},
-            )
+            if all_set:
+                return [
+                    {
+                        "site": "all",
+                        "damp_factor": ",".join(str(factor) for factor in self.granular_dampening["all"]),
+                    }
+                ]
+            return [
+                {
+                    "site": _site if not site_underscores else _site.replace("-", "_"),
+                    "damp_factor": ",".join(str(factor) for factor in self.granular_dampening[_site]),
+                }
+                for _site in sites
+                if self.granular_dampening.get(_site)
+            ]
+        if not site or site == "all":
+            return [
+                {
+                    "site": "all",
+                    "damp_factor": ",".join(str(factor) for _, factor in self.damp.items()),
+                }
+            ]
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="damp_use_all",
+            translation_placeholders={"site": site},
+        )
 
     async def load_saved_data(self) -> str:  # noqa: C901
         """Load the saved solcast.json data.
