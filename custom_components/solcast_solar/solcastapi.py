@@ -836,14 +836,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 if implausible:
                     # If azimuth is implausible then raise an issue.
-                    # if issue_registry.async_get_issue(DOMAIN, raise_issue) is None:
                     _LOGGER.warning("Raise issue `%s` for site %s", raise_issue, site)
                     ir.async_create_issue(
                         self.hass,
                         DOMAIN,
                         raise_issue,
                         is_fixable=False,
-                        is_persistent=False,
+                        is_persistent=True,
                         severity=ir.IssueSeverity.WARNING,
                         translation_key=raise_issue,
                         translation_placeholders={
@@ -1205,7 +1204,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 incompatible = "The solcast.json appears incompatible, so cannot upgrade it"
                                 if data.get("siteinfo") is None and data.get("forecasts") is None:
                                     # Need one or the other to be able to upgrade.
-                                    _LOGGER.critical(incompatible)
                                     self.status = SolcastApiStatus.DATA_INCOMPATIBLE
                                 if data.get("siteinfo") is not None:
                                     if not isinstance(
@@ -1216,7 +1214,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     if not isinstance(data.get("forecasts"), list):
                                         self.status = SolcastApiStatus.DATA_INCOMPATIBLE
                                 if self.status == SolcastApiStatus.DATA_INCOMPATIBLE:
-                                    _LOGGER.critical(incompatible)
                                     return None
 
                                 # What happened before v4 stays before v4. BJReplay has no visibility of ancient.
