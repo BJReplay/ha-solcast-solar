@@ -39,59 +39,159 @@
     },
     "entity": {
         "select": {
-            "estimate_mode" : {"name": "پیشن گوئی کا میدان استعمال کریں۔"}
+            "estimate_mode": {
+                "name": "پیشن گوئی کا میدان استعمال کریں۔"
+            }
         },
         "sensor": {
-            "power_now_30m": {"name": "پاور اگلا 30 منٹ"},
-            "power_now_1hr": {"name": "پاور اگلا گھنٹہ"},
-            "total_kwh_forecast_today": {"name": "آج کی پیشن گوئی"},
-            "peak_w_today": {"name": "آج کی بلند ترین پیش گوئی"},
-            "peak_w_time_today": {"name": "آج عروج کا وقت"},
-            "forecast_this_hour": {"name": "اس گھنٹے کی پیشن گوئی"},
-            "get_remaining_today": {"name": "آج باقی رہنے والی پیشن گوئی"},
-            "forecast_next_hour": {"name": "اگلے گھنٹے کی پیشن گوئی"},
-            "forecast_custom_hours": {"name": "اگلے X گھنٹے کی پیشن گوئی"},
-            "total_kwh_forecast_tomorrow": {"name": "کل کی پیشن گوئی"},
-            "peak_w_tomorrow": {"name": "کل عروج کی پیشن گوئی"},
-            "peak_w_time_tomorrow": {"name": "کل عروج کا وقت"},
-            "api_counter": {"name": "استعمال شدہ API"},
-            "api_limit": {"name": "API کی حد"},
-            "lastupdated": {"name": "API کی آخری رائے شماری"},
-            "total_kwh_forecast_d3": {"name": "دن 3 کی پیشن گوئی"},
-            "total_kwh_forecast_d4": {"name": "دن 4 کی پیشن گوئی"},
-            "total_kwh_forecast_d5": {"name": "دن 5 کی پیشن گوئی"},
-            "total_kwh_forecast_d6": {"name": "دن 6 کی پیشن گوئی"},
-            "total_kwh_forecast_d7": {"name": "دن 7 کی پیشن گوئی"},
-            "power_now": {"name": "ابھی پاور"},
-            "hard_limit": {"name": "سخت حد مقرر"},
-            "hard_limit_api": {"name": "سخت حد مقرر {api_key}"}
+            "power_now_30m": {
+                "name": "پاور اگلا 30 منٹ"
+            },
+            "power_now_1hr": {
+                "name": "پاور اگلا گھنٹہ"
+            },
+            "total_kwh_forecast_today": {
+                "name": "آج کی پیشن گوئی"
+            },
+            "peak_w_today": {
+                "name": "آج کی بلند ترین پیش گوئی"
+            },
+            "peak_w_time_today": {
+                "name": "آج عروج کا وقت"
+            },
+            "forecast_this_hour": {
+                "name": "اس گھنٹے کی پیشن گوئی"
+            },
+            "get_remaining_today": {
+                "name": "آج باقی رہنے والی پیشن گوئی"
+            },
+            "forecast_next_hour": {
+                "name": "اگلے گھنٹے کی پیشن گوئی"
+            },
+            "forecast_custom_hours": {
+                "name": "اگلے X گھنٹے کی پیشن گوئی"
+            },
+            "total_kwh_forecast_tomorrow": {
+                "name": "کل کی پیشن گوئی"
+            },
+            "peak_w_tomorrow": {
+                "name": "کل عروج کی پیشن گوئی"
+            },
+            "peak_w_time_tomorrow": {
+                "name": "کل عروج کا وقت"
+            },
+            "api_counter": {
+                "name": "استعمال شدہ API"
+            },
+            "api_limit": {
+                "name": "API کی حد"
+            },
+            "lastupdated": {
+                "name": "API کی آخری رائے شماری"
+            },
+            "total_kwh_forecast_d3": {
+                "name": "دن 3 کی پیشن گوئی"
+            },
+            "total_kwh_forecast_d4": {
+                "name": "دن 4 کی پیشن گوئی"
+            },
+            "total_kwh_forecast_d5": {
+                "name": "دن 5 کی پیشن گوئی"
+            },
+            "total_kwh_forecast_d6": {
+                "name": "دن 6 کی پیشن گوئی"
+            },
+            "total_kwh_forecast_d7": {
+                "name": "دن 7 کی پیشن گوئی"
+            },
+            "power_now": {
+                "name": "ابھی پاور"
+            },
+            "hard_limit": {
+                "name": "سخت حد مقرر"
+            },
+            "hard_limit_api": {
+                "name": "سخت حد مقرر {api_key}"
+            }
         }
     },
     "exceptions": {
-        "auto_use_force": {"message": "آٹو اپ ڈیٹ فعال ہے، پیشن گوئی اپ ڈیٹ کے لیے سروس ایونٹ کو نظر انداز کرتے ہوئے، اس کے بجائے فورس اپ ڈیٹ کا استعمال کریں۔"},
-        "auto_use_normal": {"message": "آٹو اپ ڈیٹ فعال نہیں ہے، زبردست پیشن گوئی اپ ڈیٹ کے لیے سروس ایونٹ کو نظر انداز کرتے ہوئے، اس کے بجائے اپ ڈیٹ کا استعمال کریں۔"},
-        "damp_not_for_site": {"message": "سائٹ ڈیمپنگ سائٹ کے لیے سیٹ نہیں ہے: {site}"},
-        "damp_use_all": {"message": "سائٹ ڈیمپننگ سائٹ کے لیے سیٹ نہیں ہے، سروس کال کے لیے 'سب' واحد دستیاب سائٹ پیرامیٹر ہے: {site}"},
-        "damp_no_factors": {"message": "کوئی کم کرنے والے عوامل نہیں، صفر اور ایک کے درمیان نمبروں کی کوما سے الگ کردہ فہرست ہونی چاہیے۔"},
-        "damp_count_not_correct": {"message": "صفر اور ایک کے درمیان چوبیس یا اڑتالیس کوما سے الگ کردہ نمبر نہیں ہیں۔"},
-        "damp_no_all_24": {"message": "چوبیس عوامل کے ساتھ 'سب' کی سائٹ کی وضاحت کرنے کی اجازت نہیں ہے، درخواست سے سائٹ کو ہٹا دیں۔"},
-        "damp_not_site": {"message": "ترتیب شدہ سائٹ نہیں ہے۔"},
-        "damp_error_parsing": {"message": "ڈیمپننگ فیکٹر کوما سے الگ کردہ نمبرز کو پارس کرنے میں خرابی۔"},
-        "damp_outside_range": {"message": "ڈیمپننگ فیکٹر ویلیو موجود ہے جو صفر اور ایک کے درمیان نہیں ہے۔"},
-        "hard_empty": {"message": "خالی سخت حد کی قدر۔"},
-        "hard_too_many": {"message": "چابیاں سے زیادہ سخت حدود متعین ہیں۔"},
-        "hard_not_positive_number": {"message": "سخت حد کی قدر کوئی مثبت نمبر نہیں ہے۔"},
-        "init_cannot_get_sites": {"message": "سائٹس کا ڈیٹا بازیافت نہیں کیا جا سکا۔"},
-        "init_cannot_get_sites_cache_invalid": {"message": "سائٹس کا ڈیٹا بازیافت نہیں کیا جا سکا اور کیش غلط ہے۔"},
-        "init_incompatible": {"message": "کیش شدہ `config/solcast.json` ڈیٹا مطابقت نہیں رکھتا، اسے حذف کر دیں۔"},
-        "init_key_invalid": {"message": "کلید غلط ہے۔"},
-        "init_no_sites": {"message": "کلید کے لیے کوئی سائٹ نہیں ملی۔"},
-        "init_unknown": {"message": "استثناء لوڈنگ سائٹس کا ڈیٹا۔"},
-        "init_usage_corrupt": {"message": "استعمال کا ڈیٹا کرپٹ ہے، `config/solcast-usage.json` کو چیک کریں یا حذف کریں۔"},
-        "integration_not_loaded": {"message": "انضمام لوڈ نہیں ہوا، عمل نہیں کر رہا ہے۔"},
-        "remove_cache_failed": {"message": "تمام سولکاسٹ ڈیٹا کو صاف کرنا ناکام ہوگیا۔"}
+        "auto_use_force": {
+            "message": "آٹو اپ ڈیٹ فعال ہے، پیشن گوئی اپ ڈیٹ کے لیے سروس ایونٹ کو نظر انداز کرتے ہوئے، اس کے بجائے فورس اپ ڈیٹ کا استعمال کریں۔"
+        },
+        "auto_use_normal": {
+            "message": "آٹو اپ ڈیٹ فعال نہیں ہے، زبردست پیشن گوئی اپ ڈیٹ کے لیے سروس ایونٹ کو نظر انداز کرتے ہوئے، اس کے بجائے اپ ڈیٹ کا استعمال کریں۔"
+        },
+        "damp_not_for_site": {
+            "message": "سائٹ ڈیمپنگ سائٹ کے لیے سیٹ نہیں ہے: {site}"
+        },
+        "damp_use_all": {
+            "message": "سائٹ ڈیمپننگ سائٹ کے لیے سیٹ نہیں ہے، سروس کال کے لیے 'سب' واحد دستیاب سائٹ پیرامیٹر ہے: {site}"
+        },
+        "damp_no_factors": {
+            "message": "کوئی کم کرنے والے عوامل نہیں، صفر اور ایک کے درمیان نمبروں کی کوما سے الگ کردہ فہرست ہونی چاہیے۔"
+        },
+        "damp_count_not_correct": {
+            "message": "صفر اور ایک کے درمیان چوبیس یا اڑتالیس کوما سے الگ کردہ نمبر نہیں ہیں۔"
+        },
+        "damp_no_all_24": {
+            "message": "چوبیس عوامل کے ساتھ 'سب' کی سائٹ کی وضاحت کرنے کی اجازت نہیں ہے، درخواست سے سائٹ کو ہٹا دیں۔"
+        },
+        "damp_not_site": {
+            "message": "ترتیب شدہ سائٹ نہیں ہے۔"
+        },
+        "damp_error_parsing": {
+            "message": "ڈیمپننگ فیکٹر کوما سے الگ کردہ نمبرز کو پارس کرنے میں خرابی۔"
+        },
+        "damp_outside_range": {
+            "message": "ڈیمپننگ فیکٹر ویلیو موجود ہے جو صفر اور ایک کے درمیان نہیں ہے۔"
+        },
+        "hard_empty": {
+            "message": "خالی سخت حد کی قدر۔"
+        },
+        "hard_too_many": {
+            "message": "چابیاں سے زیادہ سخت حدود متعین ہیں۔"
+        },
+        "hard_not_positive_number": {
+            "message": "سخت حد کی قدر کوئی مثبت نمبر نہیں ہے۔"
+        },
+        "init_cannot_get_sites": {
+            "message": "سائٹس کا ڈیٹا بازیافت نہیں کیا جا سکا۔"
+        },
+        "init_cannot_get_sites_cache_invalid": {
+            "message": "سائٹس کا ڈیٹا بازیافت نہیں کیا جا سکا اور کیش غلط ہے۔"
+        },
+        "init_incompatible": {
+            "message": "کیش شدہ `config/solcast.json` ڈیٹا مطابقت نہیں رکھتا، اسے حذف کر دیں۔"
+        },
+        "init_key_invalid": {
+            "message": "کلید غلط ہے۔"
+        },
+        "init_no_sites": {
+            "message": "کلید کے لیے کوئی سائٹ نہیں ملی۔"
+        },
+        "init_unknown": {
+            "message": "استثناء لوڈنگ سائٹس کا ڈیٹا۔"
+        },
+        "init_usage_corrupt": {
+            "message": "استعمال کا ڈیٹا کرپٹ ہے، `config/solcast-usage.json` کو چیک کریں یا حذف کریں۔"
+        },
+        "integration_not_loaded": {
+            "message": "انضمام لوڈ نہیں ہوا، عمل نہیں کر رہا ہے۔"
+        },
+        "remove_cache_failed": {
+            "message": "تمام سولکاسٹ ڈیٹا کو صاف کرنا ناکام ہوگیا۔"
+        }
     },
     "issues": {
+        "implausible_azimuth_northern": {
+            "title": "ناقابل تصور ازیموت",
+            "description": "Is shmali nasf karah ki chht ke arz bald ke liye sit {site} ka azimath naaqabl tasur hay. Kiya ya {extant} ki bajaye {proposal} hona chahiye?"
+        },
+        "implausible_azimuth_southern": {
+            "title": "ناقابل تصور ازیموت",
+            "description": "Is janobi nasf karah ki chht ke arz bald ke liye sit {site} ka azimath naaqabl tasur hay. Kiya ya {extant} ki bajaye {proposal} hona chahiye?"
+        },
         "records_missing": {
             "title": "مستقبل کی پیشن گوئیاں غائب ہیں۔",
             "description": "مستقبل کی پیشن گوئی کا ڈیٹا غائب ہے، جو غیر متوقع ہے کیونکہ آٹو اپ ڈیٹ فعال ہے۔"
@@ -147,7 +247,6 @@
                     "config_damp": "فی گھنٹہ نم کرنے والے عوامل میں ترمیم کریں (جمع کرائیں پر کلک کرنے کے بعد)",
                     "exclude_sites": "انرجی ڈیش بورڈ اور سینسر کے ٹوٹل سے خارج کرنے کے لیے سائٹ (سائٹس)",
                     "site_damp": "گرینولر ڈیمپننگ سیٹ ہے: کلیئر ڈیمپننگ کو مجموعی طور پر فی گھنٹہ ڈیمپننگ پر واپس لوٹنا"
-
                 },
                 "description": "سولکاسٹ کنفیگریشن کے اختیارات"
             },

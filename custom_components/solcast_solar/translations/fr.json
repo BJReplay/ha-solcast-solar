@@ -39,59 +39,159 @@
     },
     "entity": {
         "select": {
-            "estimate_mode" : {"name": "Utiliser le champ de prévision"}
+            "estimate_mode": {
+                "name": "Utiliser le champ de prévision"
+            }
         },
         "sensor": {
-            "power_now_30m": {"name": "Puissance en 30 minutes"},
-            "power_now_1hr": {"name": "Puissance en 1 heure"},
-            "total_kwh_forecast_today": {"name": "Prévisions pour aujourd'hui"},
-            "peak_w_today": {"name": "Prévisions du pic aujourd'hui"},
-            "peak_w_time_today": {"name": "Heure du pic aujourd'hui"},
-            "forecast_this_hour": {"name": "Prévisions heure actuel"},
-            "get_remaining_today": {"name": "Prévisions de production  restantes aujourd'hui"},
-            "forecast_next_hour": {"name": "Prévisions pour la prochaine heure"},
-            "forecast_custom_hours": {"name": "Prévisions pour les X prochaines heures"},
-            "total_kwh_forecast_tomorrow": {"name": "Prévisions pour demain"},
-            "peak_w_tomorrow": {"name": "Prévisions du pic pour demain"},
-            "peak_w_time_tomorrow": {"name": "Heure du pic demain"},
-            "api_counter": {"name": "API utilisée"},
-            "api_limit": {"name": "Limite API"},
-            "lastupdated": {"name": "Dernière interrogation de l'API"},
-            "total_kwh_forecast_d3": {"name": "Prévision jour 3"},
-            "total_kwh_forecast_d4": {"name": "Prévision jour 4"},
-            "total_kwh_forecast_d5": {"name": "Prévision jour 5"},
-            "total_kwh_forecast_d6": {"name": "Prévision jour 6"},
-            "total_kwh_forecast_d7": {"name": "Prévision jour 7"},
-            "power_now": {"name": "Puissance maintenant"},
-            "hard_limit": {"name": "Ensemble de limites strictes"},
-            "hard_limit_api": {"name": "Ensemble de limites strictes {api_key}"}
+            "power_now_30m": {
+                "name": "Puissance en 30 minutes"
+            },
+            "power_now_1hr": {
+                "name": "Puissance en 1 heure"
+            },
+            "total_kwh_forecast_today": {
+                "name": "Prévisions pour aujourd'hui"
+            },
+            "peak_w_today": {
+                "name": "Prévisions du pic aujourd'hui"
+            },
+            "peak_w_time_today": {
+                "name": "Heure du pic aujourd'hui"
+            },
+            "forecast_this_hour": {
+                "name": "Prévisions heure actuel"
+            },
+            "get_remaining_today": {
+                "name": "Prévisions de production  restantes aujourd'hui"
+            },
+            "forecast_next_hour": {
+                "name": "Prévisions pour la prochaine heure"
+            },
+            "forecast_custom_hours": {
+                "name": "Prévisions pour les X prochaines heures"
+            },
+            "total_kwh_forecast_tomorrow": {
+                "name": "Prévisions pour demain"
+            },
+            "peak_w_tomorrow": {
+                "name": "Prévisions du pic pour demain"
+            },
+            "peak_w_time_tomorrow": {
+                "name": "Heure du pic demain"
+            },
+            "api_counter": {
+                "name": "API utilisée"
+            },
+            "api_limit": {
+                "name": "Limite API"
+            },
+            "lastupdated": {
+                "name": "Dernière interrogation de l'API"
+            },
+            "total_kwh_forecast_d3": {
+                "name": "Prévision jour 3"
+            },
+            "total_kwh_forecast_d4": {
+                "name": "Prévision jour 4"
+            },
+            "total_kwh_forecast_d5": {
+                "name": "Prévision jour 5"
+            },
+            "total_kwh_forecast_d6": {
+                "name": "Prévision jour 6"
+            },
+            "total_kwh_forecast_d7": {
+                "name": "Prévision jour 7"
+            },
+            "power_now": {
+                "name": "Puissance maintenant"
+            },
+            "hard_limit": {
+                "name": "Ensemble de limites strictes"
+            },
+            "hard_limit_api": {
+                "name": "Ensemble de limites strictes {api_key}"
+            }
         }
     },
     "exceptions": {
-        "auto_use_force": {"message": "La mise à jour automatique est activée, ignorant l'événement de service pour la mise à jour des prévisions, utilisez plutôt Forcer la mise à jour."},
-        "auto_use_normal": {"message": "La mise à jour automatique n'est pas activée, ignorant l'événement de service pour forcer la mise à jour des prévisions, utilisez plutôt Update."},
-        "damp_not_for_site": {"message": "L'amortissement du site n'est pas défini pour {site}."},
-        "damp_use_all": {"message": "L'amortissement du site n'est pas défini pour {site}, « all » (tout) est le seul paramètre de site disponible pour l'appel de service.."},
-        "damp_no_factors": {"message": "Aucun facteur atténuant, doit être une liste de nombres séparés par des virgules entre 0,0 et 1,0."},
-        "damp_count_not_correct": {"message": "Il n’y a pas 24 ou 48 nombres séparés par des virgules entre 0,0 et 1,0."},
-        "damp_no_all_24": {"message": "Spécifier un site parmi « all » (tous) n'est pas autorisé avec 24 facteurs, supprimez le site de la demande."},
-        "damp_not_site": {"message": "Pas un site configuré."},
-        "damp_error_parsing": {"message": "Erreur lors de l'analyse des nombres séparés par des virgules du facteur d'amortissement."},
-        "damp_outside_range": {"message": "Valeur du facteur d'amortissement présente qui n'est pas comprise entre 0,0 et 1,0."},
-        "hard_empty": {"message": "Valeur limite stricte vide."},
-        "hard_too_many": {"message": "Plus de limites strictes sont spécifiées qu'il n'y a de clés API."},
-        "hard_not_positive_number": {"message": "La valeur limite stricte n’est pas un nombre positif."},
-        "init_cannot_get_sites": {"message": "Les données des sites n'ont pas pu être récupérées."},
-        "init_cannot_get_sites_cache_invalid": {"message": "Les données des sites n'ont pas pu être récupérées et le cache n'est pas valide."},
-        "init_incompatible": {"message": "Données `config/solcast.json` mises en cache incompatibles, supprimez-les."},
-        "init_key_invalid": {"message": "La clé API n'est pas valide."},
-        "init_no_sites": {"message": "Aucun site trouvé pour la clé API."},
-        "init_unknown": {"message": "Exception lors du chargement des données des sites."},
-        "init_usage_corrupt": {"message": "Les données d'utilisation sont corrompues, vérifiez ou supprimez `config/solcast-usage.json`."},
-        "integration_not_loaded": {"message": "L'intégration n'est pas chargée, n'effectue aucune action."},
-        "remove_cache_failed": {"message": "Échec de l'effacement de toutes les données Solcast."}
+        "auto_use_force": {
+            "message": "La mise à jour automatique est activée, ignorant l'événement de service pour la mise à jour des prévisions, utilisez plutôt Forcer la mise à jour."
+        },
+        "auto_use_normal": {
+            "message": "La mise à jour automatique n'est pas activée, ignorant l'événement de service pour forcer la mise à jour des prévisions, utilisez plutôt Update."
+        },
+        "damp_not_for_site": {
+            "message": "L'amortissement du site n'est pas défini pour {site}."
+        },
+        "damp_use_all": {
+            "message": "L'amortissement du site n'est pas défini pour {site}, « all » (tout) est le seul paramètre de site disponible pour l'appel de service.."
+        },
+        "damp_no_factors": {
+            "message": "Aucun facteur atténuant, doit être une liste de nombres séparés par des virgules entre 0,0 et 1,0."
+        },
+        "damp_count_not_correct": {
+            "message": "Il n’y a pas 24 ou 48 nombres séparés par des virgules entre 0,0 et 1,0."
+        },
+        "damp_no_all_24": {
+            "message": "Spécifier un site parmi « all » (tous) n'est pas autorisé avec 24 facteurs, supprimez le site de la demande."
+        },
+        "damp_not_site": {
+            "message": "Pas un site configuré."
+        },
+        "damp_error_parsing": {
+            "message": "Erreur lors de l'analyse des nombres séparés par des virgules du facteur d'amortissement."
+        },
+        "damp_outside_range": {
+            "message": "Valeur du facteur d'amortissement présente qui n'est pas comprise entre 0,0 et 1,0."
+        },
+        "hard_empty": {
+            "message": "Valeur limite stricte vide."
+        },
+        "hard_too_many": {
+            "message": "Plus de limites strictes sont spécifiées qu'il n'y a de clés API."
+        },
+        "hard_not_positive_number": {
+            "message": "La valeur limite stricte n’est pas un nombre positif."
+        },
+        "init_cannot_get_sites": {
+            "message": "Les données des sites n'ont pas pu être récupérées."
+        },
+        "init_cannot_get_sites_cache_invalid": {
+            "message": "Les données des sites n'ont pas pu être récupérées et le cache n'est pas valide."
+        },
+        "init_incompatible": {
+            "message": "Données `config/solcast.json` mises en cache incompatibles, supprimez-les."
+        },
+        "init_key_invalid": {
+            "message": "La clé API n'est pas valide."
+        },
+        "init_no_sites": {
+            "message": "Aucun site trouvé pour la clé API."
+        },
+        "init_unknown": {
+            "message": "Exception lors du chargement des données des sites."
+        },
+        "init_usage_corrupt": {
+            "message": "Les données d'utilisation sont corrompues, vérifiez ou supprimez `config/solcast-usage.json`."
+        },
+        "integration_not_loaded": {
+            "message": "L'intégration n'est pas chargée, n'effectue aucune action."
+        },
+        "remove_cache_failed": {
+            "message": "Échec de l'effacement de toutes les données Solcast."
+        }
     },
     "issues": {
+        "implausible_azimuth_northern": {
+            "title": "Azimut invraisemblable",
+            "description": "L'azimut du site {site} est improbable pour la latitude de ce toit de l'hémisphère nord. Devrait-on plutôt choisir {proposal} que {extant}?"
+        },
+        "implausible_azimuth_southern": {
+            "title": "Azimut invraisemblable",
+            "description": "L'azimut du site {site} est improbable pour la latitude de ce toit de l'hémisphère sud. Devrait-on plutôt choisir {proposal} que {extant}?"
+        },
         "records_missing": {
             "title": "Prévisions manquantes",
             "description": "Les données de prévisions futures sont manquantes, ce qui est inattendu car la mise à jour automatique est activée."

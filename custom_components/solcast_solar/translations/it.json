@@ -36,62 +36,162 @@
                 "description": "Dettagli dell'account Solcast\n\n(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)"
             }
         }
-  },
-  "entity": {
+    },
+    "entity": {
         "select": {
-            "estimate_mode": {"name": "Usa il campo Previsione"}
+            "estimate_mode": {
+                "name": "Usa il campo Previsione"
+            }
         },
         "sensor": {
-            "power_now_30m": {"name": "Potenza tra 30 minuti"},
-            "power_now_1hr": {        "name": "Potenza tra 1 ora"},
-            "total_kwh_forecast_today": {"name": "Previsione per oggi"},
-            "peak_w_today": {"name": "Picco di previsione per oggi"},
-            "peak_w_time_today": {"name": "Orario del picco per oggi"},
-            "forecast_this_hour": {"name": "Previsione per quest'ora"},
-            "get_remaining_today": {"name": "Previsione rimanente per oggi"},
-            "forecast_next_hour": {"name": "Previsione per la prossima ora"},
-            "forecast_custom_hours": {"name": "Previsione per le prossime X ore"},
-            "total_kwh_forecast_tomorrow": {"name": "Previsione per domani"},
-            "peak_w_tomorrow": {"name": "Picco di previsione per domani"},
-            "peak_w_time_tomorrow": {"name": "Orario del picco per domani"},
-            "api_counter": {"name": "API utilizzate"},
-            "api_limit": {"name": "Limite API"},
-            "lastupdated": {"name": "Ultimo polling API"},
-            "total_kwh_forecast_d3": {"name": "Previsione per il giorno 3"},
-            "total_kwh_forecast_d4": {"name": "Previsione per il giorno 4"},
-            "total_kwh_forecast_d5": {"name": "Previsione per il giorno 5"},
-            "total_kwh_forecast_d6": {"name": "Previsione per il giorno 6"},
-            "total_kwh_forecast_d7": {"name": "Previsione per il giorno 7"},
-            "power_now": {"name": "Potenza attuale"},
-            "hard_limit": {"name": "Limite rigido impostato"},
-            "hard_limit_api": {"name": "Limite rigido impostato {api_key}"}
+            "power_now_30m": {
+                "name": "Potenza tra 30 minuti"
+            },
+            "power_now_1hr": {
+                "name": "Potenza tra 1 ora"
+            },
+            "total_kwh_forecast_today": {
+                "name": "Previsione per oggi"
+            },
+            "peak_w_today": {
+                "name": "Picco di previsione per oggi"
+            },
+            "peak_w_time_today": {
+                "name": "Orario del picco per oggi"
+            },
+            "forecast_this_hour": {
+                "name": "Previsione per quest'ora"
+            },
+            "get_remaining_today": {
+                "name": "Previsione rimanente per oggi"
+            },
+            "forecast_next_hour": {
+                "name": "Previsione per la prossima ora"
+            },
+            "forecast_custom_hours": {
+                "name": "Previsione per le prossime X ore"
+            },
+            "total_kwh_forecast_tomorrow": {
+                "name": "Previsione per domani"
+            },
+            "peak_w_tomorrow": {
+                "name": "Picco di previsione per domani"
+            },
+            "peak_w_time_tomorrow": {
+                "name": "Orario del picco per domani"
+            },
+            "api_counter": {
+                "name": "API utilizzate"
+            },
+            "api_limit": {
+                "name": "Limite API"
+            },
+            "lastupdated": {
+                "name": "Ultimo polling API"
+            },
+            "total_kwh_forecast_d3": {
+                "name": "Previsione per il giorno 3"
+            },
+            "total_kwh_forecast_d4": {
+                "name": "Previsione per il giorno 4"
+            },
+            "total_kwh_forecast_d5": {
+                "name": "Previsione per il giorno 5"
+            },
+            "total_kwh_forecast_d6": {
+                "name": "Previsione per il giorno 6"
+            },
+            "total_kwh_forecast_d7": {
+                "name": "Previsione per il giorno 7"
+            },
+            "power_now": {
+                "name": "Potenza attuale"
+            },
+            "hard_limit": {
+                "name": "Limite rigido impostato"
+            },
+            "hard_limit_api": {
+                "name": "Limite rigido impostato {api_key}"
+            }
         }
     },
     "exceptions": {
-        "auto_use_force": {"message": "L'aggiornamento automatico è abilitato, ignorando l'evento di servizio per l'aggiornamento delle previsioni, utilizzare invece Aggiornamento forzato."},
-        "auto_use_normal": {"message": "L'aggiornamento automatico non è abilitato, ignorando l'evento di servizio per l'aggiornamento forzato delle previsioni, utilizzare invece Aggiornamento."},
-        "damp_count_not_correct": {"message": "Non ci sono 24 o 48 numeri separati da virgola tra 0.0 e 1.0."},
-        "damp_error_parsing": {"message": "Errore durante l'analisi dei numeri di fattori di smorzamento separati da virgola."},
-        "damp_no_all_24": {"message": "La specifica di un sito 'all' non è consentita con 24 fattori, rimuovere il sito dalla richiesta."},
-        "damp_no_factors": {"message": "Nessun fattore di smorzamento, deve essere un elenco di numeri separati da virgola tra 0.0 e 1.0."},
-        "damp_not_for_site": {"message": "Lo smorzamento del sito non è impostato per {site}."},
-        "damp_not_site": {"message": "Sito non configurato."},
-        "damp_outside_range": {"message": "Valore del fattore di smorzamento presente che non è compreso tra 0.0 e 1.0."},
-        "damp_use_all": {"message": "Lo smorzamento del sito non è impostato per {site}, 'all' è l'unico parametro del sito disponibile per la chiamata al servizio."},
-        "hard_empty": {"message": "Valore del limite rigido vuoto."},
-        "hard_not_positive_number": {"message": "Il valore del limite rigido non è un numero positivo."},
-        "hard_too_many": {"message": "Sono specificati più limiti rigidi di quante siano le chiavi API."},
-        "init_cannot_get_sites": {"message": "Impossibile recuperare i dati dei siti."},
-        "init_cannot_get_sites_cache_invalid": {"message": "Impossibile recuperare i dati dei siti e la cache non è valida."},
-        "init_incompatible": {"message": "Dati `config/solcast.json` memorizzati nella cache incompatibili. Eliminarli."},
-        "init_key_invalid": {"message": "La chiave API non è valida."},
-        "init_no_sites": {"message": "Nessun sito trovato per la chiave API."},
-        "init_unknown": {"message": "Eccezione durante il caricamento dei dati dei siti."},
-        "init_usage_corrupt": {"message": "I dati di utilizzo sono corrotti, controllare o eliminare `config/solcast-usage.json`."},
-        "integration_not_loaded": {"message": "Integrazione non caricata, nessuna azione eseguita."},
-        "remove_cache_failed": {"message": "Eliminazione di tutti i dati Solcast non riuscita."}
+        "auto_use_force": {
+            "message": "L'aggiornamento automatico è abilitato, ignorando l'evento di servizio per l'aggiornamento delle previsioni, utilizzare invece Aggiornamento forzato."
+        },
+        "auto_use_normal": {
+            "message": "L'aggiornamento automatico non è abilitato, ignorando l'evento di servizio per l'aggiornamento forzato delle previsioni, utilizzare invece Aggiornamento."
+        },
+        "damp_count_not_correct": {
+            "message": "Non ci sono 24 o 48 numeri separati da virgola tra 0.0 e 1.0."
+        },
+        "damp_error_parsing": {
+            "message": "Errore durante l'analisi dei numeri di fattori di smorzamento separati da virgola."
+        },
+        "damp_no_all_24": {
+            "message": "La specifica di un sito 'all' non è consentita con 24 fattori, rimuovere il sito dalla richiesta."
+        },
+        "damp_no_factors": {
+            "message": "Nessun fattore di smorzamento, deve essere un elenco di numeri separati da virgola tra 0.0 e 1.0."
+        },
+        "damp_not_for_site": {
+            "message": "Lo smorzamento del sito non è impostato per {site}."
+        },
+        "damp_not_site": {
+            "message": "Sito non configurato."
+        },
+        "damp_outside_range": {
+            "message": "Valore del fattore di smorzamento presente che non è compreso tra 0.0 e 1.0."
+        },
+        "damp_use_all": {
+            "message": "Lo smorzamento del sito non è impostato per {site}, 'all' è l'unico parametro del sito disponibile per la chiamata al servizio."
+        },
+        "hard_empty": {
+            "message": "Valore del limite rigido vuoto."
+        },
+        "hard_not_positive_number": {
+            "message": "Il valore del limite rigido non è un numero positivo."
+        },
+        "hard_too_many": {
+            "message": "Sono specificati più limiti rigidi di quante siano le chiavi API."
+        },
+        "init_cannot_get_sites": {
+            "message": "Impossibile recuperare i dati dei siti."
+        },
+        "init_cannot_get_sites_cache_invalid": {
+            "message": "Impossibile recuperare i dati dei siti e la cache non è valida."
+        },
+        "init_incompatible": {
+            "message": "Dati `config/solcast.json` memorizzati nella cache incompatibili. Eliminarli."
+        },
+        "init_key_invalid": {
+            "message": "La chiave API non è valida."
+        },
+        "init_no_sites": {
+            "message": "Nessun sito trovato per la chiave API."
+        },
+        "init_unknown": {
+            "message": "Eccezione durante il caricamento dei dati dei siti."
+        },
+        "init_usage_corrupt": {
+            "message": "I dati di utilizzo sono corrotti, controllare o eliminare `config/solcast-usage.json`."
+        },
+        "integration_not_loaded": {
+            "message": "Integrazione non caricata, nessuna azione eseguita."
+        },
+        "remove_cache_failed": {
+            "message": "Eliminazione di tutti i dati Solcast non riuscita."
+        }
     },
     "issues": {
+        "implausible_azimuth_northern": {
+            "title": "Azimut improbabile",
+            "description": "L'azimut del sito {site} non è plausibile per la latitudine di questo tetto dell'emisfero settentrionale. Dovrebbe essere {proposal} invece di {extant}?"
+        },
+        "implausible_azimuth_southern": {
+            "title": "Azimut improbabile",
+            "description": "L'azimut del sito {site} non è plausibile per la latitudine di questo tetto dell'emisfero australe. Dovrebbe essere {proposal} invece di {extant}?"
+        },
         "records_missing": {
             "title": "Previsioni future mancanti",
             "description": "I dati delle previsioni future sono mancanti, il che è inaspettato perché l'aggiornamento automatico è abilitato."
@@ -239,26 +339,26 @@
             "name": "Interroga i dati delle previsioni"
         },
         "remove_hard_limit": {
-          "description": "Rimuovi il limite impostato.",
-          "name": "Rimuovi il limite rigido delle previsioni dell'inverter"
+            "description": "Rimuovi il limite impostato.",
+            "name": "Rimuovi il limite rigido delle previsioni dell'inverter"
         },
         "set_dampening": {
-          "description": "Imposta i fattori di smorzamento delle previsioni.",
-          "fields": {
-            "damp_factor": {
-              "description": "Stringa di valori del fattore di smorzamento separati da virgola (24 o 48 valori).",
-              "name": "Stringa di smorzamento"
+            "description": "Imposta i fattori di smorzamento delle previsioni.",
+            "fields": {
+                "damp_factor": {
+                    "description": "Stringa di valori del fattore di smorzamento separati da virgola (24 o 48 valori).",
+                    "name": "Stringa di smorzamento"
+                },
+                "site": {
+                    "description": "Sito opzionale per impostare lo smorzamento per sito. (Nota: l'omissione del sito cancella lo smorzamento per sito a meno che non siano presenti 48 valori.)",
+                    "name": "ID sito"
+                }
             },
-            "site": {
-              "description": "Sito opzionale per impostare lo smorzamento per sito. (Nota: l'omissione del sito cancella lo smorzamento per sito a meno che non siano presenti 48 valori.)",
-              "name": "ID sito"
-            }
-          },
-          "name": "Imposta lo smorzamento delle previsioni"
+            "name": "Imposta lo smorzamento delle previsioni"
         },
         "set_hard_limit": {
-          "description": "Impedisci che i valori di previsione siano superiori a quelli che l'inverter può produrre.",
-          "fields": {
+            "description": "Impedisci che i valori di previsione siano superiori a quelli che l'inverter può produrre.",
+            "fields": {
                 "hard_limit": {
                     "description": "Imposta il valore massimo in Watt che l'inverter può produrre.",
                     "name": "Valore limite in Watt"

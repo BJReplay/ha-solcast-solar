@@ -39,59 +39,159 @@
     },
     "entity": {
         "select": {
-            "estimate_mode" : {"name": "Usar campo de pronóstico"}
+            "estimate_mode": {
+                "name": "Usar campo de pronóstico"
+            }
         },
         "sensor": {
-            "power_now_30m": {"name": "Energía en 30 minutos"},
-            "power_now_1hr": {"name": "Poder en 1 hora"},
-            "total_kwh_forecast_today": {"name": "Pronóstico hoy"},
-            "peak_w_today": {"name": "Pronóstico máximo hoy"},
-            "peak_w_time_today": {"name": "Hora pico hoy"},
-            "forecast_this_hour": {"name": "Pronosticar esta hora"},
-            "get_remaining_today": {"name": "Pronóstico del tiempo restante para hoy"},
-            "forecast_next_hour": {"name": "Pronóstico de la próxima hora"},
-            "forecast_custom_hours": {"name": "Pronóstico próximas X horas"},
-            "total_kwh_forecast_tomorrow": {"name": "Pronóstico mañana"},
-            "peak_w_tomorrow": {"name": "Pronóstico máximo mañana"},
-            "peak_w_time_tomorrow": {"name": "Hora pico mañana"},
-            "api_counter": {"name": "API utilizada"},
-            "api_limit": {"name": "Límite de API"},
-            "lastupdated": {"name": "API encuestada por última vez"},
-            "total_kwh_forecast_d3": {"name": "Pronóstico día 3"},
-            "total_kwh_forecast_d4": {"name": "Pronóstico día 4"},
-            "total_kwh_forecast_d5": {"name": "Pronóstico día 5"},
-            "total_kwh_forecast_d6": {"name": "Pronóstico día 6"},
-            "total_kwh_forecast_d7": {"name": "Pronóstico día 7"},
-            "power_now": {"name": "Poder ahora"},
-            "hard_limit": {"name": "Conjunto de límites estrictos"},
-            "hard_limit_api": {"name": "Conjunto de límites estrictos {api_key}"}
+            "power_now_30m": {
+                "name": "Energía en 30 minutos"
+            },
+            "power_now_1hr": {
+                "name": "Poder en 1 hora"
+            },
+            "total_kwh_forecast_today": {
+                "name": "Pronóstico hoy"
+            },
+            "peak_w_today": {
+                "name": "Pronóstico máximo hoy"
+            },
+            "peak_w_time_today": {
+                "name": "Hora pico hoy"
+            },
+            "forecast_this_hour": {
+                "name": "Pronosticar esta hora"
+            },
+            "get_remaining_today": {
+                "name": "Pronóstico del tiempo restante para hoy"
+            },
+            "forecast_next_hour": {
+                "name": "Pronóstico de la próxima hora"
+            },
+            "forecast_custom_hours": {
+                "name": "Pronóstico próximas X horas"
+            },
+            "total_kwh_forecast_tomorrow": {
+                "name": "Pronóstico mañana"
+            },
+            "peak_w_tomorrow": {
+                "name": "Pronóstico máximo mañana"
+            },
+            "peak_w_time_tomorrow": {
+                "name": "Hora pico mañana"
+            },
+            "api_counter": {
+                "name": "API utilizada"
+            },
+            "api_limit": {
+                "name": "Límite de API"
+            },
+            "lastupdated": {
+                "name": "API encuestada por última vez"
+            },
+            "total_kwh_forecast_d3": {
+                "name": "Pronóstico día 3"
+            },
+            "total_kwh_forecast_d4": {
+                "name": "Pronóstico día 4"
+            },
+            "total_kwh_forecast_d5": {
+                "name": "Pronóstico día 5"
+            },
+            "total_kwh_forecast_d6": {
+                "name": "Pronóstico día 6"
+            },
+            "total_kwh_forecast_d7": {
+                "name": "Pronóstico día 7"
+            },
+            "power_now": {
+                "name": "Poder ahora"
+            },
+            "hard_limit": {
+                "name": "Conjunto de límites estrictos"
+            },
+            "hard_limit_api": {
+                "name": "Conjunto de límites estrictos {api_key}"
+            }
         }
     },
     "exceptions": {
-        "auto_use_force": {"message": "La actualización automática está habilitada, ignorando el evento de servicio para la actualización del pronóstico, use Forzar actualización en su lugar."},
-        "auto_use_normal": {"message": "La actualización automática no está habilitada, se ignora el evento de servicio para forzar la actualización del pronóstico; utilice Actualizar en su lugar."},
-        "damp_count_not_correct": {"message": "No hay 24 o 48 números separados por comas entre 0.0 y 1.0."},
-        "damp_error_parsing": {"message": "Error al analizar el factor de amortiguación en números separados por comas."},
-        "damp_no_all_24": {"message": "No se permite especificar un sitio de 'all' con 24 factores, elimine el sitio de la solicitud."},
-        "damp_no_factors": {"message": "Sin factores de amortiguación, debe ser una lista de números separados por comas entre 0.0 y 1.0."},
-        "damp_not_for_site": {"message": "La amortiguación del sitio no está configurada para {site}."},
-        "damp_not_site": {"message": "No es un sitio configurado."},
-        "damp_outside_range": {"message": "Valor del factor de amortiguamiento presente que no está entre 0.0 y 1.0."},
-        "damp_use_all": {"message": "La amortiguación del sitio no está configurada para {site}, 'all' es el único parámetro de sitio disponible para la llamada de servicio."},
-        "hard_empty": {"message": "Valor límite duro vacío."},
-        "hard_not_positive_number": {"message": "El valor límite duro no es un número positivo."},
-        "hard_too_many": {"message": "Se especifican más límites estrictos que claves API."},
-        "init_cannot_get_sites": {"message": "No se pudieron recuperar los datos del sitio."},
-        "init_cannot_get_sites_cache_invalid": {"message": "No se pudieron recuperar los datos del sitio y el caché no es válido."},
-        "init_incompatible": {"message": "Los datos almacenados en caché de `config/solcast.json` son incompatibles. Elimínelos."},
-        "init_key_invalid": {"message": "La clave API no es válida."},
-        "init_no_sites": {"message": "No se encontraron sitios para la clave API."},
-        "init_unknown": {"message": "Excepción al cargar datos del sitio."},
-        "init_usage_corrupt": {"message": "Los datos de uso están corruptos, verifique o elimine `config/solcast-usage.json`."},
-        "integration_not_loaded": {"message": "Integración no cargada, no se realiza acción."},
-        "remove_cache_failed": {"message": "Error al borrar todos los datos de Solcast."}
+        "auto_use_force": {
+            "message": "La actualización automática está habilitada, ignorando el evento de servicio para la actualización del pronóstico, use Forzar actualización en su lugar."
+        },
+        "auto_use_normal": {
+            "message": "La actualización automática no está habilitada, se ignora el evento de servicio para forzar la actualización del pronóstico; utilice Actualizar en su lugar."
+        },
+        "damp_count_not_correct": {
+            "message": "No hay 24 o 48 números separados por comas entre 0.0 y 1.0."
+        },
+        "damp_error_parsing": {
+            "message": "Error al analizar el factor de amortiguación en números separados por comas."
+        },
+        "damp_no_all_24": {
+            "message": "No se permite especificar un sitio de 'all' con 24 factores, elimine el sitio de la solicitud."
+        },
+        "damp_no_factors": {
+            "message": "Sin factores de amortiguación, debe ser una lista de números separados por comas entre 0.0 y 1.0."
+        },
+        "damp_not_for_site": {
+            "message": "La amortiguación del sitio no está configurada para {site}."
+        },
+        "damp_not_site": {
+            "message": "No es un sitio configurado."
+        },
+        "damp_outside_range": {
+            "message": "Valor del factor de amortiguamiento presente que no está entre 0.0 y 1.0."
+        },
+        "damp_use_all": {
+            "message": "La amortiguación del sitio no está configurada para {site}, 'all' es el único parámetro de sitio disponible para la llamada de servicio."
+        },
+        "hard_empty": {
+            "message": "Valor límite duro vacío."
+        },
+        "hard_not_positive_number": {
+            "message": "El valor límite duro no es un número positivo."
+        },
+        "hard_too_many": {
+            "message": "Se especifican más límites estrictos que claves API."
+        },
+        "init_cannot_get_sites": {
+            "message": "No se pudieron recuperar los datos del sitio."
+        },
+        "init_cannot_get_sites_cache_invalid": {
+            "message": "No se pudieron recuperar los datos del sitio y el caché no es válido."
+        },
+        "init_incompatible": {
+            "message": "Los datos almacenados en caché de `config/solcast.json` son incompatibles. Elimínelos."
+        },
+        "init_key_invalid": {
+            "message": "La clave API no es válida."
+        },
+        "init_no_sites": {
+            "message": "No se encontraron sitios para la clave API."
+        },
+        "init_unknown": {
+            "message": "Excepción al cargar datos del sitio."
+        },
+        "init_usage_corrupt": {
+            "message": "Los datos de uso están corruptos, verifique o elimine `config/solcast-usage.json`."
+        },
+        "integration_not_loaded": {
+            "message": "Integración no cargada, no se realiza acción."
+        },
+        "remove_cache_failed": {
+            "message": "Error al borrar todos los datos de Solcast."
+        }
     },
     "issues": {
+        "implausible_azimuth_northern": {
+            "title": "Azimut inverosímil",
+            "description": "El acimut del sitio {site} es inverosímil para la latitud de este tejado del hemisferio norte. ¿Debería ser {proposal} en lugar de {extant}?"
+        },
+        "implausible_azimuth_southern": {
+            "title": "Azimut inverosímil",
+            "description": "El acimut del sitio {site} es inverosímil para la latitud de este tejado en el hemisferio sur. ¿Debería ser {proposal} en lugar de {extant}?"
+        },
         "records_missing": {
             "title": "Faltan previsiones de futuro",
             "description": "Faltan datos de pronóstico futuro, lo cual es inesperado porque la actualización automática está habilitada."

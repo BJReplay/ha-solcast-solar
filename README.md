@@ -1016,6 +1016,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 v4.3.6
 * Add last_attempt attribute to api_last_polled entity by @autoSteve
 * Add allow action site parameter with hyphen or underscore by @autoSteve
+* Add test for implausible azimuth by @autoSteve
 * Fix Energy dashboard start/end points by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.5...v4.3.6

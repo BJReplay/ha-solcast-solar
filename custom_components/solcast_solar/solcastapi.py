@@ -200,6 +200,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._rekey: dict[str, Any] = {}
         self._site_data_forecasts: dict[str, list[dict[str, Any]]] = {}
         self._site_data_forecasts_undampened: dict[str, list[dict[str, Any]]] = {}
+        self._site_latitude: defaultdict[str, dict[str, bool | float | int | None]] = defaultdict(dict[str, bool | float | int | None])
         self._sites_hard_limit: defaultdict[str, Any] = defaultdict(dict)
         self._sites_hard_limit_undampened: defaultdict[str, Any] = defaultdict(dict)
         self._spline_period = list(range(0, 90000, 1800))
@@ -406,6 +407,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         _LOGGER.error("Not serialising empty data")
         return False
 
+    def __redact_lat_lon_simple(self, s: str) -> str:
+        return re.sub(r"itude [0-9\-\.]+", "itude **.******", s)
+
+    def __redact_lat_lon(self, s: str) -> str:
+        return re.sub(r"itude\': [0-9\-\.]+", "itude': **.******", s)
+
     async def __sites_data(self, prior_crash: bool = False, use_cache: bool = True) -> tuple[int, str, str]:  # noqa: C901
         """Request site details.
 
@@ -446,19 +453,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.error("At least one successful API 'get sites' call is needed, so the integration will not function correctly")
                 one_only = True
 
-        def redact_lat_lon(s: str) -> str:
-            return re.sub(r"itude\': [0-9\-\.]+", "itude': **.******", s)
-
         def set_sites(response_json: dict[str, Any], api_key: str) -> None:
             sites_data = response_json
             _LOGGER.debug(
                 "Sites data received %s",
-                self.__redact_msg_api_key(redact_lat_lon(str(sites_data)), api_key),
+                self.__redact_msg_api_key(self.__redact_lat_lon(str(sites_data)), api_key),
             )
             for site in sites_data["sites"]:
                 site["api_key"] = api_key
                 site.pop("longitude", None)
-                site.pop("latitude", None)
+                self._site_latitude[site["resource_id"]]["latitude"] = site.pop("latitude", None)
+                self._site_latitude[site["resource_id"]]["azimuth"] = site["azimuth"]
             self.sites = self.sites + sites_data["sites"]
             self._api_used_reset[api_key] = None
             _LOGGER.debug(
@@ -784,11 +789,79 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             tuple[int, str, str]: The status code, message and relevant API key from load sites.
 
         """
+        issue_registry = ir.async_get(self.hass)
 
         def rename(file1: str, file2: str, api_key: str):
             if Path(file1).is_file():
                 _LOGGER.info("Renaming %s to %s", self.__redact_msg_api_key(file1, api_key), self.__redact_msg_api_key(file2, api_key))
                 Path(file1).rename(Path(file2))
+
+        async def test_implausible_azimuth() -> None:
+            """Test for implausible azimuth values."""
+            _LOGGER.debug("Testing implausible azimuth values")
+            any_implausible = False
+            raise_issue = ""
+            for site, v in self._site_latitude.items():
+                implausible = False
+                proposal = 0
+                if v["latitude"] is None:
+                    # Using cached data, so latitude is not known
+                    continue
+                if "latitude" in v and "azimuth" in v:
+                    azimuth = v["azimuth"]
+                    if azimuth is not None:
+                        if v["latitude"] > 0:
+                            # Northern hemisphere, so azimuth should be 90 to 180, or -90 to -180
+                            raise_issue = "implausible_azimuth_northern"
+                            if azimuth > 0 and not (90 <= azimuth <= 180):
+                                implausible = True
+                                proposal = 180 - int(azimuth)
+                            if azimuth < 0 and not (-180 <= azimuth <= -90):
+                                implausible = True
+                                proposal = -180 - int(azimuth)
+                        else:
+                            # Southern hemisphere, so azimuth should be 0 to 90, or -90 to 0
+                            raise_issue = "implausible_azimuth_southern"
+                            if azimuth > 0 and not (0 <= azimuth <= 90):
+                                implausible = True
+                                proposal = 180 - int(azimuth)
+                            if azimuth < 0 and not (-90 <= azimuth <= 0):
+                                implausible = True
+                                proposal = -180 - int(azimuth)
+                    if implausible:
+                        any_implausible = True
+                        _LOGGER.warning(
+                            self.__redact_lat_lon_simple(f"Implausible azimuth {azimuth} for site {site}, latitude {v['latitude']}")
+                        )
+
+                if implausible:
+                    # If azimuth is implausible then raise an issue.
+                    # if issue_registry.async_get_issue(DOMAIN, raise_issue) is None:
+                    _LOGGER.warning("Raise issue `%s` for site %s", raise_issue, site)
+                    ir.async_create_issue(
+                        self.hass,
+                        DOMAIN,
+                        raise_issue,
+                        is_fixable=False,
+                        is_persistent=False,
+                        severity=ir.IssueSeverity.WARNING,
+                        translation_key=raise_issue,
+                        translation_placeholders={
+                            "site": site,
+                            "latitude": str(v["latitude"]),
+                            "proposal": str(proposal),
+                            "extant": str(v["azimuth"]),
+                            "learn_more": "",
+                        },
+                        learn_more_url="https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#solcast-requirements",
+                    )
+                    break
+            if not any_implausible and issue_registry.async_get_issue(DOMAIN, "implausible_azimuth_northern") is not None:
+                _LOGGER.debug("Remove issue for %s", "implausible_azimuth_northern")
+                ir.async_delete_issue(self.hass, DOMAIN, "implausible_azimuth_northern")
+            if not any_implausible and issue_registry.async_get_issue(DOMAIN, "implausible_azimuth_southern") is not None:
+                _LOGGER.debug("Remove issue for %s", "implausible_azimuth_southern")
+                ir.async_delete_issue(self.hass, DOMAIN, "implausible_azimuth_southern")
 
         async def from_single_site_to_multi(api_keys: list[str]):
             """Transition from a single API key to multiple API keys."""
@@ -882,6 +955,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         status, message, api_key_in_error = await self.__sites_data(prior_crash=prior_crash, use_cache=use_cache)
         if self.sites_status == SitesStatus.OK:
+            await test_implausible_azimuth()
             await self.__sites_usage()
 
         return status, message, api_key_in_error
