@@ -408,7 +408,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         return False
 
     def __redact_lat_lon_simple(self, s: str) -> str:
-        return re.sub(r"itude [0-9\-\.]+", "itude **.******", s)
+        return re.sub(r"\.[0-9]+", ".******", s)
 
     def __redact_lat_lon(self, s: str) -> str:
         return re.sub(r"itude\': [0-9\-\.]+", "itude': **.******", s)
@@ -830,13 +830,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 proposal = -180 - int(azimuth)
                     if implausible:
                         any_implausible = True
-                        _LOGGER.warning(
-                            self.__redact_lat_lon_simple(f"Implausible azimuth {azimuth} for site {site}, latitude {v['latitude']}")
+                        log = (
+                            _LOGGER.warning
+                            if issue_registry.async_get_issue(DOMAIN, "implausible_azimuth_northern") is None
+                            and issue_registry.async_get_issue(DOMAIN, "implausible_azimuth_southern") is None
+                            else _LOGGER.debug
                         )
+                        log(self.__redact_lat_lon_simple(f"Implausible azimuth {azimuth} for site {site}, latitude {v['latitude']}"))
 
                 if implausible:
                     # If azimuth is implausible then raise an issue.
-                    _LOGGER.warning("Raise issue `%s` for site %s", raise_issue, site)
+                    _LOGGER.debug("Raise issue `%s` for site %s", raise_issue, site)
                     ir.async_create_issue(
                         self.hass,
                         DOMAIN,
