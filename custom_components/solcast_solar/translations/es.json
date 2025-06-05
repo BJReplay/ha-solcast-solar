@@ -184,11 +184,11 @@
         }
     },
     "issues": {
-        "implausible_azimuth_northern": {
+        "unusual_azimuth_northern": {
             "title": "Azimut inusual",
             "description": "El azimut del sitio {site} es inusual para la latitud de este tejado del hemisferio norte. ¿Debería ser {proposal} en lugar de {extant}? (Ignore el problema si el sitio está orientado hacia el norte)."
         },
-        "implausible_azimuth_southern": {
+        "unusual_azimuth_southern": {
             "title": "Azimut inusual",
             "description": "El acimut del sitio {site} es inusual para la latitud de este tejado del hemisferio sur. ¿Debería ser {proposal} en lugar de {extant}? (Ignore el problema si el sitio está orientado hacia el sur)."
         },

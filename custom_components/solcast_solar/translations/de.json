@@ -184,11 +184,11 @@
         }
     },
     "issues": {
-        "implausible_azimuth_northern": {
+        "unusual_azimuth_northern": {
             "title": "Ungewöhnlicher Azimut",
             "description": "Der Azimut für Standort {site} ist für den Breitengrad dieses Daches auf der Nordhalbkugel ungewöhnlich. Sollte dies {proposal} statt {extant} heißen? (Ignorieren Sie das Problem, wenn der Standort nach Norden ausgerichtet ist.)"
         },
-        "implausible_azimuth_southern": {
+        "unusual_azimuth_southern": {
             "title": "Ungewöhnlicher Azimut",
             "description": "Der Azimut für Standort {site} ist für den Breitengrad dieses Daches auf der Südhalbkugel ungewöhnlich. Sollte dies {proposal} statt {extant} heißen? (Ignorieren Sie das Problem, wenn der Standort nach Süden ausgerichtet ist.)"
         },

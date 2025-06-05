@@ -103,27 +103,27 @@ async def test_missing_data_fixable(
 @pytest.mark.parametrize(
     "scenario",
     [
-        {"latitude": -37.8136, "azimuth": +50, "implausible": False},
-        {"latitude": -37.8136, "azimuth": -50, "implausible": False},
-        {"latitude": -37.8136, "azimuth": +150, "proposal": +30, "implausible": True},
-        {"latitude": -37.8136, "azimuth": -150, "proposal": -30, "implausible": True},
-        {"latitude": +37.8136, "azimuth": +50, "proposal": +130, "implausible": True},
-        {"latitude": +37.8136, "azimuth": -50, "proposal": -130, "implausible": True},
-        {"latitude": +37.8136, "azimuth": +150, "implausible": False},
-        {"latitude": +37.8136, "azimuth": -150, "implausible": False},
-        {"latitude": +37.8136, "azimuth": 90, "implausible": False},
-        {"latitude": -37.8136, "azimuth": -90, "implausible": False},
-        {"latitude": +37.8136, "azimuth": 180, "implausible": False},
-        {"latitude": -37.8136, "azimuth": 0, "implausible": False},
+        {"latitude": -37.8136, "azimuth": +50, "unusual": False},
+        {"latitude": -37.8136, "azimuth": -50, "unusual": False},
+        {"latitude": -37.8136, "azimuth": +150, "proposal": +30, "unusual": True},
+        {"latitude": -37.8136, "azimuth": -150, "proposal": -30, "unusual": True},
+        {"latitude": +37.8136, "azimuth": +50, "proposal": +130, "unusual": True},
+        {"latitude": +37.8136, "azimuth": -50, "proposal": -130, "unusual": True},
+        {"latitude": +37.8136, "azimuth": +150, "unusual": False},
+        {"latitude": +37.8136, "azimuth": -150, "unusual": False},
+        {"latitude": +37.8136, "azimuth": 90, "unusual": False},
+        {"latitude": -37.8136, "azimuth": -90, "unusual": False},
+        {"latitude": +37.8136, "azimuth": 180, "unusual": False},
+        {"latitude": -37.8136, "azimuth": 0, "unusual": False},
     ],
 )
-async def test_implausible_azimuth(
+async def test_unusual_azimuth(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     issue_registry: ir.IssueRegistry,
     scenario: dict[str, Any],
 ) -> None:
-    """Test implausible azimuth."""
+    """Test unusual azimuth."""
 
     old_latitude = API_KEY_SITES["1"]["sites"][0]["latitude"]
     old_azimuth = API_KEY_SITES["1"]["sites"][0]["azimuth"]
@@ -132,12 +132,12 @@ async def test_implausible_azimuth(
     entry = await async_init_integration(hass, DEFAULT_INPUT1)
 
     try:
-        if scenario["implausible"]:
+        if scenario["unusual"]:
             # Assert the issue is present and persistent
             assert len(issue_registry.issues) == 1
             issue = list(issue_registry.issues.values())[0]
             assert issue.domain == DOMAIN
-            assert issue.issue_id == "implausible_azimuth_northern" if scenario["latitude"] > 0 else "implausible_azimuth_southern"
+            assert issue.issue_id == "unusual_azimuth_northern" if scenario["latitude"] > 0 else "unusual_azimuth_southern"
             assert issue.is_fixable is False
             assert issue.is_persistent is True
             assert issue.translation_placeholders is not None

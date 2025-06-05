@@ -184,11 +184,11 @@
         }
     },
     "issues": {
-        "implausible_azimuth_northern": {
+        "unusual_azimuth_northern": {
             "title": "Azimut insolito",
             "description": "L'azimut del sito {site} è insolito per la latitudine di questo tetto dell'emisfero settentrionale. Dovrebbe essere {proposal} invece di {extant}? (Ignorate il problema se il sito è rivolto verso nord.)"
         },
-        "implausible_azimuth_southern": {
+        "unusual_azimuth_southern": {
             "title": "Azimut insolito",
             "description": "L'azimut del sito {site} è insolito per la latitudine di questo tetto dell'emisfero australe. Dovrebbe essere {proposal} invece di {extant}? (Ignorate il problema se il sito è esposto a sud.)"
         },
