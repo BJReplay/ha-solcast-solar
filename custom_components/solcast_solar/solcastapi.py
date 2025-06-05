@@ -798,7 +798,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         async def test_implausible_azimuth() -> None:
             """Test for implausible azimuth values."""
-            _LOGGER.debug("Testing implausible azimuth values")
+            _LOGGER.debug("Testing for unusual azimuth values")
             any_implausible = False
             raise_issue = ""
             for site, v in self._site_latitude.items():
@@ -836,7 +836,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             and issue_registry.async_get_issue(DOMAIN, "implausible_azimuth_southern") is None
                             else _LOGGER.debug
                         )
-                        log(self.__redact_lat_lon_simple(f"Implausible azimuth {azimuth} for site {site}, latitude {v['latitude']}"))
+                        log(self.__redact_lat_lon_simple(f"Unusual azimuth {azimuth} for site {site}, latitude {v['latitude']}"))
 
                 if implausible:
                     # If azimuth is implausible then raise an issue.
