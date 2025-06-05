@@ -11,7 +11,7 @@ API_KEY_SITES: dict[str, Any] = {
             {
                 "resource_id": "1111-1111-1111-1111",
                 "name": "First Site",
-                "latitude": 11.11111,
+                "latitude": -11.11111,
                 "longitude": 111.1111,
                 "install_date": "2024-01-01T00:00:00+00:00",
                 "loss_factor": 0.99,

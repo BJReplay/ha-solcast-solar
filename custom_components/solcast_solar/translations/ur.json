@@ -186,11 +186,11 @@
     "issues": {
         "implausible_azimuth_northern": {
             "title": "ناقابل تصور ازیموت",
-            "description": "Is shmali nasf karah ki chht ke arz bald ke liye sit {site} ka azimath naaqabl tasur hay. Kiya ya {extant} ki bajaye {proposal} hona chahiye?"
+            "description": "Is shmali nasf karah ki chht ke arz bald ke liye sit {site} ka azimath naaqabl tasur hay. Kiya ya {extant} ki bajaye {proposal} hona chahiye? (Agar sit ka rakh shmal ki taraf hay to is masle ko nazar andaz karin.)"
         },
         "implausible_azimuth_southern": {
             "title": "ناقابل تصور ازیموت",
-            "description": "Is janobi nasf karah ki chht ke arz bald ke liye sit {site} ka azimath naaqabl tasur hay. Kiya ya {extant} ki bajaye {proposal} hona chahiye?"
+            "description": "Is janobi nasf karah ki chht ke arz bald ke liye sit {site} ka azimath naaqabl tasur hay. Kiya ya {extant} ki bajaye {proposal} hona chahiye? (Agar sit ka rakh janob ki taraf hay to is masle ko nazar andaz karin.)"
         },
         "records_missing": {
             "title": "مستقبل کی پیشن گوئیاں غائب ہیں۔",

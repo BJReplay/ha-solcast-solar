@@ -1204,6 +1204,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 incompatible = "The solcast.json appears incompatible, so cannot upgrade it"
                                 if data.get("siteinfo") is None and data.get("forecasts") is None:
                                     # Need one or the other to be able to upgrade.
+                                    _LOGGER.critical(incompatible)
                                     self.status = SolcastApiStatus.DATA_INCOMPATIBLE
                                 if data.get("siteinfo") is not None:
                                     if not isinstance(
@@ -1214,6 +1215,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     if not isinstance(data.get("forecasts"), list):
                                         self.status = SolcastApiStatus.DATA_INCOMPATIBLE
                                 if self.status == SolcastApiStatus.DATA_INCOMPATIBLE:
+                                    _LOGGER.critical(incompatible)
                                     return None
 
                                 # What happened before v4 stays before v4. BJReplay has no visibility of ancient.

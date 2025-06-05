@@ -6,6 +6,7 @@ from datetime import datetime as dt, timedelta
 import json
 import logging
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -21,10 +22,7 @@ from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import issue_registry as ir
 
 from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
-
-from tests.typing import (
-    ClientSessionGenerator,  # pyright: ignore[reportUnknownVariableType]
-)
+from .simulator import API_KEY_SITES
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -48,7 +46,6 @@ async def test_missing_data_fixable(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     issue_registry: ir.IssueRegistry,
-    hass_client: ClientSessionGenerator,  # pyright: ignore[reportUnknownParameterType]
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test missing fixable."""
@@ -100,4 +97,56 @@ async def test_missing_data_fixable(
         assert result["reason"] == "reconfigured"
 
     finally:
+        await async_cleanup_integration_tests(hass)
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        {"latitude": -37.8136, "azimuth": +50, "implausible": False},
+        {"latitude": -37.8136, "azimuth": -50, "implausible": False},
+        {"latitude": -37.8136, "azimuth": +150, "implausible": True},
+        {"latitude": -37.8136, "azimuth": -150, "implausible": True},
+        {"latitude": +37.8136, "azimuth": +50, "implausible": True},
+        {"latitude": +37.8136, "azimuth": -50, "implausible": True},
+        {"latitude": +37.8136, "azimuth": +150, "implausible": False},
+        {"latitude": +37.8136, "azimuth": -150, "implausible": False},
+    ],
+)
+async def test_implausible_azimuth(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    issue_registry: ir.IssueRegistry,
+    scenario: dict[str, Any],
+) -> None:
+    """Test implausible azimuth."""
+
+    old_latitude = API_KEY_SITES["1"]["sites"][0]["latitude"]
+    old_azimuth = API_KEY_SITES["1"]["sites"][0]["azimuth"]
+    API_KEY_SITES["1"]["sites"][0]["latitude"] = scenario["latitude"]
+    API_KEY_SITES["1"]["sites"][0]["azimuth"] = scenario["azimuth"]
+    entry = await async_init_integration(hass, DEFAULT_INPUT1)
+
+    try:
+        if scenario["implausible"]:
+            # Assert the issue is present and persistent
+            assert len(issue_registry.issues) == 1
+            issue = list(issue_registry.issues.values())[0]
+            assert issue.domain == DOMAIN
+            assert issue.issue_id == "implausible_azimuth_northern" if scenario["latitude"] > 0 else "implausible_azimuth_southern"
+            assert issue.is_fixable is False
+            assert issue.is_persistent is True
+
+            # Fix the issue at Solcast and reload the integration
+            API_KEY_SITES["1"]["sites"][0]["latitude"] = old_latitude
+            API_KEY_SITES["1"]["sites"][0]["azimuth"] = old_azimuth
+            await _reload(hass, entry)
+            assert len(issue_registry.issues) == 0
+        else:
+            # Assert the issue is not present
+            assert len(issue_registry.issues) == 0
+
+    finally:
+        API_KEY_SITES["1"]["sites"][0]["latitude"] = old_latitude
+        API_KEY_SITES["1"]["sites"][0]["azimuth"] = old_azimuth
         await async_cleanup_integration_tests(hass)

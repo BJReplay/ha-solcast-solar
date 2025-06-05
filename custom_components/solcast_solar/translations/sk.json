@@ -186,11 +186,11 @@
     "issues": {
         "implausible_azimuth_northern": {
             "title": "Nepravdepodobný azimut",
-            "description": "Azimut pre lokalitu {site} je nepravdepodobný pre zemepisnú šírku tejto strechy na severnej pologuli. Malo by to byť {proposal} namiesto {extant}?"
+            "description": "Azimut pre lokalitu {site} je nepravdepodobný pre zemepisnú šírku tejto strechy na severnej pologuli. Malo by to byť {proposal} namiesto {extant}? (Ak je lokalita orientovaná na sever, problém ignorujte.)"
         },
         "implausible_azimuth_southern": {
             "title": "Nepravdepodobný azimut",
-            "description": "Azimut pre lokalitu {site} je nepravdepodobný pre zemepisnú šírku tejto strechy na južnej pologuli. Malo by to byť {proposal} namiesto {extant}?"
+            "description": "Azimut pre lokalitu {site} je nepravdepodobný pre zemepisnú šírku tejto strechy na južnej pologuli. Malo by to byť {proposal} namiesto {extant}? (Ak je lokalita orientovaná na juh, tento problém ignorujte.)"
         },
         "records_missing": {
             "title": "Predpovede do budúcnosti chýbajú",

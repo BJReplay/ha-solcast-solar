@@ -186,11 +186,11 @@
     "issues": {
         "implausible_azimuth_northern": {
             "title": "Azimut inverosímil",
-            "description": "El acimut del sitio {site} es inverosímil para la latitud de este tejado del hemisferio norte. ¿Debería ser {proposal} en lugar de {extant}?"
+            "description": "El acimut del sitio {site} es inverosímil para la latitud de este tejado del hemisferio norte. ¿Debería ser {proposal} en lugar de {extant}? (Ignore el problema si el sitio está orientado hacia el norte)."
         },
         "implausible_azimuth_southern": {
             "title": "Azimut inverosímil",
-            "description": "El acimut del sitio {site} es inverosímil para la latitud de este tejado en el hemisferio sur. ¿Debería ser {proposal} en lugar de {extant}?"
+            "description": "El acimut del sitio {site} es inverosímil para la latitud de este tejado en el hemisferio sur. ¿Debería ser {proposal} en lugar de {extant}? (Ignore el problema si el sitio está orientado hacia el sur)."
         },
         "records_missing": {
             "title": "Faltan previsiones de futuro",

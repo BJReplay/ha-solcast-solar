@@ -186,11 +186,11 @@
     "issues": {
         "implausible_azimuth_northern": {
             "title": "Implausible azimuth",
-            "description": "The azimuth for site {site} is implausible for the latitude of this northern hemisphere rooftop. Should this be {proposal} instead of {extant}?"
+            "description": "The azimuth for site {site} is implausible for the latitude of this northern hemisphere rooftop. Should this be {proposal} instead of {extant}? (Ignore the issue if the site is facing towards North.)"
         },
         "implausible_azimuth_southern": {
             "title": "Implausible azimuth",
-            "description": "The azimuth for site {site} is implausible for the latitude of this southern hemisphere rooftop. Should this be {proposal} instead of {extant}?"
+            "description": "The azimuth for site {site} is implausible for the latitude of this southern hemisphere rooftop. Should this be {proposal} instead of {extant}? (Ignore the issue if the site is facing towards South.)"
         },
         "records_missing": {
             "title": "Future forecasts missing",
