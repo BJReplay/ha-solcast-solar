@@ -105,10 +105,10 @@ async def test_missing_data_fixable(
     [
         {"latitude": -37.8136, "azimuth": +50, "implausible": False},
         {"latitude": -37.8136, "azimuth": -50, "implausible": False},
-        {"latitude": -37.8136, "azimuth": +150, "implausible": True},
-        {"latitude": -37.8136, "azimuth": -150, "implausible": True},
-        {"latitude": +37.8136, "azimuth": +50, "implausible": True},
-        {"latitude": +37.8136, "azimuth": -50, "implausible": True},
+        {"latitude": -37.8136, "azimuth": +150, "proposal": +30, "implausible": True},
+        {"latitude": -37.8136, "azimuth": -150, "proposal": -30, "implausible": True},
+        {"latitude": +37.8136, "azimuth": +50, "proposal": +130, "implausible": True},
+        {"latitude": +37.8136, "azimuth": -50, "proposal": -130, "implausible": True},
         {"latitude": +37.8136, "azimuth": +150, "implausible": False},
         {"latitude": +37.8136, "azimuth": -150, "implausible": False},
     ],
@@ -136,6 +136,8 @@ async def test_implausible_azimuth(
             assert issue.issue_id == "implausible_azimuth_northern" if scenario["latitude"] > 0 else "implausible_azimuth_southern"
             assert issue.is_fixable is False
             assert issue.is_persistent is True
+            assert issue.translation_placeholders is not None
+            assert issue.translation_placeholders.get("proposal") == str(scenario["proposal"])
 
             # Fix the issue at Solcast and reload the integration
             API_KEY_SITES["1"]["sites"][0]["latitude"] = old_latitude
