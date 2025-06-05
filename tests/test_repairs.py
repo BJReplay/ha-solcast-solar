@@ -111,6 +111,10 @@ async def test_missing_data_fixable(
         {"latitude": +37.8136, "azimuth": -50, "proposal": -130, "implausible": True},
         {"latitude": +37.8136, "azimuth": +150, "implausible": False},
         {"latitude": +37.8136, "azimuth": -150, "implausible": False},
+        {"latitude": +37.8136, "azimuth": 90, "implausible": False},
+        {"latitude": -37.8136, "azimuth": -90, "implausible": False},
+        {"latitude": +37.8136, "azimuth": 180, "implausible": False},
+        {"latitude": -37.8136, "azimuth": 0, "implausible": False},
     ],
 )
 async def test_implausible_azimuth(
