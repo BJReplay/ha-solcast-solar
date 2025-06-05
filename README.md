@@ -116,7 +116,7 @@ A method that can work is to get a North-oriented Google Maps satellite image of
 >
 > Solcast are headquartered in Sydney, Australia in the southern hemisphere, and use azimuth numbering as degrees pointed away from North. If you live in the northern hemisphere then it is likely that any online mapping service that can be used to determine azimuth will use a numbering convention that is degrees pointed away from _South_, which will yield incompatible values.
 >
-> If an implausible azimuth is configured then the integration will raise an issue. If the orientation is truly unusual (e.g. a northern hemisphere rooftop pointed towards North), then ignore the issue.
+> If an implausible azimuth is configured then the integration will raise a warning for the issue. If the orientation is truly unusual (e.g. a northern hemisphere rooftop pointing towards North/North East/North West), then ignore the issue.
 
 ## Installation
 
