@@ -185,12 +185,12 @@
     },
     "issues": {
         "implausible_azimuth_northern": {
-            "title": "Nieprawdopodobny azymut",
-            "description": "Azymut dla miejsca {site} jest nieprawdopodobny dla szerokości geograficznej tego dachu na półkuli północnej. Czy powinno to być {proposal} zamiast {extant}? (Jeśli strona jest skierowana na północ, możesz zignorować ten problem.)"
+            "title": "Nietypowy azymut",
+            "description": "Azymut dla miejsca {site} jest nietypowy dla szerokości geograficznej tego dachu na półkuli północnej. Czy powinno to być {proposal} zamiast {extant}? (Jeśli strona jest skierowana na północ, możesz zignorować ten problem.)"
         },
         "implausible_azimuth_southern": {
-            "title": "Nieprawdopodobny azymut",
-            "description": "Azymut dla miejsca {site} jest nieprawdopodobny dla szerokości geograficznej tego dachu na półkuli południowej. Czy powinno to być {proposal} zamiast {extant}? (Jeśli strona jest skierowana na południe, możesz zignorować ten problem.)"
+            "title": "Nietypowy azymut",
+            "description": "Azymut dla miejsca {site} jest nietypowy dla szerokości geograficznej tego dachu na półkuli południowej. Czy powinno to być {proposal} zamiast {extant}? (Jeśli strona jest skierowana na południe, możesz zignorować ten problem.)"
         },
         "records_missing": {
             "title": "Brak prognoz na przyszłość",

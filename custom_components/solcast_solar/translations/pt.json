@@ -185,12 +185,12 @@
     },
     "issues": {
         "implausible_azimuth_northern": {
-            "title": "Azimute implausível",
-            "description": "O azimute do local {site} é implausível para a latitude deste telhado no hemisfério norte. Deveria ser {proposal} em vez de {extant}? (Ignore o problema se o local estiver voltado para o norte.)"
+            "title": "Azimute incomum",
+            "description": "O azimute do local {site} é incomum para a latitude deste telhado no hemisfério norte. Deveria ser {proposal} em vez de {extant}? (Ignore o problema se o local estiver voltado para o norte.)"
         },
         "implausible_azimuth_southern": {
-            "title": "Azimute implausível",
-            "description": "O azimute do local {site} é implausível para a latitude deste telhado no hemisfério sul. Deveria ser {proposal} em vez de {extant}? (Ignore o problema se o local estiver voltado para o sul.)"
+            "title": "Azimute incomum",
+            "description": "O azimute do local {site} é incomum para a latitude deste telhado no hemisfério sul. Deveria ser {proposal} em vez de {extant}? (Ignore o problema se o local estiver voltado para o sul.)"
         },
         "records_missing": {
             "title": "Previsões futuras em falta",

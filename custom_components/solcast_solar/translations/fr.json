@@ -185,12 +185,12 @@
     },
     "issues": {
         "implausible_azimuth_northern": {
-            "title": "Azimut invraisemblable",
-            "description": "L'azimut du site {site} est improbable pour la latitude de ce toit de l'hémisphère nord. Devrait-on plutôt choisir {proposal} que {extant}? (Ignorez le problème si le site est orienté vers le nord.)"
+            "title": "Azimut inhabituel",
+            "description": "L'azimut du site {site} est inhabituel pour la latitude de ce toit de l'hémisphère nord. Devrait-on plutôt choisir {proposal} que {extant}? (Ignorez le problème si le site est orienté vers le nord.)"
         },
         "implausible_azimuth_southern": {
-            "title": "Azimut invraisemblable",
-            "description": "L'azimut du site {site} est improbable pour la latitude de ce toit de l'hémisphère sud. Devrait-on plutôt choisir {proposal} que {extant}? (Ignorez le problème si le site est orienté vers le sud.)"
+            "title": "Azimut inhabituel",
+            "description": "L'azimut du site {site} est inhabituel pour la latitude de ce toit de l'hémisphère sud. Devrait-on plutôt choisir {proposal} que {extant}? (Ignorez le problème si le site est orienté vers le sud.)"
         },
         "records_missing": {
             "title": "Prévisions manquantes",

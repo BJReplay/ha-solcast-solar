@@ -185,12 +185,12 @@
     },
     "issues": {
         "implausible_azimuth_northern": {
-            "description": "The azimuth for site {site} is implausible for the latitude of this northern hemisphere rooftop. Should this be {proposal} instead of {extant}? (Ignore the issue if the site is facing towards North.)",
-            "title": "Implausible azimuth"
+            "description": "The azimuth for site {site} is unusual for the latitude of this northern hemisphere rooftop. Should this be {proposal} instead of {extant}? (Ignore the issue if the site is facing towards North.)",
+            "title": "Unusual azimuth"
         },
         "implausible_azimuth_southern": {
-            "description": "The azimuth for site {site} is implausible for the latitude of this southern hemisphere rooftop. Should this be {proposal} instead of {extant}? (Ignore the issue if the site is facing towards South.)",
-            "title": "Implausible azimuth"
+            "description": "The azimuth for site {site} is unusual for the latitude of this southern hemisphere rooftop. Should this be {proposal} instead of {extant}? (Ignore the issue if the site is facing towards South.)",
+            "title": "Unusual azimuth"
         },
         "records_missing": {
             "description": "Future forecast data is missing, which is unexpected because auto-update is enabled.",
