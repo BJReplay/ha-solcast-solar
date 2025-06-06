@@ -184,14 +184,6 @@
         }
     },
     "issues": {
-        "unusual_azimuth_northern": {
-            "title": "Unusual azimuth",
-            "description": "The azimuth for site {site} is unusual for the latitude of this northern hemisphere rooftop. Should this be {proposal} instead of {extant}? (Ignore the issue if the site is facing towards North.)"
-        },
-        "unusual_azimuth_southern": {
-            "title": "Unusual azimuth",
-            "description": "The azimuth for site {site} is unusual for the latitude of this southern hemisphere rooftop. Should this be {proposal} instead of {extant}? (Ignore the issue if the site is facing towards South.)"
-        },
         "records_missing": {
             "title": "Future forecasts missing",
             "description": "Future forecast data is missing, which is unexpected because auto-update is enabled."
@@ -212,6 +204,14 @@
                     }
                 }
             }
+        },
+        "unusual_azimuth_northern": {
+            "title": "Unusual azimuth",
+            "description": "The azimuth for site {site} is unusual for the latitude of this northern hemisphere rooftop. Should this be {proposal} instead of {extant}? (Ignore the issue if the site is facing towards North.)"
+        },
+        "unusual_azimuth_southern": {
+            "title": "Unusual azimuth",
+            "description": "The azimuth for site {site} is unusual for the latitude of this southern hemisphere rooftop. Should this be {proposal} instead of {extant}? (Ignore the issue if the site is facing towards South.)"
         }
     },
     "options": {

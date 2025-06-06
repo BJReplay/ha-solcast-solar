@@ -184,14 +184,6 @@
         }
     },
     "issues": {
-        "unusual_azimuth_northern": {
-            "title": "Azimut insolito",
-            "description": "L'azimut del sito {site} è insolito per la latitudine di questo tetto dell'emisfero settentrionale. Dovrebbe essere {proposal} invece di {extant}? (Ignorate il problema se il sito è rivolto verso nord.)"
-        },
-        "unusual_azimuth_southern": {
-            "title": "Azimut insolito",
-            "description": "L'azimut del sito {site} è insolito per la latitudine di questo tetto dell'emisfero australe. Dovrebbe essere {proposal} invece di {extant}? (Ignorate il problema se il sito è esposto a sud.)"
-        },
         "records_missing": {
             "title": "Previsioni future mancanti",
             "description": "I dati delle previsioni future sono mancanti, il che è inaspettato perché l'aggiornamento automatico è abilitato."
@@ -212,6 +204,14 @@
                     }
                 }
             }
+        },
+        "unusual_azimuth_northern": {
+            "title": "Azimut insolito",
+            "description": "L'azimut del sito {site} è insolito per la latitudine di questo tetto dell'emisfero settentrionale. Dovrebbe essere {proposal} invece di {extant}? (Ignorate il problema se il sito è rivolto verso nord.)"
+        },
+        "unusual_azimuth_southern": {
+            "title": "Azimut insolito",
+            "description": "L'azimut del sito {site} è insolito per la latitudine di questo tetto dell'emisfero australe. Dovrebbe essere {proposal} invece di {extant}? (Ignorate il problema se il sito è esposto a sud.)"
         }
     },
     "options": {

@@ -184,14 +184,6 @@
         }
     },
     "issues": {
-        "unusual_azimuth_northern": {
-            "title": "Azimute incomum",
-            "description": "O azimute do local {site} é incomum para a latitude deste telhado no hemisfério norte. Deveria ser {proposal} em vez de {extant}? (Ignore o problema se o local estiver voltado para o norte.)"
-        },
-        "unusual_azimuth_southern": {
-            "title": "Azimute incomum",
-            "description": "O azimute do local {site} é incomum para a latitude deste telhado no hemisfério sul. Deveria ser {proposal} em vez de {extant}? (Ignore o problema se o local estiver voltado para o sul.)"
-        },
         "records_missing": {
             "title": "Previsões futuras em falta",
             "description": "Dados de previsão futura em falta, o que é inesperado porque a atualização automática está ativada."
@@ -212,6 +204,14 @@
                     }
                 }
             }
+        },
+        "unusual_azimuth_northern": {
+            "title": "Azimute incomum",
+            "description": "O azimute do local {site} é incomum para a latitude deste telhado no hemisfério norte. Deveria ser {proposal} em vez de {extant}? (Ignore o problema se o local estiver voltado para o norte.)"
+        },
+        "unusual_azimuth_southern": {
+            "title": "Azimute incomum",
+            "description": "O azimute do local {site} é incomum para a latitude deste telhado no hemisfério sul. Deveria ser {proposal} em vez de {extant}? (Ignore o problema se o local estiver voltado para o sul.)"
         }
     },
     "options": {

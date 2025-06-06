@@ -184,14 +184,6 @@
         }
     },
     "issues": {
-        "unusual_azimuth_northern": {
-            "title": "Azimut inhabituel",
-            "description": "L'azimut du site {site} est inhabituel pour la latitude de ce toit de l'hémisphère nord. Devrait-on plutôt choisir {proposal} que {extant}? (Ignorez le problème si le site est orienté vers le nord.)"
-        },
-        "unusual_azimuth_southern": {
-            "title": "Azimut inhabituel",
-            "description": "L'azimut du site {site} est inhabituel pour la latitude de ce toit de l'hémisphère sud. Devrait-on plutôt choisir {proposal} que {extant}? (Ignorez le problème si le site est orienté vers le sud.)"
-        },
         "records_missing": {
             "title": "Prévisions manquantes",
             "description": "Les données de prévisions futures sont manquantes, ce qui est inattendu car la mise à jour automatique est activée."
@@ -212,6 +204,14 @@
                     }
                 }
             }
+        },
+        "unusual_azimuth_northern": {
+            "title": "Azimut inhabituel",
+            "description": "L'azimut du site {site} est inhabituel pour la latitude de ce toit de l'hémisphère nord. Devrait-on plutôt choisir {proposal} que {extant}? (Ignorez le problème si le site est orienté vers le nord.)"
+        },
+        "unusual_azimuth_southern": {
+            "title": "Azimut inhabituel",
+            "description": "L'azimut du site {site} est inhabituel pour la latitude de ce toit de l'hémisphère sud. Devrait-on plutôt choisir {proposal} que {extant}? (Ignorez le problème si le site est orienté vers le sud.)"
         }
     },
     "options": {

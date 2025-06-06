@@ -184,14 +184,6 @@
         }
     },
     "issues": {
-        "unusual_azimuth_northern": {
-            "title": "Nezvyčajný azimut",
-            "description": "Azimut lokality {site} je pre zemepisnú šírku tejto strechy na severnej pologuli nezvyčajný. Malo by to byť {proposal} namiesto {extant}? (Ak je lokalita orientovaná na sever, problém ignorujte.)"
-        },
-        "unusual_azimuth_southern": {
-            "title": "Nezvyčajný azimut",
-            "description": "Azimut lokality {site} je pre zemepisnú šírku tejto strechy na južnej pologuli nezvyčajný. Malo by to byť {proposal} namiesto {extant}? (Ak je lokalita orientovaná na juh, tento problém ignorujte.)"
-        },
         "records_missing": {
             "title": "Predpovede do budúcnosti chýbajú",
             "description": "Údaje budúcej prognózy chýbajú, čo je neočakávané, pretože je povolená automatická aktualizácia."
@@ -212,6 +204,14 @@
                     }
                 }
             }
+        },
+        "unusual_azimuth_northern": {
+            "title": "Nezvyčajný azimut",
+            "description": "Azimut lokality {site} je pre zemepisnú šírku tejto strechy na severnej pologuli nezvyčajný. Malo by to byť {proposal} namiesto {extant}? (Ak je lokalita orientovaná na sever, problém ignorujte.)"
+        },
+        "unusual_azimuth_southern": {
+            "title": "Nezvyčajný azimut",
+            "description": "Azimut lokality {site} je pre zemepisnú šírku tejto strechy na južnej pologuli nezvyčajný. Malo by to byť {proposal} namiesto {extant}? (Ak je lokalita orientovaná na juh, tento problém ignorujte.)"
         }
     },
     "options": {
