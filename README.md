@@ -107,14 +107,18 @@ Azimuth is _not_ set as a 0-359 degree value, but rather as 0-180 for westerly f
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth.png" width="300">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth.png)
 
-A method that can work is to get a North-oriented Google Maps satellite image of your home and measure azimuth using a plastic 180 degree protractor with its straight edge aligned North/South on screen and its centre point on the side of a representative panel. Count the degrees away from North. For westerly or easterly flip the protractor. You may need to screen grab the Maps image into a PNG/JPG and add line extensions to the orientation to be able to accurately measure the angle.
+An old-school method that can work is to get a North-oriented Google Maps satellite image of your home and measure azimuth using a plastic 180 degree protractor with its straight edge aligned North/South on screen and its centre point on the side of a representative panel. Count the degrees away from North. For westerly or easterly flip the protractor. You may need to screen grab the Maps image into a PNG/JPG and add line extensions to the orientation to be able to accurately measure the angle.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_house.png" width="300">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_house.png)
+
+Or if you're fond of Large Language Model AI tools like ChatGPT then there is a far more high-tech solution. Upload a Google Maps image of your roof and start a conversation like this, "The photo shows the rooftops of houses with the top of the photo being due North. Focus on the roof in the center of the photo. I want to place solar panels on the North East facing section. The roof is facing North-easterly, but I need to know the exact direction in degrees. If due North is 0 degrees and due East is minus 90 degrees and due West is 90 degrees what direction is that section of roof facing exactly?" Your mileage may vary, so sanity check the result. Or buy a plastic protractor.
 
 > [!NOTE]
 >
 >
 > Solcast are headquartered in Sydney, Australia in the southern hemisphere, and use azimuth numbering as degrees pointed away from North. If you live in the northern hemisphere then it is likely that any online mapping service that can be used to determine azimuth will use a numbering convention that is degrees pointed away from _South_, which will yield incompatible values.
+>
+> If an unusual azimuth is configured then the integration will raise a warning for the issue. If the orientation is truly unusual (e.g. a northern hemisphere rooftop pointing towards North/North East/North West), then simply ignore the issue.
 
 ## Installation
 
@@ -1016,6 +1020,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 v4.3.6
 * Add last_attempt attribute to api_last_polled entity by @autoSteve
 * Add allow action site parameter with hyphen or underscore by @autoSteve
+* Add test for unusual azimuth by @autoSteve
 * Fix Energy dashboard start/end points by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.5...v4.3.6
