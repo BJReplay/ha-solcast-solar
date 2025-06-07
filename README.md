@@ -107,7 +107,9 @@ Azimuth is _not_ set as a 0-359 degree value, but rather as 0-180 for westerly f
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth.png" width="300">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth.png)
 
-A method that can work is to get a North-oriented Google Maps satellite image of your home and measure azimuth using a plastic 180 degree protractor with its straight edge aligned North/South on screen and its centre point on the side of a representative panel. Count the degrees away from North. For westerly or easterly flip the protractor. You may need to screen grab the Maps image into a PNG/JPG and add line extensions to the orientation to be able to accurately measure the angle.
+An old-school method that can work is to get a North-oriented Google Maps satellite image of your home and measure azimuth using a plastic 180 degree protractor with its straight edge aligned North/South on screen and its centre point on the side of a representative panel. Count the degrees away from North. For westerly or easterly flip the protractor. You may need to screen grab the Maps image into a PNG/JPG and add line extensions to the orientation to be able to accurately measure the angle.
+
+Or if you're fond of Large Language Model AI tools like ChatGPT then there is a far more high-tech solution. Upload a Google Maps image of your roof and start a conversation like this, "The photo shows the rooftops of houses with the top of the photo being due North. Focus on the roof in the center of the photo. I want to place solar panels on the top (North facing) elevation. The roof is facing North West, but I need to know the exact direction. If due North is 0 degrees and due West is 90 degrees what direction is the roof facing exactly?"
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_house.png" width="300">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_house.png)
 
