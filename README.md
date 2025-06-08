@@ -111,7 +111,7 @@ An old-school method that can work is to get a North-oriented Google Maps satell
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_house.png" width="300">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_house.png)
 
-Or if you're fond of Large Language Model AI tools like ChatGPT then there is a far more high-tech solution. Upload a Google Maps image of your roof and start a conversation like this, "The photo shows the rooftops of houses with the top of the photo being due North. Focus on the roof in the center of the photo. I want to place solar panels on the North East facing section. The roof is facing North-easterly, but I need to know the exact direction in degrees. If due North is 0 degrees and due East is minus 90 degrees and due West is 90 degrees what direction is that section of roof facing exactly?" Your mileage may vary, so sanity check the result. Or buy a plastic protractor.
+Using Google Earth or ChatGPT are other alternatives.
 
 > [!NOTE]
 >
