@@ -5,8 +5,21 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from datetime import datetime as dt, timedelta
+from enum import Enum
 import logging
+from pathlib import Path
 from typing import Any
+
+from watchdog.events import (
+    DirCreatedEvent,
+    DirDeletedEvent,
+    DirModifiedEvent,
+    FileCreatedEvent,
+    FileDeletedEvent,
+    FileModifiedEvent,
+    FileSystemEventHandler,
+)
+from watchdog.observers import Observer
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
@@ -17,7 +30,7 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.sun import get_astral_event_next
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DATE_FORMAT, DOMAIN, TIME_FORMAT
+from .const import DATE_FORMAT, DOMAIN, SITE_DAMP, TIME_FORMAT
 from .solcastapi import SolcastApi
 
 _LOGGER = logging.getLogger(__name__)
@@ -34,6 +47,14 @@ DAYS = [
 NO_ATTRIBUTES = ["api_counter", "api_limit", "lastupdated"]
 
 
+class DampeningEvent(Enum):
+    """Dampening file event types."""
+
+    NO_EVENT = 0
+    MODIFIED = 1
+    DELETED = 2
+
+
 class SolcastUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching data."""
 
@@ -48,6 +69,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             version (str): The integration version from manifest.json.
 
         """
+        self.dampening_event_received: DampeningEvent = DampeningEvent.NO_EVENT
+        self.dampening_monitor_create = False
         self.divisions: int = 0
         self.hass: HomeAssistant = hass
         self.interval_just_passed: dt | None
@@ -55,6 +78,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self.tasks: dict[str, Any] = {}
         self.version: str = version
 
+        self._damp_file = f"{self.hass.config.config_dir}/solcast-dampening.json"
         self._date_changed: bool = False
         self._data_updated: bool = False
         self._intervals: list[dt] = []
@@ -119,10 +143,116 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self.tasks["midnight_update"] = async_track_utc_time_change(
             self.hass, self.__update_utc_midnight_usage_sensor_data, hour=0, minute=0, second=0
         )
+        watchdog_start_task = asyncio.create_task(self.watch_for_dampening_file())
+        self.tasks["watchdog_start"] = watchdog_start_task.cancel
+        watchdog_task = asyncio.create_task(self.watch_dampening_file())
+        self.tasks["watchdog"] = watchdog_task.cancel
         for timer in sorted(self.tasks):
             _LOGGER.debug("Running task %s", timer)
 
         return True
+
+    class DampeningStartEventHandler(FileSystemEventHandler):
+        """Handle start dampening monitoring."""
+
+        def __init__(self, coordinator: SolcastUpdateCoordinator) -> None:
+            """Init."""
+
+            self._coordinator = coordinator
+            super().__init__()
+
+        def on_created(self, event: DirCreatedEvent | FileCreatedEvent):
+            """Dampening file has been created."""
+            if isinstance(event, FileCreatedEvent) and self._coordinator.tasks.get("watchdog") is None:
+                self._coordinator.dampening_monitor_create = True
+
+    async def watch_for_dampening_file(self):
+        """Watch for granular dampening JSON file modification."""
+
+        try:
+            event_handler = self.DampeningStartEventHandler(self)
+            observer = Observer()
+            observer.schedule(event_handler, path=self.hass.config.config_dir, recursive=False)
+            observer.start()
+
+            try:
+                while True:
+                    await asyncio.sleep(1)
+                    if self.dampening_monitor_create:
+                        self.dampening_monitor_create = False
+                        watchdog_task = asyncio.create_task(self.watch_dampening_file())
+                        self.tasks["watchdog"] = watchdog_task.cancel
+                        _LOGGER.debug("Running task watchdog")
+            finally:
+                observer.stop()
+                observer.join()
+        finally:
+            self.dampening_event_received = DampeningEvent.NO_EVENT
+            _LOGGER.debug("Cancelled task watchdog_start")
+            self.tasks.pop("watchdog_start", None)
+
+    class DampeningEventHandler(FileSystemEventHandler):
+        """Handle granular dampening JSON file modification."""
+
+        def __init__(self, coordinator: SolcastUpdateCoordinator) -> None:
+            """Init."""
+            self._coordinator = coordinator
+            super().__init__()
+
+        def on_deleted(self, event: DirDeletedEvent | FileDeletedEvent) -> None:
+            """Dampening file has been deleted."""
+            self._coordinator.dampening_event_received = DampeningEvent.DELETED
+
+        def on_modified(self, event: DirModifiedEvent | FileModifiedEvent) -> None:
+            """Dampening file has been modified."""
+            if isinstance(event, FileModifiedEvent) and self._coordinator.dampening_event_received != DampeningEvent.MODIFIED:
+                self._coordinator.dampening_event_received = DampeningEvent.MODIFIED
+
+    async def watch_dampening_file(self):
+        """Watch for granular dampening JSON file modification."""
+
+        try:
+            event_handler = self.DampeningEventHandler(self)
+            observer = Observer()
+            try:
+                observer.schedule(event_handler, path=self._damp_file, recursive=False)
+                observer.start()
+            except Exception as e:  # noqa: BLE001
+                _LOGGER.debug("Not monitoring %s: %s", self._damp_file, e)
+                return
+
+            try:
+                while True and self.dampening_event_received != DampeningEvent.DELETED:
+                    await asyncio.sleep(1)
+                    if (
+                        self.dampening_event_received == DampeningEvent.MODIFIED
+                        and self.solcast.granular_dampening_mtime != Path(self._damp_file).stat().st_mtime
+                    ):
+                        self.dampening_event_received = DampeningEvent.NO_EVENT
+                        _LOGGER.debug("Granular dampening mtime changed")
+                        await self.solcast.refresh_granular_dampening_data()
+                        await self.solcast.reapply_forward_dampening()
+                        _LOGGER.debug("Recalculate forecasts and refresh sensors")
+                        await self.solcast.build_forecast_data()
+                        self.set_data_updated(True)
+                        await self.update_integration_listeners()
+                        self.set_data_updated(False)
+                if self.dampening_event_received == DampeningEvent.DELETED:
+                    _LOGGER.debug("Granular dampening file deleted, no longer monitoring %s for changes", self._damp_file)
+                    entry = self.solcast.entry
+                    opt = self.solcast.entry_options
+                    opt[SITE_DAMP] = False  # Clear "hidden" option.
+                    self.solcast.set_allow_granular_dampening_reset(True)
+                    if entry is not None:
+                        self.hass.config_entries.async_update_entry(entry, options=opt)
+            finally:
+                observer.stop()
+                observer.join()
+        finally:
+            self.dampening_event_received = DampeningEvent.NO_EVENT
+            _LOGGER.debug("Cancelled task watchdog")
+            if self.tasks.get("watchdog") is not None:
+                self.tasks.pop("watchdog")
 
     async def update_integration_listeners(self, _: dt | None = None) -> None:
         """Get updated sensor values."""

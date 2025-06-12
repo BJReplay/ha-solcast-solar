@@ -6,6 +6,7 @@ from contextvars import ContextVar
 from datetime import datetime as dt, timedelta
 import json
 import logging
+from pathlib import Path
 import random
 from typing import Any, Final
 import zoneinfo
@@ -752,7 +753,9 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
             if not entry.options[SITE_DAMP]:
                 if coordinator.solcast.allow_granular_dampening_reset():
                     coordinator.solcast.granular_dampening = {}
-                    await coordinator.solcast.serialise_granular_dampening()
+                    path = Path(hass.data[DOMAIN]["solcast"].get_granular_dampening_filename())
+                    if path.exists():
+                        path.unlink()
                     _LOGGER.debug("Granular dampening file reset")
         if damp_changed:
             recalculate_and_refresh = True

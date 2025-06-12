@@ -164,6 +164,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             self.entry_options = {**self.entry.options}
         self.estimate_set: list[str] = self.__get_estimate_set(options)
         self.granular_dampening: dict[str, list[float]] = {}
+        self.granular_dampening_mtime: float = 0
         self.hard_limit: str = options.hard_limit
         self.hass: HomeAssistant = hass
         self.headers: dict[str, str] = {}
@@ -194,7 +195,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._forecasts_moment: dict[str, dict[str, list[float]]] = {}
         self._forecasts_remaining: dict[str, dict[str, list[float]]] = {}
         self._granular_allow_reset = True
-        self._granular_dampening_mtime: float = 0
         self._loaded_data = False
         self._next_update: str | None = None
         self._rekey: dict[str, Any] = {}
@@ -372,7 +372,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return f"{self._config_dir}/solcast-sites{'' if not self.__is_multi_key() else '-' + api_key}.json"
 
-    def __get_granular_dampening_filename(self) -> str:
+    def get_granular_dampening_filename(self) -> str:
         """Build a fully qualified site dampening filename.
 
         Arguments:
@@ -980,7 +980,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     async def serialise_granular_dampening(self):
         """Serialise the site dampening file."""
-        filename = self.__get_granular_dampening_filename()
+        filename = self.get_granular_dampening_filename()
         _LOGGER.debug("Writing granular dampening to %s", filename)
         payload = json.dumps(
             self.granular_dampening,
@@ -990,17 +990,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         )
         async with self._serialise_lock, aiofiles.open(filename, "w") as file:
             await file.write(payload)
-        self._granular_dampening_mtime = Path(filename).stat().st_mtime
+        self.granular_dampening_mtime = Path(filename).stat().st_mtime
         _LOGGER.debug(
             "Granular dampening file mtime %s",
-            dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT),
+            dt.fromtimestamp(self.granular_dampening_mtime, self._tz).strftime(DATE_FORMAT),
         )
 
-    async def granular_dampening_data(self, info_suppression: bool = False) -> bool:
+    async def granular_dampening_data(self) -> bool:
         """Read the current granular dampening file.
-
-        Arguments:
-            info_suppression (bool): Suppress the output of INFO level log messages
 
         Returns:
             bool: Granular dampening in use.
@@ -1020,11 +1017,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         error = False
         mtime = True
-        filename = self.__get_granular_dampening_filename()
+        filename = self.get_granular_dampening_filename()
         try:
             if not Path(filename).is_file():
                 self.granular_dampening = {}
-                self._granular_dampening_mtime = 0
+                self.granular_dampening_mtime = 0
                 mtime = False
                 return option(GRANULAR_DAMPENING_OFF)
             async with aiofiles.open(filename) as file:
@@ -1058,31 +1055,30 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
                     _LOGGER.debug("Granular dampening %s", str(self.granular_dampening))
                     return option(GRANULAR_DAMPENING_ON, SET_ALLOW_RESET)
-                _LOGGER.debug("Using legacy hourly dampening")
-                return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
         finally:
             if mtime:
-                self._granular_dampening_mtime = Path(filename).stat().st_mtime
+                self.granular_dampening_mtime = Path(filename).stat().st_mtime
             if error:
                 self.granular_dampening = {}
+            return False
 
-    async def refresh_granular_dampening_data(self):
+    async def refresh_granular_dampening_data(self) -> None:
         """Load granular dampening data if the file has changed."""
-        if Path(self.__get_granular_dampening_filename()).is_file():
-            mtime = Path(self.__get_granular_dampening_filename()).stat().st_mtime
-            if mtime != self._granular_dampening_mtime:
-                await self.granular_dampening_data(info_suppression=True)
+        if Path(self.get_granular_dampening_filename()).is_file():
+            mtime = Path(self.get_granular_dampening_filename()).stat().st_mtime
+            if mtime != self.granular_dampening_mtime:
+                await self.granular_dampening_data()
                 _LOGGER.info("Granular dampening reloaded")
                 _LOGGER.debug(
                     "Granular dampening file mtime %s",
                     dt.fromtimestamp(mtime, self._tz).strftime(DATE_FORMAT),
                 )
 
-    def allow_granular_dampening_reset(self):
+    def allow_granular_dampening_reset(self) -> bool:
         """Allow options change to reset the granular dampening file to an empty dictionary."""
         return self._granular_allow_reset
 
-    def set_allow_granular_dampening_reset(self, enable: bool):
+    def set_allow_granular_dampening_reset(self, enable: bool) -> None:
         """Set/clear allow reset granular dampening file to an empty dictionary by options change."""
         self._granular_allow_reset = enable
 

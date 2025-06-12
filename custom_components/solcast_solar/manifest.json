@@ -9,6 +9,6 @@
   "integration_type": "service",
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/BJReplay/ha-solcast-solar/issues",
-  "requirements": ["aiohttp>=3.8.5", "aiofiles>=23.2.0"],
+  "requirements": ["aiohttp>=3.8.5", "aiofiles>=23.2.0", "watchdog>=6.0.0"],
   "version": "4.3.6"
 }
