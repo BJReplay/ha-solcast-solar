@@ -1068,7 +1068,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             mtime = Path(self.get_granular_dampening_filename()).stat().st_mtime
             if mtime != self.granular_dampening_mtime:
                 await self.granular_dampening_data()
-                _LOGGER.info("Granular dampening reloaded")
+                _LOGGER.info("Granular dampening loaded")
                 _LOGGER.debug(
                     "Granular dampening file mtime %s",
                     dt.fromtimestamp(mtime, self._tz).strftime(DATE_FORMAT),

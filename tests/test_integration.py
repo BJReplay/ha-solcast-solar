@@ -646,16 +646,19 @@ async def test_integration(
             assert "must be 24 or 48 in" in caplog.text
             assert "Forecast update completed successfully" in caplog.text
         else:
-            assert "Granular dampening reloaded" in caplog.text
+            assert "Granular dampening loaded" in caplog.text
             assert "Forecast update completed successfully" in caplog.text
             assert "contains all intervals" in caplog.text
         _no_exception(caplog)
+
+        caplog.clear()
 
         if options == DEFAULT_INPUT1:
             # Modify the granular dampening file directly
             granular_dampening = {"1111-1111-1111-1111": [0.7] * 48, "2222-2222-2222-2222": [0.8] * 48}
             granular_dampening_file.write_text(json.dumps(granular_dampening), encoding="utf-8")
             await _wait_for(caplog, "Granular dampening mtime changed")
+            await _wait_for(caplog, "Granular dampening loaded")
             # Remove the granular dampening file
             granular_dampening_file.unlink()
             await _wait_for(caplog, "Granular dampening file deleted, no longer monitoring")

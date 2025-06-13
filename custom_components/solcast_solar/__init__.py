@@ -238,7 +238,7 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> b
     if coordinator.solcast.options.auto_update > 0:
         auto_updated = coordinator.solcast.get_data()["auto_updated"]
         if auto_updated == 99999 or auto_updated != coordinator.divisions:  # Cannot determine freshness
-            _LOGGER.debug("Cannot determine freshness of auto-update forecast")
+            _LOGGER.debug("Cannot determine freshness of auto-update forecast (last update forced, or configuration changed)")
             stale = False
         elif auto_updated > 0:
             _LOGGER.debug("Checking whether auto update forecast is stale")
