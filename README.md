@@ -633,7 +633,7 @@ data:
 
 If a site resource ID is not specified, and 24 dampening values are given then granular dampening will be removed, and the overall configured hourly dampening will apply to all sites. (Granular dampening may also be disabled using the integration `CONFIGURE` dialogue.)
 
-The action need not be called. The file itself may be updated directly, and if modified will be read on forecast update and used.
+The action need not be called. Rather, the file itself may be updated directly and if created or modified will be read and used. Create/update/delete operations for this file are monitored, and resulting changes to the dampened forecast will be reflected in less than one second after the file operation occurs.
 
 If granular dampening is configured for a single site in a multi-site set up then that dampening will only apply to the forecasts for that site. Other sites will not be dampened.
 
@@ -1018,6 +1018,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 ## Changes
 
 v4.3.6
+* Monitor solcast-dampening.json for create/update/delete by @autoSteve
 * Add last_attempt attribute to api_last_polled entity by @autoSteve
 * Add allow action site parameter with hyphen or underscore by @autoSteve
 * Add test for unusual azimuth by @autoSteve
