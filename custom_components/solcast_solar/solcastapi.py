@@ -1057,7 +1057,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     return option(GRANULAR_DAMPENING_ON, SET_ALLOW_RESET)
         finally:
             if mtime:
-                self.granular_dampening_mtime = Path(filename).stat().st_mtime
+                self.granular_dampening_mtime = Path(filename).stat().st_mtime if Path(filename).exists() else 0
             if error:
                 self.granular_dampening = {}
             return False

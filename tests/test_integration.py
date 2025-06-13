@@ -186,11 +186,11 @@ async def _wait_for_abort(caplog: pytest.LogCaptureFixture) -> None:
             await asyncio.sleep(0.01)
 
 
-async def _wait_for_no_data(caplog: pytest.LogCaptureFixture) -> None:
+async def _wait_for(caplog: pytest.LogCaptureFixture, wait_text: str) -> None:
     """Wait for forecast update completion."""
 
     async with asyncio.timeout(5):
-        while "Forecast has not been updated" not in caplog.text:  # Wait for task to abort
+        while wait_text not in caplog.text:  # Wait for task to abort
             await asyncio.sleep(0.01)
 
 
@@ -597,7 +597,7 @@ async def test_integration(
         assert "seconds before retry" in caplog.text
         assert "ERROR" not in caplog.text
         await hass.async_block_till_done()
-        await _wait_for_no_data(caplog)
+        await _wait_for(caplog, "Forecast has not been updated")
         session_clear(MOCK_BUSY)
 
         # Simulate exceed API limit and beyond
@@ -605,7 +605,7 @@ async def test_integration(
         _LOGGER.info("Simulating API limit exceeded")
         session_set(MOCK_OVER_LIMIT)
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
-        await _wait_for_no_data(caplog)
+        await _wait_for(caplog, "Forecast has not been updated")
         assert "API allowed polling limit has been exceeded" in caplog.text
         assert "No data was returned for forecasts" in caplog.text
         caplog.clear()
@@ -629,6 +629,7 @@ async def test_integration(
         )
         granular_dampening_file.write_text(json.dumps(granular_dampening), encoding="utf-8")
         assert granular_dampening_file.is_file()
+        await _wait_for(caplog, "Running task watchdog")
 
         # Test update beyond ten seconds of prior update, also with stale usage cache and dodgy dampening file
         session_reset_usage()
@@ -649,6 +650,16 @@ async def test_integration(
             assert "Forecast update completed successfully" in caplog.text
             assert "contains all intervals" in caplog.text
         _no_exception(caplog)
+
+        if options == DEFAULT_INPUT1:
+            # Modify the granular dampening file directly
+            granular_dampening = {"1111-1111-1111-1111": [0.7] * 48, "2222-2222-2222-2222": [0.8] * 48}
+            granular_dampening_file.write_text(json.dumps(granular_dampening), encoding="utf-8")
+            await _wait_for(caplog, "Granular dampening mtime changed")
+            # Remove the granular dampening file
+            granular_dampening_file.unlink()
+            await _wait_for(caplog, "Granular dampening file deleted, no longer monitoring")
+
         caplog.clear()
 
         def set_file_last_modified(file_path: str, dtm: dt):

@@ -756,7 +756,6 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
                     path = Path(hass.data[DOMAIN]["solcast"].get_granular_dampening_filename())
                     if path.exists():
                         path.unlink()
-                    _LOGGER.debug("Granular dampening file reset")
         if damp_changed:
             recalculate_and_refresh = True
             await coordinator.solcast.reapply_forward_dampening()
