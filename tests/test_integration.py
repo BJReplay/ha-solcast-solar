@@ -654,11 +654,24 @@ async def test_integration(
         caplog.clear()
 
         if options == DEFAULT_INPUT1:
+            sensor = hass.states.get("sensor.solcast_pv_forecast_forecast_tomorrow")
+            if sensor is not None:
+                assert sensor.state == "35.6374"
+            else:
+                pytest.fail("Test undampened: State of forecast_tomorrow is None")
+
             # Modify the granular dampening file directly
             granular_dampening = {"1111-1111-1111-1111": [0.7] * 48, "2222-2222-2222-2222": [0.8] * 48}
             granular_dampening_file.write_text(json.dumps(granular_dampening), encoding="utf-8")
-            await _wait_for(caplog, "Granular dampening mtime changed")
-            await _wait_for(caplog, "Granular dampening loaded")
+            await _wait_for(caplog, "Updating sensor Forecast Tomorrow")
+            assert "Granular dampening mtime changed" in caplog.text
+            assert "Granular dampening loaded" in caplog.text
+            sensor = hass.states.get("sensor.solcast_pv_forecast_forecast_tomorrow")
+            if sensor is not None:
+                assert sensor.state == "31.3821"
+            else:
+                pytest.fail("Test dampened: State of forecast_tomorrow is None")
+
             # Remove the granular dampening file
             granular_dampening_file.unlink()
             await _wait_for(caplog, "Granular dampening file deleted, no longer monitoring")

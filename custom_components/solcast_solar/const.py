@@ -3,7 +3,7 @@
 from typing import Final
 
 # Development flags
-SENSOR_UPDATE_LOGGING: Final[bool] = False
+SENSOR_UPDATE_LOGGING: bool = False
 
 # Integration constants
 API_QUOTA: Final[str] = "api_quota"
