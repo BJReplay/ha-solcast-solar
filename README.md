@@ -107,14 +107,18 @@ Azimuth is _not_ set as a 0-359 degree value, but rather as 0-180 for westerly f
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth.png" width="300">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth.png)
 
-A method that can work is to get a North-oriented Google Maps satellite image of your home and measure azimuth using a plastic 180 degree protractor with its straight edge aligned North/South on screen and its centre point on the side of a representative panel. Count the degrees away from North. For westerly or easterly flip the protractor. You may need to screen grab the Maps image into a PNG/JPG and add line extensions to the orientation to be able to accurately measure the angle.
+An old-school method that can work is to get a North-oriented Google Maps satellite image of your home and measure azimuth using a plastic 180 degree protractor with its straight edge aligned North/South on screen and its centre point on the side of a representative panel. Count the degrees away from North. For westerly or easterly flip the protractor. You may need to screen grab the Maps image into a PNG/JPG and add line extensions to the orientation to be able to accurately measure the angle.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_house.png" width="300">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_house.png)
+
+Using Google Earth or ChatGPT are other alternatives.
 
 > [!NOTE]
 >
 >
 > Solcast are headquartered in Sydney, Australia in the southern hemisphere, and use azimuth numbering as degrees pointed away from North. If you live in the northern hemisphere then it is likely that any online mapping service that can be used to determine azimuth will use a numbering convention that is degrees pointed away from _South_, which will yield incompatible values.
+>
+> If an unusual azimuth is configured then the integration will raise a warning for the issue. If the orientation is truly unusual (e.g. a northern hemisphere rooftop pointing towards North/North East/North West), then simply ignore the issue.
 
 ## Installation
 
@@ -629,7 +633,7 @@ data:
 
 If a site resource ID is not specified, and 24 dampening values are given then granular dampening will be removed, and the overall configured hourly dampening will apply to all sites. (Granular dampening may also be disabled using the integration `CONFIGURE` dialogue.)
 
-The action need not be called. The file itself may be updated directly, and if modified will be read on forecast update and used.
+The action need not be called. Rather, the file itself may be updated directly and if created or modified will be read and used. Create/update/delete operations for this file are monitored, and resulting changes to the dampened forecast will be reflected in less than one second after the file operation occurs.
 
 If granular dampening is configured for a single site in a multi-site set up then that dampening will only apply to the forecasts for that site. Other sites will not be dampened.
 
@@ -1014,8 +1018,10 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 ## Changes
 
 v4.3.6
+* Monitor solcast-dampening.json for create/update/delete by @autoSteve
 * Add last_attempt attribute to api_last_polled entity by @autoSteve
 * Add allow action site parameter with hyphen or underscore by @autoSteve
+* Add test for unusual azimuth by @autoSteve
 * Fix Energy dashboard start/end points by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.5...v4.3.6

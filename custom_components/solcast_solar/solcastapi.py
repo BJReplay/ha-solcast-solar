@@ -164,6 +164,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             self.entry_options = {**self.entry.options}
         self.estimate_set: list[str] = self.__get_estimate_set(options)
         self.granular_dampening: dict[str, list[float]] = {}
+        self.granular_dampening_mtime: float = 0
         self.hard_limit: str = options.hard_limit
         self.hass: HomeAssistant = hass
         self.headers: dict[str, str] = {}
@@ -194,12 +195,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._forecasts_moment: dict[str, dict[str, list[float]]] = {}
         self._forecasts_remaining: dict[str, dict[str, list[float]]] = {}
         self._granular_allow_reset = True
-        self._granular_dampening_mtime: float = 0
         self._loaded_data = False
         self._next_update: str | None = None
         self._rekey: dict[str, Any] = {}
         self._site_data_forecasts: dict[str, list[dict[str, Any]]] = {}
         self._site_data_forecasts_undampened: dict[str, list[dict[str, Any]]] = {}
+        self._site_latitude: defaultdict[str, dict[str, bool | float | int | None]] = defaultdict(dict[str, bool | float | int | None])
         self._sites_hard_limit: defaultdict[str, Any] = defaultdict(dict)
         self._sites_hard_limit_undampened: defaultdict[str, Any] = defaultdict(dict)
         self._spline_period = list(range(0, 90000, 1800))
@@ -371,7 +372,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return f"{self._config_dir}/solcast-sites{'' if not self.__is_multi_key() else '-' + api_key}.json"
 
-    def __get_granular_dampening_filename(self) -> str:
+    def get_granular_dampening_filename(self) -> str:
         """Build a fully qualified site dampening filename.
 
         Arguments:
@@ -405,6 +406,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return True
         _LOGGER.error("Not serialising empty data")
         return False
+
+    def __redact_lat_lon_simple(self, s: str) -> str:
+        return re.sub(r"\.[0-9]+", ".******", s)
+
+    def __redact_lat_lon(self, s: str) -> str:
+        return re.sub(r"itude\': [0-9\-\.]+", "itude': **.******", s)
 
     async def __sites_data(self, prior_crash: bool = False, use_cache: bool = True) -> tuple[int, str, str]:  # noqa: C901
         """Request site details.
@@ -446,19 +453,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.error("At least one successful API 'get sites' call is needed, so the integration will not function correctly")
                 one_only = True
 
-        def redact_lat_lon(s: str) -> str:
-            return re.sub(r"itude\': [0-9\-\.]+", "itude': **.******", s)
-
         def set_sites(response_json: dict[str, Any], api_key: str) -> None:
             sites_data = response_json
             _LOGGER.debug(
                 "Sites data received %s",
-                self.__redact_msg_api_key(redact_lat_lon(str(sites_data)), api_key),
+                self.__redact_msg_api_key(self.__redact_lat_lon(str(sites_data)), api_key),
             )
             for site in sites_data["sites"]:
                 site["api_key"] = api_key
                 site.pop("longitude", None)
-                site.pop("latitude", None)
+                self._site_latitude[site["resource_id"]]["latitude"] = site.pop("latitude", None)
+                self._site_latitude[site["resource_id"]]["azimuth"] = site["azimuth"]
             self.sites = self.sites + sites_data["sites"]
             self._api_used_reset[api_key] = None
             _LOGGER.debug(
@@ -784,11 +789,82 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             tuple[int, str, str]: The status code, message and relevant API key from load sites.
 
         """
+        issue_registry = ir.async_get(self.hass)
 
         def rename(file1: str, file2: str, api_key: str):
             if Path(file1).is_file():
                 _LOGGER.info("Renaming %s to %s", self.__redact_msg_api_key(file1, api_key), self.__redact_msg_api_key(file2, api_key))
                 Path(file1).rename(Path(file2))
+
+        async def test_unusual_azimuth() -> None:
+            """Test for unusual azimuth values."""
+            _LOGGER.debug("Testing for unusual azimuth values")
+            any_unusual = False
+            raise_issue = ""
+            for site, v in self._site_latitude.items():
+                unusual = False
+                proposal = 0
+                if v["latitude"] is None:
+                    # Using cached data, so latitude is not known
+                    continue
+                if "latitude" in v and "azimuth" in v:
+                    azimuth = v["azimuth"]
+                    if azimuth is not None:
+                        if v["latitude"] > 0:
+                            # Northern hemisphere, so azimuth should be 90 to 180, or -90 to -180
+                            raise_issue = "unusual_azimuth_northern"
+                            if azimuth > 0 and not (90 <= azimuth <= 180):
+                                unusual = True
+                                proposal = 180 - int(azimuth)
+                            if azimuth < 0 and not (-180 <= azimuth <= -90):
+                                unusual = True
+                                proposal = -180 - int(azimuth)
+                        else:
+                            # Southern hemisphere, so azimuth should be 0 to 90, or -90 to 0
+                            raise_issue = "unusual_azimuth_southern"
+                            if azimuth > 0 and not (0 <= azimuth <= 90):
+                                unusual = True
+                                proposal = 180 - int(azimuth)
+                            if azimuth < 0 and not (-90 <= azimuth <= 0):
+                                unusual = True
+                                proposal = -180 - int(azimuth)
+                    if unusual:
+                        any_unusual = True
+                        log = (
+                            _LOGGER.warning
+                            if issue_registry.async_get_issue(DOMAIN, "unusual_azimuth_northern") is None
+                            and issue_registry.async_get_issue(DOMAIN, "unusual_azimuth_southern") is None
+                            else _LOGGER.debug
+                        )
+                        log(self.__redact_lat_lon_simple(f"Unusual azimuth {azimuth} for site {site}, latitude {v['latitude']}"))
+
+                if unusual:
+                    # If azimuth is unusual then raise an issue.
+                    _LOGGER.debug("Raise issue `%s` for site %s", raise_issue, site)
+                    ir.async_create_issue(
+                        self.hass,
+                        DOMAIN,
+                        raise_issue,
+                        is_fixable=False,
+                        is_persistent=True,
+                        severity=ir.IssueSeverity.WARNING,
+                        translation_key=raise_issue,
+                        translation_placeholders={
+                            "site": site,
+                            "latitude": str(v["latitude"]),
+                            "proposal": str(proposal),
+                            "extant": str(v["azimuth"]),
+                            "learn_more": "",
+                        },
+                        learn_more_url="https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#solcast-requirements",
+                    )
+                    break
+            if not any_unusual and issue_registry.async_get_issue(DOMAIN, "unusual_azimuth_northern") is not None:
+                _LOGGER.debug("Remove issue for %s", "unusual_azimuth_northern")
+                ir.async_delete_issue(self.hass, DOMAIN, "unusual_azimuth_northern")
+            if not any_unusual and issue_registry.async_get_issue(DOMAIN, "unusual_azimuth_southern") is not None:
+                _LOGGER.debug("Remove issue for %s", "unusual_azimuth_southern")
+                ir.async_delete_issue(self.hass, DOMAIN, "unusual_azimuth_southern")
 
         async def from_single_site_to_multi(api_keys: list[str]):
             """Transition from a single API key to multiple API keys."""
@@ -882,6 +958,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         status, message, api_key_in_error = await self.__sites_data(prior_crash=prior_crash, use_cache=use_cache)
         if self.sites_status == SitesStatus.OK:
+            await test_unusual_azimuth()
             await self.__sites_usage()
 
         return status, message, api_key_in_error
@@ -903,7 +980,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     async def serialise_granular_dampening(self):
         """Serialise the site dampening file."""
-        filename = self.__get_granular_dampening_filename()
+        filename = self.get_granular_dampening_filename()
         _LOGGER.debug("Writing granular dampening to %s", filename)
         payload = json.dumps(
             self.granular_dampening,
@@ -913,17 +990,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         )
         async with self._serialise_lock, aiofiles.open(filename, "w") as file:
             await file.write(payload)
-        self._granular_dampening_mtime = Path(filename).stat().st_mtime
+        self.granular_dampening_mtime = Path(filename).stat().st_mtime
         _LOGGER.debug(
             "Granular dampening file mtime %s",
-            dt.fromtimestamp(self._granular_dampening_mtime, self._tz).strftime(DATE_FORMAT),
+            dt.fromtimestamp(self.granular_dampening_mtime, self._tz).strftime(DATE_FORMAT),
         )
 
-    async def granular_dampening_data(self, info_suppression: bool = False) -> bool:
+    async def granular_dampening_data(self) -> bool:
         """Read the current granular dampening file.
-
-        Arguments:
-            info_suppression (bool): Suppress the output of INFO level log messages
 
         Returns:
             bool: Granular dampening in use.
@@ -943,11 +1017,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         error = False
         mtime = True
-        filename = self.__get_granular_dampening_filename()
+        filename = self.get_granular_dampening_filename()
         try:
             if not Path(filename).is_file():
                 self.granular_dampening = {}
-                self._granular_dampening_mtime = 0
+                self.granular_dampening_mtime = 0
                 mtime = False
                 return option(GRANULAR_DAMPENING_OFF)
             async with aiofiles.open(filename) as file:
@@ -981,31 +1055,30 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
                     _LOGGER.debug("Granular dampening %s", str(self.granular_dampening))
                     return option(GRANULAR_DAMPENING_ON, SET_ALLOW_RESET)
-                _LOGGER.debug("Using legacy hourly dampening")
-                return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
         finally:
             if mtime:
-                self._granular_dampening_mtime = Path(filename).stat().st_mtime
+                self.granular_dampening_mtime = Path(filename).stat().st_mtime if Path(filename).exists() else 0
             if error:
                 self.granular_dampening = {}
+            return False
 
-    async def refresh_granular_dampening_data(self):
+    async def refresh_granular_dampening_data(self) -> None:
         """Load granular dampening data if the file has changed."""
-        if Path(self.__get_granular_dampening_filename()).is_file():
-            mtime = Path(self.__get_granular_dampening_filename()).stat().st_mtime
-            if mtime != self._granular_dampening_mtime:
-                await self.granular_dampening_data(info_suppression=True)
-                _LOGGER.info("Granular dampening reloaded")
+        if Path(self.get_granular_dampening_filename()).is_file():
+            mtime = Path(self.get_granular_dampening_filename()).stat().st_mtime
+            if mtime != self.granular_dampening_mtime:
+                await self.granular_dampening_data()
+                _LOGGER.info("Granular dampening loaded")
                 _LOGGER.debug(
                     "Granular dampening file mtime %s",
                     dt.fromtimestamp(mtime, self._tz).strftime(DATE_FORMAT),
                 )
 
-    def allow_granular_dampening_reset(self):
+    def allow_granular_dampening_reset(self) -> bool:
         """Allow options change to reset the granular dampening file to an empty dictionary."""
         return self._granular_allow_reset
 
-    def set_allow_granular_dampening_reset(self, enable: bool):
+    def set_allow_granular_dampening_reset(self, enable: bool) -> None:
         """Set/clear allow reset granular dampening file to an empty dictionary by options change."""
         self._granular_allow_reset = enable
 

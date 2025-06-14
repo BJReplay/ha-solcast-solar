@@ -6,6 +6,7 @@ from contextvars import ContextVar
 from datetime import datetime as dt, timedelta
 import json
 import logging
+from pathlib import Path
 import random
 from typing import Any, Final
 import zoneinfo
@@ -237,7 +238,7 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> b
     if coordinator.solcast.options.auto_update > 0:
         auto_updated = coordinator.solcast.get_data()["auto_updated"]
         if auto_updated == 99999 or auto_updated != coordinator.divisions:  # Cannot determine freshness
-            _LOGGER.debug("Cannot determine freshness of auto-update forecast")
+            _LOGGER.debug("Cannot determine freshness of auto-update forecast (last update forced, or configuration changed)")
             stale = False
         elif auto_updated > 0:
             _LOGGER.debug("Checking whether auto update forecast is stale")
@@ -752,8 +753,9 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
             if not entry.options[SITE_DAMP]:
                 if coordinator.solcast.allow_granular_dampening_reset():
                     coordinator.solcast.granular_dampening = {}
-                    await coordinator.solcast.serialise_granular_dampening()
-                    _LOGGER.debug("Granular dampening file reset")
+                    path = Path(hass.data[DOMAIN]["solcast"].get_granular_dampening_filename())
+                    if path.exists():
+                        path.unlink()
         if damp_changed:
             recalculate_and_refresh = True
             await coordinator.solcast.reapply_forward_dampening()
