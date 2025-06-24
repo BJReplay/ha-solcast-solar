@@ -1023,6 +1023,7 @@ v4.3.6
 * Add allow action site parameter with hyphen or underscore by @autoSteve
 * Add test for unusual azimuth by @autoSteve
 * Fix Energy dashboard start/end points by @autoSteve
+* Attribution attribute only where credit is due by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.5...v4.3.6
 

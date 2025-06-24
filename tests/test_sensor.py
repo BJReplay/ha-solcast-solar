@@ -420,12 +420,12 @@ async def test_sensor_states(  # noqa: C901
 
         # Verify that the entities that should be disabled by default are, then enable them.
         for sensor, attrs in sensors.items():
-            entry_id = f"sensor.solcast_pv_forecast_{sensor}"
+            entity = f"sensor.solcast_pv_forecast_{sensor}"
             if not attrs.get("should_be_disabled", False):
+                assert hass.states.get(entity) is not None
                 continue
-            assert hass.states.get(entry_id) is None
-            er.async_get(hass).async_update_entity(entry_id, disabled_by=None)
-        # await hass.config_entries.async_reload(entry.entry_id)
+            assert hass.states.get(entity) is None
+            er.async_get(hass).async_update_entity(entity, disabled_by=None)
         async with asyncio.timeout(300):
             while "Reloading configuration entries because disabled_by changed" not in caplog.text:
                 freezer.tick(0.01)
@@ -458,7 +458,8 @@ async def test_sensor_states(  # noqa: C901
                     with contextlib.suppress(AttributeError, ValueError):
                         testa = testa.replace(year=2024, month=1, day=1).isoformat()  # type: ignore[union-attr] # This is an assumed datetime, but that may not be
                     assert testa == attrs["attributes"][key][attribute]
-            assert state_attributes["attribution"] == "Data retrieved from Solcast"
+            if "api" not in sensor:
+                assert state_attributes["attribution"] == "Data retrieved from Solcast"
             if "unit_of_measurement" in attrs:
                 assert state_attributes["unit_of_measurement"] == attrs["unit_of_measurement"]
             if "state_class" in attrs:

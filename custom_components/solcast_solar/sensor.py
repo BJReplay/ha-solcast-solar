@@ -36,7 +36,8 @@ SENSORS: dict[str, dict[str, Any]] = {
             translation_key="api_counter",
             name="API Used",
             entity_category=EntityCategory.DIAGNOSTIC,
-        )
+        ),
+        "attribution": False,
     },
     "api_limit": {
         "description": SensorEntityDescription(
@@ -44,7 +45,8 @@ SENSORS: dict[str, dict[str, Any]] = {
             translation_key="api_limit",
             name="API Limit",
             entity_category=EntityCategory.DIAGNOSTIC,
-        )
+        ),
+        "attribution": False,
     },
     "forecast_this_hour": {
         "description": SensorEntityDescription(
@@ -94,7 +96,8 @@ SENSORS: dict[str, dict[str, Any]] = {
             translation_key="lastupdated",
             name="API Last Polled",
             entity_category=EntityCategory.DIAGNOSTIC,
-        )
+        ),
+        "attribution": False,
     },
     "peak_w_time_today": {
         "description": SensorEntityDescription(
@@ -302,7 +305,13 @@ async def async_setup_entry(
     entities: list[RooftopSensor | SolcastSensor] = []
 
     for sensor in SENSORS.values():
-        sen = SolcastSensor(coordinator, sensor["description"], entry, sensor.get("enabled_by_default", True))
+        sen = SolcastSensor(
+            coordinator,
+            sensor["description"],
+            entry,
+            enabled_by_default=sensor.get("enabled_by_default", True),
+            attribution=sensor.get("attribution", True),
+        )
         entities.append(sen)
 
     hard_limits = coordinator.solcast.options.hard_limit.split(",")
@@ -361,7 +370,6 @@ async def async_setup_entry(
 class SolcastSensor(CoordinatorEntity, SensorEntity):
     """Representation of a Solcast sensor device."""
 
-    _attr_attribution = ATTRIBUTION
     _attr_has_entity_name = True
 
     def __init__(
@@ -370,6 +378,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         entity_description: SensorEntityDescription,
         entry: ConfigEntry,
         enabled_by_default: bool = True,
+        attribution: bool = True,
     ) -> None:
         """Initialise the sensor.
 
@@ -378,6 +387,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             entity_description (SensorEntityDescription): The details of the entity.
             entry (ConfigEntry): The integration entry instance, contains the configuration.
             enabled_by_default (bool): The default state of the sensor.
+            attribution (bool): Whether to credit Solcast for the data
 
         """
         super().__init__(coordinator)
@@ -389,6 +399,8 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         self._attr_entity_registry_enabled_default = enabled_by_default
         self._sensor_data = None
         self._update_policy = get_sensor_update_policy(entity_description.key)
+        if attribution:
+            self._attr_attribution = ATTRIBUTION
 
         try:
             self._sensor_data = self._coordinator.get_sensor_value(self.entity_description.key)
