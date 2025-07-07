@@ -233,10 +233,6 @@
                 "data": {
                     "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
                     "api_quota": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",
-                    "auto_update": "Automatická aktualizácia (ak nie je automatická aktualizácia, musíte namiesto nej použiť automatizáciu)",
-                    "customhoursensor": "Vlastný senzor ďalších X hodín (min=1, max=144)",
-                    "hard_limit": "Pevný limit meniča vo kilowattov (pozri integračnú dokumentáciu)",
-                    "key_estimate": "Preferovaná pravdepodobnosť použitia pre senzory",
                     "attr_brk_estimate10": "Povoliť odhad 10 atribútov senzora",
                     "attr_brk_estimate": "Povoliť odhad 50 atribútov senzora",
                     "attr_brk_estimate90": "Povoliť odhad 90 atribútov senzora",
@@ -244,8 +240,12 @@
                     "attr_brk_halfhourly": "Povoliť polhodinové podrobné atribúty prognózy",
                     "attr_brk_hourly": "Povoliť hodinové podrobné atribúty prognózy",
                     "attr_brk_detailed": "Povoliť rozdelenie stránok pre polhodinové/hodinové atribúty podrobností (tieto sa neuložia do atribútov stavu databázy)",
+                    "auto_update": "Automatická aktualizácia (ak nie je automatická aktualizácia, musíte namiesto nej použiť automatizáciu)",
                     "config_damp": "Upravte hodinové faktory tlmenia (po kliknutí na odoslať)",
+                    "customhoursensor": "Vlastný senzor ďalších X hodín (min=1, max=144)",
                     "exclude_sites": "Lokality, ktoré sa majú vylúčiť zo súčtu energie a senzorov",
+                    "hard_limit_api": "Pevný limit meniča vo kilowattov (pozri integračnú dokumentáciu)",
+                    "key_estimate": "Preferovaná pravdepodobnosť použitia pre senzory",
                     "site_damp": "Granulované tlmenie je nastavené: Clear pre návrat k celkovému hodinovému tlmeniu"
                 },
                 "description": "Solcast možnosti konfigurácie"

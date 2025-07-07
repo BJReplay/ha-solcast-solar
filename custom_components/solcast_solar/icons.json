@@ -32,9 +32,11 @@
     },
     "services": {
         "clear_all_solcast_data": "mdi:database-off",
+        "force_update_estimates": "mdi:sun-wireless-outline",
         "force_update_forecasts": "mdi:sun-wireless-outline",
         "get_dampening": "mdi:format-align-middle",
         "set_dampening": "mdi:format-align-middle",
+        "query_estimate_data": "mdi:table-question",
         "query_forecast_data": "mdi:table-question",
         "update_forecasts": "mdi:sun-wireless-outline"
     }

@@ -233,10 +233,6 @@
                 "data": {
                     "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
                     "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
-                    "auto_update": "Automatyczna aktualizacja (jeśli nie ma automatycznej aktualizacji, zamiast tego należy zastosować automatyzację)",
-                    "customhoursensor": "Niestandardowy czujnik następnej godziny X (min.=1, maks.=144)",
-                    "hard_limit": "Twardy limit falownika w kilowaty (patrz dokumentacja integracji)",
-                    "key_estimate": "Preferowane prawdopodobieństwo zastosowania prognozy w przypadku czujników",
                     "attr_brk_estimate10": "Włącz oszacowanie 10 atrybutów czujnika",
                     "attr_brk_estimate": "Włącz oszacowanie 50 atrybutów czujnika",
                     "attr_brk_estimate90": "Włącz oszacowanie 90 atrybutów czujnika",
@@ -244,8 +240,12 @@
                     "attr_brk_halfhourly": "Włącz atrybuty szczegółów prognozy półgodzinnej",
                     "attr_brk_hourly": "Włącz atrybuty szczegółów prognozy godzinowej",
                     "attr_brk_detailed": "Włącz podział witryny dla atrybutów szczegółów półgodzinnych/godzinnych (nie zostaną one zapisane w atrybutach stanu bazy danych)",
+                    "auto_update": "Automatyczna aktualizacja (jeśli nie ma automatycznej aktualizacji, zamiast tego należy zastosować automatyzację)",
                     "config_damp": "Zmodyfikuj godzinowe współczynniki tłumienia (po kliknięciu przycisku „ZATWIERDŹ”)",
+                    "customhoursensor": "Niestandardowy czujnik następnej godziny X (min.=1, maks.=144)",
                     "exclude_sites": "Miejsca, które należy wykluczyć z pulpitu nawigacyjnego Energy i sum czujników",
+                    "hard_limit": "Twardy limit falownika w kilowaty (patrz dokumentacja integracji)",
+                    "key_estimate": "Preferowane prawdopodobieństwo zastosowania prognozy w przypadku czujników",
                     "site_damp": "Ustawiono tłumienie szczegółowe: Wyczyść, aby powrócić do ogólnego tłumienia godzinowego"
                 },
                 "description": "Opcje konfiguracji Solcast"

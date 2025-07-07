@@ -219,9 +219,15 @@
             "reconfigured": "New configuration applied successfully"
         },
         "error": {
+            "actuals_not_enabled": "Estimated actuals acquisition is not enabled",
+            "actuals_without_get": "Estimated actuals cannot be used without getting them",
             "api_duplicate": "Duplicate API key specified",
             "api_looks_like_site": "API key looks like a site ID",
             "custom_invalid": "Custom sensor not between 1 and 144",
+            "dampen_without_actuals": "Estimated actuals must be selected to use auto-dampening",
+            "dampen_without_generation": "At least one PV generation Wh/kWh sensor must be specified to use auto-dampening",
+            "export_multiple_entities": "Site export entity must be a single entity, not multiple entities",
+            "export_no_entity": "Site export entity must be specified if site export limit is set",
             "hard_not_number": "Hard limit is not a positive number",
             "hard_too_many": "There are more hard limits entered than keys",
             "limit_not_number": "API limit is not a number",
@@ -269,13 +275,19 @@
                     "attr_brk_halfhourly": "Enable forecast half-hourly detail attributes",
                     "attr_brk_hourly": "Enable forecast hourly detail attributes",
                     "attr_brk_site": "Enable site breakdown sensor attributes",
+                    "auto_dampen": "Auto-dampen (requires estimated actuals and PV generation entity, see integration documentation)",
                     "auto_update": "Auto-update (if no auto-update then an automation must be used instead)",
                     "config_damp": "Modify the hourly dampening factors (after clicking submit)",
                     "customhoursensor": "Custom next X hours sensor (min=1, max=144)",
                     "exclude_sites": "Site(s) to exclude from the Energy dashboard and sensor totals",
-                    "hard_limit_api": "Inverter hard limit in kW (see integration documentation)",
+                    "generation_entities": "PV generation entity/entities for automated dampening (kWh, total increasing)",
+                    "get_actuals": "Estimated actuals updated at midnight (see integration documentation, uses one API call per site per day, so a reduced API limit is needed with auto-update enabled)",
+                    "hard_limit_api": "Inverter hard limit in kW (see integration documentation, comma separate multiple values for each key)",
                     "key_estimate": "Preferred forecast likelihood to use for sensors",
-                    "site_damp": "Granular dampening is set: Clear to revert to overall hourly dampening"
+                    "site_damp": "Granular dampening is set: Clear to revert to overall hourly dampening",
+                    "site_export_entity": "Optional site export entity for automated dampening (kWh, total increasing)",
+                    "site_export_limit": "Site export limit if site export is specified (kW)",
+                    "use_actuals": "Show estimated actual history on Energy dashboard (not forecast history)"
                 },
                 "description": "Solcast configuration options"
             }

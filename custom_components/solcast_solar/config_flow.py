@@ -7,6 +7,7 @@ from datetime import timezone
 import logging
 from pathlib import Path
 import re
+from types import MappingProxyType
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -21,6 +22,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     SelectOptionDict,
@@ -33,6 +35,7 @@ from homeassistant.util import dt as dt_util
 from . import get_session_headers, get_version
 from .const import (
     API_QUOTA,
+    AUTO_DAMPEN,
     AUTO_UPDATE,
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
@@ -46,11 +49,16 @@ from .const import (
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
     EXCLUDE_SITES,
+    GENERATION_ENTITIES,
+    GET_ACTUALS,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE_DAMP,
+    SITE_EXPORT_ENTITY,
+    SITE_EXPORT_LIMIT,
     SOLCAST_URL,
     TITLE,
+    USE_ACTUALS,
 )
 from .solcastapi import ConnectionOptions, SolcastApi
 from .util import SitesStatus
@@ -147,7 +155,13 @@ async def validate_sites(hass: HomeAssistant, user_input: dict[str, Any]) -> tup
         user_input[BRK_HALFHOURLY],
         user_input[BRK_HOURLY],
         user_input[BRK_SITE_DETAILED],
-        user_input.get(EXCLUDE_SITES, []),
+        user_input[EXCLUDE_SITES],
+        user_input[GET_ACTUALS],
+        user_input[USE_ACTUALS],
+        user_input[GENERATION_ENTITIES],
+        user_input[SITE_EXPORT_ENTITY],
+        user_input[SITE_EXPORT_LIMIT],
+        user_input[AUTO_DAMPEN],
     )
     solcast = SolcastApi(session, options, hass)
     solcast.headers = get_session_headers(await get_version(hass))
@@ -326,6 +340,12 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     BRK_HOURLY: True,
                     BRK_SITE_DETAILED: False,
                     EXCLUDE_SITES: [],
+                    GET_ACTUALS: False,
+                    USE_ACTUALS: False,
+                    GENERATION_ENTITIES: [],
+                    SITE_EXPORT_ENTITY: "",
+                    SITE_EXPORT_LIMIT: 0.0,
+                    AUTO_DAMPEN: False,
                 }
                 damp = {f"damp{factor:02d}": 1.0 for factor in range(24)}
 
@@ -431,6 +451,26 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                             hard_limit = ",".join(to_set)
                             all_config_data[HARD_LIMIT_API] = hard_limit
 
+                # Validate estimated actuals and auto-dampen
+                if not errors and user_input[USE_ACTUALS] and not user_input[GET_ACTUALS]:
+                    errors["base"] = "actuals_aithout_get"
+                all_config_data[GET_ACTUALS] = user_input[GET_ACTUALS]
+                all_config_data[USE_ACTUALS] = user_input[USE_ACTUALS]
+                if not errors and user_input[AUTO_DAMPEN] and not user_input[GET_ACTUALS]:
+                    errors["base"] = "dampen_without_actuals"
+                if not errors and user_input[AUTO_DAMPEN] and not user_input[GENERATION_ENTITIES]:
+                    errors["base"] = "dampen_without_generation"
+                all_config_data[GENERATION_ENTITIES] = user_input.get(GENERATION_ENTITIES, [])
+                all_config_data[AUTO_DAMPEN] = user_input[AUTO_DAMPEN]
+                if not errors and user_input[SITE_EXPORT_ENTITY] != [] and len(user_input[SITE_EXPORT_ENTITY]) > 1:
+                    errors["base"] = "export_multiple_entities"
+                all_config_data[SITE_EXPORT_ENTITY] = user_input[SITE_EXPORT_ENTITY][0] if user_input[SITE_EXPORT_ENTITY] else ""
+                if not errors and user_input[SITE_EXPORT_LIMIT] > 0.0 and len(user_input[SITE_EXPORT_ENTITY]) == 0:
+                    errors["base"] = "export_no_entity"
+                all_config_data[SITE_EXPORT_LIMIT] = user_input[SITE_EXPORT_LIMIT]
+
+                self._options = MappingProxyType(all_config_data)
+
                 if not errors:
                     # Disable granular dampening
                     if user_input.get(SITE_DAMP) is not None:
@@ -485,6 +525,14 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 SelectOptionDict(label=site["name"] + " (" + site["resource_id"] + ")", value=site["resource_id"]) for site in solcast.sites
             ]
 
+        entity_registry = er.async_get(self.hass)
+        sensors: list[SelectOptionDict] = [SelectOptionDict(label="not_loaded", value="")]
+        sensors = [SelectOptionDict(label=entry, value=entry) for entry in entity_registry.entities if entry.startswith("sensor.")]
+
+        if self._options.get(SITE_EXPORT_ENTITY, "") != "":
+            site_export_default = [self._options[SITE_EXPORT_ENTITY]]
+        else:
+            site_export_default = []
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -509,6 +557,19 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     vol.Optional(EXCLUDE_SITES, default=self._options.get(EXCLUDE_SITES, [])): SelectSelector(
                         SelectSelectorConfig(options=exclude, mode=SelectSelectorMode.DROPDOWN, multiple=True)
                     ),
+                    vol.Optional(GET_ACTUALS, default=self._options[GET_ACTUALS]): bool,
+                    vol.Optional(USE_ACTUALS, default=self._options[USE_ACTUALS]): bool,
+                    vol.Optional(AUTO_DAMPEN, default=self._options[AUTO_DAMPEN]): bool,
+                    vol.Optional(GENERATION_ENTITIES, default=self._options.get(GENERATION_ENTITIES, [])): SelectSelector(
+                        SelectSelectorConfig(options=sensors, mode=SelectSelectorMode.DROPDOWN, multiple=True)
+                    ),
+                    vol.Optional(SITE_EXPORT_ENTITY, default=site_export_default): SelectSelector(
+                        SelectSelectorConfig(options=sensors, mode=SelectSelectorMode.DROPDOWN, multiple=True)
+                    ),
+                    vol.Optional(
+                        SITE_EXPORT_LIMIT,
+                        default=self._options.get(SITE_EXPORT_LIMIT, 0.0),
+                    ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=100.0)),
                     (
                         vol.Optional(CONFIG_DAMP, default=False)
                         if not self._options[SITE_DAMP]

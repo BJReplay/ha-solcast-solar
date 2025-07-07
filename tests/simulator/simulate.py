@@ -222,10 +222,10 @@ class SimulatedSolcast:
                 {
                     "period_end": (period_end + timedelta(minutes=minute * 30)).isoformat(),
                     "period": "PT30M",
-                    prefix: self.__pv_interval(site["capacity"], FORECAST, period_end, minute),
+                    prefix: self.__pv_interval(site["capacity"], FORECAST, period_end, minute, modified=True),
                     # The Solcast API does not return these values, but the simulator does
-                    prefix + "10": self.__pv_interval(site["capacity"], FORECAST_10, period_end, minute),
-                    prefix + "90": self.__pv_interval(site["capacity"], FORECAST_90, period_end, minute),
+                    prefix + "10": self.__pv_interval(site["capacity"], FORECAST_10, period_end, minute, modified=True),
+                    prefix + "90": self.__pv_interval(site["capacity"], FORECAST_90, period_end, minute, modified=True),
                 }
                 for minute in range((hours + 1) * 2)
             ],
@@ -270,16 +270,13 @@ class SimulatedSolcast:
         """Return the start period and factors for the current time."""
         return period.replace(minute=(int(period.minute / 30) * 30), second=0, microsecond=0) + delta
 
-    def __pv_interval(self, site_capacity: float, estimate: float, period_end: dt, minute: int) -> float:
+    def __pv_interval(self, site_capacity: float, estimate: float, period_end: dt, minute: int, modified: bool = False) -> float:
         """Calculate value for a single interval."""
+        interval = int(
+            (period_end + timedelta(minutes=minute * 30)).astimezone(self.timezone).hour * 2
+            + (period_end + timedelta(minutes=minute * 30)).astimezone(self.timezone).minute / 30
+        )
         return round(
-            site_capacity
-            * estimate
-            * GENERATION_FACTOR[
-                int(
-                    (period_end + timedelta(minutes=minute * 30)).astimezone(self.timezone).hour * 2
-                    + (period_end + timedelta(minutes=minute * 30)).astimezone(self.timezone).minute / 30
-                )
-            ],
+            site_capacity * estimate * (GENERATION_FACTOR[interval] * 0.4 if modified and interval > 32 else GENERATION_FACTOR[interval]),
             4,
         )

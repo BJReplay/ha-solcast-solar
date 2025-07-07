@@ -30,7 +30,7 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.sun import get_astral_event_next
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DATE_FORMAT, DOMAIN, SITE_DAMP, TIME_FORMAT
+from .const import DATE_FORMAT, DOMAIN, GET_ACTUALS, SITE_DAMP, TIME_FORMAT
 from .solcastapi import SolcastApi
 
 _LOGGER = logging.getLogger(__name__)
@@ -150,6 +150,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         for timer in sorted(self.tasks):
             _LOGGER.debug("Running task %s", timer)
 
+        if self.solcast.options.auto_dampen:
+            await self.solcast.model_automated_dampening()
+
         return True
 
     class DampeningStartEventHandler(FileSystemEventHandler):
@@ -260,10 +263,25 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         current_day = dt.now(self.solcast.options.tz).day
         self._date_changed = current_day != self._last_day
         if self._date_changed:
-            _LOGGER.debug("Date has changed, recalculate splines and set up auto-updates")
+            _LOGGER.debug(
+                "Date has changed, recalculating splines, %ssetting up auto-updates%s%s",
+                "not " if self.solcast.options.auto_update == 0 else "",
+                ", updating estimated actuals" if self.solcast.options.get_actuals else "",
+                " and generation data" if self.solcast.options.generation_entities else "",
+            )
             self._last_day = current_day
             await self.__update_midnight_spline_recalculate()
             self.__auto_update_setup()
+
+            if self.solcast.options.get_actuals:
+                await self.__update_estimated_actuals_history()
+                await self.solcast.build_actual_data()
+
+            if self.solcast.options.generation_entities:
+                await self.solcast.get_pv_generation()
+
+            if self.solcast.options.auto_dampen:
+                await self.solcast.model_automated_dampening()
 
         self.async_update_listeners()
 
@@ -339,6 +357,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         await self.solcast.reset_failure_stats()
         await self.solcast.check_data_records()
         await self.solcast.recalculate_splines()
+
+    async def __update_estimated_actuals_history(self) -> None:
+        """Update estimated actuals using the API."""
+        await self.solcast.update_estimated_actuals()
 
     def __auto_update_setup(self, init: bool = False) -> None:
         """Set up of auto-updates."""
@@ -526,7 +548,23 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             task = asyncio.create_task(self.__forecast_update(force=True, completion="Completed task force_update"))
             self.tasks["forecast_update"] = task.cancel
         else:
-            _LOGGER.warning("Forecast update already requested, ignoring")
+            _LOGGER.warning("Forecast update already in progress, ignoring service action")
+
+    async def service_event_force_update_estimates(self) -> None:
+        """Force the update of estimated actual data when requested by a service call. Ignores API usage/limit counts.
+
+        Raises:
+            ServiceValidationError: Notify Home Assistant that an error has occurred.
+
+        """
+        if self.tasks.get("actuals") is None:
+            if self.solcast.entry_options[GET_ACTUALS]:
+                await self.__update_estimated_actuals_history()
+                await self.solcast.build_actual_data()
+            else:
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="actuals_not_enabled")
+        else:
+            _LOGGER.warning("Estimated actuals update already in progress, ignoring service action")
 
     async def service_event_delete_old_solcast_json_file(self) -> None:
         """Delete the solcast.json file when requested by a service call."""
@@ -541,6 +579,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     async def service_query_forecast_data(self, *args: Any) -> tuple[dict[str, Any], ...]:
         """Return forecast data requested by a service call."""
         return await self.solcast.get_forecast_list(*args)
+
+    async def service_query_estimate_data(self, *args: Any) -> tuple[dict[str, Any], ...]:
+        """Return estimated actual data requested by a service call."""
+        return await self.solcast.get_estimate_list(*args)
 
     def get_solcast_sites(self) -> list[Any]:
         """Return the active solcast sites.

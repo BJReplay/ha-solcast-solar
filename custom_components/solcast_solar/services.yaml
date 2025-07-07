@@ -4,8 +4,12 @@ update_forecasts:
   description: Fetches the forecasts from Solcast
 
 force_update_forecasts:
-  name: Force Update
+  name: Force Update Forecasts
   description: Force fetches the forecasts from Solcast
+
+force_update_estimates:
+  name: Force Update Estimates
+  description: Force fetches estimated actuals from Solcast
 
 clear_all_solcast_data:
   name: Clear saved Solcast site data
@@ -27,6 +31,19 @@ query_forecast_data:
       example: "false"
     site:
       example: "1234-5678-9012-3456"
+
+query_estimate_data:
+  name: Query estimates
+  description: List of estimated actuals between start date/time and end date/time
+  fields:
+    start_date_time:
+      example: "2024-10-06T00:00:00Z"
+      selector:
+        datetime:
+    end_date_time:
+      example: "2024-10-06T10:00:00Z"
+      selector:
+        datetime:
 
 set_dampening:
   name: Set forecasts dampening

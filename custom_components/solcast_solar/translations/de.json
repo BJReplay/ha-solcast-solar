@@ -233,10 +233,6 @@
                 "data": {
                     "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
                     "api_quota": "API-Kontingent (mehrere Werte durch Kommas trennen)",
-                    "auto_update": "Automatische Aktualisierung (wenn keine automatische Aktualisierung vorhanden ist, muss stattdessen eine Automatisierung verwendet werden)",
-                    "customhoursensor": "Nächster X-Stunden-Sensor (min=1, max=144)",
-                    "hard_limit": "Fester Grenzwert des Wechselrichters in kW (siehe Integrationsdokumentation)",
-                    "key_estimate": "Bevorzugte Prognosewahrscheinlichkeit für Sensoren",
                     "attr_brk_estimate10": "Aktivieren Sie die Schätzung von 10 Sensorattributen",
                     "attr_brk_estimate": "Aktivieren Sie die Schätzung von 50 Sensorattributen",
                     "attr_brk_estimate90": "Aktivieren Sie die Schätzung von 90 Sensorattributen",
@@ -244,8 +240,12 @@
                     "attr_brk_halfhourly": "Aktivieren Sie prognostizierte halbstündliche Detailattribute",
                     "attr_brk_hourly": "Aktivieren Sie prognostizierte stündliche Detailattribute",
                     "attr_brk_detailed": "Aktivieren Sie die Site-Aufschlüsselung für halbstündliche/stündliche Detailattribute (diese werden nicht in Datenbankstatusattributen gespeichert)",
+                    "auto_update": "Automatische Aktualisierung (wenn keine automatische Aktualisierung vorhanden ist, muss stattdessen eine Automatisierung verwendet werden)",
                     "config_damp": "Ändern Sie die stündlichen Dämpfungsfaktoren (nachdem Sie auf „Senden“ geklickt haben)",
+                    "customhoursensor": "Nächster X-Stunden-Sensor (min=1, max=144)",
                     "exclude_sites": "Vom Energie-Dashboard und den Sensorgesamtwerten auszuschließende Site(s)",
+                    "hard_limit_api": "Fester Grenzwert des Wechselrichters in kW (siehe Integrationsdokumentation)",
+                    "key_estimate": "Bevorzugte Prognosewahrscheinlichkeit für Sensoren",
                     "site_damp": "Die granulare Dämpfung ist eingestellt: Löschen, um zur stündlichen Gesamtdämpfung zurückzukehren"
                 },
                 "description": "Dein Solcast-API-Kontoschlüssel"
