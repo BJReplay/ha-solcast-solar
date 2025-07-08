@@ -168,12 +168,40 @@ async def _exec_update(
     await hass.async_block_till_done()
 
 
+async def _exec_update_actuals(
+    hass: HomeAssistant,
+    solcast: SolcastApi,
+    caplog: pytest.LogCaptureFixture,
+    action: str,
+    last_update_delta: int = 0,
+    wait: bool = True,
+    wait_exception: Exception | None = None,
+) -> None:
+    """Execute an estimated actuals action and wait for completion."""
+
+    caplog.clear()
+    if last_update_delta == 0:
+        last_updated = dt(year=2020, month=1, day=1, hour=1, minute=1, second=1, tzinfo=datetime.UTC)
+    else:
+        last_updated = solcast._data_actuals["last_updated"] - timedelta(seconds=last_update_delta)  # pyright: ignore[reportPrivateUsage]
+        _LOGGER.info("Mock last updated: %s", last_updated)
+    solcast._data_actuals["last_updated"] = last_updated  # pyright: ignore[reportPrivateUsage]
+    await hass.services.async_call(DOMAIN, action, {}, blocking=True)
+    if wait_exception:
+        await _wait_for_raise(hass, wait_exception)
+    elif wait:
+        await _wait_for_update(caplog)
+        await solcast.tasks_cancel()
+    await hass.async_block_till_done()
+
+
 async def _wait_for_update(caplog: pytest.LogCaptureFixture) -> None:
     """Wait for forecast update completion."""
 
     async with asyncio.timeout(5):
         while (
             "Forecast update completed successfully" not in caplog.text
+            and "Saved estimated actual cache" not in caplog.text
             and "Not requesting a solar forecast" not in caplog.text
             and "aborting forecast update" not in caplog.text
             and "pausing" not in caplog.text
@@ -731,7 +759,7 @@ async def test_integration(
         )
 
 
-async def test_integration_remaining_actions(
+async def test_remaining_actions(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
@@ -1036,7 +1064,7 @@ async def test_integration_remaining_actions(
         assert await async_cleanup_integration_tests(hass)
 
 
-async def test_integration_scenarios(
+async def test_scenarios(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
@@ -1339,6 +1367,79 @@ async def test_integration_scenarios(
         assert "The cached data in solcast.json is corrupt" in caplog.text
         assert "integration not ready yet" in caplog.text
         assert hass.data[DOMAIN].get("presumed_dead", True) is True
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_actuals_and_dampening(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test various integration scenarios."""
+
+    config_dir = hass.config.config_dir
+
+    options = copy.deepcopy(DEFAULT_INPUT1)
+    options[GET_ACTUALS] = True
+    options[USE_ACTUALS] = True
+    entry = await async_init_integration(hass, options)
+    coordinator = entry.runtime_data.coordinator
+    solcast = patch_solcast_api(coordinator.solcast)
+
+    try:
+        # Assert good start, that actuals are enabled, and that the cache is saved
+        _LOGGER.debug("Testing good start happened")
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        _no_exception(caplog)
+        assert Path(f"{config_dir}/solcast-actuals.json").is_file()
+        caplog.clear()
+
+        # Kill the cache, then re-create with a forced update
+        _LOGGER.debug("Testing force update actuals")
+        Path(f"{config_dir}/solcast-dampening.json").unlink(missing_ok=True)  # Remove dampening file
+        await _exec_update_actuals(hass, solcast, caplog, "force_update_estimates")
+        assert Path(f"{config_dir}/solcast-actuals.json").is_file()
+
+        # Retrieve actuals data
+        queries: list[dict[str, Any]] = [
+            {
+                "query": {
+                    EVENT_START_DATETIME: solcast.get_day_start_utc(future=-1).isoformat(),
+                    EVENT_END_DATETIME: solcast.get_day_start_utc().isoformat(),
+                },
+                "expect": 48,
+            },
+            {
+                "query": {},
+                "expect": 48,
+            },
+        ]
+        for query in queries:
+            _LOGGER.debug("Testing query estimated data: %s", query["query"])
+            estimate_data = await hass.services.async_call(
+                DOMAIN,
+                "query_estimate_data",
+                query["query"],
+                blocking=True,
+                return_response=True,
+            )
+            assert len(estimate_data.get("data", [])) == query["expect"]  # type: ignore[arg-type, union-attr]
+
+        # Test invalid query range
+        _LOGGER.debug("Testing invalid estimated actual query range")
+        with pytest.raises(ServiceValidationError):
+            estimate_data = await hass.services.async_call(
+                DOMAIN,
+                "query_estimate_data",
+                {
+                    EVENT_START_DATETIME: solcast.get_day_start_utc(future=-50).isoformat(),
+                    EVENT_END_DATETIME: solcast.get_day_start_utc(future=-40).isoformat(),
+                },
+                blocking=True,
+                return_response=True,
+            )
 
     finally:
         assert await async_cleanup_integration_tests(hass)
