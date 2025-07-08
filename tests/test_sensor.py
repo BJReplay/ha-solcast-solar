@@ -511,7 +511,7 @@ async def test_sensor_states(  # noqa: C901
         caplog.clear()
         coordinator._last_day = (dt.now(solcast.options.tz) - timedelta(days=1)).day  # pyright: ignore[reportPrivateUsage]
         await coordinator.update_integration_listeners()
-        assert "Date has changed, recalculate splines and set up auto-updates" in caplog.text
+        assert "Date has changed, recalculating splines" in caplog.text
         assert "Previous auto update would have been" in caplog.text
         assert "Auto forecast updates for" in caplog.text
 

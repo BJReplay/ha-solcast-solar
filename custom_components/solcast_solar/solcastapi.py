@@ -2484,7 +2484,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 reversals += 1
                 up = True
             last = actual
-        _LOGGER.debug("Auto-dampen: Identified good days: %s", [good_day.strftime(DATE_ONLY_FORMAT) for good_day in good_days])
+        _LOGGER.debug("Auto-dampen: Identified good days: %s", ", ".join([good_day.strftime(DATE_ONLY_FORMAT) for good_day in good_days]))
 
         # Convert estimated actual intervals to kWh.
         for period_start, actual in actuals.items():
@@ -2852,9 +2852,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def sort_and_prune(self, site: str | None, data: dict[str, Any], past_days: int, forecasts: dict[Any, Any]):
         """Sort and prune a forecast list."""
 
-        if site is None:
-            _LOGGER.error("Site is None in sort_and_prune()")
-            return
         _past_days = self.get_day_start_utc(future=past_days * -1)
         _forecasts: list[dict[str, Any]] = sorted(
             filter(

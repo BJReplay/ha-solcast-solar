@@ -530,7 +530,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             task = asyncio.create_task(self.__forecast_update(**update_kwargs))
             self.tasks["forecast_update"] = task.cancel
         else:
-            _LOGGER.warning("Forecast update already requested, ignoring")
+            _LOGGER.warning("Forecast update already in progress, ignoring")
 
     async def service_event_force_update(self) -> None:
         """Force the update of forecast data when requested by a service call. Ignores API usage/limit counts.

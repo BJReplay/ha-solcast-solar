@@ -21,6 +21,7 @@ from homeassistant.components.solcast_solar.config_flow import (
 )
 from homeassistant.components.solcast_solar.const import (
     API_QUOTA,
+    AUTO_DAMPEN,
     AUTO_UPDATE,
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
@@ -32,11 +33,16 @@ from homeassistant.components.solcast_solar.const import (
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
     EXCLUDE_SITES,
+    GENERATION_ENTITIES,
+    GET_ACTUALS,
     HARD_LIMIT,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE_DAMP,
+    SITE_EXPORT_ENTITY,
+    SITE_EXPORT_LIMIT,
     TITLE,
+    USE_ACTUALS,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SitesStatus, SolcastApi
@@ -496,7 +502,8 @@ async def test_options_api_key_invalid(hass: HomeAssistant) -> None:
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
 
-    options = DEFAULT_INPUT1
+    options = DEFAULT_INPUT1.copy()
+    options[SITE_EXPORT_ENTITY] = [options[SITE_EXPORT_ENTITY]]
 
     inject = {CONF_API_KEY: "555"}
     result = await flow.async_step_init({**options, **inject})
@@ -567,6 +574,7 @@ async def test_options_hard_limit(hass: HomeAssistant, options: dict[str, Any], 
     flow.hass = hass
     user_input = copy.deepcopy(options)
     user_input[HARD_LIMIT_API] = value
+    user_input[SITE_EXPORT_ENTITY] = []
     result = await flow.async_step_init(user_input)
     if reason is not None:
         assert result["errors"]["base"] == reason  # type: ignore[index]
@@ -577,6 +585,7 @@ async def test_step_to_dampen(hass: HomeAssistant) -> None:
 
     user_input = copy.deepcopy(DEFAULT_INPUT1)
     user_input[CONFIG_DAMP] = True
+    user_input[SITE_EXPORT_ENTITY] = []
 
     entry = MockConfigEntry(domain=DOMAIN, data={}, options=user_input)
     flow = SolcastSolarOptionFlowHandler(entry)
@@ -630,7 +639,7 @@ async def test_entry_options_upgrade(
     """Test that entry options are upgraded as expected."""
 
     START_VERSION = 3
-    FINAL_VERSION = 15
+    FINAL_VERSION = 17
     V3OPTIONS: dict[str, Any] = {
         CONF_API_KEY: "1",
         "const_disableautopoll": False,
@@ -668,6 +677,13 @@ async def test_entry_options_upgrade(
         assert entry.options.get(HARD_LIMIT_API) == "100.0"
         # V15
         assert entry.options.get(EXCLUDE_SITES) == []
+        # V17
+        assert entry.options.get(SITE_EXPORT_ENTITY) == ""
+        assert entry.options.get(GET_ACTUALS) is False
+        assert entry.options.get(USE_ACTUALS) is False
+        assert entry.options.get(GENERATION_ENTITIES) == []
+        assert entry.options.get(SITE_EXPORT_LIMIT) == 0.0
+        assert entry.options.get(AUTO_DAMPEN) is False
 
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
@@ -703,7 +719,7 @@ async def test_presumed_dead_and_full_flow(
         caplog.clear()
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
-        option = {BRK_ESTIMATE: False}
+        option = {BRK_ESTIMATE: False, SITE_EXPORT_ENTITY: []}
         user_input = DEFAULT_INPUT1_NO_DAMP | option
         hass.data[DOMAIN]["presumed_dead"] = True
 
@@ -724,7 +740,7 @@ async def test_presumed_dead_and_full_flow(
         await hass.async_block_till_done()
 
         # Test dampening step can  be reached
-        option = {CONFIG_DAMP: True}
+        option = {CONFIG_DAMP: True, SITE_EXPORT_ENTITY: []}
         user_input = DEFAULT_INPUT1_NO_DAMP | option
 
         result = await hass.config_entries.options.async_init(entry.entry_id)

@@ -21,6 +21,7 @@ from voluptuous.error import MultipleInvalid
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
     API_QUOTA,
+    AUTO_DAMPEN,
     AUTO_UPDATE,
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
@@ -34,10 +35,15 @@ from homeassistant.components.solcast_solar.const import (
     EVENT_END_DATETIME,
     EVENT_START_DATETIME,
     EXCLUDE_SITES,
+    GENERATION_ENTITIES,
+    GET_ACTUALS,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE,
+    SITE_EXPORT_ENTITY,
+    SITE_EXPORT_LIMIT,
     UNDAMPENED,
+    USE_ACTUALS,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import (
@@ -78,8 +84,10 @@ _LOGGER = logging.getLogger(__name__)
 
 ACTIONS = [
     "clear_all_solcast_data",
+    "force_update_estimates",
     "force_update_forecasts",
     "get_dampening",
+    "query_estimate_data",
     "query_forecast_data",
     "remove_hard_limit",
     "set_dampening",
@@ -181,7 +189,7 @@ async def _wait_for_abort(caplog: pytest.LogCaptureFixture) -> None:
 
     async with asyncio.timeout(5):
         while (
-            "Forecast update aborted" not in caplog.text and "Forecast update already requested, ignoring" not in caplog.text
+            "Forecast update aborted" not in caplog.text and "Forecast update already in progress, ignoring" not in caplog.text
         ):  # Wait for task to abort
             await asyncio.sleep(0.01)
 
@@ -1066,6 +1074,12 @@ async def test_integration_scenarios(
                 DEFAULT_INPUT1[BRK_HOURLY],
                 DEFAULT_INPUT1[BRK_SITE_DETAILED],
                 DEFAULT_INPUT1[EXCLUDE_SITES],
+                DEFAULT_INPUT1[GET_ACTUALS],
+                DEFAULT_INPUT1[USE_ACTUALS],
+                DEFAULT_INPUT1[GENERATION_ENTITIES],
+                DEFAULT_INPUT1[SITE_EXPORT_ENTITY],
+                DEFAULT_INPUT1[SITE_EXPORT_LIMIT],
+                DEFAULT_INPUT1[AUTO_DAMPEN],
             )
             solcast_bad: SolcastApi = SolcastApi(session, connection_options, hass, entry)
             await solcast_bad.serialise_data(solcast_bad._data, str(Path(f"{config_dir}/solcast.json")))  # pyright: ignore[reportPrivateUsage]
@@ -1204,13 +1218,13 @@ async def test_integration_scenarios(
 
         # Excluding site
         _LOGGER.debug("Testing site exclusion")
-        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "39.888"  # type: ignore[union-attr]
+        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "38.3976"  # type: ignore[union-attr]
         opt = {**entry.options}
         opt[EXCLUDE_SITES] = ["2222-2222-2222-2222"]
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         assert "Recalculate forecasts and refresh sensors" in caplog.text
-        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "24.93"  # type: ignore[union-attr]
+        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "23.9985"  # type: ignore[union-attr]
 
         # Test API key change, start with an API failure and invalid sites cache
         # Verify API key change removes sites, and migrates undampened history for new site

@@ -14,6 +14,7 @@ from yarl import URL
 from homeassistant.components.solcast_solar import const
 from homeassistant.components.solcast_solar.const import (
     API_QUOTA,
+    AUTO_DAMPEN,
     AUTO_UPDATE,
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
@@ -26,9 +27,14 @@ from homeassistant.components.solcast_solar.const import (
     CUSTOM_HOUR_SENSOR,
     DOMAIN,
     EXCLUDE_SITES,
+    GENERATION_ENTITIES,
+    GET_ACTUALS,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SITE_DAMP,
+    SITE_EXPORT_ENTITY,
+    SITE_EXPORT_LIMIT,
+    USE_ACTUALS,
 )
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -58,6 +64,12 @@ DEFAULT_INPUT1_NO_DAMP: dict[str, Any] = {
     BRK_HOURLY: False,
     BRK_SITE_DETAILED: False,
     EXCLUDE_SITES: [],
+    AUTO_DAMPEN: False,
+    GET_ACTUALS: False,
+    USE_ACTUALS: False,
+    GENERATION_ENTITIES: [],
+    SITE_EXPORT_ENTITY: "",
+    SITE_EXPORT_LIMIT: 0.0,
 }
 
 BAD_INPUT = copy.deepcopy(DEFAULT_INPUT1_NO_DAMP)
