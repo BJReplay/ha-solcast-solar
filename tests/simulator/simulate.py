@@ -181,10 +181,11 @@ TIMEZONE = ZoneInfo("Australia/Melbourne")
 class SimulatedSolcast:
     """Simulated Solcast API."""
 
+    modified_actuals: bool = False
+
     def __init__(self) -> None:
         """Initialize the API."""
         self.timezone: ZoneInfo = TIMEZONE
-        self.cached_actuals: dict[str, Any] = {}
         self.cached_forecasts: dict[str, Any] = {}
 
     def raw_get_sites(self, api_key: str) -> dict[str, Any] | None:
@@ -213,24 +214,19 @@ class SimulatedSolcast:
             return {}
         period_end = self.get_period(dt.now(datetime.UTC), timedelta(hours=hours) * -1) if period_end is None else period_end
 
-        lookup = f"{api_key} {site_id} {hours} {period_end}"
-        if cached := self.cached_actuals.get(lookup):
-            return cached
-
-        self.cached_actuals[lookup] = {
+        return {
             "estimated_actuals": [
                 {
                     "period_end": (period_end + timedelta(minutes=minute * 30)).isoformat(),
                     "period": "PT30M",
-                    prefix: self.__pv_interval(site["capacity"], FORECAST, period_end, minute, modified=True),
+                    prefix: self.__pv_interval(site["capacity"], FORECAST, period_end, minute, modified=self.modified_actuals),
                     # The Solcast API does not return these values, but the simulator does
-                    prefix + "10": self.__pv_interval(site["capacity"], FORECAST_10, period_end, minute, modified=True),
-                    prefix + "90": self.__pv_interval(site["capacity"], FORECAST_90, period_end, minute, modified=True),
+                    prefix + "10": self.__pv_interval(site["capacity"], FORECAST_10, period_end, minute, modified=self.modified_actuals),
+                    prefix + "90": self.__pv_interval(site["capacity"], FORECAST_90, period_end, minute, modified=self.modified_actuals),
                 }
                 for minute in range((hours + 1) * 2)
             ],
         }
-        return self.cached_actuals[lookup]
 
     def raw_get_site_forecasts(
         self, site_id: str, api_key: str, hours: int, prefix: str = "pv_estimate"

@@ -274,8 +274,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             self.__auto_update_setup()
 
             if self.solcast.options.get_actuals:
-                await self.__update_estimated_actuals_history()
-                await self.solcast.build_actual_data()
+                await self.service_event_force_update_estimates()
 
             if self.solcast.options.generation_entities:
                 await self.solcast.get_pv_generation()
@@ -360,7 +359,11 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     async def __update_estimated_actuals_history(self) -> None:
         """Update estimated actuals using the API."""
+        _LOGGER.debug("Started task actuals")
         await self.solcast.update_estimated_actuals()
+        await self.solcast.build_actual_data()
+        _LOGGER.debug("Completed task actuals")
+        self.tasks.pop("actuals", None)
 
     def __auto_update_setup(self, init: bool = False) -> None:
         """Set up of auto-updates."""
@@ -506,6 +509,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             with contextlib.suppress(Exception):
                 # Clean up a task created by a service call action
                 self.tasks.pop("forecast_update")
+                await self.solcast.build_actual_data()
 
     async def service_event_update(self, **kwargs: dict[str, Any]) -> None:
         """Get updated forecast data when requested by a service call.
@@ -559,9 +563,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """
         if self.tasks.get("actuals") is None:
             if self.solcast.entry_options[GET_ACTUALS]:
-                await self.__update_estimated_actuals_history()
-                await self.solcast.build_actual_data()
+                task = asyncio.create_task(self.__update_estimated_actuals_history())
+                self.tasks["actuals"] = task.cancel
             else:
+                _LOGGER.debug("Estimated actuals not enabled, ignoring service action")
                 raise ServiceValidationError(translation_domain=DOMAIN, translation_key="actuals_not_enabled")
         else:
             _LOGGER.warning("Estimated actuals update already in progress, ignoring service action")

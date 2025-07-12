@@ -117,7 +117,7 @@
     },
     "exceptions": {
         "actuals_not_enabled": {
-            "message":"Estimated actuals acquisition is not enabled"
+            "message": "Estimated actuals acquisition is not enabled"
         },
         "auto_use_force": {
             "message": "Auto-update is enabled, ignoring service event for forecast update, use Force Update instead."

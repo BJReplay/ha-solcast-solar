@@ -62,6 +62,7 @@ from . import (
     DEFAULT_INPUT1,
     DEFAULT_INPUT2,
     DEFAULT_INPUT_NO_SITES,
+    MOCK_ALTER_HISTORY,
     MOCK_BAD_REQUEST,
     MOCK_BUSY,
     MOCK_BUSY_UNEXPECTED,
@@ -1246,13 +1247,13 @@ async def test_scenarios(
 
         # Excluding site
         _LOGGER.debug("Testing site exclusion")
-        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "38.3976"  # type: ignore[union-attr]
+        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "39.888"  # type: ignore[union-attr]
         opt = {**entry.options}
         opt[EXCLUDE_SITES] = ["2222-2222-2222-2222"]
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         assert "Recalculate forecasts and refresh sensors" in caplog.text
-        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "23.9985"  # type: ignore[union-attr]
+        assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "24.93"  # type: ignore[union-attr]
 
         # Test API key change, start with an API failure and invalid sites cache
         # Verify API key change removes sites, and migrates undampened history for new site
@@ -1372,7 +1373,7 @@ async def test_scenarios(
         assert await async_cleanup_integration_tests(hass)
 
 
-async def test_actuals_and_dampening(
+async def test_estimated_actuals(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
@@ -1440,6 +1441,82 @@ async def test_actuals_and_dampening(
                 blocking=True,
                 return_response=True,
             )
+
+        # Switch between not using estimated actuals and using
+        _LOGGER.debug("Testing switch between using and not using estimated actuals")
+        caplog.clear()
+        opt = {**entry.options}
+        opt[USE_ACTUALS] = False
+        hass.config_entries.async_update_entry(entry, options=opt)
+        await hass.async_block_till_done()
+        assert "Recalculate forecasts and refresh sensors" in caplog.text
+        energy_dashboard = solcast.get_energy_data()
+        if energy_dashboard is None:
+            pytest.fail("Energy dashboard data is None")
+        else:
+            assert energy_dashboard["wh_hours"][(solcast.get_day_start_utc() - timedelta(hours=8)).isoformat()] == 936.0  # pyright: ignore[reportPrivateUsage]
+
+        session_set(MOCK_ALTER_HISTORY)
+        await _exec_update_actuals(hass, solcast, caplog, "force_update_estimates")
+        caplog.clear()
+        opt = {**entry.options}
+        opt[USE_ACTUALS] = True
+        hass.config_entries.async_update_entry(entry, options=opt)
+        await hass.async_block_till_done()
+        assert "Recalculate forecasts and refresh sensors" in caplog.text
+        energy_dashboard = solcast.get_energy_data()
+        session_clear(MOCK_ALTER_HISTORY)
+        if energy_dashboard is None:
+            pytest.fail("Energy dashboard data is None")
+        else:
+            assert energy_dashboard["wh_hours"][(solcast.get_day_start_utc() - timedelta(hours=8)).isoformat()] == 374.0  # pyright: ignore[reportPrivateUsage]
+
+        _LOGGER.debug("Testing get actuals abort if already in progress")
+        caplog.clear()
+        await _exec_update_actuals(hass, solcast, caplog, "force_update_estimates", wait=False)
+        await _exec_update_actuals(hass, solcast, caplog, "force_update_estimates", wait=False)
+        await _wait_for_update(caplog)
+        assert "update already in progress" in caplog.text
+
+        _LOGGER.debug("Testing get actuals when not using actuals")
+        opt = {**entry.options}
+        opt[GET_ACTUALS] = False
+        opt[USE_ACTUALS] = False
+        hass.config_entries.async_update_entry(entry, options=opt)
+        await hass.async_block_till_done()
+        caplog.clear()
+        with pytest.raises(ServiceValidationError):
+            await _exec_update_actuals(hass, solcast, caplog, "force_update_estimates")
+        assert "Estimated actuals not enabled" in caplog.text
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_auto_dampen(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test various integration scenarios."""
+
+    config_dir = hass.config.config_dir
+
+    options = copy.deepcopy(DEFAULT_INPUT1)
+    options[GET_ACTUALS] = True
+    options[USE_ACTUALS] = True
+    options[AUTO_DAMPEN] = True
+    entry = await async_init_integration(hass, options)
+    coordinator = entry.runtime_data.coordinator
+    solcast = patch_solcast_api(coordinator.solcast)
+
+    try:
+        # Assert good start, that actuals are enabled, and that the cache is saved
+        _LOGGER.debug("Testing good start happened")
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        _no_exception(caplog)
+        assert Path(f"{config_dir}/solcast-actuals.json").is_file()
+        caplog.clear()
 
     finally:
         assert await async_cleanup_integration_tests(hass)

@@ -2432,6 +2432,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for site in self.sites:
             if site["resource_id"] in self.options.exclude_sites:
                 continue
+            if len(self._data_generation["generation"]) == 0:
+                _LOGGER.error("Internal error: No generation data available, aborting model_automated_dampening()")
+                return
             start, end = self.__get_list_slice(
                 self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"],
                 self._data_generation["generation"][0]["period_start"],
@@ -2530,7 +2533,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         dampening[interval] = factor
 
         if dampening != self.granular_dampening["all"]:
-            self.granular_dampening["all"] = dampening
             current_mtime = self.granular_dampening_mtime
             await self.serialise_granular_dampening()
             self.granular_dampening_mtime = current_mtime

@@ -124,6 +124,7 @@ STATUS_429_UNEXPECTED: dict[str, Any] = {
     }
 }
 
+MOCK_ALTER_HISTORY = "alter_history"
 MOCK_BAD_REQUEST = "return_400"
 MOCK_BUSY = "return_429"
 MOCK_BUSY_SITE = "return_429_for_site"
@@ -140,6 +141,7 @@ MOCK_SESSION_CONFIG: dict[str, Any] = {
     "aioresponses": None,
     "api_limit": int(min(DEFAULT_INPUT2[API_QUOTA].split(","))),
     "api_used": {api_key: 0 for api_key in DEFAULT_INPUT2[CONF_API_KEY].split(",")},
+    MOCK_ALTER_HISTORY: False,
     MOCK_BAD_REQUEST: False,
     MOCK_BUSY: False,
     MOCK_BUSY_SITE: None,
@@ -221,6 +223,10 @@ async def _get_forecasts(url: str, **kwargs: Any) -> CallbackResult:
 async def _get_actuals(url: str, **kwargs: Any) -> CallbackResult:
     if MOCK_SESSION_CONFIG[MOCK_CORRUPT_ACTUALS]:
         return CallbackResult(body="Not available, a string response")
+    if kwargs.get("params") is None:
+        _LOGGER.error("No params found in kwargs: %s", kwargs)
+        return CallbackResult(status=500, body="No params found")
+    simulated.modified_actuals = MOCK_SESSION_CONFIG[MOCK_ALTER_HISTORY]
     return await _get_solcast(url, simulated.raw_get_site_estimated_actuals, **kwargs)
 
 
