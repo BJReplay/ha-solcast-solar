@@ -74,6 +74,22 @@ class Api(Enum):
     ADVANCED = 1
 
 
+class AutoUpdate(int, Enum):
+    """The type of history data."""
+
+    NONE = 0
+    DAYLIGHT = 1
+    ALL_DAY = 2
+
+
+class HistoryType(int, Enum):
+    """The type of history data."""
+
+    FORECASTS = 0
+    ESTIMATED_ACTUALS = 1
+    ESTIMATED_ACTUALS_ADJUSTED = 2
+
+
 class DateTimeEncoder(json.JSONEncoder):
     """Helper to convert datetime dict values to ISO format."""
 

@@ -181,7 +181,7 @@ TIMEZONE = ZoneInfo("Australia/Melbourne")
 class SimulatedSolcast:
     """Simulated Solcast API."""
 
-    modified_actuals: bool = False
+    modified_actuals: bool = True
 
     def __init__(self) -> None:
         """Initialize the API."""

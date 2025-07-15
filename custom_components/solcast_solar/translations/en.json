@@ -290,7 +290,7 @@
                     "site_damp": "Granular dampening is set: Clear to revert to overall hourly dampening",
                     "site_export_entity": "Optional site export entity for automated dampening (kWh, total increasing)",
                     "site_export_limit": "Site export limit if site export is specified (kW)",
-                    "use_actuals": "Show estimated actual history on Energy dashboard (not forecast history)"
+                    "use_actuals": "Forecast history to show on the Energy dashboard"
                 },
                 "description": "Solcast configuration options"
             }
@@ -302,6 +302,13 @@
                 "0": "No automatic update of forecasts",
                 "1": "Automatic update of forecasts from sunrise to sunset",
                 "2": "Automatic update of forecasts over 24 hours"
+            }
+        },
+        "energy_history": {
+            "options": {
+                "0": "Forecasts",
+                "1": "Estimated actuals",
+                "2": "Auto-dampened estimated actuals"
             }
         },
         "key_estimate": {

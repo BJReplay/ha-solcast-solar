@@ -61,7 +61,7 @@ from .const import (
     USE_ACTUALS,
 )
 from .solcastapi import ConnectionOptions, SolcastApi
-from .util import SitesStatus
+from .util import HistoryType, SitesStatus
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -341,7 +341,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     BRK_SITE_DETAILED: False,
                     EXCLUDE_SITES: [],
                     GET_ACTUALS: False,
-                    USE_ACTUALS: False,
+                    USE_ACTUALS: HistoryType.FORECASTS,
                     GENERATION_ENTITIES: [],
                     SITE_EXPORT_ENTITY: "",
                     SITE_EXPORT_LIMIT: 0.0,
@@ -398,7 +398,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             self.hass.data[DOMAIN].pop("presumed_dead")
             await self.hass.config_entries.async_reload(self._entry.entry_id)
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:  # noqa: C901
         """Initialise main options flow step.
 
         Arguments:
@@ -427,7 +427,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                         _LOGGER.debug("API key validation failed: %s", abort)
 
                 if not errors:
-                    # Validate the custom hours sensor
+                    # Validate the custom hours sensor.
                     custom_hour_sensor = user_input[CUSTOM_HOUR_SENSOR]
                     if custom_hour_sensor < 1 or custom_hour_sensor > 144:
                         errors["base"] = "custom_invalid"
@@ -436,7 +436,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                         all_config_data[CUSTOM_HOUR_SENSOR] = custom_hour_sensor
 
                 if not errors:
-                    # Validate the hard limit
+                    # Validate the hard limit.
                     hard_limit = user_input[HARD_LIMIT_API]
                     if hard_limit == "0":  # Hard limit can be disabled by setting to zero or 100
                         hard_limit = "100.0"
@@ -457,14 +457,18 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                         hard_limit = ",".join(to_set)
                         all_config_data[HARD_LIMIT_API] = hard_limit
 
-                # Validate estimated actuals and auto-dampen
+                # Validate estimated actuals and auto-dampen.
+                all_config_data[GET_ACTUALS] = user_input[GET_ACTUALS]
+                all_config_data[USE_ACTUALS] = int(user_input[USE_ACTUALS])
+                all_config_data[GENERATION_ENTITIES] = user_input.get(GENERATION_ENTITIES, [])
+                all_config_data[AUTO_DAMPEN] = user_input[AUTO_DAMPEN]
+                all_config_data[SITE_EXPORT_ENTITY] = user_input[SITE_EXPORT_ENTITY][0] if user_input[SITE_EXPORT_ENTITY] else ""
+                all_config_data[SITE_EXPORT_LIMIT] = user_input[SITE_EXPORT_LIMIT]
                 if not errors:
-                    if user_input[USE_ACTUALS] and not user_input[GET_ACTUALS]:
-                        errors["base"] = "actuals_aithout_get"
+                    if int(user_input[USE_ACTUALS]) != HistoryType.FORECASTS and not user_input[GET_ACTUALS]:
+                        errors["base"] = "actuals_without_get"
                         _LOGGER.debug("API key validation failed: %s", errors["base"])
                 if not errors:
-                    all_config_data[GET_ACTUALS] = user_input[GET_ACTUALS]
-                    all_config_data[USE_ACTUALS] = user_input[USE_ACTUALS]
                     if user_input[AUTO_DAMPEN] and not user_input[GET_ACTUALS]:
                         errors["base"] = "dampen_without_actuals"
                         _LOGGER.debug("API key validation failed: %s", errors["base"])
@@ -473,23 +477,18 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                         errors["base"] = "dampen_without_generation"
                         _LOGGER.debug("API key validation failed: %s", errors["base"])
                 if not errors:
-                    all_config_data[GENERATION_ENTITIES] = user_input.get(GENERATION_ENTITIES, [])
-                    all_config_data[AUTO_DAMPEN] = user_input[AUTO_DAMPEN]
                     if user_input[SITE_EXPORT_ENTITY] != [] and len(user_input[SITE_EXPORT_ENTITY]) > 1:
                         errors["base"] = "export_multiple_entities"
                         _LOGGER.debug("API key validation failed: %s", errors["base"])
                 if not errors:
-                    all_config_data[SITE_EXPORT_ENTITY] = user_input[SITE_EXPORT_ENTITY][0] if user_input[SITE_EXPORT_ENTITY] else ""
                     if user_input[SITE_EXPORT_LIMIT] > 0.0 and len(user_input[SITE_EXPORT_ENTITY]) == 0:
                         errors["base"] = "export_no_entity"
                         _LOGGER.debug("API key validation failed: %s", errors["base"])
-                if not errors:
-                    all_config_data[SITE_EXPORT_LIMIT] = user_input[SITE_EXPORT_LIMIT]
 
                 self._options = MappingProxyType(all_config_data)
 
                 if not errors:
-                    # Disable granular dampening
+                    # Disable granular dampening if requested.
                     if user_input.get(SITE_DAMP) is not None:
                         all_config_data[SITE_DAMP] = user_input[SITE_DAMP]
 
@@ -527,6 +526,12 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             SelectOptionDict(label="none", value="0"),
             SelectOptionDict(label="sunrise_sunset", value="1"),
             SelectOptionDict(label="all_day", value="2"),
+        ]
+
+        history: list[SelectOptionDict] = [
+            SelectOptionDict(label="forecasts", value="0"),
+            SelectOptionDict(label="actuals", value="1"),
+            SelectOptionDict(label="adjusted_actuals", value="2"),
         ]
 
         forecasts: list[SelectOptionDict] = [
@@ -575,7 +580,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                         SelectSelectorConfig(options=exclude, mode=SelectSelectorMode.DROPDOWN, multiple=True)
                     ),
                     vol.Optional(GET_ACTUALS, default=self._options[GET_ACTUALS]): bool,
-                    vol.Optional(USE_ACTUALS, default=self._options[USE_ACTUALS]): bool,
+                    # vol.Optional(USE_ACTUALS, default=self._options[USE_ACTUALS]): bool,
                     vol.Optional(AUTO_DAMPEN, default=self._options[AUTO_DAMPEN]): bool,
                     vol.Optional(GENERATION_ENTITIES, default=self._options.get(GENERATION_ENTITIES, [])): SelectSelector(
                         SelectSelectorConfig(options=sensors, mode=SelectSelectorMode.DROPDOWN, multiple=True)
@@ -587,6 +592,9 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                         SITE_EXPORT_LIMIT,
                         default=self._options.get(SITE_EXPORT_LIMIT, 0.0),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=100.0)),
+                    vol.Required(USE_ACTUALS, default=str(int(self._options[USE_ACTUALS]))): SelectSelector(
+                        SelectSelectorConfig(options=history, mode=SelectSelectorMode.DROPDOWN, translation_key="energy_history")
+                    ),
                     (
                         vol.Optional(CONFIG_DAMP, default=False)
                         if not self._options[SITE_DAMP]

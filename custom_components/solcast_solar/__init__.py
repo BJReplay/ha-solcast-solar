@@ -75,7 +75,14 @@ from .const import (
 )
 from .coordinator import SolcastUpdateCoordinator
 from .solcastapi import ConnectionOptions, SolcastApi
-from .util import SitesStatus, SolcastApiStatus, SolcastData, UsageStatus
+from .util import (
+    AutoUpdate,
+    HistoryType,
+    SitesStatus,
+    SolcastApiStatus,
+    SolcastData,
+    UsageStatus,
+)
 
 PLATFORMS: Final = [
     Platform.SELECT,
@@ -158,7 +165,7 @@ async def __get_options(hass: HomeAssistant, entry: ConfigEntry) -> ConnectionOp
         SOLCAST_URL,
         hass.config.path(f"{hass.config.config_dir}/solcast.json"),
         await __get_time_zone(hass),
-        entry.options.get(AUTO_UPDATE, 0),
+        entry.options.get(AUTO_UPDATE, AutoUpdate.NONE),
         dampening_option,
         entry.options.get(CUSTOM_HOUR_SENSOR, 1),
         entry.options.get(KEY_ESTIMATE, "estimate"),
@@ -172,7 +179,7 @@ async def __get_options(hass: HomeAssistant, entry: ConfigEntry) -> ConnectionOp
         entry.options.get(BRK_SITE_DETAILED, False),
         entry.options.get(EXCLUDE_SITES, []),
         entry.options.get(GET_ACTUALS, False),
-        entry.options.get(USE_ACTUALS, False),
+        entry.options.get(USE_ACTUALS, HistoryType.FORECASTS),
         entry.options.get(GENERATION_ENTITIES, []),
         entry.options.get(SITE_EXPORT_ENTITY, ""),
         entry.options.get(SITE_EXPORT_LIMIT, 0.0),
@@ -258,7 +265,7 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator) -> bool:
 async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> bool:
     """Check whether an auto-update has been missed, and if so update forecast."""
     stale = False
-    if coordinator.solcast.options.auto_update > 0:
+    if coordinator.solcast.options.auto_update != AutoUpdate.NONE:
         auto_updated = coordinator.solcast.get_data()["auto_updated"]
         if auto_updated == 99999 or auto_updated != coordinator.divisions:  # Cannot determine freshness
             _LOGGER.debug("Cannot determine freshness of auto-update forecast (last update forced, or configuration changed)")
@@ -868,7 +875,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     v13:            Unlucky for some, skipped
     v14: (4.2.4)    Hard limit adjustable by Solcast account
     v15: (4.3.3)    Exclude sites from core forecast
-    v17: (4.3.7)    Auto-dampen
+    v18: (4.3.7)    Auto-dampen
 
     An upgrade of the integration will sequentially upgrade options to the current
     version, with this function needing to consider all upgrade history and new defaults.
@@ -946,7 +953,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         new_options[API_QUOTA] = default
 
     async def __v12(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
-        new_options[AUTO_UPDATE] = int(new_options.get(AUTO_UPDATE, 0))
+        new_options[AUTO_UPDATE] = int(new_options.get(AUTO_UPDATE, AutoUpdate.NONE))
         new_options[BRK_SITE_DETAILED] = False
         if new_options.get(HARD_LIMIT) is None:  # May already exist.
             new_options[HARD_LIMIT] = 100000
@@ -960,9 +967,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     async def __v15(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
         new_options[EXCLUDE_SITES] = []
 
-    async def __v17(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
+    async def __v18(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
         new_options[GET_ACTUALS] = False
-        new_options[USE_ACTUALS] = False
+        new_options[USE_ACTUALS] = HistoryType.FORECASTS
         new_options[AUTO_DAMPEN] = False
         new_options[GENERATION_ENTITIES] = []
         new_options[SITE_EXPORT_ENTITY] = ""
@@ -978,7 +985,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         {"version": 12, "function": __v12},
         {"version": 14, "function": __v14},
         {"version": 15, "function": __v15},
-        {"version": 17, "function": __v17},
+        {"version": 18, "function": __v18},
     ]
     for upgrade in upgrades:
         if entry.version < upgrade["version"]:

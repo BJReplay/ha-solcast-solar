@@ -32,6 +32,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import DATE_FORMAT, DOMAIN, GET_ACTUALS, SITE_DAMP, TIME_FORMAT
 from .solcastapi import SolcastApi
+from .util import AutoUpdate
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -265,7 +266,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         if self._date_changed:
             _LOGGER.debug(
                 "Date has changed, recalculating splines, %ssetting up auto-updates%s%s",
-                "not " if self.solcast.options.auto_update == 0 else "",
+                "not " if self.solcast.options.auto_update == AutoUpdate.NONE else "",
                 ", updating estimated actuals" if self.solcast.options.get_actuals else "",
                 " and generation data" if self.solcast.options.generation_entities else "",
             )
@@ -316,7 +317,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
     async def __check_forecast_fetch(self, _: dt | None = None) -> None:
         """Check for an auto forecast update event."""
-        if self.solcast.options.auto_update:
+        if self.solcast.options.auto_update != AutoUpdate.NONE:
             if len(self._intervals) > 0:
                 _now = self.solcast.get_real_now_utc().replace(microsecond=0)
                 _from = _now.replace(minute=int(_now.minute / 5) * 5, second=0)
@@ -368,10 +369,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     def __auto_update_setup(self, init: bool = False) -> None:
         """Set up of auto-updates."""
         match self.solcast.options.auto_update:
-            case 1:
+            case AutoUpdate.DAYLIGHT:
                 self.__get_sun_rise_set()
                 self.__calculate_forecast_updates(init=init)
-            case 2:
+            case AutoUpdate.ALL_DAY:
                 self._sunrise_yesterday = self.solcast.get_day_start_utc(future=-1)
                 self._sunset_yesterday = self.solcast.get_day_start_utc()
                 self._sunrise = self._sunset_yesterday
@@ -431,7 +432,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 if init:
                     _LOGGER.debug(
                         "Auto update forecasts %s",
-                        "over 24 hours" if self.solcast.options.auto_update > 1 else "between sunrise and sunset",
+                        "over 24 hours" if self.solcast.options.auto_update == AutoUpdate.ALL_DAY else "between sunrise and sunset",
                     )
             if sunrise == self._sunrise:
                 just_passed = "Unknown"
@@ -478,7 +479,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             "failure_count_today": self.solcast.get_failures_last_24h(),
             "failure_count_7_day": self.solcast.get_failures_last_7d(),
         }
-        if self.solcast.options.auto_update > 0:
+        if self.solcast.options.auto_update != AutoUpdate.NONE:
             return base | {
                 "next_auto_update": self._intervals[0],
                 "auto_update_divisions": self.divisions,
@@ -525,7 +526,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             if self.solcast.reauth_required:
                 raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
 
-            if self.solcast.options.auto_update > 0 and "ignore_auto_enabled" not in kwargs:
+            if self.solcast.options.auto_update != AutoUpdate.NONE and "ignore_auto_enabled" not in kwargs:
                 raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_force")
             update_kwargs: dict[str, Any] = {
                 "completion": "Completed task update" if not kwargs.get("completion") else kwargs["completion"],
@@ -547,7 +548,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             if self.solcast.reauth_required:
                 raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
 
-            if self.solcast.options.auto_update == 0:
+            if self.solcast.options.auto_update == AutoUpdate.NONE:
                 raise ServiceValidationError(translation_domain=DOMAIN, translation_key="auto_use_normal")
             task = asyncio.create_task(self.__forecast_update(force=True, completion="Completed task force_update"))
             self.tasks["forecast_update"] = task.cancel

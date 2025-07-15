@@ -306,6 +306,7 @@ async def async_init_integration(
 
     ZONE = ZoneInfo(timezone)
     simulated.set_time_zone(ZONE)
+    simulated.modified_actuals = False
 
     hass.config.time_zone = timezone
     const.SENSOR_UPDATE_LOGGING = True
