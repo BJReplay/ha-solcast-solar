@@ -2361,12 +2361,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     sample_time: list[int] = [
                         e.last_updated.astimezone(self.options.tz).hour * 2 + e.last_updated.astimezone(self.options.tz).minute // 30
                         for e in entity_history[entity]
-                        if e.state != "unavailable"
+                        if e.state.replace(".", "").isnumeric()
                     ]
                     # Build a list of generation delta values.
                     sample_generation: list[float] = [
                         0.0,
-                        *diff([float(e.state) for e in entity_history[entity] if e.state != "unavailable"]),
+                        *diff([float(e.state) for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
                     ]
                     for minute, kWh in zip(sample_time, sample_generation, strict=True):
                         generation_intervals[minute] += kWh
@@ -2391,10 +2391,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     sample_time = [
                         e.last_updated.astimezone(self.options.tz).hour * 6 + e.last_updated.astimezone(self.options.tz).minute // 10
                         for e in entity_history[entity]
-                        if e.state != "unavailable"
+                        if e.state.replace(".", "").isnumeric()
                     ]
                     # Build a list of export delta values.
-                    sample_export: list[float] = [0.0, *diff([float(e.state) for e in entity_history[entity] if e.state != "unavailable"])]
+                    sample_export: list[float] = [
+                        0.0,
+                        *diff([float(e.state) for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
+                    ]
                     for minute, kWh in zip(sample_time, sample_export, strict=True):
                         export_intervals[minute] += kWh
                     # Convert to export per ten minute interval in kW.

@@ -308,7 +308,7 @@
             "options": {
                 "0": "Forecasts",
                 "1": "Estimated actuals",
-                "2": "Auto-dampened estimated actuals"
+                "2": "Dampened estimated actuals"
             }
         },
         "key_estimate": {
