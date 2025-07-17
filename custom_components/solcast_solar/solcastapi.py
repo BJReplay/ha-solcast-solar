@@ -2451,7 +2451,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         }
         actuals: OrderedDict[dt, float] = OrderedDict()
         for site in self.sites:
+            deal_breaker = ""
             if site["resource_id"] in self.options.exclude_sites:
+                deal_breaker = "Excluded site"
+            if self._data_actuals["siteinfo"].get(site["resource_id"]) is None:
+                deal_breaker = "No estimated actuals yet"
+            if len(self._data_generation["generation"]) == 0:
+                deal_breaker = "No generation yet"
+            if deal_breaker != "":
+                _LOGGER.debug("Hit a deal-breaker modelling dampening: %s")
                 continue
             if len(self._data_generation["generation"]) == 0:
                 _LOGGER.error("Internal error: No generation data available, aborting model_automated_dampening()")
@@ -2471,6 +2479,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     actuals[period_start] += actual["pv_estimate"]
                 else:
                     actuals[period_start] = actual["pv_estimate"]
+
+        if len(generation) == 0 or len(actuals) == 0:
+            return
 
         # Identify likely good days
         good_days: list[date] = []
