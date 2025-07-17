@@ -2459,10 +2459,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if len(self._data_generation["generation"]) == 0:
                 deal_breaker = "No generation yet"
             if deal_breaker != "":
-                _LOGGER.debug("Hit a deal-breaker modelling dampening: %s")
-                continue
-            if len(self._data_generation["generation"]) == 0:
-                _LOGGER.error("Internal error: No generation data available, aborting model_automated_dampening()")
+                _LOGGER.debug("Hit a deal-breaker modelling dampening: %s for %s", deal_breaker, site["resource_id"])
+                if deal_breaker == "Excluded site":
+                    continue
                 return
             start, end = self.__get_list_slice(
                 self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"],
