@@ -2560,11 +2560,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     max_key = max(band, key=lambda x: len(band[x]))
                     if len(band[max_key]) > 2:
                         factor = sum(band[max_key]) / len(band[max_key])
-                        _LOGGER.debug("Auto-dampen suggestion for interval %d is: %.3f", interval, factor)
+                        _LOGGER.debug("Auto-dampen factor for %s is %.3f", f"{interval // 2:02}:{30 * (interval % 2):02}", factor)
                         dampening[interval] = factor
 
         if dampening != self.granular_dampening["all"]:
             current_mtime = self.granular_dampening_mtime
+            self.granular_dampening["all"] = dampening
             await self.serialise_granular_dampening()
             self.granular_dampening_mtime = current_mtime
         _LOGGER.debug("Task model_automated_dampening took %.3f seconds", time.time() - start_time)
