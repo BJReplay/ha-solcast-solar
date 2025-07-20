@@ -2488,7 +2488,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for period_start, actual in actuals.items():
             if period_start.astimezone(self._tz).minute == 0:
                 hourly_actuals[period_start] = 0.5 * actual
-            else:
+            elif hourly_actuals.get(period_start.replace(minute=0)) is not None:
                 hourly_actuals[period_start.replace(minute=0)] += 0.5 * actual
         day: date = date(1970, 1, 1)
         last: float = 0
