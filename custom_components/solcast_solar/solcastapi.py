@@ -2527,7 +2527,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         # Calculate the percentage variance of generation to estimated actual.
         for period_start, kWh in generation.items():
-            if kWh < 0.1 and actuals[period_start] < 0.1:
+            if kWh < 0.1 and actuals.get(period_start, 0) < 0.1:
                 continue
             if period_start.astimezone(self._tz).date() not in good_days:
                 continue
