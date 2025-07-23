@@ -387,6 +387,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
     __log_hard_limit_set(solcast)
 
+    await solcast.reapply_forward_dampening()
+
     _LOGGER.debug("Clear presumed dead flag")
     hass.data[DOMAIN]["presumed_dead"] = False  # Initialisation was successful, so we're not dead.
     if hass.data[DOMAIN].get("prior_crash_allow_sites") is not None:
@@ -808,29 +810,36 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
         if recalculate_and_refresh:
             coordinator.solcast.damp = damp_factors
 
-        # Site exclusion changes
+        # Site exclusion changes.
         if changed(EXCLUDE_SITES):
             recalculate_and_refresh = True
 
-        # Attribute changes, which will need a recalculation of splines
+        # Attribute changes, which will need a recalculation of splines.
         if not recalculate_and_refresh:
             recalculate_splines = (
                 changed(BRK_ESTIMATE) or changed(BRK_ESTIMATE10) or changed(BRK_ESTIMATE90) or changed(BRK_SITE) or changed(KEY_ESTIMATE)
             )
+
+        if changed(AUTO_DAMPEN):
+            reload = True
+            if hass.data[DOMAIN]["entry_options"].get(AUTO_DAMPEN, False):
+                # Turning auto-dampening off, so reset the granular dampening file content.
+                path = Path(coordinator.solcast.get_granular_dampening_filename())
+                _LOGGER.debug("Unlink %s", path)
+                if path.exists():
+                    path.unlink()
 
         if changed(SITE_DAMP):
             damp_changed = True
             if not entry.options[SITE_DAMP]:
                 if coordinator.solcast.allow_granular_dampening_reset():
                     coordinator.solcast.granular_dampening = {}
-                    path = Path(hass.data[DOMAIN]["solcast"].get_granular_dampening_filename())
+                    path = Path(coordinator.solcast.get_granular_dampening_filename())
                     if path.exists():
                         path.unlink()
-        if damp_changed:
-            recalculate_and_refresh = True
             await coordinator.solcast.reapply_forward_dampening()
 
-        if changed(USE_ACTUALS):
+        if damp_changed or changed(USE_ACTUALS):
             recalculate_and_refresh = True
 
     if reload:
@@ -855,7 +864,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
         hass.data[DOMAIN]["entry_options"] = {**entry.options}
         coordinator.solcast.entry_options = {**entry.options}
     else:
-        # Reload
+        # Reload.
         await tasks_cancel(hass, entry)
         await hass.config_entries.async_reload(entry.entry_id)
 

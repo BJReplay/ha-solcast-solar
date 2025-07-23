@@ -90,6 +90,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._sunset: dt
         self._sunset_tomorrow: dt
         self._sunset_yesterday: dt
+        self._update_auto_dampen: bool = False
         self._update_sequence: list[int] = []
 
         # First list item is the sensor value method, additional items are only used for sensor attributes.
@@ -243,6 +244,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         self.set_data_updated(False)
                 if self.dampening_event_received == DampeningEvent.DELETE:
                     _LOGGER.debug("Granular dampening file deleted, no longer monitoring %s for changes", self._damp_file)
+                    self.granular_dampening = {}
                     entry = self.solcast.entry
                     opt = self.solcast.entry_options
                     opt[SITE_DAMP] = False  # Clear "hidden" option.
@@ -258,7 +260,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             if self.tasks.get("watchdog") is not None:
                 self.tasks.pop("watchdog")
 
-    async def update_integration_listeners(self, _: dt | None = None) -> None:
+    async def update_integration_listeners(self, called_at: dt | None = None) -> None:
         """Get updated sensor values."""
 
         current_day = dt.now(self.solcast.options.tz).day
@@ -281,7 +283,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 await self.solcast.get_pv_generation()
 
             if self.solcast.options.auto_dampen:
-                await self.solcast.model_automated_dampening()
+                self._update_auto_dampen = True
+        if self._update_auto_dampen and called_at is not None and called_at.minute == 30:
+            self._update_auto_dampen = False
+            await self.solcast.model_automated_dampening()
 
         self.async_update_listeners()
 

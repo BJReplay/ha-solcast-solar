@@ -445,7 +445,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 case self._filename_actuals:
                     logged_name = "estimated actual"
                 case self._filename_actuals_dampened:
-                    logged_name = "estimated actual"
+                    logged_name = "dampened estimated actual"
                 case self._filename_generation:
                     logged_name = "generation"
             _LOGGER.debug(
@@ -1236,11 +1236,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             data = json_data
                             if set_loaded:
                                 self._loaded_data = True
-                            file_description = (
-                                "Dampened"
-                                if filename == self._filename
-                                else ("Un-dampened" if filename == self._filename_undampened else "Estimated actual")
-                            )
+                            if filename == self._filename:
+                                file_description = "Dampened"
+                            elif filename == self._filename_undampened:
+                                file_description = "Undampened"
+                            elif filename == self._filename_actuals:
+                                file_description = "Estimated actual"
+                            else:
+                                file_description = "Dampened estimated actual"
                             _LOGGER.debug("%s data loaded", file_description)
                             if json_version != JSON_VERSION:
                                 _LOGGER.info(
@@ -2433,12 +2436,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         await self.serialise_data(self._data_generation, self._filename_generation)
         _LOGGER.debug("Task get_pv_generation took %.3f seconds", time.time() - start_time)
 
-    async def model_automated_dampening(self) -> None:  # noqa: C901
+    async def model_automated_dampening(self, force: bool = False) -> None:  # noqa: C901
         """Model the automated dampening of the forecast data.
 
         Look for outliers in PV generation versus estimated actuals.
         """
-        if not self.options.auto_dampen:
+        if not self.options.auto_dampen and not force:
             _LOGGER.debug("Automated dampening is not enabled, skipping model_automated_dampening()")
             return
 
@@ -2561,9 +2564,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if len(band[max_key]) > 2:
                         factor = sum(band[max_key]) / len(band[max_key])
                         _LOGGER.debug("Auto-dampen factor for %s is %.3f", f"{interval // 2:02}:{30 * (interval % 2):02}", factor)
-                        dampening[interval] = factor
+                        dampening[interval] = round(factor, 3)
 
-        if dampening != self.granular_dampening["all"]:
+        if dampening != self.granular_dampening.get("all"):
             current_mtime = self.granular_dampening_mtime
             self.granular_dampening["all"] = dampening
             await self.serialise_granular_dampening()
@@ -2620,7 +2623,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
 
             # Load the actuals history and add or update the new entries.
-            actuals = {actual["period_start"]: actual for actual in self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"]}
+            actuals = (
+                {actual["period_start"]: actual for actual in self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"]}
+                if self._data_actuals["siteinfo"].get(site["resource_id"])
+                else {}
+            )
             for actual in new_data:
                 self.__forecast_entry_update(
                     actuals,
@@ -2640,9 +2647,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     for actual in self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"]
                     if actual["period_start"] >= dt.now(datetime.UTC) - timedelta(days=1) and actual["period_start"] < dt.now(datetime.UTC)
                 ]
-                extant_actuals = {
-                    actual["period_start"]: actual for actual in self._data_actuals_dampened["siteinfo"][site["resource_id"]]["forecasts"]
-                }
+                extant_actuals = (
+                    {actual["period_start"]: actual for actual in self._data_actuals_dampened["siteinfo"][site["resource_id"]]["forecasts"]}
+                    if self._data_actuals_dampened["siteinfo"].get(site["resource_id"])
+                    else {}
+                )
 
                 # Apply dampening to yesterday
                 for actual in sorted(actuals_undampened_day, key=itemgetter("period_start")):
@@ -2884,7 +2893,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             forecasts_undampened_future = [
                 forecast
                 for forecast in self._data_undampened["siteinfo"][site["resource_id"]]["forecasts"]
-                if forecast["period_start"] >= dt.now(datetime.UTC)
+                if forecast["period_start"] >= self.get_day_start_utc()  # dt.now(datetime.UTC)
             ]
             forecasts = {forecast["period_start"]: forecast for forecast in self._data["siteinfo"][site["resource_id"]]["forecasts"]}
 
@@ -3273,10 +3282,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         return None
 
     def __make_energy_dict(self) -> dict[str, dict[str, float]]:
-        """Make a Home Assistant energy dashboard compatible dictionary.
+        """Make a Home Assistant Energy dashboard compatible dictionary.
 
         Returns:
-            dict: An energy dashboard compatible data structure.
+            dict: An Energy dashboard compatible data structure.
 
         """
         if self.options.use_actuals == HistoryType.FORECASTS:
@@ -3296,13 +3305,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 }
             }
 
-        # Show estimated actuals on Energy dashboard, so combine past estimated actuals with forecast today onwards
+        # Show estimated actuals on Energy dashboard, so combine past estimated actuals with forecast start of today onwards
         _data = (
             self._data_estimated_actuals
             if self.options.use_actuals == HistoryType.ESTIMATED_ACTUALS
             else self._data_estimated_actuals_dampened
         )
-        forecasts_start, _ = self.__get_list_slice(self._data_forecasts, self.get_day_start_utc())
+        forecasts_start, _ = self.__get_list_slice(self._data_forecasts, self.get_day_start_utc(), search_past=True)
         actuals_start, actuals_end = self.__get_list_slice(
             _data, self.get_day_start_utc() - timedelta(days=730), self.get_day_start_utc(), search_past=True
         )
