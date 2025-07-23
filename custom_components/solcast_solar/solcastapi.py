@@ -436,21 +436,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             payload = json.dumps(data, ensure_ascii=False, cls=DateTimeEncoder)
             async with self._serialise_lock, aiofiles.open(filename, "w") as file:
                 await file.write(payload)
-            logged_name = "unknown"
-            match filename:
-                case self._filename:
-                    logged_name = "dampened"
-                case self._filename_undampened:
-                    logged_name = "undampened"
-                case self._filename_actuals:
-                    logged_name = "estimated actual"
-                case self._filename_actuals_dampened:
-                    logged_name = "dampened estimated actual"
-                case self._filename_generation:
-                    logged_name = "generation"
+            log_file = {
+                self._filename: "dampened",
+                self._filename_undampened: "undampened",
+                self._filename_actuals: "estimated actual",
+                self._filename_actuals_dampened: "dampened estimated actual",
+                self._filename_generation: "generation",
+            }
             _LOGGER.debug(
                 "Saved %s cache",
-                logged_name,
+                log_file.get(filename, "unknown"),
             )
             return True
         _LOGGER.error("Not serialising empty data")
@@ -1236,15 +1231,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             data = json_data
                             if set_loaded:
                                 self._loaded_data = True
-                            if filename == self._filename:
-                                file_description = "Dampened"
-                            elif filename == self._filename_undampened:
-                                file_description = "Undampened"
-                            elif filename == self._filename_actuals:
-                                file_description = "Estimated actual"
-                            else:
-                                file_description = "Dampened estimated actual"
-                            _LOGGER.debug("%s data loaded", file_description)
+                            log_file = {
+                                self._filename: "Dampened",
+                                self._filename_undampened: "Undampened",
+                                self._filename_actuals: "Estimated actual",
+                                self._filename_actuals_dampened: "Dampened estimated actual",
+                            }
+                            _LOGGER.debug("%s data loaded", log_file.get(filename, "Unknown"))
                             if json_version != JSON_VERSION:
                                 _LOGGER.info(
                                     "Upgrading %s cache version from v%d to v%d",
@@ -2462,9 +2455,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if len(self._data_generation["generation"]) == 0:
                 deal_breaker = "No generation yet"
             if deal_breaker != "":
-                _LOGGER.debug("Hit a deal-breaker modelling dampening: %s for %s", deal_breaker, site["resource_id"])
                 if deal_breaker == "Excluded site":
+                    _LOGGER.debug("Auto-dampening suppressed: %s for %s", deal_breaker, site["resource_id"])
                     continue
+                _LOGGER.info("Auto-dampening suppressed: %s for %s", deal_breaker, site["resource_id"])
                 return
             start, end = self.__get_list_slice(
                 self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"],
