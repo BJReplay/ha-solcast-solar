@@ -2538,7 +2538,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         dampening: list[float] = [1.0] * 48
         for interval, vary in variance.items():
             if max(vary) < 1.05:
-                width = 0.15
+                width = 0.08
                 begin = 1.05
                 band: dict[int, list[float]] = {}
                 current_band = 0
