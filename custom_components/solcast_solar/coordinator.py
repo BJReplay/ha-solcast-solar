@@ -21,6 +21,7 @@ from watchdog.events import (
 )
 from watchdog.observers import Observer
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
 from homeassistant.helpers.event import (
@@ -60,13 +61,14 @@ class DampeningEvent(Enum):
 class SolcastUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching data."""
 
-    def __init__(self, hass: HomeAssistant, solcast: SolcastApi, version: str) -> None:
+    def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, solcast: SolcastApi, version: str) -> None:
         """Initialise the coordinator.
 
         Public variables at the top, protected variables (those prepended with _ after).
 
         Arguments:
             hass (HomeAssistant): The Home Assistant instance.
+            config_entry (ConfigEntry): The configuration entry for the Solcast Solar integration.
             solcast (SolcastApi): The Solcast API instance.
             version (str): The integration version from manifest.json.
 
@@ -118,7 +120,12 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             for ahead, day in enumerate(DAYS)
         }
 
-        super().__init__(hass, _LOGGER, name=DOMAIN)
+        super().__init__(
+            hass,
+            _LOGGER,
+            config_entry=config_entry,
+            name=DOMAIN,
+        )
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Update data via library.

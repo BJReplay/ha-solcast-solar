@@ -368,6 +368,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
     if (status := await solcast.load_saved_data()) != "":
         raise ConfigEntryNotReady(status)
+    await solcast.reapply_forward_dampening()
+    if (status := await solcast.build_data()) != "":
+        raise ConfigEntryNotReady(status)
 
     match solcast.status:
         case SolcastApiStatus.DATA_INCOMPATIBLE:
@@ -375,7 +378,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         case _:
             pass
 
-    coordinator = SolcastUpdateCoordinator(hass, solcast, version)
+    coordinator = SolcastUpdateCoordinator(hass, entry, solcast, version)
     entry.runtime_data = SolcastData(coordinator=coordinator)
     await coordinator.setup()
     await coordinator.async_config_entry_first_refresh()
@@ -386,8 +389,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     __log_hard_limit_set(solcast)
-
-    await solcast.reapply_forward_dampening()
 
     _LOGGER.debug("Clear presumed dead flag")
     hass.data[DOMAIN]["presumed_dead"] = False  # Initialisation was successful, so we're not dead.

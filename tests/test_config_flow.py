@@ -46,6 +46,7 @@ from homeassistant.components.solcast_solar.const import (
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SitesStatus, SolcastApi
+from homeassistant.components.solcast_solar.util import HistoryType
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -639,7 +640,7 @@ async def test_entry_options_upgrade(
     """Test that entry options are upgraded as expected."""
 
     START_VERSION = 3
-    FINAL_VERSION = 17
+    FINAL_VERSION = 18
     V3OPTIONS: dict[str, Any] = {
         CONF_API_KEY: "1",
         "const_disableautopoll": False,
@@ -677,10 +678,10 @@ async def test_entry_options_upgrade(
         assert entry.options.get(HARD_LIMIT_API) == "100.0"
         # V15
         assert entry.options.get(EXCLUDE_SITES) == []
-        # V17
+        # V18
         assert entry.options.get(SITE_EXPORT_ENTITY) == ""
         assert entry.options.get(GET_ACTUALS) is False
-        assert entry.options.get(USE_ACTUALS) is False
+        assert entry.options.get(USE_ACTUALS) is HistoryType.FORECASTS
         assert entry.options.get(GENERATION_ENTITIES) == []
         assert entry.options.get(SITE_EXPORT_LIMIT) == 0.0
         assert entry.options.get(AUTO_DAMPEN) is False

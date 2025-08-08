@@ -1439,16 +1439,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         self._filename_actuals_dampened: self._data_actuals_dampened,
                     }.items():
                         await self.serialise_data(data, filename)
-
-                if self._loaded_data:
-                    # Create an up-to-date forecast.
-                    if not await self.build_forecast_data():
-                        status = "Failed to build forecast data (corrupt config/solcast.json?)"
-                    elif self.options.get_actuals:
-                        await self.build_actual_data()
         except json.decoder.JSONDecodeError:
             _LOGGER.error("The cached data in solcast.json is corrupt in load_saved_data()")
             status = "The cached data in /config/solcast.json is corrupted, suggest removing or repairing it"
+        return status
+
+    async def build_data(self) -> str:
+        """Build the forecast and estimated actual data."""
+
+        status = ""
+        if self._loaded_data:
+            # Create an up-to-date forecast.
+            if not await self.build_forecast_data():
+                status = "Failed to build forecast data (corrupt config/solcast.json?)"
+            elif self.options.get_actuals:
+                await self.build_actual_data()
         return status
 
     async def reset_failure_stats(self) -> None:
@@ -2498,7 +2503,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if period_start.astimezone(self._tz).hour == 0 or period_start == last_dt:
                 if day.year != 1970:
                     _LOGGER.debug("Auto-dampen: Day %s: reversals: %d, peak: %.3f / %.3f", day, reversals, peak, peak_ac_capability)
-                    if reversals == 1 and peak > 0.35 * peak_ac_capability:
+                    if reversals <= 3 and peak > 0.35 * peak_ac_capability:
                         good_days.append(day)
                 day = period_start.astimezone(self._tz).date()
                 reversals = 0
@@ -2537,28 +2542,28 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         variance = OrderedDict(sorted(variance.items()))
         dampening: list[float] = [1.0] * 48
         for interval, vary in variance.items():
-            if max(vary) < 1.05:
-                width = 0.08
-                begin = 1.05
-                band: dict[int, list[float]] = {}
-                current_band = 0
-                while begin - width > 0:
-                    begin -= width / 2
-                    for v in vary:
-                        if v <= begin and v >= begin - width:
-                            if current_band not in band:
-                                band[current_band] = []
-                            if v > 0.0:
-                                band[current_band].append(v)
-                    if len(band.get(current_band, [1])) == 0:
-                        del band[current_band]
-                    current_band += 1
-                if len(band) > 0:
-                    max_key = max(band, key=lambda x: len(band[x]))
-                    if len(band[max_key]) > 2:
-                        factor = sum(band[max_key]) / len(band[max_key])
-                        _LOGGER.debug("Auto-dampen factor for %s is %.3f", f"{interval // 2:02}:{30 * (interval % 2):02}", factor)
-                        dampening[interval] = round(factor, 3)
+            width = 0.20
+            begin = 1.10
+            band: dict[int, list[float]] = {}
+            current_band = 0
+            while begin - width > 0:
+                begin -= width / 2
+                for v in vary:
+                    if v <= begin and v >= begin - width:
+                        if current_band not in band:
+                            band[current_band] = []
+                        if v > 0.0:
+                            band[current_band].append(v)
+                if len(band.get(current_band, [1])) == 0:
+                    del band[current_band]
+                current_band += 1
+            if len(band) > 0:
+                _LOGGER.debug("Dampening interval %s bands: %s", interval, band)
+                max_key = max(band, key=lambda x: len(band[x]))
+                if len(band[max_key]) >= max(3, int(0.5 * len(good_days))):
+                    factor = sum(band[max_key]) / len(band[max_key])  # Average of the band with the most members.
+                    _LOGGER.debug("Auto-dampen factor for %s is %.3f", f"{interval // 2:02}:{30 * (interval % 2):02}", factor)
+                    dampening[interval] = round(factor, 3)
 
         if dampening != self.granular_dampening.get("all"):
             current_mtime = self.granular_dampening_mtime
@@ -2887,11 +2892,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             forecasts_undampened_future = [
                 forecast
                 for forecast in self._data_undampened["siteinfo"][site["resource_id"]]["forecasts"]
-                if forecast["period_start"] >= self.get_day_start_utc()  # dt.now(datetime.UTC)
+                if forecast["period_start"] >= self.get_day_start_utc()  # Was >= dt.now(datetime.UTC)
             ]
             forecasts = {forecast["period_start"]: forecast for forecast in self._data["siteinfo"][site["resource_id"]]["forecasts"]}
 
-            # Apply dampening to the new data
+            # Apply dampening to forward data
             for forecast in sorted(forecasts_undampened_future, key=itemgetter("period_start")):
                 period_start = forecast["period_start"]
                 pv = round(forecast["pv_estimate"], 4)
