@@ -1444,7 +1444,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             status = "The cached data in /config/solcast.json is corrupted, suggest removing or repairing it"
         return status
 
-    async def build_data(self) -> str:
+    async def build_forecast_and_actuals(self) -> str:
         """Build the forecast and estimated actual data."""
 
         status = ""
@@ -2503,7 +2503,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if period_start.astimezone(self._tz).hour == 0 or period_start == last_dt:
                 if day.year != 1970:
                     _LOGGER.debug("Auto-dampen: Day %s: reversals: %d, peak: %.3f / %.3f", day, reversals, peak, peak_ac_capability)
-                    if reversals <= 3 and peak > 0.35 * peak_ac_capability:
+                    if reversals == 1 and peak > 0.35 * peak_ac_capability:
                         good_days.append(day)
                 day = period_start.astimezone(self._tz).date()
                 reversals = 0
@@ -2543,11 +2543,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         dampening: list[float] = [1.0] * 48
         for interval, vary in variance.items():
             width = 0.20
-            begin = 1.10
+            half_width = width / 2
+            begin = 1.0 + half_width
             band: dict[int, list[float]] = {}
             current_band = 0
             while begin - width > 0:
-                begin -= width / 2
+                begin -= half_width
                 for v in vary:
                     if v <= begin and v >= begin - width:
                         if current_band not in band:
@@ -2558,11 +2559,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     del band[current_band]
                 current_band += 1
             if len(band) > 0:
-                _LOGGER.debug("Dampening interval %s bands: %s", interval, band)
+                interval_time = f"{interval // 2:02}:{30 * (interval % 2):02}"
+                _LOGGER.debug("Dampening interval %s bands: %s", interval_time, band)
                 max_key = max(band, key=lambda x: len(band[x]))
-                if len(band[max_key]) >= max(3, int(0.5 * len(good_days))):
-                    factor = sum(band[max_key]) / len(band[max_key])  # Average of the band with the most members.
-                    _LOGGER.debug("Auto-dampen factor for %s is %.3f", f"{interval // 2:02}:{30 * (interval % 2):02}", factor)
+                if len(band[max_key]) >= max(3, round(0.5 * len(good_days))):
+                    factor = max(band[max_key])  # sum(band[max_key]) / len(band[max_key])  # Average of the band with the most members.
+                    _LOGGER.debug("Auto-dampen factor for %s is %.3f", interval_time, factor)
                     dampening[interval] = round(factor, 3)
 
         if dampening != self.granular_dampening.get("all"):
