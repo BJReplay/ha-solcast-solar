@@ -1053,6 +1053,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if enable ^ site_damp:
                 options = {**self.entry_options}
                 options[SITE_DAMP] = enable
+                self.entry_options[SITE_DAMP] = enable
                 if set_allow_reset:
                     self._granular_allow_reset = enable
                 if self.entry is not None:
