@@ -2556,6 +2556,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             band[current_band] = []
                         if v > 0.0:
                             band[current_band].append(v)
+                if band.get(current_band) is not None:
+                    band[current_band].sort()
                 if len(band.get(current_band, [1])) == 0:
                     del band[current_band]
                 current_band += 1
@@ -2564,9 +2566,22 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.debug("Dampening interval %s bands: %s", interval_time, band)
                 max_key = max(band, key=lambda x: len(band[x]))
                 if len(band[max_key]) >= max(3, round(0.5 * len(good_days))):
-                    factor = max(band[max_key])  # sum(band[max_key]) / len(band[max_key])  # Average of the band with the most members.
-                    _LOGGER.debug("Auto-dampen factor for %s is %.3f", interval_time, factor)
-                    dampening[interval] = round(factor, 3)
+                    # 90th percentile variance.
+                    percentile = 0.90
+                    index = percentile * len(band[max_key])
+                    remainder = index - int(index)
+                    index = int(round(index) - 1)
+                    if remainder <= 0.001:
+                        factor = (
+                            ((band[max_key][index] + band[max_key][index + 1]) / 2)
+                            if index + 1 < len(band[max_key])
+                            else band[max_key][index]
+                        )
+                    else:
+                        factor = band[max_key][index]
+                    if factor < 0.98:
+                        _LOGGER.debug("Auto-dampen factor for %s is %.3f", interval_time, factor)
+                        dampening[interval] = round(factor, 3)
 
         if dampening != self.granular_dampening.get("all"):
             current_mtime = self.granular_dampening_mtime
