@@ -2543,6 +2543,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         variance = OrderedDict(sorted(variance.items()))
         dampening: list[float] = [1.0] * 48
         for interval, vary in variance.items():
+            # Group the variances of generation to estimated actuals into
+            # bands of 20% width, starting at 1.0 plus a half band width.
             width = 0.20
             half_width = width / 2
             begin = 1.0 + half_width
@@ -2561,27 +2563,31 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if len(band.get(current_band, [1])) == 0:
                     del band[current_band]
                 current_band += 1
+            # Set a dampening factor for the interval only if there are a significant number of samples in the band.
+            # This is done by taking the 90th percentile of the band, but only if the suggested factor is significant.
+            percentile = 0.90
+            noise = 0.95
             if len(band) > 0:
                 interval_time = f"{interval // 2:02}:{30 * (interval % 2):02}"
                 _LOGGER.debug("Dampening interval %s bands: %s", interval_time, band)
                 max_key = max(band, key=lambda x: len(band[x]))
                 if len(band[max_key]) >= max(3, round(0.5 * len(good_days))):
-                    # 90th percentile variance.
-                    percentile = 0.90
                     index = percentile * len(band[max_key])
                     remainder = index - int(index)
-                    index = int(round(index) - 1)
-                    if remainder <= 0.001:
+                    index = int(index) - 1
+                    if remainder >= 0.001:
                         factor = (
-                            ((band[max_key][index] + band[max_key][index + 1]) / 2)
+                            (band[max_key][index] + (remainder * (band[max_key][index + 1] - band[max_key][index])))
                             if index + 1 < len(band[max_key])
                             else band[max_key][index]
                         )
                     else:
                         factor = band[max_key][index]
-                    if factor < 0.98:
+                    if factor < noise:
                         _LOGGER.debug("Auto-dampen factor for %s is %.3f", interval_time, factor)
                         dampening[interval] = round(factor, 3)
+                    else:
+                        _LOGGER.debug("Ignoring insignificant factor for %s of %.3f", interval_time, factor)
 
         if dampening != self.granular_dampening.get("all"):
             current_mtime = self.granular_dampening_mtime

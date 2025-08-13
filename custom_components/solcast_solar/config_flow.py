@@ -513,7 +513,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                             errors["base"] = message
 
                 if not errors:
-                    if user_input.get(CONFIG_DAMP):
+                    if user_input.get(CONFIG_DAMP) and not user_input[AUTO_DAMPEN]:
                         return await self.async_step_dampen()
 
                     self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
@@ -555,6 +555,14 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             site_export_default = [self._options[SITE_EXPORT_ENTITY]]
         else:
             site_export_default = []
+        if not self._options[AUTO_DAMPEN]:
+            damp = {
+                vol.Optional(CONFIG_DAMP, default=False)
+                if not self._options[SITE_DAMP]
+                else vol.Optional(SITE_DAMP, default=self._options[SITE_DAMP]): bool
+            }
+        else:
+            damp = {}
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema(
@@ -595,12 +603,9 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     vol.Required(USE_ACTUALS, default=str(int(self._options[USE_ACTUALS]))): SelectSelector(
                         SelectSelectorConfig(options=history, mode=SelectSelectorMode.DROPDOWN, translation_key="energy_history")
                     ),
-                    (
-                        vol.Optional(CONFIG_DAMP, default=False)
-                        if not self._options[SITE_DAMP]
-                        else vol.Optional(SITE_DAMP, default=self._options[SITE_DAMP])
-                    ): bool,
-                },
+                    # damp: bool if not self._options[AUTO_DAMPEN] else str,
+                }
+                | damp
             ),
             errors=errors,
         )

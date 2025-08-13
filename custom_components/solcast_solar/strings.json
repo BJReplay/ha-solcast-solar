@@ -284,7 +284,7 @@
                     "customhoursensor": "Custom next X hours sensor (min=1, max=144)",
                     "exclude_sites": "Site(s) to exclude from the Energy dashboard and sensor totals",
                     "generation_entities": "PV generation entity/entities for automated dampening (kWh, total increasing)",
-                    "get_actuals": "Estimated actuals updated at midnight (see integration documentation, uses one API call per site per day, so a reduced API limit is needed with auto-update enabled)",
+                    "get_actuals": "Estimated actuals updated at midnight (see integration documentation, uses one API call per site per day, so a reduced API limit is needed with this option enabled)",
                     "hard_limit_api": "Inverter hard limit in kW (see integration documentation, comma separate multiple values for each key)",
                     "key_estimate": "Preferred forecast likelihood to use for sensors",
                     "site_damp": "Granular dampening is set: Clear to revert to overall hourly dampening",
