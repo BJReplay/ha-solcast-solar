@@ -2572,6 +2572,28 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.debug("Dampening interval %s bands: %s", interval_time, band)
                 max_key = max(band, key=lambda x: len(band[x]))
                 if len(band[max_key]) >= max(3, round(0.5 * len(good_days))):
+                    # Identify outliers
+                    iqr_outliers: float = 1.3
+                    first_quartile = (
+                        (band[max_key][len(band[max_key]) // 4 - 1] + band[max_key][len(band[max_key]) // 4]) / 2
+                        if len(band[max_key]) % 4 == 0
+                        else band[max_key][len(band[max_key]) // 4]
+                    )
+                    third_quartile = (
+                        (band[max_key][3 * len(band[max_key]) // 4 - 1] + band[max_key][3 * len(band[max_key]) // 4]) / 2
+                        if len(band[max_key]) % 4 == 0
+                        else band[max_key][3 * len(band[max_key]) // 4]
+                    )
+                    iqr = third_quartile - first_quartile
+
+                    # Remove outliers
+                    proposed_band = [
+                        v for v in band[max_key] if first_quartile - iqr_outliers * iqr <= v <= third_quartile + iqr_outliers * iqr
+                    ]
+                    if len(proposed_band) >= 3:  # Only remove outliers if there are enough band members left.
+                        band[max_key] = proposed_band
+
+                    # Calculate the 90th percentile of the band.
                     index = percentile * len(band[max_key])
                     remainder = index - int(index)
                     index = int(index) - 1
