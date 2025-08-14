@@ -2361,7 +2361,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                     # Arrange the generation samples into half-hour intervals.
                     sample_time: list[int] = [
-                        e.last_updated.astimezone(self.options.tz).hour * 2 + e.last_updated.astimezone(self.options.tz).minute // 30
+                        (e.last_updated.astimezone(self.options.tz) - timedelta(minutes=15)).hour * 2
+                        + (e.last_updated.astimezone(self.options.tz) - timedelta(minutes=15)).minute // 30
                         for e in entity_history[entity]
                         if e.state.replace(".", "").isnumeric()
                     ]
@@ -2391,7 +2392,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if entity_history.get(entity) and len(entity_history[entity]):
                     # Arrange the site export samples into ten-minute intervals.
                     sample_time = [
-                        e.last_updated.astimezone(self.options.tz).hour * 6 + e.last_updated.astimezone(self.options.tz).minute // 10
+                        (e.last_updated.astimezone(self.options.tz) - timedelta(minutes=15)).hour * 6
+                        + (e.last_updated.astimezone(self.options.tz) - timedelta(minutes=15)).minute // 10
                         for e in entity_history[entity]
                         if e.state.replace(".", "").isnumeric()
                     ]
@@ -2550,6 +2552,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             begin = 1.0 + half_width
             band: dict[int, list[float]] = {}
             current_band = 0
+            _LOGGER.critical("Variance for interval %02d:%02d: %s", interval // 2, 30 * (interval % 2), sorted(vary))
             while begin - width > 0:
                 begin -= half_width
                 for v in vary:
@@ -2571,7 +2574,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 interval_time = f"{interval // 2:02}:{30 * (interval % 2):02}"
                 _LOGGER.debug("Dampening interval %s bands: %s", interval_time, band)
                 max_key = max(band, key=lambda x: len(band[x]))
-                if len(band[max_key]) >= max(3, round(0.5 * len(good_days))):
+                if len(band[max_key]) >= max(3, int(0.5 * len(good_days))):
                     # Identify outliers
                     iqr_outliers: float = 1.3
                     first_quartile = (
