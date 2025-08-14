@@ -2552,7 +2552,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             begin = 1.0 + half_width
             band: dict[int, list[float]] = {}
             current_band = 0
-            _LOGGER.critical("Variance for interval %02d:%02d: %s", interval // 2, 30 * (interval % 2), sorted(vary))
             while begin - width > 0:
                 begin -= half_width
                 for v in vary:
