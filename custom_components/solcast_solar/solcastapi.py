@@ -2359,10 +2359,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if entity_history.get(entity) and len(entity_history[entity]):
                     _LOGGER.debug("Retrieved day %d PV generation data from entities: %s", -1 + day * -1, self.options.generation_entities)
 
-                    # Arrange the generation samples into half-hour intervals.
+                    # Arrange the generation samples into half-hour intervals (essentially what will be coming for the interval).
                     sample_time: list[int] = [
-                        (e.last_updated.astimezone(self.options.tz) - timedelta(minutes=15)).hour * 2
-                        + (e.last_updated.astimezone(self.options.tz) - timedelta(minutes=15)).minute // 30
+                        e.last_updated.astimezone(self.options.tz).hour * 2 + e.last_updated.astimezone(self.options.tz).minute // 30
                         for e in entity_history[entity]
                         if e.state.replace(".", "").isnumeric()
                     ]
@@ -2392,8 +2391,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if entity_history.get(entity) and len(entity_history[entity]):
                     # Arrange the site export samples into ten-minute intervals.
                     sample_time = [
-                        (e.last_updated.astimezone(self.options.tz) - timedelta(minutes=15)).hour * 6
-                        + (e.last_updated.astimezone(self.options.tz) - timedelta(minutes=15)).minute // 10
+                        (e.last_updated.astimezone(self.options.tz)).hour * 6 + (e.last_updated.astimezone(self.options.tz)).minute // 10
                         for e in entity_history[entity]
                         if e.state.replace(".", "").isnumeric()
                     ]
@@ -2480,21 +2478,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for period_start, actual in site_actuals.items():
                 extant: float | None = actuals.get(period_start)
                 if extant is not None:
-                    actuals[period_start] += actual["pv_estimate"]
+                    actuals[period_start] += actual["pv_estimate"] * 0.5
                 else:
-                    actuals[period_start] = actual["pv_estimate"]
-
+                    actuals[period_start] = actual["pv_estimate"] * 0.5
         if len(generation) == 0 or len(actuals) == 0:
             return
 
+        """
         # Identify likely good days
         good_days: list[date] = []
         hourly_actuals: OrderedDict[dt, float] = OrderedDict()
         for period_start, actual in actuals.items():
             if period_start.astimezone(self._tz).minute == 0:
-                hourly_actuals[period_start] = 0.5 * actual
+                hourly_actuals[period_start] = actual
             elif hourly_actuals.get(period_start.replace(minute=0)) is not None:
-                hourly_actuals[period_start.replace(minute=0)] += 0.5 * actual
+                hourly_actuals[period_start.replace(minute=0)] += actual
         day: date = date(1970, 1, 1)
         last: float = 0
         reversals: int = 0
@@ -2524,13 +2522,52 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 up = True
             last = actual
         _LOGGER.debug("Auto-dampen: Identified good days: %s", ", ".join([good_day.strftime(DATE_ONLY_FORMAT) for good_day in good_days]))
+        """
 
-        # Convert estimated actual intervals to kWh.
+        # Collect top intervals from the past fourteen days.
+        peak_intervals: dict[int, float] = {i: 0.0 for i in range(48)}
         for period_start, actual in actuals.items():
-            actuals[period_start] = round(actual / 2, 3)
-        variance: OrderedDict[int, list[float]] = OrderedDict()
+            interval = period_start.astimezone(self._tz).hour * 2 + period_start.astimezone(self._tz).minute // 30
+            if peak_intervals[interval] < actual:
+                peak_intervals[interval] = round(actual, 3)
 
+        # Collect intervals that are close to the peak.
+        matching_intervals: dict[int, list[dt]] = {i: [] for i in range(48)}
+        for period_start, actual in actuals.items():
+            interval = period_start.astimezone(self._tz).hour * 2 + period_start.astimezone(self._tz).minute // 30
+            if actual > 0.90 * peak_intervals[interval]:
+                matching_intervals[interval].append(period_start.astimezone(self._tz))
+
+        dampening: list[float] = [1.0] * 48
+        noise = 0.95
+
+        for interval, matching in matching_intervals.items():
+            generation_samples: list[float] = [
+                generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
+            ]
+            if len(matching) > 0 and len(matching) == len(generation_samples):
+                peak = max(generation_samples)
+                interval_time = f"{interval // 2:02}:{30 * (interval % 2):02}"
+                _LOGGER.debug(
+                    "Interval %02d:%02d has peak %.3f and %d matching intervals: %s",
+                    interval // 2,
+                    30 * (interval % 2),
+                    peak_intervals[interval],
+                    len(matching),
+                    ", ".join([dt.strftime(DATE_ONLY_FORMAT) for dt in matching]),
+                )
+                _LOGGER.debug("Max: %.3f, %s", peak, generation_samples)
+                if peak < peak_intervals[interval]:
+                    factor = peak / peak_intervals[interval] if peak_intervals[interval] != 0 else 0.0
+                    if factor < noise:
+                        _LOGGER.debug("Auto-dampen factor for %s is %.3f", interval_time, factor)
+                        dampening[interval] = round(factor, 3)
+                    else:
+                        _LOGGER.debug("Ignoring insignificant factor for %s of %.3f", interval_time, factor)
+
+        """
         # Calculate the percentage variance of generation to estimated actual.
+        variance: OrderedDict[int, list[float]] = OrderedDict()
         for period_start, kWh in generation.items():
             if kWh < 0.1 and actuals.get(period_start, 0) < 0.1:
                 continue
@@ -2546,8 +2583,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         dampening: list[float] = [1.0] * 48
         for interval, vary in variance.items():
             # Group the variances of generation to estimated actuals into
-            # bands of 20% width, starting at 1.0 plus a half band width.
-            width = 0.20
+            # bands of 15% width, starting at 1.0 plus a half band width.
+            width = 0.15
             half_width = width / 2
             begin = 1.0 + half_width
             band: dict[int, list[float]] = {}
@@ -2566,8 +2603,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     del band[current_band]
                 current_band += 1
             # Set a dampening factor for the interval only if there are a significant number of samples in the band.
-            # This is done by taking the 90th percentile of the band, but only if the suggested factor is significant.
-            percentile = 0.90
+            # This is done by taking the 95th percentile of the band, but only if the suggested factor is significant.
+            percentile = 0.95
             noise = 0.95
             if len(band) > 0:
                 interval_time = f"{interval // 2:02}:{30 * (interval % 2):02}"
@@ -2612,6 +2649,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         dampening[interval] = round(factor, 3)
                     else:
                         _LOGGER.debug("Ignoring insignificant factor for %s of %.3f", interval_time, factor)
+        """
 
         if dampening != self.granular_dampening.get("all"):
             current_mtime = self.granular_dampening_mtime
