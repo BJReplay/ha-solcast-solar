@@ -2484,46 +2484,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if len(generation) == 0 or len(actuals) == 0:
             return
 
-        """
-        # Identify likely good days
-        good_days: list[date] = []
-        hourly_actuals: OrderedDict[dt, float] = OrderedDict()
-        for period_start, actual in actuals.items():
-            if period_start.astimezone(self._tz).minute == 0:
-                hourly_actuals[period_start] = actual
-            elif hourly_actuals.get(period_start.replace(minute=0)) is not None:
-                hourly_actuals[period_start.replace(minute=0)] += actual
-        day: date = date(1970, 1, 1)
-        last: float = 0
-        reversals: int = 0
-        up: bool = True
-        last_dt: dt = next(reversed(hourly_actuals))
-        peak: float = 0.0
-        peak_ac_capability: float = sum([site["capacity"] for site in self.sites if site["resource_id"] not in self.options.exclude_sites])
-        for period_start, actual in hourly_actuals.items():
-            if period_start.astimezone(self._tz).hour == 0 or period_start == last_dt:
-                if day.year != 1970:
-                    _LOGGER.debug("Auto-dampen: Day %s: reversals: %d, peak: %.3f / %.3f", day, reversals, peak, peak_ac_capability)
-                    if reversals == 1 and peak > 0.35 * peak_ac_capability:
-                        good_days.append(day)
-                day = period_start.astimezone(self._tz).date()
-                reversals = 0
-                peak = 0.0
-                up = True
-                last = actual
-            if up:
-                if actual < last:
-                    reversals += 1
-                    if peak == 0.0:
-                        peak = last
-                    up = False
-            elif actual > last:
-                reversals += 1
-                up = True
-            last = actual
-        _LOGGER.debug("Auto-dampen: Identified good days: %s", ", ".join([good_day.strftime(DATE_ONLY_FORMAT) for good_day in good_days]))
-        """
-
         # Collect top intervals from the past fourteen days.
         peak_intervals: dict[int, float] = {i: 0.0 for i in range(48)}
         for period_start, actual in actuals.items():
@@ -2538,9 +2498,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if actual > 0.90 * peak_intervals[interval]:
                 matching_intervals[interval].append(period_start.astimezone(self._tz))
 
+        # Defaults.
         dampening: list[float] = [1.0] * 48
         noise = 0.95
 
+        # Check the generation for each interval and determine if it is consistently lower than the peak.
         for interval, matching in matching_intervals.items():
             generation_samples: list[float] = [
                 generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
@@ -2549,14 +2511,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 peak = max(generation_samples)
                 interval_time = f"{interval // 2:02}:{30 * (interval % 2):02}"
                 _LOGGER.debug(
-                    "Interval %02d:%02d has peak %.3f and %d matching intervals: %s",
+                    "Interval %02d:%02d has peak estimated actual %.3f and %d matching intervals: %s",
                     interval // 2,
                     30 * (interval % 2),
                     peak_intervals[interval],
                     len(matching),
                     ", ".join([dt.strftime(DATE_ONLY_FORMAT) for dt in matching]),
                 )
-                _LOGGER.debug("Max: %.3f, %s", peak, generation_samples)
+                _LOGGER.debug("Max generation: %.3f, %s", peak, generation_samples)
                 if peak < peak_intervals[interval]:
                     factor = peak / peak_intervals[interval] if peak_intervals[interval] != 0 else 0.0
                     if factor < noise:
@@ -2564,92 +2526,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         dampening[interval] = round(factor, 3)
                     else:
                         _LOGGER.debug("Ignoring insignificant factor for %s of %.3f", interval_time, factor)
-
-        """
-        # Calculate the percentage variance of generation to estimated actual.
-        variance: OrderedDict[int, list[float]] = OrderedDict()
-        for period_start, kWh in generation.items():
-            if kWh < 0.1 and actuals.get(period_start, 0) < 0.1:
-                continue
-            if period_start.astimezone(self._tz).date() not in good_days:
-                continue
-            interval = period_start.astimezone(self._tz).hour * 2 + period_start.astimezone(self._tz).minute // 30
-            delta = round(kWh / actuals[period_start], 3) if actuals[period_start] != 0 else 0.0
-            if interval not in variance:
-                variance[interval] = [delta]
-            else:
-                variance[interval].append(delta)
-        variance = OrderedDict(sorted(variance.items()))
-        dampening: list[float] = [1.0] * 48
-        for interval, vary in variance.items():
-            # Group the variances of generation to estimated actuals into
-            # bands of 15% width, starting at 1.0 plus a half band width.
-            width = 0.15
-            half_width = width / 2
-            begin = 1.0 + half_width
-            band: dict[int, list[float]] = {}
-            current_band = 0
-            while begin - width > 0:
-                begin -= half_width
-                for v in vary:
-                    if v <= begin and v >= begin - width:
-                        if current_band not in band:
-                            band[current_band] = []
-                        if v > 0.0:
-                            band[current_band].append(v)
-                if band.get(current_band) is not None:
-                    band[current_band].sort()
-                if len(band.get(current_band, [1])) == 0:
-                    del band[current_band]
-                current_band += 1
-            # Set a dampening factor for the interval only if there are a significant number of samples in the band.
-            # This is done by taking the 95th percentile of the band, but only if the suggested factor is significant.
-            percentile = 0.95
-            noise = 0.95
-            if len(band) > 0:
-                interval_time = f"{interval // 2:02}:{30 * (interval % 2):02}"
-                _LOGGER.debug("Dampening interval %s bands: %s", interval_time, band)
-                max_key = max(band, key=lambda x: len(band[x]))
-                if len(band[max_key]) >= max(3, int(0.5 * len(good_days))):
-                    # Identify outliers
-                    iqr_outliers: float = 1.3
-                    first_quartile = (
-                        (band[max_key][len(band[max_key]) // 4 - 1] + band[max_key][len(band[max_key]) // 4]) / 2
-                        if len(band[max_key]) % 4 == 0
-                        else band[max_key][len(band[max_key]) // 4]
-                    )
-                    third_quartile = (
-                        (band[max_key][3 * len(band[max_key]) // 4 - 1] + band[max_key][3 * len(band[max_key]) // 4]) / 2
-                        if len(band[max_key]) % 4 == 0
-                        else band[max_key][3 * len(band[max_key]) // 4]
-                    )
-                    iqr = third_quartile - first_quartile
-
-                    # Remove outliers
-                    proposed_band = [
-                        v for v in band[max_key] if first_quartile - iqr_outliers * iqr <= v <= third_quartile + iqr_outliers * iqr
-                    ]
-                    if len(proposed_band) >= 3:  # Only remove outliers if there are enough band members left.
-                        band[max_key] = proposed_band
-
-                    # Calculate the 90th percentile of the band.
-                    index = percentile * len(band[max_key])
-                    remainder = index - int(index)
-                    index = int(index) - 1
-                    if remainder >= 0.001:
-                        factor = (
-                            (band[max_key][index] + (remainder * (band[max_key][index + 1] - band[max_key][index])))
-                            if index + 1 < len(band[max_key])
-                            else band[max_key][index]
-                        )
-                    else:
-                        factor = band[max_key][index]
-                    if factor < noise:
-                        _LOGGER.debug("Auto-dampen factor for %s is %.3f", interval_time, factor)
-                        dampening[interval] = round(factor, 3)
-                    else:
-                        _LOGGER.debug("Ignoring insignificant factor for %s of %.3f", interval_time, factor)
-        """
 
         if dampening != self.granular_dampening.get("all"):
             current_mtime = self.granular_dampening_mtime
