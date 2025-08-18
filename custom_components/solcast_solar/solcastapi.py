@@ -98,6 +98,7 @@ STATUS_TRANSLATE: Final = {
     403: "Forbidden",
     404: "Not found",
     418: "I'm a teapot",
+    420: "Enhance your calm (rate limited)",
     429: "Try again later",
     500: "Internal web server error",
     501: "Not implemented",
@@ -630,7 +631,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         if status in (401, 403):
                             self.sites_status = SitesStatus.BAD_KEY
                             break
-                        if status == 429:
+                        if status in (429, 420):
                             self.sites_status = SitesStatus.API_BUSY
                             break
                         self.sites_status = SitesStatus.ERROR
@@ -2435,7 +2436,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         await self.serialise_data(self._data_generation, self._filename_generation)
         _LOGGER.debug("Task get_pv_generation took %.3f seconds", time.time() - start_time)
 
-    async def model_automated_dampening(self, force: bool = False) -> None:  # noqa: C901
+    async def model_automated_dampening(self, force: bool = False) -> None:
         """Model the automated dampening of the forecast data.
 
         Look for outliers in PV generation versus estimated actuals.
