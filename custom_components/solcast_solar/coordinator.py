@@ -92,6 +92,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._sunset: dt
         self._sunset_tomorrow: dt
         self._sunset_yesterday: dt
+        self._update_actuals: bool = False
         self._update_auto_dampen: bool = False
         self._update_sequence: list[int] = []
 
@@ -283,15 +284,19 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             await self.__update_midnight_spline_recalculate()
             self.__auto_update_setup()
 
-            if self.solcast.options.get_actuals:
-                await self.service_event_force_update_estimates()
-
             if self.solcast.options.generation_entities:
                 await self.solcast.get_pv_generation()
 
+            if self.solcast.options.get_actuals:
+                self._update_actuals = True
+
             if self.solcast.options.auto_dampen:
                 self._update_auto_dampen = True
-        if self._update_auto_dampen and called_at is not None and called_at.minute == 30:
+
+        if self._update_actuals and called_at is not None and called_at.minute == 20:
+            self._update_actuals = False
+            await self.service_event_force_update_estimates()
+        if self._update_auto_dampen and called_at is not None and called_at.minute == 50:
             self._update_auto_dampen = False
             await self.solcast.model_automated_dampening()
 
