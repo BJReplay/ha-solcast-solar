@@ -230,6 +230,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._loaded_data = False
         self._next_update: str | None = None
         self._rekey: dict[str, Any] = {}
+        self._peak_intervals: dict[int, float] = {i: -1.0 for i in range(48)}
         self._site_data_forecasts: dict[str, list[dict[str, Any]]] = {}
         self._site_data_forecasts_undampened: dict[str, list[dict[str, Any]]] = {}
         self._site_latitude: defaultdict[str, dict[str, bool | float | int | None]] = defaultdict(dict[str, bool | float | int | None])
@@ -2486,17 +2487,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return
 
         # Collect top intervals from the past fourteen days.
-        peak_intervals: dict[int, float] = {i: 0.0 for i in range(48)}
+        self._peak_intervals = {i: 0.0 for i in range(48)}
         for period_start, actual in actuals.items():
             interval = period_start.astimezone(self._tz).hour * 2 + period_start.astimezone(self._tz).minute // 30
-            if peak_intervals[interval] < actual:
-                peak_intervals[interval] = round(actual, 3)
+            if self._peak_intervals[interval] < actual:
+                self._peak_intervals[interval] = round(actual, 3)
 
         # Collect intervals that are close to the peak.
         matching_intervals: dict[int, list[dt]] = {i: [] for i in range(48)}
         for period_start, actual in actuals.items():
             interval = period_start.astimezone(self._tz).hour * 2 + period_start.astimezone(self._tz).minute // 30
-            if actual > 0.90 * peak_intervals[interval]:
+            if actual > 0.90 * self._peak_intervals[interval]:
                 matching_intervals[interval].append(period_start.astimezone(self._tz))
 
         # Defaults.
@@ -2515,13 +2516,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     "Interval %02d:%02d has peak estimated actual %.3f and %d matching intervals: %s",
                     interval // 2,
                     30 * (interval % 2),
-                    peak_intervals[interval],
+                    self._peak_intervals[interval],
                     len(matching),
                     ", ".join([dt.strftime(DATE_ONLY_FORMAT) for dt in matching]),
                 )
                 _LOGGER.debug("Max generation: %.3f, %s", peak, generation_samples)
-                if peak < peak_intervals[interval]:
-                    factor = peak / peak_intervals[interval] if peak_intervals[interval] != 0 else 0.0
+                if peak < self._peak_intervals[interval]:
+                    factor = peak / self._peak_intervals[interval] if self._peak_intervals[interval] != 0 else 0.0
                     if factor < noise:
                         _LOGGER.debug("Auto-dampen factor for %s is %.3f", interval_time, factor)
                         dampening[interval] = round(factor, 3)
@@ -2623,7 +2624,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         period_start,
                         round(
                             round(actual["pv_estimate"], 4)
-                            * self.__get_dampening_factor(site["resource_id"], period_start.astimezone(self._tz)),
+                            * self.__get_dampening_factor(site["resource_id"], period_start.astimezone(self._tz), actual["pv_estimate"]),
                             4,
                         ),
                     )
@@ -2786,7 +2787,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if interval >= self.get_day_start_utc():
                     # Apply dampening to the existing data (today onwards only).
                     period_start = forecast["period_start"]
-                    dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz))
+                    dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), forecast["pv_estimate"])
                     self.__forecast_entry_update(
                         forecasts[site],
                         period_start,
@@ -2825,20 +2826,27 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 "pv_estimate": pv,
             }
 
-    def __get_dampening_granular_factor(self, site: str, period_start: dt) -> float:
+    def __get_dampening_granular_factor(self, site: str, period_start: dt, interval_pv50: float = -1.0) -> float:
         """Retrieve a granular dampening factor."""
-        return self.granular_dampening[site][
+        factor = self.granular_dampening[site][
             period_start.hour
             if len(self.granular_dampening[site]) == 24
             else ((period_start.hour * 2) + (1 if period_start.minute > 0 else 0))
         ]
+        if site == "all" and self.options.auto_dampen and self.granular_dampening.get("all"):
+            interval = period_start.astimezone(self._tz).hour * 2 + period_start.astimezone(self._tz).minute // 30
+            factor = self.granular_dampening["all"][interval]
+            if self._peak_intervals[interval] > 0 and interval_pv50 > 0:
+                # Adjust the factor based on forecast vs. peak interval logarithmically.
+                factor = max(factor, min(1, factor + ((1 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50)))))
+        return factor
 
-    def __get_dampening_factor(self, site: str | None, period_start: dt) -> float:
+    def __get_dampening_factor(self, site: str | None, period_start: dt, interval_pv50: float) -> float:
         """Retrieve either a traditional or granular dampening factor."""
         if site is not None:
             if self.entry_options.get(SITE_DAMP):
                 if self.granular_dampening.get("all"):
-                    return self.__get_dampening_granular_factor("all", period_start)
+                    return self.__get_dampening_granular_factor("all", period_start, interval_pv50)
                 if self.granular_dampening.get(site):
                     return self.__get_dampening_granular_factor(site, period_start)
                 return 1.0
@@ -2867,7 +2875,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 pv90 = round(forecast["pv_estimate90"], 4)
 
                 # Retrieve the dampening factor for the period, and dampen the estimates.
-                dampening_factor = self.__get_dampening_factor(site["resource_id"], period_start.astimezone(self._tz))
+                dampening_factor = self.__get_dampening_factor(site["resource_id"], period_start.astimezone(self._tz), pv)
                 pv_dampened = round(pv * dampening_factor, 4)
                 pv10_dampened = round(pv10 * dampening_factor, 4)
                 pv90_dampened = round(pv90 * dampening_factor, 4)
@@ -3041,7 +3049,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         start_time = time.time()
         for forecast in new_data:
             period_start = forecast["period_start"]
-            dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz))
+            dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), forecast["pv_estimate"])
 
             # Add or update the new entries.
             self.__forecast_entry_update(
