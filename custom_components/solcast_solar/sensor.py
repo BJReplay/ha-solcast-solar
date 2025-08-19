@@ -48,14 +48,15 @@ SENSORS: dict[str, dict[str, Any]] = {
         ),
         "attribution": False,
     },
-    "auto_dampen": {
+    "dampen": {
         "description": SensorEntityDescription(
-            key="auto_dampen",
-            translation_key="auto_dampen",
-            name="Auto Dampening",
+            key="dampen",
+            translation_key="dampen",
+            name="Dampening",
             entity_category=EntityCategory.DIAGNOSTIC,
         ),
         "attribution": False,
+        "enabled_by_default": False,
     },
     "forecast_this_hour": {
         "description": SensorEntityDescription(
@@ -283,7 +284,7 @@ def get_sensor_update_policy(key: str) -> SensorUpdatePolicy:
 
     """
     if key in (
-        "auto_dampen",
+        "dampen",
         "forecast_this_hour",
         "forecast_next_hour",
         "forecast_custom_hours",
@@ -444,7 +445,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
                     exclude.append("detailedHourly_" + s["resource_id"].replace("-", "_"))
             self._state_info["unrecorded_attributes"] = self._state_info["unrecorded_attributes"] | frozenset(exclude)
 
-        elif self.entity_description.key == "auto_dampen":
+        elif self.entity_description.key == "dampen":
             exclude = ["factors"]
             self._state_info["unrecorded_attributes"] = self._state_info["unrecorded_attributes"] | frozenset(exclude)
 

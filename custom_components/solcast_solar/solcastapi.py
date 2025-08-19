@@ -1589,14 +1589,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return self._data.get("last_updated")
 
-    def get_auto_dampen(self) -> bool:
-        """Return whether auto dampening is enabled.
+    def get_dampen(self) -> bool:
+        """Return whether dampening is enabled.
 
         Returns:
-            bool: Whether auto dampening is enabled.
+            bool: Whether dampening is enabled.
 
         """
-        return self.options.auto_dampen
+        return (
+            self.options.auto_dampen
+            or self.granular_dampening != {}
+            or (not self.options.auto_dampen and self.granular_dampening == {} and sum(self.options.dampening.values()) != 24)
+        )
 
     def get_rooftop_site_total_today(self, site: str) -> float | None:
         """Return total kW for today for a site.

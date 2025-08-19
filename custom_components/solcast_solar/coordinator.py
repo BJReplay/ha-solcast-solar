@@ -46,7 +46,7 @@ DAYS = [
     "total_kwh_forecast_d6",
     "total_kwh_forecast_d7",
 ]
-NO_ATTRIBUTES = ["api_counter", "api_limit", "auto_dampen", "lastupdated"]
+NO_ATTRIBUTES = ["api_counter", "api_limit", "dampen", "lastupdated"]
 
 
 class DampeningEvent(Enum):
@@ -112,7 +112,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             "api_counter": [{"method": self.solcast.get_api_used_count}],
             "api_limit": [{"method": self.solcast.get_api_limit}],
             "lastupdated": [{"method": self.solcast.get_last_updated}],
-            "auto_dampen": [{"method": self.solcast.get_auto_dampen}],
+            "dampen": [{"method": self.solcast.get_dampen}],
         }
         self.__get_value |= {
             day: [
@@ -709,17 +709,28 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             if to_return is not None:
                 ret.update(to_return)
 
-        if key == "auto_dampen" and self.solcast.options.auto_dampen:
-            ret["last_updated"] = dt.fromtimestamp(self.solcast.granular_dampening_mtime).replace(microsecond=0).astimezone(UTC)
-            factors: list[dict[str, Any]] = []
-            for i, f in enumerate(self.solcast.granular_dampening.get("all", [])):
-                factors.append(
+        if key == "dampen":
+            if self.solcast.entry_options[SITE_DAMP]:
+                # Granular dampening
+                ret["integration_automated"] = self.solcast.options.auto_dampen
+                ret["last_updated"] = dt.fromtimestamp(self.solcast.granular_dampening_mtime).replace(microsecond=0).astimezone(UTC)
+                ret["factors"] = [
                     {
                         "interval": f"{i // 2:02d}:{i % 2 * 30:02d}",
                         "factor": f,
                     }
-                )
-            ret["factors"] = factors
+                    for i, f in enumerate(self.solcast.granular_dampening.get("all", []))
+                ]
+            else:
+                ret["integration_automated"] = False
+                ret["last_updated"] = None
+                ret["factors"] = [
+                    {
+                        "interval": i,
+                        "factor": f,
+                    }
+                    for i, f in self.solcast.options.dampening.items()
+                ]
 
         if key == "lastupdated":
             ret.update(self._get_auto_update_details())

@@ -50,8 +50,8 @@
             "api_limit": {
                 "name": "API Limit"
             },
-            "auto_dampen": {
-                "name": "Auto Dampening"
+            "dampen": {
+                "name": "Dampening"
             },
             "forecast_custom_hours": {
                 "name": "Forecast Next X Hours"
