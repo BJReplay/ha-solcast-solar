@@ -432,18 +432,20 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
     async def async_added_to_hass(self) -> None:
         """Entity about to be added to hass, so set recorder excluded attributes."""
         await super().async_added_to_hass()
-        if self.entity_description.name == "API Last Polled":
+
+        if self.entity_description.key == "lastupdated":
             self._state_info["unrecorded_attributes"] = frozenset(["next_auto_update", "auto_update_divisions", "auto_update_queue"])
-        elif (
-            str(self.entity_description.name).startswith("Forecast today")
-            or str(self.entity_description.name).startswith("Forecast tomorrow")
-            or str(self.entity_description.name).startswith("Forecast day")
-        ):
+
+        elif str(self.entity_description.key).startswith("total_kwh_forecast"):
             exclude = ["detailedForecast", "detailedHourly"]
             if self._coordinator.solcast.options.attr_brk_site_detailed:
                 for s in self._coordinator.solcast.sites:
                     exclude.append("detailedForecast_" + s["resource_id"].replace("-", "_"))
                     exclude.append("detailedHourly_" + s["resource_id"].replace("-", "_"))
+            self._state_info["unrecorded_attributes"] = self._state_info["unrecorded_attributes"] | frozenset(exclude)
+
+        elif self.entity_description.key == "auto_dampen":
+            exclude = ["factors"]
             self._state_info["unrecorded_attributes"] = self._state_info["unrecorded_attributes"] | frozenset(exclude)
 
     @property
