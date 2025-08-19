@@ -47,7 +47,7 @@ from .const import (
     BRK_SITE_DETAILED,
     CUSTOM_HOUR_SENSOR,
     DATE_FORMAT,
-    DATE_ONLY_FORMAT,
+    DATE_MONTH_DAY,
     DOMAIN,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
@@ -1589,6 +1589,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return self._data.get("last_updated")
 
+    def get_auto_dampen(self) -> bool:
+        """Return whether auto dampening is enabled.
+
+        Returns:
+            bool: Whether auto dampening is enabled.
+
+        """
+        return self.options.auto_dampen
+
     def get_rooftop_site_total_today(self, site: str) -> float | None:
         """Return total kW for today for a site.
 
@@ -2518,7 +2527,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     30 * (interval % 2),
                     self._peak_intervals[interval],
                     len(matching),
-                    ", ".join([dt.strftime(DATE_ONLY_FORMAT) for dt in matching]),
+                    ", ".join([dt.strftime(DATE_MONTH_DAY) for dt in matching]),
                 )
                 _LOGGER.debug("Max generation: %.3f, %s", peak, generation_samples)
                 if peak < self._peak_intervals[interval]:

@@ -48,6 +48,15 @@ SENSORS: dict[str, dict[str, Any]] = {
         ),
         "attribution": False,
     },
+    "auto_dampen": {
+        "description": SensorEntityDescription(
+            key="auto_dampen",
+            translation_key="auto_dampen",
+            name="Auto Dampening",
+            entity_category=EntityCategory.DIAGNOSTIC,
+        ),
+        "attribution": False,
+    },
     "forecast_this_hour": {
         "description": SensorEntityDescription(
             key="forecast_this_hour",
@@ -274,6 +283,7 @@ def get_sensor_update_policy(key: str) -> SensorUpdatePolicy:
 
     """
     if key in (
+        "auto_dampen",
         "forecast_this_hour",
         "forecast_next_hour",
         "forecast_custom_hours",

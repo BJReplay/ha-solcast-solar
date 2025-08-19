@@ -44,20 +44,20 @@
             }
         },
         "sensor": {
-            "power_now_30m": {
-                "name": "Power in 30 Minutes"
+            "api_counter": {
+                "name": "API Used"
             },
-            "power_now_1hr": {
-                "name": "Power in 1 Hour"
+            "api_limit": {
+                "name": "API Limit"
             },
-            "total_kwh_forecast_today": {
-                "name": "Forecast Today"
+            "auto_dampen": {
+                "name": "Auto Dampening"
             },
-            "peak_w_today": {
-                "name": "Peak Forecast Today"
+            "forecast_custom_hours": {
+                "name": "Forecast Next X Hours"
             },
-            "peak_w_time_today": {
-                "name": "Peak Time Today"
+            "forecast_next_hour": {
+                "name": "Forecast Next Hour"
             },
             "forecast_this_hour": {
                 "name": "Forecast This Hour"
@@ -65,29 +65,35 @@
             "get_remaining_today": {
                 "name": "Forecast Remaining Today"
             },
-            "forecast_next_hour": {
-                "name": "Forecast Next Hour"
+            "hard_limit": {
+                "name": "Hard Limit Set"
             },
-            "forecast_custom_hours": {
-                "name": "Forecast Next X Hours"
+            "hard_limit_api": {
+                "name": "Hard Limit Set {api_key}"
             },
-            "total_kwh_forecast_tomorrow": {
-                "name": "Forecast Tomorrow"
+            "lastupdated": {
+                "name": "API Last Polled"
             },
-            "peak_w_tomorrow": {
-                "name": "Peak Forecast Tomorrow"
+            "peak_w_time_today": {
+                "name": "Peak Time Today"
             },
             "peak_w_time_tomorrow": {
                 "name": "Peak Time Tomorrow"
             },
-            "api_counter": {
-                "name": "API Used"
+            "peak_w_today": {
+                "name": "Peak Forecast Today"
             },
-            "api_limit": {
-                "name": "API Limit"
+            "peak_w_tomorrow": {
+                "name": "Peak Forecast Tomorrow"
             },
-            "lastupdated": {
-                "name": "API Last Polled"
+            "power_now": {
+                "name": "Power Now"
+            },
+            "power_now_1hr": {
+                "name": "Power in 1 Hour"
+            },
+            "power_now_30m": {
+                "name": "Power in 30 Minutes"
             },
             "total_kwh_forecast_d3": {
                 "name": "Forecast Day 3"
@@ -104,14 +110,11 @@
             "total_kwh_forecast_d7": {
                 "name": "Forecast Day 7"
             },
-            "power_now": {
-                "name": "Power Now"
+            "total_kwh_forecast_today": {
+                "name": "Forecast Today"
             },
-            "hard_limit": {
-                "name": "Hard Limit Set"
-            },
-            "hard_limit_api": {
-                "name": "Hard Limit Set {api_key}"
+            "total_kwh_forecast_tomorrow": {
+                "name": "Forecast Tomorrow"
             }
         }
     },

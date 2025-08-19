@@ -22,6 +22,7 @@ CONFIG_DAMP: Final[str] = "config_damp"
 CONFIG_VERSION: Final[int] = 18
 CUSTOM_HOUR_SENSOR: Final[str] = "customhoursensor"
 DAMP_FACTOR: Final[str] = "damp_factor"
+DATE_MONTH_DAY: Final[str] = "%m-%d"
 DATE_FORMAT: Final[str] = "%Y-%m-%d %H:%M:%S"
 DATE_FORMAT_UTC: Final[str] = "%Y-%m-%d %H:%M:%S UTC"
 DATE_ONLY_FORMAT: Final[str] = "%Y-%m-%d"

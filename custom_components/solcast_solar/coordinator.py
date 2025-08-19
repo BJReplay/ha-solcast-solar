@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from datetime import datetime as dt, timedelta
+from datetime import datetime as dt, timedelta, UTC
 from enum import Enum
 import logging
 from pathlib import Path
@@ -46,7 +46,7 @@ DAYS = [
     "total_kwh_forecast_d6",
     "total_kwh_forecast_d7",
 ]
-NO_ATTRIBUTES = ["api_counter", "api_limit", "lastupdated"]
+NO_ATTRIBUTES = ["api_counter", "api_limit", "auto_dampen", "lastupdated"]
 
 
 class DampeningEvent(Enum):
@@ -112,6 +112,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             "api_counter": [{"method": self.solcast.get_api_used_count}],
             "api_limit": [{"method": self.solcast.get_api_limit}],
             "lastupdated": [{"method": self.solcast.get_last_updated}],
+            "auto_dampen": [{"method": self.solcast.get_auto_dampen}],
         }
         self.__get_value |= {
             day: [
@@ -668,6 +669,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 return self.__get_value[key][0]["method"](self.__get_value[key][0].get("value", 0))
             return self.__get_value[key][0]["method"]()
 
+        # Auto dampening
+        if key == "auto_dampen":
+            return self.solcast.options.auto_dampen
+
         # Hard limit
         if key == "hard_limit":
             hard_limit = float(self.solcast.hard_limit.split(",")[0])
@@ -703,8 +708,22 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             )
             if to_return is not None:
                 ret.update(to_return)
+
+        if key == "auto_dampen" and self.solcast.options.auto_dampen:
+            ret["last_updated"] = dt.fromtimestamp(self.solcast.granular_dampening_mtime).replace(microsecond=0).astimezone(UTC)
+            factors: list[dict[str, Any]] = []
+            for i, f in enumerate(self.solcast.granular_dampening.get("all", [])):
+                factors.append(
+                    {
+                        "interval": f"{i // 2:02d}:{i % 2 * 30:02d}",
+                        "factor": f,
+                    }
+                )
+            ret["factors"] = factors
+
         if key == "lastupdated":
             ret.update(self._get_auto_update_details())
+
         return ret
 
     def get_site_sensor_value(self, roof_id: str, key: str) -> float | None:
