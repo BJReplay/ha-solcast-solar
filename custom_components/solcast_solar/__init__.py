@@ -368,7 +368,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
     if (status := await solcast.load_saved_data()) != "":
         raise ConfigEntryNotReady(status)
-    await solcast.reapply_forward_dampening()
+    await solcast.model_automated_dampening()
+    await solcast.apply_forward_dampening()
     if (status := await solcast.build_forecast_and_actuals()) != "":
         raise ConfigEntryNotReady(status)
 
@@ -545,7 +546,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
             old_damp = opt.get(SITE_DAMP, False)
             opt[SITE_DAMP] = True  # Set "hidden" option.
             if opt[SITE_DAMP] == old_damp:
-                await solcast.reapply_forward_dampening()
+                await solcast.apply_forward_dampening()
                 await coordinator.solcast.build_forecast_data()
                 coordinator.set_data_updated(True)
                 await coordinator.update_integration_listeners()
@@ -838,7 +839,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
                     path = Path(coordinator.solcast.get_granular_dampening_filename())
                     if path.exists():
                         path.unlink()
-            await coordinator.solcast.reapply_forward_dampening()
+            await coordinator.solcast.apply_forward_dampening()
 
         if damp_changed or changed(USE_ACTUALS):
             recalculate_and_refresh = True

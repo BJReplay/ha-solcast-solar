@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from datetime import datetime as dt, timedelta, UTC
+from datetime import UTC, datetime as dt, timedelta
 from enum import Enum
 import logging
 from pathlib import Path
@@ -245,7 +245,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         self.dampening_event_received = DampeningEvent.NO_EVENT
                         _LOGGER.debug("Granular dampening mtime changed")
                         await self.solcast.refresh_granular_dampening_data()
-                        await self.solcast.reapply_forward_dampening()
+                        await self.solcast.apply_forward_dampening()
                         _LOGGER.debug("Recalculate forecasts and refresh sensors")
                         await self.solcast.build_forecast_data()
                         self.set_data_updated(True)

@@ -1383,6 +1383,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         serialise = True
 
                     if serialise:
+                        await self.apply_forward_dampening()
                         for filename, data in {
                             self._filename: self._data,
                             self._filename_undampened: self._data_undampened,
@@ -2612,9 +2613,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
 
             await self.sort_and_prune(site["resource_id"], self._data_actuals, 730, actuals)
-
             _LOGGER.debug("Estimated actuals dictionary for site %s length %s", site["resource_id"], len(actuals))
 
+        undampened_interval_pv50: dict[dt, float] = {}
+        for site in self.sites:
+            for forecast in self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"]:
+                period_start = forecast["period_start"]
+                if period_start >= self.get_day_start_utc():
+                    if period_start not in undampened_interval_pv50:
+                        undampened_interval_pv50[period_start] = forecast["pv_estimate"] * 0.5
+                    else:
+                        undampened_interval_pv50[period_start] += forecast["pv_estimate"] * 0.5
+
+        for site in self.sites:
             if site["resource_id"] not in self.options.exclude_sites:
                 _LOGGER.debug("Apply dampening to previous day estimated actuals for %s", site["resource_id"])
                 # Load the undampened estimated actual day yesterday.
@@ -2637,7 +2648,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         period_start,
                         round(
                             round(actual["pv_estimate"], 4)
-                            * self.__get_dampening_factor(site["resource_id"], period_start.astimezone(self._tz), actual["pv_estimate"]),
+                            * self.__get_dampening_factor(
+                                site["resource_id"],
+                                period_start.astimezone(self._tz),
+                                undampened_interval_pv50.get(period_start, -1.0),
+                            ),
                             4,
                         ),
                     )
@@ -2717,6 +2732,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 sites_succeeded += 1
 
         if sites_attempted > 0 and not failure:
+            await self.apply_forward_dampening()
+
             b_status = await self.build_forecast_data()
             self._loaded_data = True
 
@@ -2790,29 +2807,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             self._data_undampened["last_updated"] = dt.now(datetime.UTC).replace(microsecond=0)
             await self.serialise_data(self._data_undampened, self._filename_undampened)
 
-        for site in self.sites:
-            site = site["resource_id"]
-            if site in apply_dampening:
-                _LOGGER.info("Dampening forecasts for today onwards for site %s", site)
-            else:
-                continue
-            for interval, forecast in forecasts[site].items():
-                if interval >= self.get_day_start_utc():
-                    # Apply dampening to the existing data (today onwards only).
-                    period_start = forecast["period_start"]
-                    dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), forecast["pv_estimate"])
-                    self.__forecast_entry_update(
-                        forecasts[site],
-                        period_start,
-                        round(forecast["pv_estimate"] * dampening_factor, 4),
-                        round(forecast["pv_estimate10"] * dampening_factor, 4),
-                        round(forecast["pv_estimate90"] * dampening_factor, 4),
-                    )
-            forecasts_sorted: dict[str, list[Any]] = {}
-            forecasts_sorted[site] = sorted(forecasts[site].values(), key=itemgetter("period_start"))
-            self._data["siteinfo"].update({site: {"forecasts": copy.deepcopy(forecasts_sorted[site])}})
-
         if len(apply_dampening) > 0:
+            await self.apply_forward_dampening(applicable_sites=apply_dampening)
             await self.serialise_data(self._data, self._filename)
 
     def __forecast_entry_update(
@@ -2839,7 +2835,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 "pv_estimate": pv,
             }
 
-    def __get_dampening_granular_factor(self, site: str, period_start: dt, interval_pv50: float = -1.0) -> float:
+    def __get_dampening_granular_factor(
+        self, site: str, period_start: dt, interval_pv50: float = -1.0, log_adjustment: bool = False
+    ) -> float:
         """Retrieve a granular dampening factor."""
         factor = self.granular_dampening[site][
             period_start.hour
@@ -2849,27 +2847,49 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if site == "all" and self.options.auto_dampen and self.granular_dampening.get("all"):
             interval = period_start.astimezone(self._tz).hour * 2 + period_start.astimezone(self._tz).minute // 30
             factor = self.granular_dampening["all"][interval]
-            if self._peak_intervals[interval] > 0 and interval_pv50 > 0:
+            if self._peak_intervals[interval] > 0 and interval_pv50 > 0 and factor < 1.0:
                 # Adjust the factor based on forecast vs. peak interval logarithmically.
+                factor_pre_adjustment = factor
                 factor = max(factor, min(1, factor + ((1 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50)))))
+                if log_adjustment and period_start.astimezone(self._tz).date() == dt.now(self._tz).date():
+                    _LOGGER.debug(
+                        "Granular dampening factor for %s is %.3f (was %.3f, peak %.3f, interval pv50 %.3f)",
+                        period_start.astimezone(self._tz).strftime(DATE_FORMAT),
+                        factor,
+                        factor_pre_adjustment,
+                        self._peak_intervals[interval],
+                        interval_pv50,
+                    )
         return factor
 
-    def __get_dampening_factor(self, site: str | None, period_start: dt, interval_pv50: float) -> float:
+    def __get_dampening_factor(self, site: str | None, period_start: dt, interval_pv50: float, log_adjustment: bool = False) -> float:
         """Retrieve either a traditional or granular dampening factor."""
         if site is not None:
             if self.entry_options.get(SITE_DAMP):
                 if self.granular_dampening.get("all"):
-                    return self.__get_dampening_granular_factor("all", period_start, interval_pv50)
+                    return self.__get_dampening_granular_factor("all", period_start, interval_pv50, log_adjustment=log_adjustment)
                 if self.granular_dampening.get(site):
                     return self.__get_dampening_granular_factor(site, period_start)
                 return 1.0
         return self.damp.get(f"{period_start.hour}", 1.0)
 
-    async def reapply_forward_dampening(self) -> None:
-        """Re-apply dampening to forward forecasts."""
-        _LOGGER.debug("Re-applying future dampening")
+    async def apply_forward_dampening(self, applicable_sites: list[str] = []) -> None:
+        """Apply dampening to forward forecasts."""
+        _LOGGER.debug("Applying future dampening")
+
+        undampened_interval_pv50: dict[dt, float] = {}
         for site in self.sites:
-            if site["resource_id"] in self.options.exclude_sites:
+            for forecast in self._data_undampened["siteinfo"][site["resource_id"]]["forecasts"]:
+                period_start = forecast["period_start"]
+                if period_start >= self.get_day_start_utc():
+                    if period_start not in undampened_interval_pv50:
+                        undampened_interval_pv50[period_start] = forecast["pv_estimate"] * 0.5
+                    else:
+                        undampened_interval_pv50[period_start] += forecast["pv_estimate"] * 0.5
+
+        log_adjustment = True
+        for site in self.sites:
+            if site["resource_id"] in self.options.exclude_sites or (applicable_sites and site["resource_id"] not in applicable_sites):
                 continue
 
             # Load all forecasts.
@@ -2878,7 +2898,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 for forecast in self._data_undampened["siteinfo"][site["resource_id"]]["forecasts"]
                 if forecast["period_start"] >= self.get_day_start_utc()  # Was >= dt.now(datetime.UTC)
             ]
-            forecasts = {forecast["period_start"]: forecast for forecast in self._data["siteinfo"][site["resource_id"]]["forecasts"]}
+            forecasts = (
+                {forecast["period_start"]: forecast for forecast in self._data["siteinfo"][site["resource_id"]]["forecasts"]}
+                if self._data["siteinfo"].get(site["resource_id"])
+                else {}
+            )
 
             # Apply dampening to forward data
             for forecast in sorted(forecasts_undampened_future, key=itemgetter("period_start")):
@@ -2888,7 +2912,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 pv90 = round(forecast["pv_estimate90"], 4)
 
                 # Retrieve the dampening factor for the period, and dampen the estimates.
-                dampening_factor = self.__get_dampening_factor(site["resource_id"], period_start.astimezone(self._tz), pv)
+                dampening_factor = self.__get_dampening_factor(
+                    site["resource_id"],
+                    period_start.astimezone(self._tz),
+                    undampened_interval_pv50.get(period_start, -1),
+                    log_adjustment=log_adjustment,
+                )
                 pv_dampened = round(pv * dampening_factor, 4)
                 pv10_dampened = round(pv10 * dampening_factor, 4)
                 pv90_dampened = round(pv90 * dampening_factor, 4)
@@ -2896,8 +2925,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 # Add or update the new entries.
                 self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
 
-            forecasts_list = sorted(forecasts.values(), key=itemgetter("period_start"))
-            self._data["siteinfo"].update({site["resource_id"]: {"forecasts": copy.deepcopy(forecasts_list)}})
+            # forecasts_list = sorted(forecasts.values(), key=itemgetter("period_start"))
+            # self._data["siteinfo"].update({site["resource_id"]: {"forecasts": copy.deepcopy(forecasts_list)}})
+
+            await self.sort_and_prune(site["resource_id"], self._data, 730, forecasts)
+            _LOGGER.debug(
+                "Forecasts dictionary length for %s is %s (%s un-dampened)",
+                site["resource_id"],
+                len(forecasts),
+                len(self._data_undampened["siteinfo"][site["resource_id"]]["forecasts"]),
+            )
+            log_adjustment = False
 
     async def sort_and_prune(self, site: str | None, data: dict[str, Any], past_days: int, forecasts: dict[Any, Any]) -> None:
         """Sort and prune a forecast list."""
@@ -3048,30 +3086,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         # Load the forecast history.
         try:
-            forecasts = {forecast["period_start"]: forecast for forecast in self._data["siteinfo"][site]["forecasts"]}
-        except:  # noqa: E722
-            forecasts = {}
-        try:
             forecasts_undampened = {forecast["period_start"]: forecast for forecast in self._data_undampened["siteinfo"][site]["forecasts"]}
         except:  # noqa: E722
             forecasts_undampened = {}
 
         _LOGGER.debug("Task load_new_data took %.3f seconds", time.time() - start_time)
 
-        # Apply dampening to the new data
+        # Add new data to the undampened forecasts.
         start_time = time.time()
         for forecast in new_data:
             period_start = forecast["period_start"]
-            dampening_factor = self.__get_dampening_factor(site, period_start.astimezone(self._tz), forecast["pv_estimate"])
-
-            # Add or update the new entries.
-            self.__forecast_entry_update(
-                forecasts,
-                period_start,
-                round(forecast["pv_estimate"] * dampening_factor, 4),
-                round(forecast["pv_estimate10"] * dampening_factor, 4),
-                round(forecast["pv_estimate90"] * dampening_factor, 4),
-            )
             self.__forecast_entry_update(
                 forecasts_undampened,
                 period_start,
@@ -3079,17 +3103,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 round(forecast["pv_estimate10"], 4),
                 round(forecast["pv_estimate90"], 4),
             )
-        _LOGGER.debug(
-            "Task apply_dampening took %.3f seconds",
-            time.time() - start_time,
-        )
 
-        start_time = time.time()
-        await self.sort_and_prune(site, self._data, 730, forecasts)
         await self.sort_and_prune(site, self._data_undampened, 14, forecasts_undampened)
-        _LOGGER.debug("Task sort_and_prune took %.3f seconds", time.time() - start_time)
-
-        _LOGGER.debug("Forecasts dictionary length %s (%s un-dampened)", len(forecasts), len(forecasts_undampened))
 
         return DataCallStatus.SUCCESS, ""
 
