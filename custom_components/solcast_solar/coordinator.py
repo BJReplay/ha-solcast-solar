@@ -161,9 +161,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         for timer in sorted(self.tasks):
             _LOGGER.debug("Running task %s", timer)
 
-        if self.solcast.options.auto_dampen:
-            await self.solcast.model_automated_dampening()
-
         return True
 
     class DampeningStartEventHandler(FileSystemEventHandler):
