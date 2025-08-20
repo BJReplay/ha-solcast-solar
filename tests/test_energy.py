@@ -15,6 +15,8 @@ from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integr
 
 from tests.common import MockConfigEntry
 
+_LOGGER = __import__("logging").getLogger(__name__)
+
 
 async def test_energy_data(
     recorder_mock: Recorder,

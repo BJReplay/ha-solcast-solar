@@ -7,6 +7,7 @@ from datetime import timezone
 import logging
 from pathlib import Path
 import re
+import traceback
 from types import MappingProxyType
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -458,30 +459,30 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                         all_config_data[HARD_LIMIT_API] = hard_limit
 
                 # Validate estimated actuals and auto-dampen.
-                all_config_data[GET_ACTUALS] = user_input[GET_ACTUALS]
-                all_config_data[USE_ACTUALS] = int(user_input[USE_ACTUALS])
+                all_config_data[GET_ACTUALS] = user_input.get(GET_ACTUALS, False)
+                all_config_data[USE_ACTUALS] = int(user_input.get(USE_ACTUALS, 0))
                 all_config_data[GENERATION_ENTITIES] = user_input.get(GENERATION_ENTITIES, [])
-                all_config_data[AUTO_DAMPEN] = user_input[AUTO_DAMPEN]
-                all_config_data[SITE_EXPORT_ENTITY] = user_input[SITE_EXPORT_ENTITY][0] if user_input[SITE_EXPORT_ENTITY] else ""
-                all_config_data[SITE_EXPORT_LIMIT] = user_input[SITE_EXPORT_LIMIT]
+                all_config_data[AUTO_DAMPEN] = user_input.get(AUTO_DAMPEN, False)
+                all_config_data[SITE_EXPORT_ENTITY] = user_input[SITE_EXPORT_ENTITY][0] if user_input.get(SITE_EXPORT_ENTITY) else ""
+                all_config_data[SITE_EXPORT_LIMIT] = user_input.get(SITE_EXPORT_LIMIT, 0)
                 if not errors:
-                    if int(user_input[USE_ACTUALS]) != HistoryType.FORECASTS and not user_input[GET_ACTUALS]:
+                    if int(user_input.get(USE_ACTUALS, 0)) != HistoryType.FORECASTS and not user_input.get(GET_ACTUALS, False):
                         errors["base"] = "actuals_without_get"
                         _LOGGER.debug("API key validation failed: %s", errors["base"])
                 if not errors:
-                    if user_input[AUTO_DAMPEN] and not user_input[GET_ACTUALS]:
+                    if user_input.get(AUTO_DAMPEN, False) and not user_input.get(GET_ACTUALS, False):
                         errors["base"] = "dampen_without_actuals"
                         _LOGGER.debug("API key validation failed: %s", errors["base"])
                 if not errors:
-                    if user_input[AUTO_DAMPEN] and not user_input[GENERATION_ENTITIES]:
+                    if user_input.get(AUTO_DAMPEN, False) and not user_input[GENERATION_ENTITIES]:
                         errors["base"] = "dampen_without_generation"
                         _LOGGER.debug("API key validation failed: %s", errors["base"])
                 if not errors:
-                    if user_input[SITE_EXPORT_ENTITY] != [] and len(user_input[SITE_EXPORT_ENTITY]) > 1:
+                    if user_input.get(SITE_EXPORT_ENTITY, []) != [] and len(user_input.get(SITE_EXPORT_ENTITY, [])) > 1:
                         errors["base"] = "export_multiple_entities"
                         _LOGGER.debug("API key validation failed: %s", errors["base"])
                 if not errors:
-                    if user_input[SITE_EXPORT_LIMIT] > 0.0 and len(user_input[SITE_EXPORT_ENTITY]) == 0:
+                    if user_input.get(SITE_EXPORT_LIMIT, 0) > 0.0 and len(user_input.get(SITE_EXPORT_ENTITY, [])) == 0:
                         errors["base"] = "export_no_entity"
                         _LOGGER.debug("API key validation failed: %s", errors["base"])
 
@@ -513,14 +514,15 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                             errors["base"] = message
 
                 if not errors:
-                    if user_input.get(CONFIG_DAMP) and not user_input[AUTO_DAMPEN]:
+                    if user_input.get(CONFIG_DAMP) and not user_input.get(AUTO_DAMPEN, False):
                         return await self.async_step_dampen()
 
                     self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
                     await self.check_dead()
                     return self.async_abort(reason="reconfigured")
             except Exception as e:  # noqa: BLE001
-                errors["base"] = str(e)
+                _LOGGER.error(traceback.format_exc())
+                errors["base"] = f"Exception: {str(e)}"
 
         update: list[SelectOptionDict] = [
             SelectOptionDict(label="none", value="0"),
@@ -588,7 +590,6 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                         SelectSelectorConfig(options=exclude, mode=SelectSelectorMode.DROPDOWN, multiple=True)
                     ),
                     vol.Optional(GET_ACTUALS, default=self._options[GET_ACTUALS]): bool,
-                    # vol.Optional(USE_ACTUALS, default=self._options[USE_ACTUALS]): bool,
                     vol.Optional(AUTO_DAMPEN, default=self._options[AUTO_DAMPEN]): bool,
                     vol.Optional(GENERATION_ENTITIES, default=self._options.get(GENERATION_ENTITIES, [])): SelectSelector(
                         SelectSelectorConfig(options=sensors, mode=SelectSelectorMode.DROPDOWN, multiple=True)
@@ -600,10 +601,9 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                         SITE_EXPORT_LIMIT,
                         default=self._options.get(SITE_EXPORT_LIMIT, 0.0),
                     ): vol.All(vol.Coerce(float), vol.Range(min=0.0, max=100.0)),
-                    vol.Required(USE_ACTUALS, default=str(int(self._options[USE_ACTUALS]))): SelectSelector(
+                    vol.Required(USE_ACTUALS, default=str(int(self._options.get(USE_ACTUALS, 0)))): SelectSelector(
                         SelectSelectorConfig(options=history, mode=SelectSelectorMode.DROPDOWN, translation_key="energy_history")
                     ),
-                    # damp: bool if not self._options[AUTO_DAMPEN] else str,
                 }
                 | damp
             ),

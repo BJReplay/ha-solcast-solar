@@ -171,6 +171,7 @@ async def _exec_update(
 
 async def _exec_update_actuals(
     hass: HomeAssistant,
+    coordinator: SolcastUpdateCoordinator,
     solcast: SolcastApi,
     caplog: pytest.LogCaptureFixture,
     action: str,
@@ -193,6 +194,9 @@ async def _exec_update_actuals(
     elif wait:
         await _wait_for_update(caplog)
         await solcast.tasks_cancel()
+        async with asyncio.timeout(1):
+            while coordinator.tasks.get("actuals"):
+                await hass.async_block_till_done()
     await hass.async_block_till_done()
 
 
@@ -1123,6 +1127,7 @@ async def test_scenarios(
 
         # Test start with stale data
         data_file = Path(f"{config_dir}/solcast.json")
+        data_file_undampened = Path(f"{config_dir}/solcast-undampened.json")
         original_data = json.loads(data_file.read_text(encoding="utf-8"))
 
         def alter_last_updated_as_stale():
@@ -1137,22 +1142,23 @@ async def test_scenarios(
             session_reset_usage()
 
         def alter_last_updated_as_very_stale():
-            data = json.loads(data_file.read_text(encoding="utf-8"))
-            data["last_updated"] = (dt.now(datetime.UTC) - timedelta(days=9)).isoformat()
-            data["last_attempt"] = data["last_updated"]
-            data["auto_updated"] = 10
-            # Shift all forecast intervals back nine days
-            for site in data["siteinfo"].values():
-                site["forecasts"] = [
-                    {
-                        "period_start": (dt.fromisoformat(f["period_start"]) - timedelta(days=9)).isoformat(),
-                        "pv_estimate": f["pv_estimate"],
-                        "pv_estimate10": f["pv_estimate10"],
-                        "pv_estimate90": f["pv_estimate90"],
-                    }
-                    for f in site["forecasts"]
-                ]
-            data_file.write_text(json.dumps(data), encoding="utf-8")
+            for d_file in [data_file, data_file_undampened]:
+                data = json.loads(d_file.read_text(encoding="utf-8"))
+                data["last_updated"] = (dt.now(datetime.UTC) - timedelta(days=9)).isoformat()
+                data["last_attempt"] = data["last_updated"]
+                data["auto_updated"] = 10
+                # Shift all forecast intervals back nine days
+                for site in data["siteinfo"].values():
+                    site["forecasts"] = [
+                        {
+                            "period_start": (dt.fromisoformat(f["period_start"]) - timedelta(days=9)).isoformat(),
+                            "pv_estimate": f["pv_estimate"],
+                            "pv_estimate10": f["pv_estimate10"],
+                            "pv_estimate90": f["pv_estimate90"],
+                        }
+                        for f in site["forecasts"]
+                    ]
+                d_file.write_text(json.dumps(data), encoding="utf-8")
             session_reset_usage()
 
         def alter_last_updated_as_fresh(last_update: str):
@@ -1384,7 +1390,7 @@ async def test_estimated_actuals(
 
     options = copy.deepcopy(DEFAULT_INPUT1)
     options[GET_ACTUALS] = True
-    options[USE_ACTUALS] = True
+    options[USE_ACTUALS] = 1
     entry = await async_init_integration(hass, options)
     coordinator = entry.runtime_data.coordinator
     solcast = patch_solcast_api(coordinator.solcast)
@@ -1400,7 +1406,7 @@ async def test_estimated_actuals(
         # Kill the cache, then re-create with a forced update
         _LOGGER.debug("Testing force update actuals")
         Path(f"{config_dir}/solcast-dampening.json").unlink(missing_ok=True)  # Remove dampening file
-        await _exec_update_actuals(hass, solcast, caplog, "force_update_estimates")
+        await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates")
         assert Path(f"{config_dir}/solcast-actuals.json").is_file()
 
         # Retrieve actuals data
@@ -1446,7 +1452,7 @@ async def test_estimated_actuals(
         _LOGGER.debug("Testing switch between using and not using estimated actuals")
         caplog.clear()
         opt = {**entry.options}
-        opt[USE_ACTUALS] = False
+        opt[USE_ACTUALS] = 0
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         assert "Recalculate forecasts and refresh sensors" in caplog.text
@@ -1454,13 +1460,13 @@ async def test_estimated_actuals(
         if energy_dashboard is None:
             pytest.fail("Energy dashboard data is None")
         else:
-            assert energy_dashboard["wh_hours"][(solcast.get_day_start_utc() - timedelta(hours=8)).isoformat()] == 936.0  # pyright: ignore[reportPrivateUsage]
+            assert energy_dashboard["wh_hours"].get((solcast.get_day_start_utc() - timedelta(hours=8)).isoformat()) == 936.0
 
         session_set(MOCK_ALTER_HISTORY)
-        await _exec_update_actuals(hass, solcast, caplog, "force_update_estimates")
+        await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates")
         caplog.clear()
         opt = {**entry.options}
-        opt[USE_ACTUALS] = True
+        opt[USE_ACTUALS] = 1
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         assert "Recalculate forecasts and refresh sensors" in caplog.text
@@ -1469,12 +1475,12 @@ async def test_estimated_actuals(
         if energy_dashboard is None:
             pytest.fail("Energy dashboard data is None")
         else:
-            assert energy_dashboard["wh_hours"][(solcast.get_day_start_utc() - timedelta(hours=8)).isoformat()] == 374.0  # pyright: ignore[reportPrivateUsage]
+            assert energy_dashboard["wh_hours"].get((solcast.get_day_start_utc() - timedelta(hours=8)).isoformat()) == 374.0
 
         _LOGGER.debug("Testing get actuals abort if already in progress")
         caplog.clear()
-        await _exec_update_actuals(hass, solcast, caplog, "force_update_estimates", wait=False)
-        await _exec_update_actuals(hass, solcast, caplog, "force_update_estimates", wait=False)
+        await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates", wait=False)
+        await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates", wait=False)
         await _wait_for_update(caplog)
         assert "update already in progress" in caplog.text
 
@@ -1486,7 +1492,7 @@ async def test_estimated_actuals(
         await hass.async_block_till_done()
         caplog.clear()
         with pytest.raises(ServiceValidationError):
-            await _exec_update_actuals(hass, solcast, caplog, "force_update_estimates")
+            await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates")
         assert "Estimated actuals not enabled" in caplog.text
 
     finally:

@@ -2732,7 +2732,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 sites_succeeded += 1
 
         if sites_attempted > 0 and not failure:
-            await self.apply_forward_dampening()
+            await self.apply_forward_dampening(do_past_hours=do_past_hours)
 
             b_status = await self.build_forecast_data()
             self._loaded_data = True
@@ -2873,7 +2873,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 return 1.0
         return self.damp.get(f"{period_start.hour}", 1.0)
 
-    async def apply_forward_dampening(self, applicable_sites: list[str] = []) -> None:
+    async def apply_forward_dampening(self, applicable_sites: list[str] = [], do_past_hours: int = 0) -> None:
         """Apply dampening to forward forecasts."""
         _LOGGER.debug("Applying future dampening")
 
@@ -2896,7 +2896,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             forecasts_undampened_future = [
                 forecast
                 for forecast in self._data_undampened["siteinfo"][site["resource_id"]]["forecasts"]
-                if forecast["period_start"] >= self.get_day_start_utc()  # Was >= dt.now(datetime.UTC)
+                if forecast["period_start"]
+                >= (
+                    self.get_day_start_utc()
+                    if self._data["siteinfo"].get(site["resource_id"])
+                    else self.get_day_start_utc() - timedelta(hours=do_past_hours)
+                )  # Was >= dt.now(datetime.UTC)
             ]
             forecasts = (
                 {forecast["period_start"]: forecast for forecast in self._data["siteinfo"][site["resource_id"]]["forecasts"]}

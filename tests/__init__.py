@@ -66,7 +66,7 @@ DEFAULT_INPUT1_NO_DAMP: dict[str, Any] = {
     EXCLUDE_SITES: [],
     AUTO_DAMPEN: False,
     GET_ACTUALS: False,
-    USE_ACTUALS: False,
+    USE_ACTUALS: 0,
     GENERATION_ENTITIES: [],
     SITE_EXPORT_ENTITY: "",
     SITE_EXPORT_LIMIT: 0.0,

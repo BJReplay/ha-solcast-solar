@@ -720,7 +720,7 @@ async def test_presumed_dead_and_full_flow(
         caplog.clear()
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
-        option: dict[str, Any] = {BRK_ESTIMATE: False, SITE_EXPORT_ENTITY: []}
+        option: dict[str, Any] = {BRK_ESTIMATE: False, USE_ACTUALS: 0, GET_ACTUALS: False, SITE_EXPORT_ENTITY: []}
         user_input = DEFAULT_INPUT1_NO_DAMP | option
         hass.data[DOMAIN]["presumed_dead"] = True
 
