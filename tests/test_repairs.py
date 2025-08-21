@@ -57,14 +57,16 @@ async def test_missing_data_fixable(
     try:
 
         def remove_future_forecasts():
-            data_file = Path(f"{hass.config.config_dir}/solcast.json")
-            data = json.loads(data_file.read_text(encoding="utf-8"))
-            # Remove future forecasts from "now" plus six days
-            for site in data["siteinfo"].values():
-                site["forecasts"] = [
-                    f for f in site["forecasts"] if f["period_start"] < (dt.now(datetime.UTC) + timedelta(days=6)).isoformat()
-                ]
-            data_file.write_text(json.dumps(data), encoding="utf-8")
+            for file_name in [f"{hass.config.config_dir}/solcast.json", f"{hass.config.config_dir}/solcast-undampened.json"]:
+                data_file = Path(file_name)
+                data = json.loads(data_file.read_text(encoding="utf-8"))
+                # Remove future forecasts from "now" plus six days
+                for site in data["siteinfo"].values():
+                    site["forecasts"] = [
+                        f for f in site["forecasts"] if f["period_start"] < (dt.now(datetime.UTC) + timedelta(days=4)).isoformat()
+                    ]
+                data_file.write_text(json.dumps(data), encoding="utf-8")
+                _LOGGER.critical("%s: %s", data_file, len(data["siteinfo"]["1111-1111-1111-1111"]["forecasts"]))
 
         remove_future_forecasts()
         await _reload(hass, entry)

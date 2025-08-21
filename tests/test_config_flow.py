@@ -720,7 +720,7 @@ async def test_presumed_dead_and_full_flow(
         caplog.clear()
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
-        option: dict[str, Any] = {BRK_ESTIMATE: False, USE_ACTUALS: 0, GET_ACTUALS: False, SITE_EXPORT_ENTITY: []}
+        option: dict[str, Any] = {BRK_ESTIMATE: False, USE_ACTUALS: "0", SITE_EXPORT_ENTITY: []}
         user_input = DEFAULT_INPUT1_NO_DAMP | option
         hass.data[DOMAIN]["presumed_dead"] = True
 
@@ -741,7 +741,7 @@ async def test_presumed_dead_and_full_flow(
         await hass.async_block_till_done()
 
         # Test dampening step can  be reached
-        option = {CONFIG_DAMP: True, SITE_EXPORT_ENTITY: []}
+        option = {CONFIG_DAMP: True, USE_ACTUALS: "0", SITE_EXPORT_ENTITY: []}
         user_input = DEFAULT_INPUT1_NO_DAMP | option
 
         result = await hass.config_entries.options.async_init(entry.entry_id)
