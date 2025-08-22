@@ -1,6 +1,7 @@
 """Tests setup for Solcast Solar integration."""
 
 import copy
+from datetime import datetime as dt, timedelta
 import logging
 from pathlib import Path
 import re
@@ -9,6 +10,8 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from aiohttp import ClientConnectionError
+from freezegun import freeze_time
+import pytest
 from yarl import URL
 
 from homeassistant.components.solcast_solar import const
@@ -25,6 +28,7 @@ from homeassistant.components.solcast_solar.const import (
     BRK_SITE_DETAILED,
     CONFIG_VERSION,
     CUSTOM_HOUR_SENSOR,
+    DATE_FORMAT,
     DOMAIN,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
@@ -297,8 +301,38 @@ async def async_setup_aioresponses() -> None:
     MOCK_SESSION_CONFIG["aioresponses"] = aioresp
 
 
+@pytest.mark.asyncio
+async def async_setup_extra_sensors(hass: HomeAssistant) -> None:
+    """Set up extra sensors for testing."""
+
+    entity_id = "sensor.test_solar_export_sensor"
+    for minute in range(0, 240, 5):
+        with freeze_time((dt.now().replace(minute=0) + timedelta(minutes=minute)).strftime(DATE_FORMAT)):
+            hass.states.async_set(entity_id, "10")
+            await hass.async_block_till_done()
+    """
+    history = await hass.services.async_call(
+        "recorder",
+        "get_history",
+        {
+            "entity_id": entity_id,
+            "start_time": (dt.now().replace(minute=0)).strftime(DATE_FORMAT),
+            "end_time": (dt.now().replace(minute=0) + timedelta(minutes=235)).strftime(DATE_FORMAT),
+        },
+        blocking=True,
+    )
+    assert history[entity_id][10].state == "10"
+    """
+    assert hass.states.get(entity_id).state == "10"
+
+
 async def async_init_integration(
-    hass: HomeAssistant, options: dict[str, Any], version: int = CONFIG_VERSION, mock_api: bool = True, timezone: str = ZONE_RAW
+    hass: HomeAssistant,
+    options: dict[str, Any],
+    version: int = CONFIG_VERSION,
+    mock_api: bool = True,
+    timezone: str = ZONE_RAW,
+    extra_sensors: bool = False,
 ) -> MockConfigEntry:
     """Set up the Solcast Solar integration in HomeAssistant."""
 
@@ -320,6 +354,9 @@ async def async_init_integration(
     )
 
     entry.add_to_hass(hass)
+
+    if extra_sensors:
+        await async_setup_extra_sensors(hass)
 
     if mock_api:
         await async_setup_aioresponses()

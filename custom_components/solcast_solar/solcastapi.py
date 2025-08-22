@@ -203,6 +203,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._api_limit: dict[str, int] = {}
         self._api_used: dict[str, int] = {}
         self._api_used_reset: dict[str, dt | None] = {}
+        self._auto_dampening_factors: dict[dt, float] = {}
         self._data: dict[str, Any] = copy.deepcopy(FRESH_DATA)
         self._data_actuals: dict[str, Any] = copy.deepcopy(FRESH_DATA)
         self._data_actuals_dampened: dict[str, Any] = copy.deepcopy(FRESH_DATA)
@@ -2836,7 +2837,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             }
 
     def __get_dampening_granular_factor(
-        self, site: str, period_start: dt, interval_pv50: float = -1.0, log_adjustment: bool = False
+        self, site: str, period_start: dt, interval_pv50: float = -1.0, record_adjustment: bool = False
     ) -> float:
         """Retrieve a granular dampening factor."""
         factor = self.granular_dampening[site][
@@ -2851,7 +2852,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 # Adjust the factor based on forecast vs. peak interval logarithmically.
                 factor_pre_adjustment = factor
                 factor = max(factor, min(1, factor + ((1 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50)))))
-                if log_adjustment and period_start.astimezone(self._tz).date() == dt.now(self._tz).date():
+                if record_adjustment and period_start.astimezone(self._tz).date() == dt.now(self._tz).date():
                     _LOGGER.debug(
                         "Granular dampening factor for %s is %.3f (was %.3f, peak %.3f, interval pv50 %.3f)",
                         period_start.astimezone(self._tz).strftime(DATE_FORMAT),
@@ -2862,12 +2863,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
         return factor
 
-    def __get_dampening_factor(self, site: str | None, period_start: dt, interval_pv50: float, log_adjustment: bool = False) -> float:
+    def __get_dampening_factor(self, site: str | None, period_start: dt, interval_pv50: float, record_adjustment: bool = False) -> float:
         """Retrieve either a traditional or granular dampening factor."""
         if site is not None:
             if self.entry_options.get(SITE_DAMP):
                 if self.granular_dampening.get("all"):
-                    return self.__get_dampening_granular_factor("all", period_start, interval_pv50, log_adjustment=log_adjustment)
+                    return self.__get_dampening_granular_factor("all", period_start, interval_pv50, record_adjustment=record_adjustment)
                 if self.granular_dampening.get(site):
                     return self.__get_dampening_granular_factor(site, period_start)
                 return 1.0
@@ -2876,6 +2877,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def apply_forward_dampening(self, applicable_sites: list[str] = [], do_past_hours: int = 0) -> None:
         """Apply dampening to forward forecasts."""
         _LOGGER.debug("Applying future dampening")
+
+        self._auto_dampening_factors = {
+            period_start: factor
+            for period_start, factor in self._auto_dampening_factors.items()
+            if period_start >= self.get_day_start_utc()
+        }
 
         undampened_interval_pv50: dict[dt, float] = {}
         for site in self.sites:
@@ -2887,7 +2894,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     else:
                         undampened_interval_pv50[period_start] += forecast["pv_estimate"] * 0.5
 
-        log_adjustment = True
+        record_adjustment = True
         for site in self.sites:
             if site["resource_id"] in self.options.exclude_sites or (applicable_sites and site["resource_id"] not in applicable_sites):
                 continue
@@ -2921,17 +2928,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     site["resource_id"],
                     period_start.astimezone(self._tz),
                     undampened_interval_pv50.get(period_start, -1),
-                    log_adjustment=log_adjustment,
+                    record_adjustment=record_adjustment,
                 )
+                if record_adjustment:
+                    self._auto_dampening_factors[period_start] = dampening_factor
                 pv_dampened = round(pv * dampening_factor, 4)
                 pv10_dampened = round(pv10 * dampening_factor, 4)
                 pv90_dampened = round(pv90 * dampening_factor, 4)
 
                 # Add or update the new entries.
                 self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
-
-            # forecasts_list = sorted(forecasts.values(), key=itemgetter("period_start"))
-            # self._data["siteinfo"].update({site["resource_id"]: {"forecasts": copy.deepcopy(forecasts_list)}})
 
             await self.sort_and_prune(site["resource_id"], self._data, 730, forecasts)
             _LOGGER.debug(
@@ -2940,7 +2946,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 len(forecasts),
                 len(self._data_undampened["siteinfo"][site["resource_id"]]["forecasts"]),
             )
-            log_adjustment = False
+            record_adjustment = False
 
     async def sort_and_prune(self, site: str | None, data: dict[str, Any], past_days: int, forecasts: dict[Any, Any]) -> None:
         """Sort and prune a forecast list."""
@@ -3672,6 +3678,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             "pv_estimate10": site_forecasts[period_start]["pv_estimate10"],
                                             "pv_estimate90": site_forecasts[period_start]["pv_estimate90"],
                                         }
+                                        if update_tally and self.options.auto_dampen and period_start >= self.get_day_start_utc():
+                                            forecasts[period_start]["dampening_factor"] = round(
+                                                self._auto_dampening_factors[period_start], 4
+                                            )
                         site_data_forecasts[resource_id] = sorted(site_forecasts.values(), key=itemgetter("period_start"))
                         if update_tally:
                             rounded_tally: Any = round(tally, 4) if tally is not None else 0.0
