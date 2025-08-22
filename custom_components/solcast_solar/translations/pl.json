@@ -44,6 +44,9 @@
             }
         },
         "sensor": {
+            "dampen": {
+                "name": "Tłumienie"
+            },
             "power_now_30m": {
                 "name": "Moc w 30 minut"
             },
@@ -219,12 +222,18 @@
             "reconfigured": "Zastosowano nową konfigurację"
         },
         "error": {
+            "actuals_not_enabled": "Pozyskiwanie szacunkowych wartości rzeczywistych nie jest włączone",
+            "actuals_without_get": "Nie można używać szacunkowych wartości rzeczywistych bez ich uzyskania",
             "api_duplicate": "Określono duplikat klucza API",
             "api_looks_like_site": "Klucz API wygląda jak identyfikator witryny",
+            "custom_invalid": "Niestandardowy czujnik nie znajduje się pomiędzy 1 a 144",
+            "dampen_without_actuals": "Aby użyć automatycznego tłumienia, należy wybrać szacowane wartości rzeczywiste",
+            "dampen_without_generation": "Aby korzystać z automatycznego tłumienia, należy określić co najmniej jeden czujnik Wh/kWh generacji fotowoltaicznej",
+            "export_multiple_entities": "Jednostka eksportu witryny musi być pojedynczą jednostką, a nie wieloma jednostkami",
+            "export_no_entity": "Jednostka eksportu witryny musi być określona, jeśli jest ustawiony limit eksportu witryny",
             "limit_one_or_greater": "Limit API musi wynosić jeden lub więcej",
             "limit_too_many": "Wprowadzono więcej limitów API niż kluczy",
             "limit_not_number": "Limit API nie jest liczbą",
-            "custom_invalid": "Niestandardowy czujnik nie znajduje się pomiędzy 1 a 144",
             "hard_not_number": "Twardy limit nie jest liczbą dodatnią",
             "hard_too_many": "Wprowadzono więcej sztywnych limitów niż kluczy"
         },
@@ -240,13 +249,19 @@
                     "attr_brk_halfhourly": "Włącz atrybuty szczegółów prognozy półgodzinnej",
                     "attr_brk_hourly": "Włącz atrybuty szczegółów prognozy godzinowej",
                     "attr_brk_detailed": "Włącz podział witryny dla atrybutów szczegółów półgodzinnych/godzinnych (nie zostaną one zapisane w atrybutach stanu bazy danych)",
+                    "auto_dampen": "Automatyczne tłumienie (wymaga szacowanych wartości rzeczywistych i jednostki generacji fotowoltaicznej, patrz dokumentacja integracji)",
                     "auto_update": "Automatyczna aktualizacja (jeśli nie ma automatycznej aktualizacji, zamiast tego należy zastosować automatyzację)",
                     "config_damp": "Zmodyfikuj godzinowe współczynniki tłumienia (po kliknięciu przycisku „ZATWIERDŹ”)",
                     "customhoursensor": "Niestandardowy czujnik następnej godziny X (min.=1, maks.=144)",
                     "exclude_sites": "Miejsca, które należy wykluczyć z pulpitu nawigacyjnego Energy i sum czujników",
+                    "generation_entities": "Jednostka/jednostki generacji fotowoltaicznej do automatycznego tłumienia (kWh, łącznie wzrasta)",
+                    "get_actuals": "Szacowane wartości rzeczywiste aktualizowane o północy (patrz dokumentacja integracji, używa jednego wywołania API na stronę dziennie, więc zredukowany limit API jest potrzebny z tą opcją włączoną)",
                     "hard_limit": "Twardy limit falownika w kilowaty (patrz dokumentacja integracji)",
                     "key_estimate": "Preferowane prawdopodobieństwo zastosowania prognozy w przypadku czujników",
-                    "site_damp": "Ustawiono tłumienie szczegółowe: Wyczyść, aby powrócić do ogólnego tłumienia godzinowego"
+                    "site_damp": "Ustawiono tłumienie szczegółowe: Wyczyść, aby powrócić do ogólnego tłumienia godzinowego",
+                    "site_export_entity": "Opcjonalna jednostka eksportu witryny do automatycznego tłumienia (kWh, całkowity wzrost)",
+                    "site_export_limit": "Limit eksportu witryny, jeśli eksport witryny jest określony (kW)",
+                    "use_actuals": "Historia prognoz do wyświetlenia na pulpicie nawigacyjnym Energy"
                 },
                 "description": "Opcje konfiguracji Solcast"
             },

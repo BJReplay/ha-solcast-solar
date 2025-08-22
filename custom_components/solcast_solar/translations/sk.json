@@ -44,6 +44,9 @@
             }
         },
         "sensor": {
+            "dampen": {
+                "name": "Tlmenie"
+            },
             "power_now_30m": {
                 "name": "Výkon za 30 minút"
             },
@@ -219,12 +222,18 @@
             "reconfigured": "Použila sa nová konfigurácia"
         },
         "error": {
+            "actuals_not_enabled": "Získanie odhadovaných skutočných hodnôt nie je povolené",
+            "actuals_without_get": "Odhadované skutočné hodnoty nie je možné použiť bez ich získania",
             "api_duplicate": "Bol zadaný duplicitný kľúč API",
             "api_looks_like_site": "Kľúč API vyzerá ako ID lokality",
+            "custom_invalid": "Vlastný snímač nie medzi 1 a 144",
+            "dampen_without_actuals": "Na použitie automatického tlmenia je potrebné vybrať odhadované skutočné hodnoty",
+            "dampen_without_generation": "Pre použitie automatického tlmenia musí byť špecifikovaný aspoň jeden snímač Wh/kWh pre výrobu FV energie",
+            "export_multiple_entities": "Export lokality musí byť jedna entita, nie viacero entít",
+            "export_no_entity": "Export lokality musí byť špecifikovaný, ak je nastavený limit exportu lokality",
             "limit_one_or_greater": "Limit API musí byť jeden alebo väčší",
             "limit_too_many": "Je zadaných viac limitov API ako kľúčov",
             "limit_not_number": "Limit API nie je číslo",
-            "custom_invalid": "Vlastný snímač nie medzi 1 a 144",
             "hard_not_number": "Pevný limit nie je kladné číslo",
             "hard_too_many": "Je zadaných viac tvrdých limitov ako kľúčov"
         },
@@ -240,13 +249,19 @@
                     "attr_brk_halfhourly": "Povoliť polhodinové podrobné atribúty prognózy",
                     "attr_brk_hourly": "Povoliť hodinové podrobné atribúty prognózy",
                     "attr_brk_detailed": "Povoliť rozdelenie stránok pre polhodinové/hodinové atribúty podrobností (tieto sa neuložia do atribútov stavu databázy)",
+                    "auto_dampen": "Automatické tlmenie (vyžaduje odhadované skutočné hodnoty a entitu generovania FV, pozri dokumentáciu k integrácii)",
                     "auto_update": "Automatická aktualizácia (ak nie je automatická aktualizácia, musíte namiesto nej použiť automatizáciu)",
                     "config_damp": "Upravte hodinové faktory tlmenia (po kliknutí na odoslať)",
                     "customhoursensor": "Vlastný senzor ďalších X hodín (min=1, max=144)",
                     "exclude_sites": "Lokality, ktoré sa majú vylúčiť zo súčtu energie a senzorov",
+                    "generation_entities": "Entita/entity výroby FV energie pre automatické tlmenie (kWh, celkový nárast)",
+                    "get_actuals": "Odhadované skutočné hodnoty sa aktualizujú o polnoci (pozri dokumentáciu k integrácii, používa jednu API volanie na lokalitu za deň, takže je potrebné znížiť limit API s touto možnosťou povolenou)",
                     "hard_limit_api": "Pevný limit meniča vo kilowattov (pozri integračnú dokumentáciu)",
                     "key_estimate": "Preferovaná pravdepodobnosť použitia pre senzory",
-                    "site_damp": "Granulované tlmenie je nastavené: Clear pre návrat k celkovému hodinovému tlmeniu"
+                    "site_damp": "Granulované tlmenie je nastavené: Clear pre návrat k celkovému hodinovému tlmeniu",
+                    "site_export_entity": "Voliteľná entita exportu lokality pre automatické tlmenie (kWh, celkový nárast)",
+                    "site_export_limit": "Limit exportu lokality, ak je export lokality špecifikovaný (kW)",
+                    "use_actuals": "História predpovedí na zobrazenie na paneli Energy"
                 },
                 "description": "Solcast možnosti konfigurácie"
             },

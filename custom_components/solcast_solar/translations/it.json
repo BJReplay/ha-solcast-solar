@@ -44,6 +44,9 @@
             }
         },
         "sensor": {
+            "dampen": {
+                "name": "Smorzamento"
+            },
             "power_now_30m": {
                 "name": "Potenza tra 30 minuti"
             },
@@ -219,12 +222,18 @@
             "reconfigured": "Nuova configurazione applicata con successo"
         },
         "error": {
+            "actuals_not_enabled": "L'acquisizione dei dati effettivi stimati non è abilitata",
+            "actuals_without_get": "I valori effettivi stimati non possono essere utilizzati senza ottenerli",
             "api_duplicate": "Chiave API duplicata specificata",
             "api_looks_like_site": "La chiave API sembra un ID sito",
+            "custom_invalid": "Sensore personalizzato non compreso tra 1 e 144",
+            "dampen_without_actuals": "Per utilizzare l'auto-smorzamento è necessario selezionare i valori effettivi stimati",
+            "dampen_without_generation": "È necessario specificare almeno un sensore Wh/kWh di generazione fotovoltaica per utilizzare l'auto-smorzamento",
+            "export_multiple_entities": "Il sito di esportazione deve essere una sola entità, non più entità",
+            "export_no_entity": "Il sito di esportazione deve essere specificato se è impostato un limite di esportazione del sito",
             "limit_one_or_greater": "Il limite API deve essere uno o superiore",
             "limit_too_many": "Sono stati inseriti più conteggi dei limiti API rispetto alle chiavi",
             "limit_not_number": "Il limite API non è un numero",
-            "custom_invalid": "Sensore personalizzato non compreso tra 1 e 144",
             "hard_not_number": "Il limite massimo non è un numero positivo",
             "hard_too_many": "Sono stati inseriti più limiti rigidi che chiavi"
         },
@@ -269,13 +278,19 @@
                     "attr_brk_halfhourly": "Abilita gli attributi di dettaglio semiorari delle previsioni",
                     "attr_brk_hourly": "Abilita gli attributi di dettaglio orari delle previsioni",
                     "attr_brk_site": "Abilita gli attributi del sensore di suddivisione del sito",
+                    "auto_dampen": "Auto-dampen (richiede valori reali stimati e entità di generazione fotovoltaica, vedere la documentazione dell'integrazione)",
                     "auto_update": "Aggiornamento automatico (se non è presente l'aggiornamento automatico, è necessario utilizzare un'automazione)",
                     "config_damp": "Modifica i fattori di smorzamento orari (dopo aver cliccato su invia)",
                     "customhoursensor": "Sensore personalizzato per le prossime X ore (min=1, max=144)",
                     "exclude_sites": "Sito/i da escludere dal dashboard Energia e dai totali dei sensori",
+                    "generation_entities": "Entità/entità di generazione fotovoltaica per smorzamento automatico (kWh, aumento totale)",
+                    "get_actuals": "Valori reali stimati aggiornati a mezzanotte (vedere la documentazione dell'integrazione, utilizza una chiamata API per sito al giorno, quindi è necessario un limite API ridotto con questa opzione abilitata)",
                     "hard_limit_api": "Limite rigido dell'inverter in kW (vedere la documentazione dell'integrazione)",
                     "key_estimate": "Probabilità di previsione preferita da utilizzare per i sensori",
-                    "site_damp": "Lo smorzamento granulare è impostato: Cancella per ripristinare lo smorzamento orario generale"
+                    "site_damp": "Lo smorzamento granulare è impostato: Cancella per ripristinare lo smorzamento orario generale",
+                    "site_export_entity": "Entità di esportazione del sito opzionale per smorzamento automatico (kWh, aumento totale)",
+                    "site_export_limit": "Limite di esportazione del sito se l'esportazione del sito è specificata (kW)",
+                    "use_actuals": "Storia delle previsioni da mostrare sul dashboard Energia"
                 },
                 "description": "Opzioni di configurazione di Solcast"
             }

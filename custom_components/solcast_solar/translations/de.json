@@ -44,6 +44,9 @@
             }
         },
         "sensor": {
+            "dampen": {
+                "name": "Dämpfung"
+            },
             "power_now_30m": {
                 "name": "Leistung in 30 Minuten"
             },
@@ -219,12 +222,18 @@
             "reconfigured": "Neue Konfiguration angewendet"
         },
         "error": {
+            "actuals_not_enabled": "Die Erfassung geschätzter Istwerte ist nicht aktiviert",
+            "actuals_without_get": "Geschätzte Istwerte können nicht verwendet werden, ohne sie zu erhalten",
             "api_duplicate": "Doppelter API-Schlüssel angegeben",
             "api_looks_like_site": "Der API-Schlüssel sieht aus wie eine Site-ID",
+            "custom_invalid": "Benutzerdefinierter Sensor nicht zwischen 1 und 144",
+            "dampen_without_actuals": "Um die automatische Dämpfung zu verwenden, müssen geschätzte Istwerte ausgewählt werden.",
+            "dampen_without_generation": "Um die automatische Dämpfung zu nutzen, muss mindestens ein Wh/kWh-Sensor für die PV-Erzeugung angegeben werden.",
+            "export_multiple_entities": "Die Site-Export-Entität muss eine einzelne Entität sein, nicht mehrere Entitäten.",
+            "export_no_entity": "Die Site-Export-Entität muss angegeben werden, wenn das Site-Export-Limit festgelegt ist.",
             "limit_one_or_greater": "Das API-Limit muss eins oder größer sein",
             "limit_too_many": "Es wurden mehr API-Limit-Zähler als Schlüssel eingegeben",
             "limit_not_number": "Das API-Limit ist keine Zahl",
-            "custom_invalid": "Benutzerdefinierter Sensor nicht zwischen 1 und 144",
             "hard_not_number": "Der fester Grenzwert ist keine positive Zahl",
             "hard_too_many": "Es sind mehr harte Grenzen als Schlüssel eingegeben"
         },
@@ -240,13 +249,19 @@
                     "attr_brk_halfhourly": "Aktivieren Sie prognostizierte halbstündliche Detailattribute",
                     "attr_brk_hourly": "Aktivieren Sie prognostizierte stündliche Detailattribute",
                     "attr_brk_detailed": "Aktivieren Sie die Site-Aufschlüsselung für halbstündliche/stündliche Detailattribute (diese werden nicht in Datenbankstatusattributen gespeichert)",
+                    "auto_dampen": "Automatische Dämpfung (erfordert geschätzte Istwerte und PV-Erzeugungseinheit, siehe Integrationsdokumentation)",
                     "auto_update": "Automatische Aktualisierung (wenn keine automatische Aktualisierung vorhanden ist, muss stattdessen eine Automatisierung verwendet werden)",
                     "config_damp": "Ändern Sie die stündlichen Dämpfungsfaktoren (nachdem Sie auf „Senden“ geklickt haben)",
                     "customhoursensor": "Nächster X-Stunden-Sensor (min=1, max=144)",
                     "exclude_sites": "Vom Energie-Dashboard und den Sensorgesamtwerten auszuschließende Site(s)",
+                    "generation_entities": "PV-Erzeugungseinheit(en) für automatisierte Dämpfung (kWh, Gesamterhöhung)",
+                    "get_actuals": "Geschätzte Istwerte werden um Mitternacht aktualisiert (siehe Integrationsdokumentation, verwendet einen API-Aufruf pro Standort und Tag, daher ist ein reduzierter API-Limit erforderlich, wenn diese Option aktiviert ist)",
                     "hard_limit_api": "Fester Grenzwert des Wechselrichters in kW (siehe Integrationsdokumentation)",
                     "key_estimate": "Bevorzugte Prognosewahrscheinlichkeit für Sensoren",
-                    "site_damp": "Die granulare Dämpfung ist eingestellt: Löschen, um zur stündlichen Gesamtdämpfung zurückzukehren"
+                    "site_damp": "Die granulare Dämpfung ist eingestellt: Löschen, um zur stündlichen Gesamtdämpfung zurückzukehren",
+                    "site_export_entity": "Optionale Site-Export-Einheit für automatisierte Dämpfung (kWh, Gesamterhöhung)",
+                    "site_export_limit": "Site-Export-Limit, wenn der Site-Export angegeben ist (kW)",
+                    "use_actuals": "Prognosehistorie, die im Energiedashboard angezeigt werden soll"
                 },
                 "description": "Dein Solcast-API-Kontoschlüssel"
             },
