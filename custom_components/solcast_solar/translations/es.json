@@ -304,6 +304,13 @@
                 "2": "Actualización automática de previsiones durante 24 horas"
             }
         },
+        "energy_history": {
+            "options": {
+                "0": "Previsiones",
+                "1": "Odhadované skutočnosti",
+                "2": "Zjemnené odhadované skutočnosti"
+            }
+        },
         "key_estimate": {
             "options": {
                 "estimate": "Generación media esperada (estimate)",
@@ -316,6 +323,10 @@
         "clear_all_solcast_data": {
             "description": "Elimina el archivo solcast.json para eliminar todos los datos actuales del sitio solcast.",
             "name": "Borrar todos los datos guardados de Solcast"
+        },
+        "force_update_estimates": {
+            "description": "Force obtiene los últimos datos reales estimados de Solcast.",
+            "name": "Forzar actualización de datos reales estimados"
         },
         "force_update_forecasts": {
             "description": "Obtiene a la fuerza los últimos datos de pronóstico de Solcast.",

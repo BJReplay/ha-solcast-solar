@@ -304,6 +304,13 @@
                 "2": "Automatische Aktualisierung der Prognosen über 24 Stunden"
             }
         },
+        "energy_history": {
+            "options": {
+                "0": "Prognosen",
+                "1": "Geschätzte Ist-Werte",
+                "2": "Gedämpfte geschätzte Ist-Werte"
+            }
+        },
         "key_estimate": {
             "options": {
                 "estimate": "Mittlere erwartete Erzeugung (estimate)",
@@ -316,6 +323,10 @@
         "update_forecasts": {
             "name": "Aktualisieren",
             "description": "Ruft die neuesten Prognosedaten von Solcast ab."
+        },
+        "force_update_estimates": {
+            "description": "Force ruft die neuesten geschätzten Ist-Daten von Solcast ab.",
+            "name": "Forcer l'actualisation des données réelles estimées"
         },
         "force_update_forecasts": {
             "name": "Aktualisierung erzwingen",

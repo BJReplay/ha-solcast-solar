@@ -304,6 +304,13 @@
                 "2": "Aggiornamento automatico delle previsioni per 24 ore"
             }
         },
+        "energy_history": {
+            "options": {
+                "0": "Previsioni",
+                "1": "Reali stimati",
+                "2": "Reali stimati attenuati"
+            }
+        },
         "key_estimate": {
             "options": {
                 "estimate": "Generazione prevista mediana (stima)",
@@ -316,6 +323,10 @@
         "clear_all_solcast_data": {
             "description": "Elimina il file solcast.json per rimuovere tutti i dati del sito Solcast correnti.",
             "name": "Cancella tutti i dati Solcast salvati"
+        },
+        "force_update_estimates": {
+            "description": "Forza il recupero dei più recenti dati reali stimati da Solcast.",
+            "name": "Forza l'aggiornamento dei valori effettivi stimati"
         },
         "force_update_forecasts": {
             "description": "Recupera forzatamente gli ultimi dati delle previsioni da Solcast.",

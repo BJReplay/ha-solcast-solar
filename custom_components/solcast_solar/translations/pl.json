@@ -304,6 +304,13 @@
                 "2": "Automatyczna aktualizacja prognoz przez 24 godziny"
             }
         },
+        "energy_history": {
+            "options": {
+                "0": "Prognozy",
+                "1": "Oszacowane rzeczywiste wartości",
+                "2": "Wygładzone oszacowane rzeczywiste wartości"
+            }
+        },
         "key_estimate": {
             "options": {
                 "estimate": "Mediana oczekiwanej generacji (estimate)",
@@ -316,6 +323,10 @@
         "update_forecasts": {
             "name": "Aktualizuj",
             "description": "Pobierz najnowsze dane prognoz Solcast."
+        },
+        "force_update_estimates": {
+            "description": "Force pobiera najnowsze szacunkowe dane rzeczywiste z Solcast.",
+            "name": "Wymuś aktualizację szacunkowych wartości rzeczywistych"
         },
         "force_update_forecasts": {
             "name": "Wymuś aktualizuj",

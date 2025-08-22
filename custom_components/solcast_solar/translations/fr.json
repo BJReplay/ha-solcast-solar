@@ -304,6 +304,13 @@
                 "2": "Mise à jour automatique des prévisions sur 24 heures"
             }
         },
+        "energy_history": {
+            "options": {
+                "0": "Prévisions",
+                "1": "Estimations réelles",
+                "2": "Estimations réelles atténuées"
+            }
+        },
         "key_estimate": {
             "options": {
                 "estimate": "Génération médiane attendue (estimate)",
@@ -316,6 +323,10 @@
         "update_forecasts": {
             "name": "Mise à jour",
             "description": "Récupère les dernières données de prévisions de Solcast."
+        },
+        "force_update_estimates": {
+            "description": "Force récupère les dernières données réelles estimées de Solcast.",
+            "name": "Forcer la mise à jour des valeurs réelles estimées"
         },
         "force_update_forecasts": {
             "name": "Forcer la mise à jour",

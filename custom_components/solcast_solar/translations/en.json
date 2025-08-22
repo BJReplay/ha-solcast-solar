@@ -327,6 +327,10 @@
             "description": "Deletes the solcast.json file to remove all current solcast site data.",
             "name": "Clear all saved Solcast data"
         },
+        "force_update_estimates": {
+            "description": "Force fetches the latest estimated actual data from Solcast.",
+            "name": "Force Update Estimated Actuals"
+        },
         "force_update_forecasts": {
             "description": "Force fetches the latest forecasts data from Solcast.",
             "name": "Force Update"

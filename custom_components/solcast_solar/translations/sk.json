@@ -304,6 +304,13 @@
                 "2": "Automatická aktualizácia predpovedí počas 24 hodín"
             }
         },
+        "energy_history": {
+            "options": {
+                "0": "Predpovede",
+                "1": "Odhadované skutočnosti",
+                "2": "Zjemnené odhadované skutočnosti"
+            }
+        },
         "key_estimate": {
             "options": {
                 "estimate": "Stredná očakávaná generácia (estimate)",
@@ -316,6 +323,10 @@
         "update_forecasts": {
             "name": "Aktualizácia",
             "description": "Načítava najnovšie predpovede zo Solcastu."
+        },
+        "force_update_estimates": {
+            "description": "Vynúti načítanie najnovších odhadovaných skutočných údajov zo Solcastu.",
+            "name": "Vynútiť aktualizáciu odhadovaných skutočností"
         },
         "force_update_forecasts": {
             "name": "Vynútiť Aktualizácia",
