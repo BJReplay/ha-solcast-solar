@@ -631,13 +631,18 @@ Because future forecast periods are almost never "ideal", the determined "ideal"
 
 This rendering ineffective for factors takes into account that heavily cloudy intervals are likely to have diffuse light generation as their most significant factor, and not direct insolation.
 
+Automated dampening notes:
+* An automatically determined factor of greater than 0.95 is considered insignificant and is ignored. Feedback is welcomed as to whether these small factors should be significant and utilised. They are corrected based on forecasted interval generation, after all.
+* The aim of automated dampening is not to correct for Solcast rooftop site misconfiguration, nor panel type generation quirks. The aim is to detect consistently poor actual generation against that which is forecasted because of local factors. Any rooftop site misconfiguration can have a significant impact on reported forecast, but that should be corrected in the rooftop site configuration. It is highly recommended to prove that the configuration is correct, and that forecasts are reasonably accurate before attempting to configure automated dampening, or if questionable forecasting is apparent then to disable automated dampening before diagnosing the questionable forecasting. The adjustments made by automated dampening may hinder efforts to resolve basic misconfiguration issues, and if it enabled then reporting an issue of deviation from forecast where automated dampening is not implicated will likely impede issue resolution. We both don't want that.
+* External sensors (like PV export and site export) must be per-kWh, and cumulatively increasing throughout a given day. Sensors which are per-Wh must be converted by using a template sensor. If there is a significant case for it then the integration can be altered to automatically compensate for a differing unit of measure.
+
 Your feedback regarding experience with the automated dampening feature will be most welcome in the integration repository discussions.
 
-Comprehensive logging at `DEBUG` level happens when automated dampening is enabled, and you are encouraged to examine and include that logged detail in any discussion that might point out a deficiency or improvement opportunity.
+Comprehensive logging at `DEBUG` level happens when automated dampening is enabled, and you are encouraged to examine and include that logged detail in any discussion that might point out a deficiency, experience (both positive and negative!), or an improvement opportunity.
 
 #### Simple hourly dampening
 
-You can change the dampening factor value for any hour. Values from 0.0 - 1.0 are valid. Setting 0.95 will dampen (reduce) each Solcast forecast data value by 5%. This is reflected in the sensor values and attributes and also in the Home Assistant Energy dashboard..
+You can change the dampening factor value for any hour. Values from 0.0 - 1.0 are valid. Setting 0.95 will dampen (reduce) each Solcast forecast data value by 5%. This is reflected in the sensor values and attributes and also in the Home Assistant Energy dashboard.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/dampopt.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/dampopt.png)
 
