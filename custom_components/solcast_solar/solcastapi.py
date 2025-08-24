@@ -3326,19 +3326,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         )
         return {
             "wh_hours": {
-                forecast["period_start"].isoformat(): round(forecast[self._use_forecast_confidence] * 500, 0)
-                for index, forecast in enumerate(self._data_forecasts)
-                if index > forecasts_start + 1
-                and index < len(self._data_forecasts) - 2
-                and (
-                    forecast[self._use_forecast_confidence] > 0
-                    or self._data_forecasts[index - 1][self._use_forecast_confidence] > 0
-                    or self._data_forecasts[index + 1][self._use_forecast_confidence] > 0
-                    or (forecast["period_start"].minute == 30 and self._data_forecasts[index - 2][self._use_forecast_confidence] > 0.2)
-                    or (forecast["period_start"].minute == 30 and self._data_forecasts[index + 2][self._use_forecast_confidence] > 0.2)
-                )
-            }
-            | {
                 actual["period_start"].isoformat(): round(actual["pv_estimate"] * 500, 0)
                 for index, actual in enumerate(_data)
                 if index > actuals_start + 1
@@ -3349,6 +3336,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     or _data[index + 1]["pv_estimate"] > 0
                     or (actual["period_start"].minute == 30 and _data[index - 2]["pv_estimate"] > 0.2)
                     or (actual["period_start"].minute == 30 and _data[index + 2]["pv_estimate"] > 0.2)
+                )
+            }
+            | {
+                forecast["period_start"].isoformat(): round(forecast[self._use_forecast_confidence] * 500, 0)
+                for index, forecast in enumerate(self._data_forecasts)
+                if index >= forecasts_start
+                and index < len(self._data_forecasts) - 2
+                and (
+                    forecast["pv_estimate"] > 0
+                    or self._data_forecasts[index - 1]["pv_estimate"] > 0
+                    or self._data_forecasts[index + 1]["pv_estimate"] > 0
+                    or (forecast["period_start"].minute == 30 and self._data_forecasts[index - 2]["pv_estimate"] > 0.2)
+                    or (forecast["period_start"].minute == 30 and self._data_forecasts[index + 2]["pv_estimate"] > 0.2)
                 )
             }
         }
