@@ -591,11 +591,11 @@ If auto-update is enabled then last polled also features these attributes:
 
 ### Dampening configuration
 
-It is possible to configure periodic dampening values to account for shading. This may be done automatically, configured by automation or by simple integration configuration for hourly dampening.
+It is possible to configure periodic dampening values to account for shading. This may be done automatically, configured by automation, an external process, or by simple integration configuration for hourly dampening.
 
-Dampening is applied to future forecasts whenever a forecast is fetched, so forecast history retains the dampening that had been applied at the time.
+Dampening is applied to future forecasts, so forecast history retains the dampening that had been applied at the time.
 
-Per-site and per-half hour dampening is possible only by using the `solcast_solar.set_dampening` action or modifying a dampening configuration file. See [Granular dampening](#granular-dampening) below. Automated dampening will calculate only overall "all sites" granular dampening factors.
+Automated dampening will calculate overall "all sites" granular per-half hour dampening factors. Manual per-site and per-half hour dampening is possible only by using the `solcast_solar.set_dampening` action or modifying a dampening configuration file. See [Granular dampening](#granular-dampening) below.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png)
 
@@ -603,7 +603,7 @@ Per-site and per-half hour dampening is possible only by using the `solcast_sola
 
 #### Automated dampening
 
-A feature of the integration is automated dampening, where a combination of historic generation compared with estimated past actuals is used to determine regular anomalous generation during periods of historically peak generation. This is useful to identify likely panel shading, and to then apply a dampening factor for forecast periods during the day that will be shade affected, reducing the forecast power accordingly.
+A feature of the integration is automated dampening, where a combination of historic generation compared with estimated past actuals is used to determine regularly anomalous generation during periods of historically peak generation. This is useful to identify likely panel shading, and to then apply a dampening factor for forecast periods during the day that will be shade affected, reducing the forecasted power accordingly.
 
 Automated dampening is dynamic, and utilises the past fourteen days of generation and estimated actual data from Solcast to build its model and determine needed dampening factors.
 
@@ -613,19 +613,19 @@ The theory of operation is simple, but does rely on key inputs:
 
 1. Estimated actual data from Solcast.
 
-Solcast provide future likely generation values for half-hourly intervals over the coming seven days. They also estimate the likely actual generation for past periods, based on satellite data, weather data, and turbidity models, and this estimated actual data is quite accurate for a given location.
+The Solcast service principally provides future likely generation values for half-hourly intervals over the coming seven days. That service also estimates the likely actual generation for past periods, based on satellite data, weather data, and turbidity models, and automated dampening utilises this additional data. Estimated actuals are quite accurate for a given location.
 
-Getting estimated actual data does require an API call, and that API call does use up API quota for a hobbyist user. You will need to factor API call consumption for this purpose, with one call per configured Solcast rooftop site per day per API key. Past estimated actual data is acquired at or around 00:20 each day (local time).
+Getting estimated actual data does require an API call, and that API call does use up API quota for a hobbyist user. You will need to factor API call consumption for this purpose when taking advantage of automated dampening, with one call used per configured Solcast rooftop site per day per API key. Past estimated actual data is acquired at or around 00:20 each day (local time).
 
 2. Actual PV generation for your site.
 
-This data is gathered from history data for a generation sensor entity (or entities) that you have available. A single PV solar inverter installation will likely have a single "total increasing" sensor that provides a "PV export" value. Multiple inverters will have a value for each, and all sensor entities may be supplied, and these will be totalled for all rooftops.
+This data is gathered from history data for a generation sensor entity (or entities) that you have available. A single PV solar inverter installation will likely have a single "total increasing" sensor that provides a "PV export" value. Multiple inverters will have a value for each, and all sensor entities may be supplied, which will be totalled for all rooftops. An increasing kWh sensor (or sensors) must be supplied.
 
 3. (Optional) site export to the grid, combined with a limit value.
 
 Where locally generated excess energy is fed to the utility grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because at the limit value for a ten minute period) then the generation period will be excluded from any automated dampening consideration. The reason is simple: Is generation being limited by shade from a tree or chimney, or is it limited by site export maximum?
 
-Automated dampening first builds a "best of the best" set of estimated actual generation periods for the past fourteen days. It then compares actual generation for these periods (excluding periods where export limits may have been hit), and selects the highest actual generation value from the best periods. This value determines whether external factors may be impacting generation, and is used to calculate an interval dampening factor that should be applied to a forecast interval that is considered "ideal" (within a margin of error) based on the past fourteen days.
+Automated dampening first builds a "best of the best" set of estimated actual half-hourly generation periods for the past fourteen days. It then compares actual generation for these periods (excluding periods where export limits may have been hit), and selects the highest actual generation value from the best periods. This value determines whether external factors may be impacting generation, and is used to calculate an interval dampening factor that should be applied to a forecast interval that is considered "ideal" (within a margin of error) based on the past fourteen days.
 
 Because future forecast periods are almost never "ideal", the determined "ideal" factor is then altered using a logarithmic difference calculation. If the forecasted interval is reasonably close to ideal, then little change is made. If the forecasted interval departs greatly from ideal then a significant change is made to the factor to render it ineffective (i.e. closer to 1.0 x forecast generation). Values in between depart "up" towards 1.0 logarithmically.
 
