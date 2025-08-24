@@ -3299,19 +3299,29 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         if self.options.use_actuals == HistoryType.FORECASTS:
             return {
-                "wh_hours": {
-                    forecast["period_start"].isoformat(): round(forecast[self._use_forecast_confidence] * 500, 0)
-                    for index, forecast in enumerate(self._data_forecasts)
-                    if index > 1
-                    and index < len(self._data_forecasts) - 2
-                    and (
-                        forecast[self._use_forecast_confidence] > 0
-                        or self._data_forecasts[index - 1][self._use_forecast_confidence] > 0
-                        or self._data_forecasts[index + 1][self._use_forecast_confidence] > 0
-                        or (forecast["period_start"].minute == 30 and self._data_forecasts[index - 2][self._use_forecast_confidence] > 0.2)
-                        or (forecast["period_start"].minute == 30 and self._data_forecasts[index + 2][self._use_forecast_confidence] > 0.2)
+                "wh_hours": OrderedDict(
+                    sorted(
+                        {
+                            forecast["period_start"].isoformat(): round(forecast[self._use_forecast_confidence] * 500, 0)
+                            for index, forecast in enumerate(self._data_forecasts)
+                            if index > 1
+                            and index < len(self._data_forecasts) - 2
+                            and (
+                                forecast[self._use_forecast_confidence] > 0
+                                or self._data_forecasts[index - 1][self._use_forecast_confidence] > 0
+                                or self._data_forecasts[index + 1][self._use_forecast_confidence] > 0
+                                or (
+                                    forecast["period_start"].minute == 30
+                                    and self._data_forecasts[index - 2][self._use_forecast_confidence] > 0.2
+                                )
+                                or (
+                                    forecast["period_start"].minute == 30
+                                    and self._data_forecasts[index + 2][self._use_forecast_confidence] > 0.2
+                                )
+                            )
+                        }
                     )
-                }
+                )
             }
 
         # Show estimated actuals on Energy dashboard, so combine past estimated actuals with forecast start of today onwards
@@ -3325,32 +3335,38 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _data, self.get_day_start_utc() - timedelta(days=730), self.get_day_start_utc(), search_past=True
         )
         return {
-            "wh_hours": {
-                actual["period_start"].isoformat(): round(actual["pv_estimate"] * 500, 0)
-                for index, actual in enumerate(_data)
-                if index > actuals_start + 1
-                and index < actuals_end - 2
-                and (
-                    actual["pv_estimate"] > 0
-                    or _data[index - 1]["pv_estimate"] > 0
-                    or _data[index + 1]["pv_estimate"] > 0
-                    or (actual["period_start"].minute == 30 and _data[index - 2]["pv_estimate"] > 0.2)
-                    or (actual["period_start"].minute == 30 and _data[index + 2]["pv_estimate"] > 0.2)
+            "wh_hours": OrderedDict(
+                sorted(
+                    (
+                        {
+                            actual["period_start"].isoformat(): round(actual["pv_estimate"] * 500, 0)
+                            for index, actual in enumerate(_data)
+                            if index > actuals_start + 1
+                            and index < actuals_end - 2
+                            and (
+                                actual["pv_estimate"] > 0
+                                or _data[index - 1]["pv_estimate"] > 0
+                                or _data[index + 1]["pv_estimate"] > 0
+                                or (actual["period_start"].minute == 30 and _data[index - 2]["pv_estimate"] > 0.2)
+                                or (actual["period_start"].minute == 30 and _data[index + 2]["pv_estimate"] > 0.2)
+                            )
+                        }
+                        | {
+                            forecast["period_start"].isoformat(): round(forecast[self._use_forecast_confidence] * 500, 0)
+                            for index, forecast in enumerate(self._data_forecasts)
+                            if index >= forecasts_start
+                            and index < len(self._data_forecasts) - 2
+                            and (
+                                forecast["pv_estimate"] > 0
+                                or self._data_forecasts[index - 1]["pv_estimate"] > 0
+                                or self._data_forecasts[index + 1]["pv_estimate"] > 0
+                                or (forecast["period_start"].minute == 30 and self._data_forecasts[index - 2]["pv_estimate"] > 0.2)
+                                or (forecast["period_start"].minute == 30 and self._data_forecasts[index + 2]["pv_estimate"] > 0.2)
+                            )
+                        }
+                    ).items()
                 )
-            }
-            | {
-                forecast["period_start"].isoformat(): round(forecast[self._use_forecast_confidence] * 500, 0)
-                for index, forecast in enumerate(self._data_forecasts)
-                if index >= forecasts_start
-                and index < len(self._data_forecasts) - 2
-                and (
-                    forecast["pv_estimate"] > 0
-                    or self._data_forecasts[index - 1]["pv_estimate"] > 0
-                    or self._data_forecasts[index + 1]["pv_estimate"] > 0
-                    or (forecast["period_start"].minute == 30 and self._data_forecasts[index - 2]["pv_estimate"] > 0.2)
-                    or (forecast["period_start"].minute == 30 and self._data_forecasts[index + 2]["pv_estimate"] > 0.2)
-                )
-            }
+            )
         }
 
     def __site_api_key(self, site: str) -> str | None:
