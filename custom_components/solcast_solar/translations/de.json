@@ -326,7 +326,7 @@
         },
         "force_update_estimates": {
             "description": "Force ruft die neuesten geschätzten Ist-Daten von Solcast ab.",
-            "name": "Forcer l'actualisation des données réelles estimées"
+            "name": "Aktualisierung der geschätzten Ist-Werte erzwingen"
         },
         "force_update_forecasts": {
             "name": "Aktualisierung erzwingen",
