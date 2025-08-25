@@ -498,8 +498,10 @@ YAML:
 | --- | --- |
 | `solcast_solar.update_forecasts` | Update the forecast data (refused if auto-update is enabled). |
 | `solcast_solar.force_update_forecasts` | Force update the forecast data (performs an update regardless of API usage tracking or auto-update setting, and does not increment the API use counter, refused if auto-update is not enabled.) |
+| `solcast_solar.force_update_estimates` | Force update the estimated actual data (performs an update regardless of API usage tracking, and does not increment the API use counter, refused if get estimated actuals is not enabled.) |
 | `solcast_solar.clear_all_solcast_data` | Deletes cached data, and initiates an immediate fetch of new past actual and forecast values. |
 | `solcast_solar.query_forecast_data` | Return a list of forecast data using a datetime range start - end. |
+| `solcast_solar.query_estimate_data` | Return a list of estimated actual data using a datetime range start - end. |
 | `solcast_solar.set_dampening` | Update the dampening factors. |
 | `solcast_solar.get_dampening` | Get the currently set dampening factors. |
 | `solcast_solar.set_hard_limit` | Set inverter forecast hard limit. |
@@ -516,6 +518,13 @@ data:
   end_date_time: 2024-10-06T10:00:00.000Z
   undampened: false (optional)
   site: 1234-5678-9012-3456 (optional)
+```
+
+```yaml
+action: solcast_solar.query_estimate_data
+data:
+  start_date_time: 2024-10-06T00:00:00.000Z
+  end_date_time: 2024-10-06T10:00:00.000Z
 ```
 
 ```yaml
@@ -552,6 +561,7 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 | `API Last Polled` | date/time | Y | `datetime` | Date/time when the forecast was last updated successfully. |
 | `API Limit` | number | N | `integer` | Total times the API can been called in a 24 hour period[^1]. |
 | `API used` | number | N | `integer` | Total times the API has been called today (API counter resets to zero at midnight UTC)[^1]. |  
+| `Dampening` | boolean | Y | `bool` | Whether dampening is enabled (disabled by default). |  
 | `Hard Limit Set` | number | N | `float` or `bool` | `False` if not set, else value in `kilowatts`. |
 | `Hard Limit Set ******AaBbCc` | number | N | `float` | Individual account hard limit. Value in `kilowatts`. |
 | `Rooftop site name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the site setup)[^2]. |
@@ -567,6 +577,12 @@ If auto-update is enabled then last polled also features these attributes:
 * `auto_update_divisions`: The number of configured auto-updates for each day.
 * `auto_update_queue`: A maximum of 48 future auto-updates currently in the queue.
 * `next_auto_update`: The date/time of the next scheduled auto-update.
+
+If dampening is active then dampening also features these attributes:
+
+* `integration_automated`: Boolean. Whether auto-dampen is enabled.
+* `last_updated`: Datetime. The date and time that the factors were last set.
+* `factors`: Dict. The `interval` start hour:minute, and `factor` as a floating point number.
 
 `Rooftop site name` attributes include:
 
@@ -716,9 +732,7 @@ Example of half-hourly dampening for all sites:
 
 #### Reading forecast values in an automation
 
-When calculating dampening using an automation it may be beneficial to use un-dampened forecast values as input.
-
-This is possible by using the action `solcast_solar.query_forecast_data`, and including `undampened: true` in the parameters. The site may also be included in the action parameters if a breakdown is desired. (The optional site may be specified using either hyphens or underscores.)
+The action `solcast_solar.query_forecast_data` can return both dampened and undampened forecasts (include `undampened: true`). The site may also be included in the action parameters if a breakdown is desired. (The optional site may be specified using either hyphens or underscores.)
 
 ```yaml
 action: solcast_solar.query_forecast_data
@@ -730,6 +744,21 @@ data:
 ```
 
 Un-dampened forecast history is retained for just 14 days.
+
+#### Reading estimated actual values in an automation
+
+When calculating dampening using an automation it may be beneficial to use estimated actual past values as input.
+
+This is possible by using the action `solcast_solar.query_estimate_data`. The site may not be included in the action parameters presently. (If a site breakdown is desired, then raise an issue or a discussion topic.)
+
+```yaml
+action: solcast_solar.query_estimate_data
+data:
+  start_date_time: 2024-10-08T12:00:00+11:00
+  end_date_time: 2024-10-08T19:00:00+11:00
+```
+
+Estimated actual data is retained for 720 days.
 
 #### Reading dampening values
 

@@ -336,6 +336,20 @@
             "name": "Vymažte všetky uložené údaje Solcast",
             "description": "Odstráni súbor solcast.json a odstráni všetky aktuálne údaje lokality solcast."
         },
+        "query_estimate_data": {
+            "description": "Vráti množinu údajov alebo hodnotu pre daný dotaz.",
+            "fields": {
+                "end_date_time": {
+                    "description": "Interroga udalosti s údajmi o skutočnosti až do času ukončenia.",
+                    "name": "Čas ukončenia"
+                },
+                "start_date_time": {
+                    "description": "Interroga udalosti s údajmi o skutočnosti od času začiatku.",
+                    "name": "Čas začiatku"
+                }
+            },
+            "name": "Dotaz odhadovaných skutočných údajov"
+        },
         "query_forecast_data": {
             "name": "Dopytujte údaje predpovede",
             "description": "Vráti množinu údajov alebo hodnotu pre daný dotaz.",

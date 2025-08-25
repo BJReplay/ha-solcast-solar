@@ -342,6 +342,20 @@
             },
             "name": "Obtener pronósticos de amortiguación"
         },
+        "query_estimate_data": {
+            "description": "Devuelve un conjunto de datos para una consulta determinada.",
+            "fields": {
+                "end_date_time": {
+                    "description": "Consulta de datos de eventos reales estimados hasta la fecha y hora.",
+                    "name": "Fecha de finalización y hora"
+                },
+                "start_date_time": {
+                    "description": "Consulta de datos de eventos reales estimados a partir de la fecha y hora.",
+                    "name": "Fecha de inicio y hora"
+                }
+            },
+            "name": "Consulta de datos reales estimados"
+        },
         "query_forecast_data": {
             "description": "Devuelve un conjunto de datos para una consulta determinada.",
             "fields": {

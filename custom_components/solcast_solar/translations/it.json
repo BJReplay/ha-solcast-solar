@@ -342,6 +342,20 @@
             },
             "name": "Ottieni smorzamento delle previsioni"
         },
+        "query_estimate_data": {
+            "description": "Restituisce un set di dati per una determinata query.",
+            "fields": {
+                "end_date_time": {
+                    "description": "Interroga gli eventi di dati reali stimati fino all'ora della data.",
+                    "name": "Ora della data di fine"
+                },
+                "start_date_time": {
+                    "description": "Interroga gli eventi di dati reali stimati a partire dalla data e dall'ora.",
+                    "name": "Ora della data di inizio"
+                }
+            },
+            "name": "Interroga i dati reali stimati"
+        },
         "query_forecast_data": {
             "description": "Restituisce un set di dati per una determinata query.",
             "fields": {

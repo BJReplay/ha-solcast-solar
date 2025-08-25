@@ -336,6 +336,20 @@
             "name": "Wyczyść wszystkie zapisane dane Solcast",
             "description": "Usuwa plik solcast.json, aby usunąć wszystkie aktualne dane witryny Solcast."
         },
+        "query_estimate_data": {
+            "description": "Zwraca zestaw danych lub wartość dla podanego zapytania.",
+            "fields": {
+                "end_date_time": {
+                    "description": "Interroga zdarzenia danych rzeczywistych szacowanych do czasu zakończenia.",
+                    "name": "Czas zakończenia"
+                },
+                "start_date_time": {
+                    "description": "Interroga zdarzenia danych rzeczywistych szacowanych od czasu rozpoczęcia.",
+                    "name": "Czas rozpoczęcia"
+                }
+            },
+            "name": "Zapytanie o szacowane rzeczywiste dane"
+        },
         "query_forecast_data": {
             "name": "Pobierz dane prognoz",
             "description": "Zwraca zestaw danych lub wartość dla podanego zapytania.",

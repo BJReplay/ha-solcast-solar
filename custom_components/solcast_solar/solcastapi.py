@@ -2514,6 +2514,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             interval = period_start.astimezone(self._tz).hour * 2 + period_start.astimezone(self._tz).minute // 30
             if actual > 0.90 * self._peak_intervals[interval]:
                 matching_intervals[interval].append(period_start.astimezone(self._tz))
+            # if interval == 34:
+            #    _LOGGER.critical("34 interval actual %.3f has peak %.3f", actual, self._peak_intervals[interval])
 
         # Defaults.
         dampening: list[float] = [1.0] * 48
@@ -2524,13 +2526,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             generation_samples: list[float] = [
                 generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
             ]
+            interval_time = f"{interval // 2:02}:{30 * (interval % 2):02}"
+            # if interval_time == "17:00":
+            #    _LOGGER.critical("17:00 interval has matching intervals: %s", ", ".join([dt.strftime(DATE_MONTH_DAY) for dt in matching]))
+            #    _LOGGER.critical("17:00 interval has generation samples: %s", generation_samples)
             if len(matching) > 0 and len(matching) == len(generation_samples):
                 peak = max(generation_samples)
                 interval_time = f"{interval // 2:02}:{30 * (interval % 2):02}"
                 _LOGGER.debug(
-                    "Interval %02d:%02d has peak estimated actual %.3f and %d matching intervals: %s",
-                    interval // 2,
-                    30 * (interval % 2),
+                    "Interval %s has peak estimated actual %.3f and %d matching intervals: %s",
+                    interval_time,
                     self._peak_intervals[interval],
                     len(matching),
                     ", ".join([dt.strftime(DATE_MONTH_DAY) for dt in matching]),

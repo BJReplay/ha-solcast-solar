@@ -345,6 +345,20 @@
             },
             "name": "Get forecasts dampening"
         },
+        "query_estimate_data": {
+            "description": "Return a data set for a given query.",
+            "fields": {
+                "end_date_time": {
+                    "description": "Query estimated actual data events up to date time.",
+                    "name": "End date time"
+                },
+                "start_date_time": {
+                    "description": "Query estimated actual data events from date time.",
+                    "name": "Start date time"
+                }
+            },
+            "name": "Query estimated actual data"
+        },
         "query_forecast_data": {
             "description": "Return a data set for a given query.",
             "fields": {

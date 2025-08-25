@@ -336,6 +336,20 @@
             "name": "Effacer toutes les données Solcast enregistrées",
             "description": "Supprime le fichier solcast.json pour supprimer toutes les données actuelles du site solcast."
         },
+        "query_estimate_data": {
+            "description": "Renvoie un ensemble de données ou une valeur pour une requête donnée.",
+            "fields": {
+                "end_date_time": {
+                    "description": "Interroger les événements de données réelles estimées jusqu'à la date et l'heure.",
+                    "name": "Date et heure de fin"
+                },
+                "start_date_time": {
+                    "description": "Interroger les événements de données réelles estimées à partir de la date et de l'heure.",
+                    "name": "Date et heure de début"
+                }
+            },
+            "name": "Interroger les données réelles estimées"
+        },
         "query_forecast_data": {
             "name": "Interroger les données de prévision",
             "description": "Renvoie un ensemble de données ou une valeur pour une requête donnée.",

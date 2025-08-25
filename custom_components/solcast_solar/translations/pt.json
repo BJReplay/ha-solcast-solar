@@ -342,6 +342,20 @@
             },
             "name": "Obter amortecimento das previsões"
         },
+        "query_estimate_data": {
+            "description": "Devolver um conjunto de dados para uma determinada consulta.",
+            "fields": {
+                "end_date_time": {
+                    "description": "Interroga eventos de dados reais estimados até à data e hora.",
+                    "name": "Data e hora de fim"
+                },
+                "start_date_time": {
+                    "description": "Interroga eventos de dados reais estimados a partir da data e hora.",
+                    "name": "Data e hora de início"
+                }
+            },
+            "name": "Interroga dados reais estimados"
+        },
         "query_forecast_data": {
             "description": "Devolver um conjunto de dados para uma determinada consulta.",
             "fields": {

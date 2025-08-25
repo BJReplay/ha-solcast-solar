@@ -336,6 +336,20 @@
             "name": "Solcast-Daten zurücksetzen",
             "description": "Alle gespeicherten Solcast-Daten werden  entfernt. Die Datei solcast.json wird dadurch gelöscht."
         },
+        "query_estimate_data": {
+            "description": "Es werden die aktuellen Prognosedaten heruntergeladen.",
+            "fields": {
+                "end_date_time": {
+                    "description": "Abfrage geschätzter Ist-Datenereignisse bis zum Datum und zur Uhrzeit.",
+                    "name": "Enddatum und /-uhrzeit"
+                },
+                "start_date_time": {
+                    "description": "Abfrage geschätzter Ist-Datenereignisse ab Datum und Uhrzeit.",
+                    "name": "Anfangsdatum und /-uhrzeit"
+                }
+            },
+            "name": "Geschätzte Ist-Daten abfragen"
+        },
         "query_forecast_data": {
             "name": "Prognosedaten herunterladen",
             "description": "Es werden die aktuellen Prognosedaten heruntergeladen.",
