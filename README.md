@@ -77,11 +77,11 @@ Three solar generation estimates are produced by Solcast for every half hour per
 
 The detail of these different forecast estimates can be found in sensor attributes, which contain both 30-minute daily intervals, and calculated hourly intervals across the day. Separate attributes sum the available estimates or break things down by Solcast site. (This integration usually references a Solcast site by by its 'site resource ID', and this can be found at the Solcast site https://toolkit.solcast.com.au/)
 
-The Energy dashboard in Home Assistant is populated with historical forecast data that is provided by the integration, with data retained for up to two years.
+The Energy dashboard in Home Assistant is populated with historical data that is provided by the integration, with data retained for up to two years. (Forecast history is not stored as Home Assistant statistics, rather is stored in a `json` cache file maintained by the integration.)
 
-Manipulation of forecasted values to account for shading is possible by setting dampening factors for hourly or half-hourly periods, and a "hard limit" may be set for over-sized solar arrays where expected generation cannot exceed an inverter maximum rating. These two mechanisms are the only ways to manipulate the Solcast forecast data.
+Manipulation of forecasted values to account for predicable shading at times of the day is possible automatically, or by setting dampening factors for hourly or half-hourly periods. A "hard limit" may also be set for over-sized solar arrays where expected generation cannot exceed an inverter maximum rating. These two mechanisms are the only ways to manipulate the Solcast forecast data.
 
-Forecast history is not stored as Home Assistant statistics, rather is stored in a `json` cache file maintained by the integration.
+Solcast also produce historical "estimated actual" data. This is generally more accurate than a forecast because high resolution satellite imagery, weather and other climate observations (like water vapour and smog) are used to calculate the estimates. The integration automated dampening feature makes use of estimated actual data and compares it to generation history.
 
 > [!NOTE]
 >
@@ -463,10 +463,10 @@ For all sensors:
 
 For daily forecast sensors only:
 
-* `detailedForecast`: A half-hourly breakdown of expected average power generation for each interval (list of dicts, units in kW, not kWh)
+* `detailedForecast`: A half-hourly breakdown of expected average power generation for each interval (list of dicts, units in kW, not kWh), and if automated dampening is active then the factor determined for each interval is also included
 * `detailedHourly`: An hourly breakdown of expected average power generation for each interval (list of dicts, units in kW)
-* `detailedForecast_1234_5678_9012_3456`: A half-hourly breakdown of expected average power generation for each interval (list of dicts, units in kW)
-* `detailedHourly_1234_5678_9012_3456`: An hourly breakdown of expected average power generation for each interval (list of dicts, units in kW)
+* `detailedForecast_1234_5678_9012_3456`: A half-hourly site-specific breakdown of expected average power generation for each interval (list of dicts, units in kW)
+* `detailedHourly_1234_5678_9012_3456`: An hourly site-specific breakdown of expected average power generation for each interval (list of dicts, units in kW)
 
 The "list of dicts" has the following format, with example values used: (Note the inconsistency in `pv_estimateXX` vs. `estimateXX` used elsewhere. History is to blame.)
 
@@ -475,6 +475,7 @@ JSON:
 [
   {
     "period_start": "2025-04-06T08:00:00+10:00",
+    "dampening_factor": 0.888, <== for detailedForecast only, and only if automated dampening is enabled
     "pv_estimate10": 10.000,
     "pv_estimate": 50.000,
     "pv_estimate90": 90.000
@@ -486,6 +487,7 @@ JSON:
 YAML:
 ```yaml
 - period_start: '2025-04-06T08:00:00+10:00'
+  dampening_factor: 0.888, <== for detailedForecast only, and only if automated dampening is enabled
   pv_estimate10: 10.000
   pv_estimate: 50.000
   pv_estimate90: 90.000
@@ -498,7 +500,7 @@ YAML:
 | --- | --- |
 | `solcast_solar.update_forecasts` | Update the forecast data (refused if auto-update is enabled). |
 | `solcast_solar.force_update_forecasts` | Force update the forecast data (performs an update regardless of API usage tracking or auto-update setting, and does not increment the API use counter, refused if auto-update is not enabled.) |
-| `solcast_solar.force_update_estimates` | Force update the estimated actual data (performs an update regardless of API usage tracking, and does not increment the API use counter, refused if get estimated actuals is not enabled.) |
+| `solcast_solar.force_update_estimates` | Force update the estimated actual data (does not increment the API use counter, refused if get estimated actuals is not enabled.) |
 | `solcast_solar.clear_all_solcast_data` | Deletes cached data, and initiates an immediate fetch of new past actual and forecast values. |
 | `solcast_solar.query_forecast_data` | Return a list of forecast data using a datetime range start - end. |
 | `solcast_solar.query_estimate_data` | Return a list of estimated actual data using a datetime range start - end. |
@@ -578,11 +580,26 @@ If auto-update is enabled then last polled also features these attributes:
 * `auto_update_queue`: A maximum of 48 future auto-updates currently in the queue.
 * `next_auto_update`: The date/time of the next scheduled auto-update.
 
-If dampening is active then dampening also features these attributes:
+If dampening is active then the Dampening sensor also features these attributes:
 
-* `integration_automated`: Boolean. Whether auto-dampen is enabled.
-* `last_updated`: Datetime. The date and time that the factors were last set.
+* `integration_automated`: Boolean. Whether automated dampening is enabled.
+* `last_updated`: Datetime. The date and time that the dampening factors were last set.
 * `factors`: Dict. The `interval` start hour:minute, and `factor` as a floating point number.
+
+Example dampening sensor attributes:
+
+``` yaml
+integration_automated: true
+last_updated: 2025-08-26T04:03:01+00:00
+factors: 
+- interval: '00:00'
+  factor: 1
+- interval: '00:30'
+  factor: 1
+- interval: '01:00'
+  factor: 1
+...
+```
 
 `Rooftop site name` attributes include:
 
@@ -607,50 +624,63 @@ If dampening is active then dampening also features these attributes:
 
 ### Dampening configuration
 
-It is possible to configure periodic dampening values to account for shading. This may be done automatically, configured by automation, an external process, or by simple integration configuration for hourly dampening.
+Dampening values account for shading, and adjust forecasted generation. Dampening may be determined automatically, or determined outside of the integration and set with a service action.
 
-Dampening is applied to future forecasts, so forecast history retains the dampening that had been applied at the time.
+Any change to dampening factors will be applied to future forecasts (including the forecast for the current day). Forecast history will retain the dampening that was in effect at the time.
 
-Automated dampening will calculate overall "all sites" granular per-half hour dampening factors. Manual per-site and per-half hour dampening is possible only by using the `solcast_solar.set_dampening` action or modifying a dampening configuration file. See [Granular dampening](#granular-dampening) below.
+Automated dampening will calculate overall "all sites" dampening factors. If per-site dampening is desired then it is possible to calculate that elsewhere with your own code and then set factors by using the `solcast_solar.set_dampening` action. See [Granular dampening](#granular-dampening) below.
 
-[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png)
+> [!NOTE]
+>
+> When automated dampening is enabled it will not be possible to set dampening factors by service action, nor manually in the integration options, nor by writing the `solcast-dampening.json` file.
+>
+> (If the file write method is attempted then the file content will be immediately overwritten with the current automated dampening factors. Further, if that file is locked then this will cause an exception, which is not an integration issue.)
 
-[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/damp.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/damp.png)
 
 #### Automated dampening
 
-A feature of the integration is automated dampening, where a combination of historic generation compared with estimated past actuals is used to determine regularly anomalous generation during periods of historically peak generation. This is useful to identify likely panel shading, and to then apply a dampening factor for forecast periods during the day that will be shade affected, reducing the forecasted power accordingly.
+A feature of the integration is automated dampening, where a combination of historic site generation compared with estimated past actual potential generation is used to determine regularly anomalous generation. This is useful to identify likely panel shading, and to then apply a dampening factor for forecast periods during the day that will be shade affected, reducing the forecasted energy accordingly.
 
-Automated dampening is dynamic, and utilises the past fourteen days of generation and estimated actual data from Solcast to build its model and determine needed dampening factors.
+Automated dampening is dynamic, and utilises the past fourteen days of generation and estimate data to build its model and determine needed dampening factors.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
 
-The theory of operation is simple, but does rely on key inputs:
+The theory of operation for this feature is simple, relying on two key inputs, and an optional third:
 
-1. Estimated actual data from Solcast.
+##### Estimated actual data from Solcast.
 
-The Solcast service principally provides future likely generation values for half-hourly intervals over the coming seven days. That service also estimates the likely actual generation for past periods, based on satellite data, weather data, and turbidity models, and automated dampening utilises this additional data. Estimated actuals are quite accurate for a given location.
+Aside from forecasts, the Solcast service also estimates the likely past actual generation during the day for every rooftop site, based on high resolution satellite imagery, weather observations, and how "clear" the air is (vapour/smog). Estimated actuals are generally quite accurate for a given location.
 
-Getting estimated actual data does require an API call, and that API call does use up API quota for a hobbyist user. You will need to factor API call consumption for this purpose when taking advantage of automated dampening, with one call used per configured Solcast rooftop site per day per API key. Past estimated actual data is acquired at or around 00:20 each day (local time).
+Getting estimated actual data does require an API call, and that API call does use up API quota for a hobbyist user. You will need to factor API call consumption for this purpose when taking advantage of automated dampening, with one call used per configured Solcast rooftop site per day per API key. (Reduce the API limit for forecast updates in options accordingly.) Past estimated actual data is acquired at or around 00:20 each day (local time).
 
-2. Actual PV generation for your site.
+##### Actual PV generation for your site.
 
-This data is gathered from history data for a generation sensor entity (or entities) that you have available. A single PV solar inverter installation will likely have a single "total increasing" sensor that provides a "PV export" value. Multiple inverters will have a value for each, and all sensor entities may be supplied, which will be totalled for all rooftops. An increasing kWh sensor (or sensors) must be supplied.
+Generation is gathered from history data of a sensor entity (or entities). A single PV solar inverter installation will likely have a single "total increasing" sensor that provides a "PV export" value. Multiple inverters will have a value for each, and all sensor entities may be supplied, which will then be totalled for all rooftops. An increasing kWh sensor (or sensors) must be supplied.
 
-3. (Optional) site export to the grid, combined with a limit value.
+##### (Optional) Site export to the grid, combined with a limit value.
 
-Where locally generated excess energy is fed to the utility grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because at the limit value for a ten minute period) then the generation period will be excluded from any automated dampening consideration. The reason is simple: Is generation being limited by shade from a tree or chimney, or is it limited by site export maximum?
+Where locally generated excess power is fed to the electricity grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because at the limit value for a ten minute period) then the generation period will be excluded from any automated dampening consideration. The reason is simple: Is generation being limited by shade from a tree or chimney, or is it limited by site export maximum?
 
-Automated dampening first builds a "best of the best" set of estimated actual half-hourly generation periods for the past fourteen days. It then compares actual generation for these periods (excluding periods where export limits may have been hit), and selects the highest actual generation value from the best periods. This value determines whether external factors may be impacting generation, and is used to calculate an interval dampening factor that should be applied to a forecast interval that is considered "ideal" (within a margin of error) based on the past fourteen days.
+> [!TIP]
+>
+>
+> An export limit value may not be precisely measured by some PV system components as the real limit. This may be confusing, but the reason will be because of variations in 'CT' clamp measurement circuits.
+>
+> An example: With a 5.0kW export limit in place, an Enphase gateway may measure precisely 5.0kW, but a Tesla battery gateway in the same install may measure the same power as 5.3kW. If the sensor value used for automated dampening is from the Tesla gateway in this circumstance then make sure 5.3 is the export limit specified.
 
-Because future forecast periods are almost never "ideal", the determined "ideal" factor is then altered using a logarithmic difference calculation. If the forecasted interval is reasonably close to ideal, then little change is made. If the forecasted interval departs greatly from ideal then a significant change is made to the factor to render it ineffective (i.e. closer to 1.0 x forecast generation). Values in between depart "up" towards 1.0 logarithmically.
+##### Theory of operation
 
-This rendering ineffective for factors takes into account that heavily cloudy intervals are likely to have diffuse light generation as their most significant factor, and not direct insolation.
+Automated dampening first builds a "best of the best" set of half-hourly generation periods for the past fourteen days (from estimated actual data). It then compares that to generation history for these periods (excluding periods where export limits may have been hit), and selects the highest actual generation value from similar best periods. This value determines whether external factors may be impacting generation, and is used to calculate a dampening factor that should be applied to a forecast interval that is considered "ideal" (within a margin of error).
 
-Automated dampening notes:
+Because future forecast periods are almost never "ideal", the determined factor is then altered using a logarithmic difference calculation. If the forecasted interval is reasonably close to ideal, then little change is made. If the forecasted interval departs greatly from ideal then a significant change is made to the factor to render it ineffective (i.e. closer to 1.0 x forecast generation).
+
+This rendering ineffective for factors takes into account that heavily cloudy intervals are likely to have diffuse light as their most significant generation component, and not direct insolation.
+
+##### Automated dampening notes
+
 * An automatically determined factor of greater than 0.95 is considered insignificant and is ignored. Feedback is welcomed as to whether these small factors should be significant and utilised. They are corrected based on forecasted interval generation, after all.
-* The aim of automated dampening is not to correct for Solcast rooftop site misconfiguration, nor panel type generation quirks. The aim is to detect consistently poor actual generation against that which is forecasted because of local factors. Any rooftop site misconfiguration can have a significant impact on reported forecast, but that should be corrected in the rooftop site configuration. It is highly recommended to prove that the configuration is correct, and that forecasts are reasonably accurate before attempting to configure automated dampening, or if questionable forecasting is apparent then to disable automated dampening before diagnosing the questionable forecasting. The adjustments made by automated dampening may hinder efforts to resolve basic misconfiguration issues, and if it is enabled then reporting an issue of deviation from forecast where automated dampening is not implicated will likely impede issue resolution. We both don't want that.
-* External sensors (like PV export and site export) must be per-kWh, and cumulatively increasing throughout a given day. Sensors which are per-Wh must be converted by using a template sensor. If there is a significant case for it then the integration can be altered to automatically compensate for a differing unit of measure.
+* The aim of automated dampening is not to correct for Solcast rooftop site misconfiguration, nor panel type generation quirks. The aim is to detect consistently poor actual generation against that which is forecasted because of local factors. Any rooftop site misconfiguration can have a significant impact on reported forecast, but that should be corrected in the rooftop site configuration. It is highly recommended to prove that the configuration is correct, and that forecasts are reasonably accurate on good generation days before attempting to configure automated dampening. Said in another way, if questionable forecasting is apparent then disable automated dampening before diagnosing the questionable forecasting. The adjustments made by automated dampening may hinder efforts to resolve basic misconfiguration issues, and if it is enabled then reporting an issue of deviation from forecast where automated dampening is not implicated will likely impede issue resolution. We both don't want that.
+* External sensors (like PV export and site export) must be per-kWh, and cumulatively increasing throughout a given day. Sensors which are per-Wh and not per-kWh must be converted by using a template sensor. If there is a significant case for it then the integration can be altered to automatically compensate for a differing unit of measure.
 
 Your feedback regarding experience with the automated dampening feature will be most welcome in the integration repository discussions.
 
@@ -659,6 +689,10 @@ Comprehensive logging at `DEBUG` level happens when automated dampening is enabl
 #### Simple hourly dampening
 
 You can change the dampening factor value for any hour. Values from 0.0 - 1.0 are valid. Setting 0.95 will dampen (reduce) each Solcast forecast data value by 5%. This is reflected in the sensor values and attributes and also in the Home Assistant Energy dashboard.
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/reconfig.png)
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/damp.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/damp.png)
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/dampopt.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/dampopt.png)
 
