@@ -154,10 +154,13 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self.tasks["midnight_update"] = async_track_utc_time_change(
             self.hass, self.__update_utc_midnight_usage_sensor_data, hour=0, minute=0, second=0
         )
-        watchdog_start_task = asyncio.create_task(self.watch_for_dampening_file())
-        self.tasks["watchdog_start"] = watchdog_start_task.cancel
-        watchdog_task = asyncio.create_task(self.watch_dampening_file())
-        self.tasks["watchdog"] = watchdog_task.cancel
+        if not self.solcast.options.auto_dampen:
+            watchdog_start_task = asyncio.create_task(self.watch_for_dampening_file())
+            self.tasks["watchdog_start"] = watchdog_start_task.cancel
+            watchdog_task = asyncio.create_task(self.watch_dampening_file())
+            self.tasks["watchdog"] = watchdog_task.cancel
+        else:
+            _LOGGER.debug("Not monitoring dampening file, auto-dampening is enabled")
         for timer in sorted(self.tasks):
             _LOGGER.debug("Running task %s", timer)
 

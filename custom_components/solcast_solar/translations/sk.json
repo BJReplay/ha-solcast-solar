@@ -119,11 +119,17 @@
         }
     },
     "exceptions": {
+        "actuals_not_enabled": {
+            "message": "Získanie odhadovaných skutočných hodnôt nie je povolené."
+        },
         "auto_use_force": {
             "message": "Automatická aktualizácia je povolená, pri aktualizácii prognózy sa ignoruje udalosť služby, namiesto toho použite vynútenie aktualizácie."
         },
         "auto_use_normal": {
             "message": "Automatická aktualizácia nie je povolená, pri vynútenej aktualizácii prognózy ignorujete udalosť služby, namiesto toho použite Aktualizovať."
+        },
+        "damp_auto_enabled": {
+            "message": "Automatizované tlmenie je povolené, nenastavujú sa manuálne tlmiace faktory."
         },
         "damp_not_for_site": {
             "message": "Tlmenie stránok nie je nastavené pre {site}."

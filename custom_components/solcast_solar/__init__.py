@@ -498,6 +498,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         """
         _LOGGER.info("Action: Set dampening")
 
+        if solcast.options.auto_dampen:
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="damp_auto_enabled")
+
         factors = call.data.get(DAMP_FACTOR, "")
         site = call.data.get(SITE)  # Optional site.
 

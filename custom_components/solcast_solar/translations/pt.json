@@ -119,11 +119,17 @@
         }
     },
     "exceptions": {
+        "actuals_not_enabled": {
+            "message": "A aquisição de valores reais estimados não está habilitada."
+        },
         "auto_use_force": {
             "message": "A atualização automática está ativada, ignorando o evento de serviço para atualização da previsão, use Atualização Forçada em vez disso."
         },
         "auto_use_normal": {
             "message": "A atualização automática não está ativada, ignorando o evento de serviço para atualização forçada da previsão, use Atualizar em vez disso."
+        },
+        "damp_auto_enabled": {
+            "message": "A amortização automática está ativada, não definindo fatores de amortização manuais."
         },
         "damp_count_not_correct": {
             "message": "Não existem 24 ou 48 números separados por vírgula entre 0.0 e 1.0."

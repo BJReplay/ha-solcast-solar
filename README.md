@@ -634,7 +634,7 @@ Automated dampening will calculate overall "all sites" dampening factors. If per
 >
 > When automated dampening is enabled it will not be possible to set dampening factors by service action, nor manually in the integration options, nor by writing the `solcast-dampening.json` file.
 >
-> (If the file write method is attempted then the file content will be immediately overwritten with the current automated dampening factors. Further, if that file is locked then this will cause an exception, which is not an integration issue.)
+> (If the dampening file write method is attempted then the new file content will be ignored, and later overwritten with updated automated dampening factors when they are modelled.)
 
 
 #### Automated dampening

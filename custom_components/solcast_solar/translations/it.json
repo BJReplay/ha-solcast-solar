@@ -119,11 +119,17 @@
         }
     },
     "exceptions": {
+        "actuals_not_enabled": {
+            "message": "L'acquisizione dei dati effettivi stimati non è abilitata."
+        },
         "auto_use_force": {
             "message": "L'aggiornamento automatico è abilitato, ignorando l'evento di servizio per l'aggiornamento delle previsioni, utilizzare invece Aggiornamento forzato."
         },
         "auto_use_normal": {
             "message": "L'aggiornamento automatico non è abilitato, ignorando l'evento di servizio per l'aggiornamento forzato delle previsioni, utilizzare invece Aggiornamento."
+        },
+        "damp_auto_enabled": {
+            "message": "È abilitato lo smorzamento automatico, senza impostare manualmente i fattori di smorzamento."
         },
         "damp_count_not_correct": {
             "message": "Non ci sono 24 o 48 numeri separati da virgola tra 0.0 e 1.0."

@@ -120,13 +120,16 @@
     },
     "exceptions": {
         "actuals_not_enabled": {
-            "message": "Estimated actuals acquisition is not enabled"
+            "message": "Estimated actuals acquisition is not enabled."
         },
         "auto_use_force": {
             "message": "Auto-update is enabled, ignoring service event for forecast update, use Force Update instead."
         },
         "auto_use_normal": {
             "message": "Auto-update is not enabled, ignoring service event for force forecast update, use Update instead."
+        },
+        "damp_auto_enabled": {
+            "message": "Automated dampening is enabled, not setting manual dampening factors."
         },
         "damp_count_not_correct": {
             "message": "There are not 24 or 48 comma separated numbers between 0.0 and 1.0."

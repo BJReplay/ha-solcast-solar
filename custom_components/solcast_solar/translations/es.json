@@ -119,11 +119,17 @@
         }
     },
     "exceptions": {
+        "actuals_not_enabled": {
+            "message": "La adquisición de valores reales estimados no está habilitada."
+        },
         "auto_use_force": {
             "message": "La actualización automática está habilitada, ignorando el evento de servicio para la actualización del pronóstico, use Forzar actualización en su lugar."
         },
         "auto_use_normal": {
             "message": "La actualización automática no está habilitada, se ignora el evento de servicio para forzar la actualización del pronóstico; utilice Actualizar en su lugar."
+        },
+        "damp_auto_enabled": {
+            "message": "La amortiguación automática está habilitada, no se establecen factores de amortiguación manuales."
         },
         "damp_count_not_correct": {
             "message": "No hay 24 o 48 números separados por comas entre 0.0 y 1.0."
