@@ -2615,49 +2615,52 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             await self.sort_and_prune(site["resource_id"], self._data_actuals, 730, actuals)
             _LOGGER.debug("Estimated actuals dictionary for site %s length %s", site["resource_id"], len(actuals))
 
-        undampened_interval_pv50: dict[dt, float] = {}
-        for site in self.sites:
-            for forecast in self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"]:
-                period_start = forecast["period_start"]
-                if period_start >= self.get_day_start_utc():
-                    if period_start not in undampened_interval_pv50:
-                        undampened_interval_pv50[period_start] = forecast["pv_estimate"] * 0.5
-                    else:
-                        undampened_interval_pv50[period_start] += forecast["pv_estimate"] * 0.5
+        if dt.now(self._tz).hour == 0 and dt.now(self._tz).minute < 50:
+            # Apply dampening to yesterday actuals, but only if the new factors for the day have not been modelled.
 
-        for site in self.sites:
-            if site["resource_id"] not in self.options.exclude_sites:
-                _LOGGER.debug("Apply dampening to previous day estimated actuals for %s", site["resource_id"])
-                # Load the undampened estimated actual day yesterday.
-                actuals_undampened_day = [
-                    actual
-                    for actual in self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"]
-                    if actual["period_start"] >= dt.now(datetime.UTC) - timedelta(days=1) and actual["period_start"] < dt.now(datetime.UTC)
-                ]
-                extant_actuals = (
-                    {actual["period_start"]: actual for actual in self._data_actuals_dampened["siteinfo"][site["resource_id"]]["forecasts"]}
-                    if self._data_actuals_dampened["siteinfo"].get(site["resource_id"])
-                    else {}
-                )
+            undampened_interval_pv50: dict[dt, float] = {}
+            for site in self.sites:
+                for forecast in self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"]:
+                    period_start = forecast["period_start"]
+                    if period_start >= self.get_day_start_utc(future=-1) and period_start < self.get_day_start_utc():
+                        if period_start not in undampened_interval_pv50:
+                            undampened_interval_pv50[period_start] = forecast["pv_estimate"] * 0.5
+                        else:
+                            undampened_interval_pv50[period_start] += forecast["pv_estimate"] * 0.5
 
-                # Apply dampening to yesterday
-                for actual in sorted(actuals_undampened_day, key=itemgetter("period_start")):
-                    period_start = actual["period_start"]
-                    self.__forecast_entry_update(
-                        extant_actuals,
-                        period_start,
-                        round(
-                            round(actual["pv_estimate"], 4)
-                            * self.__get_dampening_factor(
-                                site["resource_id"],
-                                period_start.astimezone(self._tz),
-                                undampened_interval_pv50.get(period_start, -1.0),
-                            ),
-                            4,
-                        ),
+            for site in self.sites:
+                if site["resource_id"] not in self.options.exclude_sites:
+                    _LOGGER.debug("Apply dampening to previous day estimated actuals for %s", site["resource_id"])
+                    # Load the undampened estimated actual day yesterday.
+                    actuals_undampened_day = [
+                        actual
+                        for actual in self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"]
+                        if actual["period_start"] >= self.get_day_start_utc(future=-1) and actual["period_start"] < self.get_day_start_utc()
+                    ]
+                    extant_actuals = (
+                        {
+                            actual["period_start"]: actual
+                            for actual in self._data_actuals_dampened["siteinfo"][site["resource_id"]]["forecasts"]
+                        }
+                        if self._data_actuals_dampened["siteinfo"].get(site["resource_id"])
+                        else {}
                     )
 
-                await self.sort_and_prune(site["resource_id"], self._data_actuals_dampened, 730, extant_actuals)
+                    for actual in actuals_undampened_day:
+                        period_start = actual["period_start"]
+                        self.__forecast_entry_update(
+                            extant_actuals,
+                            period_start,
+                            round(
+                                actual["pv_estimate"]
+                                * self.__get_dampening_factor(
+                                    site["resource_id"], period_start.astimezone(self._tz), undampened_interval_pv50.get(period_start, -1.0)
+                                ),
+                                4,
+                            ),
+                        )
+
+                    await self.sort_and_prune(site["resource_id"], self._data_actuals_dampened, 730, extant_actuals)
 
         if status != DataCallStatus.SUCCESS:
             _LOGGER.error("Update estimated actuals failed: %s", reason)
@@ -3318,7 +3321,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     and self._data_forecasts[index + 2][self._use_forecast_confidence] > 0.2
                                 )
                             )
-                        }
+                        }.items()
                     )
                 )
             }

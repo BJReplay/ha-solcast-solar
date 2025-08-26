@@ -51,6 +51,7 @@ from homeassistant.components.solcast_solar.solcastapi import (
     SitesStatus,
     SolcastApi,
 )
+from homeassistant.components.solcast_solar.util import AutoUpdate
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -356,7 +357,7 @@ async def test_api_failure(
                 entry: ConfigEntry = await async_init_integration(hass, DEFAULT_INPUT2)
                 coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
                 solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
-                solcast.options.auto_update = 0
+                solcast.options.auto_update = AutoUpdate.NONE
                 hass.data[DOMAIN]["presumed_dead"] = False
                 await hass.async_block_till_done()
                 caplog.clear()
@@ -368,10 +369,10 @@ async def test_api_failure(
                     assert "re-authentication required" in caplog.text
                     with pytest.raises(ConfigEntryAuthFailed):
                         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
-                    solcast.options.auto_update = 1
+                    solcast.options.auto_update = AutoUpdate.DAYLIGHT
                     with pytest.raises(ConfigEntryAuthFailed):
                         await _exec_update(hass, solcast, caplog, "force_update_forecasts", last_update_delta=20)
-                    solcast.options.auto_update = 0
+                    solcast.options.auto_update = AutoUpdate.NONE
                 else:
                     await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
                     assert test["assertion"] in caplog.text
@@ -623,7 +624,7 @@ async def test_integration(
         await _exec_update(hass, solcast, caplog, "clear_all_solcast_data")  # Will cancel active fetch
 
         # Test update within ten seconds of prior update
-        solcast.options.auto_update = 0
+        solcast.options.auto_update = AutoUpdate.NONE
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=5)
         assert "Not requesting a solar forecast because time is within ten seconds of last update" in caplog.text
         assert "ERROR" not in caplog.text
@@ -633,7 +634,7 @@ async def test_integration(
         # Test API too busy encountered for first site
         caplog.clear()
         session_set(MOCK_BUSY)
-        solcast.options.auto_update = 0
+        solcast.options.auto_update = AutoUpdate.NONE
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "seconds before retry" in caplog.text
         assert "ERROR" not in caplog.text
@@ -676,7 +677,7 @@ async def test_integration(
         session_reset_usage()
         for api_key in options["api_key"].split(","):
             solcast._api_used_reset[api_key] = dt.now(datetime.UTC) - timedelta(days=5)  # pyright: ignore[reportPrivateUsage]
-        solcast.options.auto_update = 0
+        solcast.options.auto_update = AutoUpdate.NONE
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "Not requesting a solar forecast because time is within ten seconds of last update" not in caplog.text
         assert "resetting API usage" in caplog.text
@@ -805,7 +806,7 @@ async def test_remaining_actions(
 
         # Forced update when auto-update is disabled
         _LOGGER.debug("Test forced update when auto-update is disabled")
-        solcast.options.auto_update = 0
+        solcast.options.auto_update = AutoUpdate.NONE
         with pytest.raises(ServiceValidationError):
             await hass.services.async_call(DOMAIN, "force_update_forecasts", {}, blocking=True)
 

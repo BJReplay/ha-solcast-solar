@@ -56,8 +56,8 @@ from .const import (
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     SERVICE_CLEAR_DATA,
-    SERVICE_FORCE_UPDATE,
     SERVICE_FORCE_UPDATE_ESTIMATES,
+    SERVICE_FORCE_UPDATE_FORECASTS,
     SERVICE_GET_DAMPENING,
     SERVICE_QUERY_ESTIMATE_DATA,
     SERVICE_QUERY_FORECAST_DATA,
@@ -623,8 +623,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
     service_actions: dict[str, dict[str, Any]] = {
         SERVICE_CLEAR_DATA: {"action": action_call_clear_solcast_data},
-        SERVICE_FORCE_UPDATE: {"action": action_call_force_update_forecast},
         SERVICE_FORCE_UPDATE_ESTIMATES: {"action": action_call_force_update_estimates},
+        SERVICE_FORCE_UPDATE_FORECASTS: {"action": action_call_force_update_forecast},
         SERVICE_GET_DAMPENING: {
             "action": action_call_get_dampening,
             "schema": SERVICE_DAMP_GET_SCHEMA,
@@ -689,8 +689,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """
     actions = [
         SERVICE_CLEAR_DATA,
-        SERVICE_FORCE_UPDATE,
         SERVICE_FORCE_UPDATE_ESTIMATES,
+        SERVICE_FORCE_UPDATE_FORECASTS,
         SERVICE_GET_DAMPENING,
         SERVICE_QUERY_ESTIMATE_DATA,
         SERVICE_QUERY_FORECAST_DATA,
