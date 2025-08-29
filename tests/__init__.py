@@ -28,7 +28,6 @@ from homeassistant.components.solcast_solar.const import (
     BRK_SITE_DETAILED,
     CONFIG_VERSION,
     CUSTOM_HOUR_SENSOR,
-    DATE_FORMAT,
     DOMAIN,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
@@ -45,7 +44,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 
 from .aioresponses import CallbackResult, aioresponses
-from .simulator import API_KEY_SITES, SimulatedSolcast
+from .simulator import API_KEY_SITES, GENERATION_FACTOR, SimulatedSolcast
 
 from tests.common import MockConfigEntry
 
@@ -302,28 +301,45 @@ async def async_setup_aioresponses() -> None:
 
 
 @pytest.mark.asyncio
-async def async_setup_extra_sensors(hass: HomeAssistant) -> None:
+async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]) -> None:
     """Set up extra sensors for testing."""
 
-    entity_id = "sensor.test_solar_export_sensor"
-    for minute in range(0, 240, 5):
-        with freeze_time((dt.now().replace(minute=0) + timedelta(minutes=minute)).strftime(DATE_FORMAT)):
-            hass.states.async_set(entity_id, "10")
-            await hass.async_block_till_done()
-    """
-    history = await hass.services.async_call(
-        "recorder",
-        "get_history",
-        {
-            "entity_id": entity_id,
-            "start_time": (dt.now().replace(minute=0)).strftime(DATE_FORMAT),
-            "end_time": (dt.now().replace(minute=0) + timedelta(minutes=235)).strftime(DATE_FORMAT),
-        },
-        blocking=True,
-    )
-    assert history[entity_id][10].state == "10"
-    """
-    assert hass.states.get(entity_id).state == "10"
+    site_generation: dict[str, float] = {}
+    for api_key in options["api_key"].split(","):
+        for site in API_KEY_SITES[api_key]["sites"]:
+            site_generation[site["resource_id"]] = site["capacity"]
+    now = (dt.now(ZoneInfo(ZONE_RAW)) - timedelta(days=8)).replace(hour=0, minute=0, second=0)
+    for site, generation in site_generation.items():
+        power: dict[int, float] = {}
+        for interval in range(48):
+            power[interval] = (
+                0.5 * generation * GENERATION_FACTOR[interval]
+                if interval < 30
+                else (
+                    round(0.7 * 0.5 * generation * GENERATION_FACTOR[interval], 1)
+                    if interval > 32
+                    else round(0.97 * 0.5 * generation * GENERATION_FACTOR[interval], 1)
+                )
+            )
+        gen_bumps: dict[int, list[int]] = {}
+        for i, p in power.items():
+            bumps = p / 0.1
+            if bumps > 0:
+                bump_seconds = int(1800 / bumps)
+                gen_bumps[i] = list(range(0, 1800, bump_seconds))
+        entity_id = "sensor.solar_export_sensor_" + site.replace("-", "_")
+        increasing: float = 0
+        with freeze_time(now, tz_offset=10) as frozen_time:
+            for interval in range(48 * 7):
+                i = interval % 48
+                day = interval // 48
+                if gen_bumps.get(i):
+                    for b in gen_bumps[i]:
+                        increasing += 0.1
+                        new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                        frozen_time.move_to(new_now)
+                        hass.states.async_set(entity_id, str(round(increasing, 1)))
+                        await hass.async_block_till_done()
 
 
 async def async_init_integration(
@@ -356,7 +372,7 @@ async def async_init_integration(
     entry.add_to_hass(hass)
 
     if extra_sensors:
-        await async_setup_extra_sensors(hass)
+        await async_setup_extra_sensors(hass, options)
 
     if mock_api:
         await async_setup_aioresponses()

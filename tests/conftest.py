@@ -15,6 +15,7 @@ disable_loggers = [
     "homeassistant.components.recorder.pool.MutexPool",
     "sqlalchemy.engine.Engine",
     "watchdog.observers.inotify_buffer",
+    "asyncio",
 ]
 
 

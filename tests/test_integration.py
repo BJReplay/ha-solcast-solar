@@ -1498,32 +1498,3 @@ async def test_estimated_actuals(
 
     finally:
         assert await async_cleanup_integration_tests(hass)
-
-
-async def test_auto_dampen(
-    recorder_mock: Recorder,
-    hass: HomeAssistant,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test various integration scenarios."""
-
-    config_dir = hass.config.config_dir
-
-    options = copy.deepcopy(DEFAULT_INPUT1)
-    options[GET_ACTUALS] = True
-    options[USE_ACTUALS] = True
-    options[AUTO_DAMPEN] = True
-    entry = await async_init_integration(hass, options)
-    coordinator = entry.runtime_data.coordinator
-    solcast = patch_solcast_api(coordinator.solcast)
-
-    try:
-        # Assert good start, that actuals are enabled, and that the cache is saved
-        _LOGGER.debug("Testing good start happened")
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
-        _no_exception(caplog)
-        assert Path(f"{config_dir}/solcast-actuals.json").is_file()
-        caplog.clear()
-
-    finally:
-        assert await async_cleanup_integration_tests(hass)

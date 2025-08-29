@@ -2374,7 +2374,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     entity,
                 )
                 if entity_history.get(entity) and len(entity_history[entity]):
-                    _LOGGER.debug("Retrieved day %d PV generation data from entities: %s", -1 + day * -1, self.options.generation_entities)
+                    _LOGGER.debug("Retrieved day %d PV generation data from entity: %s", -1 + day * -1, entity)
 
                     # Arrange the generation samples into half-hour intervals (essentially what will be coming for the interval).
                     sample_time: list[int] = [
