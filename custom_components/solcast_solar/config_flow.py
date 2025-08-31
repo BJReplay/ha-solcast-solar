@@ -522,7 +522,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     return self.async_abort(reason="reconfigured")
             except Exception as e:  # noqa: BLE001
                 _LOGGER.error(traceback.format_exc())
-                errors["base"] = f"Exception: {str(e)}"
+                errors["base"] = f"Exception: {e!s}"
 
         update: list[SelectOptionDict] = [
             SelectOptionDict(label="none", value="0"),

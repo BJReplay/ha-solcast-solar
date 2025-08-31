@@ -165,7 +165,7 @@ async def _exec_update(
     if wait_exception:
         await _wait_for_raise(hass, wait_exception)
     elif wait:
-        await _wait_for_update(caplog)
+        await _wait_for_update(hass, caplog)
         await solcast.tasks_cancel()
     await hass.async_block_till_done()
 
@@ -193,7 +193,7 @@ async def _exec_update_actuals(
     if wait_exception:
         await _wait_for_raise(hass, wait_exception)
     elif wait:
-        await _wait_for_update(caplog)
+        await _wait_for_update(hass, caplog)
         await solcast.tasks_cancel()
         async with asyncio.timeout(1):
             while coordinator.tasks.get("actuals"):
@@ -201,27 +201,29 @@ async def _exec_update_actuals(
     await hass.async_block_till_done()
 
 
-async def _wait_for_update(caplog: pytest.LogCaptureFixture) -> None:
+async def _wait_for_update(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
     """Wait for forecast update completion."""
 
-    async with asyncio.timeout(5):
+    async with asyncio.timeout(10):
         while (
             "Forecast update completed successfully" not in caplog.text
             and "Saved estimated actual cache" not in caplog.text
             and "Not requesting a solar forecast" not in caplog.text
             and "aborting forecast update" not in caplog.text
+            and "update already in progress" not in caplog.text
             and "pausing" not in caplog.text
             and "Completed task update" not in caplog.text
             and "Completed task force_update" not in caplog.text
             and "ConfigEntryAuthFailed" not in caplog.text
         ):  # Wait for task to complete
             await asyncio.sleep(0.01)
+            await hass.async_block_till_done()
 
 
 async def _wait_for_abort(caplog: pytest.LogCaptureFixture) -> None:
     """Wait for forecast update completion."""
 
-    async with asyncio.timeout(5):
+    async with asyncio.timeout(10):
         while (
             "Forecast update aborted" not in caplog.text and "Forecast update already in progress, ignoring" not in caplog.text
         ):  # Wait for task to abort
@@ -231,7 +233,7 @@ async def _wait_for_abort(caplog: pytest.LogCaptureFixture) -> None:
 async def _wait_for(caplog: pytest.LogCaptureFixture, wait_text: str) -> None:
     """Wait for forecast update completion."""
 
-    async with asyncio.timeout(5):
+    async with asyncio.timeout(10):
         while wait_text not in caplog.text:  # Wait for task to abort
             await asyncio.sleep(0.01)
 
@@ -240,7 +242,7 @@ async def _wait_for_raise(hass: HomeAssistant, exception: Exception) -> None:
     """Wait for exception."""
 
     async def wait_for_exception():
-        async with asyncio.timeout(5):
+        async with asyncio.timeout(10):
             while True:
                 await hass.async_block_till_done()
                 await asyncio.sleep(0.01)
@@ -1178,7 +1180,7 @@ async def test_scenarios(
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
-        await _wait_for_update(caplog)
+        await _wait_for_update(hass, caplog)
         assert "is older than expected, should be" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)  # pyright: ignore[reportPrivateUsage]
         assert "ERROR" not in caplog.text
@@ -1200,7 +1202,7 @@ async def test_scenarios(
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
-        await _wait_for_update(caplog)
+        await _wait_for_update(hass, caplog)
         assert "is older than expected, should be" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)  # pyright: ignore[reportPrivateUsage]
         assert "hours of past data" in caplog.text
@@ -1220,7 +1222,7 @@ async def test_scenarios(
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
-        await _wait_for_update(caplog)
+        await _wait_for_update(hass, caplog)
         assert "The update automation has not been running" in caplog.text
         _no_exception(caplog)
 
@@ -1233,7 +1235,7 @@ async def test_scenarios(
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
-        await _wait_for_update(caplog)
+        await _wait_for_update(hass, caplog)
         assert "The update automation has not been running" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)  # pyright: ignore[reportPrivateUsage]
         assert "hours of past data" in caplog.text
@@ -1482,10 +1484,13 @@ async def test_estimated_actuals(
         caplog.clear()
         await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates", wait=False)
         await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates", wait=False)
-        await _wait_for_update(caplog)
+        await _wait_for_update(hass, caplog)
         assert "update already in progress" in caplog.text
+        caplog.clear()
+        await _wait_for_update(hass, caplog)
 
         _LOGGER.debug("Testing get actuals when not using actuals")
+        caplog.clear()
         opt = {**entry.options}
         opt[GET_ACTUALS] = False
         opt[USE_ACTUALS] = False

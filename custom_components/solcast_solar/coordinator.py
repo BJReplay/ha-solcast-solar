@@ -580,13 +580,12 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             ServiceValidationError: Notify Home Assistant that an error has occurred.
 
         """
+        if not self.solcast.entry_options[GET_ACTUALS]:
+            _LOGGER.debug("Estimated actuals not enabled, ignoring service action")
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="actuals_not_enabled")
         if self.tasks.get("actuals") is None:
-            if self.solcast.entry_options[GET_ACTUALS]:
-                task = asyncio.create_task(self.__update_estimated_actuals_history())
-                self.tasks["actuals"] = task.cancel
-            else:
-                _LOGGER.debug("Estimated actuals not enabled, ignoring service action")
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key="actuals_not_enabled")
+            task = asyncio.create_task(self.__update_estimated_actuals_history())
+            self.tasks["actuals"] = task.cancel
         else:
             _LOGGER.warning("Estimated actuals update already in progress, ignoring service action")
 

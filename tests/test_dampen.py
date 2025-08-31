@@ -1,87 +1,38 @@
 """Tests for the Solcast Solar automated dampening."""
 
 import asyncio
-from collections.abc import Callable
-import contextlib
 import copy
 import datetime
 from datetime import datetime as dt, timedelta
-import json
 import logging
-import os
 from pathlib import Path
-from typing import Any
 from zoneinfo import ZoneInfo
 
-import aiohttp
-from aiohttp import ClientConnectionError
+from freezegun.api import FrozenDateTimeFactory
 import pytest
-from voluptuous.error import MultipleInvalid
 
-from homeassistant.components.recorder import Recorder, get_instance
-from homeassistant.components.recorder.history import state_changes_during_period
+from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
-    API_QUOTA,
     AUTO_DAMPEN,
-    AUTO_UPDATE,
-    BRK_ESTIMATE,
-    BRK_ESTIMATE10,
-    BRK_ESTIMATE90,
-    BRK_HALFHOURLY,
-    BRK_HOURLY,
-    BRK_SITE,
-    BRK_SITE_DETAILED,
-    CUSTOM_HOUR_SENSOR,
     DOMAIN,
-    EVENT_END_DATETIME,
-    EVENT_START_DATETIME,
-    EXCLUDE_SITES,
     GENERATION_ENTITIES,
     GET_ACTUALS,
-    HARD_LIMIT_API,
-    KEY_ESTIMATE,
-    SITE,
+    SERVICE_SET_DAMPENING,
     SITE_EXPORT_ENTITY,
-    SITE_EXPORT_LIMIT,
-    UNDAMPENED,
     USE_ACTUALS,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.solcastapi import (
-    ConnectionOptions,
-    SitesStatus,
-    SolcastApi,
-)
-from homeassistant.components.solcast_solar.util import AutoUpdate
-from homeassistant.config_entries import ConfigEntry, ConfigEntryState
-from homeassistant.const import CONF_API_KEY
+from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
-from homeassistant.util import dt as dt_util
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers import entity_registry as er
 
 from . import (
-    BAD_INPUT,
     DEFAULT_INPUT1,
-    DEFAULT_INPUT2,
-    DEFAULT_INPUT_NO_SITES,
-    MOCK_ALTER_HISTORY,
-    MOCK_BAD_REQUEST,
-    MOCK_BUSY,
-    MOCK_BUSY_UNEXPECTED,
-    MOCK_CORRUPT_ACTUALS,
-    MOCK_CORRUPT_FORECAST,
-    MOCK_CORRUPT_SITES,
-    MOCK_EXCEPTION,
-    MOCK_FORBIDDEN,
-    MOCK_NOT_FOUND,
-    MOCK_OVER_LIMIT,
     ZONE_RAW,
     async_cleanup_integration_tests,
     async_init_integration,
-    async_setup_extra_sensors,
-    session_clear,
-    session_reset_usage,
-    session_set,
 )
 
 ZONE = ZoneInfo(ZONE_RAW)
@@ -139,10 +90,20 @@ async def _reload(hass: HomeAssistant, entry: ConfigEntry) -> tuple[SolcastUpdat
     return None, None
 
 
+async def _wait_for_it(hass: HomeAssistant, caplog: pytest.LogCaptureFixture, freezer: FrozenDateTimeFactory, wait_for: str) -> None:
+    """Wait for forecast update completion."""
+
+    async with asyncio.timeout(300):
+        while wait_for not in caplog.text:  # Wait for task to complete
+            freezer.tick(0.1)
+            await hass.async_block_till_done()
+
+
 async def test_auto_dampen(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
+    freezer: FrozenDateTimeFactory,
 ) -> None:
     """Test automated dampening."""
 
@@ -154,26 +115,74 @@ async def test_auto_dampen(
         options[USE_ACTUALS] = True
         options[AUTO_DAMPEN] = True
         options[GENERATION_ENTITIES] = ["sensor.solar_export_sensor_1111_1111_1111_1111", "sensor.solar_export_sensor_2222_2222_2222_2222"]
+        options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
+        # options[SITE_EXPORT_LIMIT] = 3.0
         entry = await async_init_integration(hass, options, extra_sensors=True)
         coordinator = entry.runtime_data.coordinator
         solcast = patch_solcast_api(coordinator.solcast)
 
         # Reload to load saved data and prime initial generation
+        caplog.clear()
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
 
-        # Assert good start, that actuals are enabled, and that the cache is saved
+        # Assert good start, that actuals and generation are enabled, and that the caches are saved
         _LOGGER.debug("Testing good start happened")
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
         _no_exception(caplog)
-        assert Path(f"{config_dir}/solcast-actuals.json").is_file()
-        assert Path(f"{config_dir}/solcast-generation.json").is_file()
 
         assert "Interval 08:30 has peak estimated actual 0.936" in caplog.text
-        assert "Max generation: 0.800, [0.8, 0.8, 0.8, 0.8, 0.8]" in caplog.text
+        assert "Max generation: 0.800" in caplog.text
+        assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
+        assert "Auto-dampen factor for 11:00" not in caplog.text
 
+        # Reload to load saved generation data
         caplog.clear()
+        coordinator, solcast = await _reload(hass, entry)
+        if coordinator is None or solcast is None:
+            pytest.fail("Reload failed")
+        assert Path(f"{config_dir}/solcast-actuals.json").is_file()
+        assert Path(f"{config_dir}/solcast-generation.json").is_file()
+        assert "Generation data loaded" in caplog.text
+
+        # Test service action to update dampening manually refused
+        caplog.clear()
+        with pytest.raises(ServiceValidationError):
+            await hass.services.async_call(DOMAIN, SERVICE_SET_DAMPENING, {"damp_factor": ("1.0," * 24)[:-1]}, blocking=True)
+
+        # Verify that the entity that should be disabled by default is, then enable it.
+        entity = "sensor.solcast_pv_forecast_dampening"
+        assert hass.states.get(entity) is None
+        er.async_get(hass).async_update_entity(entity, disabled_by=None)
+        async with asyncio.timeout(300):
+            while "Reloading configuration entries because disabled_by changed" not in caplog.text:
+                freezer.tick(0.01)
+                await hass.async_block_till_done()
+
+        # Roll over to tomorrow.
+        _LOGGER.debug("Rolling over to tomorrow")
+        caplog.clear()
+        freezer.move_to((dt.now(solcast._tz) + timedelta(hours=12)).replace(minute=20, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
+        await hass.async_block_till_done()
+        await _wait_for_it(hass, caplog, freezer, "Task build_data_actuals took")
+        await hass.async_block_till_done()
+        assert "Getting estimated actuals update for site" in caplog.text
+        assert "Apply dampening to previous day estimated actuals" in caplog.text
+        caplog.clear()
+        freezer.move_to(dt.now(solcast._tz).replace(minute=50, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
+        await hass.async_block_till_done()
+        await _wait_for_it(hass, caplog, freezer, "Task model_automated_dampening took")
+        await hass.async_block_till_done()
+        assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
+
+        # Turn off auto-dampen.
+        caplog.clear()
+        opt = {**entry.options}
+        opt[AUTO_DAMPEN] = False
+        hass.config_entries.async_update_entry(entry, options=opt)
+        await hass.async_block_till_done()
+        assert "Options updated, action: The integration will reload" in caplog.text
 
     finally:
         assert await async_cleanup_integration_tests(hass)

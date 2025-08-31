@@ -451,7 +451,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 log_file.get(filename, "unknown"),
             )
             return True
-        _LOGGER.error("Not serialising empty data")
+        _LOGGER.error("Not serialising empty data for %s", filename)
         return False
 
     def __redact_lat_lon_simple(self, s: str) -> str:
@@ -2425,7 +2425,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                     for i, interval in enumerate(export_intervals):
                         export_interval = i // 3
-                        if interval >= self.options.site_export_limit and generation_intervals[export_interval] > 0:
+                        if (
+                            self.options.site_export_limit > 0
+                            and interval >= self.options.site_export_limit
+                            and generation_intervals[export_interval] > 0
+                        ):
                             export_limiting[export_interval] = True
 
             # Add recent generation intervals to the history.
@@ -2498,8 +2502,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     actuals[period_start] += actual["pv_estimate"] * 0.5
                 else:
                     actuals[period_start] = actual["pv_estimate"] * 0.5
-        if len(generation) == 0 or len(actuals) == 0:
-            return
 
         # Collect top intervals from the past fourteen days.
         self._peak_intervals = {i: 0.0 for i in range(48)}
@@ -2615,6 +2617,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             await self.sort_and_prune(site["resource_id"], self._data_actuals, 730, actuals)
             _LOGGER.debug("Estimated actuals dictionary for site %s length %s", site["resource_id"], len(actuals))
 
+        _LOGGER.critical("%s %s", dt.now(self._tz).hour, dt.now(self._tz).minute)
         if dt.now(self._tz).hour == 0 and dt.now(self._tz).minute < 50:
             # Apply dampening to yesterday actuals, but only if the new factors for the day have not been modelled.
 

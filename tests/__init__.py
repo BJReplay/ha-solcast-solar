@@ -267,9 +267,7 @@ def aioresponses_reset() -> None:
 
 def aioresponses_change_url(url: URL | str | Pattern[Any], new_url: URL | str | Pattern[Any]) -> None:
     """Change URL for the mock session."""
-    _LOGGER.critical(MOCK_SESSION_CONFIG["aioresponses"]._matches)
     MOCK_SESSION_CONFIG["aioresponses"].change_url(url, new_url)
-    _LOGGER.critical(MOCK_SESSION_CONFIG["aioresponses"]._matches)
 
 
 async def async_setup_aioresponses() -> None:
@@ -304,13 +302,44 @@ async def async_setup_aioresponses() -> None:
 async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]) -> None:
     """Set up extra sensors for testing."""
 
+    power: dict[int, float]
+    gen_bumps: dict[int, list[int]]
+    increasing: float
+    now = (dt.now(ZoneInfo(ZONE_RAW)) - timedelta(days=2)).replace(hour=0, minute=0, second=0)
+
+    # Site export entity
+    power = {}
+    for interval in range(48):
+        power[interval] = 0.0 if interval < 30 and interval > 34 else (3.0 if interval != 34 else 2.0)
+    gen_bumps = {}
+    for i, p in power.items():
+        bumps = p / 0.1
+        if bumps > 0:
+            bump_seconds = int(1800 / bumps)
+            gen_bumps[i] = list(range(0, 1800, bump_seconds))
+    entity_id = "sensor.site_export_sensor"
+    increasing = 0
+    with freeze_time(now, tz_offset=10) as frozen_time:
+        for interval in range(48 * 2):
+            i = interval % 48
+            day = interval // 48
+            if gen_bumps.get(i):
+                for b in gen_bumps[i]:
+                    new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                    frozen_time.move_to(new_now)
+                    increasing += 0.1
+                    hass.states.async_set(entity_id, str(round(increasing, 1)))
+                    for _ in range(10):
+                        frozen_time.tick()
+                        await hass.async_block_till_done()
+
+    # Generation entities
     site_generation: dict[str, float] = {}
     for api_key in options["api_key"].split(","):
         for site in API_KEY_SITES[api_key]["sites"]:
             site_generation[site["resource_id"]] = site["capacity"]
-    now = (dt.now(ZoneInfo(ZONE_RAW)) - timedelta(days=8)).replace(hour=0, minute=0, second=0)
     for site, generation in site_generation.items():
-        power: dict[int, float] = {}
+        power = {}
         for interval in range(48):
             power[interval] = (
                 0.5 * generation * GENERATION_FACTOR[interval]
@@ -321,16 +350,16 @@ async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]
                     else round(0.97 * 0.5 * generation * GENERATION_FACTOR[interval], 1)
                 )
             )
-        gen_bumps: dict[int, list[int]] = {}
+        gen_bumps = {}
         for i, p in power.items():
             bumps = p / 0.1
             if bumps > 0:
                 bump_seconds = int(1800 / bumps)
                 gen_bumps[i] = list(range(0, 1800, bump_seconds))
         entity_id = "sensor.solar_export_sensor_" + site.replace("-", "_")
-        increasing: float = 0
+        increasing = 0
         with freeze_time(now, tz_offset=10) as frozen_time:
-            for interval in range(48 * 7):
+            for interval in range(48 * 2):
                 i = interval % 48
                 day = interval // 48
                 if gen_bumps.get(i):
@@ -339,7 +368,9 @@ async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]
                         new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                         frozen_time.move_to(new_now)
                         hass.states.async_set(entity_id, str(round(increasing, 1)))
-                        await hass.async_block_till_done()
+                        for _ in range(10):
+                            frozen_time.tick()
+                            await hass.async_block_till_done()
 
 
 async def async_init_integration(
