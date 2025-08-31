@@ -2617,7 +2617,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             await self.sort_and_prune(site["resource_id"], self._data_actuals, 730, actuals)
             _LOGGER.debug("Estimated actuals dictionary for site %s length %s", site["resource_id"], len(actuals))
 
-        _LOGGER.critical("%s %s", dt.now(self._tz).hour, dt.now(self._tz).minute)
         if dt.now(self._tz).hour == 0 and dt.now(self._tz).minute < 50:
             # Apply dampening to yesterday actuals, but only if the new factors for the day have not been modelled.
 
