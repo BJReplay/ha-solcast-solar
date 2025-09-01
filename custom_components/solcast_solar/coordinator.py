@@ -668,10 +668,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 return self.__get_value[key][0]["method"](self.__get_value[key][0].get("value", 0))
             return self.__get_value[key][0]["method"]()
 
-        # Auto dampening
-        if key == "auto_dampen":
-            return self.solcast.options.auto_dampen
-
         # Hard limit
         if key == "hard_limit":
             hard_limit = float(self.solcast.hard_limit.split(",")[0])

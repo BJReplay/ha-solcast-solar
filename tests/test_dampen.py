@@ -15,10 +15,12 @@ from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
     AUTO_DAMPEN,
     DOMAIN,
+    EXCLUDE_SITES,
     GENERATION_ENTITIES,
     GET_ACTUALS,
     SERVICE_SET_DAMPENING,
     SITE_EXPORT_ENTITY,
+    SITE_EXPORT_LIMIT,
     USE_ACTUALS,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
@@ -29,10 +31,14 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 
 from . import (
-    DEFAULT_INPUT1,
+    DEFAULT_INPUT2,
+    # MOCK_BUSY,
+    MOCK_CORRUPT_ACTUALS,
     ZONE_RAW,
     async_cleanup_integration_tests,
     async_init_integration,
+    session_clear,
+    session_set,
 )
 
 ZONE = ZoneInfo(ZONE_RAW)
@@ -90,10 +96,12 @@ async def _reload(hass: HomeAssistant, entry: ConfigEntry) -> tuple[SolcastUpdat
     return None, None
 
 
-async def _wait_for_it(hass: HomeAssistant, caplog: pytest.LogCaptureFixture, freezer: FrozenDateTimeFactory, wait_for: str) -> None:
+async def _wait_for_it(
+    hass: HomeAssistant, caplog: pytest.LogCaptureFixture, freezer: FrozenDateTimeFactory, wait_for: str, long_time: bool = False
+) -> None:
     """Wait for forecast update completion."""
 
-    async with asyncio.timeout(300):
+    async with asyncio.timeout(300 if not long_time else 3000):
         while wait_for not in caplog.text:  # Wait for task to complete
             freezer.tick(0.1)
             await hass.async_block_till_done()
@@ -110,13 +118,14 @@ async def test_auto_dampen(
     try:
         config_dir = hass.config.config_dir
 
-        options = copy.deepcopy(DEFAULT_INPUT1)
+        options = copy.deepcopy(DEFAULT_INPUT2)
         options[GET_ACTUALS] = True
         options[USE_ACTUALS] = True
         options[AUTO_DAMPEN] = True
+        options[EXCLUDE_SITES] = ["3333-3333-3333-3333"]
         options[GENERATION_ENTITIES] = ["sensor.solar_export_sensor_1111_1111_1111_1111", "sensor.solar_export_sensor_2222_2222_2222_2222"]
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
-        # options[SITE_EXPORT_LIMIT] = 3.0
+        options[SITE_EXPORT_LIMIT] = 5.0
         entry = await async_init_integration(hass, options, extra_sensors=True)
         coordinator = entry.runtime_data.coordinator
         solcast = patch_solcast_api(coordinator.solcast)
@@ -132,6 +141,7 @@ async def test_auto_dampen(
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
         _no_exception(caplog)
 
+        assert "Auto-dampening suppressed: Excluded site for 3333-3333-3333-3333" in caplog.text
         assert "Interval 08:30 has peak estimated actual 0.936" in caplog.text
         assert "Max generation: 0.800" in caplog.text
         assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
@@ -176,6 +186,29 @@ async def test_auto_dampen(
         await hass.async_block_till_done()
         assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
 
+        # Roll over to another tomorrow.
+        _LOGGER.debug("Rolling over to another tomorrow")
+        caplog.clear()
+        session_set(MOCK_CORRUPT_ACTUALS)
+        freezer.move_to((dt.now(solcast._tz) + timedelta(days=1)).replace(minute=20, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
+        await hass.async_block_till_done()
+        await _wait_for_it(hass, caplog, freezer, "Update estimated actuals failed: No valid json returned")
+        session_clear(MOCK_CORRUPT_ACTUALS)
+        for _ in range(300):  # Extra time needed for get_generation to complete
+            await hass.async_block_till_done()
+            freezer.tick(0.1)
+
+        """
+        # Roll over to yet another tomorrow.
+        _LOGGER.debug("Rolling over to yet another tomorrow")
+        caplog.clear()
+        session_set(MOCK_BUSY)
+        freezer.move_to((dt.now(solcast._tz) + timedelta(days=1)).replace(minute=20, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
+        await hass.async_block_till_done()
+        await _wait_for_it(hass, caplog, freezer, "HTTP session status 429/Try again later", long_time=True)
+        session_clear(MOCK_BUSY)
+        """
+
         # Turn off auto-dampen.
         caplog.clear()
         opt = {**entry.options}
@@ -183,6 +216,9 @@ async def test_auto_dampen(
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         assert "Options updated, action: The integration will reload" in caplog.text
+        for _ in range(300):  # Extra time needed for reload to complete
+            await hass.async_block_till_done()
+            freezer.tick(0.1)
 
     finally:
         assert await async_cleanup_integration_tests(hass)

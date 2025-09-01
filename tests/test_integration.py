@@ -1374,7 +1374,7 @@ async def test_scenarios(
         _LOGGER.debug("Testing extreme corruption: solcast.json")
         _really_corrupt_data()
         await _reload(hass, entry)
-        assert "The cached data in solcast.json is corrupt" in caplog.text
+        assert "is corrupt in load_saved_data" in caplog.text
         assert "integration not ready yet" in caplog.text
         assert hass.data[DOMAIN].get("presumed_dead", True) is True
 

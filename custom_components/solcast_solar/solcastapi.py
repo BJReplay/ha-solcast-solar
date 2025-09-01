@@ -1218,12 +1218,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             str: A failure status message, or an empty string.
 
         """
+        file = ""
         try:
             status = ""
             if len(self.sites) > 0:
 
                 async def load_data(filename: str, set_loaded: bool = True) -> dict[str, Any] | None:
+                    nonlocal file
+
                     if Path(filename).is_file():
+                        file = filename
                         async with aiofiles.open(filename) as data_file:
                             json_data: dict[str, Any] = json.loads(await data_file.read(), cls=JSONDecoder)
                             json_version = json_data.get("version", 1)
@@ -1308,7 +1312,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     return None
 
                 async def load_generation_data() -> dict[str, Any] | None:
+                    nonlocal file
+
                     if Path(self._filename_generation).is_file():
+                        file = self._filename_generation
                         async with aiofiles.open(self._filename_generation) as data_file:
                             json_data: dict[str, Any] = json.loads(await data_file.read(), cls=JSONDecoder)
                             _LOGGER.debug(
@@ -1445,8 +1452,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     }.items():
                         await self.serialise_data(data, filename)
         except json.decoder.JSONDecodeError:
-            _LOGGER.error("The cached data in solcast.json is corrupt in load_saved_data()")
-            status = "The cached data in /config/solcast.json is corrupted, suggest removing or repairing it"
+            _LOGGER.error("The cached data in %s is corrupt in load_saved_data()", file)
+            status = f"The cached data in {file} is corrupted, suggest removing or repairing it"
         return status
 
     async def build_forecast_and_actuals(self) -> str:
@@ -2352,10 +2359,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Sensors must be total increasing kWh, and the entities must have state history.
         """
 
-        if not self.options.generation_entities:
-            _LOGGER.debug("No generation entities configured, skipping get_pv_generation()")
-            return
-
         start_time = time.time()
 
         # Load the generation history.
@@ -2617,7 +2620,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             await self.sort_and_prune(site["resource_id"], self._data_actuals, 730, actuals)
             _LOGGER.debug("Estimated actuals dictionary for site %s length %s", site["resource_id"], len(actuals))
 
-        if dt.now(self._tz).hour == 0 and dt.now(self._tz).minute < 50:
+        if status == DataCallStatus.SUCCESS and dt.now(self._tz).hour == 0 and dt.now(self._tz).minute < 50:
             # Apply dampening to yesterday actuals, but only if the new factors for the day have not been modelled.
 
             undampened_interval_pv50: dict[dt, float] = {}
@@ -2880,6 +2883,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     async def apply_forward_dampening(self, applicable_sites: list[str] = [], do_past_hours: int = 0) -> None:
         """Apply dampening to forward forecasts."""
+        if len(self._data_undampened["siteinfo"]) == 0:
+            return
         _LOGGER.debug("Applying future dampening")
 
         self._auto_dampening_factors = {
@@ -2900,9 +2905,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         record_adjustment = True
         for site in self.sites:
-            if site["resource_id"] in self.options.exclude_sites or (applicable_sites and site["resource_id"] not in applicable_sites):
-                continue
-
             # Load all forecasts.
             forecasts_undampened_future = [
                 forecast
@@ -2920,28 +2922,42 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 else {}
             )
 
-            # Apply dampening to forward data
-            for forecast in sorted(forecasts_undampened_future, key=itemgetter("period_start")):
-                period_start = forecast["period_start"]
-                pv = round(forecast["pv_estimate"], 4)
-                pv10 = round(forecast["pv_estimate10"], 4)
-                pv90 = round(forecast["pv_estimate90"], 4)
+            if site["resource_id"] not in self.options.exclude_sites and (
+                (site["resource_id"] not in applicable_sites) if applicable_sites else True
+            ):
+                # Apply dampening to forward data
+                for forecast in sorted(forecasts_undampened_future, key=itemgetter("period_start")):
+                    period_start = forecast["period_start"]
+                    pv = round(forecast["pv_estimate"], 4)
+                    pv10 = round(forecast["pv_estimate10"], 4)
+                    pv90 = round(forecast["pv_estimate90"], 4)
 
-                # Retrieve the dampening factor for the period, and dampen the estimates.
-                dampening_factor = self.__get_dampening_factor(
-                    site["resource_id"],
-                    period_start.astimezone(self._tz),
-                    undampened_interval_pv50.get(period_start, -1),
-                    record_adjustment=record_adjustment,
-                )
-                if record_adjustment:
-                    self._auto_dampening_factors[period_start] = dampening_factor
-                pv_dampened = round(pv * dampening_factor, 4)
-                pv10_dampened = round(pv10 * dampening_factor, 4)
-                pv90_dampened = round(pv90 * dampening_factor, 4)
+                    # Retrieve the dampening factor for the period, and dampen the estimates.
+                    dampening_factor = self.__get_dampening_factor(
+                        site["resource_id"],
+                        period_start.astimezone(self._tz),
+                        undampened_interval_pv50.get(period_start, -1),
+                        record_adjustment=record_adjustment,
+                    )
+                    if record_adjustment:
+                        self._auto_dampening_factors[period_start] = dampening_factor
+                    pv_dampened = round(pv * dampening_factor, 4)
+                    pv10_dampened = round(pv10 * dampening_factor, 4)
+                    pv90_dampened = round(pv90 * dampening_factor, 4)
 
-                # Add or update the new entries.
-                self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
+                    # Add or update the new entries.
+                    self.__forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
+                record_adjustment = False
+            else:
+                for forecast in sorted(forecasts_undampened_future, key=itemgetter("period_start")):
+                    period_start = forecast["period_start"]
+                    self.__forecast_entry_update(
+                        forecasts,
+                        period_start,
+                        round(forecast["pv_estimate"], 4),
+                        round(forecast["pv_estimate10"], 4),
+                        round(forecast["pv_estimate90"], 4),
+                    )
 
             await self.sort_and_prune(site["resource_id"], self._data, 730, forecasts)
             _LOGGER.debug(
@@ -2950,7 +2966,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 len(forecasts),
                 len(self._data_undampened["siteinfo"][site["resource_id"]]["forecasts"]),
             )
-            record_adjustment = False
 
     async def sort_and_prune(self, site: str | None, data: dict[str, Any], past_days: int, forecasts: dict[Any, Any]) -> None:
         """Sort and prune a forecast list."""

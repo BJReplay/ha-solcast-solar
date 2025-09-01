@@ -310,7 +310,7 @@ async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]
     # Site export entity
     power = {}
     for interval in range(48):
-        power[interval] = 0.0 if interval < 30 and interval > 34 else (3.0 if interval != 34 else 2.0)
+        power[interval] = 0.0 if (interval < 30 or interval > 34) else (5.0 if interval != 34 else 2.0)
     gen_bumps = {}
     for i, p in power.items():
         bumps = p / 0.1
