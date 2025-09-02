@@ -1465,7 +1465,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if not await self.build_forecast_data():
                 status = "Failed to build forecast data (corrupt config/solcast.json?)"
             elif self.options.get_actuals:
-                await self.build_actual_data()
+                if not await self.build_actual_data():
+                    status = "Failed to build estimated actual data (corrupt config/solcast-actuals.json?)"
         return status
 
     async def reset_failure_stats(self) -> None:
@@ -2462,7 +2463,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def model_automated_dampening(self, force: bool = False) -> None:
         """Model the automated dampening of the forecast data.
 
-        Look for outliers in PV generation versus estimated actuals.
+        Look for consistently low PV generation in consistently high estimated actual intervals.
         """
         if not self.options.auto_dampen and not force:
             _LOGGER.debug("Automated dampening is not enabled, skipping model_automated_dampening()")

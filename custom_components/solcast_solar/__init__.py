@@ -366,11 +366,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     hass.data[DOMAIN]["solcast"] = solcast
     hass.data[DOMAIN]["entry_options"] = {**entry.options}
 
-    if (status := await solcast.load_saved_data()) != "":
-        raise ConfigEntryNotReady(status)
-    await solcast.model_automated_dampening()
-    await solcast.apply_forward_dampening()
-    if (status := await solcast.build_forecast_and_actuals()) != "":
+    status = await solcast.load_saved_data()
+    if status == "":
+        await solcast.model_automated_dampening()
+        await solcast.apply_forward_dampening()
+        status = await solcast.build_forecast_and_actuals()
+    if status != "":
         raise ConfigEntryNotReady(status)
 
     match solcast.status:

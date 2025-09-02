@@ -581,6 +581,26 @@ async def test_options_hard_limit(hass: HomeAssistant, options: dict[str, Any], 
         assert result["errors"]["base"] == reason  # type: ignore[index]
 
 
+@pytest.mark.parametrize(
+    ("options", "reason"),
+    [
+        (({GET_ACTUALS: False, USE_ACTUALS: 1, SITE_EXPORT_ENTITY: []}, "actuals_without_get")),
+        (({AUTO_DAMPEN: True, GET_ACTUALS: False, SITE_EXPORT_ENTITY: []}, "dampen_without_actuals")),
+        (({AUTO_DAMPEN: True, GET_ACTUALS: True, GENERATION_ENTITIES: [], SITE_EXPORT_ENTITY: []}, "dampen_without_generation")),
+        (({SITE_EXPORT_ENTITY: ["entity.one", "entity.two"]}, "export_multiple_entities")),
+        (({SITE_EXPORT_LIMIT: 5, SITE_EXPORT_ENTITY: []}, "export_no_entity")),
+    ],
+)
+async def test_options_auto_dampen(hass: HomeAssistant, options: dict[str, Any], reason: str | None) -> None:
+    """Test that valid/invalid auto-dampen settings are handled."""
+
+    flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
+    flow.hass = hass
+    user_input = copy.deepcopy(DEFAULT_INPUT1) | options
+    result = await flow.async_step_init(user_input)
+    assert result["errors"]["base"] == reason  # type: ignore[index]
+
+
 async def test_step_to_dampen(hass: HomeAssistant) -> None:
     """Test opening the dampening step."""
 

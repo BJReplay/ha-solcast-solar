@@ -32,7 +32,7 @@ from homeassistant.helpers import entity_registry as er
 
 from . import (
     DEFAULT_INPUT2,
-    # MOCK_BUSY,
+    MOCK_BUSY,
     MOCK_CORRUPT_ACTUALS,
     ZONE_RAW,
     async_cleanup_integration_tests,
@@ -146,6 +146,7 @@ async def test_auto_dampen(
         assert "Max generation: 0.800" in caplog.text
         assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
         assert "Auto-dampen factor for 11:00" not in caplog.text
+        assert "Ignoring insignificant factor for 11:00 of 0.988" in caplog.text
 
         # Reload to load saved generation data
         caplog.clear()
@@ -161,7 +162,7 @@ async def test_auto_dampen(
         with pytest.raises(ServiceValidationError):
             await hass.services.async_call(DOMAIN, SERVICE_SET_DAMPENING, {"damp_factor": ("1.0," * 24)[:-1]}, blocking=True)
 
-        # Verify that the entity that should be disabled by default is, then enable it.
+        # Verify that the dampening entity that should be disabled by default is, then enable it.
         entity = "sensor.solcast_pv_forecast_dampening"
         assert hass.states.get(entity) is None
         er.async_get(hass).async_update_entity(entity, disabled_by=None)
@@ -198,8 +199,7 @@ async def test_auto_dampen(
             await hass.async_block_till_done()
             freezer.tick(0.1)
 
-        """
-        # Roll over to yet another tomorrow.
+        # Roll over to yet another tomorrow to test get actuals failure due to Solcast busy.
         _LOGGER.debug("Rolling over to yet another tomorrow")
         caplog.clear()
         session_set(MOCK_BUSY)
@@ -207,7 +207,26 @@ async def test_auto_dampen(
         await hass.async_block_till_done()
         await _wait_for_it(hass, caplog, freezer, "HTTP session status 429/Try again later", long_time=True)
         session_clear(MOCK_BUSY)
-        """
+
+        # Cause an actual build exception
+        _LOGGER.debug("Causing an actual build exception")
+        caplog.clear()
+        old_data = copy.deepcopy(solcast._data_actuals)  # pyright: ignore[reportPrivateUsage]
+        solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"] = None  # pyright: ignore[reportPrivateUsage]
+        status = await solcast.build_forecast_and_actuals()
+        assert "Failed to build estimated actual data" in status
+        await solcast.model_automated_dampening()  # Hit an actuals missing deal-breaker
+        assert "Auto-dampening suppressed: No estimated actuals yet for 1111-1111-1111-1111" in caplog.text
+        solcast._data_actuals = old_data  # pyright: ignore[reportPrivateUsage]
+
+        # Cause a forecast build exception
+        _LOGGER.debug("Causing a forecast build exception")
+        caplog.clear()
+        old_data = copy.deepcopy(solcast._data)  # pyright: ignore[reportPrivateUsage]
+        solcast._data["siteinfo"]["1111-1111-1111-1111"] = None  # pyright: ignore[reportPrivateUsage]
+        status = await solcast.build_forecast_and_actuals()
+        assert "Failed to build forecast data" in status
+        solcast._data = old_data  # pyright: ignore[reportPrivateUsage]
 
         # Turn off auto-dampen.
         caplog.clear()

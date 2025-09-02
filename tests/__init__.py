@@ -343,7 +343,7 @@ async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]
         for interval in range(48):
             power[interval] = (
                 0.5 * generation * GENERATION_FACTOR[interval]
-                if interval < 30
+                if interval < 20
                 else (
                     round(0.7 * 0.5 * generation * GENERATION_FACTOR[interval], 1)
                     if interval > 32

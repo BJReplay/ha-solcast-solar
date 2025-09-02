@@ -419,20 +419,20 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 all_config_data[CONF_API_KEY], api_count, abort = validate_api_key(user_input)
                 if abort is not None:
                     errors["base"] = abort
-                    _LOGGER.debug("API key validation failed: %s", abort)
+                    _LOGGER.debug("Options validation failed: %s", abort)
 
                 if not errors:
                     all_config_data[API_QUOTA], abort = validate_api_limit(user_input, api_count)
                     if abort is not None:
                         errors["base"] = abort
-                        _LOGGER.debug("API key validation failed: %s", abort)
+                        _LOGGER.debug("Options validation failed: %s", abort)
 
                 if not errors:
                     # Validate the custom hours sensor.
                     custom_hour_sensor = user_input[CUSTOM_HOUR_SENSOR]
                     if custom_hour_sensor < 1 or custom_hour_sensor > 144:
                         errors["base"] = "custom_invalid"
-                        _LOGGER.debug("API key validation failed: %s", errors["base"])
+                        _LOGGER.debug("Options validation failed: %s", errors["base"])
                     else:
                         all_config_data[CUSTOM_HOUR_SENSOR] = custom_hour_sensor
 
@@ -446,14 +446,14 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                         h = h.strip()
                         if not h.replace(".", "", 1).isdigit():
                             errors["base"] = "hard_not_number"
-                            _LOGGER.debug("API key validation failed: %s", errors["base"])
+                            _LOGGER.debug("Options validation failed: %s", errors["base"])
                             break
                         val = float(h)
                         to_set.append(f"{val:.1f}")
                     if not errors:
                         if len(to_set) > api_count:
                             errors["base"] = "hard_too_many"
-                            _LOGGER.debug("API key validation failed: %s", errors["base"])
+                            _LOGGER.debug("Options validation failed: %s", errors["base"])
                     else:
                         hard_limit = ",".join(to_set)
                         all_config_data[HARD_LIMIT_API] = hard_limit
@@ -468,23 +468,23 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 if not errors:
                     if int(user_input.get(USE_ACTUALS, 0)) != HistoryType.FORECASTS and not user_input.get(GET_ACTUALS, False):
                         errors["base"] = "actuals_without_get"
-                        _LOGGER.debug("API key validation failed: %s", errors["base"])
+                        _LOGGER.debug("Options validation failed: %s", errors["base"])
                 if not errors:
                     if user_input.get(AUTO_DAMPEN, False) and not user_input.get(GET_ACTUALS, False):
                         errors["base"] = "dampen_without_actuals"
-                        _LOGGER.debug("API key validation failed: %s", errors["base"])
+                        _LOGGER.debug("Options validation failed: %s", errors["base"])
                 if not errors:
                     if user_input.get(AUTO_DAMPEN, False) and not user_input[GENERATION_ENTITIES]:
                         errors["base"] = "dampen_without_generation"
-                        _LOGGER.debug("API key validation failed: %s", errors["base"])
+                        _LOGGER.debug("Options validation failed: %s", errors["base"])
                 if not errors:
                     if user_input.get(SITE_EXPORT_ENTITY, []) != [] and len(user_input.get(SITE_EXPORT_ENTITY, [])) > 1:
                         errors["base"] = "export_multiple_entities"
-                        _LOGGER.debug("API key validation failed: %s", errors["base"])
+                        _LOGGER.debug("Options validation failed: %s", errors["base"])
                 if not errors:
                     if user_input.get(SITE_EXPORT_LIMIT, 0) > 0.0 and len(user_input.get(SITE_EXPORT_ENTITY, [])) == 0:
                         errors["base"] = "export_no_entity"
-                        _LOGGER.debug("API key validation failed: %s", errors["base"])
+                        _LOGGER.debug("Options validation failed: %s", errors["base"])
 
                 self._options = MappingProxyType(all_config_data)
 
