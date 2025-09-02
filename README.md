@@ -628,7 +628,7 @@ Dampening values account for shading, and adjust forecasted generation. Dampenin
 
 Any change to dampening factors will be applied to future forecasts (including the forecast for the current day). Forecast history will retain the dampening that was in effect at the time.
 
-Automated dampening will calculate overall "all sites" dampening factors. If per-site dampening is desired then it is possible to calculate that elsewhere with your own code and then set factors by using the `solcast_solar.set_dampening` action. See [Granular dampening](#granular-dampening) below.
+Automated dampening (described below) will calculate overall "all sites" dampening factors. If per-site dampening is desired then it is possible to calculate that elsewhere with your own code and then set factors by using the `solcast_solar.set_dampening` action. See [Granular dampening](#granular-dampening) below.
 
 > [!NOTE]
 >
@@ -639,27 +639,41 @@ Automated dampening will calculate overall "all sites" dampening factors. If per
 
 #### Automated dampening
 
-A feature of the integration is automated dampening, where a combination of historic site generation compared with estimated past actual potential generation is used to determine regularly anomalous generation. This is useful to identify likely panel shading, and to then apply a dampening factor for forecast periods during the day that will be shade affected, reducing the forecasted energy accordingly.
+A feature of the integration is automated dampening, where a combination of historic site generation compared with estimated past actual generation is used to determine regularly anomalous generation. This is useful to identify periods of likely panel shading, and to then apply a dampening factor for forecast periods during the day that will be shade affected, reducing the forecasted energy accordingly.
 
 Automated dampening is dynamic, and utilises the past fourteen days of generation and estimate data to build its model and determine needed dampening factors.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
 
-The theory of operation for this feature is simple, relying on two key inputs, and an optional third:
+The [theory of operation](#theory-of-operation) is simple, relying on two key inputs, and an optional third:
 
 ##### Estimated actual data from Solcast.
 
-Aside from forecasts, the Solcast service also estimates the likely past actual generation during the day for every rooftop site, based on high resolution satellite imagery, weather observations, and how "clear" the air is (vapour/smog). Estimated actuals are generally quite accurate for a given location.
+Aside from forecasts, the Solcast service also estimates the likely past actual generation during the day for every rooftop site, based on high resolution satellite imagery, weather observations, and how "clear" the air is (vapour/smog). This data is referred to as an "Estimated actual", and it is generally quite accurate for a given location.
 
-Getting estimated actual data does require an API call, and that API call does use up API quota for a hobbyist user. You will need to factor API call consumption for this purpose when taking advantage of automated dampening, with one call used per configured Solcast rooftop site per day per API key. (Reduce the API limit for forecast updates in options accordingly.) Past estimated actual data is acquired at or around 00:20 each day (local time).
+Getting estimated actual data does require an API call, and that API call will use up API quota for a hobbyist user. You will need to factor API call consumption for this purpose when taking advantage of automated dampening, with one call used per configured Solcast rooftop site per day per API key. (Reduce the API limit for forecast updates in options accordingly.)
+
+Past estimated actual data is acquired at or around 00:20 each day (local time), with new factors for the day ahead modelled at 00:50.
+
+> [!TIP]
+>
+> If your aim is to obtain as many forecast updates during the day as possible, then automated dampening is not for you. It will reduce the number of forecast updates possible.
 
 ##### Actual PV generation for your site.
 
-Generation is gathered from history data of a sensor entity (or entities). A single PV solar inverter installation will likely have a single "total increasing" sensor that provides a "PV export" value. Multiple inverters will have a value for each, and all sensor entities may be supplied, which will then be totalled for all rooftops. An increasing kWh sensor (or sensors) must be supplied.
+Generation is gathered from history data of a sensor entity (or entities). A single PV solar inverter installation will likely have a single "total increasing" sensor that provides a "PV export" value (_not_ export to grid, but export off your roof from the sun). Multiple inverters will have a value for each, and all sensor entities may be supplied, which will then be totalled for all rooftops.
+
+An increasing kWh sensor (or sensors) must be supplied.
+
+> [!NOTE]
+>
+> Do not include generation entities for "remote" rooftop sites that have been explicitly excluded from sensor totals. Auto-dampening does not work for excluded rooftops.
 
 ##### (Optional) Site export to the grid, combined with a limit value.
 
-Where locally generated excess power is fed to the electricity grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because at the limit value for a ten minute period) then the generation period will be excluded from any automated dampening consideration. The reason is simple: Is generation being limited by shade from a tree or chimney, or is it limited by site export maximum?
+Where locally generated excess power is fed to the electricity grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because at the limit value for a ten minute period or more) then the generation period will be excluded from any automated dampening consideration. This mechanism ensures differentiation of generation being limited by shade from a tree or chimney, or artificial site export limiting.
+
+Export to the grid generally occurs in the middle of the day, which is a time rarely impacted by shading.
 
 > [!TIP]
 >
@@ -670,18 +684,29 @@ Where locally generated excess power is fed to the electricity grid, it is likel
 
 ##### Theory of operation
 
-Automated dampening first builds a "best of the best" set of half-hourly generation periods for the past fourteen days (from estimated actual data). It then compares that to generation history for these periods (excluding periods where export limits may have been hit), and selects the highest actual generation value from similar best periods. This value determines whether external factors may be impacting generation, and is used to calculate a dampening factor that should be applied to a forecast interval that is considered "ideal" (within a margin of error).
+Automated dampening first builds a "consistently best" set of half-hourly generation periods for the past fourteen days (from estimated actual data). It then compares that to generation history for these periods (excluding periods where export limits may have been hit), and selects the highest actual generation value from similar best periods. This value determines whether external factors may be impacting generation, and is used to calculate a dampening factor that would be applied to a forecast interval that is also considered "best" (within a margin of error).
 
-Because future forecast periods are almost never "ideal", the determined factor is then altered using a logarithmic difference calculation. If the forecasted interval is reasonably close to ideal, then little change is made. If the forecasted interval departs greatly from ideal then a significant change is made to the factor to render it ineffective (i.e. closer to 1.0 x forecast generation).
+Because forecast periods are almost never "best", the determined factor is altered before it is set using a logarithmic difference calculation. If the forecasted interval is reasonably close to best, then little change is made. If it departs greatly from best then a significant change is made to the factor to render it ineffective (i.e. closer to 1.0 x forecasted generation).
 
-This rendering ineffective for factors takes into account that heavily cloudy intervals are likely to have diffuse light as their most significant generation component, and not direct insolation.
+This rendering ineffective for factors is because heavily cloudy intervals are likely to have diffuse light as the most significant generation component, and not direct sunlight, which is the component most impacted by shade.
 
 ##### Automated dampening notes
 
-* An automatically determined factor of greater than 0.95 is considered insignificant and is ignored. Feedback is welcomed as to whether these small factors should be significant and utilised. They are corrected based on forecasted interval generation, after all.
-* The aim of automated dampening is not to correct for Solcast rooftop site misconfiguration, nor panel type generation quirks. The aim is to detect consistently poor actual generation against that which is forecasted because of local factors. Any rooftop site misconfiguration can have a significant impact on reported forecast, but that should be corrected in the rooftop site configuration. It is highly recommended to prove that the configuration is correct, and that forecasts are reasonably accurate on good generation days before attempting to configure automated dampening. Said in another way, if questionable forecasting is apparent then disable automated dampening before diagnosing the questionable forecasting. The adjustments made by automated dampening may hinder efforts to resolve basic misconfiguration issues, and if it is enabled then reporting an issue of deviation from forecast where automated dampening is not implicated will likely impede issue resolution. We both don't want that.
-* External sensors (like PV export and site export) must be per-kWh, and cumulatively increasing throughout a given day. Sensors which are per-Wh and not per-kWh must be converted by using a template sensor. If there is a significant case for it then the integration can be altered to automatically compensate for a differing unit of measure.
+A modelled factor of greater than 0.95 is considered insignificant and is ignored. Feedback is welcomed as to whether these small factors should be significant and utilised.
 
+These small factors will be corrected based on forecasted generation, so a case could be made to not ignore them. However a small and regular deviation from forecast is likely due to rooftop site misconfiguration or seasonal drift, and not shading.
+
+The aim of automated dampening is not to correct for Solcast rooftop site misconfiguration, nor panel type generation quirks, nor improve forecasting. The aim is to detect consistently poor actual generation against that which is forecasted because of local factors.
+
+Any rooftop site misconfiguration can have a significant impact on reported forecast, but that should be corrected in the rooftop site configuration. It is highly recommended to prove that the configuration is correct, and that forecasts are reasonably accurate on good generation days before attempting to configure automated dampening. Said in another way, if questionable forecasting is apparent then disable automated dampening before diagnosing the questionable forecasting.
+
+The adjustments made by automated dampening may hinder efforts to resolve basic misconfiguration issues, and if it is enabled then reporting an issue of deviation from forecast where automated dampening is not implicated will likely impede issue resolution.
+
+We all don't want that.
+
+External sensors (like PV export and site export) must be per-kWh, and cumulatively increasing throughout a given day. Sensors which are per-Wh and not per-kWh must be converted by using a template sensor. If there is a significant case for it then the integration can be altered to automatically compensate for a differing unit of measure.
+
+##### Feedback
 Your feedback regarding experience with the automated dampening feature will be most welcome in the integration repository discussions.
 
 Comprehensive logging at `DEBUG` level happens when automated dampening is enabled, and you are encouraged to examine and include that logged detail in any discussion that might point out a deficiency, experience (both positive and negative!), or an improvement opportunity.
@@ -1118,7 +1143,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 v4.4.0
 * Add auto-dampening feature by @autoSteve
-* Modified dampening factors applied from start of current day by @autoSteve
+* Modified dampening factors are applied from start of current day by @autoSteve
 * Fix for translated sensors max attr size exceeded by @autoSteve
 * Monitor solcast-dampening.json for create/update/delete by @autoSteve
 * Add last_attempt attribute to api_last_polled entity by @autoSteve
