@@ -138,6 +138,9 @@ async def test_auto_dampen(
 
         # Assert good start, that actuals and generation are enabled, and that the caches are saved
         _LOGGER.debug("Testing good start happened")
+        for _ in range(30):  # Extra time needed for reload to complete
+            await hass.async_block_till_done()
+            freezer.tick(0.1)
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
         _no_exception(caplog)
 
