@@ -71,9 +71,9 @@ If multiple arrays exist on different roof orientations, these can be configured
 
 Three solar generation estimates are produced by Solcast for every half hour period of all forecasted days.
 
-* 'central' or 50% or most likely to occur forecast is exposed as the `forecast` by the integration.
-* '10%' or 1 in 10 'worst case' forecast assuming more cloud coverage than expected, exposed as `forecast10`.
-* '90%' or 1 in 10 'best case' forecast assuming less cloud coverage than expected, exposed as `forecast90`.
+* 'central' or 50% or most likely to occur forecast is exposed as the `estimate` by the integration.
+* '10%' or 1 in 10 'worst case' forecast assuming more cloud coverage than expected, exposed as `estimate10`.
+* '90%' or 1 in 10 'best case' forecast assuming less cloud coverage than expected, exposed as `estimate90`.
 
 The detail of these different forecast estimates can be found in sensor attributes, which contain both 30-minute daily intervals, and calculated hourly intervals across the day. Separate attributes sum the available estimates or break things down by Solcast site. (This integration usually references a Solcast site by by its 'site resource ID', and this can be found at the Solcast site https://toolkit.solcast.com.au/)
 
@@ -641,7 +641,7 @@ Automated dampening (described below) will calculate overall "all sites" dampeni
 
 A feature of the integration is automated dampening, where a combination of historic site generation compared with estimated past actual generation is used to determine regularly anomalous generation. This is useful to identify periods of likely panel shading, and to then apply a dampening factor for forecast periods during the day that will be shade affected, reducing the forecasted energy accordingly.
 
-Automated dampening is dynamic, and utilises the past fourteen days of generation and estimate data to build its model and determine needed dampening factors.
+Automated dampening is dynamic, and utilises up to fourteen days of generation and estimate history data to build its model and determine needed dampening factors. (No more than fourteen days are used, and at the time the feature is enabled any limit of available history will possibly mean a reduced initial history to utilise, which will then grow to fourteen days and improve modelling.)
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
 
@@ -651,7 +651,7 @@ The [theory of operation](#theory-of-operation) is simple, relying on two key in
 
 Aside from forecasts, the Solcast service also estimates the likely past actual generation during the day for every rooftop site, based on high resolution satellite imagery, weather observations, and how "clear" the air is (vapour/smog). This data is referred to as an "Estimated actual", and it is generally quite accurate for a given location.
 
-Getting estimated actual data does require an API call, and that API call will use up API quota for a hobbyist user. You will need to factor API call consumption for this purpose when taking advantage of automated dampening, with one call used per configured Solcast rooftop site per day per API key. (Reduce the API limit for forecast updates in options accordingly.)
+Getting estimated actual data does require an API call, and that API call will use up API quota for a hobbyist user. You will need to factor API call consumption for this purpose when taking advantage of automated dampening, with one call used per configured Solcast rooftop site per day per API key. (Reduce the API limit for forecast updates in options by one for a single rooftop site, or by two for two sites.)
 
 Past estimated actual data is acquired at or around 00:20 each day (local time), with new factors for the day ahead modelled at 00:50.
 
@@ -661,9 +661,9 @@ Past estimated actual data is acquired at or around 00:20 each day (local time),
 
 ##### Actual PV generation for your site.
 
-Generation is gathered from history data of a sensor entity (or entities). A single PV solar inverter installation will likely have a single "total increasing" sensor that provides a "PV export" value (_not_ export to grid, but export off your roof from the sun). Multiple inverters will have a value for each, and all sensor entities may be supplied, which will then be totalled for all rooftops.
+Generation is gathered from history data of a sensor entity (or entities). A single PV solar inverter installation will likely have a single "total increasing" sensor that provides a "PV generation" or "PV export" value (_not_ export to grid, but export off your roof from the sun). Multiple inverters will have a value for each, and all sensor entities may be supplied, which will then be totalled for all rooftops.
 
-An increasing kWh sensor (or sensors) must be supplied.
+An increasing kWh sensor (or sensors) must be supplied. This increasing sensor may reset at midnight, or may be a "total increasing" type; of importance is that it is increasing throughout the day.
 
 > [!NOTE]
 >
@@ -704,7 +704,7 @@ The adjustments made by automated dampening may hinder efforts to resolve basic 
 
 We all don't want that.
 
-External sensors (like PV export and site export) must be per-kWh, and cumulatively increasing throughout a given day. Sensors which are per-Wh and not per-kWh must be converted by using a template sensor. If there is a significant case for it then the integration can be altered to automatically compensate for a differing unit of measure.
+External sensors (like PV export and site export) must be per-kWh, and cumulatively increasing throughout a given day.
 
 ##### Feedback
 Your feedback regarding experience with the automated dampening feature will be most welcome in the integration repository discussions.
@@ -817,7 +817,7 @@ data:
   end_date_time: 2024-10-08T19:00:00+11:00
 ```
 
-Estimated actual data is retained for 720 days.
+Estimated actual data is retained for 730 days.
 
 #### Reading dampening values
 
@@ -1151,6 +1151,7 @@ v4.4.0
 * Add test for unusual azimuth by @autoSteve
 * Fix Energy dashboard start/end points by @autoSteve
 * Attribution attributes only where credit is due by @autoSteve
+* Minimum HA version 2024.11
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.5...v4.4.0
 
