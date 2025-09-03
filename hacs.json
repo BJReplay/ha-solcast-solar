@@ -1,7 +1,7 @@
 {
     "name": "Solcast PV Forecast",
     "render_readme": true,
-    "homeassistant": "2023.10",
+    "homeassistant": "2024.11",
     "zip_release": true,
     "filename": "solcast_solar.zip"
 }
