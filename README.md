@@ -690,11 +690,19 @@ Because forecast periods are almost never "best", the determined factor is alter
 
 This rendering ineffective for factors is because heavily cloudy intervals are likely to have diffuse light as the most significant generation component, and not direct sunlight, which is the component most impacted by shade.
 
+##### Initial activation
+
+For automated dampening to operate it must have access to a minimum set of data. Generation history is immediately loaded from the sensor (or sensors) history, but estimated actual history from Solcast will first be received after midnight local time. Because of this, when the feature is first enabled it will almost certainly not immediately model any dampening factors.
+
+(If it is a new installation where estimated actuals are obtained then factors will be modelled.)
+
+Most automated dampening messages are logged at `DEBUG` level, however messages that dampening factors cannot yet be modelled (and the reason why) is logged at `INFO` level. If your minimum log level for the integration is `WARNING` or higher then you will not see these notifications.
+
 ##### Automated dampening notes
 
 A modelled factor of greater than 0.95 is considered insignificant and is ignored. Feedback is welcomed as to whether these small factors should be significant and utilised.
 
-These small factors will be corrected based on forecasted generation, so a case could be made to not ignore them. However a small and regular deviation from forecast is likely due to rooftop site misconfiguration or seasonal drift, and not shading.
+These small factors would be corrected based on forecasted generation, so a case could be made to not ignore them. However a small and regular deviation from forecast is likely due to rooftop site misconfiguration or seasonal drift, and not shading.
 
 The aim of automated dampening is not to correct for Solcast rooftop site misconfiguration, nor panel type generation quirks, nor improve forecasting. The aim is to detect consistently poor actual generation against that which is forecasted because of local factors.
 
