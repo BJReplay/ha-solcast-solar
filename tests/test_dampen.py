@@ -127,8 +127,6 @@ async def test_auto_dampen(
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
         entry = await async_init_integration(hass, options, extra_sensors=True)
-        coordinator = entry.runtime_data.coordinator
-        solcast = patch_solcast_api(coordinator.solcast)
 
         # Reload to load saved data and prime initial generation
         caplog.clear()
@@ -165,6 +163,25 @@ async def test_auto_dampen(
         with pytest.raises(ServiceValidationError):
             await hass.services.async_call(DOMAIN, SERVICE_SET_DAMPENING, {"damp_factor": ("1.0," * 24)[:-1]}, blocking=True)
 
+        # Roll over to tomorrow.
+        _LOGGER.debug("Rolling over to tomorrow")
+        caplog.clear()
+        removed = -5
+        value_removed = solcast._data_actuals["siteinfo"]['1111-1111-1111-1111']['forecasts'].pop(removed)
+        freezer.move_to((dt.now(solcast._tz) + timedelta(hours=12)).replace(minute=20, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
+        await hass.async_block_till_done()
+        await _wait_for_it(hass, caplog, freezer, "Task build_data_actuals took")
+        await hass.async_block_till_done()
+        assert "Getting estimated actuals update for site" in caplog.text
+        assert "Apply dampening to previous day estimated actuals" in caplog.text
+        assert solcast._data_actuals["siteinfo"]['1111-1111-1111-1111']['forecasts'][removed - 24]["period_start"] == value_removed["period_start"]
+        caplog.clear()
+        freezer.move_to(dt.now(solcast._tz).replace(minute=50, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
+        await hass.async_block_till_done()
+        await _wait_for_it(hass, caplog, freezer, "Task model_automated_dampening took")
+        await hass.async_block_till_done()
+        assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
+
         # Verify that the dampening entity that should be disabled by default is, then enable it.
         entity = "sensor.solcast_pv_forecast_dampening"
         assert hass.states.get(entity) is None
@@ -173,22 +190,6 @@ async def test_auto_dampen(
             while "Reloading configuration entries because disabled_by changed" not in caplog.text:
                 freezer.tick(0.01)
                 await hass.async_block_till_done()
-
-        # Roll over to tomorrow.
-        _LOGGER.debug("Rolling over to tomorrow")
-        caplog.clear()
-        freezer.move_to((dt.now(solcast._tz) + timedelta(hours=12)).replace(minute=20, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
-        await hass.async_block_till_done()
-        await _wait_for_it(hass, caplog, freezer, "Task build_data_actuals took")
-        await hass.async_block_till_done()
-        assert "Getting estimated actuals update for site" in caplog.text
-        assert "Apply dampening to previous day estimated actuals" in caplog.text
-        caplog.clear()
-        freezer.move_to(dt.now(solcast._tz).replace(minute=50, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
-        await hass.async_block_till_done()
-        await _wait_for_it(hass, caplog, freezer, "Task model_automated_dampening took")
-        await hass.async_block_till_done()
-        assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
 
         # Roll over to another tomorrow.
         _LOGGER.debug("Rolling over to another tomorrow")

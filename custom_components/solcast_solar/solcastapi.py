@@ -2826,11 +2826,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """Update an individual forecast entry."""
         extant = forecasts.get(period_start)
         if extant:  # Update existing.
-            extant["pv_estimate"] = pv
+            forecasts[period_start]["pv_estimate"] = pv
             if pv10 is not None:
-                extant["pv_estimate10"] = pv10
+                forecasts[period_start]["pv_estimate10"] = pv10
             if pv90 is not None:
-                extant["pv_estimate90"] = pv90
+                forecasts[period_start]["pv_estimate90"] = pv90
         elif pv10 is not None:
             forecasts[period_start] = {
                 "period_start": period_start,
