@@ -890,7 +890,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     v13:            Unlucky for some, skipped
     v14: (4.2.4)    Hard limit adjustable by Solcast account
     v15: (4.3.3)    Exclude sites from core forecast
-    v18: (4.3.7)    Auto-dampen
+    v18: (4.4.0)    Auto-dampen
 
     An upgrade of the integration will sequentially upgrade options to the current
     version, with this function needing to consider all upgrade history and new defaults.

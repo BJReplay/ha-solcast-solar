@@ -2553,7 +2553,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             current_mtime = self.granular_dampening_mtime
             self.granular_dampening["all"] = dampening
             await self.serialise_granular_dampening()
-            self.granular_dampening_mtime = current_mtime
+            await self.granular_dampening_data()
         _LOGGER.debug("Task model_automated_dampening took %.3f seconds", time.time() - start_time)
 
     async def update_estimated_actuals(self) -> None:
@@ -2924,7 +2924,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             )
 
             if site["resource_id"] not in self.options.exclude_sites and (
-                (site["resource_id"] not in applicable_sites) if applicable_sites else True
+                (site["resource_id"] in applicable_sites) if applicable_sites else True
             ):
                 # Apply dampening to forward data
                 for forecast in sorted(forecasts_undampened_future, key=itemgetter("period_start")):
