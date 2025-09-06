@@ -167,14 +167,17 @@ async def test_auto_dampen(
         _LOGGER.debug("Rolling over to tomorrow")
         caplog.clear()
         removed = -5
-        value_removed = solcast._data_actuals["siteinfo"]['1111-1111-1111-1111']['forecasts'].pop(removed)
+        value_removed = solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"].pop(removed)  # pyright: ignore[reportPrivateUsage]
         freezer.move_to((dt.now(solcast._tz) + timedelta(hours=12)).replace(minute=20, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
         await hass.async_block_till_done()
         await _wait_for_it(hass, caplog, freezer, "Task build_data_actuals took")
         await hass.async_block_till_done()
         assert "Getting estimated actuals update for site" in caplog.text
         assert "Apply dampening to previous day estimated actuals" in caplog.text
-        assert solcast._data_actuals["siteinfo"]['1111-1111-1111-1111']['forecasts'][removed - 24]["period_start"] == value_removed["period_start"]
+        assert (
+            solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"][removed - 24]["period_start"]  # pyright: ignore[reportPrivateUsage]
+            == value_removed["period_start"]
+        )  # pyright: ignore[reportPrivateUsage]
         caplog.clear()
         freezer.move_to(dt.now(solcast._tz).replace(minute=50, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
         await hass.async_block_till_done()

@@ -383,7 +383,10 @@ async def test_sensor_states(  # noqa: C901
     try:
         entry = await async_init_integration(hass, settings)
         freezer.move_to(dt.now() + timedelta(minutes=1))
-        await hass.async_block_till_done()
+        async with asyncio.timeout(10):
+            while "Start is not stale" not in caplog.text:
+                freezer.tick()
+                await hass.async_block_till_done()
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
         solcast = coordinator.solcast
 
@@ -546,11 +549,11 @@ async def test_sensor_x_hours_long(
 ) -> None:
     """Test state and of x hours sensor."""
 
-    options = copy.deepcopy(DEFAULT_INPUT1)
-    options[CUSTOM_HOUR_SENSOR] = 48
-    entry = await async_init_integration(hass, options)
-
     try:
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[CUSTOM_HOUR_SENSOR] = 48
+        entry = await async_init_integration(hass, options)
+
         er.async_get(hass).async_update_entity("sensor.solcast_pv_forecast_forecast_next_x_hours", disabled_by=None)
         await hass.config_entries.async_reload(entry.entry_id)
         await hass.async_block_till_done()
@@ -572,13 +575,17 @@ async def test_sensor_unavailable(
 ) -> None:
     """Verify sensors unavailable when "impossible" eventualities occur."""
 
-    options = copy.deepcopy(DEFAULT_INPUT1)
-    options[CUSTOM_HOUR_SENSOR] = 120
-    entry = await async_init_integration(hass, options)
-    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-    solcast: SolcastApi = coordinator.solcast
-
     try:
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[CUSTOM_HOUR_SENSOR] = 120
+        entry = await async_init_integration(hass, options)
+        async with asyncio.timeout(10):
+            while "Start is not stale" not in caplog.text:
+                freezer.tick()
+                await hass.async_block_till_done()
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = coordinator.solcast
+
         # Turn SolcastApi to custard.
         old_solcast_data = copy.deepcopy(solcast._data)  # pyright: ignore[reportPrivateUsage]
         old_solcast_data_undampened = copy.deepcopy(solcast._data_undampened)  # pyright: ignore[reportPrivateUsage]
@@ -667,6 +674,7 @@ async def test_sensor_unavailable_exception(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test state of sensors when exceptions occur."""
 
@@ -679,10 +687,14 @@ async def test_sensor_unavailable_exception(
     SolcastUpdateCoordinator.get_sensor_extra_attributes = get_sensor_extra_attributes  # type: ignore[method-assign, assignment]
     SolcastUpdateCoordinator.get_site_sensor_value = get_site_sensor_value  # type: ignore[method-assign, assignment]
     SolcastUpdateCoordinator.get_site_sensor_extra_attributes = get_site_sensor_extra_attributes  # type: ignore[method-assign, assignment]
-    entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-
     try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        async with asyncio.timeout(10):
+            while "Start is not stale" not in caplog.text:
+                freezer.tick()
+                await hass.async_block_till_done()
+            coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+
         coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
         await coordinator.async_refresh()
         await hass.async_block_till_done()

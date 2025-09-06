@@ -2364,7 +2364,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         # Load the generation history.
         generation = {generated["period_start"]: generated for generated in self._data_generation["generation"]}
-        days = 1 if len(generation) else 7
+        days = 1 if len(generation) > 0 else 7
 
         for day in range(days):
             # PV generation
@@ -2550,7 +2550,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         _LOGGER.debug("Ignoring insignificant factor for %s of %.3f", interval_time, factor)
 
         if dampening != self.granular_dampening.get("all"):
-            current_mtime = self.granular_dampening_mtime
             self.granular_dampening["all"] = dampening
             await self.serialise_granular_dampening()
             await self.granular_dampening_data()

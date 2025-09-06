@@ -1,5 +1,6 @@
 """Tests for the Solcast Solar select."""
 
+import asyncio
 from datetime import datetime as dt, timedelta
 import logging
 
@@ -37,6 +38,7 @@ async def test_select_change_value(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
     entity_registry: er.EntityRegistry,
     entity_key: PVEstimateMode,
     resulting_state: str,
@@ -48,7 +50,10 @@ async def test_select_change_value(
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         freezer.move_to(dt.now() + timedelta(minutes=1))
-        await hass.async_block_till_done()
+        async with asyncio.timeout(10):
+            while "Start is not stale" not in caplog.text:
+                freezer.tick()
+                await hass.async_block_till_done()
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
         solcast: SolcastApi = coordinator.solcast
 
@@ -78,6 +83,10 @@ async def test_select_change_value(
         assert hass.states.get(select_entity_id).state == resulting_state  # type: ignore[union-attr]
         assert coordinator.solcast.options.key_estimate == resulting_state
         assert hass.states.get(f"sensor.solcast_pv_forecast_{test_entity}").state == expected_value  # type: ignore[union-attr]
+
+        for _ in range(300):  # Extra time needed for refresh
+            await hass.async_block_till_done()
+            freezer.tick(0.1)
 
     finally:
         assert await async_cleanup_integration_tests(hass)
