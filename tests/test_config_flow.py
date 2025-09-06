@@ -243,7 +243,7 @@ async def test_config_api_quota(hass: HomeAssistant, options: dict[str, Any], us
 
 
 @pytest.mark.parametrize(
-    "ignore_translations",
+    "ignore_missing_translations",
     ["component.solcast_solar.config.error.Bad API key, 403/Forbidden returned for ******555"],
 )
 async def test_reauth_api_key(
@@ -251,7 +251,6 @@ async def test_reauth_api_key(
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
     caplog: pytest.LogCaptureFixture,
-    ignore_translations: str | None,
 ) -> None:
     """Test that valid/invalid API key is handled in reconfigure.
 
@@ -387,7 +386,7 @@ async def test_reconfigure_api_key1(
         assert await async_cleanup_integration_tests(hass)
 
 
-@pytest.mark.parametrize(("set", "options", "to_assert", "ignore_translations"), TEST_KEY_CHANGES)
+@pytest.mark.parametrize(("set", "options", "to_assert", "ignore_missing_translations"), TEST_KEY_CHANGES)
 async def test_reconfigure_api_key2(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -396,7 +395,6 @@ async def test_reconfigure_api_key2(
     set: str,
     options: dict[str, Any],
     to_assert: str,
-    ignore_translations: str | None,
 ) -> None:
     """Test that valid/invalid API key is handled in reconfigure."""
 
