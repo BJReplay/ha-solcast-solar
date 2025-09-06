@@ -251,6 +251,7 @@ async def test_reauth_api_key(
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
     caplog: pytest.LogCaptureFixture,
+    ignore_translations: str | None,
 ) -> None:
     """Test that valid/invalid API key is handled in reconfigure.
 

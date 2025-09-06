@@ -220,9 +220,6 @@ class SimulatedSolcast:
                     "period_end": (period_end + timedelta(minutes=minute * 30)).isoformat(),
                     "period": "PT30M",
                     prefix: self.__pv_interval(site["capacity"], FORECAST, period_end, minute, modified=self.modified_actuals),
-                    # The Solcast API does not return these values, but the simulator does
-                    prefix + "10": self.__pv_interval(site["capacity"], FORECAST_10, period_end, minute, modified=self.modified_actuals),
-                    prefix + "90": self.__pv_interval(site["capacity"], FORECAST_90, period_end, minute, modified=self.modified_actuals),
                 }
                 for minute in range((hours + 1) * 2)
             ],

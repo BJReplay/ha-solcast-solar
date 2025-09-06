@@ -3049,8 +3049,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         {
                             "period_start": period_start,
                             "pv_estimate": estimate_actual[FORECAST],
-                            "pv_estimate10": estimate_actual.get(FORECAST10, 0),  # Only the simulator returns 10/90 for past actuals
-                            "pv_estimate90": estimate_actual.get(FORECAST90, 0),
+                            "pv_estimate10": 0,
+                            "pv_estimate90": 0,
                         }
                     )
             for actual in new_data:

@@ -1,5 +1,6 @@
 """Tests for the Solcast Solar select."""
 
+from datetime import datetime as dt, timedelta
 import logging
 
 from freezegun.api import FrozenDateTimeFactory
@@ -14,6 +15,7 @@ from homeassistant.components.select import (
 from homeassistant.components.solcast_solar.const import DOMAIN
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.select import PVEstimateMode
+from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -43,10 +45,16 @@ async def test_select_change_value(
 ) -> None:
     """Test estimate mode selector."""
 
-    entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-
     try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        freezer.move_to(dt.now() + timedelta(minutes=1))
+        await hass.async_block_till_done()
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = coordinator.solcast
+
+        freezer.move_to((dt.now(solcast._tz) + timedelta(hours=24)).replace(minute=27, second=27))  # pyright: ignore[reportPrivateUsage]
+        await hass.async_block_till_done()
+
         assert (
             select_entity_id := entity_registry.async_get_entity_id(
                 SELECT_DOMAIN,

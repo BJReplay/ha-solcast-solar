@@ -1,5 +1,6 @@
 """Tests for the Solcast Solar diagnostics and system health."""
 
+from datetime import datetime as dt, timedelta
 import logging
 
 from freezegun.api import FrozenDateTimeFactory
@@ -35,11 +36,13 @@ async def test_diagnostics(
 ) -> None:
     """Test diagnostics output."""
 
-    entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-    solcast: SolcastApi = coordinator.solcast
-
     try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        freezer.move_to(dt.now() + timedelta(minutes=1))
+        await hass.async_block_till_done()
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = coordinator.solcast
+
         diagnostics = await get_diagnostics_for_config_entry(hass, hass_client, entry)
         assert ZONE_RAW in diagnostics["tz_conversion"]["repr"]  # type: ignore[call-overload, index, operator] # pyright: ignore[reportOperatorIssue, reportIndexIssue, reportCallIssue, reportArgumentType, reportOptionalSubscript]
         assert diagnostics["used_api_requests"] == 4

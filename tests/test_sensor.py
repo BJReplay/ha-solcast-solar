@@ -370,10 +370,6 @@ async def test_sensor_states(  # noqa: C901
 ) -> None:
     """Test state and attributes of sensors including expected state class and unit of measurement."""
 
-    entry = await async_init_integration(hass, settings)
-    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-    solcast = coordinator.solcast
-
     def get_estimate_set() -> list[str]:
         estimate_set: list[str] = []
         if settings[BRK_ESTIMATE]:
@@ -385,9 +381,24 @@ async def test_sensor_states(  # noqa: C901
         return estimate_set
 
     try:
+        entry = await async_init_integration(hass, settings)
+        freezer.move_to(dt.now() + timedelta(minutes=1))
+        await hass.async_block_till_done()
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast = coordinator.solcast
+
         sensors: dict[str, Any] = copy.deepcopy(SENSORS)
         estimate_set = get_estimate_set()
         estimate_set_hyphen = [e + "-" for e in estimate_set]
+
+        # Special case for api_used
+        state = hass.states.get("sensor.solcast_pv_forecast_api_used")
+        assert state
+        assert state.state != STATE_UNAVAILABLE
+        assert state.state == sensors["api_used"]["state"][key]
+
+        freezer.move_to((dt.now(solcast._tz) + timedelta(hours=24)).replace(minute=27, second=27))  # pyright: ignore[reportPrivateUsage]
+        await hass.async_block_till_done()
 
         # Consolidate breakdowns for the key scenarios
         if settings[BRK_SITE]:
@@ -439,6 +450,8 @@ async def test_sensor_states(  # noqa: C901
 
         # Test initial sensor values.
         for sensor, attrs in sensors.items():
+            if sensor == "api_used":
+                continue
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
             assert state
             assert state.state != STATE_UNAVAILABLE
@@ -472,7 +485,6 @@ async def test_sensor_states(  # noqa: C901
             assert hass.states.get("sensor.second_site").state == "15.957"  # type: ignore[union-attr]
             assert hass.states.get("sensor.third_site").state == "15.957"  # type: ignore[union-attr]
             assert hass.states.get("sensor.solcast_pv_forecast_api_limit").state == "20"  # type: ignore[union-attr]
-            assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "4"  # type: ignore[union-attr]
             assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "12.0 kW"  # type: ignore[union-attr]
             assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "6.0 kW"  # type: ignore[union-attr]
             # The single overall limit sensor should not exist (this always gets created during PyTest entry
