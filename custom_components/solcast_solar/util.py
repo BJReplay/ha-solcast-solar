@@ -138,13 +138,13 @@ class JSONDecoder(json.JSONDecoder):
         return result
 
 
-def diff(lst: list[Any]) -> list[Any]:
+def diff(lst: list[Any], non_negative: bool = True) -> list[Any]:
     """Build a numpy-like diff."""
 
     size = len(lst) - 1
     r: list[int | float] = [0] * size
     for i in range(size):
-        r[i] = max(0, lst[i + 1] - lst[i])
+        r[i] = max(0, lst[i + 1] - lst[i]) if non_negative else lst[i + 1] - lst[i]
     return r
 
 
@@ -184,8 +184,8 @@ def cubic_interp(x0: list[Any], x: list[Any], y: list[Any]) -> list[Any]:
         return a - b
 
     size: int = len(x)
-    x_diff: list[Any] = diff(x)
-    y_diff: list[Any] = diff(y)
+    x_diff: list[Any] = diff(x, non_negative=False)
+    y_diff: list[Any] = diff(y, non_negative=False)
 
     li: list[Any] = [0] * size
     li_1: list[Any] = [0] * (size - 1)

@@ -143,7 +143,7 @@ MOCK_OVER_LIMIT = "return_429_over"
 MOCK_SESSION_CONFIG: dict[str, Any] = {
     "aioresponses": None,
     "api_limit": int(min(DEFAULT_INPUT2[API_QUOTA].split(","))),
-    "api_used": {api_key: 0 for api_key in DEFAULT_INPUT2[CONF_API_KEY].split(",")},
+    "api_used": dict.fromkeys(DEFAULT_INPUT2[CONF_API_KEY].split(","), 0),
     MOCK_ALTER_HISTORY: False,
     MOCK_BAD_REQUEST: False,
     MOCK_BUSY: False,
@@ -235,7 +235,7 @@ async def _get_actuals(url: str, **kwargs: Any) -> CallbackResult:
 
 def session_reset_usage() -> None:
     """Reset the mock session config."""
-    MOCK_SESSION_CONFIG["api_used"] = {api_key: 0 for api_key in DEFAULT_INPUT2[CONF_API_KEY].split(",")}
+    MOCK_SESSION_CONFIG["api_used"] = dict.fromkeys(DEFAULT_INPUT2[CONF_API_KEY].split(","), 0)
 
 
 def session_set(setting: str, **kwargs: Any) -> None:
@@ -302,6 +302,10 @@ async def async_setup_aioresponses() -> None:
 async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]) -> None:
     """Set up extra sensors for testing."""
 
+    _UOM = "kWh"
+
+    adjustment = {"kWh": 1.0, "MWh": 1000.0, "Wh": 0.001}
+
     power: dict[int, float]
     gen_bumps: dict[int, list[int]]
     increasing: float
@@ -328,7 +332,7 @@ async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]
                     new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                     frozen_time.move_to(new_now)
                     increasing += 0.1
-                    hass.states.async_set(entity_id, str(round(increasing, 4)), {"unit_of_measurement": "kWh"})
+                    hass.states.async_set(entity_id, str(round(increasing / adjustment[_UOM], 4)), {"unit_of_measurement": _UOM})
                     for _ in range(10):
                         frozen_time.tick()
                         await hass.async_block_till_done()
@@ -367,7 +371,7 @@ async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]
                         increasing += 0.1
                         new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                         frozen_time.move_to(new_now)
-                        hass.states.async_set(entity_id, str(round(increasing, 4)), {"unit_of_measurement": "kWh"})
+                        hass.states.async_set(entity_id, str(round(increasing / adjustment[_UOM], 4)), {"unit_of_measurement": _UOM})
                         for _ in range(10):
                             frozen_time.tick()
                             await hass.async_block_till_done()

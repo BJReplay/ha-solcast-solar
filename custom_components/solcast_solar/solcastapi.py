@@ -1064,6 +1064,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return enable
 
         error = False
+        return_value = False
         mtime = True
         filename = self.get_granular_dampening_filename()
         try:
@@ -1101,10 +1102,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             self.granular_dampening = {}
                             error = True
                     if error:
-                        return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
-                    _LOGGER.debug("Granular dampening %s", str(self.granular_dampening))
-                    return option(GRANULAR_DAMPENING_ON, SET_ALLOW_RESET)
-            return False
+                        return_value = option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
+                    else:
+                        _LOGGER.debug("Granular dampening %s", str(self.granular_dampening))
+                        return_value = option(GRANULAR_DAMPENING_ON, SET_ALLOW_RESET)
+            return return_value
         finally:
             if mtime:
                 self.granular_dampening_mtime = Path(filename).stat().st_mtime if Path(filename).exists() else 0
@@ -2909,7 +2911,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 return 1.0
         return self.damp.get(f"{period_start.hour}", 1.0)
 
-    async def apply_forward_dampening(self, applicable_sites: list[str] = [], do_past_hours: int = 0) -> None:
+    async def apply_forward_dampening(self, applicable_sites: list[str] | None = None, do_past_hours: int = 0) -> None:
         """Apply dampening to forward forecasts."""
         if len(self._data_undampened["siteinfo"]) == 0:
             return
