@@ -328,7 +328,7 @@ async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]
                     new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                     frozen_time.move_to(new_now)
                     increasing += 0.1
-                    hass.states.async_set(entity_id, str(round(increasing, 1)))
+                    hass.states.async_set(entity_id, str(round(increasing, 4)), {"unit_of_measurement": "kWh"})
                     for _ in range(10):
                         frozen_time.tick()
                         await hass.async_block_till_done()
@@ -367,7 +367,7 @@ async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]
                         increasing += 0.1
                         new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                         frozen_time.move_to(new_now)
-                        hass.states.async_set(entity_id, str(round(increasing, 1)))
+                        hass.states.async_set(entity_id, str(round(increasing, 4)), {"unit_of_measurement": "kWh"})
                         for _ in range(10):
                             frozen_time.tick()
                             await hass.async_block_till_done()

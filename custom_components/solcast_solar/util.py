@@ -144,7 +144,7 @@ def diff(lst: list[Any]) -> list[Any]:
     size = len(lst) - 1
     r: list[int | float] = [0] * size
     for i in range(size):
-        r[i] = lst[i + 1] - lst[i]
+        r[i] = max(0, lst[i + 1] - lst[i])
     return r
 
 

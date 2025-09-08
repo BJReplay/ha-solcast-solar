@@ -31,7 +31,7 @@ from aiohttp.client_reqrep import ClientResponse
 from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.history import state_changes_during_period
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_API_KEY
+from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT, CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import issue_registry as ir
@@ -231,7 +231,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._loaded_data = False
         self._next_update: str | None = None
         self._rekey: dict[str, Any] = {}
-        self._peak_intervals: dict[int, float] = {i: -1.0 for i in range(48)}
+        self._peak_intervals: dict[int, float] = dict.fromkeys(range(48), -1.0)
         self._site_data_forecasts: dict[str, list[dict[str, Any]]] = {}
         self._site_data_forecasts_undampened: dict[str, list[dict[str, Any]]] = {}
         self._site_latitude: defaultdict[str, dict[str, bool | float | int | None]] = defaultdict(dict[str, bool | float | int | None])
@@ -1104,12 +1104,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
                     _LOGGER.debug("Granular dampening %s", str(self.granular_dampening))
                     return option(GRANULAR_DAMPENING_ON, SET_ALLOW_RESET)
+            return False
         finally:
             if mtime:
                 self.granular_dampening_mtime = Path(filename).stat().st_mtime if Path(filename).exists() else 0
             if error:
                 self.granular_dampening = {}
-            return False
 
     async def refresh_granular_dampening_data(self) -> None:
         """Load granular dampening data if the file has changed."""
@@ -1474,7 +1474,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         _LOGGER.debug("Resetting failure statistics")
         self._data["failure"]["last_24h"] = 0
-        self._data["failure"]["last_7d"] = [0] + self._data["failure"]["last_7d"][:-1]
+        self._data["failure"]["last_7d"] = [0, *self._data["failure"]["last_7d"][:-1]]
         await self.serialise_data(self._data, self._filename)
 
     def get_last_attempt(self) -> dt:
@@ -2366,6 +2366,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         generation = {generated["period_start"]: generated for generated in self._data_generation["generation"]}
         days = 1 if len(generation) > 0 else 7
 
+        # Get the unit of measurement of the generation entities,
+        adjustment = {"kwh": 1.0, "mwh": 1000.0, "wh": 0.001}
+        generation_unit_adjustment = dict.fromkeys(self.options.generation_entities, 1.0)
+        for entity in self.options.generation_entities:
+            state = self.hass.states.get(entity)
+            if state and state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) is not None:
+                generation_unit_adjustment[entity] = adjustment.get(state.attributes[ATTR_UNIT_OF_MEASUREMENT].lower(), 1.0)
+        for entity in self.options.generation_entities:
+            _LOGGER.debug("Generation unit adjustment for %s: %s", entity, generation_unit_adjustment[entity])
+        export_unit_adjustment = 1.0
+        state = self.hass.states.get(self.options.site_export_entity)
+        if state and state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) is not None:
+            export_unit_adjustment = adjustment.get(state.attributes[ATTR_UNIT_OF_MEASUREMENT].lower(), 1.0)
+        _LOGGER.debug("Export unit adjustment for %s: %s", self.options.site_export_entity, export_unit_adjustment)
+
         for day in range(days):
             # PV generation
             generation_intervals: list[float] = [0.0] * 48
@@ -2389,7 +2404,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # Build a list of generation delta values.
                     sample_generation: list[float] = [
                         0.0,
-                        *diff([float(e.state) for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
+                        *diff(
+                            [
+                                float(e.state) * generation_unit_adjustment[entity]
+                                for e in entity_history[entity]
+                                if e.state.replace(".", "").isnumeric()
+                            ]
+                        ),
                     ]
                     for minute, kWh in zip(sample_time, sample_generation, strict=True):
                         generation_intervals[minute] += kWh
@@ -2397,9 +2418,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for i, _ in enumerate(generation_intervals):
                 generation_intervals[i] = round(generation_intervals[i], 3)
 
-            # Site export
-            entity = self.options.site_export_entity
             export_limiting: list[bool] = [False] * 48
+
+            # Detect site export limiting
+            entity = self.options.site_export_entity
             if entity != "":
                 export_intervals = [0.0] * 24 * 6
                 entity_history = await get_instance(self.hass).async_add_executor_job(
@@ -2419,7 +2441,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # Build a list of export delta values.
                     sample_export: list[float] = [
                         0.0,
-                        *diff([float(e.state) for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
+                        *diff(
+                            [
+                                float(e.state) * export_unit_adjustment
+                                for e in entity_history[entity]
+                                if e.state.replace(".", "").isnumeric()
+                            ]
+                        ),
                     ]
                     for minute, kWh in zip(sample_time, sample_export, strict=True):
                         export_intervals[minute] += kWh
@@ -2508,7 +2536,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     actuals[period_start] = actual["pv_estimate"] * 0.5
 
         # Collect top intervals from the past fourteen days.
-        self._peak_intervals = {i: 0.0 for i in range(48)}
+        self._peak_intervals = dict.fromkeys(range(48), 0.0)
         for period_start, actual in actuals.items():
             interval = period_start.astimezone(self._tz).hour * 2 + period_start.astimezone(self._tz).minute // 30
             if self._peak_intervals[interval] < actual:
