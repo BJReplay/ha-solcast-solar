@@ -14,6 +14,7 @@ Jinja2 templates are super handy to use when building template sensors, but don'
 1. [Intermediate examples](#intermediate-exmaples)
     1. [Combining data from multiple sites](#combining-data-from-multiple-sites)
     1. [Visualising multiple days of PV generation forecast](#visualising-multiple-days-of-pv-generation-forecast)
+    1. [Visualising automated dampening factors](#visualising-automated-dampening-factors)
 1. [Advanced examples](#advanced-exmaples)
     1. [Virtual Power Plant adaptive battery discharge](#virtual-power-plant-adaptive-battery-discharge)
     1. [A scale-modifying Apex chart](#a-scale-modifying-apex-chart)
