@@ -2362,6 +2362,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Sensors must be total increasing kWh, and the entities must have state history.
         """
 
+        def find_percentile(data: list[float], percentile: float) -> float:
+            """Find the given percentile in a sorted list of values."""
+            if not data:
+                return 0.0
+            k = (len(data) - 1) * (percentile / 100)
+            f = math.floor(k)
+            c = math.ceil(k)
+            if f == c:
+                return data[int(k)]
+            d0 = data[int(f)] * (c - k)
+            d1 = data[int(c)] * (k - f)
+            return d0 + d1
+
         start_time = time.time()
 
         # Load the generation history.
@@ -2414,8 +2427,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             ]
                         ),
                     ]
+                    # Build generation values for each minute, ignoring any excessive jumps.
+                    non_zero_generation = sorted([kWh for kWh in sample_generation if kWh > 0])
+                    typical_gen = find_percentile(non_zero_generation, 90)
+                    _LOGGER.debug("Typical generation jump: %.3f kWh", typical_gen)
                     for minute, kWh in zip(sample_time, sample_generation, strict=True):
-                        generation_intervals[minute] += kWh
+                        if kWh <= typical_gen:
+                            generation_intervals[minute] += kWh
+                    for i, interval in enumerate(generation_intervals):
+                        _LOGGER.debug("Day %d generation interval %d = %.3f kWh", -1 + day * -1, i, interval)
+                else:
+                    _LOGGER.debug("No day %d PV generation data from entity: %s (%s)", -1 + day * -1, entity, entity_history.get(entity))
             # Intervals are kWh per half hour
             for i, _ in enumerate(generation_intervals):
                 generation_intervals[i] = round(generation_intervals[i], 3)
@@ -2570,7 +2592,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     len(matching),
                     ", ".join([dt.strftime(DATE_MONTH_DAY) for dt in matching]),
                 )
-                _LOGGER.debug("Max generation: %.3f, %s", peak, generation_samples)
+                _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
                 if peak < self._peak_intervals[interval]:
                     factor = peak / self._peak_intervals[interval] if self._peak_intervals[interval] != 0 else 0.0
                     if factor < noise:

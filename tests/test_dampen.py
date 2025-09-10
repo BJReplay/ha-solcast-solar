@@ -35,6 +35,7 @@ from . import (
     MOCK_BUSY,
     MOCK_CORRUPT_ACTUALS,
     ZONE_RAW,
+    ExtraSensors,
     async_cleanup_integration_tests,
     async_init_integration,
     session_clear,
@@ -123,10 +124,13 @@ async def test_auto_dampen(
         options[USE_ACTUALS] = True
         options[AUTO_DAMPEN] = True
         options[EXCLUDE_SITES] = ["3333-3333-3333-3333"]
-        options[GENERATION_ENTITIES] = ["sensor.solar_export_sensor_1111_1111_1111_1111", "sensor.solar_export_sensor_2222_2222_2222_2222"]
+        options[GENERATION_ENTITIES] = [
+            "sensor.solcast_solar_solar_export_sensor_1111_1111_1111_1111",
+            "sensor.solcast_solar_solar_export_sensor_2222_2222_2222_2222",
+        ]
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
-        entry = await async_init_integration(hass, options, extra_sensors=True)
+        entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.YES)
 
         # Reload to load saved data and prime initial generation
         caplog.clear()
@@ -144,7 +148,7 @@ async def test_auto_dampen(
 
         assert "Auto-dampening suppressed: Excluded site for 3333-3333-3333-3333" in caplog.text
         assert "Interval 08:30 has peak estimated actual 0.936" in caplog.text
-        assert "Max generation: 0.800" in caplog.text
+        assert "Interval 08:30 max generation: 0.800" in caplog.text
         assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
         assert "Auto-dampen factor for 11:00" not in caplog.text
         assert "Ignoring insignificant factor for 11:00 of 0.988" in caplog.text
@@ -245,6 +249,50 @@ async def test_auto_dampen(
         for _ in range(300):  # Extra time needed for reload to complete
             await hass.async_block_till_done()
             freezer.tick(0.1)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_dodgy_dampen(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Test automated dampening."""
+
+    try:
+        options = copy.deepcopy(DEFAULT_INPUT2)
+        options[GET_ACTUALS] = True
+        options[USE_ACTUALS] = True
+        options[AUTO_DAMPEN] = True
+        options[EXCLUDE_SITES] = ["3333-3333-3333-3333"]
+        options[GENERATION_ENTITIES] = [
+            "sensor.solcast_solar_solar_export_sensor_1111_1111_1111_1111",
+            "sensor.solcast_solar_solar_export_sensor_2222_2222_2222_2222",
+        ]
+        options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
+        options[SITE_EXPORT_LIMIT] = 5.0
+        entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.DODGY)
+
+        # Reload to load saved data and prime initial generation, in this case with bad generation data
+        caplog.clear()
+        coordinator, solcast = await _reload(hass, entry)
+        if coordinator is None or solcast is None:
+            pytest.fail("Reload failed")
+
+        # Assert good start, that actuals and generation are enabled, and that the caches are saved
+        _LOGGER.debug("Testing good start happened")
+        for _ in range(30):  # Extra time needed for reload to complete
+            await hass.async_block_till_done()
+            freezer.tick(0.1)
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        _no_exception(caplog)
+
+        assert "Interval 12:00 max generation: 3.700" in caplog.text  # A jump in generation should not be seen as a peak
+        assert "Interval 13:00 has peak" not in caplog.text  # Dodgy generation should prevent interval consideration
+        assert "Auto-dampen factor for 10:00 is 0.940" in caplog.text  # A valid interval still considered
 
     finally:
         assert await async_cleanup_integration_tests(hass)
