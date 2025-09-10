@@ -663,7 +663,7 @@ Past estimated actual data is acquired at or around 00:20 each day (local time),
 
 Generation is gathered from history data of a sensor entity (or entities). A single PV solar inverter installation will likely have a single "total increasing" sensor that provides a "PV generation" or "PV export" value (_not_ export to grid, but export off your roof from the sun). Multiple inverters will have a value for each, and all sensor entities may be supplied, which will then be totalled for all rooftops.
 
-An increasing kWh sensor (or sensors) must be supplied. This increasing sensor may reset at midnight, or may be a "total increasing" type; of importance is that it is increasing throughout the day.
+An increasing energy sensor (or sensors) must be supplied in either **kWh** or have their `unit_of_measurement` correctly set. The integration automatically detects the unit of measurement from each entity's `unit_of_measurement` attribute and converts other values to kWh as needed. This increasing sensor may reset at midnight, or may be a "total increasing" type; of importance is that it is increasing throughout the day.
 
 > [!NOTE]
 >
@@ -672,6 +672,8 @@ An increasing kWh sensor (or sensors) must be supplied. This increasing sensor m
 ##### (Optional) Site export to the grid, combined with a limit value.
 
 Where locally generated excess power is fed to the electricity grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because at the limit value for a ten minute period or more) then the generation period will be excluded from any automated dampening consideration. This mechanism ensures differentiation of generation being limited by shade from a tree or chimney, or artificial site export limiting.
+
+The export entity can use either **kWh** or have their `unit_of_measurement` correctly set, with automatic unit detection and conversion applied just like generation entities.
 
 Export to the grid generally occurs in the middle of the day, which is a time rarely impacted by shading.
 
@@ -712,7 +714,7 @@ The adjustments made by automated dampening may hinder efforts to resolve basic 
 
 We all don't want that.
 
-External sensors (like PV export and site export) must be per-kWh, and cumulatively increasing throughout a given day.
+External sensors (like PV export and site export) must be energy sensors (kWh or other), and cumulatively increasing throughout a given day.
 
 ##### Feedback
 Your feedback regarding experience with the automated dampening feature will be most welcome in the integration repository discussions.

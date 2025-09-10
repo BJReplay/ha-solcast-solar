@@ -246,6 +246,74 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._config_dir = hass.config.config_dir
         _LOGGER.debug("Configuration directory is %s", self._config_dir)
 
+    def get_conversion_factor_for_entity(self, entity: str, entity_history: list | None = None, is_export: bool = False) -> float:
+        """Get the conversion factor for an energy entity to convert to kWh.
+
+        Arguments:
+            entity (str): The entity ID.
+            entity_history (list | None): Optional entity history to check for unit information.
+            is_export (bool): Whether this is an export entity (for logging).
+
+        Returns:
+            float: The conversion factor to convert the entity's unit to kWh.
+        """
+        # Energy unit conversion factors to kWh
+        # Based on Home Assistant's supported energy units: J, kJ, MJ, GJ, mWh, Wh, kWh, MWh, GWh, TWh, cal, kcal, Mcal, Gcal
+        energy_unit_factors = {
+            # Joules
+            "J": 2.77778e-7,
+            "kJ": 2.77778e-4,
+            "MJ": 0.277778,
+            "GJ": 277.778,
+            # Watt-hours
+            "mWh": 1e-6,
+            "Wh": 0.001,
+            "kWh": 1.0,
+            "MWh": 1000.0,
+            "GWh": 1e6,
+            "TWh": 1e9,
+            # Calories
+            "cal": 1.163e-6,
+            "kcal": 1.163e-3,
+            "Mcal": 1.163,
+            "Gcal": 1163.0,
+        }
+
+        # Get the unit of measurement for this entity to determine conversion factor
+        entity_unit = None
+
+        # Check the entity history for unit information first
+        if entity_history:
+            # Try to get unit from the state attributes
+            latest_state = entity_history[-1]
+            if hasattr(latest_state, 'attributes') and latest_state.attributes:
+                entity_unit = latest_state.attributes.get('unit_of_measurement')
+
+        # If no unit found in history, try to get current state from hass
+        if not entity_unit:
+            current_state = self.hass.states.get(entity)
+            if current_state and current_state.attributes:
+                entity_unit = current_state.attributes.get('unit_of_measurement')
+
+        if not entity_unit:
+            entity_type = "Export entity" if is_export else "Entity"
+            _LOGGER.warning("%s %s has no unit_of_measurement, assuming kWh", entity_type, entity)
+            return 1.0
+
+        conversion_factor = energy_unit_factors.get(entity_unit)
+        if conversion_factor is None:
+            entity_type = "Export entity" if is_export else "Entity"
+            _LOGGER.warning("%s %s has unknown energy unit '%s', assuming kWh", entity_type, entity, entity_unit)
+            return 1.0
+
+        entity_type = "Export entity" if is_export else "Entity"
+        if conversion_factor != 1.0:
+            _LOGGER.debug("%s %s uses %s units, applying conversion factor %g", entity_type, entity, entity_unit, conversion_factor)
+        else:
+            _LOGGER.debug("%s %s uses %s units, no conversion needed", entity_type, entity, entity_unit)
+
+        return conversion_factor
+
     async def tasks_cancel(self):
         """Cancel all tasks."""
 
@@ -2357,7 +2425,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def get_pv_generation(self) -> None:
         """Get PV generation from external entity/entities.
 
-        Sensors must be total increasing kWh, and the entities must have state history.
+        Sensors must be total increasing energy values, and the entities must have state history.
+        Supports both kWh and other (e.g. Wh) units with automatic conversion.
         """
 
         start_time = time.time()
@@ -2380,16 +2449,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if entity_history.get(entity) and len(entity_history[entity]):
                     _LOGGER.debug("Retrieved day %d PV generation data from entity: %s", -1 + day * -1, entity)
 
+                    # Determine conversion factor based on unit (convert all to kWh)
+                    conversion_factor = self.get_conversion_factor_for_entity(entity, entity_history[entity], is_export=False)
+
                     # Arrange the generation samples into half-hour intervals (essentially what will be coming for the interval).
                     sample_time: list[int] = [
                         e.last_updated.astimezone(self.options.tz).hour * 2 + e.last_updated.astimezone(self.options.tz).minute // 30
                         for e in entity_history[entity]
                         if e.state.replace(".", "").isnumeric()
                     ]
-                    # Build a list of generation delta values.
+                    # Build a list of generation delta values and apply unit conversion.
                     sample_generation: list[float] = [
                         0.0,
-                        *diff([float(e.state) for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
+                        *diff([float(e.state) * conversion_factor for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
                     ]
                     for minute, kWh in zip(sample_time, sample_generation, strict=True):
                         generation_intervals[minute] += kWh
@@ -2410,16 +2482,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     entity,
                 )
                 if entity_history.get(entity) and len(entity_history[entity]):
+                    # Determine conversion factor based on unit (convert all to kWh)
+                    conversion_factor = self.get_conversion_factor_for_entity(entity, entity_history[entity], is_export=True)
+
                     # Arrange the site export samples into ten-minute intervals.
                     sample_time = [
                         (e.last_updated.astimezone(self.options.tz)).hour * 6 + (e.last_updated.astimezone(self.options.tz)).minute // 10
                         for e in entity_history[entity]
                         if e.state.replace(".", "").isnumeric()
                     ]
-                    # Build a list of export delta values.
+                    # Build a list of export delta values and apply unit conversion.
                     sample_export: list[float] = [
                         0.0,
-                        *diff([float(e.state) for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
+                        *diff([float(e.state) * conversion_factor for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
                     ]
                     for minute, kWh in zip(sample_time, sample_export, strict=True):
                         export_intervals[minute] += kWh
