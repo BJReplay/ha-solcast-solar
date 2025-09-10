@@ -143,79 +143,79 @@ template:
 
 **Scenario**: Since v4.4.0 the integration has included automated adaptive dampening, and you want to visualise the dampening factors that are in use.
 
-The integration actually calculates two sets of dampening factors.  The first is determined for each half hourly interval by identifying recent days where estimated actual generation was "good" compared to the recent peak and comparing your site's actual generation with Solcast's estimated actuals.  This gives the dampening that is derived from direct solar radiation which is the consistent best case dampening.  There is then a second pass which compares forecast generation with the recent peak and adjusts the dampening factor to accomodate the relatively increased effect of indirect solar radiaton on days where there is more cloud cover.   
+As decribed in the [documentation](https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#theory-of-operation) the integration actually calculates two sets of dampening factors.  The first is the "consistently best case" dampening factors which should reflect the impact of external factors on your site's generation.  These "best case" factors are then adjusted based on how close each forecast interval's generation is to the recent peak, so at times when generation is comparatively low the dampening fator is adjusted to accomodate the effect of diffuse solar radiaton on days where there is more cloud cover.   
 
-This chart shows both the consistent best case factors and the nudged factors which are actually applied to today's forecast.
+This chart shows both the consistent best case factors and the adjusted factors which are actually applied to today's forecast.
 
 ```yaml
-          - type: custom:apexcharts-card
-            header:
-              show: true
-              title: Solcast Dampening
-              show_states: false
-            apex_config:
-              legend:
-                show: true
-              tooltip:
-                'y':
-                  formatter: |
-                    EVAL:function(y) {return y.toFixed(3);}
-                enabled: true
-                marker:
-                  show: false
-            graph_span: 23h
-            span:
-              start: day
-            yaxis:
-              - min: 0
-                max: 1
-                decimals: 3
-                apex_config:
-                  tickAmount: 5
-            series:
-              - entity: sensor.solcast_pv_forecast_forecast_today
-                name: Applied
-                color: orange
-                stroke_width: 1
-                type: line
-                show:
-                  legend_value: false
-                  in_header: false
-                data_generator: >
-                  const factors = entity.attributes.detailedForecast;
+  - type: custom:apexcharts-card
+    header:
+      show: true
+      title: Solcast Dampening
+      show_states: false
+    apex_config:
+      legend:
+        show: true
+      tooltip:
+        'y':
+          formatter: |
+            EVAL:function(y) {return y.toFixed(3);}
+        enabled: true
+        marker:
+          show: false
+    graph_span: 23h
+    span:
+      start: day
+    yaxis:
+      - min: 0
+        max: 1
+        decimals: 3
+        apex_config:
+          tickAmount: 5
+    series:
+      - entity: sensor.solcast_pv_forecast_forecast_today
+        name: Applied
+        color: orange
+        stroke_width: 1
+        type: line
+        show:
+          legend_value: false
+          in_header: false
+        data_generator: >
+          const factors = entity.attributes.detailedForecast;
 
-                  return factors.map(entry => {
-                    return {
-                      x: entry.period_start,
-                      y: entry.dampening_factor
-                    };
-                  });                 
-              - entity: sensor.solcast_pv_forecast_dampening
-                name: Best case
-                color: grey
-                stroke_width: 0
-                opacity: 0.5
-                type: area
-                show:
-                  legend_value: false
-                  in_header: false
-                data_generator: >
-                  const factors = entity.attributes.factors;
+          return factors.map(entry => {
+            return {
+              x: entry.period_start,
+              y: entry.dampening_factor
+            };
+          });                 
+      - entity: sensor.solcast_pv_forecast_dampening
+        name: Best case
+        color: grey
+        stroke_width: 0
+        opacity: 0.5
+        type: area
+        show:
+          legend_value: false
+          in_header: false
+        data_generator: >
+          const factors = entity.attributes.factors;
 
-                  const basetime = new Date().toISOString() 
+          const basetime = new Date().toISOString() 
 
-                  const today = basetime.split("T")[0]; //
-                  "YYYY-MM-DD"    
+          const today = basetime.split("T")[0]; //
+          "YYYY-MM-DD"    
 
-                  const tz = basetime.slice(-6); // "+01:00"          
+          const tz = basetime.slice(-6); // "+01:00"          
 
-                  return factors.map(entry => {
-                    const [hour, minute] = entry.interval.split(":");
-                    return {
-                      x: `${today}T${hour}:${minute}:00${tz}`,
-                      y: entry.factor
-                    };
-                  });
+          return factors.map(entry => {
+            const [hour, minute] = entry.interval.split(":");
+            return {
+              x: `${today}T${hour}:${minute}:00${tz}`,
+              y: entry.factor
+            };
+          });
 
 ```
 
