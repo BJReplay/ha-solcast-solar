@@ -119,7 +119,11 @@ Using Google Earth or ChatGPT are other alternatives.
 >
 > Solcast are headquartered in Sydney, Australia in the southern hemisphere, and use azimuth numbering as degrees pointed away from North. If you live in the northern hemisphere then it is likely that any online mapping service that can be used to determine azimuth will use a numbering convention that is degrees pointed away from _South_, which will yield incompatible values.
 >
-> If an unusual azimuth is configured then the integration will raise a warning for the issue. If the orientation is truly unusual (e.g. a northern hemisphere rooftop pointing towards North/North East/North West), then simply ignore the issue.
+> A Solcast configuration of roof aligned North/North-East/North-West in the northern hemisphere or South/South-East/South-West in the southern hemisphere is considered to be possibly unusual because these orientations are not directly facing the sun at any time.
+>
+> On start-up, the integration will validate your Solcast azimuth setting in order to highlight a potential misconfiguration and will issue a warning message in the Home Assistant log and raise an issue if it detects an unusual roof alignment. If you receive this warning and have confirmed your Solcast settings are correct then the warning message can simply be ignored. The warning is there to try to catch configuration mistakes.
+>
+> There are always outlier installations, like two rooftops that face both West and East with panels installed on both faces, 180 degrees from each other. One rooftop is going to be considered "unusual". Check the azimuth according to Solcast, and fix or ignore the warning as appropriate. Remember, 0° = NORTH according to Solcast, with orientations being relative to this.
 
 ## Installation
 
@@ -1151,6 +1155,12 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 ## Changes
 
+v4.4.1
+* Generation/export unit of measurement automatic adjustment by @autoSteve
+* Ignore atypical generation entity jumps by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.0...v4.4.1
+
 v4.4.0
 * Add auto-dampening feature by @autoSteve
 * Modified dampening factors are applied from start of current day by @autoSteve
@@ -1164,6 +1174,9 @@ v4.4.0
 * Minimum HA version 2024.11
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.5...v4.4.0
+
+### Prior changes
+<details><summary><i>Click here for changes back to v3.0</i></summary>
 
 v4.3.5
 * Fix API key change detection on 429 when using multi-key by @autoSteve
@@ -1224,9 +1237,6 @@ v4.3.0
 * Updated issue template by @BJReplay
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.7...v4.3.0
-
-### Prior changes
-<details><summary><i>Click here for changes back to v3.0</i></summary>
 
 v4.2.7
 * Fix an issue with API key validation by @autoSteve
