@@ -14,6 +14,7 @@ Jinja2 templates are super handy to use when building template sensors, but don'
 1. [Intermediate examples](#intermediate-exmaples)
     1. [Combining data from multiple sites](#combining-data-from-multiple-sites)
     1. [Visualising multiple days of PV generation forecast](#visualising-multiple-days-of-pv-generation-forecast)
+    1. [Visualising automated dampening factors](#visualising-automated-dampening-factors)
 1. [Advanced examples](#advanced-exmaples)
     1. [Virtual Power Plant adaptive battery discharge](#virtual-power-plant-adaptive-battery-discharge)
     1. [A scale-modifying Apex chart](#a-scale-modifying-apex-chart)
@@ -137,6 +138,91 @@ template:
             {% endfor %}
             {{ ns.combined_list | to_json() }}
 ```
+
+### Visualising automated dampening factors
+
+**Scenario**: Since v4.4.0 the integration has included automated adaptive dampening, and you want to visualise the dampening factors that are in use.
+
+As decribed in the [documentation](https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#theory-of-operation) the integration actually calculates two sets of dampening factors.  The first is the "consistently best case" dampening factors which should reflect the impact of external factors on your site's generation.  These "best case" factors are then adjusted based on how close each forecast interval's generation is to the recent peak, so at times when generation is comparatively low the dampening fator is adjusted to accomodate the effect of diffuse solar radiaton on days where there is more cloud cover.   
+
+This chart shows both the consistent best case factors and the adjusted factors which are actually applied to today's forecast.
+
+```yaml
+  - type: custom:apexcharts-card
+    header:
+      show: true
+      title: Solcast Dampening
+      show_states: false
+    apex_config:
+      legend:
+        show: true
+      tooltip:
+        'y':
+          formatter: |
+            EVAL:function(y) {return y.toFixed(3);}
+        enabled: true
+        marker:
+          show: false
+    graph_span: 23h
+    span:
+      start: day
+    yaxis:
+      - min: 0
+        max: 1
+        decimals: 3
+        apex_config:
+          tickAmount: 5
+    series:
+      - entity: sensor.solcast_pv_forecast_forecast_today
+        name: Applied
+        color: orange
+        stroke_width: 1
+        type: line
+        show:
+          legend_value: false
+          in_header: false
+        data_generator: >
+          const factors = entity.attributes.detailedForecast;
+
+          return factors.map(entry => {
+            return {
+              x: entry.period_start,
+              y: entry.dampening_factor
+            };
+          });                 
+      - entity: sensor.solcast_pv_forecast_dampening
+        name: Best case
+        color: grey
+        stroke_width: 0
+        opacity: 0.5
+        type: area
+        show:
+          legend_value: false
+          in_header: false
+        data_generator: >
+          const factors = entity.attributes.factors;
+
+          const basetime = new Date().toISOString() 
+
+          const today = basetime.split("T")[0]; //
+          "YYYY-MM-DD"    
+
+          const tz = basetime.slice(-6); // "+01:00"          
+
+          return factors.map(entry => {
+            const [hour, minute] = entry.interval.split(":");
+            return {
+              x: `${today}T${hour}:${minute}:00${tz}`,
+              y: entry.factor
+            };
+          });
+
+```
+
+
+<img width="670" height="465" alt="image" src="https://github.com/user-attachments/assets/85e1af4d-f656-4cff-8227-b947aede24f7" />
+
+
 
 ## Advanced examples
 
