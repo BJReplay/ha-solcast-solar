@@ -1156,7 +1156,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 ## Changes
 
 v4.4.1
-* Generation/export unit of measurement automatic adjustment by @autoSteve
+* Generation/export unit of measurement automatic adjustment by @brilthor and @autoSteve
 * Ignore atypical generation entity jumps by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.0...v4.4.1
