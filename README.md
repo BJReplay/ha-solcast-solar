@@ -667,7 +667,7 @@ Past estimated actual data is acquired at or around 00:20 each day (local time),
 
 Generation is gathered from history data of a sensor entity (or entities). A single PV solar inverter installation will likely have a single "total increasing" sensor that provides a "PV generation" or "PV export" value (_not_ export to grid, but export off your roof from the sun). Multiple inverters will have a value for each, and all sensor entities may be supplied, which will then be totalled for all rooftops.
 
-An increasing Wh, kWh or MWh sensor (or sensors) must be supplied. This increasing sensor may reset at midnight, or may be a "total increasing" type; of importance is that it is increasing throughout the day.
+An increasing energy sensor (or sensors) must be supplied. This increasing sensor may reset at midnight, or may be a "total increasing" type; of importance is that it is increasing throughout the day. The integration determines the units by inspecting the `unit_of_measurement` attribute and adjusts accordingly. Where this attribute is not set it assumes values are kWh.
 
 > [!NOTE]
 >
@@ -679,7 +679,7 @@ Where locally generated excess power is fed to the electricity grid, it is likel
 
 Export to the grid generally occurs in the middle of the day, which is a time rarely impacted by shading.
 
-An increasing Wh, kWh or MWh sensor (or sensors) may be supplied. This sensor may reset at midnight. Limit may only be specified in kW
+A single increasing energy sensor may be supplied. This sensor may reset at midnight. Limit may only be specified in kW.
 
 > [!TIP]
 >
@@ -718,7 +718,7 @@ The adjustments made by automated dampening may hinder efforts to resolve basic 
 
 We all don't want that.
 
-External sensors (like PV export and site export) must cumulatively increase throughout a given day.
+External energy sensors (like PV export and site export) must have a unit of measurement of mWh, Wh, kWh or MWh, and must cumulatively increase throughout a given day. If a unit of measurement cannot be determined then kWh is assumed. Other units like GWh or TWh do not make sense to use in a residential setting, and if used would result in an unacceptable loss of precision when converted to kWh so are unsupported. Other energy units like Joules and calories are also not supported, being uncommon units to use for electricity.
 
 ##### Feedback
 Your feedback regarding experience with the automated dampening feature will be most welcome in the integration repository discussions.

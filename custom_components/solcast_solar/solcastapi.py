@@ -32,9 +32,9 @@ from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.history import state_changes_during_period
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT, CONF_API_KEY
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
 from .const import (
     AUTO_DAMPEN,
@@ -73,6 +73,7 @@ from .util import (
     UsageStatus,
     cubic_interp,
     diff,
+    find_percentile,
 )
 
 API: Final = Api.HOBBYIST  # The API to use. Presently only the hobbyist API is allowed for hobbyist accounts.
@@ -2356,45 +2357,58 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         return self._data_energy_dashboard
 
+    def __get_conversion_factor(self, entity: str, entity_history: list[State] | None = None, is_export: bool = False) -> float:
+        """Get the conversion factor for an electricity energy entity to convert to kWh."""
+
+        energy_unit_factors = {
+            "mWh": 1e-6,
+            "Wh": 0.001,
+            "kWh": 1.0,
+            "MWh": 1000.0,
+        }
+        entity_type = "Export entity" if is_export else "Entity"
+        entity_unit = None
+
+        if entity_history:
+            # Check the entity history for the unit of measurement.
+            latest_state = entity_history[-1]
+            if hasattr(latest_state, "attributes") and latest_state.attributes:
+                entity_unit = latest_state.attributes.get(ATTR_UNIT_OF_MEASUREMENT)
+
+        if not entity_unit:
+            # If not found, get the unit of measurement from the entity registry.
+            entity_registry = er.async_get(self.hass)
+            entity_entry = entity_registry.async_get(entity)
+            if entity_entry and entity_entry.unit_of_measurement:
+                entity_unit = entity_entry.unit_of_measurement
+
+        if not entity_unit:
+            _LOGGER.warning("%s %s has no %s, assuming kWh", entity_type, entity, ATTR_UNIT_OF_MEASUREMENT)
+            return 1.0
+
+        conversion_factor = energy_unit_factors.get(entity_unit)
+        if conversion_factor is None:
+            _LOGGER.error("%s %s has an unsupported %s '%s', assuming kWh", entity_type, entity, ATTR_UNIT_OF_MEASUREMENT, entity_unit)
+            return 1.0
+
+        if conversion_factor != 1.0:
+            _LOGGER.debug("%s %s uses %s, applying conversion factor %s", entity_type, entity, entity_unit, conversion_factor)
+
+        return conversion_factor
+
     async def get_pv_generation(self) -> None:
         """Get PV generation from external entity/entities.
 
-        Sensors must be total increasing kWh, and the entities must have state history.
+        Sensors must be increasing energy values (may reset at midnight), and the entities must have state history.
+        Supports both kWh and other (e.g. Wh) sane electricity energy units with automatic conversion.
+        Very large units of measurement are not supported (e.g. GWh, TWh) because of precision loss.
         """
-
-        def find_percentile(data: list[float], percentile: float) -> float:
-            """Find the given percentile in a sorted list of values."""
-            if not data:
-                return 0.0
-            k = (len(data) - 1) * (percentile / 100)
-            f = math.floor(k)
-            c = math.ceil(k)
-            if f == c:
-                return data[int(k)]
-            d0 = data[int(f)] * (c - k)
-            d1 = data[int(c)] * (k - f)
-            return d0 + d1
 
         start_time = time.time()
 
         # Load the generation history.
         generation = {generated["period_start"]: generated for generated in self._data_generation["generation"]}
         days = 1 if len(generation) > 0 else 7
-
-        # Get the unit of measurement of the generation entities,
-        adjustment = {"kwh": 1.0, "mwh": 1000.0, "wh": 0.001}
-        generation_unit_adjustment = dict.fromkeys(self.options.generation_entities, 1.0)
-        for entity in self.options.generation_entities:
-            state = self.hass.states.get(entity)
-            if state and state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) is not None:
-                generation_unit_adjustment[entity] = adjustment.get(state.attributes[ATTR_UNIT_OF_MEASUREMENT].lower(), 1.0)
-        for entity in self.options.generation_entities:
-            _LOGGER.debug("Generation unit adjustment for %s: %s", entity, generation_unit_adjustment[entity])
-        export_unit_adjustment = 1.0
-        state = self.hass.states.get(self.options.site_export_entity)
-        if state and state.attributes.get(ATTR_UNIT_OF_MEASUREMENT) is not None:
-            export_unit_adjustment = adjustment.get(state.attributes[ATTR_UNIT_OF_MEASUREMENT].lower(), 1.0)
-        _LOGGER.debug("Export unit adjustment for %s: %s", self.options.site_export_entity, export_unit_adjustment)
 
         for day in range(days):
             # PV generation
@@ -2410,6 +2424,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if entity_history.get(entity) and len(entity_history[entity]):
                     _LOGGER.debug("Retrieved day %d PV generation data from entity: %s", -1 + day * -1, entity)
 
+                    # Get the conversion factor for the entity to convert to kWh.
+                    conversion_factor = self.__get_conversion_factor(entity, entity_history[entity], is_export=False)
                     # Arrange the generation samples into half-hour intervals (essentially what will be coming for the interval).
                     sample_time: list[int] = [
                         e.last_updated.astimezone(self.options.tz).hour * 2 + e.last_updated.astimezone(self.options.tz).minute // 30
@@ -2419,13 +2435,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # Build a list of generation delta values.
                     sample_generation: list[float] = [
                         0.0,
-                        *diff(
-                            [
-                                float(e.state) * generation_unit_adjustment[entity]
-                                for e in entity_history[entity]
-                                if e.state.replace(".", "").isnumeric()
-                            ]
-                        ),
+                        *diff([float(e.state) * conversion_factor for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
                     ]
                     # Build generation values for each minute, ignoring any excessive jumps.
                     non_zero_generation = sorted([kWh for kWh in sample_generation if kWh > 0])
@@ -2456,6 +2466,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     entity,
                 )
                 if entity_history.get(entity) and len(entity_history[entity]):
+                    # Get the conversion factor for the entity to convert to kWh.
+                    conversion_factor = self.__get_conversion_factor(entity, entity_history[entity], is_export=False)
                     # Arrange the site export samples into ten-minute intervals.
                     sample_time = [
                         (e.last_updated.astimezone(self.options.tz)).hour * 6 + (e.last_updated.astimezone(self.options.tz)).minute // 10
@@ -2465,13 +2477,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # Build a list of export delta values.
                     sample_export: list[float] = [
                         0.0,
-                        *diff(
-                            [
-                                float(e.state) * export_unit_adjustment
-                                for e in entity_history[entity]
-                                if e.state.replace(".", "").isnumeric()
-                            ]
-                        ),
+                        *diff([float(e.state) * conversion_factor for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
                     ]
                     for minute, kWh in zip(sample_time, sample_export, strict=True):
                         export_intervals[minute] += kWh

@@ -25,6 +25,7 @@ from homeassistant.components.solcast_solar.const import (
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from homeassistant.components.solcast_solar.util import find_percentile
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
@@ -128,9 +129,9 @@ async def test_auto_dampen(
             "sensor.solcast_solar_solar_export_sensor_1111_1111_1111_1111",
             "sensor.solcast_solar_solar_export_sensor_2222_2222_2222_2222",
         ]
-        options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
+        options[SITE_EXPORT_ENTITY] = "sensor.solcast_solar_site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
-        entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.YES)
+        entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.YES_WATT_HOUR)
 
         # Reload to load saved data and prime initial generation
         caplog.clear()
@@ -254,11 +255,20 @@ async def test_auto_dampen(
         assert await async_cleanup_integration_tests(hass)
 
 
-async def test_dodgy_dampen(
+@pytest.mark.parametrize(
+    "extra_sensors",
+    [
+        ExtraSensors.YES_UNIT_NOT_IN_HISTORY,
+        ExtraSensors.YES_NO_UNIT,
+        ExtraSensors.DODGY,
+    ],
+)
+async def test_auto_dampen_issues(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
     freezer: FrozenDateTimeFactory,
+    extra_sensors: ExtraSensors,
 ) -> None:
     """Test automated dampening."""
 
@@ -272,9 +282,9 @@ async def test_dodgy_dampen(
             "sensor.solcast_solar_solar_export_sensor_1111_1111_1111_1111",
             "sensor.solcast_solar_solar_export_sensor_2222_2222_2222_2222",
         ]
-        options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
+        options[SITE_EXPORT_ENTITY] = "sensor.solcast_solar_site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
-        entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.DODGY)
+        entry = await async_init_integration(hass, options, extra_sensors=extra_sensors)
 
         # Reload to load saved data and prime initial generation, in this case with bad generation data
         caplog.clear()
@@ -290,9 +300,48 @@ async def test_dodgy_dampen(
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
         _no_exception(caplog)
 
-        assert "Interval 12:00 max generation: 3.700" in caplog.text  # A jump in generation should not be seen as a peak
-        assert "Interval 13:00 has peak" not in caplog.text  # Dodgy generation should prevent interval consideration
-        assert "Auto-dampen factor for 10:00 is 0.940" in caplog.text  # A valid interval still considered
+        # assert "has an unsupported unit_of_measurement 'MJ'" in caplog.text  # A dodgy unit should be logged
+        match extra_sensors:
+            case ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+                assert "has no unit_of_measurement, assuming kWh" not in caplog.text
+            case ExtraSensors.YES_NO_UNIT:
+                assert "has no unit_of_measurement, assuming kWh" in caplog.text
+            case ExtraSensors.DODGY:
+                assert "has an unsupported unit_of_measurement 'MJ'" in caplog.text  # A dodgy unit should be logged
+                assert "Interval 12:00 max generation: 3.700" in caplog.text  # A jump in generation should not be seen as a peak
+                assert "Interval 13:00 has peak" not in caplog.text  # Dodgy generation should prevent interval consideration
+                assert "Auto-dampen factor for 10:00 is 0.940" in caplog.text  # A valid interval still considered
+            case _:
+                pytest.fail("Assertions missing for extra_sensors value")
 
     finally:
         assert await async_cleanup_integration_tests(hass)
+
+
+async def test_percentile() -> None:
+    """Test percentile function."""
+
+    data: list[float]
+
+    data = [1.0, 2.0, 3.0, 4.0, 5.0]
+    assert find_percentile(data, 0) == 1.0
+    assert find_percentile(data, 25) == 2.0
+    assert find_percentile(data, 50) == 3.0
+    assert find_percentile(data, 75) == 4.0
+    assert find_percentile(data, 100) == 5.0
+
+    data = [5.0]
+    assert find_percentile(data, 0) == 5.0
+    assert find_percentile(data, 25) == 5.0
+    assert find_percentile(data, 50) == 5.0
+    assert find_percentile(data, 75) == 5.0
+    assert find_percentile(data, 100) == 5.0
+
+    data = [0.1] * 10 + [0.5]
+    assert find_percentile(data, 90) == 0.1
+
+    data = [0.1] * 8 + [0.5]
+    assert round(find_percentile(data, 90), 2) == 0.18
+
+    data = []
+    assert find_percentile(data, 50) == 0.0

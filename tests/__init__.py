@@ -165,7 +165,10 @@ class ExtraSensors(Enum):
 
     NONE = 0
     YES = 1
-    DODGY = 2
+    YES_WATT_HOUR = 2
+    YES_NO_UNIT = 3
+    YES_UNIT_NOT_IN_HISTORY = 4
+    DODGY = 9
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -314,10 +317,31 @@ async def async_setup_extra_sensors(  # noqa: C901
 ) -> None:
     """Set up extra sensors for testing."""
 
-    _UOM = "kWh"
+    match extra_sensors:
+        case ExtraSensors.YES_WATT_HOUR:
+            _uom = "Wh"
+        case ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+            _uom = "kWh"
+        case ExtraSensors.YES_NO_UNIT:
+            _uom = ""
+        case ExtraSensors.DODGY:
+            _uom = "MJ"
+        case _:
+            _uom = "kWh"
     _DAYS = 1
 
-    adjustment = {"kWh": 1.0, "MWh": 1000.0, "Wh": 0.001}
+    adjustment = {"kWh": 1.0, "MWh": 1000.0, "Wh": 0.001, "MJ": 1.0, "": 1.0}
+
+    if extra_sensors != ExtraSensors.YES_NO_UNIT:
+        entity_registry = er.async_get(hass)
+        entity_registry.async_get_or_create(
+            "sensor",
+            DOMAIN,
+            "solcast_solar_site_export_sensor",
+            config_entry=entry,
+            suggested_object_id="solcast_solar_site_export_sensor",
+            unit_of_measurement=_uom,
+        )
 
     power: dict[int, float]
     gen_bumps: dict[int, list[int]]
@@ -334,7 +358,7 @@ async def async_setup_extra_sensors(  # noqa: C901
         if bumps > 0:
             bump_seconds = int(1800 / bumps)
             gen_bumps[i] = list(range(0, 1800, bump_seconds))
-    entity_id = "sensor.site_export_sensor"
+    entity_id = "sensor.solcast_solar_site_export_sensor"
     increasing = 0
     with freeze_time(now, tz_offset=10) as frozen_time:
         for interval in range(48 * _DAYS):
@@ -345,8 +369,11 @@ async def async_setup_extra_sensors(  # noqa: C901
                     new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                     frozen_time.move_to(new_now)
                     increasing += 0.1
-                    hass.states.async_set(entity_id, str(round(increasing / adjustment[_UOM], 4)), {"unit_of_measurement": _UOM})
-                    for _ in range(10):
+                    if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+                        hass.states.async_set(entity_id, str(round(increasing / adjustment[_uom], 4)))
+                    else:
+                        hass.states.async_set(entity_id, str(round(increasing / adjustment[_uom], 4)), {"unit_of_measurement": _uom})
+                    for _ in range(1):
                         frozen_time.tick()
                         await hass.async_block_till_done()
 
@@ -414,9 +441,9 @@ async def async_setup_extra_sensors(  # noqa: C901
                         frozen_time.move_to(new_now)
                         if not gap:
                             hass.states.async_set(
-                                entity_id, str(round(increasing / adjustment[_UOM], 4)), {"unit_of_measurement": _UOM}, force_update=True
+                                entity_id, str(round(increasing / adjustment[_uom], 4)), {"unit_of_measurement": _uom}, force_update=True
                             )
-                            for _ in range(30):
+                            for _ in range(1):
                                 frozen_time.tick()
                                 await hass.async_block_till_done()
                         else:

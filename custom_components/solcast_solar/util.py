@@ -138,6 +138,21 @@ class JSONDecoder(json.JSONDecoder):
         return result
 
 
+def find_percentile(data: list[float], percentile: float) -> float:
+    """Find the given percentile in a sorted list of values."""
+
+    if not data:
+        return 0.0
+    k = (len(data) - 1) * (percentile / 100)
+    f = math.floor(k)
+    c = math.ceil(k)
+    if f == c:
+        return data[int(k)]
+    d0 = data[int(f)] * (c - k)
+    d1 = data[int(c)] * (k - f)
+    return d0 + d1
+
+
 def diff(lst: list[Any], non_negative: bool = True) -> list[Any]:
     """Build a numpy-like diff."""
 
