@@ -350,8 +350,12 @@ async def async_setup_extra_sensors(  # noqa: C901
 
     # Site export entity
     power = {}
-    for interval in range(48):
-        power[interval] = 0.0 if (interval < 30 or interval > 34) else (5.0 if interval != 34 else 2.0)
+    if extra_sensors == ExtraSensors.DODGY:
+        for interval in range(48):
+            power[interval] = 0.0 if (interval < 24 or interval > 34) else (5.0 if interval != 34 else 2.0)
+    else:
+        for interval in range(48):
+            power[interval] = 0.0 if (interval < 30 or interval > 34) else (5.0 if interval != 34 else 2.0)
     gen_bumps = {}
     for i, p in power.items():
         bumps = p / 0.1
@@ -359,23 +363,48 @@ async def async_setup_extra_sensors(  # noqa: C901
             bump_seconds = int(1800 / bumps)
             gen_bumps[i] = list(range(0, 1800, bump_seconds))
     entity_id = "sensor.solcast_solar_site_export_sensor"
-    increasing = 0
+    increasing = 0.0
+    adjust = 0.0
+    gap = False
+    increase = True
     with freeze_time(now, tz_offset=10) as frozen_time:
         for interval in range(48 * _DAYS):
             i = interval % 48
             day = interval // 48
             if gen_bumps.get(i):
                 for b in gen_bumps[i]:
+                    if extra_sensors == ExtraSensors.DODGY:
+                        if 25 < i < 29:
+                            # Introduce a gap in the generation to cause missing data
+                            increase = False
+                            gap = True
+                        elif 20 < i < 24:
+                            # Introduce flat generation, with a catch-up spike to cause odd generation by not incrementing
+                            adjust += 0.1
+                            increase = False
+                        elif i == 24:
+                            if adjust > 0.0:
+                                increasing += round(adjust, 1)
+                                adjust = 0.0
+                                increase = False
+                        if increase:
+                            increasing += 0.1
+                        else:
+                            increase = True
+                    else:
+                        increasing += 0.1
                     new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                     frozen_time.move_to(new_now)
-                    increasing += 0.1
-                    if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-                        hass.states.async_set(entity_id, str(round(increasing / adjustment[_uom], 4)))
+                    if not gap:
+                        if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+                            hass.states.async_set(entity_id, str(round(increasing / adjustment[_uom], 4)))
+                        else:
+                            hass.states.async_set(entity_id, str(round(increasing / adjustment[_uom], 4)), {"unit_of_measurement": _uom})
+                        for _ in range(1):
+                            frozen_time.tick()
+                            await hass.async_block_till_done()
                     else:
-                        hass.states.async_set(entity_id, str(round(increasing / adjustment[_uom], 4)), {"unit_of_measurement": _uom})
-                    for _ in range(1):
-                        frozen_time.tick()
-                        await hass.async_block_till_done()
+                        gap = False
 
     # Generation entities
     site_generation: dict[str, float] = {}

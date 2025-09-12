@@ -308,7 +308,7 @@ async def test_auto_dampen_issues(
                 assert "has no unit_of_measurement, assuming kWh" in caplog.text
             case ExtraSensors.DODGY:
                 assert "has an unsupported unit_of_measurement 'MJ'" in caplog.text  # A dodgy unit should be logged
-                assert "Interval 12:00 max generation: 3.700" in caplog.text  # A jump in generation should not be seen as a peak
+                assert "Interval 12:00 max generation:" not in caplog.text  # A jump in generation should not be seen as a peak
                 assert "Interval 13:00 has peak" not in caplog.text  # Dodgy generation should prevent interval consideration
                 assert "Auto-dampen factor for 10:00 is 0.940" in caplog.text  # A valid interval still considered
             case _:

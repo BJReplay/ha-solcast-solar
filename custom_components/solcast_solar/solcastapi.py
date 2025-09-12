@@ -2444,8 +2444,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     for minute, kWh in zip(sample_time, sample_generation, strict=True):
                         if kWh <= typical_gen:
                             generation_intervals[minute] += kWh
-                    for i, interval in enumerate(generation_intervals):
-                        _LOGGER.debug("Day %d generation interval %d = %.3f kWh", -1 + day * -1, i, interval)
                 else:
                     _LOGGER.debug("No day %d PV generation data from entity: %s (%s)", -1 + day * -1, entity, entity_history.get(entity))
             # Intervals are kWh per half hour
