@@ -681,7 +681,7 @@ Where locally generated excess power is fed to the electricity grid, it is likel
 
 Export to the grid generally occurs in the middle of the day, which is a time rarely impacted by shading.
 
-A single increasing energy sensor may be supplied. This sensor may reset at midnight. Limit may only be specified in kW.
+A single increasing energy sensor may be supplied. This sensor may reset at midnight. The optional export limit can only be specified in kW.
 
 > [!TIP]
 >
