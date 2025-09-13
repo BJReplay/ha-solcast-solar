@@ -2586,7 +2586,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             generation_samples: list[float] = [
                 generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
             ]
-            if len(matching) > 0 and len(generation_samples) > 0:  # len(matching) == len(generation_samples):
+            if len(matching) > 0 and len(generation_samples) > 0 and len(generation_samples) > len(matching) / 2:
                 peak = max(generation_samples)
                 interval_time = f"{interval // 2:02}:{30 * (interval % 2):02}"
                 _LOGGER.debug(
