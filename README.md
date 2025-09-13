@@ -119,7 +119,11 @@ Using Google Earth or ChatGPT are other alternatives.
 >
 > Solcast are headquartered in Sydney, Australia in the southern hemisphere, and use azimuth numbering as degrees pointed away from North. If you live in the northern hemisphere then it is likely that any online mapping service that can be used to determine azimuth will use a numbering convention that is degrees pointed away from _South_, which will yield incompatible values.
 >
-> If an unusual azimuth is configured then the integration will raise a warning for the issue. If the orientation is truly unusual (e.g. a northern hemisphere rooftop pointing towards North/North East/North West), then simply ignore the issue.
+> A Solcast configuration of roof aligned North/North-East/North-West in the northern hemisphere or South/South-East/South-West in the southern hemisphere is considered to be possibly unusual because these orientations are not directly facing the sun at any time.
+>
+> On start-up, the integration will validate your Solcast azimuth setting in order to highlight a potential misconfiguration and will issue a warning message in the Home Assistant log and raise an issue if it detects an unusual roof alignment. If you receive this warning and have confirmed your Solcast settings are correct then the warning message can simply be ignored. The warning is there to try to catch configuration mistakes.
+>
+> There are always outlier installations, like two rooftops that face both West and East with panels installed on both faces, 180 degrees from each other. One rooftop is going to be considered "unusual". Check the azimuth according to Solcast, and fix or ignore the warning as appropriate. Remember, 0° = NORTH according to Solcast, with orientations being relative to this.
 
 ## Installation
 
@@ -628,7 +632,7 @@ Dampening values account for shading, and adjust forecasted generation. Dampenin
 
 Any change to dampening factors will be applied to future forecasts (including the forecast for the current day). Forecast history will retain the dampening that was in effect at the time.
 
-Automated dampening (described below) will calculate overall "all sites" dampening factors. If per-site dampening is desired then it is possible to calculate that elsewhere with your own code and then set factors by using the `solcast_solar.set_dampening` action. See [Granular dampening](#granular-dampening) below.
+Automated dampening (described below) will calculate overall "all rooftop sites" dampening factors. If per-rooftop site dampening is desired then it is possible to model that elsewhere with your own dampening solution and then set factors by using the `solcast_solar.set_dampening` action. See [Granular dampening](#granular-dampening) below.
 
 > [!NOTE]
 >
@@ -639,17 +643,19 @@ Automated dampening (described below) will calculate overall "all sites" dampeni
 
 #### Automated dampening
 
-A feature of the integration is automated dampening, where a combination of historic site generation compared with estimated past actual generation is used to determine regularly anomalous generation. This is useful to identify periods of likely panel shading, and to then apply a dampening factor for forecast periods during the day that will be shade affected, reducing the forecasted energy accordingly.
+A feature of the integration is automated dampening, where a combination of actual generation history is compared with estimated generation history to determine regularly anomalous generation. This is useful to identify periods of likely panel shading, and to then automatically apply a dampening factor for forecast periods during the day that are likely shade affected, reducing the forecasted energy accordingly.
 
-Automated dampening is dynamic, and utilises up to fourteen days of generation and estimate history data to build its model and determine needed dampening factors. (No more than fourteen days are used, and at the time the feature is enabled any limit of available history will possibly mean a reduced initial history to utilise, which will then grow to fourteen days and improve modelling.)
+Automated dampening is dynamic, and utilises up to fourteen 'rolling' days of generation and estimate history data to build its model and determine dampening factors to apply. No more than fourteen days are used. At the time the feature is enabled any limited history will possibly mean a reduced data set to utilise, but this will grow to fourteen days in time and improve modelling.
+
+Automated dampening will apply the same dampening factors to all rooftop sites, based on total location generation and Solcast data.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
 
 The [theory of operation](#theory-of-operation) is simple, relying on two key inputs, and an optional third:
 
-##### Estimated actual data from Solcast.
+##### <u>Key input</u>: Estimated actual data from Solcast.
 
-Aside from forecasts, the Solcast service also estimates the likely past actual generation during the day for every rooftop site, based on high resolution satellite imagery, weather observations, and how "clear" the air is (vapour/smog). This data is referred to as an "Estimated actual", and it is generally quite accurate for a given location.
+Aside from forecasts, the Solcast service also estimates the likely past actual generation during the day for every rooftop site, based on high resolution satellite imagery, weather observations, and how "clear" the air is (vapour/smog). This data is referred to as an "estimated actual", and it is generally quite accurate for a given location.
 
 Getting estimated actual data does require an API call, and that API call will use up API quota for a hobbyist user. You will need to factor API call consumption for this purpose when taking advantage of automated dampening, with one call used per configured Solcast rooftop site per day per API key. (Reduce the API limit for forecast updates in options by one for a single rooftop site, or by two for two sites.)
 
@@ -659,21 +665,23 @@ Past estimated actual data is acquired at or around 00:20 each day (local time),
 >
 > If your aim is to obtain as many forecast updates during the day as possible, then automated dampening is not for you. It will reduce the number of forecast updates possible.
 
-##### Actual PV generation for your site.
+##### <u>Key input</u>: Actual PV generation for your site.
 
 Generation is gathered from history data of a sensor entity (or entities). A single PV solar inverter installation will likely have a single "total increasing" sensor that provides a "PV generation" or "PV export" value (_not_ export to grid, but export off your roof from the sun). Multiple inverters will have a value for each, and all sensor entities may be supplied, which will then be totalled for all rooftops.
 
-An increasing kWh sensor (or sensors) must be supplied. This increasing sensor may reset at midnight, or may be a "total increasing" type; of importance is that it is increasing throughout the day.
+An increasing energy sensor (or sensors) must be supplied. This increasing sensor may reset at midnight, or may be a "total increasing" type; of importance is that it is increasing throughout the day. The integration determines the units by inspecting the `unit_of_measurement` attribute and adjusts accordingly. Where this attribute is not set it assumes values are kWh.
 
 > [!NOTE]
 >
 > Do not include generation entities for "remote" rooftop sites that have been explicitly excluded from sensor totals. Auto-dampening does not work for excluded rooftops.
 
-##### (Optional) Site export to the grid, combined with a limit value.
+##### <u>_**Optional**_ input</u>: Site export to the grid, combined with a limit value.
 
 Where locally generated excess power is fed to the electricity grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because at the limit value for a ten minute period or more) then the generation period will be excluded from any automated dampening consideration. This mechanism ensures differentiation of generation being limited by shade from a tree or chimney, or artificial site export limiting.
 
 Export to the grid generally occurs in the middle of the day, which is a time rarely impacted by shading.
+
+A single increasing energy sensor may be supplied. This sensor may reset at midnight. The optional export limit can only be specified in kW.
 
 > [!TIP]
 >
@@ -696,7 +704,9 @@ For automated dampening to operate it must have access to a minimum set of data.
 
 (If it is a new installation where estimated actuals are obtained then factors will be modelled.)
 
-Most automated dampening messages are logged at `DEBUG` level, however messages that dampening factors cannot yet be modelled (and the reason why) is logged at `INFO` level. If your minimum log level for the integration is `WARNING` or higher then you will not see these notifications.
+> [!TIP]
+>
+> Most automated dampening messages are logged at `DEBUG` level, however messages indicating that dampening factors cannot yet be modelled (and the reason why) is logged at `INFO` level. If your minimum log level for the integration is `WARNING` or higher then you will not see these notifications.
 
 ##### Automated dampening notes
 
@@ -712,7 +722,7 @@ The adjustments made by automated dampening may hinder efforts to resolve basic 
 
 We all don't want that.
 
-External sensors (like PV export and site export) must be per-kWh, and cumulatively increasing throughout a given day.
+External energy sensors (like PV export and site export) must have a unit of measurement of mWh, Wh, kWh or MWh, and must cumulatively increase throughout a given day. If a unit of measurement cannot be determined then kWh is assumed. Other units like GWh or TWh do not make sense to use in a residential setting, and if used would result in an unacceptable loss of precision when converted to kWh so are unsupported. Other energy units like Joules and calories are also not supported, being uncommon units to use for electricity.
 
 ##### Feedback
 Your feedback regarding experience with the automated dampening feature will be most welcome in the integration repository discussions.
@@ -1149,6 +1159,12 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 ## Changes
 
+v4.4.1
+* Generation/export unit of measurement automatic adjustment by @brilthor and @autoSteve
+* Ignore atypical generation entity jumps by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.0...v4.4.1
+
 v4.4.0
 * Add auto-dampening feature by @autoSteve
 * Modified dampening factors are applied from start of current day by @autoSteve
@@ -1162,6 +1178,9 @@ v4.4.0
 * Minimum HA version 2024.11
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.5...v4.4.0
+
+### Prior changes
+<details><summary><i>Click here for changes back to v3.0</i></summary>
 
 v4.3.5
 * Fix API key change detection on 429 when using multi-key by @autoSteve
@@ -1222,9 +1241,6 @@ v4.3.0
 * Updated issue template by @BJReplay
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.2.7...v4.3.0
-
-### Prior changes
-<details><summary><i>Click here for changes back to v3.0</i></summary>
 
 v4.2.7
 * Fix an issue with API key validation by @autoSteve

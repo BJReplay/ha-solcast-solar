@@ -2,6 +2,7 @@
 
 import copy
 from datetime import datetime as dt, timedelta
+from enum import Enum
 import logging
 from pathlib import Path
 import re
@@ -143,7 +144,7 @@ MOCK_OVER_LIMIT = "return_429_over"
 MOCK_SESSION_CONFIG: dict[str, Any] = {
     "aioresponses": None,
     "api_limit": int(min(DEFAULT_INPUT2[API_QUOTA].split(","))),
-    "api_used": {api_key: 0 for api_key in DEFAULT_INPUT2[CONF_API_KEY].split(",")},
+    "api_used": dict.fromkeys(DEFAULT_INPUT2[CONF_API_KEY].split(","), 0),
     MOCK_ALTER_HISTORY: False,
     MOCK_BAD_REQUEST: False,
     MOCK_BUSY: False,
@@ -157,6 +158,18 @@ MOCK_SESSION_CONFIG: dict[str, Any] = {
     MOCK_NOT_FOUND: False,
     MOCK_OVER_LIMIT: False,
 }
+
+
+class ExtraSensors(Enum):
+    """The state of the Solcast API."""
+
+    NONE = 0
+    YES = 1
+    YES_WATT_HOUR = 2
+    YES_NO_UNIT = 3
+    YES_UNIT_NOT_IN_HISTORY = 4
+    DODGY = 9
+
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -235,7 +248,7 @@ async def _get_actuals(url: str, **kwargs: Any) -> CallbackResult:
 
 def session_reset_usage() -> None:
     """Reset the mock session config."""
-    MOCK_SESSION_CONFIG["api_used"] = {api_key: 0 for api_key in DEFAULT_INPUT2[CONF_API_KEY].split(",")}
+    MOCK_SESSION_CONFIG["api_used"] = dict.fromkeys(DEFAULT_INPUT2[CONF_API_KEY].split(","), 0)
 
 
 def session_set(setting: str, **kwargs: Any) -> None:
@@ -299,39 +312,99 @@ async def async_setup_aioresponses() -> None:
 
 
 @pytest.mark.asyncio
-async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]) -> None:
+async def async_setup_extra_sensors(  # noqa: C901
+    hass: HomeAssistant, options: dict[str, Any], entry: MockConfigEntry, extra_sensors: ExtraSensors
+) -> None:
     """Set up extra sensors for testing."""
+
+    match extra_sensors:
+        case ExtraSensors.YES_WATT_HOUR:
+            _uom = "Wh"
+        case ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+            _uom = "kWh"
+        case ExtraSensors.YES_NO_UNIT:
+            _uom = ""
+        case ExtraSensors.DODGY:
+            _uom = "MJ"
+        case _:
+            _uom = "kWh"
+    _DAYS = 1
+
+    adjustment = {"kWh": 1.0, "MWh": 1000.0, "Wh": 0.001, "MJ": 1.0, "": 1.0}
+
+    if extra_sensors != ExtraSensors.YES_NO_UNIT:
+        entity_registry = er.async_get(hass)
+        entity_registry.async_get_or_create(
+            "sensor",
+            DOMAIN,
+            "solcast_solar_site_export_sensor",
+            config_entry=entry,
+            suggested_object_id="solcast_solar_site_export_sensor",
+            unit_of_measurement=_uom,
+        )
 
     power: dict[int, float]
     gen_bumps: dict[int, list[int]]
     increasing: float
-    now = (dt.now(ZoneInfo(ZONE_RAW)) - timedelta(days=2)).replace(hour=0, minute=0, second=0)
+    now = (dt.now(ZoneInfo(ZONE_RAW)) - timedelta(days=_DAYS)).replace(hour=0, minute=0, second=0)
 
     # Site export entity
     power = {}
-    for interval in range(48):
-        power[interval] = 0.0 if (interval < 30 or interval > 34) else (5.0 if interval != 34 else 2.0)
+    if extra_sensors == ExtraSensors.DODGY:
+        for interval in range(48):
+            power[interval] = 0.0 if (interval < 24 or interval > 34) else (5.0 if interval != 34 else 2.0)
+    else:
+        for interval in range(48):
+            power[interval] = 0.0 if (interval < 30 or interval > 34) else (5.0 if interval != 34 else 2.0)
     gen_bumps = {}
     for i, p in power.items():
         bumps = p / 0.1
         if bumps > 0:
             bump_seconds = int(1800 / bumps)
             gen_bumps[i] = list(range(0, 1800, bump_seconds))
-    entity_id = "sensor.site_export_sensor"
-    increasing = 0
+    entity_id = "sensor.solcast_solar_site_export_sensor"
+    increasing = 0.0
+    adjust = 0.0
+    gap = False
+    increase = True
     with freeze_time(now, tz_offset=10) as frozen_time:
-        for interval in range(48 * 2):
+        for interval in range(48 * _DAYS):
             i = interval % 48
             day = interval // 48
             if gen_bumps.get(i):
                 for b in gen_bumps[i]:
+                    if extra_sensors == ExtraSensors.DODGY:
+                        if 25 < i < 29:
+                            # Introduce a gap in the generation to cause missing data
+                            increase = False
+                            gap = True
+                        elif 20 < i < 24:
+                            # Introduce flat generation, with a catch-up spike to cause odd generation by not incrementing
+                            adjust += 0.1
+                            increase = False
+                        elif i == 24:
+                            if adjust > 0.0:
+                                increasing += round(adjust, 1)
+                                adjust = 0.0
+                                increase = False
+                        if increase:
+                            increasing += 0.1
+                        else:
+                            increase = True
+                    else:
+                        increasing += 0.1
                     new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                     frozen_time.move_to(new_now)
-                    increasing += 0.1
-                    hass.states.async_set(entity_id, str(round(increasing, 1)))
-                    for _ in range(10):
-                        frozen_time.tick()
-                        await hass.async_block_till_done()
+                    if not gap:
+                        if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+                            hass.states.async_set(entity_id, str(round(increasing / adjustment[_uom], 4)))
+                        else:
+                            hass.states.async_set(entity_id, str(round(increasing / adjustment[_uom], 4)), {"unit_of_measurement": _uom})
+                        for _ in range(1):
+                            frozen_time.tick()
+                            await hass.async_block_till_done()
+                    else:
+                        gap = False
 
     # Generation entities
     site_generation: dict[str, float] = {}
@@ -339,6 +412,8 @@ async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]
         for site in API_KEY_SITES[api_key]["sites"]:
             site_generation[site["resource_id"]] = site["capacity"]
     for site, generation in site_generation.items():
+        if site == "3333-3333-3333-3333":
+            continue
         power = {}
         for interval in range(48):
             power[interval] = (
@@ -356,21 +431,52 @@ async def async_setup_extra_sensors(hass: HomeAssistant, options: dict[str, Any]
             if bumps > 0:
                 bump_seconds = int(1800 / bumps)
                 gen_bumps[i] = list(range(0, 1800, bump_seconds))
-        entity_id = "sensor.solar_export_sensor_" + site.replace("-", "_")
-        increasing = 0
+        entity_id = "sensor.solcast_solar_solar_export_sensor_" + site.replace("-", "_")
+
+        increasing = 0.0
+        adjust = 0.0
+        gap = False
+        increase = True
         with freeze_time(now, tz_offset=10) as frozen_time:
-            for interval in range(48 * 2):
+            for interval in range(48 * _DAYS):
                 i = interval % 48
                 day = interval // 48
+                if i == 0 and "2222" in entity_id:
+                    # Reset for second entity to emulate a resetting daily meter
+                    increasing = 0.0
                 if gen_bumps.get(i):
                     for b in gen_bumps[i]:
-                        increasing += 0.1
+                        if extra_sensors == ExtraSensors.DODGY:
+                            if 25 < i < 29:
+                                # Introduce a gap in the generation to cause missing data
+                                increase = False
+                                gap = True
+                            elif 20 < i < 24:
+                                # Introduce flat generation, with a catch-up spike to cause odd generation by not incrementing
+                                adjust += 0.1
+                                increase = False
+                            elif i == 24:
+                                if adjust > 0.0:
+                                    increasing += round(adjust, 1)
+                                    adjust = 0.0
+                                    increase = False
+                            if increase:
+                                increasing += 0.1
+                            else:
+                                increase = True
+                        else:
+                            increasing += 0.1
                         new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                         frozen_time.move_to(new_now)
-                        hass.states.async_set(entity_id, str(round(increasing, 1)))
-                        for _ in range(10):
-                            frozen_time.tick()
-                            await hass.async_block_till_done()
+                        if not gap:
+                            hass.states.async_set(
+                                entity_id, str(round(increasing / adjustment[_uom], 4)), {"unit_of_measurement": _uom}, force_update=True
+                            )
+                            for _ in range(1):
+                                frozen_time.tick()
+                                await hass.async_block_till_done()
+                        else:
+                            gap = False
 
 
 async def async_init_integration(
@@ -379,7 +485,7 @@ async def async_init_integration(
     version: int = CONFIG_VERSION,
     mock_api: bool = True,
     timezone: str = ZONE_RAW,
-    extra_sensors: bool = False,
+    extra_sensors: ExtraSensors = ExtraSensors.NONE,
 ) -> MockConfigEntry:
     """Set up the Solcast Solar integration in HomeAssistant."""
 
@@ -402,8 +508,8 @@ async def async_init_integration(
 
     entry.add_to_hass(hass)
 
-    if extra_sensors:
-        await async_setup_extra_sensors(hass, options)
+    if extra_sensors is not ExtraSensors.NONE:
+        await async_setup_extra_sensors(hass, options, entry, extra_sensors=extra_sensors)
 
     if mock_api:
         await async_setup_aioresponses()
