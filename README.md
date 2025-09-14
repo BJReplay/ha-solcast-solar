@@ -645,15 +645,23 @@ Automated dampening (described below) will calculate overall "all rooftop sites"
 
 A feature of the integration is automated dampening, where a combination of actual generation history is compared with estimated generation history to determine regularly anomalous generation. This is useful to identify periods of likely panel shading, and to then automatically apply a dampening factor for forecast periods during the day that are likely shade affected, reducing the forecasted energy accordingly.
 
-Automated dampening is dynamic, and utilises up to fourteen 'rolling' days of generation and estimate history data to build its model and determine dampening factors to apply. No more than fourteen days are used. At the time the feature is enabled any limited history will possibly mean a reduced data set to utilise, but this will grow to fourteen days in time and improve modelling.
+Automated dampening is dynamic, and utilises up to fourteen 'rolling' days of generation and estimated generation history data to build its model and determine dampening factors to apply. No more than fourteen days are used. At the time the feature is enabled any limited history will possibly mean a reduced data set to utilise, but this will grow to fourteen days in time and improve modelling.
 
 Automated dampening will apply the same dampening factors to all rooftop sites, based on total location generation and Solcast data.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
 
-The [theory of operation](#theory-of-operation) is simple, relying on two key inputs, and an optional third:
+The theory of operation is simple, relying on two key inputs, and an optional third.
 
-##### <u>Key input</u>: Estimated actual data from Solcast.
+##### Theory of operation
+
+Automated dampening first builds a "consistently best" set of half-hourly generation periods for the past fourteen days (from [estimated actual data](#key-input-estimated-actual-data-from-solcast)). It then compares that to [generation history](#key-input-actual-pv-generation-for-your-site) for these periods (excluding periods where export limits may have been hit by [optional](#optional-input-site-export-to-the-grid-combined-with-a-limit-value)) export limiting, and selects the highest actual generation value from similar best periods. This value determines whether external factors may be impacting generation, and is used to calculate a dampening factor that will be applied to a forecast interval that is also considered "best" (within a margin of error).
+
+Because forecast periods are almost never "best", the determined factor is altered before it is set using a logarithmic difference calculation. If the forecasted interval in future is reasonably close to best, then little change is made. If it departs greatly from best then a significant change is made to the factor to render it ineffective (i.e. closer to 1.0 x forecasted generation). This determination is made based on the value of every forecasted interval.
+
+The rendering of ineffective for factors is because heavily cloudy intervals are likely to have diffuse light as the most significant generation component, and not direct sunlight, which is the component most impacted by shade.
+
+##### Key input: Estimated actual data from Solcast
 
 Aside from forecasts, the Solcast service also estimates the likely past actual generation during the day for every rooftop site, based on high resolution satellite imagery, weather observations, and how "clear" the air is (vapour/smog). This data is referred to as an "estimated actual", and it is generally quite accurate for a given location.
 
@@ -665,7 +673,7 @@ Past estimated actual data is acquired at or around 00:20 each day (local time),
 >
 > If your aim is to obtain as many forecast updates during the day as possible, then automated dampening is not for you. It will reduce the number of forecast updates possible.
 
-##### <u>Key input</u>: Actual PV generation for your site.
+##### Key input: Actual PV generation for your site
 
 Generation is gathered from history data of a sensor entity (or entities). A single PV solar inverter installation will likely have a single "total increasing" sensor that provides a "PV generation" or "PV export" value (_not_ export to grid, but export off your roof from the sun). Multiple inverters will have a value for each, and all sensor entities may be supplied, which will then be totalled for all rooftops.
 
@@ -675,7 +683,7 @@ An increasing energy sensor (or sensors) must be supplied. This increasing senso
 >
 > Do not include generation entities for "remote" rooftop sites that have been explicitly excluded from sensor totals. Auto-dampening does not work for excluded rooftops.
 
-##### <u>_**Optional**_ input</u>: Site export to the grid, combined with a limit value.
+##### Optional input: Site export to the grid, combined with a limit value
 
 Where locally generated excess power is fed to the electricity grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because at the limit value for a ten minute period or more) then the generation period will be excluded from any automated dampening consideration. This mechanism ensures differentiation of generation being limited by shade from a tree or chimney, or artificial site export limiting.
 
@@ -689,14 +697,6 @@ A single increasing energy sensor may be supplied. This sensor may reset at midn
 > An export limit value may not be precisely measured by some PV system components as the real limit. This may be confusing, but the reason will be because of variations in 'CT' clamp measurement circuits.
 >
 > An example: With a 5.0kW export limit in place, an Enphase gateway may measure precisely 5.0kW, but a Tesla battery gateway in the same install may measure the same power as 5.3kW. If the sensor value used for automated dampening is from the Tesla gateway in this circumstance then make sure 5.3 is the export limit specified.
-
-##### Theory of operation
-
-Automated dampening first builds a "consistently best" set of half-hourly generation periods for the past fourteen days (from estimated actual data). It then compares that to generation history for these periods (excluding periods where export limits may have been hit), and selects the highest actual generation value from similar best periods. This value determines whether external factors may be impacting generation, and is used to calculate a dampening factor that would be applied to a forecast interval that is also considered "best" (within a margin of error).
-
-Because forecast periods are almost never "best", the determined factor is altered before it is set using a logarithmic difference calculation. If the forecasted interval is reasonably close to best, then little change is made. If it departs greatly from best then a significant change is made to the factor to render it ineffective (i.e. closer to 1.0 x forecasted generation).
-
-This rendering ineffective for factors is because heavily cloudy intervals are likely to have diffuse light as the most significant generation component, and not direct sunlight, which is the component most impacted by shade.
 
 ##### Initial activation
 
