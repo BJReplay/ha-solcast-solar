@@ -1162,6 +1162,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 v4.4.1
 * Generation/export unit of measurement automatic adjustment by @brilthor and @autoSteve
 * Ignore atypical generation entity jumps by @autoSteve
+* Require a majority of "good day" actuals generation agreement for auto-dampening by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.0...v4.4.1
 
