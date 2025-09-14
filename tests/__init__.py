@@ -328,7 +328,8 @@ async def async_setup_extra_sensors(  # noqa: C901
             _uom = "MJ"
         case _:
             _uom = "kWh"
-    _DAYS = 1
+    _DAYS_EXPORT = 1
+    _DAYS_GENERATION = 4
 
     adjustment = {"kWh": 1.0, "MWh": 1000.0, "Wh": 0.001, "MJ": 1.0, "": 1.0}
 
@@ -346,9 +347,9 @@ async def async_setup_extra_sensors(  # noqa: C901
     power: dict[int, float]
     gen_bumps: dict[int, list[int]]
     increasing: float
-    now = (dt.now(ZoneInfo(ZONE_RAW)) - timedelta(days=_DAYS)).replace(hour=0, minute=0, second=0)
 
     # Site export entity
+    now = (dt.now(ZoneInfo(ZONE_RAW)) - timedelta(days=_DAYS_EXPORT)).replace(hour=0, minute=0, second=0)
     power = {}
     if extra_sensors == ExtraSensors.DODGY:
         for interval in range(48):
@@ -368,7 +369,7 @@ async def async_setup_extra_sensors(  # noqa: C901
     gap = False
     increase = True
     with freeze_time(now, tz_offset=10) as frozen_time:
-        for interval in range(48 * _DAYS):
+        for interval in range(48 * _DAYS_EXPORT):
             i = interval % 48
             day = interval // 48
             if gen_bumps.get(i):
@@ -397,16 +398,23 @@ async def async_setup_extra_sensors(  # noqa: C901
                     frozen_time.move_to(new_now)
                     if not gap:
                         if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-                            hass.states.async_set(entity_id, str(round(increasing / adjustment[_uom], 4)))
+                            await hass.async_add_executor_job(
+                                hass.states.set,
+                                entity_id,
+                                str(round(increasing / adjustment[_uom], 4)),
+                            )
                         else:
-                            hass.states.async_set(entity_id, str(round(increasing / adjustment[_uom], 4)), {"unit_of_measurement": _uom})
-                        for _ in range(1):
-                            frozen_time.tick()
-                            await hass.async_block_till_done()
+                            await hass.async_add_executor_job(
+                                hass.states.set,
+                                entity_id,
+                                str(round(increasing / adjustment[_uom], 4)),
+                                {"unit_of_measurement": _uom},
+                            )
                     else:
                         gap = False
 
     # Generation entities
+    now = (dt.now(ZoneInfo(ZONE_RAW)) - timedelta(days=_DAYS_GENERATION)).replace(hour=0, minute=0, second=0)
     site_generation: dict[str, float] = {}
     for api_key in options["api_key"].split(","):
         for site in API_KEY_SITES[api_key]["sites"]:
@@ -438,7 +446,7 @@ async def async_setup_extra_sensors(  # noqa: C901
         gap = False
         increase = True
         with freeze_time(now, tz_offset=10) as frozen_time:
-            for interval in range(48 * _DAYS):
+            for interval in range(48 * _DAYS_GENERATION):
                 i = interval % 48
                 day = interval // 48
                 if i == 0 and "2222" in entity_id:
@@ -469,12 +477,13 @@ async def async_setup_extra_sensors(  # noqa: C901
                         new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                         frozen_time.move_to(new_now)
                         if not gap:
-                            hass.states.async_set(
-                                entity_id, str(round(increasing / adjustment[_uom], 4)), {"unit_of_measurement": _uom}, force_update=True
+                            await hass.async_add_executor_job(
+                                hass.states.set,
+                                entity_id,
+                                str(round(increasing / adjustment[_uom], 4)),
+                                {"unit_of_measurement": _uom},
+                                True,
                             )
-                            for _ in range(1):
-                                frozen_time.tick()
-                                await hass.async_block_till_done()
                         else:
                             gap = False
 
