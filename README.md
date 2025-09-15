@@ -643,13 +643,13 @@ Automated dampening (described below) will calculate overall "all rooftop sites"
 
 #### Automated dampening
 
-A feature of the integration is automated dampening, where a combination of actual generation history is compared with estimated generation history to determine regularly anomalous generation. This is useful to identify periods of likely panel shading, and to then automatically apply a dampening factor for forecast periods during the day that are likely shade affected, reducing the forecasted energy accordingly.
+A feature of the integration is automated dampening, where actual generation history is compared with estimated past generation to determine regularly anomalous generation. This is useful to identify periods of likely panel shading, and to then automatically apply a dampening factor for forecast periods during the day that are likely shade affected, reducing the forecasted energy accordingly.
 
-Automated dampening is dynamic, and utilises up to fourteen 'rolling' days of generation and estimated generation history data to build its model and determine dampening factors to apply. No more than fourteen days are used. At the time the feature is enabled any limited history will possibly mean a reduced data set to utilise, but this will grow to fourteen days in time and improve modelling.
+Automated dampening is dynamic, and utilises up to fourteen 'rolling' days of generation and estimated generation data to build its model and determine dampening factors to apply. No more than fourteen days are used. At the time the feature is enabled any limit of history will possibly mean a reduced data set to utilise, but this will grow to fourteen days in time and improve modelling.
 
 Automated dampening will apply the same dampening factors to all rooftop sites, based on total location generation and Solcast data.
 
-[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png width="500"">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
 
 The theory of operation is simple, relying on two key inputs, and an optional third.
 
@@ -659,7 +659,7 @@ Automated dampening first builds a "consistently best" set of half-hourly genera
 
 Because forecast periods are almost never "best", the determined factor is then altered before it is set by using a logarithmic difference calculation. If the forecasted interval in future is reasonably close to best, then little change is made. If it departs greatly from best then a significant change is made to the factor to render it ineffective (i.e. closer to 1.0 x forecasted generation). This determination is made based on the value of every forecasted interval.
 
-The rendering of ineffective for factors is because heavily cloudy intervals are likely to have diffuse light as the most significant generation component, and not direct sunlight, which is the component most impacted by shade.
+The rendering of ineffective for factors is because heavily clouded intervals are likely to have diffuse light as the most significant generation component, and not direct sunlight, which is the component most impacted by shade.
 
 ##### Key input: Estimated actual data from Solcast
 
