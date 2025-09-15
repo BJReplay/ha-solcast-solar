@@ -143,9 +143,15 @@ template:
 
 **Scenario**: Since v4.4.0 the integration has included automated adaptive dampening, and you want to visualise the dampening factors that are in use.
 
-As decribed in the [documentation](https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#theory-of-operation) the integration actually calculates two sets of dampening factors.  The first is the "consistently best case" dampening factors which should reflect the impact of external factors on your site's generation.  These "best case" factors are then adjusted based on how close each forecast interval's generation is to the recent peak, so at times when generation is comparatively low the dampening fator is adjusted to accomodate the effect of diffuse solar radiaton on days where there is more cloud cover.   
+As decribed in the [documentation](https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#theory-of-operation) the integration actually calculates two sets of dampening factors.  The first is the "best case" dampening which should reflect the impact of localised reduction of your site's generation caused by shading.  These "best case" factors are then adjusted based on how close each forecast interval's generation is to the recent peak, so at times when generation is comparatively low the dampening factor is adjusted as there will be less impact from shading on cloudy days when the effect diffuse solar radiation is more dominant.
 
-This chart shows both the consistent best case factors and the adjusted factors which are actually applied to today's forecast.
+The "best case" dampening factors are available as attributes of the  Solcast PV Forecast Dampening entity, but this is disabled by default so to use this example chart you will need to enable
+
+```
+sensor.sensor.solcast_pv_forecast_dampening
+```
+
+This chart shows both sets of dampening factors described above.
 
 ```yaml
   - type: custom:apexcharts-card
@@ -220,7 +226,7 @@ This chart shows both the consistent best case factors and the adjusted factors 
 ```
 
 
-<img width="670" height="465" alt="image" src="https://github.com/user-attachments/assets/85e1af4d-f656-4cff-8227-b947aede24f7" />
+<img width="670" height="465" alt="image" src=".github/SCREENSHOTS/dampening_chart.png" />
 
 
 
