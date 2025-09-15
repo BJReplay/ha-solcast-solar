@@ -657,9 +657,13 @@ The theory of operation is simple, relying on two key inputs, and an optional th
 
 Automated dampening first builds a "consistently best" set of half-hourly generation periods for the past fourteen days (from [estimated actual data](#key-input-estimated-actual-data-from-solcast)). It then compares that to [generation history](#key-input-actual-pv-generation-for-your-site) for these periods (excluding periods where export limits may have been hit by [optional](#optional-input-site-export-to-the-grid-combined-with-a-limit-value) export limiting, and then selects the highest actual generation value from similar best periods. This value determines whether external factors may be impacting generation, and is used to calculate a dampening factor that will be applied to future "best" intervals.
 
-Because forecast periods are almost never "best", the determined factor is then altered before it is set by using a logarithmic difference calculation. If the forecasted interval in future is reasonably close to best, then little change is made. If it departs greatly from best then a significant change is made to the factor to render it ineffective (i.e. closer to 1.0 x forecasted generation). This determination is made based on the value of every forecasted interval.
+Because forecast periods are almost never "best", the determined factor is then altered before it is applied by using a logarithmic difference calculation. If the forecast solar generation varies significantly to the 'best' estimated solar generation then the dampening factor is adjusted so it has little impact (i.e. adjusted closer to 1.0 x forecasted generation). This determination is made based on the value of every forecasted interval, so each day will likely have different factors applied.
 
-The rendering of ineffective for factors is because heavily clouded intervals are likely to have diffuse light as the most significant generation component, and not direct sunlight, which is the component most impacted by shade.
+This dampening factor adjustment is done because significant forecasted generation variance is indicative of heavily clouded intervals. Such clouded intervals are likely to have diffuse light as the most significant component of solar generation, and not direct sunlight, which is the solar generation component most impacted by shade.
+
+> [!TIP]
+>
+> Examine the `detailedForecast` attribute for each day forecast to see the dampening factors that have been applied to each interval.
 
 ##### Key input: Estimated actual data from Solcast
 
