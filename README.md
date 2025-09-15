@@ -655,7 +655,7 @@ The theory of operation is simple, relying on two key inputs, and an optional th
 
 ##### Theory of operation
 
-Automated dampening first builds a "consistently best" set of half-hourly generation periods for the past fourteen days (from [estimated actual data](#key-input-estimated-actual-data-from-solcast)). It then compares that to [generation history](#key-input-actual-pv-generation-for-your-site) for these periods (excluding periods where export limits may have been hit by [optional](#optional-input-site-export-to-the-grid-combined-with-a-limit-value) export limiting, and then selects the highest actual generation value from similar best periods. This value determines whether external factors may be impacting generation, and is used to calculate a dampening factor that will be applied to future "best" intervals.
+Automated dampening first builds a "consistently best" set of half-hourly generation periods for the past fourteen days (from [estimated actual data](#key-input-estimated-actual-data-from-solcast)). It then compares that to [generation history](#key-input-actual-pv-generation-for-your-site) for these periods (excluding periods where export limits may have been hit by [optional export limiting](#optional-input-site-export-to-the-grid-combined-with-a-limit-value), and then selects the highest actual generation value from similar best periods. This value determines whether external factors may be impacting generation, and is used to calculate a dampening factor that will be applied to future "best" intervals.
 
 Because forecast periods are almost never "best", the determined factor is then altered before it is applied by using a logarithmic difference calculation. If the forecast solar generation varies significantly to the 'best' estimated solar generation then the dampening factor is adjusted so it has little impact (i.e. adjusted closer to 1.0 x forecasted generation). This determination is made based on the value of every forecasted interval, so each day will likely have different factors applied.
 
@@ -1155,7 +1155,7 @@ If behaviour most odd is encountered, filled with exceptions occurring, then a q
 
 ## Complete integration removal
 
-To completely remove all traces of the integration start with navigating to `Settings` | `Devices & Services` | `Solcast PV Forecast`, click the three dots next to `CONFIGURE` and select `Delete`.
+To completely remove all traces of the integration start with navigating to `Settings` | `Devices & Services` | `Solcast PV Forecast`, click the three dots next to the gear icon (`CONFIGURE` in early HA releases) and select `Delete`.
 
 At this point the configuration settings have been reset, but the code and forecast information caches will still exist (setting up the integration again will re-use this cached data, which may or may not be desirable).
 
@@ -1166,6 +1166,9 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 ## Changes
 
 v4.4.1
+
+Automated dampening improvements only.
+
 * Generation/export unit of measurement automatic adjustment by @brilthor and @autoSteve
 * Ignore atypical generation entity jumps by @autoSteve
 * Require a majority of "good day" actuals generation agreement for auto-dampening by @autoSteve
