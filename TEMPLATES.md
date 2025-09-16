@@ -197,7 +197,7 @@ This chart shows both sets of dampening factors described above.
             };
           });                 
       - entity: sensor.solcast_pv_forecast_dampening
-        name: Best case
+        name: Base
         color: grey
         stroke_width: 0
         opacity: 0.5
