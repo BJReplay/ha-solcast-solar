@@ -649,17 +649,17 @@ Automated dampening is dynamic, and utilises up to fourteen 'rolling' days of ge
 
 Automated dampening will apply the same dampening factors to all rooftop sites, based on total location generation and Solcast data.
 
-[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png width="500"">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
 
 The theory of operation is simple, relying on two key inputs, and an optional third.
 
 ##### Theory of operation
 
-Automated dampening first builds a "consistently best" set of half-hourly generation periods for the past fourteen days (from [estimated actual data](#key-input-estimated-actual-data-from-solcast)). It then compares that to [generation history](#key-input-actual-pv-generation-for-your-site) for these periods (excluding periods where export limits may have been hit by [optional export limiting](#optional-input-site-export-to-the-grid-combined-with-a-limit-value), and then selects the highest actual generation value from similar best periods. This value determines whether external factors may be impacting generation, and is used to calculate a dampening factor that will be applied to future "best" intervals.
+Automated dampening first builds a "consistently best" set of half-hourly generation periods for the past fourteen days from [estimated actual data](#key-input-estimated-actual-data-from-solcast). It then compares that to [generation history](#key-input-actual-pv-generation-for-your-site) for these periods (excluding periods where export limits may have been hit by [optional export limiting](#optional-input-site-export-to-the-grid-combined-with-a-limit-value)), and then selects the highest actual generation value from a majority of similar best periods. This value determines whether external factors are likely impacting generation, and is used to calculate a "base" dampening factor.
 
-Because forecast periods are almost never "best", the determined factor is then altered before it is applied by using a logarithmic difference calculation. If the forecast solar generation varies significantly to the 'best' estimated solar generation then the dampening factor is adjusted so it has little impact (i.e. adjusted closer to 1.0 x forecasted generation). This determination is made based on the value of every forecasted interval, so each day will likely have different factors applied.
+Because forecast periods vary from best estimates due to cloud cover, the base factor is then altered before it is applied to forecasts by using a logarithmic difference calculation. If the forecast solar generation varies significantly to the best estimated solar generation that was used to determine the dampening factor, then it is adjusted so it has little impact (i.e. adjusted closer to a factor of 1.0). This determination is made based on the value of every forecasted interval, so each day will likely have different factors applied.
 
-This dampening factor adjustment is done because significant forecasted generation variance is indicative of heavily clouded intervals. Such clouded intervals are likely to have diffuse light as the most significant component of solar generation, and not direct sunlight, which is the solar generation component most impacted by shade.
+This base dampening factor adjustment is done because when there is significant forecasted generation variance for an interval compared to past better generation intervals it is indicative of heavily clouded periods being expected. When cloudy, diffuse light is the most significant component of solar generation, and not direct sunlight, which is the solar generation component most impacted by shade.
 
 > [!TIP]
 >
