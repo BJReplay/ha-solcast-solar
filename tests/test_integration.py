@@ -493,6 +493,7 @@ async def test_schema_upgrade(
         assert "version from v4 to v7" in caplog.text
         assert "Migrating un-dampened history" in caplog.text
         verify_new_solcast_schema(data_file)
+        verify_new_solcast_schema(undampened_file)
         caplog.clear()
 
         # Test upgrade from v3 schema
@@ -502,6 +503,7 @@ async def test_schema_upgrade(
         assert "version from v1 to v7" in caplog.text
         assert "Migrating un-dampened history" in caplog.text
         verify_new_solcast_schema(data_file)
+        verify_new_solcast_schema(undampened_file)
         caplog.clear()
 
         # Test upgrade from incompatible schema 1
