@@ -145,11 +145,7 @@ template:
 
 As decribed in the [documentation](https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#theory-of-operation) there are two phases in the calculation of dampening factors.  The first is the "base" dampening which should reflect the impact of localised reduction of your site's generation caused by shading.  These "base" factors are then adjusted based on how close each forecast interval's generation is to the recent peak, so at times when generation is comparatively low the dampening factor is adjusted as there will be less impact from shading on cloudy days when the effect diffuse solar radiation is more dominant.
 
-The "base" dampening factors are available as attributes of the  Solcast PV Forecast Dampening entity.  This is disabled by default so to use this example chart you will need to enable
-
-```
-sensor.sensor.solcast_pv_forecast_dampening
-```
+The "base" dampening factors are available as attributes of the  Solcast PV Forecast Dampening entity.  This is disabled by default so to use this example chart you will need to enable `sensor.sensor.solcast_pv_forecast_dampening`
 
 This chart shows both sets of dampening factors described above.
 
