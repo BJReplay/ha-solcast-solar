@@ -1171,6 +1171,7 @@ Automated dampening improvements only.
 * Generation/export unit of measurement automatic adjustment by @brilthor and @autoSteve
 * Ignore atypical generation entity jumps by @autoSteve
 * Require a majority of "good day" actuals generation agreement for auto-dampening by @autoSteve
+* Add auto-dampening chart example of applied vs. base to templates.md by @Nilogax. Thanks!
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.0...v4.4.1
 
