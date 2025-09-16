@@ -659,11 +659,11 @@ Automated dampening first builds a "consistently best" set of half-hourly genera
 
 Because forecast periods vary from best estimates due to cloud cover, the base factor is then altered before it is applied to forecasts by using a logarithmic difference calculation. If the forecast solar generation varies significantly to the best estimated solar generation that was used to determine the dampening factor, then it is adjusted so it has little impact (i.e. adjusted closer to a factor of 1.0). This determination is made based on the value of every forecasted interval, so each day will likely have different factors applied.
 
-This base dampening factor adjustment is done because when there is significant forecasted generation variance for an interval compared to past better generation intervals it is indicative of heavily clouded periods being expected. When cloudy, diffuse light is the most significant component of solar generation, and not direct sunlight, which is the solar generation component most impacted by shade.
+The base dampening factor adjustment is done because when there is significant forecasted generation variance for an interval compared to past better generation intervals it is indicative of a heavily clouded period being expected. This adapts dampening to suit when cloudy, diffuse light is the most significant component of solar generation, and not direct sunlight, which is the solar generation component most impacted by shade.
 
 > [!TIP]
 >
-> Examine the `detailedForecast` attribute for each day forecast to see the dampening factors that have been applied to each interval.
+> Examine the `detailedForecast` attribute for each day forecast to see the dampening factors that have been applied to each interval. An Apex chart example is included in [`TEMPLATES.md`](https://github.com/BJReplay/ha-solcast-solar/blob/main/TEMPLATES.md) to show a practical application for this dampening information.
 
 ##### Key input: Estimated actual data from Solcast
 
@@ -691,14 +691,13 @@ The integration determines the units by inspecting the `unit_of_measurement` att
 
 ##### Optional input: Site export to the grid, combined with a limit value
 
-Where locally generated excess power is fed to the electricity grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because at the limit value for a ten minute period or more) then the generation period will be excluded from any automated dampening consideration. This mechanism ensures differentiation of generation being limited by shade from a tree or chimney, or artificial site export limiting.
+Where locally generated excess power is exported to the electricity grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because export is at the limit value for ten minutes or more) then the generation period will be excluded from any automated dampening consideration. This mechanism ensures differentiation of generation being limited by shade from a tree or chimney, or artificial site export limiting.
 
 Export to the grid generally occurs in the middle of the day, which is a time rarely impacted by shading.
 
-A single increasing energy sensor may be supplied. This sensor may reset at midnight. The optional export limit can only be specified in kW.
+A single increasing energy sensor is allowed, and this may reset to zero at midnight. The optional export limit can only be specified in kW.
 
 > [!TIP]
->
 >
 > An export limit value may not be precisely measured by some PV system components as the real limit. This may be confusing, but the reason will be because of variations in 'CT' clamp measurement circuits.
 >
@@ -708,7 +707,7 @@ A single increasing energy sensor may be supplied. This sensor may reset at midn
 
 For automated dampening to operate it must have access to a minimum set of data. Generation history is immediately loaded from the sensor (or sensors) history, but estimated actual history from Solcast will first be received after midnight local time. Because of this, when the feature is first enabled it will almost certainly not immediately model any dampening factors.
 
-(If it is a new installation where estimated actuals are obtained then factors will be modelled.)
+(If it is a new installation where estimated actuals are obtained once then factors may be modelled immediately.)
 
 > [!TIP]
 >
