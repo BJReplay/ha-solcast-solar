@@ -659,7 +659,7 @@ Automated dampening first builds a "consistently best" set of half-hourly genera
 
 Because forecast periods vary from best estimates due to cloud cover, the base factor is then altered before it is applied to forecasts by using a logarithmic difference calculation. If the forecast solar generation varies significantly to the best estimated solar generation that was used to determine the base dampening factor, then it is adjusted so it has little impact (i.e. adjusted closer to a factor of 1.0). This determination is made based on the value of every forecasted interval, so each day will likely have different factors applied.
 
-The base dampening factor adjustment is done because when there is significant forecasted generation variance for an interval compared to past better generation intervals it is indicative of a heavily clouded period being expected. This adapts dampening to suit when cloudy, diffuse light is the most significant component of solar generation, and not direct sunlight, which is the solar generation component most impacted by shade.
+The base dampening factor adjustment is done because when there is significant forecasted generation variance for an interval compared to past better generation intervals it is indicative of a heavily clouded period being expected. This adapts dampening to suit cloudy periods, where diffuse light is the most significant component of solar generation and not direct sunlight, being the solar generation component most impacted by shade.
 
 > [!TIP]
 >
@@ -1171,7 +1171,8 @@ Automated dampening improvements only.
 * Generation/export unit of measurement automatic adjustment by @brilthor and @autoSteve
 * Ignore atypical generation entity jumps by @autoSteve
 * Require a majority of "good day" actuals generation agreement for auto-dampening by @autoSteve
-* Add auto-dampening chart example of applied vs. base to templates.md by @Nilogax. Thanks!
+* Add auto-dampening chart example of applied vs. base to TEMPLATES.md by @Nilogax. Thanks!
+* Extensive auto-dampening README.md updates by @autoSteve, @gcoan and @Nilogax. Thanks!
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.0...v4.4.1
 
