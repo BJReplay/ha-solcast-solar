@@ -1257,6 +1257,7 @@ async def test_scenarios(
         assert "Auto update forecast is fresh" in caplog.text
 
         # Excluding site
+        caplog.clear()
         _LOGGER.debug("Testing site exclusion")
         assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "39.888"  # type: ignore[union-attr]
         opt = {**entry.options}
@@ -1266,8 +1267,19 @@ async def test_scenarios(
         assert "Recalculate forecasts and refresh sensors" in caplog.text
         assert hass.states.get("sensor.solcast_pv_forecast_forecast_today").state == "24.93"  # type: ignore[union-attr]
 
+        # Test simple API key change
+        caplog.clear()
+        _LOGGER.debug("Testing API key change")
+        opt = {**entry.options}
+        opt[CONF_API_KEY] = "10"
+        hass.config_entries.async_update_entry(entry, options=opt)
+        await hass.async_block_till_done()
+        assert "API key ******10 has changed" in caplog.text
+        assert "resetting usage" not in caplog.text
+
         # Test API key change, start with an API failure and invalid sites cache
         # Verify API key change removes sites, and migrates undampened history for new site
+        caplog.clear()
         _LOGGER.debug("Testing API key change")
         session_set(MOCK_BUSY)
         sites_file = Path(f"{config_dir}/solcast-sites.json")
@@ -1287,7 +1299,7 @@ async def test_scenarios(
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
-        assert "An API key has changed" in caplog.text
+        assert "An API key has changed with a new site added" in caplog.text
         assert "Reset API usage" in caplog.text
         assert "New site(s) have been added" in caplog.text
         assert "Site resource id 1111-1111-1111-1111 is no longer configured" in caplog.text

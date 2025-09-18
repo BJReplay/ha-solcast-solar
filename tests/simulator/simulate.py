@@ -37,6 +37,37 @@ API_KEY_SITES: dict[str, Any] = {
         ],
         "counter": 0,
     },
+    "10": {
+        "sites": [
+            {
+                "resource_id": "1111-1111-1111-1111",
+                "name": "First Site",
+                "latitude": -11.11111,
+                "longitude": 111.1111,
+                "install_date": "2024-01-01T00:00:00+00:00",
+                "loss_factor": 0.99,
+                "capacity": 5.0,
+                "capacity_dc": 6.2,
+                "azimuth": 66,
+                "tilt": 30,
+                "tags": ["tag1", "tag2"],
+            },
+            {
+                "resource_id": "2222-2222-2222-2222",
+                "name": "Second Site",
+                "latitude": -11.11111,
+                "longitude": 111.1111,
+                "install_date": "2024-01-01T00:00:00+00:00",
+                "loss_factor": 0.99,
+                "capacity": 3.0,
+                "capacity_dc": 4.2,
+                "azimuth": 66,
+                "tilt": 30,
+                "tags": ["tag1", "tag3"],
+            },
+        ],
+        "counter": 0,
+    },
     "2": {
         "sites": [
             {
