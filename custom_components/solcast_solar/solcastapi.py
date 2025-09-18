@@ -530,10 +530,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if all_sites == extant_sites:
                     if api_key != key:
                         # Re-keyed API key...
-                        # * Trigger migration of API usage when the usage cache(s) load.
                         # * Update the sites cache to the new key (an API failure may have occurred on load).
                         # Note that if an API failure had occurred then the sites are not really known, so this key change is a guess at best.
-                        _LOGGER.info("API key %s has changed, migrating API usage", self.__redact_api_key(api_key))
+                        _LOGGER.info("API key %s has changed", self.__redact_api_key(api_key))
                         self._rekey[api_key] = key
                         for site in response_json["sites"]:
                             site["api_key"] = api_key
@@ -1333,7 +1332,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 async def adds_moves_changes():
                     # Check for any new API keys so no sites data yet for those, and also for API key change.
-                    # Users having multiple API keys where one account changes will have all usage reset.
                     serialise = False
                     reset_usage = False
                     new_sites: dict[str, str] = {}
@@ -1346,13 +1344,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         site = site["resource_id"]
                         if site not in cache_sites or len(self._data["siteinfo"][site].get("forecasts", [])) == 0:
                             new_sites[site] = api_key
-                        if api_key not in old_api_keys:  # If a new site is seen in conjunction with an API key change then reset the usage.
-                            reset_usage = True
+                            if (
+                                api_key not in old_api_keys
+                            ):  # If a new site is seen in conjunction with an API key change then reset the usage.
+                                reset_usage = True
                     with contextlib.suppress(Exception):
                         del self.hass.data[DOMAIN]["old_api_key"]
 
                     if reset_usage:
-                        _LOGGER.info("An API key has changed, resetting usage")
+                        _LOGGER.info("An API key has changed with a new site added, resetting usage")
                         await self.reset_api_usage(force=True)
 
                     if len(new_sites.keys()) > 0:

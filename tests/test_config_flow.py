@@ -289,7 +289,7 @@ async def test_reauth_api_key(
         await hass.async_block_till_done()
         assert result.get("reason") == "reauth_successful"
         assert "An API key has changed, resetting usage" not in caplog.text  # Existing key change, so not seen
-        assert "API key ******4 has changed, migrating API usage" in caplog.text
+        assert "API key ******4 has changed" in caplog.text
         assert "Using extant cache data for API key ******4" in caplog.text
         assert "API counter for ******4 is 4/20" in caplog.text
         assert "Using extant cache data for API key ******2" not in caplog.text  # Unaffected

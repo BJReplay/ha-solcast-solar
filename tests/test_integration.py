@@ -1287,7 +1287,7 @@ async def test_scenarios(
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
-        assert "An API key has changed, resetting usage" in caplog.text
+        assert "An API key has changed" in caplog.text
         assert "Reset API usage" in caplog.text
         assert "New site(s) have been added" in caplog.text
         assert "Site resource id 1111-1111-1111-1111 is no longer configured" in caplog.text
