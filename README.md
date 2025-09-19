@@ -1164,6 +1164,12 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 ## Changes
 
+v4.4.2
+
+*  Auto-dampen, accommodate periodically updating generation entities (Envoy) by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.1...v4.4.2
+
 v4.4.1
 
 * Generation/export unit of measurement automatic adjustment by @brilthor and @autoSteve

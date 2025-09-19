@@ -153,6 +153,7 @@ async def test_auto_dampen(
         assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
         assert "Auto-dampen factor for 11:00" not in caplog.text
         assert "Ignoring insignificant factor for 11:00 of 0.988" in caplog.text
+        assert "Ignoring excessive PV generation" not in caplog.text
 
         # Reload to load saved generation data
         caplog.clear()
@@ -311,6 +312,7 @@ async def test_auto_dampen_issues(
                 assert "Interval 12:00 max generation:" not in caplog.text  # A jump in generation should not be seen as a peak
                 assert "Interval 13:00 has peak" not in caplog.text  # Dodgy generation should prevent interval consideration
                 assert "Auto-dampen factor for 10:00 is 0.940" in caplog.text  # A valid interval still considered
+                assert "Ignoring excessive PV generation jump of 6.000 kWh" in caplog.text  # Dodgy generation should be logged
             case _:
                 pytest.fail("Assertions missing for extra_sensors value")
 

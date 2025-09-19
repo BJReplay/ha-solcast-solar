@@ -2442,8 +2442,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     typical_gen = find_percentile(non_zero_generation, 90)
                     _LOGGER.debug("Typical generation jump: %.3f kWh", typical_gen)
                     for minute, kWh in zip(sample_time, sample_generation, strict=True):
-                        if kWh <= typical_gen:
+                        if kWh <= typical_gen * 2:  # Ignore excessive jumps.
                             generation_intervals[minute] += kWh
+                        else:
+                            _LOGGER.debug(
+                                "Ignoring excessive PV generation jump of %.3f kWh at %s from entity: %s",
+                                kWh,
+                                (self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1) + timedelta(minutes=30 * minute))
+                                .astimezone(self.options.tz)
+                                .strftime("%Y-%m-%d %H:%M"),
+                                entity,
+                            )
                 else:
                     _LOGGER.debug("No day %d PV generation data from entity: %s (%s)", -1 + day * -1, entity, entity_history.get(entity))
             # Intervals are kWh per half hour
