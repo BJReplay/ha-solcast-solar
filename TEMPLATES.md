@@ -203,22 +203,17 @@ This chart shows both sets of dampening factors described above.
           in_header: false
         data_generator: >
           const factors = entity.attributes.factors;
+          const now = new Date(); // local time (browser)
 
-          const basetime = new Date().toISOString() 
+          return factors.map(({ interval, factor }) => {
+            const [h, m] = interval.split(':').map(Number);
+            // Build a Date for "today" at the given hh:mm in local time
+            const x = new Date(
+              now.getFullYear(), now.getMonth(), now.getDate(), h, m
+            ).getTime(); // epoch ms for ApexCharts
 
-          const today = basetime.split("T")[0]; //
-          "YYYY-MM-DD"    
-
-          const tz = basetime.slice(-6); // "+01:00"          
-
-          return factors.map(entry => {
-            const [hour, minute] = entry.interval.split(":");
-            return {
-              x: `${today}T${hour}:${minute}:00${tz}`,
-              y: entry.factor
-            };
+            return { x, y: factor };
           });
-
 ```
 
 
