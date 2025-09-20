@@ -337,10 +337,10 @@ async def async_setup_extra_sensors(  # noqa: C901
         entity_registry = er.async_get(hass)
         entity_registry.async_get_or_create(
             "sensor",
-            DOMAIN,
-            "solcast_solar_site_export_sensor",
+            "pytest",
+            "site_export_sensor",
             config_entry=entry,
-            suggested_object_id="solcast_solar_site_export_sensor",
+            suggested_object_id="site_export_sensor",
             unit_of_measurement=_uom,
         )
 
@@ -363,7 +363,7 @@ async def async_setup_extra_sensors(  # noqa: C901
         if bumps > 0:
             bump_seconds = int(1800 / bumps)
             gen_bumps[i] = list(range(0, 1800, bump_seconds))
-    entity_id = "sensor.solcast_solar_site_export_sensor"
+    entity_id = "sensor.site_export_sensor"
     increasing = 0.0
     adjust = 0.0
     gap = False
@@ -439,7 +439,18 @@ async def async_setup_extra_sensors(  # noqa: C901
             if bumps > 0:
                 bump_seconds = int(1800 / bumps)
                 gen_bumps[i] = list(range(0, 1800, bump_seconds))
-        entity_id = "sensor.solcast_solar_solar_export_sensor_" + site.replace("-", "_")
+        entity = "solar_export_sensor_" + site.replace("-", "_")
+        entity_id = "sensor." + entity
+
+        entity_registry = er.async_get(hass)
+        entity_registry.async_get_or_create(
+            "sensor",
+            "pytest",
+            entity,
+            config_entry=entry,
+            suggested_object_id=entity,
+            unit_of_measurement=_uom,
+        )
 
         increasing = 0.0
         adjust = 0.0
@@ -477,13 +488,22 @@ async def async_setup_extra_sensors(  # noqa: C901
                         new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                         frozen_time.move_to(new_now)
                         if not gap:
-                            await hass.async_add_executor_job(
-                                hass.states.set,
-                                entity_id,
-                                str(round(increasing / adjustment[_uom], 4)),
-                                {"unit_of_measurement": _uom},
-                                True,
-                            )
+                            if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+                                await hass.async_add_executor_job(
+                                    hass.states.set,
+                                    entity_id,
+                                    str(round(increasing / adjustment[_uom], 4)),
+                                    None,
+                                    True,
+                                )
+                            else:
+                                await hass.async_add_executor_job(
+                                    hass.states.set,
+                                    entity_id,
+                                    str(round(increasing / adjustment[_uom], 4)),
+                                    {"unit_of_measurement": _uom},
+                                    True,
+                                )
                         else:
                             gap = False
 

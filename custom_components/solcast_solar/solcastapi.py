@@ -1425,7 +1425,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if generation_data:
                         self._data_generation = generation_data
                     # If configured to get generation but there is no cached data, then get it.
-                    if self.options.generation_entities and len(self._data_generation["generation"]) == 0:
+                    if self.options.auto_dampen and self.options.generation_entities and len(self._data_generation["generation"]) == 0:
                         await self.get_pv_generation()
                     # Check for sites changes.
                     await adds_moves_changes()
@@ -2410,10 +2410,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         generation = {generated["period_start"]: generated for generated in self._data_generation["generation"]}
         days = 1 if len(generation) > 0 else 7
 
+        entity_registry = er.async_get(self.hass)
+
         for day in range(days):
             # PV generation
             generation_intervals: list[float] = [0.0] * 48
             for entity in self.options.generation_entities:
+                r_entity = entity_registry.async_get(entity)
+                if r_entity is None:
+                    _LOGGER.error("Generation entity %s is not a valid entity", entity)
+                    continue
+                if r_entity.disabled_by is not None:
+                    _LOGGER.error("Generation entity %s is disabled, please enable it", entity)
+                    continue
                 entity_history = await get_instance(self.hass).async_add_executor_job(
                     state_changes_during_period,
                     self.hass,
@@ -2463,6 +2472,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             # Detect site export limiting
             entity = self.options.site_export_entity
+            r_entity = entity_registry.async_get(entity)
+            if r_entity is None:
+                _LOGGER.error("Site export entity %s is not a valid entity", entity)
+                entity = ""
+            elif r_entity.disabled_by is not None:
+                _LOGGER.error("Site export entity %s is disabled, please enable it", entity)
+                entity = ""
             if entity != "":
                 export_intervals = [0.0] * 24 * 6
                 entity_history = await get_instance(self.hass).async_add_executor_job(
