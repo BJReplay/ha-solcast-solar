@@ -30,6 +30,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity_registry import RegistryEntryDisabler
 
 from . import (
     DEFAULT_INPUT2,
@@ -126,10 +127,10 @@ async def test_auto_dampen(
         options[AUTO_DAMPEN] = True
         options[EXCLUDE_SITES] = ["3333-3333-3333-3333"]
         options[GENERATION_ENTITIES] = [
-            "sensor.solcast_solar_solar_export_sensor_1111_1111_1111_1111",
-            "sensor.solcast_solar_solar_export_sensor_2222_2222_2222_2222",
+            "sensor.solar_export_sensor_1111_1111_1111_1111",
+            "sensor.solar_export_sensor_2222_2222_2222_2222",
         ]
-        options[SITE_EXPORT_ENTITY] = "sensor.solcast_solar_site_export_sensor"
+        options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
         entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.YES_WATT_HOUR)
 
@@ -280,12 +281,26 @@ async def test_auto_dampen_issues(
         options[AUTO_DAMPEN] = True
         options[EXCLUDE_SITES] = ["3333-3333-3333-3333"]
         options[GENERATION_ENTITIES] = [
-            "sensor.solcast_solar_solar_export_sensor_1111_1111_1111_1111",
-            "sensor.solcast_solar_solar_export_sensor_2222_2222_2222_2222",
+            "sensor.solar_export_sensor_1111_1111_1111_1111",
+            "sensor.solar_export_sensor_2222_2222_2222_2222",
         ]
-        options[SITE_EXPORT_ENTITY] = "sensor.solcast_solar_site_export_sensor"
+        options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
+        if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+            options[GENERATION_ENTITIES][0] = "sensor.not_valid"
+        # if extra_sensors == ExtraSensors.DODGY:
+        #    options[SITE_EXPORT_ENTITY] = "sensor.not_valid"
         entry = await async_init_integration(hass, options, extra_sensors=extra_sensors)
+
+        entity_registry = er.async_get(hass)
+        if extra_sensors == ExtraSensors.YES_NO_UNIT:
+            e = entity_registry.async_get(options[GENERATION_ENTITIES][0])
+            entity_registry.async_update_entity(e.entity_id, disabled_by=RegistryEntryDisabler.USER)  # type: ignore[reportOptionalMemberAccess]
+            await hass.async_block_till_done()
+        if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+            e = entity_registry.async_get(options[SITE_EXPORT_ENTITY])
+            entity_registry.async_update_entity(e.entity_id, disabled_by=RegistryEntryDisabler.USER)  # type: ignore[reportOptionalMemberAccess]
+            await hass.async_block_till_done()
 
         # Reload to load saved data and prime initial generation, in this case with bad generation data
         caplog.clear()
@@ -305,9 +320,13 @@ async def test_auto_dampen_issues(
         match extra_sensors:
             case ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
                 assert "has no unit_of_measurement, assuming kWh" not in caplog.text
+                assert f"Generation entity {options[GENERATION_ENTITIES][0]} is not a valid entity" in caplog.text
+                assert f"Site export entity {options[SITE_EXPORT_ENTITY]} is disabled, please enable it" in caplog.text
             case ExtraSensors.YES_NO_UNIT:
                 assert "has no unit_of_measurement, assuming kWh" in caplog.text
+                assert f"Generation entity {options[GENERATION_ENTITIES][0]} is disabled, please enable it" in caplog.text
             case ExtraSensors.DODGY:
+                # assert f"Site export entity {options[SITE_EXPORT_ENTITY]} is not a valid entity" in caplog.text
                 assert "has an unsupported unit_of_measurement 'MJ'" in caplog.text  # A dodgy unit should be logged
                 assert "Interval 12:00 max generation:" not in caplog.text  # A jump in generation should not be seen as a peak
                 assert "Interval 13:00 has peak" not in caplog.text  # Dodgy generation should prevent interval consideration

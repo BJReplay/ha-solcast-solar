@@ -285,7 +285,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             await self.__update_midnight_spline_recalculate()
             self.__auto_update_setup()
 
-            if self.solcast.options.generation_entities:
+            if self.solcast.options.auto_dampen and self.solcast.options.generation_entities:
                 await self.solcast.get_pv_generation()
 
             if self.solcast.options.get_actuals:
