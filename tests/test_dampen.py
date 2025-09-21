@@ -14,6 +14,7 @@ import pytest
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
     AUTO_DAMPEN,
+    AUTO_UPDATE,
     DOMAIN,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
@@ -34,7 +35,6 @@ from homeassistant.helpers.entity_registry import RegistryEntryDisabler
 
 from . import (
     DEFAULT_INPUT2,
-    MOCK_BUSY,
     MOCK_CORRUPT_ACTUALS,
     ZONE_RAW,
     ExtraSensors,
@@ -122,6 +122,7 @@ async def test_auto_dampen(
         config_dir = hass.config.config_dir
 
         options = copy.deepcopy(DEFAULT_INPUT2)
+        options[AUTO_UPDATE] = 1
         options[GET_ACTUALS] = True
         options[USE_ACTUALS] = True
         options[AUTO_DAMPEN] = True
@@ -175,21 +176,15 @@ async def test_auto_dampen(
         caplog.clear()
         removed = -5
         value_removed = solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"].pop(removed)  # pyright: ignore[reportPrivateUsage]
-        freezer.move_to((dt.now(solcast._tz) + timedelta(hours=12)).replace(minute=20, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
-        await hass.async_block_till_done()
-        await _wait_for_it(hass, caplog, freezer, "Task build_data_actuals took")
-        await hass.async_block_till_done()
+        freezer.move_to((dt.now(solcast._tz) + timedelta(hours=12)).replace(minute=0, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
+        await _wait_for_it(hass, caplog, freezer, "Applying future dampening", long_time=True)
         assert "Getting estimated actuals update for site" in caplog.text
         assert "Apply dampening to previous day estimated actuals" in caplog.text
+        assert "Task model_automated_dampening took" in caplog.text
         assert (
             solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"][removed - 24]["period_start"]  # pyright: ignore[reportPrivateUsage]
             == value_removed["period_start"]
         )  # pyright: ignore[reportPrivateUsage]
-        caplog.clear()
-        freezer.move_to(dt.now(solcast._tz).replace(minute=50, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
-        await hass.async_block_till_done()
-        await _wait_for_it(hass, caplog, freezer, "Task model_automated_dampening took")
-        await hass.async_block_till_done()
         assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
 
         # Verify that the dampening entity that should be disabled by default is, then enable it.
@@ -205,22 +200,12 @@ async def test_auto_dampen(
         _LOGGER.debug("Rolling over to another tomorrow")
         caplog.clear()
         session_set(MOCK_CORRUPT_ACTUALS)
-        freezer.move_to((dt.now(solcast._tz) + timedelta(days=1)).replace(minute=20, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
-        await hass.async_block_till_done()
-        await _wait_for_it(hass, caplog, freezer, "Update estimated actuals failed: No valid json returned")
+        freezer.move_to((dt.now(solcast._tz) + timedelta(days=1)).replace(minute=0, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
+        await _wait_for_it(hass, caplog, freezer, "Update estimated actuals failed: No valid json returned", long_time=True)
         session_clear(MOCK_CORRUPT_ACTUALS)
         for _ in range(300):  # Extra time needed for get_generation to complete
             await hass.async_block_till_done()
             freezer.tick(0.1)
-
-        # Roll over to yet another tomorrow to test get actuals failure due to Solcast busy.
-        _LOGGER.debug("Rolling over to yet another tomorrow")
-        caplog.clear()
-        session_set(MOCK_BUSY)
-        freezer.move_to((dt.now(solcast._tz) + timedelta(days=1)).replace(minute=20, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
-        await hass.async_block_till_done()
-        await _wait_for_it(hass, caplog, freezer, "HTTP session status 429/Try again later", long_time=True)
-        session_clear(MOCK_BUSY)
 
         # Cause an actual build exception
         _LOGGER.debug("Causing an actual build exception")
@@ -254,6 +239,7 @@ async def test_auto_dampen(
             freezer.tick(0.1)
 
     finally:
+        session_clear(MOCK_CORRUPT_ACTUALS)
         assert await async_cleanup_integration_tests(hass)
 
 

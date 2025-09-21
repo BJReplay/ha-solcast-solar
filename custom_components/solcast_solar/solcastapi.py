@@ -2636,7 +2636,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             await self.granular_dampening_data()
         _LOGGER.debug("Task model_automated_dampening took %.3f seconds", time.time() - start_time)
 
-    async def update_estimated_actuals(self) -> None:
+    async def update_estimated_actuals(self, dampen_yesterday: bool = False) -> None:
         """Update estimated actuals."""
 
         status: DataCallStatus = DataCallStatus.SUCCESS
@@ -2701,7 +2701,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             await self.sort_and_prune(site["resource_id"], self._data_actuals, 730, actuals)
             _LOGGER.debug("Estimated actuals dictionary for site %s length %s", site["resource_id"], len(actuals))
 
-        if status == DataCallStatus.SUCCESS and dt.now(self._tz).hour == 0 and dt.now(self._tz).minute < 50:
+        if status == DataCallStatus.SUCCESS and dampen_yesterday:
             # Apply dampening to yesterday actuals, but only if the new factors for the day have not been modelled.
 
             undampened_interval_pv50: dict[dt, float] = {}

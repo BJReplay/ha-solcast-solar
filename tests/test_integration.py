@@ -1425,6 +1425,9 @@ async def test_estimated_actuals(
         Path(f"{config_dir}/solcast-dampening.json").unlink(missing_ok=True)  # Remove dampening file
         await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates")
         assert Path(f"{config_dir}/solcast-actuals.json").is_file()
+        assert "Estimated actuals dictionary for site 1111-1111-1111-1111" in caplog.text
+        assert "Estimated actuals dictionary for site 2222-2222-2222-2222" in caplog.text
+        assert "Apply dampening to previous day estimated actuals" not in caplog.text
 
         # Retrieve actuals data
         queries: list[dict[str, Any]] = [
