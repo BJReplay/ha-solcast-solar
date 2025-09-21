@@ -99,6 +99,54 @@ async def _reload(hass: HomeAssistant, entry: ConfigEntry) -> tuple[SolcastUpdat
     return None, None
 
 
+async def _exec_update_actuals(
+    hass: HomeAssistant,
+    coordinator: SolcastUpdateCoordinator,
+    solcast: SolcastApi,
+    caplog: pytest.LogCaptureFixture,
+    freezer: FrozenDateTimeFactory,
+    action: str,
+    last_update_delta: int = 0,
+    wait: bool = True,
+) -> None:
+    """Execute an estimated actuals action and wait for completion."""
+
+    caplog.clear()
+    if last_update_delta == 0:
+        last_updated = dt(year=2020, month=1, day=1, hour=1, minute=1, second=1, tzinfo=datetime.UTC)
+    else:
+        last_updated = solcast._data_actuals["last_updated"] - timedelta(seconds=last_update_delta)  # pyright: ignore[reportPrivateUsage]
+        _LOGGER.info("Mock last updated: %s", last_updated)
+    solcast._data_actuals["last_updated"] = last_updated  # pyright: ignore[reportPrivateUsage]
+    await hass.services.async_call(DOMAIN, action, {}, blocking=True)
+    if wait:
+        await _wait_for_update(hass, caplog, freezer)
+        await solcast.tasks_cancel()
+        async with asyncio.timeout(1):
+            while coordinator.tasks.get("actuals"):
+                await hass.async_block_till_done()
+    await hass.async_block_till_done()
+
+
+async def _wait_for_update(hass: HomeAssistant, caplog: pytest.LogCaptureFixture, freezer: FrozenDateTimeFactory) -> None:
+    """Wait for forecast update completion."""
+
+    async with asyncio.timeout(10):
+        while (
+            "Forecast update completed successfully" not in caplog.text
+            and "Saved estimated actual cache" not in caplog.text
+            and "Not requesting a solar forecast" not in caplog.text
+            and "aborting forecast update" not in caplog.text
+            and "update already in progress" not in caplog.text
+            and "pausing" not in caplog.text
+            and "Completed task update" not in caplog.text
+            and "Completed task force_update" not in caplog.text
+            and "ConfigEntryAuthFailed" not in caplog.text
+        ):  # Wait for task to complete
+            freezer.tick(0.1)
+            await hass.async_block_till_done()
+
+
 async def _wait_for_it(
     hass: HomeAssistant, caplog: pytest.LogCaptureFixture, freezer: FrozenDateTimeFactory, wait_for: str, long_time: bool = False
 ) -> None:
@@ -170,6 +218,16 @@ async def test_auto_dampen(
         caplog.clear()
         with pytest.raises(ServiceValidationError):
             await hass.services.async_call(DOMAIN, SERVICE_SET_DAMPENING, {"damp_factor": ("1.0," * 24)[:-1]}, blocking=True)
+
+        # Test service action to force update actuals
+        caplog.clear()
+        _LOGGER.debug("Testing force update actuals with dampening enabled")
+        await _exec_update_actuals(hass, coordinator, solcast, caplog, freezer, "force_update_estimates")
+        assert "Estimated actuals dictionary for site 1111-1111-1111-1111" in caplog.text
+        assert "Estimated actuals dictionary for site 2222-2222-2222-2222" in caplog.text
+        assert "Estimated actuals dictionary for site 3333-3333-3333-3333" in caplog.text
+        assert "Task model_automated_dampening took" in caplog.text
+        assert "Apply dampening to previous day estimated actuals" not in caplog.text
 
         # Roll over to tomorrow.
         _LOGGER.debug("Rolling over to tomorrow")

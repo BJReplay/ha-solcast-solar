@@ -1427,6 +1427,8 @@ async def test_estimated_actuals(
         assert Path(f"{config_dir}/solcast-actuals.json").is_file()
         assert "Estimated actuals dictionary for site 1111-1111-1111-1111" in caplog.text
         assert "Estimated actuals dictionary for site 2222-2222-2222-2222" in caplog.text
+        assert "Auto-dampening suppressed" not in caplog.text
+        assert "Task model_automated_dampening took" not in caplog.text
         assert "Apply dampening to previous day estimated actuals" not in caplog.text
 
         # Retrieve actuals data
