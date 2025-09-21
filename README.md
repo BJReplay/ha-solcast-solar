@@ -671,11 +671,11 @@ Aside from forecasts, the Solcast service also estimates the likely past actual 
 
 Getting estimated actual data does require an API call, and that API call will use up API quota for a hobbyist user. You will need to factor API call consumption for this purpose when taking advantage of automated dampening, with one call used per configured Solcast rooftop site per day per API key. (Reduce the API limit for forecast updates in options by one for a single rooftop site, or by two for two sites.)
 
-Past estimated actual data is acquired at just after midnight each day local time, randomised to update within 15 minutes. New dampening factors for the day ahead are modelled immediately after the update.
+Past estimated actual data is acquired just after midnight each day local time, randomised to update within 15 minutes. Where automated dampening is enabled, new dampening factors for the day ahead are modelled immediately after the estimated actual update. It is also possible to force an update of the estimated actuals, and this will also attempt to model dampening factors if appropriate.
 
 > [!TIP]
 >
-> If your aim is to obtain as many forecast updates during the day as possible, then automated dampening is not for you. It will reduce the number of forecast updates possible.
+> If your aim is to obtain as many forecast updates during the day as possible, then using estimated actuals and automated dampening is not for you. It will reduce the number of forecast updates possible.
 
 ##### Key input: Actual PV generation for your site
 
@@ -683,7 +683,7 @@ Generation is gathered from history data of a sensor entity (or entities). A sin
 
 An increasing energy sensor (or sensors) must be supplied. This increasing sensor may reset at midnight, or may be a "total increasing" type; of importance is that it is increasing throughout the day.
 
-The integration determines the units by inspecting the `unit_of_measurement` attribute and adjusts accordingly. Where this attribute is not set it assumes values are kWh. Generation updates occur at midnight local time.
+The integration determines the units by inspecting the `unit_of_measurement` attribute and adjusts accordingly. Where this attribute is not set it assumes values are kWh. Generation history updates occur at midnight local time.
 
 > [!NOTE]
 >
