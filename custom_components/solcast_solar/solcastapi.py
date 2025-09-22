@@ -2552,11 +2552,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         start_time = time.time()
 
+        export_limited_intervals = dict.fromkeys(range(48), False)
+        for generation in self._data_generation["generation"]:
+            if generation["export_limiting"]:
+                export_limited_intervals[
+                    generation["period_start"].astimezone(self._tz).hour * 2 + generation["period_start"].astimezone(self._tz).minute // 30
+                ] = True
         generation = {
             generation["period_start"]: generation["generation"]
             for generation in self._data_generation["generation"]
-            if not generation["export_limiting"]
+            if not export_limited_intervals[
+                generation["period_start"].astimezone(self._tz).hour * 2 + generation["period_start"].astimezone(self._tz).minute // 30
+            ]
         }
+
         actuals: OrderedDict[dt, float] = OrderedDict()
         for site in self.sites:
             deal_breaker = ""

@@ -1168,6 +1168,7 @@ v4.4.3
 
 * Randomised actuals fetch then immediate auto-dampen modelling by @autoSteve
 * Exclude disabled auto-dampen entities from selection by @autoSteve
+* Auto-dampen, exclude export-limited intervals from all days by @autoSteve
 * Fix: Update TEMPLATES.md damping factors chart by @jaymunro
 * Fix: Update TEMPLATES.md typo in sensor name by @gcoan
 
