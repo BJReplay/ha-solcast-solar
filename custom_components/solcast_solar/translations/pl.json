@@ -107,6 +107,24 @@
             "total_kwh_forecast_d7": {
                 "name": "Prognoza na dzień 7"
             },
+            "total_kwh_forecast_d8": {
+                "name": "Prognoza na dzień 8"
+            },
+            "total_kwh_forecast_d9": {
+                "name": "Prognoza na dzień 9"
+            },
+            "total_kwh_forecast_d10": {
+                "name": "Prognoza na dzień 10"
+            },
+            "total_kwh_forecast_d11": {
+                "name": "Prognoza na dzień 11"
+            },
+            "total_kwh_forecast_d12": {
+                "name": "Prognoza na dzień 12"
+            },
+            "total_kwh_forecast_d13": {
+                "name": "Prognoza na dzień 13"
+            },
             "power_now": {
                 "name": "Aktualna moc"
             },

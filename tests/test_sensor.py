@@ -19,6 +19,8 @@ from homeassistant.components.solcast_solar.const import (
     BRK_ESTIMATE90,
     BRK_SITE,
     CUSTOM_HOUR_SENSOR,
+    FORECAST_DAY_SENSORS,
+    FORECAST_DAYS,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
@@ -343,7 +345,7 @@ SENSORS: dict[str, dict[str, Any]] = {
 }
 
 SENSORS["forecast_tomorrow"] = copy.deepcopy(SENSORS["forecast_today"])
-for day in range(3, 7):  # Do not test day 7, as values will vary based on the time of day the test is run.
+for day in range(3, FORECAST_DAY_SENSORS - 1):  # Do not test the last day, as values will vary based on the time of day the test is run.
     SENSORS[f"forecast_day_{day}"] = copy.deepcopy(SENSORS["forecast_today"])
     SENSORS[f"forecast_day_{day}"]["should_be_disabled"] = True
 
@@ -615,7 +617,9 @@ async def test_sensor_unavailable(
         # Test when some future day data is missing (remove D3 onwards).
         solcast._data_undampened = old_solcast_data_undampened  # pyright: ignore[reportPrivateUsage]
         for site in ("1111-1111-1111-1111", "2222-2222-2222-2222"):
-            solcast._data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][:-269]  # pyright: ignore[reportPrivateUsage]
+            solcast._data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][  # pyright: ignore[reportPrivateUsage]
+                : -(269 + (FORECAST_DAYS - 8) * 48)
+            ]
         await solcast.build_forecast_data()
         coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
         coordinator.async_update_listeners()
@@ -634,7 +638,9 @@ async def test_sensor_unavailable(
         # Test when 'today' is partial (remove D3 onwards).
         solcast._data_undampened = old_solcast_data_undampened  # pyright: ignore[reportPrivateUsage]
         for site in ("1111-1111-1111-1111", "2222-2222-2222-2222"):
-            solcast._data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][:-325]  # pyright: ignore[reportPrivateUsage]
+            solcast._data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][  # pyright: ignore[reportPrivateUsage]
+                : -(325 + (FORECAST_DAYS - 8) * 48)
+            ]
         await solcast.build_forecast_data()
         coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
         coordinator.async_update_listeners()

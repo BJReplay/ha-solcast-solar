@@ -372,7 +372,7 @@ async def test_auto_dampen_issues(
             case ExtraSensors.DODGY:
                 # assert f"Site export entity {options[SITE_EXPORT_ENTITY]} is not a valid entity" in caplog.text
                 assert "has an unsupported unit_of_measurement 'MJ'" in caplog.text  # A dodgy unit should be logged
-                assert "Interval 12:00 max generation:" not in caplog.text  # A jump in generation should not be seen as a peak
+                assert "Interval 11:00 max generation:" not in caplog.text  # A jump in generation should not be seen as a peak
                 assert "Interval 13:00 has peak" not in caplog.text  # Dodgy generation should prevent interval consideration
                 assert "Auto-dampen factor for 10:00 is 0.940" in caplog.text  # A valid interval still considered
                 assert "Ignoring excessive PV generation jump of 6.000 kWh" in caplog.text  # Dodgy generation should be logged

@@ -35,6 +35,7 @@ from homeassistant.components.solcast_solar.const import (
     EVENT_END_DATETIME,
     EVENT_START_DATETIME,
     EXCLUDE_SITES,
+    FORECAST_DAYS,
     GENERATION_ENTITIES,
     GET_ACTUALS,
     HARD_LIMIT_API,
@@ -1053,8 +1054,8 @@ async def test_remaining_actions(
                 DOMAIN,
                 "query_forecast_data",
                 {
-                    EVENT_START_DATETIME: solcast.get_day_start_utc(future=10).isoformat(),
-                    EVENT_END_DATETIME: solcast.get_day_start_utc(future=16).isoformat(),
+                    EVENT_START_DATETIME: solcast.get_day_start_utc(future=FORECAST_DAYS + 2).isoformat(),
+                    EVENT_END_DATETIME: solcast.get_day_start_utc(future=FORECAST_DAYS + 6).isoformat(),
                 },
                 blocking=True,
                 return_response=True,
@@ -1149,14 +1150,14 @@ async def test_scenarios(
         def alter_last_updated_as_very_stale():
             for d_file in [data_file, data_file_undampened]:
                 data = json.loads(d_file.read_text(encoding="utf-8"))
-                data["last_updated"] = (dt.now(datetime.UTC) - timedelta(days=9)).isoformat()
+                data["last_updated"] = (dt.now(datetime.UTC) - timedelta(days=FORECAST_DAYS + 1)).isoformat()
                 data["last_attempt"] = data["last_updated"]
                 data["auto_updated"] = 10
                 # Shift all forecast intervals back nine days
                 for site in data["siteinfo"].values():
                     site["forecasts"] = [
                         {
-                            "period_start": (dt.fromisoformat(f["period_start"]) - timedelta(days=9)).isoformat(),
+                            "period_start": (dt.fromisoformat(f["period_start"]) - timedelta(days=FORECAST_DAYS + 1)).isoformat(),
                             "pv_estimate": f["pv_estimate"],
                             "pv_estimate10": f["pv_estimate10"],
                             "pv_estimate90": f["pv_estimate90"],

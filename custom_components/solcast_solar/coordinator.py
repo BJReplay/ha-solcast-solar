@@ -32,21 +32,19 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.sun import get_astral_event_next
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DATE_FORMAT, DOMAIN, GET_ACTUALS, SITE_DAMP, TIME_FORMAT
+from .const import (
+    DATE_FORMAT,
+    DOMAIN,
+    FORECAST_DAY_SENSORS,
+    GET_ACTUALS,
+    SITE_DAMP,
+    TIME_FORMAT,
+)
 from .solcastapi import SolcastApi
 from .util import AutoUpdate
 
 _LOGGER = logging.getLogger(__name__)
 
-DAYS = [
-    "total_kwh_forecast_today",
-    "total_kwh_forecast_tomorrow",
-    "total_kwh_forecast_d3",
-    "total_kwh_forecast_d4",
-    "total_kwh_forecast_d5",
-    "total_kwh_forecast_d6",
-    "total_kwh_forecast_d7",
-]
 NO_ATTRIBUTES = ["api_counter", "api_limit", "dampen", "lastupdated"]
 
 
@@ -113,12 +111,15 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             "lastupdated": [{"method": self.solcast.get_last_updated}],
             "dampen": [{"method": self.solcast.get_dampen}],
         }
+        days = ["total_kwh_forecast_today", "total_kwh_forecast_tomorrow"] + [
+            f"total_kwh_forecast_d{r}" for r in range(3, FORECAST_DAY_SENSORS)
+        ]
         self.__get_value |= {
             day: [
                 {"method": self.solcast.get_total_energy_forecast_day, "value": ahead},
                 {"method": self.solcast.get_forecast_day, "value": ahead},
             ]
-            for ahead, day in enumerate(DAYS)
+            for ahead, day in enumerate(days)
         }
 
         super().__init__(

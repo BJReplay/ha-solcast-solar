@@ -324,9 +324,10 @@ async def test_reauth_api_key(
         )
         assert "Connecting to https://api.solcast.com.au/rooftop_sites?format=json&api_key=******4" in caplog.text
         assert "Loading presumed dead integration" in caplog.text
-        simulator.API_KEY_SITES["1"] = simulator.API_KEY_SITES.pop("4")  # Restore the key
 
     finally:
+        if simulator.API_KEY_SITES.get("4"):
+            simulator.API_KEY_SITES["1"] = simulator.API_KEY_SITES.pop("4")  # Restore the key
         assert await async_cleanup_integration_tests(hass)
 
 

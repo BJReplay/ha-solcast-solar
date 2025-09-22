@@ -107,6 +107,24 @@
             "total_kwh_forecast_d7": {
                 "name": "Predpoveď deň 7"
             },
+            "total_kwh_forecast_d8": {
+                "name": "Predpoveď deň 8"
+            },
+            "total_kwh_forecast_d9": {
+                "name": "Predpoveď deň 9"
+            },
+            "total_kwh_forecast_d10": {
+                "name": "Predpoveď deň 10"
+            },
+            "total_kwh_forecast_d11": {
+                "name": "Predpoveď deň 11"
+            },
+            "total_kwh_forecast_d12": {
+                "name": "Predpoveď deň 12"
+            },
+            "total_kwh_forecast_d13": {
+                "name": "Predpoveď deň 13"
+            },
             "power_now": {
                 "name": "Výkon teraz"
             },

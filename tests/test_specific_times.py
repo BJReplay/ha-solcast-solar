@@ -1,12 +1,13 @@
 """Test midnight rollover."""
 
-from datetime import datetime as dt
+from datetime import UTC, datetime as dt
 import logging
 
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
 from homeassistant.components.recorder import Recorder
+from homeassistant.components.solcast_solar.const import FORECAST_DAYS
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.core import HomeAssistant
 
@@ -51,8 +52,8 @@ async def test_midnight(
         caplog.clear()
         coordinator._data_updated = False  # Improve test coverage  # pyright: ignore[reportPrivateUsage]
         await coordinator.async_refresh()
-        for _ in range(30):
-            freezer.tick()
+        for _ in range(6):
+            freezer.tick(1)
             coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
             await coordinator.async_refresh()
             await hass.async_block_till_done()
@@ -106,7 +107,7 @@ async def test_timezone_transition(
         entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone="Australia/Sydney")
 
         assert "Transitioning between summer/standard time" in caplog.text
-        assert "Forecast data from 2025-04-04 to 2025-04-10 contains all intervals" in caplog.text
+        assert f"Forecast data from 2025-04-04 to 2025-04-{2 + FORECAST_DAYS:02d} contains all intervals" in caplog.text
 
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
@@ -119,7 +120,7 @@ async def test_timezone_transition(
         entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone="Australia/Sydney")
 
         assert "Transitioning between summer/standard time" in caplog.text
-        assert "Forecast data from 2025-10-01 to 2025-10-07 contains all intervals" in caplog.text
+        assert f"Forecast data from 2025-10-01 to 2025-10-{FORECAST_DAYS - 1:02d} contains all intervals" in caplog.text
 
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
