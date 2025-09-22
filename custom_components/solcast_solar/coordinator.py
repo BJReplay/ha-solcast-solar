@@ -289,7 +289,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
             if self.solcast.options.get_actuals:
                 update_at = dt.now(UTC) + timedelta(minutes=randint(1, 14), seconds=randint(0, 59))
-                _LOGGER.debug("Scheduling estimated actuals update at %s", update_at.strftime(TIME_FORMAT))
+                _LOGGER.debug(
+                    "Scheduling estimated actuals update at %s", update_at.astimezone(self.solcast.options.tz).strftime(TIME_FORMAT)
+                )
                 self.tasks["new_day_actuals"] = async_track_point_in_utc_time(
                     self.hass,
                     self.__actuals,
