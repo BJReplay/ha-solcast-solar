@@ -31,6 +31,7 @@ ENTRY_TYPE_SERVICE: Final[str] = "service"
 EVENT_END_DATETIME: Final[str] = "end_date_time"
 EVENT_START_DATETIME: Final[str] = "start_date_time"
 EXCLUDE_SITES: Final[str] = "exclude_sites"
+FORECAST_DAYS: Final[int] = 15
 GENERATION_ENTITIES: Final[str] = "generation_entities"
 GENERATION_VERSION: Final[int] = 1
 GET_ACTUALS: Final[str] = "get_actuals"

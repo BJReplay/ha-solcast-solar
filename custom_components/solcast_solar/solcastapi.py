@@ -50,6 +50,7 @@ from .const import (
     DATE_MONTH_DAY,
     DOMAIN,
     EXCLUDE_SITES,
+    FORECAST_DAYS,
     GENERATION_ENTITIES,
     GENERATION_VERSION,
     GET_ACTUALS,
@@ -1709,7 +1710,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """Return forecast data for the Nth day ahead.
 
         Arguments:
-            future_day (int): A day (0 = today, 1 = tomorrow, etc., with a maximum of day 7).
+            future_day (int): A day (0 = today, 1 = tomorrow, etc., with a maximum of day FORECAST_DAYS - 1).
 
         Returns:
             dict: Includes the day name, whether there are issues with the data in terms of completeness,
@@ -1882,7 +1883,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """Return maximum forecast Watts for N days ahead.
 
         Arguments:
-            n_day (int): A number representing a day (0 = today, 1 = tomorrow, etc., with a maximum of day 7).
+            n_day (int): A number representing a day (0 = today, 1 = tomorrow, etc., with a maximum of day FORECAST_DAYS - 1).
             site (str): An optional Solcast site ID, used to build site breakdown attributes.
             forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
@@ -1905,7 +1906,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """Return hour of max generation for site N days ahead.
 
         Arguments:
-            n_day (int): A number representing a day (0 = today, 1 = tomorrow, etc., with a maximum of day 7).
+            n_day (int): A number representing a day (0 = today, 1 = tomorrow, etc., with a maximum of day FORECAST_DAYS - 1).
             site (str): An optional Solcast site ID, used to build site breakdown attributes.
             forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
@@ -1949,7 +1950,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """Return forecast production total for N days ahead.
 
         Arguments:
-            n_day (int): A day (0 = today, 1 = tomorrow, etc., with a maximum of day 7).
+            n_day (int): A day (0 = today, 1 = tomorrow, etc., with a maximum of day FORECAST_DAYS - 1).
             site (str): An optional Solcast site ID, used to build site breakdown attributes.
             forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
 
@@ -2532,7 +2533,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             "last_updated": dt.now(datetime.UTC).replace(microsecond=0),
             "generation": sorted(
                 filter(
-                    lambda generated: generated["period_start"] >= self.get_day_start_utc(future=-14),
+                    lambda generated: generated["period_start"] >= self.get_day_start_utc(future=-22),
                     generation.values(),
                 ),
                 key=itemgetter("period_start"),
@@ -3089,7 +3090,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             tuple[DataCallStatus, str]: A flag indicating success, failure or abort, and a reason for failure.
 
         """
-        last_day = self.get_day_start_utc(future=8)
+        last_day = self.get_day_start_utc(future=FORECAST_DAYS)
         hours = math.ceil((last_day - self.get_now_utc()).total_seconds() / 3600)
         _LOGGER.debug(
             "Polling API for site %s, last day %s, %d hours",
@@ -3616,7 +3617,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         today: datetime.date = dt.now(self._tz).date()
         commencing: datetime.date = dt.now(self._tz).date() - timedelta(days=730)
         commencing_undampened: datetime.date = dt.now(self._tz).date() - timedelta(days=14)
-        last_day: datetime.date = dt.now(self._tz).date() + timedelta(days=8)
+        last_day: datetime.date = dt.now(self._tz).date() + timedelta(days=FORECAST_DAYS)
         logged_hard_limit: list[str] = []
 
         forecasts: dict[dt, dict[str, dt | float]] = {}
@@ -3894,7 +3895,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         # The latest period is used to determine whether any history should be updated on stale start.
         self.latest_period = self._data_forecasts[-1]["period_start"] if len(self._data_forecasts) > 0 else None
 
-        for future_day in range(8):
+        for future_day in range(FORECAST_DAYS):
             start_utc = self.get_day_start_utc(future=future_day)
             end_utc = self.get_day_start_utc(future=future_day + 1)
             start_index, end_index = self.__get_list_slice(self._data_forecasts, start_utc, end_utc)
@@ -3943,7 +3944,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             )
         else:
             contiguous_end_date = None
-        if contiguous < 8:
+        if contiguous < FORECAST_DAYS:
             for day, assessment in OrderedDict(sorted(interval_assessment.items(), key=lambda k: k[0])).items():
                 if contiguous_end_date is not None and day <= contiguous_end_date:
                     continue
@@ -3954,12 +3955,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             day.strftime("%Y-%m-%d"),
                         )
                     case _:
-                        (_LOGGER.debug if contiguous == 7 else _LOGGER.warning)(
+                        (_LOGGER.debug if contiguous == FORECAST_DAYS - 1 else _LOGGER.warning)(
                             "Forecast data for %s contains %d of %d intervals%s",
                             day.strftime("%Y-%m-%d"),
                             assessment["intervals"],
                             assessment["expected_intervals"],
-                            ", which may be expected" if contiguous == 7 else ", so is missing forecast data",
+                            ", which may be expected" if contiguous == FORECAST_DAYS - 1 else ", so is missing forecast data",
                         )
         issue_registry = ir.async_get(self.hass)
 
@@ -3970,7 +3971,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _LOGGER.debug("Remove issue for %s", check_issue)
                     ir.async_delete_issue(self.hass, DOMAIN, check_issue)
 
-        if 0 < contiguous < 7:
+        if 0 < contiguous < FORECAST_DAYS - 1:
             if self.entry is not None:
                 # If auto-update is enabled then raise an un-fixable issue, otherwise raise a fixable issue.
                 raise_issue: str | None
@@ -3993,6 +3994,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
                 if not raise_issue:
                     _remove_issues()
-        if contiguous >= 7:
+        if contiguous >= FORECAST_DAYS - 1:
             # If data is all (or mostly) present then remove any relevant issues.
             _remove_issues()

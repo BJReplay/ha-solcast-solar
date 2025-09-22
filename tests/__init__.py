@@ -329,7 +329,8 @@ async def async_setup_extra_sensors(  # noqa: C901
         case _:
             _uom = "kWh"
     _DAYS_EXPORT = 1
-    _DAYS_GENERATION = 4
+    _DAYS_GENERATION = 7
+    _OFFSET = 3
 
     adjustment = {"kWh": 1.0, "MWh": 1000.0, "Wh": 0.001, "MJ": 1.0, "": 1.0}
 
@@ -368,7 +369,7 @@ async def async_setup_extra_sensors(  # noqa: C901
     adjust = 0.0
     gap = False
     increase = True
-    with freeze_time(now, tz_offset=10) as frozen_time:
+    with freeze_time(now + timedelta(days=_OFFSET), tz_offset=10) as frozen_time:
         for interval in range(48 * _DAYS_EXPORT):
             i = interval % 48
             day = interval // 48
@@ -394,7 +395,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                             increase = True
                     else:
                         increasing += 0.1
-                    new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                    new_now = now + timedelta(days=_OFFSET) + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                     frozen_time.move_to(new_now)
                     if not gap:
                         if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
@@ -456,7 +457,7 @@ async def async_setup_extra_sensors(  # noqa: C901
         adjust = 0.0
         gap = False
         increase = True
-        with freeze_time(now, tz_offset=10) as frozen_time:
+        with freeze_time(now + timedelta(days=_OFFSET), tz_offset=10) as frozen_time:
             for interval in range(48 * _DAYS_GENERATION):
                 i = interval % 48
                 day = interval // 48
@@ -485,7 +486,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                                 increase = True
                         else:
                             increasing += 0.1
-                        new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                        new_now = now + timedelta(days=_OFFSET) + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                         frozen_time.move_to(new_now)
                         if not gap:
                             if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
