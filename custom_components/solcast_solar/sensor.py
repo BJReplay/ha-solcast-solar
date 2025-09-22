@@ -323,6 +323,17 @@ async def async_setup_entry(
             entity_registry.async_remove(entity.entity_id)
             _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
 
+    # Clean up any orphaned day sensors.
+    entity_registry = er.async_get(hass)
+    for entity in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
+        if entity.translation_key is not None:
+            if (
+                entity.translation_key.startswith("total_kwh_forecast_d")
+                and int(entity.unique_id.split("_")[-1].split("d")[-1]) > FORECAST_DAY_SENSORS - 1
+            ):
+                entity_registry.async_remove(entity.entity_id)
+                _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
+
     for site in coordinator.get_solcast_sites():
         k = {
             "description": SensorEntityDescription(

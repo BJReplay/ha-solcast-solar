@@ -396,11 +396,11 @@ All sensor names are preceded by the integration name `Solcast PV Forecast`.
 | ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
 | `Forecast Today` | number | Y | `kWh` | Total forecast solar production for today. |
 | `Forecast Tomorrow` | number | Y | `kWh` | Total forecast solar production for day + 1 (tomorrow). |
-| `Forecast Day 3` | number | Y | `kWh` | Total forecast solar production for day + 2 (day 3). |
-| `Forecast Day 4` | number | Y | `kWh` | Total forecast solar production for day + 3 (day 4). |
-| `Forecast Day 5` | number | Y | `kWh` | Total forecast solar production for day + 4 (day 5). |
-| `Forecast Day 6` | number | Y | `kWh`| Total forecast solar production for day + 5 (day 6). |
-| `Forecast Day 7` | number | Y | `kWh` | Total forecast solar production for day + 6 (day 7). |
+| `Forecast Day 3` | number | Y | `kWh` | Total forecast solar production for day + 2 (day 3, disabled by default). |
+| `Forecast Day 4` | number | Y | `kWh` | Total forecast solar production for day + 3 (day 4, disabled by default). |
+| `Forecast Day 5` | number | Y | `kWh` | Total forecast solar production for day + 4 (day 5, disabled by default). |
+| `Forecast Day 6` | number | Y | `kWh`| Total forecast solar production for day + 5 (day 6, disabled by default). |
+| `Forecast Day 7` | number | Y | `kWh` | Total forecast solar production for day + 6 (day 7, disabled by default). |
 | `Forecast This Hour` | number | Y | `Wh` | Forecasted solar production current hour (attributes contain site breakdown). |
 | `Forecast Next Hour` | number | Y | `Wh` | Forecasted solar production next hour (attributes contain site breakdown). |
 | `Forecast Next X Hours` | number | Y | `Wh` | Custom user defined forecasted solar production for next X hours<br>Note: This forecast starts at current time, it is not aligned on the hour like "This hour", "Next Hour". |
