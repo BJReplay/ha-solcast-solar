@@ -649,6 +649,18 @@ Automated dampening is dynamic, and utilises up to fourteen 'rolling' days of ge
 
 Automated dampening will apply the same dampening factors to all rooftop sites, based on total location generation and Solcast data.
 
+> [!NOTE]
+>
+> Automated dampening may not work for you, especially because of the way that your generation entities report energy, or if you are on a wholesale energy market plan where prices can go negative so you limit site export at those times.
+>
+> This integrated automated dampening feature will suit many people, but it is not a panacea.
+>
+> **Be warned**: THINK, INVESTIGATE, and **then** REPORT any issues with automated dampening, IN THAT ORDER. It may look like a "tick and flick" option in the configuration, but this is not.
+>
+> If you think and investigate, and spot something that could be improved for everybody, then report it.
+>
+> If you investigate that an issue is because your hand-built generation entity is not like anyone elses, then please, roll your own dampening solution. The component parts are available for you to do so by utilising granular dampening.
+
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
 
 The theory of operation is simple, relying on two key inputs, and an optional third.
