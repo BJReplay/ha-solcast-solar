@@ -657,9 +657,9 @@ Automated dampening will apply the same dampening factors to all rooftop sites, 
 >
 > **Be warned**: THINK, INVESTIGATE, and **then** REPORT any issues with automated dampening, IN THAT ORDER. It may look like a "tick and flick" option in the configuration, but this is not.
 >
-> If you think and investigate, and spot something that could be improved for everybody, then report it.
+> If you think and investigate, and spot something that could be improved for everybody, then report it please. If you raise an issue without showing your working - demonstrating that you have thought, investigated, and then reported for that issue - your issue may be closed quickly with little or no support.
 >
-> If you investigate that an issue is because your hand-built generation entity is not like anyone elses, then please, roll your own dampening solution. The component parts are available for you to do so by utilising granular dampening.
+> If you investigate and find that an issue is because your hand-built generation entity is not like anyone elses, then please, roll your own dampening solution. The component parts are available for you to do so by utilising granular dampening.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
 
