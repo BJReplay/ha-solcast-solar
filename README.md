@@ -403,7 +403,7 @@ All sensor names are preceded by the integration name `Solcast PV Forecast`.
 | `Forecast Day 7` | number | Y | `kWh` | Total forecast solar production for day + 6 (day 7, disabled by default). |
 | `Forecast This Hour` | number | Y | `Wh` | Forecasted solar production current hour (attributes contain site breakdown). |
 | `Forecast Next Hour` | number | Y | `Wh` | Forecasted solar production next hour (attributes contain site breakdown). |
-| `Forecast Next X Hours` | number | Y | `Wh` | Custom user defined forecasted solar production for next X hours<br>Note: This forecast starts at current time, it is not aligned on the hour like "This hour", "Next Hour". |
+| `Forecast Next X Hours` | number | Y | `Wh` | Custom user defined forecasted solar production for next X hours, disabled by default<br>Note: This forecast starts at current time, it is not aligned on the hour like "This hour", "Next Hour". |
 | `Forecast Remaining Today` | number | Y | `kWh` | Predicted remaining solar production today. |
 | `Peak Forecast Today` | number | Y | `W` | Highest predicted production within an hour period today (attributes contain site breakdown). |
 | `Peak Time Today` | date/time | Y |  | Hour of max forecasted production of solar today (attributes contain site breakdown). |
@@ -1171,6 +1171,7 @@ v4.4.3
 * Auto-dampen, exclude export-limited intervals from all days by @autoSteve
 * Fix: Update TEMPLATES.md damping factors chart by @jaymunro
 * Fix: Update TEMPLATES.md typo in sensor name by @gcoan
+* Minimum HA version 2025.3
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.2...v4.4.3
 

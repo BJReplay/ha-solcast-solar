@@ -1,6 +1,6 @@
 """Test midnight rollover."""
 
-from datetime import UTC, datetime as dt
+from datetime import datetime as dt
 import logging
 
 from freezegun.api import FrozenDateTimeFactory

@@ -1,7 +1,7 @@
 """Tests setup for Solcast Solar integration."""
 
 import copy
-from datetime import datetime as dt, timedelta
+from datetime import UTC, datetime as dt, timedelta
 from enum import Enum
 import logging
 from pathlib import Path
@@ -157,6 +157,12 @@ MOCK_SESSION_CONFIG: dict[str, Any] = {
     MOCK_FORBIDDEN: False,
     MOCK_NOT_FOUND: False,
     MOCK_OVER_LIMIT: False,
+}
+
+entity_history = {
+    "days_export": 1,
+    "days_generation": 7,
+    "offset": 3,
 }
 
 
@@ -328,14 +334,11 @@ async def async_setup_extra_sensors(  # noqa: C901
             _uom = "MJ"
         case _:
             _uom = "kWh"
-    _DAYS_EXPORT = 1
-    _DAYS_GENERATION = 7
-    _OFFSET = 3
 
     adjustment = {"kWh": 1.0, "MWh": 1000.0, "Wh": 0.001, "MJ": 1.0, "": 1.0}
+    entity_registry = er.async_get(hass)
 
     if extra_sensors != ExtraSensors.YES_NO_UNIT:
-        entity_registry = er.async_get(hass)
         entity_registry.async_get_or_create(
             "sensor",
             "pytest",
@@ -350,7 +353,7 @@ async def async_setup_extra_sensors(  # noqa: C901
     increasing: float
 
     # Site export entity
-    now = (dt.now(ZoneInfo(ZONE_RAW)) - timedelta(days=_DAYS_EXPORT)).replace(hour=0, minute=0, second=0)
+    now = (dt.now(UTC) - timedelta(days=entity_history["days_export"])).replace(hour=14, minute=0, second=0)
     power = {}
     if extra_sensors == ExtraSensors.DODGY:
         for interval in range(48):
@@ -369,8 +372,8 @@ async def async_setup_extra_sensors(  # noqa: C901
     adjust = 0.0
     gap = False
     increase = True
-    with freeze_time(now + timedelta(days=_OFFSET), tz_offset=10) as frozen_time:
-        for interval in range(48 * _DAYS_EXPORT):
+    with freeze_time(now) as frozen_time:
+        for interval in range(48 * entity_history["days_export"]):
             i = interval % 48
             day = interval // 48
             if gen_bumps.get(i):
@@ -395,7 +398,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                             increase = True
                     else:
                         increasing += 0.1
-                    new_now = now + timedelta(days=_OFFSET) + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                    new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                     frozen_time.move_to(new_now)
                     if not gap:
                         if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
@@ -403,6 +406,8 @@ async def async_setup_extra_sensors(  # noqa: C901
                                 hass.states.set,
                                 entity_id,
                                 str(round(increasing / adjustment[_uom], 4)),
+                                None,
+                                True,
                             )
                         else:
                             await hass.async_add_executor_job(
@@ -410,12 +415,13 @@ async def async_setup_extra_sensors(  # noqa: C901
                                 entity_id,
                                 str(round(increasing / adjustment[_uom], 4)),
                                 {"unit_of_measurement": _uom},
+                                True,
                             )
                     else:
                         gap = False
 
     # Generation entities
-    now = (dt.now(ZoneInfo(ZONE_RAW)) - timedelta(days=_DAYS_GENERATION)).replace(hour=0, minute=0, second=0)
+    now = (dt.now(UTC) - timedelta(days=entity_history["days_generation"])).replace(hour=14, minute=0, second=0)
     site_generation: dict[str, float] = {}
     for api_key in options["api_key"].split(","):
         for site in API_KEY_SITES[api_key]["sites"]:
@@ -443,7 +449,6 @@ async def async_setup_extra_sensors(  # noqa: C901
         entity = "solar_export_sensor_" + site.replace("-", "_")
         entity_id = "sensor." + entity
 
-        entity_registry = er.async_get(hass)
         entity_registry.async_get_or_create(
             "sensor",
             "pytest",
@@ -457,8 +462,8 @@ async def async_setup_extra_sensors(  # noqa: C901
         adjust = 0.0
         gap = False
         increase = True
-        with freeze_time(now + timedelta(days=_OFFSET), tz_offset=10) as frozen_time:
-            for interval in range(48 * _DAYS_GENERATION):
+        with freeze_time(now + timedelta(days=entity_history["offset"])) as frozen_time:
+            for interval in range(48 * entity_history["days_generation"]):
                 i = interval % 48
                 day = interval // 48
                 if i == 0 and "2222" in entity_id:
@@ -486,7 +491,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                                 increase = True
                         else:
                             increasing += 0.1
-                        new_now = now + timedelta(days=_OFFSET) + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                        new_now = now + timedelta(days=entity_history["offset"]) + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                         frozen_time.move_to(new_now)
                         if not gap:
                             if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
@@ -507,6 +512,18 @@ async def async_setup_extra_sensors(  # noqa: C901
                                 )
                         else:
                             gap = False
+
+    # Surplus day energy sensor to be cleaned up.
+    entity_registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "solcast_solar_forecast_day_20",
+        config_entry=entry,
+        translation_key="total_kwh_forecast_d20",
+        suggested_object_id="solcast_solar_forecast_day_20",
+        unit_of_measurement="kWh",
+        original_device_class="energy",
+    )
 
 
 async def async_init_integration(

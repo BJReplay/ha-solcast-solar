@@ -40,12 +40,17 @@ from . import (
     ExtraSensors,
     async_cleanup_integration_tests,
     async_init_integration,
+    entity_history,
     session_clear,
     session_set,
 )
 
 ZONE = ZoneInfo(ZONE_RAW)
 NOW = dt.now(ZONE)
+
+entity_history["days_export"] = 1
+entity_history["days_generation"] = 2
+entity_history["offset"] = 0
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -172,7 +177,7 @@ async def test_auto_dampen(
         options = copy.deepcopy(DEFAULT_INPUT2)
         options[AUTO_UPDATE] = 1
         options[GET_ACTUALS] = True
-        options[USE_ACTUALS] = True
+        options[USE_ACTUALS] = 1
         options[AUTO_DAMPEN] = True
         options[EXCLUDE_SITES] = ["3333-3333-3333-3333"]
         options[GENERATION_ENTITIES] = [
@@ -262,8 +267,8 @@ async def test_auto_dampen(
         await _wait_for_it(hass, caplog, freezer, "Update estimated actuals failed: No valid json returned", long_time=True)
         session_clear(MOCK_CORRUPT_ACTUALS)
         for _ in range(300):  # Extra time needed for get_generation to complete
-            await hass.async_block_till_done()
             freezer.tick(0.1)
+            await hass.async_block_till_done()
 
         # Cause an actual build exception
         _LOGGER.debug("Causing an actual build exception")
@@ -293,8 +298,8 @@ async def test_auto_dampen(
         await hass.async_block_till_done()
         assert "Options updated, action: The integration will reload" in caplog.text
         for _ in range(300):  # Extra time needed for reload to complete
-            await hass.async_block_till_done()
             freezer.tick(0.1)
+            await hass.async_block_till_done()
 
     finally:
         session_clear(MOCK_CORRUPT_ACTUALS)
@@ -321,7 +326,7 @@ async def test_auto_dampen_issues(
     try:
         options = copy.deepcopy(DEFAULT_INPUT2)
         options[GET_ACTUALS] = True
-        options[USE_ACTUALS] = True
+        options[USE_ACTUALS] = 2
         options[AUTO_DAMPEN] = True
         options[EXCLUDE_SITES] = ["3333-3333-3333-3333"]
         options[GENERATION_ENTITIES] = [
@@ -332,9 +337,12 @@ async def test_auto_dampen_issues(
         options[SITE_EXPORT_LIMIT] = 5.0
         if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
             options[GENERATION_ENTITIES][0] = "sensor.not_valid"
-        # if extra_sensors == ExtraSensors.DODGY:
-        #    options[SITE_EXPORT_ENTITY] = "sensor.not_valid"
+        if extra_sensors == ExtraSensors.DODGY:
+            options[SITE_EXPORT_ENTITY] = "sensor.not_valid"
         entry = await async_init_integration(hass, options, extra_sensors=extra_sensors)
+
+        # An orphaned forecast day sensor is created along with the extra sensors
+        assert "Cleaning up orphaned sensor.solcast_solar_forecast_day_20" in caplog.text
 
         entity_registry = er.async_get(hass)
         if extra_sensors == ExtraSensors.YES_NO_UNIT:
@@ -346,7 +354,7 @@ async def test_auto_dampen_issues(
             entity_registry.async_update_entity(e.entity_id, disabled_by=RegistryEntryDisabler.USER)  # type: ignore[reportOptionalMemberAccess]
             await hass.async_block_till_done()
 
-        # Reload to load saved data and prime initial generation, in this case with bad generation data
+        # Reload to load saved data and prime initial generation
         caplog.clear()
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
@@ -355,12 +363,11 @@ async def test_auto_dampen_issues(
         # Assert good start, that actuals and generation are enabled, and that the caches are saved
         _LOGGER.debug("Testing good start happened")
         for _ in range(30):  # Extra time needed for reload to complete
-            await hass.async_block_till_done()
             freezer.tick(0.1)
+            await hass.async_block_till_done()
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
         _no_exception(caplog)
 
-        # assert "has an unsupported unit_of_measurement 'MJ'" in caplog.text  # A dodgy unit should be logged
         match extra_sensors:
             case ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
                 assert "has no unit_of_measurement, assuming kWh" not in caplog.text
@@ -370,8 +377,8 @@ async def test_auto_dampen_issues(
                 assert "has no unit_of_measurement, assuming kWh" in caplog.text
                 assert f"Generation entity {options[GENERATION_ENTITIES][0]} is disabled, please enable it" in caplog.text
             case ExtraSensors.DODGY:
-                # assert f"Site export entity {options[SITE_EXPORT_ENTITY]} is not a valid entity" in caplog.text
                 assert "has an unsupported unit_of_measurement 'MJ'" in caplog.text  # A dodgy unit should be logged
+                assert f"Site export entity {options[SITE_EXPORT_ENTITY]} is not a valid entity" in caplog.text
                 assert "Interval 11:00 max generation:" not in caplog.text  # A jump in generation should not be seen as a peak
                 assert "Interval 13:00 has peak" not in caplog.text  # Dodgy generation should prevent interval consideration
                 assert "Auto-dampen factor for 10:00 is 0.940" in caplog.text  # A valid interval still considered

@@ -1657,6 +1657,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         }
         return {k: v for k, v in result.items() if v is not None}
 
+    def is_dst(self, interval: dict[str, Any]) -> bool | None:
+        """Return whether an interval is daylight savings time."""
+        return (interval["period_start"].astimezone(self._tz).dst() == timedelta(hours=1)) if interval["period_start"] is not None else None
+
     def get_day_start_utc(self, future: int = 0) -> dt:
         """Datetime helper.
 
@@ -2405,17 +2409,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Very large units of measurement are not supported (e.g. GWh, TWh) because of precision loss.
         """
 
+        _EXCESSIVE_FACTOR = 5
         start_time = time.time()
 
         # Load the generation history.
-        generation = {generated["period_start"]: generated for generated in self._data_generation["generation"]}
+        generation: dict[dt, dict[str, Any]] = {generated["period_start"]: generated for generated in self._data_generation["generation"]}
         days = 1 if len(generation) > 0 else 7
 
         entity_registry = er.async_get(self.hass)
 
         for day in range(days):
             # PV generation
-            generation_intervals: list[float] = [0.0] * 48
+            generation_intervals: dict[dt, float] = {
+                self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1) + timedelta(minutes=minute): 0
+                for minute in range(0, 1440, 30)
+            }
             for entity in self.options.generation_entities:
                 r_entity = entity_registry.async_get(entity)
                 if r_entity is None:
@@ -2436,9 +2444,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                     # Get the conversion factor for the entity to convert to kWh.
                     conversion_factor = self.__get_conversion_factor(entity, entity_history[entity], is_export=False)
-                    # Arrange the generation samples into half-hour intervals (essentially what will be coming for the interval).
-                    sample_time: list[int] = [
-                        e.last_updated.astimezone(self.options.tz).hour * 2 + e.last_updated.astimezone(self.options.tz).minute // 30
+                    # Arrange the generation samples into half-hour intervals.
+                    sample_time: list[dt] = [
+                        e.last_updated.astimezone(datetime.UTC).replace(
+                            minute=e.last_updated.astimezone(datetime.UTC).minute // 30 * 30, second=0, microsecond=0
+                        )
                         for e in entity_history[entity]
                         if e.state.replace(".", "").isnumeric()
                     ]
@@ -2447,85 +2457,89 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         0.0,
                         *diff([float(e.state) * conversion_factor for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
                     ]
-                    # Build generation values for each minute, ignoring any excessive jumps.
+                    # Build generation values for each interval, ignoring any excessive jumps.
                     non_zero_generation = sorted([kWh for kWh in sample_generation if kWh > 0])
                     typical_gen = find_percentile(non_zero_generation, 90)
                     _LOGGER.debug("Typical generation jump: %.3f kWh", typical_gen)
-                    for minute, kWh in zip(sample_time, sample_generation, strict=True):
-                        if kWh <= typical_gen * 2:  # Ignore excessive jumps.
-                            generation_intervals[minute] += kWh
+                    for interval, kWh in zip(sample_time, sample_generation, strict=True):
+                        if kWh <= typical_gen * _EXCESSIVE_FACTOR:  # Ignore excessive jumps.
+                            generation_intervals[interval] += kWh
                         else:
                             _LOGGER.debug(
-                                "Ignoring excessive PV generation jump of %.3f kWh at %s from entity: %s",
+                                "Ignoring excessive PV generation jump of %.3f kWh in interval %s from entity: %s",
                                 kWh,
-                                (self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1) + timedelta(minutes=30 * minute))
-                                .astimezone(self.options.tz)
-                                .strftime("%Y-%m-%d %H:%M"),
+                                interval.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
                                 entity,
                             )
                 else:
                     _LOGGER.debug("No day %d PV generation data from entity: %s (%s)", -1 + day * -1, entity, entity_history.get(entity))
-            # Intervals are kWh per half hour
-            for i, _ in enumerate(generation_intervals):
-                generation_intervals[i] = round(generation_intervals[i], 3)
-
-            export_limiting: list[bool] = [False] * 48
+            for i, gen in generation_intervals.items():
+                generation_intervals[i] = round(gen, 3)
 
             # Detect site export limiting
-            entity = self.options.site_export_entity
-            r_entity = entity_registry.async_get(entity)
-            if r_entity is None:
-                _LOGGER.error("Site export entity %s is not a valid entity", entity)
-                entity = ""
-            elif r_entity.disabled_by is not None:
-                _LOGGER.error("Site export entity %s is disabled, please enable it", entity)
-                entity = ""
-            if entity != "":
-                export_intervals = [0.0] * 24 * 6
-                entity_history = await get_instance(self.hass).async_add_executor_job(
-                    state_changes_during_period,
-                    self.hass,
-                    self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1),
-                    self.get_day_start_utc(future=(-1 * day)),
-                    entity,
-                )
-                if entity_history.get(entity) and len(entity_history[entity]):
-                    # Get the conversion factor for the entity to convert to kWh.
-                    conversion_factor = self.__get_conversion_factor(entity, entity_history[entity], is_export=False)
-                    # Arrange the site export samples into ten-minute intervals.
-                    sample_time = [
-                        (e.last_updated.astimezone(self.options.tz)).hour * 6 + (e.last_updated.astimezone(self.options.tz)).minute // 10
-                        for e in entity_history[entity]
-                        if e.state.replace(".", "").isnumeric()
-                    ]
-                    # Build a list of export delta values.
-                    sample_export: list[float] = [
-                        0.0,
-                        *diff([float(e.state) * conversion_factor for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
-                    ]
-                    for minute, kWh in zip(sample_time, sample_export, strict=True):
-                        export_intervals[minute] += kWh
-                    # Convert to export per ten minute interval in kW.
-                    for i, _ in enumerate(export_intervals):
-                        export_intervals[i] = round(export_intervals[i] * 6, 3)
+            export_limiting: dict[dt, bool] = {
+                self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1) + timedelta(minutes=minute): False
+                for minute in range(0, 1440, 30)
+            }
 
-                    for i, interval in enumerate(export_intervals):
-                        export_interval = i // 3
-                        if (
-                            self.options.site_export_limit > 0
-                            and interval >= self.options.site_export_limit
-                            and generation_intervals[export_interval] > 0
-                        ):
-                            export_limiting[export_interval] = True
+            if self.options.site_export_limit > 0 and self.options.site_export_entity != "":
+                _INTERVAL = 5
+
+                entity = self.options.site_export_entity
+                r_entity = entity_registry.async_get(entity)
+                if r_entity is None:
+                    _LOGGER.error("Site export entity %s is not a valid entity", entity)
+                    entity = ""
+                elif r_entity.disabled_by is not None:
+                    _LOGGER.error("Site export entity %s is disabled, please enable it", entity)
+                    entity = ""
+                export_intervals: dict[dt, float] = {
+                    self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1) + timedelta(minutes=minute): 0
+                    for minute in range(0, 1440, _INTERVAL)
+                }
+                if entity:
+                    entity_history = await get_instance(self.hass).async_add_executor_job(
+                        state_changes_during_period,
+                        self.hass,
+                        self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1),
+                        self.get_day_start_utc(future=(-1 * day)),
+                        entity,
+                    )
+                    if entity_history.get(entity) and len(entity_history[entity]):
+                        # Get the conversion factor for the entity to convert to kWh.
+                        conversion_factor = self.__get_conversion_factor(entity, entity_history[entity], is_export=False)
+                        # Arrange the site export samples into intervals.
+                        sample_time: list[dt] = [
+                            e.last_updated.astimezone(datetime.UTC).replace(
+                                minute=e.last_updated.astimezone(datetime.UTC).minute // _INTERVAL * _INTERVAL, second=0, microsecond=0
+                            )
+                            for e in entity_history[entity]
+                            if e.state.replace(".", "").isnumeric()
+                        ]
+                        # Build a list of export delta values.
+                        sample_export: list[float] = [
+                            0.0,
+                            *diff(
+                                [float(e.state) * conversion_factor for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]
+                            ),
+                        ]
+                        for interval, kWh in zip(sample_time, sample_export, strict=True):
+                            export_intervals[interval] += kWh
+                        # Convert to export per interval in kW.
+                        for i, export in export_intervals.items():
+                            export_intervals[i] = round(export * (60 / _INTERVAL), 3)
+
+                        for i, export in export_intervals.items():
+                            export_interval = i.replace(minute=i.minute // 30 * 30)
+                            if export >= self.options.site_export_limit and generation_intervals[export_interval] > 0:
+                                export_limiting[export_interval] = True
+                    else:
+                        _LOGGER.debug("No site export history found for %s", entity)
 
             # Add recent generation intervals to the history.
             generation |= {
-                self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1) + timedelta(minutes=30 * i): {
-                    "period_start": self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1) + timedelta(minutes=30 * i),
-                    "generation": generation_intervals[i],
-                    "export_limiting": export_limiting[i] if entity != "" else False,
-                }
-                for i in range(48)
+                i: {"period_start": i, "generation": generation, "export_limiting": export_limiting[i]}
+                for i, generation in generation_intervals.items()
             }
 
         # Trim, sort and serialise.
@@ -2542,10 +2556,29 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         await self.serialise_data(self._data_generation, self._filename_generation)
         _LOGGER.debug("Task get_pv_generation took %.3f seconds", time.time() - start_time)
 
+    def adjusted_interval(self, interval: dict[str, Any]) -> int:
+        """Adjust a forecast/actual interval as standard time."""
+        offset = 1 if self.is_dst(interval) else 0
+        return (
+            ((interval["period_start"].astimezone(self._tz).hour - offset) * 2 + interval["period_start"].astimezone(self._tz).minute // 30)
+            if interval["period_start"].astimezone(self._tz).hour - offset >= 0
+            else 0
+        )
+
+    def adjusted_interval_dt(self, interval: dt) -> int:
+        """Adjust a datetime as standard time."""
+        offset = 1 if interval.dst() == timedelta(hours=1) else 0
+        return (
+            ((interval.astimezone(self._tz).hour - offset) * 2 + interval.astimezone(self._tz).minute // 30)
+            if interval.astimezone(self._tz).hour - offset >= 0
+            else 0
+        )
+
     async def model_automated_dampening(self, force: bool = False) -> None:
         """Model the automated dampening of the forecast data.
 
         Look for consistently low PV generation in consistently high estimated actual intervals.
+        Dampening factors are always referenced using standard time (not daylight savings time).
         """
         if not self.options.auto_dampen and not force:
             _LOGGER.debug("Automated dampening is not enabled, skipping model_automated_dampening()")
@@ -2554,11 +2587,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         start_time = time.time()
 
         export_limited_intervals = dict.fromkeys(range(48), False)
-        for generation in self._data_generation["generation"]:
-            if generation["export_limiting"]:
-                export_limited_intervals[
-                    generation["period_start"].astimezone(self._tz).hour * 2 + generation["period_start"].astimezone(self._tz).minute // 30
-                ] = True
+        for gen in self._data_generation["generation"]:
+            if gen["export_limiting"]:
+                export_limited_intervals[self.adjusted_interval(gen)] = True
+        generation: dict[dt, float] = {}
+        for gen in self._data_generation["generation"]:
+            if not export_limited_intervals[self.adjusted_interval(gen)]:
+                generation[gen["period_start"]] = gen["generation"]
+        """
         generation = {
             generation["period_start"]: generation["generation"]
             for generation in self._data_generation["generation"]
@@ -2566,6 +2602,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 generation["period_start"].astimezone(self._tz).hour * 2 + generation["period_start"].astimezone(self._tz).minute // 30
             ]
         }
+        """
 
         actuals: OrderedDict[dt, float] = OrderedDict()
         for site in self.sites:
@@ -2601,27 +2638,28 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         # Collect top intervals from the past fourteen days.
         self._peak_intervals = dict.fromkeys(range(48), 0.0)
         for period_start, actual in actuals.items():
-            interval = period_start.astimezone(self._tz).hour * 2 + period_start.astimezone(self._tz).minute // 30
+            interval = self.adjusted_interval_dt(period_start)
             if self._peak_intervals[interval] < actual:
                 self._peak_intervals[interval] = round(actual, 3)
 
         # Collect intervals that are close to the peak.
         matching_intervals: dict[int, list[dt]] = {i: [] for i in range(48)}
         for period_start, actual in actuals.items():
-            interval = period_start.astimezone(self._tz).hour * 2 + period_start.astimezone(self._tz).minute // 30
+            interval = self.adjusted_interval_dt(period_start)
             if actual > 0.90 * self._peak_intervals[interval]:
-                matching_intervals[interval].append(period_start.astimezone(self._tz))
+                matching_intervals[interval].append(period_start)
 
         # Defaults.
         dampening: list[float] = [1.0] * 48
         noise = 0.95
 
         # Check the generation for each interval and determine if it is consistently lower than the peak.
+        _LOGGER.debug("Automated dampening intervals are always standard time, never daylight time")
         for interval, matching in matching_intervals.items():
             generation_samples: list[float] = [
                 generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
             ]
-            if len(matching) > 0 and len(generation_samples) > 0 and len(generation_samples) > len(matching) / 2:
+            if len(matching) > 0 and len(generation_samples) > 0:  # and len(generation_samples) > len(matching) / 2:
                 peak = max(generation_samples)
                 interval_time = f"{interval // 2:02}:{30 * (interval % 2):02}"
                 _LOGGER.debug(
@@ -2629,11 +2667,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     interval_time,
                     self._peak_intervals[interval],
                     len(matching),
-                    ", ".join([dt.strftime(DATE_MONTH_DAY) for dt in matching]),
+                    ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
                 )
                 _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
                 if peak < self._peak_intervals[interval]:
-                    factor = peak / self._peak_intervals[interval] if self._peak_intervals[interval] != 0 else 0.0
+                    factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 0.0
                     if factor < noise:
                         _LOGGER.debug("Auto-dampen factor for %s is %.3f", interval_time, factor)
                         dampening[interval] = round(factor, 3)
@@ -2651,6 +2689,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         status: DataCallStatus = DataCallStatus.SUCCESS
         reason: str = ""
+
+        start_time = time.time()
 
         for site in self.sites:
             _LOGGER.info("Getting estimated actuals update for site %s", site["resource_id"])
@@ -2767,6 +2807,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             self._data_actuals_dampened["last_updated"] = dt.now(datetime.UTC).replace(microsecond=0)
             self._data_actuals_dampened["last_attempt"] = dt.now(datetime.UTC).replace(microsecond=0)
             await self.serialise_data(self._data_actuals_dampened, self._filename_actuals_dampened)
+
+        _LOGGER.debug("Task update_estimated_actuals took %.3f seconds", time.time() - start_time)
 
     async def get_forecast_update(self, do_past_hours: int = 0, force: bool = False) -> str:
         """Request forecast data for all sites.
@@ -2944,7 +2986,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             else ((period_start.hour * 2) + (1 if period_start.minute > 0 else 0))
         ]
         if site == "all" and self.options.auto_dampen and self.granular_dampening.get("all"):
-            interval = period_start.astimezone(self._tz).hour * 2 + period_start.astimezone(self._tz).minute // 30
+            interval = self.adjusted_interval_dt(period_start)
             factor = self.granular_dampening["all"][interval]
             if self._peak_intervals[interval] > 0 and interval_pv50 > 0 and factor < 1.0:
                 # Adjust the factor based on forecast vs. peak interval logarithmically.
@@ -3885,13 +3927,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         summer_time_transitioning = False
         interval_assessment: dict[datetime.date, Any] = {}
 
-        def is_dst(interval: dict[str, Any]) -> bool | None:
-            return (
-                (interval["period_start"].astimezone(self._tz).dst() == timedelta(hours=1))
-                if interval["period_start"] is not None
-                else None
-            )
-
         # The latest period is used to determine whether any history should be updated on stale start.
         self.latest_period = self._data_forecasts[-1]["period_start"] if len(self._data_forecasts) > 0 else None
 
@@ -3904,9 +3939,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _is_dst: bool | None = None
             for interval in range(start_index, end_index):
                 if interval == start_index:
-                    _is_dst = is_dst(self._data_forecasts[interval])
+                    _is_dst = self.is_dst(self._data_forecasts[interval])
                 else:
-                    is_daylight = is_dst(self._data_forecasts[interval])
+                    is_daylight = self.is_dst(self._data_forecasts[interval])
                     if is_daylight is not None and is_daylight != _is_dst:
                         summer_time_transitioning = True
                         expected_intervals = 50 if _is_dst else 46

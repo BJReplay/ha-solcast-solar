@@ -316,7 +316,7 @@ async def async_setup_entry(
             entities.append(sen)
         expecting_limits = [f"hard_limit_{api_key[-6:]}" for api_key in coordinator.solcast.options.api_key.split(",")]
 
-    # Clean up. Will only occur here once for any install, as operational cleanup is done when the entry options or constants are changed.
+    # Clean up.
     entity_registry = er.async_get(hass)
     for entity in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
         # Clean up orphaned hard limit sensors.
