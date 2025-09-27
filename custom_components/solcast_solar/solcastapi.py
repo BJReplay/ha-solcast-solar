@@ -2586,6 +2586,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         start_time = time.time()
 
+        if dt.now(self._tz).dst() == timedelta(hours=1):
+            logged_offset = 1
+        else:
+            logged_offset = 0
+
         export_limited_intervals = dict.fromkeys(range(48), False)
         for gen in self._data_generation["generation"]:
             if gen["export_limiting"]:
@@ -2645,14 +2650,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         noise = 0.95
 
         # Check the generation for each interval and determine if it is consistently lower than the peak.
-        _LOGGER.debug("Automated dampening intervals are always standard time, never daylight time")
         for interval, matching in matching_intervals.items():
             generation_samples: list[float] = [
                 generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
             ]
             if len(matching) > 0 and len(generation_samples) > 0:  # and len(generation_samples) > len(matching) / 2:
                 peak = max(generation_samples)
-                interval_time = f"{interval // 2:02}:{30 * (interval % 2):02}"
+                interval_time = f"{interval // 2 + logged_offset:02}:{30 * (interval % 2):02}"
                 _LOGGER.debug(
                     "Interval %s has peak estimated actual %.3f and %d matching intervals: %s",
                     interval_time,

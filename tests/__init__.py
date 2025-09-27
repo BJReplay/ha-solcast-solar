@@ -398,7 +398,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                             increase = True
                     else:
                         increasing += 0.1
-                    new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                    new_now = now - timedelta(hours=off) + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                     frozen_time.move_to(new_now)
                     with freeze_time(new_now, tz_offset=0) as frozen_time:
                         if not gap:
