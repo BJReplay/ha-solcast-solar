@@ -24,7 +24,13 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import ATTRIBUTION, DOMAIN, MANUFACTURER, SENSOR_UPDATE_LOGGING
+from .const import (
+    ATTRIBUTION,
+    DOMAIN,
+    FORECAST_DAY_SENSORS,
+    MANUFACTURER,
+    SENSOR_UPDATE_LOGGING,
+)
 from .coordinator import SolcastUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -179,66 +185,6 @@ SENSORS: dict[str, dict[str, Any]] = {
             state_class=SensorStateClass.MEASUREMENT,
         )
     },
-    "total_kwh_forecast_d3": {
-        "description": SensorEntityDescription(
-            key="total_kwh_forecast_d3",
-            device_class=SensorDeviceClass.ENERGY,
-            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-            translation_key="total_kwh_forecast_d3",
-            name="Forecast D3",
-            suggested_display_precision=2,
-            state_class=SensorStateClass.TOTAL,
-        ),
-        "enabled_by_default": False,
-    },
-    "total_kwh_forecast_d4": {
-        "description": SensorEntityDescription(
-            key="total_kwh_forecast_d4",
-            device_class=SensorDeviceClass.ENERGY,
-            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-            translation_key="total_kwh_forecast_d4",
-            name="Forecast D4",
-            suggested_display_precision=2,
-            state_class=SensorStateClass.TOTAL,
-        ),
-        "enabled_by_default": False,
-    },
-    "total_kwh_forecast_d5": {
-        "description": SensorEntityDescription(
-            key="total_kwh_forecast_d5",
-            device_class=SensorDeviceClass.ENERGY,
-            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-            translation_key="total_kwh_forecast_d5",
-            name="Forecast D5",
-            suggested_display_precision=2,
-            state_class=SensorStateClass.TOTAL,
-        ),
-        "enabled_by_default": False,
-    },
-    "total_kwh_forecast_d6": {
-        "description": SensorEntityDescription(
-            key="total_kwh_forecast_d6",
-            device_class=SensorDeviceClass.ENERGY,
-            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-            translation_key="total_kwh_forecast_d6",
-            name="Forecast D6",
-            suggested_display_precision=2,
-            state_class=SensorStateClass.TOTAL,
-        ),
-        "enabled_by_default": False,
-    },
-    "total_kwh_forecast_d7": {
-        "description": SensorEntityDescription(
-            key="total_kwh_forecast_d7",
-            device_class=SensorDeviceClass.ENERGY,
-            native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-            translation_key="total_kwh_forecast_d7",
-            name="Forecast D7",
-            suggested_display_precision=2,
-            state_class=SensorStateClass.TOTAL,
-        ),
-        "enabled_by_default": False,
-    },
     "total_kwh_forecast_today": {
         "description": SensorEntityDescription(
             key="total_kwh_forecast_today",
@@ -322,6 +268,24 @@ async def async_setup_entry(
             sensor,
         )
         entities.append(sen)
+    for forecast_day in range(3, FORECAST_DAY_SENSORS):
+        sen = SolcastSensor(
+            coordinator,
+            entry,
+            {
+                "description": SensorEntityDescription(
+                    key=f"total_kwh_forecast_d{forecast_day}",
+                    device_class=SensorDeviceClass.ENERGY,
+                    native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+                    translation_key=f"total_kwh_forecast_d{forecast_day}",
+                    name=f"Forecast D{forecast_day}",
+                    suggested_display_precision=2,
+                    state_class=SensorStateClass.TOTAL,
+                ),
+                "enabled_by_default": False,
+            },
+        )
+        entities.append(sen)
 
     hard_limits = coordinator.solcast.options.hard_limit.split(",")
     if len(hard_limits) == 1:
@@ -351,14 +315,25 @@ async def async_setup_entry(
             sen = SolcastSensor(coordinator, entry, k)
             entities.append(sen)
         expecting_limits = [f"hard_limit_{api_key[-6:]}" for api_key in coordinator.solcast.options.api_key.split(",")]
-    # Clean up any orphaned hard limit sensors.
-    # Clean up should only occur here once for any install, as operational cleanup is done when the entry options are changed.
+
+    # Clean up.
     entity_registry = er.async_get(hass)
     for entity in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
+        # Clean up orphaned hard limit sensors.
         if "hard_limit" in entity.unique_id and entity.unique_id not in expecting_limits:
             entity_registry.async_remove(entity.entity_id)
             _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
 
+        # Clean up any orphaned day sensors.
+        if entity.translation_key is not None:
+            if (
+                entity.translation_key.startswith("total_kwh_forecast_d")
+                and int(entity.unique_id.split("_")[-1].split("d")[-1]) > FORECAST_DAY_SENSORS - 1
+            ):
+                entity_registry.async_remove(entity.entity_id)
+                _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
+
+    # Site sensors
     for site in coordinator.get_solcast_sites():
         k = {
             "description": SensorEntityDescription(

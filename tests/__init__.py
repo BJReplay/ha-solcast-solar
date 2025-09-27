@@ -1,7 +1,7 @@
 """Tests setup for Solcast Solar integration."""
 
 import copy
-from datetime import datetime as dt, timedelta
+from datetime import UTC, datetime as dt, timedelta
 from enum import Enum
 import logging
 from pathlib import Path
@@ -159,6 +159,12 @@ MOCK_SESSION_CONFIG: dict[str, Any] = {
     MOCK_OVER_LIMIT: False,
 }
 
+entity_history = {
+    "days_export": 1,
+    "days_generation": 7,
+    "offset": 3,
+}
+
 
 class ExtraSensors(Enum):
     """The state of the Solcast API."""
@@ -313,7 +319,7 @@ async def async_setup_aioresponses() -> None:
 
 @pytest.mark.asyncio
 async def async_setup_extra_sensors(  # noqa: C901
-    hass: HomeAssistant, options: dict[str, Any], entry: MockConfigEntry, extra_sensors: ExtraSensors
+    hass: HomeAssistant, options: dict[str, Any], entry: MockConfigEntry, extra_sensors: ExtraSensors, off: int = 0
 ) -> None:
     """Set up extra sensors for testing."""
 
@@ -328,19 +334,17 @@ async def async_setup_extra_sensors(  # noqa: C901
             _uom = "MJ"
         case _:
             _uom = "kWh"
-    _DAYS_EXPORT = 1
-    _DAYS_GENERATION = 4
 
     adjustment = {"kWh": 1.0, "MWh": 1000.0, "Wh": 0.001, "MJ": 1.0, "": 1.0}
+    entity_registry = er.async_get(hass)
 
     if extra_sensors != ExtraSensors.YES_NO_UNIT:
-        entity_registry = er.async_get(hass)
         entity_registry.async_get_or_create(
             "sensor",
-            DOMAIN,
-            "solcast_solar_site_export_sensor",
+            "pytest",
+            "site_export_sensor",
             config_entry=entry,
-            suggested_object_id="solcast_solar_site_export_sensor",
+            suggested_object_id="site_export_sensor",
             unit_of_measurement=_uom,
         )
 
@@ -349,7 +353,7 @@ async def async_setup_extra_sensors(  # noqa: C901
     increasing: float
 
     # Site export entity
-    now = (dt.now(ZoneInfo(ZONE_RAW)) - timedelta(days=_DAYS_EXPORT)).replace(hour=0, minute=0, second=0)
+    now = (dt.now(UTC) - timedelta(days=entity_history["days_export"])).replace(hour=14, minute=0, second=0)
     power = {}
     if extra_sensors == ExtraSensors.DODGY:
         for interval in range(48):
@@ -363,13 +367,13 @@ async def async_setup_extra_sensors(  # noqa: C901
         if bumps > 0:
             bump_seconds = int(1800 / bumps)
             gen_bumps[i] = list(range(0, 1800, bump_seconds))
-    entity_id = "sensor.solcast_solar_site_export_sensor"
+    entity_id = "sensor.site_export_sensor"
     increasing = 0.0
     adjust = 0.0
     gap = False
     increase = True
-    with freeze_time(now, tz_offset=10) as frozen_time:
-        for interval in range(48 * _DAYS_EXPORT):
+    with freeze_time(now, tz_offset=0) as frozen_time:
+        for interval in range(48 * entity_history["days_export"]):
             i = interval % 48
             day = interval // 48
             if gen_bumps.get(i):
@@ -394,27 +398,31 @@ async def async_setup_extra_sensors(  # noqa: C901
                             increase = True
                     else:
                         increasing += 0.1
-                    new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                    new_now = now - timedelta(hours=off) + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                     frozen_time.move_to(new_now)
-                    if not gap:
-                        if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-                            await hass.async_add_executor_job(
-                                hass.states.set,
-                                entity_id,
-                                str(round(increasing / adjustment[_uom], 4)),
-                            )
+                    with freeze_time(new_now, tz_offset=0) as frozen_time:
+                        if not gap:
+                            if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+                                await hass.async_add_executor_job(
+                                    hass.states.set,
+                                    entity_id,
+                                    str(round(increasing / adjustment[_uom], 4)),
+                                    None,
+                                    True,
+                                )
+                            else:
+                                await hass.async_add_executor_job(
+                                    hass.states.set,
+                                    entity_id,
+                                    str(round(increasing / adjustment[_uom], 4)),
+                                    {"unit_of_measurement": _uom},
+                                    True,
+                                )
                         else:
-                            await hass.async_add_executor_job(
-                                hass.states.set,
-                                entity_id,
-                                str(round(increasing / adjustment[_uom], 4)),
-                                {"unit_of_measurement": _uom},
-                            )
-                    else:
-                        gap = False
+                            gap = False
 
     # Generation entities
-    now = (dt.now(ZoneInfo(ZONE_RAW)) - timedelta(days=_DAYS_GENERATION)).replace(hour=0, minute=0, second=0)
+    now = (dt.now(UTC) - timedelta(days=entity_history["days_generation"])).replace(hour=14, minute=0, second=0)
     site_generation: dict[str, float] = {}
     for api_key in options["api_key"].split(","):
         for site in API_KEY_SITES[api_key]["sites"]:
@@ -439,14 +447,24 @@ async def async_setup_extra_sensors(  # noqa: C901
             if bumps > 0:
                 bump_seconds = int(1800 / bumps)
                 gen_bumps[i] = list(range(0, 1800, bump_seconds))
-        entity_id = "sensor.solcast_solar_solar_export_sensor_" + site.replace("-", "_")
+        entity = "solar_export_sensor_" + site.replace("-", "_")
+        entity_id = "sensor." + entity
+
+        entity_registry.async_get_or_create(
+            "sensor",
+            "pytest",
+            entity,
+            config_entry=entry,
+            suggested_object_id=entity,
+            unit_of_measurement=_uom,
+        )
 
         increasing = 0.0
         adjust = 0.0
         gap = False
         increase = True
-        with freeze_time(now, tz_offset=10) as frozen_time:
-            for interval in range(48 * _DAYS_GENERATION):
+        with freeze_time(now + timedelta(days=entity_history["offset"]), tz_offset=0) as frozen_time:
+            for interval in range(48 * entity_history["days_generation"]):
                 i = interval % 48
                 day = interval // 48
                 if i == 0 and "2222" in entity_id:
@@ -474,18 +492,44 @@ async def async_setup_extra_sensors(  # noqa: C901
                                 increase = True
                         else:
                             increasing += 0.1
-                        new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
-                        frozen_time.move_to(new_now)
-                        if not gap:
-                            await hass.async_add_executor_job(
-                                hass.states.set,
-                                entity_id,
-                                str(round(increasing / adjustment[_uom], 4)),
-                                {"unit_of_measurement": _uom},
-                                True,
-                            )
-                        else:
-                            gap = False
+                        new_now = (
+                            now
+                            + timedelta(days=entity_history["offset"])
+                            - timedelta(hours=off)
+                            + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                        )
+                        with freeze_time(new_now, tz_offset=0) as frozen_time:
+                            if not gap:
+                                if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+                                    await hass.async_add_executor_job(
+                                        hass.states.set,
+                                        entity_id,
+                                        str(round(increasing / adjustment[_uom], 4)),
+                                        None,
+                                        True,
+                                    )
+                                else:
+                                    await hass.async_add_executor_job(
+                                        hass.states.set,
+                                        entity_id,
+                                        str(round(increasing / adjustment[_uom], 4)),
+                                        {"unit_of_measurement": _uom},
+                                        True,
+                                    )
+                            else:
+                                gap = False
+
+    # Surplus day energy sensor to be cleaned up.
+    entity_registry.async_get_or_create(
+        "sensor",
+        DOMAIN,
+        "solcast_solar_forecast_day_20",
+        config_entry=entry,
+        translation_key="total_kwh_forecast_d20",
+        suggested_object_id="solcast_solar_forecast_day_20",
+        unit_of_measurement="kWh",
+        original_device_class="energy",
+    )
 
 
 async def async_init_integration(
@@ -517,8 +561,12 @@ async def async_init_integration(
 
     entry.add_to_hass(hass)
 
+    if dt.now(tz=ZoneInfo(timezone)).dst() == timedelta(hours=1):
+        off = 1
+    else:
+        off = 0
     if extra_sensors is not ExtraSensors.NONE:
-        await async_setup_extra_sensors(hass, options, entry, extra_sensors=extra_sensors)
+        await async_setup_extra_sensors(hass, options, entry, extra_sensors=extra_sensors, off=off)
 
     if mock_api:
         await async_setup_aioresponses()

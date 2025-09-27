@@ -95,6 +95,18 @@
             "power_now_30m": {
                 "name": "Power in 30 Minutes"
             },
+            "total_kwh_forecast_d10": {
+                "name": "Forecast Day 10"
+            },
+            "total_kwh_forecast_d11": {
+                "name": "Forecast Day 11"
+            },
+            "total_kwh_forecast_d12": {
+                "name": "Forecast Day 12"
+            },
+            "total_kwh_forecast_d13": {
+                "name": "Forecast Day 13"
+            },
             "total_kwh_forecast_d3": {
                 "name": "Forecast Day 3"
             },
@@ -109,6 +121,12 @@
             },
             "total_kwh_forecast_d7": {
                 "name": "Forecast Day 7"
+            },
+            "total_kwh_forecast_d8": {
+                "name": "Forecast Day 8"
+            },
+            "total_kwh_forecast_d9": {
+                "name": "Forecast Day 9"
             },
             "total_kwh_forecast_today": {
                 "name": "Forecast Today"

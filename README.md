@@ -396,14 +396,14 @@ All sensor names are preceded by the integration name `Solcast PV Forecast`.
 | ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | 
 | `Forecast Today` | number | Y | `kWh` | Total forecast solar production for today. |
 | `Forecast Tomorrow` | number | Y | `kWh` | Total forecast solar production for day + 1 (tomorrow). |
-| `Forecast Day 3` | number | Y | `kWh` | Total forecast solar production for day + 2 (day 3). |
-| `Forecast Day 4` | number | Y | `kWh` | Total forecast solar production for day + 3 (day 4). |
-| `Forecast Day 5` | number | Y | `kWh` | Total forecast solar production for day + 4 (day 5). |
-| `Forecast Day 6` | number | Y | `kWh`| Total forecast solar production for day + 5 (day 6). |
-| `Forecast Day 7` | number | Y | `kWh` | Total forecast solar production for day + 6 (day 7). |
+| `Forecast Day 3` | number | Y | `kWh` | Total forecast solar production for day + 2 (day 3, disabled by default). |
+| `Forecast Day 4` | number | Y | `kWh` | Total forecast solar production for day + 3 (day 4, disabled by default). |
+| `Forecast Day 5` | number | Y | `kWh` | Total forecast solar production for day + 4 (day 5, disabled by default). |
+| `Forecast Day 6` | number | Y | `kWh`| Total forecast solar production for day + 5 (day 6, disabled by default). |
+| `Forecast Day 7` | number | Y | `kWh` | Total forecast solar production for day + 6 (day 7, disabled by default). |
 | `Forecast This Hour` | number | Y | `Wh` | Forecasted solar production current hour (attributes contain site breakdown). |
 | `Forecast Next Hour` | number | Y | `Wh` | Forecasted solar production next hour (attributes contain site breakdown). |
-| `Forecast Next X Hours` | number | Y | `Wh` | Custom user defined forecasted solar production for next X hours<br>Note: This forecast starts at current time, it is not aligned on the hour like "This hour", "Next Hour". |
+| `Forecast Next X Hours` | number | Y | `Wh` | Custom user defined forecasted solar production for next X hours, disabled by default<br>Note: This forecast starts at current time, it is not aligned on the hour like "This hour", "Next Hour". |
 | `Forecast Remaining Today` | number | Y | `kWh` | Predicted remaining solar production today. |
 | `Peak Forecast Today` | number | Y | `W` | Highest predicted production within an hour period today (attributes contain site breakdown). |
 | `Peak Time Today` | date/time | Y |  | Hour of max forecasted production of solar today (attributes contain site breakdown). |
@@ -649,6 +649,18 @@ Automated dampening is dynamic, and utilises up to fourteen 'rolling' days of ge
 
 Automated dampening will apply the same dampening factors to all rooftop sites, based on total location generation and Solcast data.
 
+> [!NOTE]
+>
+> Automated dampening may not work for you, especially because of the way that your generation entities report energy, or if you are on a wholesale energy market plan where prices can go negative so you limit site export at those times.
+>
+> This integrated automated dampening feature will suit many people, but it is not a panacea.
+>
+> **Be warned**: THINK, INVESTIGATE, and **then** REPORT any issues with automated dampening, IN THAT ORDER. It may look like a "tick and flick" option in the configuration, but this is not.
+>
+> If you think and investigate, and spot something that could be improved for everybody, then report it please. If you raise an issue without showing your working - demonstrating that you have thought, investigated, and then reported for that issue - your issue may be closed quickly with little or no support.
+>
+> If you investigate and find that an issue is because your hand-built generation entity is not like anyone elses, then please, roll your own dampening solution. The component parts are available for you to do so by utilising granular dampening.
+
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
 
 The theory of operation is simple, relying on two key inputs, and an optional third.
@@ -671,11 +683,11 @@ Aside from forecasts, the Solcast service also estimates the likely past actual 
 
 Getting estimated actual data does require an API call, and that API call will use up API quota for a hobbyist user. You will need to factor API call consumption for this purpose when taking advantage of automated dampening, with one call used per configured Solcast rooftop site per day per API key. (Reduce the API limit for forecast updates in options by one for a single rooftop site, or by two for two sites.)
 
-Past estimated actual data is acquired at or around 00:20 each day (local time), with new factors for the day ahead modelled at 00:50.
+Past estimated actual data is acquired just after midnight each day local time, randomised to update within 15 minutes. Where automated dampening is enabled, new dampening factors for the day ahead are modelled immediately after the estimated actual update. It is also possible to force an update of the estimated actuals, and this will also attempt to model dampening factors if appropriate.
 
 > [!TIP]
 >
-> If your aim is to obtain as many forecast updates during the day as possible, then automated dampening is not for you. It will reduce the number of forecast updates possible.
+> If your aim is to obtain as many forecast updates during the day as possible, then using estimated actuals and automated dampening is not for you. It will reduce the number of forecast updates possible.
 
 ##### Key input: Actual PV generation for your site
 
@@ -683,7 +695,7 @@ Generation is gathered from history data of a sensor entity (or entities). A sin
 
 An increasing energy sensor (or sensors) must be supplied. This increasing sensor may reset at midnight, or may be a "total increasing" type; of importance is that it is increasing throughout the day.
 
-The integration determines the units by inspecting the `unit_of_measurement` attribute and adjusts accordingly. Where this attribute is not set it assumes values are kWh.
+The integration determines the units by inspecting the `unit_of_measurement` attribute and adjusts accordingly. Where this attribute is not set it assumes values are kWh. Generation history updates occur at midnight local time.
 
 > [!NOTE]
 >
@@ -1164,9 +1176,20 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 ## Changes
 
+v4.4.3
+
+* Randomised actuals fetch then immediate auto-dampen modelling by @autoSteve
+* Exclude disabled auto-dampen entities from selection by @autoSteve
+* Auto-dampen, exclude export-limited intervals from all days by @autoSteve
+* Fix: Update TEMPLATES.md damping factors chart by @jaymunro
+* Fix: Update TEMPLATES.md typo in sensor name by @gcoan
+* Minimum HA version 2025.3
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.2...v4.4.3
+
 v4.4.2
 
-*  Auto-dampen, accommodate periodically updating generation entities (Envoy) by @autoSteve
+* Auto-dampen, accommodate periodically updating generation entities (Envoy) by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.1...v4.4.2
 

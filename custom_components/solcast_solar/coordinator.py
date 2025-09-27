@@ -8,6 +8,7 @@ from datetime import UTC, datetime as dt, timedelta
 from enum import Enum
 import logging
 from pathlib import Path
+from random import randint
 from typing import Any
 
 from watchdog.events import (
@@ -31,21 +32,19 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.sun import get_astral_event_next
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import DATE_FORMAT, DOMAIN, GET_ACTUALS, SITE_DAMP, TIME_FORMAT
+from .const import (
+    DATE_FORMAT,
+    DOMAIN,
+    FORECAST_DAY_SENSORS,
+    GET_ACTUALS,
+    SITE_DAMP,
+    TIME_FORMAT,
+)
 from .solcastapi import SolcastApi
 from .util import AutoUpdate
 
 _LOGGER = logging.getLogger(__name__)
 
-DAYS = [
-    "total_kwh_forecast_today",
-    "total_kwh_forecast_tomorrow",
-    "total_kwh_forecast_d3",
-    "total_kwh_forecast_d4",
-    "total_kwh_forecast_d5",
-    "total_kwh_forecast_d6",
-    "total_kwh_forecast_d7",
-]
 NO_ATTRIBUTES = ["api_counter", "api_limit", "dampen", "lastupdated"]
 
 
@@ -92,8 +91,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._sunset: dt
         self._sunset_tomorrow: dt
         self._sunset_yesterday: dt
-        self._update_actuals: bool = False
-        self._update_auto_dampen: bool = False
         self._update_sequence: list[int] = []
 
         # First list item is the sensor value method, additional items are only used for sensor attributes.
@@ -114,12 +111,15 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             "lastupdated": [{"method": self.solcast.get_last_updated}],
             "dampen": [{"method": self.solcast.get_dampen}],
         }
+        days = ["total_kwh_forecast_today", "total_kwh_forecast_tomorrow"] + [
+            f"total_kwh_forecast_d{r}" for r in range(3, FORECAST_DAY_SENSORS)
+        ]
         self.__get_value |= {
             day: [
                 {"method": self.solcast.get_total_energy_forecast_day, "value": ahead},
                 {"method": self.solcast.get_forecast_day, "value": ahead},
             ]
-            for ahead, day in enumerate(DAYS)
+            for ahead, day in enumerate(days)
         }
 
         super().__init__(
@@ -253,7 +253,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         self.set_data_updated(False)
                 if self.dampening_event_received == DampeningEvent.DELETE:
                     _LOGGER.debug("Granular dampening file deleted, no longer monitoring %s for changes", self._damp_file)
-                    self.granular_dampening = {}
+                    self.solcast.granular_dampening = {}
                     entry = self.solcast.entry
                     opt = self.solcast.entry_options
                     opt[SITE_DAMP] = False  # Clear "hidden" option.
@@ -285,21 +285,19 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             await self.__update_midnight_spline_recalculate()
             self.__auto_update_setup()
 
-            if self.solcast.options.generation_entities:
+            if self.solcast.options.auto_dampen and self.solcast.options.generation_entities:
                 await self.solcast.get_pv_generation()
 
             if self.solcast.options.get_actuals:
-                self._update_actuals = True
-
-            if self.solcast.options.auto_dampen:
-                self._update_auto_dampen = True
-
-        if self._update_actuals and called_at is not None and called_at.minute == 20:
-            self._update_actuals = False
-            await self.service_event_force_update_estimates()
-        if self._update_auto_dampen and called_at is not None and called_at.minute == 50:
-            self._update_auto_dampen = False
-            await self.solcast.model_automated_dampening()
+                update_at = dt.now(UTC) + timedelta(minutes=randint(1, 14), seconds=randint(0, 59))
+                _LOGGER.debug(
+                    "Scheduling estimated actuals update at %s", update_at.astimezone(self.solcast.options.tz).strftime(TIME_FORMAT)
+                )
+                self.tasks["new_day_actuals"] = async_track_point_in_utc_time(
+                    self.hass,
+                    self.__actuals,
+                    update_at,
+                )
 
         self.async_update_listeners()
 
@@ -322,6 +320,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             self.solcast.set_next_update(
                 next_update.strftime(TIME_FORMAT) if next_update.date() == dt.now().date() else next_update.strftime(DATE_FORMAT)
             )
+
+    async def __actuals(self, _: dt | None = None) -> None:
+        _LOGGER.info("Update estimated actuals")
+        await self.__update_estimated_actuals_history(new_day=True, dampen_yesterday=True)
 
     async def __fetch(self, _: dt | None = None) -> None:
         if len(self._update_sequence) > 0:
@@ -376,13 +378,20 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         await self.solcast.check_data_records()
         await self.solcast.recalculate_splines()
 
-    async def __update_estimated_actuals_history(self) -> None:
+    async def __update_estimated_actuals_history(self, new_day: bool = False, dampen_yesterday: bool = False) -> None:
         """Update estimated actuals using the API."""
         _LOGGER.debug("Started task actuals")
-        await self.solcast.update_estimated_actuals()
+        await self.solcast.update_estimated_actuals(dampen_yesterday=dampen_yesterday)
         await self.solcast.build_actual_data()
         _LOGGER.debug("Completed task actuals")
-        self.tasks.pop("actuals", None)
+        task = "actuals" if not new_day else "new_day_actuals"
+        if task in self.tasks:
+            self.tasks.pop(task, None)
+
+        if self.solcast.options.auto_dampen:
+            await self.solcast.model_automated_dampening()
+            await self.solcast.apply_forward_dampening()
+            await self.solcast.build_forecast_data()
 
     def __auto_update_setup(self, init: bool = False) -> None:
         """Set up of auto-updates."""

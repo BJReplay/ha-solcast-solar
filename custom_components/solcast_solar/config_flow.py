@@ -551,7 +551,14 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
 
         entity_registry = er.async_get(self.hass)
         sensors: list[SelectOptionDict] = [SelectOptionDict(label="not_loaded", value="")]
-        sensors = [SelectOptionDict(label=entry, value=entry) for entry in entity_registry.entities if entry.startswith("sensor.")]
+        sensors = [
+            SelectOptionDict(label=entry, value=entry)
+            for entry, details in entity_registry.entities.items()
+            if details.domain == "sensor"
+            and "solcast_pv_forecast" not in entry
+            and details.disabled_by is None
+            and (details.device_class == "energy" or details.original_device_class == "energy")
+        ]
 
         if self._options.get(SITE_EXPORT_ENTITY, "") != "":
             site_export_default = [self._options[SITE_EXPORT_ENTITY]]

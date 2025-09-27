@@ -107,6 +107,24 @@
             "total_kwh_forecast_d7": {
                 "name": "دن 7 کی پیشن گوئی"
             },
+            "total_kwh_forecast_d8": {
+                "name": "دن 8 کی پیشن گوئی"
+            },
+            "total_kwh_forecast_d9": {
+                "name": "دن 9 کی پیشن گوئی"
+            },
+            "total_kwh_forecast_d10": {
+                "name": "دن 10 کی پیشن گوئی"
+            },
+            "total_kwh_forecast_d11": {
+                "name": "دن 11 کی پیشن گوئی"
+            },
+            "total_kwh_forecast_d12": {
+                "name": "دن 12 کی پیشن گوئی"
+            },
+            "total_kwh_forecast_d13": {
+                "name": "دن 13 کی پیشن گوئی"
+            },
             "power_now": {
                 "name": "ابھی پاور"
             },
