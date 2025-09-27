@@ -2594,15 +2594,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for gen in self._data_generation["generation"]:
             if not export_limited_intervals[self.adjusted_interval(gen)]:
                 generation[gen["period_start"]] = gen["generation"]
-        """
-        generation = {
-            generation["period_start"]: generation["generation"]
-            for generation in self._data_generation["generation"]
-            if not export_limited_intervals[
-                generation["period_start"].astimezone(self._tz).hour * 2 + generation["period_start"].astimezone(self._tz).minute // 30
-            ]
-        }
-        """
 
         actuals: OrderedDict[dt, float] = OrderedDict()
         for site in self.sites:
@@ -2994,7 +2985,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 factor = max(factor, min(1, factor + ((1 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50)))))
                 if record_adjustment and period_start.astimezone(self._tz).date() == dt.now(self._tz).date():
                     _LOGGER.debug(
-                        "Granular dampening factor for %s is %.3f (was %.3f, peak %.3f, interval pv50 %.3f)",
+                        "Adjusted granular dampening factor for %s is %.3f (was %.3f, peak %.3f, interval pv50 %.3f)",
                         period_start.astimezone(self._tz).strftime(DATE_FORMAT),
                         factor,
                         factor_pre_adjustment,
