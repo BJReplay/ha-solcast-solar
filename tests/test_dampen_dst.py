@@ -90,7 +90,7 @@ async def test_auto_dampen_dst_transition(
 
         freezer.move_to("2025-10-03 14:00:00")
         caplog.clear()
-        for _ in range(24000):
+        for _ in range(60000):
             freezer.tick(0.1)
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:
@@ -101,7 +101,7 @@ async def test_auto_dampen_dst_transition(
 
         freezer.move_to("2025-10-04 14:00:00")
         caplog.clear()
-        for _ in range(24000):
+        for _ in range(60000):
             freezer.tick(0.1)
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:
@@ -152,18 +152,18 @@ async def test_auto_dampen_dst_transition_back(
 
         freezer.move_to("2026-04-03 14:00:00")
         caplog.clear()
-        for _ in range(24000):
+        for _ in range(60000):
             freezer.tick(0.1)
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:
                 break
-        # assert "Adjusted granular dampening factor for 2026-04-04 10:00:00 is 0.804" in caplog.text
+        assert "Adjusted granular dampening factor for 2026-04-04 10:00:00 is 0.804" in caplog.text
 
         await midnight_utc("2026-04-04 00:00:00")
 
         freezer.move_to("2026-04-04 14:00:00")
         caplog.clear()
-        for _ in range(24000):
+        for _ in range(60000):
             freezer.tick(0.1)
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:

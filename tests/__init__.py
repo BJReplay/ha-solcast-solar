@@ -319,7 +319,7 @@ async def async_setup_aioresponses() -> None:
 
 @pytest.mark.asyncio
 async def async_setup_extra_sensors(  # noqa: C901
-    hass: HomeAssistant, options: dict[str, Any], entry: MockConfigEntry, extra_sensors: ExtraSensors
+    hass: HomeAssistant, options: dict[str, Any], entry: MockConfigEntry, extra_sensors: ExtraSensors, off: int = 0
 ) -> None:
     """Set up extra sensors for testing."""
 
@@ -372,7 +372,7 @@ async def async_setup_extra_sensors(  # noqa: C901
     adjust = 0.0
     gap = False
     increase = True
-    with freeze_time(now) as frozen_time:
+    with freeze_time(now, tz_offset=0) as frozen_time:
         for interval in range(48 * entity_history["days_export"]):
             i = interval % 48
             day = interval // 48
@@ -400,25 +400,26 @@ async def async_setup_extra_sensors(  # noqa: C901
                         increasing += 0.1
                     new_now = now + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                     frozen_time.move_to(new_now)
-                    if not gap:
-                        if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-                            await hass.async_add_executor_job(
-                                hass.states.set,
-                                entity_id,
-                                str(round(increasing / adjustment[_uom], 4)),
-                                None,
-                                True,
-                            )
+                    with freeze_time(new_now, tz_offset=0) as frozen_time:
+                        if not gap:
+                            if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+                                await hass.async_add_executor_job(
+                                    hass.states.set,
+                                    entity_id,
+                                    str(round(increasing / adjustment[_uom], 4)),
+                                    None,
+                                    True,
+                                )
+                            else:
+                                await hass.async_add_executor_job(
+                                    hass.states.set,
+                                    entity_id,
+                                    str(round(increasing / adjustment[_uom], 4)),
+                                    {"unit_of_measurement": _uom},
+                                    True,
+                                )
                         else:
-                            await hass.async_add_executor_job(
-                                hass.states.set,
-                                entity_id,
-                                str(round(increasing / adjustment[_uom], 4)),
-                                {"unit_of_measurement": _uom},
-                                True,
-                            )
-                    else:
-                        gap = False
+                            gap = False
 
     # Generation entities
     now = (dt.now(UTC) - timedelta(days=entity_history["days_generation"])).replace(hour=14, minute=0, second=0)
@@ -462,7 +463,7 @@ async def async_setup_extra_sensors(  # noqa: C901
         adjust = 0.0
         gap = False
         increase = True
-        with freeze_time(now + timedelta(days=entity_history["offset"])) as frozen_time:
+        with freeze_time(now + timedelta(days=entity_history["offset"]), tz_offset=0) as frozen_time:
             for interval in range(48 * entity_history["days_generation"]):
                 i = interval % 48
                 day = interval // 48
@@ -491,27 +492,32 @@ async def async_setup_extra_sensors(  # noqa: C901
                                 increase = True
                         else:
                             increasing += 0.1
-                        new_now = now + timedelta(days=entity_history["offset"]) + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
-                        frozen_time.move_to(new_now)
-                        if not gap:
-                            if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-                                await hass.async_add_executor_job(
-                                    hass.states.set,
-                                    entity_id,
-                                    str(round(increasing / adjustment[_uom], 4)),
-                                    None,
-                                    True,
-                                )
+                        new_now = (
+                            now
+                            + timedelta(days=entity_history["offset"])
+                            - timedelta(hours=off)
+                            + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                        )
+                        with freeze_time(new_now, tz_offset=0) as frozen_time:
+                            if not gap:
+                                if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+                                    await hass.async_add_executor_job(
+                                        hass.states.set,
+                                        entity_id,
+                                        str(round(increasing / adjustment[_uom], 4)),
+                                        None,
+                                        True,
+                                    )
+                                else:
+                                    await hass.async_add_executor_job(
+                                        hass.states.set,
+                                        entity_id,
+                                        str(round(increasing / adjustment[_uom], 4)),
+                                        {"unit_of_measurement": _uom},
+                                        True,
+                                    )
                             else:
-                                await hass.async_add_executor_job(
-                                    hass.states.set,
-                                    entity_id,
-                                    str(round(increasing / adjustment[_uom], 4)),
-                                    {"unit_of_measurement": _uom},
-                                    True,
-                                )
-                        else:
-                            gap = False
+                                gap = False
 
     # Surplus day energy sensor to be cleaned up.
     entity_registry.async_get_or_create(
@@ -555,8 +561,12 @@ async def async_init_integration(
 
     entry.add_to_hass(hass)
 
+    if dt.now(tz=ZoneInfo(timezone)).dst() == timedelta(hours=1):
+        off = 1
+    else:
+        off = 0
     if extra_sensors is not ExtraSensors.NONE:
-        await async_setup_extra_sensors(hass, options, entry, extra_sensors=extra_sensors)
+        await async_setup_extra_sensors(hass, options, entry, extra_sensors=extra_sensors, off=off)
 
     if mock_api:
         await async_setup_aioresponses()
