@@ -26,7 +26,7 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
 > This integration can be used as a replacement for the aging oziee/ha-solcast-solar integration, which is no longer being developed and has been removed. Uninstalling the Oziee version then installing this one, or simply downloading this one over that one will preserve all history and configuration. If you **uninstalled** the Oziee integration, and then installed this one, then you will need to re-select to use Solcast Solar as the source of forecast production for your Energy dashboard.
 
 # Table of contents
-1. [Key Solcast concepts](#key-solcast-concepts)
+1. [Key Solcast integration concepts](#key-solcast-integration-concepts)
 1. [Solcast requirements](#solcast-requirements)
 1. [Installation](#installation)
     1. [HACS recommended](#hacs-recommended)
@@ -61,13 +61,13 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
 1. [Complete integration removal](#complete-integration-removal)
 1. [Changes](#Changes)
 
-## Key Solcast concepts
+## Key Solcast integration concepts
 
-Solcast will produce a forecast of solar PV generation from today through to seven days into the future. Each of these day forecasts are exposed by the integration as a separate sensor, with the value being the total predicted solar generation for each day.
+The Solcast service produces a forecast of solar PV generation from today through to the end of up to thirteen days into the future. This is a total of up to fourteen days. The first seven of these day forecasts are exposed by the integration as a separate sensor, with the value being the total predicted solar generation for each day. Further forecasted days are not exposed by sensors, yet can be visualised on the Energy dashboard.
 
 Separate sensors are also available that contain the expected peak generation power, peak generation time, and various forecasts of next hour, 30 minutes, and more.
 
-If multiple arrays exist on different roof orientations, these can be configured in your Solcast account as separate 'sites' with differing azimuth, tilt and peak generation, to a maximum of two sites for a free hobbyist account. These separate site forecasts are combined to form the integration sensor values and Energy dashboard forecast data.
+If multiple arrays exist on different roof orientations, these can be configured in your Solcast account as separate 'rooftop sites' with differing azimuth, tilt and peak generation, to a maximum of two sites for a free hobbyist account. These separate site forecasts are combined to form the integration sensor values and Energy dashboard forecast data.
 
 Three solar generation estimates are produced by Solcast for every half hour period of all forecasted days.
 
@@ -77,11 +77,11 @@ Three solar generation estimates are produced by Solcast for every half hour per
 
 The detail of these different forecast estimates can be found in sensor attributes, which contain both 30-minute daily intervals, and calculated hourly intervals across the day. Separate attributes sum the available estimates or break things down by Solcast site. (This integration usually references a Solcast site by by its 'site resource ID', and this can be found at the Solcast site https://toolkit.solcast.com.au/)
 
-The Energy dashboard in Home Assistant is populated with historical data that is provided by the integration, with data retained for up to two years. (Forecast history is not stored as Home Assistant statistics, rather is stored in a `json` cache file maintained by the integration.)
+The Energy dashboard in Home Assistant is populated with historical data that is provided by the integration, with data retained for up to two years. (Forecast history is not stored as Home Assistant statistics, rather is stored in a `json` cache file maintained by the integration.) History displayed can be past forecasts, or "estimated actual" data, selectable as a configuration option.
 
 Manipulation of forecasted values to account for predicable shading at times of the day is possible automatically, or by setting dampening factors for hourly or half-hourly periods. A "hard limit" may also be set for over-sized solar arrays where expected generation cannot exceed an inverter maximum rating. These two mechanisms are the only ways to manipulate the Solcast forecast data.
 
-Solcast also produce historical "estimated actual" data. This is generally more accurate than a forecast because high resolution satellite imagery, weather and other climate observations (like water vapour and smog) are used to calculate the estimates. The integration automated dampening feature makes use of estimated actual data and compares it to generation history.
+Solcast also produce historical estimated actual data. This is generally more accurate than a forecast because high resolution satellite imagery, weather and other climate observations (like water vapour and smog) are used to calculate the estimates. The integration automated dampening feature can make use of estimated actual data and compare it to generation history to provide a model of reduced forecasted generation to account for local shading. Estimated actual data can also be visualised on the Energy dashboard, whether automated dampening is used or not.
 
 > [!NOTE]
 >
