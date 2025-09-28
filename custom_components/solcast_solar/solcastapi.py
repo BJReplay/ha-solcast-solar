@@ -2409,7 +2409,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Very large units of measurement are not supported (e.g. GWh, TWh) because of precision loss.
         """
 
-        _EXCESSIVE_FACTOR = 5
+        _EXCESSIVE_FACTOR = 3
         start_time = time.time()
 
         # Load the generation history.
