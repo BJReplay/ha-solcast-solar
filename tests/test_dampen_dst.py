@@ -1,7 +1,8 @@
 """Tests for the Solcast Solar automated dampening."""
 
+import asyncio
 import copy
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 import logging
 from zoneinfo import ZoneInfo
 
@@ -20,6 +21,7 @@ from homeassistant.components.solcast_solar.const import (
     USE_ACTUALS,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from . import (
     DEFAULT_INPUT2,
@@ -50,6 +52,24 @@ def frozen_time() -> None:
     return
 
 
+async def midnight_utc(hass: HomeAssistant, freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture, at: str):
+    """Set the time to midnight UTC."""
+    freezer.move_to(at)
+    for _ in range(600):
+        freezer.tick(0.1)
+        await hass.async_block_till_done()
+        if "Updating sensor Third Site" in caplog.text:
+            break
+
+
+async def five_minute_bump(hass: HomeAssistant, freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture):
+    """Set the time to the next five-minute point."""
+    freezer.move_to(dt.now().replace(minute=dt.now().minute // 5 * 5, second=0, microsecond=0) + timedelta(minutes=5))
+    while "Updating sensor Dampening" not in caplog.text:
+        freezer.tick(0.01)
+        await hass.async_block_till_done()
+
+
 async def test_auto_dampen_dst_transition(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -77,16 +97,15 @@ async def test_auto_dampen_dst_transition(
 
         await async_init_integration(hass, options, timezone="Australia/Sydney", extra_sensors=ExtraSensors.YES_WATT_HOUR)
 
-        async def midnight_utc(at: str):
-            freezer.move_to(at)
-            caplog.clear()
-            for _ in range(600):
-                freezer.tick(0.1)
+        # Enable the dampening entity
+        dampening_entity = "sensor.solcast_pv_forecast_dampening"
+        er.async_get(hass).async_update_entity(dampening_entity, disabled_by=None)
+        async with asyncio.timeout(300):
+            while "Reloading configuration entries because disabled_by changed" not in caplog.text:
+                freezer.tick(0.01)
                 await hass.async_block_till_done()
-                if "Updating sensor Third Site" in caplog.text:
-                    break
 
-        await midnight_utc("2025-10-03 00:00:00")
+        await midnight_utc(hass, freezer, caplog, "2025-10-03 00:00:00")
 
         freezer.move_to("2025-10-03 14:00:00")
         caplog.clear()
@@ -96,8 +115,20 @@ async def test_auto_dampen_dst_transition(
             if "Applying future dampening" in caplog.text:
                 break
         assert "Adjusted granular dampening factor for 2025-10-04 09:00:00 is 0.804" in caplog.text
+        assert "Auto-dampen factor for 09:00 is 0.804" in caplog.text
+        caplog.clear()
+        await five_minute_bump(hass, freezer, caplog)
+        if (state := hass.states.get(dampening_entity)) is not None:
+            assert state.state == "True"
+            if (attribute := state.attributes.get("factors")) is not None:
+                assert len(attribute) == 48
+                assert attribute[18]["factor"] == 0.804
+            else:
+                pytest.fail("Dampening attribute `factors` is None")
+        else:
+            pytest.fail("Dampening entity state is None")
 
-        await midnight_utc("2025-10-04 00:00:00")
+        await midnight_utc(hass, freezer, caplog, "2025-10-04 00:00:00")
 
         freezer.move_to("2025-10-04 14:00:00")
         caplog.clear()
@@ -106,7 +137,32 @@ async def test_auto_dampen_dst_transition(
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:
                 break
+        assert "Auto-dampen factor for 10:00 is 0.804" in caplog.text
         assert "Adjusted granular dampening factor for 2025-10-05 10:00:00 is 0.804" in caplog.text
+        caplog.clear()
+        await five_minute_bump(hass, freezer, caplog)
+        if (state := hass.states.get(dampening_entity)) is not None:
+            assert state.state == "True"
+            if (attribute := state.attributes.get("factors")) is not None:
+                assert len(attribute) == 48
+                assert attribute[20]["factor"] == 0.804
+            else:
+                pytest.fail("Dampening attribute `factors` is None")
+        else:
+            pytest.fail("Dampening entity state is None")
+
+        freezer.move_to("2025-10-04 16:00:00")
+        caplog.clear()
+        await hass.async_block_till_done()
+        if (state := hass.states.get(dampening_entity)) is not None:
+            assert state.state == "True"
+            if (attribute := state.attributes.get("factors")) is not None:
+                assert len(attribute) == 48
+                assert attribute[20]["factor"] == 0.804
+            else:
+                pytest.fail("Dampening attribute `factors` is None")
+        else:
+            pytest.fail("Dampening entity state is None")
 
     finally:
         assert await async_cleanup_integration_tests(hass)
@@ -139,16 +195,15 @@ async def test_auto_dampen_dst_transition_back(
 
         await async_init_integration(hass, options, timezone="Australia/Sydney", extra_sensors=ExtraSensors.YES_WATT_HOUR)
 
-        async def midnight_utc(at: str):
-            freezer.move_to(at)
-            caplog.clear()
-            for _ in range(600):
-                freezer.tick(0.1)
+        # Enable the dampening entity
+        dampening_entity = "sensor.solcast_pv_forecast_dampening"
+        er.async_get(hass).async_update_entity(dampening_entity, disabled_by=None)
+        async with asyncio.timeout(300):
+            while "Reloading configuration entries because disabled_by changed" not in caplog.text:
+                freezer.tick(0.01)
                 await hass.async_block_till_done()
-                if "Updating sensor Third Site" in caplog.text:
-                    break
 
-        await midnight_utc("2026-04-03 00:00:00")
+        await midnight_utc(hass, freezer, caplog, "2026-04-03 00:00:00")
 
         freezer.move_to("2026-04-03 14:00:00")
         caplog.clear()
@@ -158,8 +213,19 @@ async def test_auto_dampen_dst_transition_back(
             if "Applying future dampening" in caplog.text:
                 break
         assert "Adjusted granular dampening factor for 2026-04-04 10:00:00 is 0.804" in caplog.text
+        caplog.clear()
+        await five_minute_bump(hass, freezer, caplog)
+        if (state := hass.states.get(dampening_entity)) is not None:
+            assert state.state == "True"
+            if (attribute := state.attributes.get("factors")) is not None:
+                assert len(attribute) == 48
+                assert attribute[20]["factor"] == 0.804
+            else:
+                pytest.fail("Dampening attribute `factors` is None")
+        else:
+            pytest.fail("Dampening entity state is None")
 
-        await midnight_utc("2026-04-04 00:00:00")
+        await midnight_utc(hass, freezer, caplog, "2026-04-04 00:00:00")
 
         freezer.move_to("2026-04-04 14:00:00")
         caplog.clear()
@@ -169,6 +235,30 @@ async def test_auto_dampen_dst_transition_back(
             if "Applying future dampening" in caplog.text:
                 break
         assert "Adjusted granular dampening factor for 2026-04-05 09:00:00 is 0.804" in caplog.text
+        caplog.clear()
+        await five_minute_bump(hass, freezer, caplog)
+        if (state := hass.states.get(dampening_entity)) is not None:
+            assert state.state == "True"
+            if (attribute := state.attributes.get("factors")) is not None:
+                assert len(attribute) == 48
+                assert attribute[18]["factor"] == 0.804
+            else:
+                pytest.fail("Dampening attribute `factors` is None")
+        else:
+            pytest.fail("Dampening entity state is None")
+
+        freezer.move_to("2026-04-04 16:00:00")
+        caplog.clear()
+        await hass.async_block_till_done()
+        if (state := hass.states.get(dampening_entity)) is not None:
+            assert state.state == "True"
+            if (attribute := state.attributes.get("factors")) is not None:
+                assert len(attribute) == 48
+                assert attribute[18]["factor"] == 0.804
+            else:
+                pytest.fail("Dampening attribute `factors` is None")
+        else:
+            pytest.fail("Dampening entity state is None")
 
     finally:
         assert await async_cleanup_integration_tests(hass)

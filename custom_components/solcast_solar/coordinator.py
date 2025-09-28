@@ -7,6 +7,7 @@ import contextlib
 from datetime import UTC, datetime as dt, timedelta
 from enum import Enum
 import logging
+from operator import itemgetter
 from pathlib import Path
 from random import randint
 from typing import Any
@@ -718,13 +719,34 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 # Granular dampening
                 ret["integration_automated"] = self.solcast.options.auto_dampen
                 ret["last_updated"] = dt.fromtimestamp(self.solcast.granular_dampening_mtime).replace(microsecond=0).astimezone(UTC)
-                ret["factors"] = [
-                    {
-                        "interval": f"{i // 2:02d}:{i % 2 * 30:02d}",
-                        "factor": f,
-                    }
-                    for i, f in enumerate(self.solcast.granular_dampening.get("all", []))
-                ]
+                if self.solcast.options.auto_dampen:
+                    factors: dict[str, dict[str, Any]] = {}
+                    dst = False
+                    for i, f in enumerate(self.solcast.granular_dampening.get("all", [])):
+                        dst = dt.now(self.solcast.options.tz).replace(
+                            hour=i // 2, minute=i % 2 * 30, second=0, microsecond=0
+                        ).dst() == timedelta(hours=1)
+                        interval = f"{i // 2 + (1 if dst else 0):02d}:{i % 2 * 30:02d}"
+                        factors[interval] = {
+                            "interval": interval,
+                            "factor": f,
+                        }
+                    for hour in ["00", "03"]:
+                        if factors.get(hour + ":00") is None:
+                            factors[hour + ":00"] = {"interval": hour + ":00", "factor": 1}
+                            factors[hour + ":30"] = {"interval": hour + ":30", "factor": 1}
+                    if factors.get("24:00"):
+                        factors.pop("24:00")
+                        factors.pop("24:30")
+                    ret["factors"] = sorted(factors.values(), key=itemgetter("interval"))
+                else:
+                    ret["factors"] = [
+                        {
+                            "interval": f"{i // 2:02d}:{i % 2 * 30:02d}",
+                            "factor": f,
+                        }
+                        for i, f in enumerate(self.solcast.granular_dampening.get("all", []))
+                    ]
             else:
                 ret["integration_automated"] = False
                 ret["last_updated"] = None

@@ -57,6 +57,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
 
 from . import (
@@ -133,7 +134,7 @@ def get_hour_start_utc() -> dt:
     return NOW.replace(hour=12, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
 
 
-def patch_solcast_api(solcast: SolcastApi):
+def patch_solcast_api(solcast: SolcastApi) -> SolcastApi:
     """Patch SolcastApi to return a fixed time.
 
     Cannot use freezegun with these tests because time must tick (the tick= option won't work).
@@ -270,6 +271,15 @@ async def _reload(hass: HomeAssistant, entry: ConfigEntry) -> tuple[SolcastUpdat
 def _no_exception(caplog: pytest.LogCaptureFixture):
     assert "Error" not in caplog.text
     assert "Exception" not in caplog.text
+
+
+async def five_minute_bump(hass: HomeAssistant, caplog: pytest.LogCaptureFixture):
+    """Move to a sensor update done."""
+    async with asyncio.timeout(1):
+        while "Updating sensor Dampening" not in caplog.text:
+            await asyncio.sleep(0.1)
+            await hass.async_block_till_done()
+    assert "Updating sensor Dampening" in caplog.text
 
 
 async def test_api_failure(
@@ -566,10 +576,22 @@ async def test_integration(
     assert entry.state is ConfigEntryState.LOADED
     assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
-    coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-    solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
+    # Enable the dampening entity
+    dampening_entity = "sensor.solcast_pv_forecast_dampening"
+    er.async_get(hass).async_update_entity(dampening_entity, disabled_by=None)
+    await hass.async_block_till_done()
+
+    coordinator: SolcastUpdateCoordinator | None
+    if (coordinator := entry.runtime_data.coordinator) is None:
+        pytest.fail("No coordinator")
+    solcast: SolcastApi | None = patch_solcast_api(coordinator.solcast)
     granular_dampening_file = Path(f"{config_dir}/solcast-dampening.json")
     assert granular_dampening_file.is_file() is False
+
+    coordinator, solcast = await _reload(hass, entry)
+    if coordinator is None or solcast is None:
+        pytest.fail("No coordinator or solcast")
+
     coordinator.set_next_update()
 
     try:
@@ -664,7 +686,7 @@ async def test_integration(
         _no_exception(caplog)
         session_clear(MOCK_OVER_LIMIT)
 
-        # Create a granular dampening file to be read on next update
+        # Create a granular dampening file to be read
         granular_dampening = (
             {"1111-1111-1111-1111": [0.8] * 48, "2222-2222-2222-2222": [0.9] * 48}
             if options == DEFAULT_INPUT1
@@ -693,6 +715,7 @@ async def test_integration(
             assert "must be 24 or 48 in" in caplog.text
             assert "Forecast update completed successfully" in caplog.text
         else:
+            await five_minute_bump(hass, caplog)
             assert "Granular dampening loaded" in caplog.text
             assert "Forecast update completed successfully" in caplog.text
             assert "contains all intervals" in caplog.text

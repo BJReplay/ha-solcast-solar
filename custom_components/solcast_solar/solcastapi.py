@@ -2586,11 +2586,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         start_time = time.time()
 
-        if dt.now(self._tz).dst() == timedelta(hours=1):
-            logged_offset = 1
-        else:
-            logged_offset = 0
-
         export_limited_intervals = dict.fromkeys(range(48), False)
         for gen in self._data_generation["generation"]:
             if gen["export_limiting"]:
@@ -2656,7 +2651,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             ]
             if len(matching) > 0 and len(generation_samples) > 0:  # and len(generation_samples) > len(matching) / 2:
                 peak = max(generation_samples)
-                interval_time = f"{interval // 2 + logged_offset:02}:{30 * (interval % 2):02}"
+
+                interval_time = f"{
+                    interval // 2
+                    + (
+                        1
+                        if dt.now(self._tz).replace(hour=interval // 2, minute=30 * (interval % 2), second=0, microsecond=0).dst()
+                        == timedelta(hours=1)
+                        else 0
+                    ):02}:{30 * (interval % 2):02}"
                 _LOGGER.debug(
                     "Interval %s has peak estimated actual %.3f and %d matching intervals: %s",
                     interval_time,
