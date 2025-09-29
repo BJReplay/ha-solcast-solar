@@ -907,12 +907,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         learn_more_url="https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#solcast-requirements",
                     )
                     break
-            if not any_unusual and issue_registry.async_get_issue(DOMAIN, "unusual_azimuth_northern") is not None:
-                _LOGGER.debug("Remove issue for %s", "unusual_azimuth_northern")
-                ir.async_delete_issue(self.hass, DOMAIN, "unusual_azimuth_northern")
-            if not any_unusual and issue_registry.async_get_issue(DOMAIN, "unusual_azimuth_southern") is not None:
-                _LOGGER.debug("Remove issue for %s", "unusual_azimuth_southern")
-                ir.async_delete_issue(self.hass, DOMAIN, "unusual_azimuth_southern")
+            for issue in ["unusual_azimuth_northern", "unusual_azimuth_southern"]:
+                if not any_unusual and issue_registry.async_get_issue(DOMAIN, issue) is not None:
+                    _LOGGER.debug("Remove issue for %s", issue)
+                    ir.async_delete_issue(self.hass, DOMAIN, issue)
 
         async def from_single_site_to_multi(api_keys: list[str]):
             """Transition from a single API key to multiple API keys."""
