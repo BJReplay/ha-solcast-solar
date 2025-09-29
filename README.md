@@ -1182,7 +1182,7 @@ v4.4.3
 * Exclude disabled auto-dampen entities from selection by @autoSteve
 * Auto-dampen, exclude export-limited intervals from all days by @autoSteve
 * Auto-dampen, daylight time transitions handled by @autoSteve
-* Fix: Update TEMPLATES.md damping factors chart by @jaymunro
+* Fix: Update TEMPLATES.md dampening factors chart by @jaymunro
 * Fix: Update TEMPLATES.md typo in sensor name by @gcoan
 * Minimum HA version 2025.3
 
