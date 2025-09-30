@@ -1176,6 +1176,12 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 ## Changes
 
+v4.4.4
+
+* Fix: Auto-dampen, daylight time adjusted interval by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.3...v4.4.4
+
 v4.4.3
 
 * Randomised actuals fetch then immediate auto-dampen modelling by @autoSteve

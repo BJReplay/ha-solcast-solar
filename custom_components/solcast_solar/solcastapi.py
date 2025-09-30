@@ -2565,7 +2565,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     def adjusted_interval_dt(self, interval: dt) -> int:
         """Adjust a datetime as standard time."""
-        offset = 1 if interval.dst() == timedelta(hours=1) else 0
+        offset = 1 if interval.astimezone(self._tz).dst() == timedelta(hours=1) else 0
         return (
             ((interval.astimezone(self._tz).hour - offset) * 2 + interval.astimezone(self._tz).minute // 30)
             if interval.astimezone(self._tz).hour - offset >= 0

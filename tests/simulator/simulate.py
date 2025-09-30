@@ -233,11 +233,7 @@ class SimulatedSolcast:
     def raw_get_site_estimated_actuals(
         self, site_id: str, api_key: str, hours: int, prefix: str = "pv_estimate", period_end: dt | None = None
     ) -> dict[str, list[dict[str, Any]]]:
-        """Return simulated estimated actials for a site.
-
-        The real Solcast API does not return values for estimate 10/90, but the simulator does.
-        This is to enable testing of the integration.
-        """
+        """Return simulated estimated actials for a site."""
 
         sites: list[dict[str, Any]] | int | None = API_KEY_SITES.get(api_key, {}).get("sites", [])
         site: dict[str, Any] | None = next((s for s in sites if s["resource_id"] == site_id), None) if isinstance(sites, list) else None
@@ -300,6 +296,12 @@ class SimulatedSolcast:
             (period_end + timedelta(minutes=minute * 30)).astimezone(self.timezone).hour * 2
             + (period_end + timedelta(minutes=minute * 30)).astimezone(self.timezone).minute / 30
         )
+        interval -= (
+            2
+            if ((period_end + timedelta(minutes=minute * 30)).astimezone(self.timezone).dst() == timedelta(hours=1) and interval > 1)
+            else 0
+        )
+
         return round(
             site_capacity * estimate * (GENERATION_FACTOR[interval] * 0.4 if modified and interval > 32 else GENERATION_FACTOR[interval]),
             4,
