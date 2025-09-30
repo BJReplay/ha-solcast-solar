@@ -233,7 +233,7 @@ class SimulatedSolcast:
     def raw_get_site_estimated_actuals(
         self, site_id: str, api_key: str, hours: int, prefix: str = "pv_estimate", period_end: dt | None = None
     ) -> dict[str, list[dict[str, Any]]]:
-        """Return simulated estimated actials for a site."""
+        """Return simulated estimated actuals for a site."""
 
         sites: list[dict[str, Any]] | int | None = API_KEY_SITES.get(api_key, {}).get("sites", [])
         site: dict[str, Any] | None = next((s for s in sites if s["resource_id"] == site_id), None) if isinstance(sites, list) else None
