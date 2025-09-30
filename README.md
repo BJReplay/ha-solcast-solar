@@ -1179,6 +1179,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 v4.4.4
 
 * Fix: Auto-dampen, daylight time adjusted interval by @autoSteve
+* Remove and suppress ignored unusual azimuth issues by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.3...v4.4.4
 

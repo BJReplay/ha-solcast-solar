@@ -122,6 +122,7 @@ async def test_missing_data_fixable(
 async def test_unusual_azimuth(
     recorder_mock: Recorder,
     hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
     issue_registry: ir.IssueRegistry,
     scenario: dict[str, Any],
 ) -> None:
@@ -138,6 +139,7 @@ async def test_unusual_azimuth(
             # Assert the issue is present and persistent
             assert len(issue_registry.issues) == 1
             issue = list(issue_registry.issues.values())[0]
+            assert f"Raise issue `{issue.issue_id}`" in caplog.text
             assert issue.domain == DOMAIN
             assert issue.issue_id == "unusual_azimuth_northern" if scenario["latitude"] > 0 else "unusual_azimuth_southern"
             assert issue.is_fixable is False
@@ -145,11 +147,22 @@ async def test_unusual_azimuth(
             assert issue.translation_placeholders is not None
             assert issue.translation_placeholders.get("proposal") == str(scenario["proposal"])
 
-            # Fix the issue at Solcast and reload the integration
-            API_KEY_SITES["1"]["sites"][0]["latitude"] = old_latitude
-            API_KEY_SITES["1"]["sites"][0]["azimuth"] = old_azimuth
-            await _reload(hass, entry)
-            assert len(issue_registry.issues) == 0
+            if scenario["proposal"] != -130:
+                # Fix the issue at Solcast and reload the integration
+                API_KEY_SITES["1"]["sites"][0]["latitude"] = old_latitude
+                API_KEY_SITES["1"]["sites"][0]["azimuth"] = old_azimuth
+                await _reload(hass, entry)
+                assert len(issue_registry.issues) == 0
+            else:
+                assert "Re-serialising sites cache for" in caplog.text
+                caplog.clear()
+                # Dismiss the issue and reload the integration
+                ir.async_ignore_issue(hass, DOMAIN, issue.issue_id, True)
+                await _reload(hass, entry)
+                assert len(list(issue_registry.issues.values())) == 0
+                assert "Remove ignored issue for unusual_azimuth_northern" in caplog.text
+                assert f"Raise issue `{issue.issue_id}`" not in caplog.text
+                assert len(issue_registry.issues) == 0
         else:
             # Assert the issue is not present
             assert len(issue_registry.issues) == 0

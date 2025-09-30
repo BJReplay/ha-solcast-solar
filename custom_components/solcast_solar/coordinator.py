@@ -300,6 +300,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     update_at,
                 )
 
+        await self.solcast.cleanup_issues()
         self.async_update_listeners()
 
     async def __restart_time_track_midnight_update(self) -> None:

@@ -220,6 +220,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             "version": GENERATION_VERSION,
         }
         self._data_undampened: dict[str, Any] = copy.deepcopy(FRESH_DATA)
+        self._dismissal: dict[str, bool] = {}
         self._extant_sites: defaultdict[str, list[dict[str, Any]]] = defaultdict(list[dict[str, Any]])
         self._extant_usage: defaultdict[str, dict[str, Any]] = defaultdict(dict[str, Any])
         self._filename = options.file_path
@@ -491,6 +492,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             async with self._serialise_lock, aiofiles.open(cache_filename, "w") as file:
                 await file.write(json.dumps(response_json, ensure_ascii=False))
 
+        async def load_dismissals(cache_filename: str) -> None:
+            _LOGGER.info("Loading warning dismissals for %s", self.__redact_api_key(api_key))
+            async with aiofiles.open(cache_filename) as file:
+                content = json.loads(await file.read())
+                sites = content.get("sites", [])
+                for site in sites:
+                    site_id = site.get("resource_id")
+                    if site_id is not None:
+                        self._dismissal[site_id] = False if site.get("dismissal") is None else site.get("dismissal")
+
         def cached_sites_unavailable(at_least_one_only: bool = False) -> None:
             nonlocal one_only
 
@@ -552,6 +563,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 cache_exists = Path(cache_filename).is_file()
                 if not cache_exists:
                     prior_crash = False
+                else:
+                    await load_dismissals(cache_filename)
                 _LOGGER.debug(
                     "%s",
                     f"Sites cache {'exists' if cache_exists else 'does not yet exist'} for {self.__redact_api_key(api_key)}",
@@ -583,6 +596,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if status == 200:
                     for site in response_json.get("sites", []):
                         site["api_key"] = api_key
+                        site["dismissal"] = self._dismissal.get(site["resource_id"], False)
                     if response_json["total_records"] > 0:
                         set_sites(response_json, api_key)
                         _ = check_rekey(response_json, api_key)
@@ -815,6 +829,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             self._api_used[api_key] = 0
             await self.__serialise_usage(api_key, reset=True)
 
+    async def cleanup_issues(self, any_unusual: bool = True) -> None:
+        """Check and clean up any existing issues if the conditions are now resolved."""
+        issue_registry = ir.async_get(self.hass)
+        for issue in ["unusual_azimuth_northern", "unusual_azimuth_southern"]:
+            if (i := issue_registry.async_get_issue(DOMAIN, issue)) is not None:
+                if (
+                    i.dismissed_version is not None
+                    and i.translation_placeholders is not None
+                    and self._dismissal.get(i.translation_placeholders.get("site", ""), False)
+                ) or not any_unusual:
+                    _LOGGER.debug("Remove %sissue for %s", "ignored " if i.dismissed_version is not None else "", issue)
+                    ir.async_delete_issue(self.hass, DOMAIN, issue)
+
     async def get_sites_and_usage(self, prior_crash: bool = False, use_cache: bool = True) -> tuple[int, str, str]:  # noqa: C901
         """Get the sites and usage, and validate API key changes against the cache files in use.
 
@@ -848,6 +875,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             """Test for unusual azimuth values."""
             _LOGGER.debug("Testing for unusual azimuth values")
             any_unusual = False
+            any_raised = False
+            old_sites = copy.deepcopy(self.sites)
             raise_issue = ""
             for site, v in self._site_latitude.items():
                 unusual = False
@@ -877,7 +906,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 unusual = True
                                 proposal = -180 - int(azimuth)
                     if unusual:
-                        any_unusual = True
                         log = (
                             _LOGGER.warning
                             if issue_registry.async_get_issue(DOMAIN, "unusual_azimuth_northern") is None
@@ -886,31 +914,50 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         )
                         log(self.__redact_lat_lon_simple(f"Unusual azimuth {azimuth} for site {site}, latitude {v['latitude']}"))
 
-                if unusual:
-                    # If azimuth is unusual then raise an issue.
-                    _LOGGER.debug("Raise issue `%s` for site %s", raise_issue, site)
-                    ir.async_create_issue(
-                        self.hass,
-                        DOMAIN,
-                        raise_issue,
-                        is_fixable=False,
-                        is_persistent=True,
-                        severity=ir.IssueSeverity.WARNING,
-                        translation_key=raise_issue,
-                        translation_placeholders={
-                            "site": site,
-                            "latitude": str(v["latitude"]),
-                            "proposal": str(proposal),
-                            "extant": str(v["azimuth"]),
-                            "learn_more": "",
-                        },
-                        learn_more_url="https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#solcast-requirements",
-                    )
-                    break
-            for issue in ["unusual_azimuth_northern", "unusual_azimuth_southern"]:
-                if not any_unusual and issue_registry.async_get_issue(DOMAIN, issue) is not None:
-                    _LOGGER.debug("Remove issue for %s", issue)
-                    ir.async_delete_issue(self.hass, DOMAIN, issue)
+                    if unusual and not any_raised and raise_issue != "":
+                        if not self._dismissal.get(site, False):
+                            # If azimuth is unusual then raise an issue.
+                            _LOGGER.debug("Raise issue `%s` for site %s", raise_issue, site)
+                            any_raised = True
+                            ir.async_create_issue(
+                                self.hass,
+                                DOMAIN,
+                                raise_issue,
+                                is_fixable=False,
+                                is_persistent=True,
+                                severity=ir.IssueSeverity.WARNING,
+                                translation_key=raise_issue,
+                                translation_placeholders={
+                                    "site": site,
+                                    "latitude": str(v["latitude"]),
+                                    "proposal": str(proposal),
+                                    "extant": str(v["azimuth"]),
+                                    "learn_more": "",
+                                },
+                                learn_more_url="https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#solcast-requirements",
+                            )
+                            raise_issue = ""
+                            self._dismissal[site] = True
+                            for s in self.sites:
+                                if s["resource_id"] == site:
+                                    s["dismissal"] = True
+                                    break
+                        any_unusual = True
+
+            await self.cleanup_issues(any_unusual)
+
+            if self.sites != old_sites:
+                # Sites have been updated with dismissables, so re-serialise the sites cache(s).
+                for api_key in self.options.api_key.split(","):
+                    api_key = api_key.strip()
+                    cache_filename = self.__get_sites_cache_filename(api_key)
+                    for site in self.sites:
+                        if site.get("api_key") == api_key:
+                            break
+                    _LOGGER.debug("Re-serialising sites cache for %s", self.__redact_api_key(api_key))
+                    payload = json.dumps({"sites": [site for site in self.sites if site.get("api_key") == api_key]}, ensure_ascii=False)
+                    async with self._serialise_lock, aiofiles.open(cache_filename, "w") as file:
+                        await file.write(payload)
 
         async def from_single_site_to_multi(api_keys: list[str]):
             """Transition from a single API key to multiple API keys."""
