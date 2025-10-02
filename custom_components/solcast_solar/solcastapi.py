@@ -74,7 +74,7 @@ from .util import (
     UsageStatus,
     cubic_interp,
     diff,
-    find_percentile,
+    interquartile_bounds,
 )
 
 API: Final = Api.HOBBYIST  # The API to use. Presently only the hobbyist API is allowed for hobbyist accounts.
@@ -2454,7 +2454,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Very large units of measurement are not supported (e.g. GWh, TWh) because of precision loss.
         """
 
-        _EXCESSIVE_FACTOR = 3
         start_time = time.time()
 
         # Load the generation history.
@@ -2503,11 +2502,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         *diff([float(e.state) * conversion_factor for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
                     ]
                     # Build generation values for each interval, ignoring any excessive jumps.
-                    non_zero_generation = sorted([kWh for kWh in sample_generation if kWh > 0])
-                    typical_gen = find_percentile(non_zero_generation, 90)
-                    _LOGGER.debug("Typical generation jump: %.3f kWh", typical_gen)
+                    _, upper = interquartile_bounds(sample_generation)
+                    _LOGGER.debug("Interquartile upper bound: %.3f kWh", upper)
                     for interval, kWh in zip(sample_time, sample_generation, strict=True):
-                        if kWh <= typical_gen * _EXCESSIVE_FACTOR:  # Ignore excessive jumps.
+                        if kWh <= upper:  # Ignore excessive jumps.
                             generation_intervals[interval] += kWh
                         else:
                             _LOGGER.debug(

@@ -153,6 +153,20 @@ def find_percentile(data: list[float], percentile: float) -> float:
     return d0 + d1
 
 
+def interquartile_bounds(data: list[float]) -> tuple[float, float]:
+    """Return the lower and upper interquartile bounds of a data set."""
+    non_zero_data = sorted([v for v in data if v > 0])
+    lower = 0.0
+    upper = float("inf")
+    if len(non_zero_data) > 4:
+        q1 = find_percentile(non_zero_data, 25)
+        q3 = find_percentile(non_zero_data, 75)
+        iqr = q3 - q1
+        lower = round(q1 - 1.5 * iqr, 3)
+        upper = round(q3 + 1.5 * iqr, 3)
+    return ((lower - 0.000001) if lower == upper else lower, (upper + 0.000001) if lower == upper else upper)
+
+
 def diff(lst: list[Any], non_negative: bool = True) -> list[Any]:
     """Build a numpy-like diff."""
 
