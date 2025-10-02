@@ -2504,16 +2504,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # Build generation values for each interval, ignoring any excessive jumps.
                     _, upper = interquartile_bounds(sample_generation)
                     _LOGGER.debug("Interquartile upper bound: %.3f kWh", upper)
+                    ignored: dict[dt, bool] = {}
                     for interval, kWh in zip(sample_time, sample_generation, strict=True):
                         if kWh <= upper:  # Ignore excessive jumps.
                             generation_intervals[interval] += kWh
                         else:
+                            ignored[interval] = True
                             _LOGGER.debug(
                                 "Ignoring excessive PV generation jump of %.3f kWh in interval %s from entity: %s",
                                 kWh,
                                 interval.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
                                 entity,
                             )
+                    for interval in ignored:
+                        generation_intervals[interval] = 0.0
                 else:
                     _LOGGER.debug("No day %d PV generation data from entity: %s (%s)", -1 + day * -1, entity, entity_history.get(entity))
             for i, gen in generation_intervals.items():
