@@ -2510,7 +2510,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             generation_intervals[interval] += kWh
                         else:
                             ignored[interval] = True
-                            _LOGGER.debug(
+                            _LOGGER.warning(
                                 "Ignoring excessive PV generation jump of %.3f kWh in interval %s from entity: %s",
                                 kWh,
                                 interval.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
