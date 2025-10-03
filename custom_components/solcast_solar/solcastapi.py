@@ -74,7 +74,7 @@ from .util import (
     UsageStatus,
     cubic_interp,
     diff,
-    find_percentile,
+    interquartile_bounds,
 )
 
 API: Final = Api.HOBBYIST  # The API to use. Presently only the hobbyist API is allowed for hobbyist accounts.
@@ -2454,7 +2454,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Very large units of measurement are not supported (e.g. GWh, TWh) because of precision loss.
         """
 
-        _EXCESSIVE_FACTOR = 3
         start_time = time.time()
 
         # Load the generation history.
@@ -2503,19 +2502,22 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         *diff([float(e.state) * conversion_factor for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
                     ]
                     # Build generation values for each interval, ignoring any excessive jumps.
-                    non_zero_generation = sorted([kWh for kWh in sample_generation if kWh > 0])
-                    typical_gen = find_percentile(non_zero_generation, 90)
-                    _LOGGER.debug("Typical generation jump: %.3f kWh", typical_gen)
+                    _, upper = interquartile_bounds(sample_generation)
+                    _LOGGER.debug("Interquartile upper bound: %.3f kWh", upper)
+                    ignored: dict[dt, bool] = {}
                     for interval, kWh in zip(sample_time, sample_generation, strict=True):
-                        if kWh <= typical_gen * _EXCESSIVE_FACTOR:  # Ignore excessive jumps.
+                        if kWh <= upper:  # Ignore excessive jumps.
                             generation_intervals[interval] += kWh
                         else:
-                            _LOGGER.debug(
+                            ignored[interval] = True
+                            _LOGGER.warning(
                                 "Ignoring excessive PV generation jump of %.3f kWh in interval %s from entity: %s",
                                 kWh,
                                 interval.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
                                 entity,
                             )
+                    for interval in ignored:
+                        generation_intervals[interval] = 0.0
                 else:
                     _LOGGER.debug("No day %d PV generation data from entity: %s (%s)", -1 + day * -1, entity, entity_history.get(entity))
             for i, gen in generation_intervals.items():
@@ -3136,12 +3138,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
 
             await self.sort_and_prune(site["resource_id"], self._data, 730, forecasts)
-            _LOGGER.debug(
-                "Forecasts dictionary length for %s is %s (%s un-dampened)",
-                site["resource_id"],
-                len(forecasts),
-                len(self._data_undampened["siteinfo"][site["resource_id"]]["forecasts"]),
-            )
 
     async def sort_and_prune(self, site: str | None, data: dict[str, Any], past_days: int, forecasts: dict[Any, Any]) -> None:
         """Sort and prune a forecast list."""
@@ -3623,6 +3619,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             commencing: datetime.date,
             actuals: dict[dt, dict[str, dt | float]],
             sites_hard_limit: defaultdict[str, dict[str, dict[dt, Any]]],
+            log_dictionary_length: bool = False,
         ) -> list[Any]:
             nonlocal build_success
 
@@ -3667,7 +3664,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             "period_start": period_start,
                                             "pv_estimate": site_actuals[period_start]["pv_estimate"],
                                         }
-                        # site_data_forecasts[resource_id] = sorted(site_actuals.values(), key=itemgetter("period_start"))
+                        if log_dictionary_length:
+                            _LOGGER.debug(
+                                "Estimated actuals dictionary length for %s is %s",
+                                resource_id,
+                                len(self._data_actuals["siteinfo"][resource_id]["forecasts"]),
+                            )
                 return sorted(actuals.values(), key=itemgetter("period_start"))
             except Exception as e:  # noqa: BLE001
                 _LOGGER.error("Exception in build_data_actuals(): %s: %s", e, traceback.format_exc())
@@ -3680,6 +3682,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             commencing,
             actuals,
             self._sites_hard_limit,
+            log_dictionary_length=True,
         )
         self._data_estimated_actuals_dampened = await build_data_actuals(
             self._data_actuals_dampened,
@@ -3899,6 +3902,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             if tally is not None:
                                 siteinfo["tally"] = rounded_tally
                             self._tally[resource_id] = rounded_tally
+                            _LOGGER.debug(
+                                "Forecasts dictionary length for %s is %s (%s un-dampened)",
+                                resource_id,
+                                len(forecasts),
+                                len(self._data_undampened["siteinfo"][resource_id]["forecasts"]),
+                            )
                 if update_tally:
                     self._data_forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
                 else:
