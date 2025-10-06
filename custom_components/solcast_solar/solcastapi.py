@@ -2447,7 +2447,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         return conversion_factor
 
-    async def get_pv_generation(self) -> None:
+    async def get_pv_generation(self) -> None:  # noqa: C901
         """Get PV generation from external entity/entities.
 
         Sensors must be increasing energy values (may reset at midnight), and the entities must have state history.
@@ -2526,20 +2526,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if uniform_increment:
                         _, upper = interquartile_bounds(non_zero_samples)
                         _LOGGER.debug(
-                            "Uniform increments detected in PV generation data from entity: %s, interquartile uppoer bound: %.3f kWh",
+                            "Generation-consistent increments detected in PV generation data from entity: %s, inter-quartile upper bound: %.3f kWh",
                             entity,
                             upper,
                         )
                     else:
                         _, upper = interquartile_bounds(sample_timedelta, factor=2.2)
                         _LOGGER.debug(
-                            "Non-uniform increments detected in PV generation data from entity: %s, interquartile upper bound: %.d seconds",
+                            "Time-consistent increments detected in PV generation data from entity: %s, inter-quartile upper bound: %d seconds",
                             entity,
                             upper,
                         )
                         upper = int(upper + 1)
                     ignored: dict[dt, bool] = {}
-                    last_interval = None
+                    last_interval: dt | None = None
                     for interval, kWh, report_time, time_delta in zip(
                         sample_time, sample_generation, sample_generation_time, sample_timedelta, strict=True
                     ):
@@ -2555,8 +2555,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                         kWh,
                                         report_time.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
                                         entity,
-                                        interval.astimezone(self.options.tz).strftime("%H:%M"),
                                         (interval - timedelta(minutes=30)).astimezone(self.options.tz).strftime("%H:%M"),
+                                        interval.astimezone(self.options.tz).strftime("%H:%M"),
                                     )
                                 else:
                                     generation_intervals[interval] += kWh
@@ -2577,8 +2577,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                         time_delta,
                                         report_time.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
                                         entity,
-                                        interval.astimezone(self.options.tz).strftime("%H:%M"),
                                         (interval - timedelta(minutes=30)).astimezone(self.options.tz).strftime("%H:%M"),
+                                        interval.astimezone(self.options.tz).strftime("%H:%M"),
                                     )
                             else:
                                 generation_intervals[interval] += kWh
