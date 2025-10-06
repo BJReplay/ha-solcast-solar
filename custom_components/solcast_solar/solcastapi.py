@@ -2537,7 +2537,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             entity,
                             upper,
                         )
-                        upper = int(upper)
+                        upper = int(upper + 1)
                     ignored: dict[dt, bool] = {}
                     last_interval = None
                     for interval, kWh, report_time, time_delta in zip(
@@ -2550,7 +2550,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 if round(kWh, 4) > upper:  # Ignore excessive jumps.
                                     ignored[interval] = True
                                     ignored[interval - timedelta(minutes=30)] = True
-                                    _LOGGER.warning(
+                                    _LOGGER.debug(
                                         "Ignoring excessive PV generation jump of %.3f kWh at %s from entity: %s; Invalidating intervals %s and %s",
                                         kWh,
                                         report_time.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
@@ -2561,17 +2561,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 else:
                                     generation_intervals[interval] += kWh
                             elif time_delta > upper and kWh > 0.0003:  # Ignore excessive jumps.
-                                ignored[interval] = True
-                                ignored[interval - timedelta(minutes=30)] = True
-                                _LOGGER.warning(
-                                    "Ignoring excessive PV generation jump of %.3f kWh, time delta %d seconds, at %s from entity: %s; Invalidating intervals %s and %s",
-                                    kWh,
-                                    time_delta,
-                                    report_time.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
-                                    entity,
-                                    interval.astimezone(self.options.tz).strftime("%H:%M"),
-                                    (interval - timedelta(minutes=30)).astimezone(self.options.tz).strftime("%H:%M"),
-                                )
+                                if generation_intervals.get(interval - timedelta(minutes=30), 0.0) != 0.0:
+                                    ignored[interval] = True
+                                    ignored[interval - timedelta(minutes=30)] = True
+                                    _LOGGER.debug(
+                                        "Ignoring excessive PV generation jump of %.3f kWh, time delta %d seconds, at %s from entity: %s; Invalidating intervals %s and %s",
+                                        kWh,
+                                        time_delta,
+                                        report_time.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
+                                        entity,
+                                        interval.astimezone(self.options.tz).strftime("%H:%M"),
+                                        (interval - timedelta(minutes=30)).astimezone(self.options.tz).strftime("%H:%M"),
+                                    )
+                                if kWh <= 0.14:  # Small increments are probably valid
+                                    generation_intervals[interval] += kWh
                             else:
                                 generation_intervals[interval] += kWh
                         else:
