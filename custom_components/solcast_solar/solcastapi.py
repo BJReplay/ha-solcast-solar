@@ -2561,7 +2561,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 else:
                                     generation_intervals[interval] += kWh
                             elif time_delta > upper and kWh > 0.0003:  # Ignore excessive jumps.
+                                is_ignored = False
                                 if generation_intervals.get(interval - timedelta(minutes=30), 0.0) != 0.0:
+                                    is_ignored = True
+                                if kWh <= 0.14:  # Small increments are probably valid
+                                    generation_intervals[interval] += kWh
+                                    is_ignored = False
+                                if is_ignored:
+                                    # Invalidate both this interval and the previous one because sample straddles the half-hour boundary.
                                     ignored[interval] = True
                                     ignored[interval - timedelta(minutes=30)] = True
                                     _LOGGER.debug(
@@ -2573,8 +2580,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                         interval.astimezone(self.options.tz).strftime("%H:%M"),
                                         (interval - timedelta(minutes=30)).astimezone(self.options.tz).strftime("%H:%M"),
                                     )
-                                if kWh <= 0.14:  # Small increments are probably valid
-                                    generation_intervals[interval] += kWh
                             else:
                                 generation_intervals[interval] += kWh
                         else:
