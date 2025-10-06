@@ -2519,7 +2519,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         ),
                     ]
                     uniform_increment = False
-                    non_zero_samples = sorted([sample for sample in sample_generation if sample > 0.0003])
+                    non_zero_samples = sorted([round(sample, 5) for sample in sample_generation if sample > 0.0003])
                     if percentile(non_zero_samples, 25) == percentile(non_zero_samples, 75):
                         uniform_increment = True
                     # Build generation values for each interval, ignoring any excessive jumps.
