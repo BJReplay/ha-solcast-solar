@@ -153,16 +153,15 @@ def percentile(data: list[Any], _percentile: float) -> float | int:
     return round(d0 + d1, 4)
 
 
-def interquartile_bounds(data: list[Any], factor: float = 1.5) -> tuple[float | int, float | int]:
-    """Return the lower and upper interquartile bounds of a data set."""
+def interquartile_bounds(sorted_data: list[Any], factor: float = 1.5) -> tuple[float | int, float | int]:
+    """Return the lower and upper interquartile bounds of a sorted data set."""
 
-    non_zero_data = sorted([v for v in data if v > 0.0003])
     lower = 0.0
     upper = float("inf")
     iqr = 0.0
-    if len(non_zero_data) > 4:
-        q1 = percentile(non_zero_data, 25)
-        q3 = percentile(non_zero_data, 75)
+    if len(sorted_data) > 4:
+        q1 = percentile(sorted_data, 25)
+        q3 = percentile(sorted_data, 75)
         iqr = round(q3 - q1, 5)
         lower = round(q1 - factor * iqr, 4)
         upper = round(q3 + factor * iqr, 4)

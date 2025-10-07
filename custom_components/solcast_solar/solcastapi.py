@@ -2518,6 +2518,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             ]
                         ),
                     ]
+
+                    # Detemine generation-consistent or time-consistent increments, and the inter-quartile upper bound for ignoring excessive jumps.
                     uniform_increment = False
                     non_zero_samples = sorted([round(sample, 5) for sample in sample_generation if sample > 0.0003])
                     if percentile(non_zero_samples, 25) == percentile(non_zero_samples, 75):
