@@ -2522,22 +2522,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     non_zero_samples = sorted([round(sample, 5) for sample in sample_generation if sample > 0.0003])
                     if percentile(non_zero_samples, 25) == percentile(non_zero_samples, 75):
                         uniform_increment = True
-                    # Build generation values for each interval, ignoring any excessive jumps.
-                    if uniform_increment:
-                        _, upper = interquartile_bounds(non_zero_samples)
-                        _LOGGER.debug(
-                            "Generation-consistent increments detected in PV generation data from entity: %s, inter-quartile upper bound: %.3f kWh",
-                            entity,
-                            upper,
-                        )
                     else:
-                        _, upper = interquartile_bounds(sample_timedelta, factor=2.2)
-                        _LOGGER.debug(
-                            "Time-consistent increments detected in PV generation data from entity: %s, inter-quartile upper bound: %d seconds",
-                            entity,
-                            upper,
-                        )
-                        upper = int(upper + 1)
+                        non_zero_samples = sorted([sample for sample in sample_timedelta if sample > 0])
+                    _, upper = interquartile_bounds(non_zero_samples, factor=(1.5 if uniform_increment else 2.2))
+                    upper += 0.1 if uniform_increment else 1
+                    _LOGGER.debug(
+                        f"%s increments detected in PV generation data from entity: %s, inter-quartile upper bound: {'%.3f' if uniform_increment else '%d'} kWh",  # noqa: G004
+                        "Generation-consistent" if uniform_increment else "Time-consistent",
+                        entity,
+                        upper,
+                    )
+
+                    # Build generation values for each interval, ignoring any excessive jumps.
                     ignored: dict[dt, bool] = {}
                     last_interval: dt | None = None
                     for interval, kWh, report_time, time_delta in zip(
@@ -2549,41 +2545,29 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             if uniform_increment:
                                 if round(kWh, 4) > upper:  # Ignore excessive jumps.
                                     ignored[interval] = True
-                                    ignored[interval - timedelta(minutes=30)] = True
-                                    _LOGGER.debug(
-                                        "Ignoring excessive PV generation jump of %.3f kWh at %s from entity: %s; Invalidating intervals %s and %s",
-                                        kWh,
-                                        report_time.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
-                                        entity,
-                                        (interval - timedelta(minutes=30)).astimezone(self.options.tz).strftime("%H:%M"),
-                                        interval.astimezone(self.options.tz).strftime("%H:%M"),
-                                    )
                                 else:
                                     generation_intervals[interval] += kWh
                             elif time_delta > upper and kWh > 0.0003:  # Ignore excessive jumps.
-                                is_ignored = False
                                 if generation_intervals.get(interval - timedelta(minutes=30), 0.0) != 0.0:
-                                    is_ignored = True
+                                    ignored[interval] = True
                                 if kWh <= 0.14:  # Small increments are probably valid
                                     generation_intervals[interval] += kWh
-                                    is_ignored = False
-                                if is_ignored:
-                                    # Invalidate both this interval and the previous one because sample straddles the half-hour boundary.
-                                    ignored[interval] = True
-                                    ignored[interval - timedelta(minutes=30)] = True
-                                    _LOGGER.debug(
-                                        "Ignoring excessive PV generation jump of %.3f kWh, time delta %d seconds, at %s from entity: %s; Invalidating intervals %s and %s",
-                                        kWh,
-                                        time_delta,
-                                        report_time.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
-                                        entity,
-                                        (interval - timedelta(minutes=30)).astimezone(self.options.tz).strftime("%H:%M"),
-                                        interval.astimezone(self.options.tz).strftime("%H:%M"),
-                                    )
                             else:
                                 generation_intervals[interval] += kWh
                         else:
                             generation_intervals[interval] += kWh
+                        if ignored.get(interval):
+                            # Invalidate both this interval and the previous one because errant sample straddles the half-hour boundary.
+                            ignored[interval - timedelta(minutes=30)] = True
+                            _LOGGER.debug(
+                                "Ignoring excessive PV generation jump of %.3f kWh, time delta %d seconds, at %s from entity: %s; Invalidating intervals %s and %s",
+                                kWh,
+                                time_delta,
+                                report_time.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M:%S"),
+                                entity,
+                                (interval - timedelta(minutes=30)).astimezone(self.options.tz).strftime("%H:%M"),
+                                interval.astimezone(self.options.tz).strftime("%H:%M"),
+                            )
                     for interval in ignored:
                         generation_intervals[interval] = 0.0
                 else:
