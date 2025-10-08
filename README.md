@@ -733,6 +733,10 @@ These small factors would be corrected based on forecasted generation, so a case
 
 The aim of automated dampening is not to correct for Solcast rooftop site misconfiguration, nor panel type generation quirks, nor improve forecasting. The aim is to detect consistently poor actual generation against that which is forecasted because of local factors.
 
+> [!TIP]
+>
+> If you have two weeks of history data accumulated, and dampening factors are being generated for every half-hourly period when the sun is up then it is almost certain that you have a configuration issue somewhere. Generation is never matching the forecast, and it is likely that your Solcast rooftop site configuration is wrong.
+
 Any rooftop site misconfiguration can have a significant impact on reported forecast, but that should be corrected in the rooftop site configuration. It is highly recommended to prove that the configuration is correct, and that forecasts are reasonably accurate on good generation days before attempting to configure automated dampening. Said in another way, if questionable forecasting is apparent then disable automated dampening before diagnosing the questionable forecasting.
 
 The adjustments made by automated dampening may hinder efforts to resolve basic misconfiguration issues, and if it is enabled then reporting an issue of deviation from forecast where automated dampening is not implicated will likely impede issue resolution.
