@@ -2529,7 +2529,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _, upper = interquartile_bounds(non_zero_samples, factor=(1.5 if uniform_increment else 2.2))
                     upper += 0.1 if uniform_increment else 1
                     _LOGGER.debug(
-                        f"%s increments detected in PV generation data from entity: %s, inter-quartile upper bound: {'%.3f' if uniform_increment else '%d'} kWh",  # noqa: G004
+                        f"%s increments detected for entity: %s, outlier upper bound: {'%.3f kWh' if uniform_increment else '%d seconds'}",  # noqa: G004
                         "Generation-consistent" if uniform_increment else "Time-consistent",
                         entity,
                         upper,
