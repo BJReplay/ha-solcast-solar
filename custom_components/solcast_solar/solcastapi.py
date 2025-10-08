@@ -2558,20 +2558,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                         ignored.pop(interval)
                             else:
                                 generation_intervals[interval] += kWh
+                            if ignored.get(interval):
+                                # Invalidate both this interval and the previous one because errant sample straddles the half-hour boundary.
+                                ignored[interval - timedelta(minutes=30)] = True
+                                _LOGGER.debug(
+                                    "Ignoring excessive PV generation jump of %.3f kWh, time delta %d seconds, at %s from entity: %s; Invalidating intervals %s and %s",
+                                    kWh,
+                                    time_delta,
+                                    report_time.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M:%S"),
+                                    entity,
+                                    (interval - timedelta(minutes=30)).astimezone(self.options.tz).strftime("%H:%M"),
+                                    interval.astimezone(self.options.tz).strftime("%H:%M"),
+                                )
                         else:
                             generation_intervals[interval] += kWh
-                        if ignored.get(interval):
-                            # Invalidate both this interval and the previous one because errant sample straddles the half-hour boundary.
-                            ignored[interval - timedelta(minutes=30)] = True
-                            _LOGGER.debug(
-                                "Ignoring excessive PV generation jump of %.3f kWh, time delta %d seconds, at %s from entity: %s; Invalidating intervals %s and %s",
-                                kWh,
-                                time_delta,
-                                report_time.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M:%S"),
-                                entity,
-                                (interval - timedelta(minutes=30)).astimezone(self.options.tz).strftime("%H:%M"),
-                                interval.astimezone(self.options.tz).strftime("%H:%M"),
-                            )
                     for interval in ignored:
                         generation_intervals[interval] = 0.0
                 else:
