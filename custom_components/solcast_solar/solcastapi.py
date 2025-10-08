@@ -2554,6 +2554,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     ignored[interval] = True
                                 if kWh <= 0.14:  # Small increments are probably valid
                                     generation_intervals[interval] += kWh
+                                    if ignored.get(interval):
+                                        ignored.pop(interval)
                             else:
                                 generation_intervals[interval] += kWh
                         else:
