@@ -479,7 +479,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                 else:
                     gap = False
 
-            if "1111" in entity_id:
+            if "1111" in entity_id:  # 1111 as a generation-consistent profile
                 gen_bumps = {}
                 for i, p in power.items():
                     bumps = p / 0.1
@@ -521,7 +521,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                                 + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                             )
                             await record_history(entity_id, new_now, increasing)
-            else:
+            else:  # 2222 as a time-consistent profile
                 gen_bumps = {}
                 for i, p in power.items():
                     # Use a fixed period of 63 seconds for each bump
@@ -543,14 +543,18 @@ async def async_setup_extra_sensors(  # noqa: C901
                         increasing = 0.0
                     if gen_bumps.get(i):
                         bump_t, increment = gen_bumps[i]
-                        for b in bump_t:
+                        for sample, b in enumerate(bump_t):
                             if extra_sensors == ExtraSensors.DODGY:
-                                if 25 < i < 29 or i == 34:
+                                if i == 18 and sample in (0, 5, 6, 7, 8, 9):
+                                    # Take out samples in interval 19, including the first one
+                                    increase = True
+                                    gap = True
+                                elif 25 < i < 29:
                                     # Introduce a gap in the generation to cause missing data
                                     increase = False
                                     gap = True
                                 elif 20 < i < 24:
-                                    # Introduce flat generation, with a catch-up spike to cause odd generation by not incrementing
+                                    # Introduce flat generation, with a catch-up spike
                                     adjust += increment
                                     increase = False
                                 elif i == 24:
