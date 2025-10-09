@@ -349,7 +349,7 @@ async def async_setup_extra_sensors(  # noqa: C901
         )
 
     power: dict[int, float]
-    gen_bumps: dict[int, list[int]]
+    gen_bumps: dict[int, list[Any]]
     increasing: float
 
     # Site export entity
@@ -440,12 +440,6 @@ async def async_setup_extra_sensors(  # noqa: C901
                     else round(0.97 * 0.5 * generation * GENERATION_FACTOR[interval], 1)
                 )
             )
-        gen_bumps = {}
-        for i, p in power.items():
-            bumps = p / 0.1
-            if bumps > 0:
-                bump_seconds = int(1800 / bumps)
-                gen_bumps[i] = list(range(0, 1800, bump_seconds))
         entity = "solar_export_sensor_" + site.replace("-", "_")
         entity_id = "sensor." + entity
 
@@ -458,65 +452,125 @@ async def async_setup_extra_sensors(  # noqa: C901
             unit_of_measurement=_uom,
         )
 
-        increasing = 0.0
-        adjust = 0.0
         gap = False
-        increase = True
         with freeze_time(now + timedelta(days=entity_history["offset"]) - timedelta(hours=off), tz_offset=0) as frozen_time:
-            for interval in range(48 * entity_history["days_generation"]):
-                i = interval % 48
-                day = interval // 48
-                if i == 0 and "2222" in entity_id:
-                    # Reset for second entity to emulate a resetting daily meter
-                    increasing = 0.0
-                if gen_bumps.get(i):
-                    for b in gen_bumps[i]:
-                        if extra_sensors == ExtraSensors.DODGY:
-                            if 25 < i < 29:
-                                # Introduce a gap in the generation to cause missing data
-                                increase = False
-                                gap = True
-                            elif 20 < i < 24:
-                                # Introduce flat generation, with a catch-up spike to cause odd generation by not incrementing
-                                adjust += 0.1
-                                increase = False
-                            elif i == 24:
-                                if adjust > 0.0:
-                                    increasing += round(adjust, 1)
-                                    adjust = 0.0
-                                    increase = False
-                            if increase:
-                                increasing += 0.1
-                            else:
-                                increase = True
-                        else:
-                            increasing += 0.1
-                        new_now = (
-                            now
-                            + timedelta(days=entity_history["offset"])
-                            - timedelta(hours=off)
-                            + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+
+            async def record_history(entity_id: str, new_now: dt, increasing: float) -> None:
+                nonlocal gap
+
+                frozen_time.move_to(new_now)
+                if not gap:
+                    if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+                        await hass.async_add_executor_job(
+                            hass.states.set,
+                            entity_id,
+                            str(round(increasing / adjustment[_uom], 4)),
+                            None,
+                            True,
                         )
-                        frozen_time.move_to(new_now)
-                        if not gap:
-                            if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-                                await hass.async_add_executor_job(
-                                    hass.states.set,
-                                    entity_id,
-                                    str(round(increasing / adjustment[_uom], 4)),
-                                    None,
-                                    True,
-                                )
+                    else:
+                        await hass.async_add_executor_job(
+                            hass.states.set,
+                            entity_id,
+                            str(round(increasing / adjustment[_uom], 4)),
+                            {"unit_of_measurement": _uom},
+                            True,
+                        )
+                else:
+                    gap = False
+
+            if "1111" in entity_id:
+                gen_bumps = {}
+                for i, p in power.items():
+                    bumps = p / 0.1
+                    if bumps > 0:
+                        bump_seconds = int(1800 / bumps)
+                        gen_bumps[i] = list(range(0, 1800, bump_seconds))
+                increasing = 0.0
+                adjust = 0.0
+                increase = True
+                for interval in range(48 * entity_history["days_generation"]):
+                    i = interval % 48
+                    day = interval // 48
+                    if gen_bumps.get(i):
+                        for b in gen_bumps[i]:
+                            if extra_sensors == ExtraSensors.DODGY:
+                                if 25 < i < 29:
+                                    # Introduce a gap in the generation to cause missing data
+                                    increase = False
+                                    gap = True
+                                elif 20 < i < 24:
+                                    # Introduce flat generation, with a catch-up spike to cause odd generation by not incrementing
+                                    adjust += 0.1
+                                    increase = False
+                                elif i == 24:
+                                    if adjust > 0.0:
+                                        increasing += round(adjust, 1)
+                                        adjust = 0.0
+                                        increase = False
+                                if increase:
+                                    increasing += 0.1
+                                else:
+                                    increase = True
                             else:
-                                await hass.async_add_executor_job(
-                                    hass.states.set,
-                                    entity_id,
-                                    str(round(increasing / adjustment[_uom], 4)),
-                                    {"unit_of_measurement": _uom},
-                                    True,
-                                )
-                        else:
-                            gap = False
+                                increasing += 0.1
+                            new_now = (
+                                now
+                                + timedelta(days=entity_history["offset"])
+                                - timedelta(hours=off)
+                                + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                            )
+                            await record_history(entity_id, new_now, increasing)
+            else:
+                gen_bumps = {}
+                for i, p in power.items():
+                    # Use a fixed period of 63 seconds for each bump
+                    if p > 0:
+                        bump_times = list(range(0, 1800, 63))
+                        # Calculate the increment so that sum(increments) == p over 1800 seconds
+                        # Number of bumps = len(bump_times)
+                        num_bumps = len(bump_times)
+                        increment = p / num_bumps if num_bumps > 0 else 0
+                        gen_bumps[i] = (bump_times, increment)
+                increasing = 0.0
+                adjust = 0.0
+                increase = True
+                for interval in range(48 * entity_history["days_generation"]):
+                    i = interval % 48
+                    day = interval // 48
+                    if i == 0:
+                        # Reset for second entity to emulate a resetting daily meter
+                        increasing = 0.0
+                    if gen_bumps.get(i):
+                        bump_t, increment = gen_bumps[i]
+                        for b in bump_t:
+                            if extra_sensors == ExtraSensors.DODGY:
+                                if 25 < i < 29:
+                                    # Introduce a gap in the generation to cause missing data
+                                    increase = False
+                                    gap = True
+                                elif 20 < i < 24:
+                                    # Introduce flat generation, with a catch-up spike to cause odd generation by not incrementing
+                                    adjust += increment
+                                    increase = False
+                                elif i == 24:
+                                    if adjust > 0.0:
+                                        increasing += adjust
+                                        adjust = 0.0
+                                        increase = False
+                                if increase:
+                                    increasing += increment
+                                else:
+                                    increase = True
+                            else:
+                                increasing += increment
+                            new_now = (
+                                now
+                                + timedelta(days=entity_history["offset"])
+                                - timedelta(hours=off)
+                                + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                            )
+                            await record_history(entity_id, new_now, increasing)
 
     # Surplus day energy sensor to be cleaned up.
     entity_registry.async_get_or_create(

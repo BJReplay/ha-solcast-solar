@@ -204,8 +204,8 @@ async def test_auto_dampen(
 
         assert "Auto-dampening suppressed: Excluded site for 3333-3333-3333-3333" in caplog.text
         assert "Interval 08:30 has peak estimated actual 0.936" in caplog.text
-        assert "Interval 08:30 max generation: 0.800" in caplog.text
-        assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
+        assert "Interval 08:30 max generation: 0.755" in caplog.text
+        assert "Auto-dampen factor for 08:30 is 0.807" in caplog.text
         assert "Auto-dampen factor for 11:00" not in caplog.text
         assert "Ignoring insignificant factor for 11:00 of 0.988" in caplog.text
         assert "Ignoring excessive PV generation" not in caplog.text
@@ -248,7 +248,7 @@ async def test_auto_dampen(
             solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"][removed - 24]["period_start"]  # pyright: ignore[reportPrivateUsage]
             == value_removed["period_start"]
         )  # pyright: ignore[reportPrivateUsage]
-        assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
+        assert "Auto-dampen factor for 08:30 is 0.807" in caplog.text
 
         # Verify that the dampening entity that should be disabled by default is, then enable it.
         entity = "sensor.solcast_pv_forecast_dampening"
