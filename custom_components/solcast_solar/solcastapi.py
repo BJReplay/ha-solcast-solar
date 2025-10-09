@@ -2550,7 +2550,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 else:
                                     generation_intervals[interval] += kWh
                             elif time_delta > upper and kWh > 0.0003:  # Ignore excessive jumps.
-                                ignored[interval] = True
+                                if generation_intervals.get(interval - timedelta(minutes=30), 0.0) != 0.0:
+                                    ignored[interval] = True
                                 if kWh <= 0.14:  # Small increments are probably valid
                                     generation_intervals[interval] += kWh
                                     if ignored.get(interval):
