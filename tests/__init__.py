@@ -531,7 +531,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                         # Number of bumps = len(bump_times)
                         num_bumps = len(bump_times)
                         increment = p / num_bumps if num_bumps > 0 else 0
-                        gen_bumps[i] = (bump_times, increment)
+                        gen_bumps[i] = (bump_times, increment)  # pyright: ignore[reportArgumentType]
                 increasing = 0.0
                 adjust = 0.0
                 increase = True
@@ -545,7 +545,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                         bump_t, increment = gen_bumps[i]
                         for b in bump_t:
                             if extra_sensors == ExtraSensors.DODGY:
-                                if 25 < i < 29:
+                                if 25 < i < 29 or i == 34:
                                     # Introduce a gap in the generation to cause missing data
                                     increase = False
                                     gap = True
