@@ -323,6 +323,9 @@ async def async_setup_extra_sensors(  # noqa: C901
 ) -> None:
     """Set up extra sensors for testing."""
 
+    FASTER = False  # True for fast tests, False for reliable ones.
+    BLOCKS = 5
+
     match extra_sensors:
         case ExtraSensors.YES_WATT_HOUR:
             _uom = "Wh"
@@ -458,24 +461,46 @@ async def async_setup_extra_sensors(  # noqa: C901
             async def record_history(entity_id: str, new_now: dt, increasing: float) -> None:
                 nonlocal gap
 
-                frozen_time.move_to(new_now)
+                if not FASTER:
+                    frozen_time.move_to(new_now)
                 if not gap:
                     if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-                        await hass.async_add_executor_job(
-                            hass.states.set,
-                            entity_id,
-                            str(round(increasing / adjustment[_uom], 4)),
-                            None,
-                            True,
-                        )
+                        if FASTER:
+                            hass.states.async_set(
+                                entity_id,
+                                str(round(increasing / adjustment[_uom], 4)),
+                                None,
+                                timestamp=dt.timestamp(new_now),
+                            )
+                            await hass.async_block_till_done()
+                            for _ in range(BLOCKS):
+                                await hass.async_block_till_done()
+                        else:
+                            await hass.async_add_executor_job(
+                                hass.states.set,
+                                entity_id,
+                                str(round(increasing / adjustment[_uom], 4)),
+                                None,
+                                True,
+                            )
                     else:
-                        await hass.async_add_executor_job(
-                            hass.states.set,
-                            entity_id,
-                            str(round(increasing / adjustment[_uom], 4)),
-                            {"unit_of_measurement": _uom},
-                            True,
-                        )
+                        if FASTER:
+                            hass.states.async_set(
+                                entity_id,
+                                str(round(increasing / adjustment[_uom], 4)),
+                                {"unit_of_measurement": _uom},
+                                timestamp=dt.timestamp(new_now),
+                            )
+                            for _ in range(BLOCKS):
+                                await hass.async_block_till_done()
+                        else:
+                            await hass.async_add_executor_job(
+                                hass.states.set,
+                                entity_id,
+                                str(round(increasing / adjustment[_uom], 4)),
+                                {"unit_of_measurement": _uom},
+                                True,
+                            )
                 else:
                     gap = False
 
