@@ -2772,6 +2772,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
                 msg = f"Not enough matching intervals for {interval_time} to consider dampening"
+                log_msg = True
                 if len(matching) > MINIMUM_INTERVALS:
                     if peak < self._peak_intervals[interval]:
                         factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 0.0
@@ -2780,7 +2781,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             dampening[interval] = round(factor, 3)
                         else:
                             msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
-                _LOGGER.debug(msg)
+                    else:
+                        log_msg = False
+                if log_msg:
+                    _LOGGER.debug(msg)
 
         if dampening != self.granular_dampening.get("all"):
             self.granular_dampening["all"] = dampening
