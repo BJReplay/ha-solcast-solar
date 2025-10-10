@@ -341,265 +341,173 @@ async def async_setup_extra_sensors(  # noqa: C901
     adjustment = {"kWh": 1.0, "MWh": 1000.0, "Wh": 0.001, "MJ": 1.0, "": 1.0}
     entity_registry = er.async_get(hass)
 
-    if extra_sensors != ExtraSensors.YES_NO_UNIT:
-        entity_registry.async_get_or_create(
-            "sensor",
-            "pytest",
-            "site_export_sensor",
-            config_entry=entry,
-            suggested_object_id="site_export_sensor",
-            unit_of_measurement=_uom,
-        )
-
     power: dict[int, float]
-    gen_bumps: dict[int, list[Any]]
+    gen_bumps: dict[int, tuple[list[Any], float]]
     increasing: float
 
-    # Site export entity
-    now = (dt.now(UTC) - timedelta(days=entity_history["days_export"])).replace(hour=14, minute=0, second=0)
-    power = {}
-    if extra_sensors == ExtraSensors.DODGY:
-        for interval in range(48):
-            power[interval] = 0.0 if (interval < 24 or interval > 34) else (5.0 if interval != 34 else 2.0)
-    else:
-        for interval in range(48):
-            power[interval] = 0.0 if (interval < 30 or interval > 34) else (5.0 if interval != 34 else 2.0)
-    gen_bumps = {}
-    for i, p in power.items():
-        bumps = p / 0.1
-        if bumps > 0:
-            bump_seconds = int(1800 / bumps)
-            gen_bumps[i] = list(range(0, 1800, bump_seconds))
-    entity_id = "sensor.site_export_sensor"
-    increasing = 0.0
-    adjust = 0.0
-    gap = False
-    increase = True
-    with freeze_time(now, tz_offset=0) as frozen_time:
-        for interval in range(48 * entity_history["days_export"]):
-            i = interval % 48
-            day = interval // 48
-            if gen_bumps.get(i):
-                for b in gen_bumps[i]:
-                    if extra_sensors == ExtraSensors.DODGY:
-                        if 25 < i < 29:
-                            # Introduce a gap in the generation to cause missing data
-                            increase = False
-                            gap = True
-                        elif 20 < i < 24:
-                            # Introduce flat generation, with a catch-up spike to cause odd generation by not incrementing
-                            adjust += 0.1
-                            increase = False
-                        elif i == 24:
-                            if adjust > 0.0:
-                                increasing += round(adjust, 1)
-                                adjust = 0.0
-                                increase = False
-                        if increase:
-                            increasing += 0.1
-                        else:
-                            increase = True
-                    else:
-                        increasing += 0.1
-                    new_now = now - timedelta(hours=off) + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
-                    frozen_time.move_to(new_now)
-                    if not gap:
-                        if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-                            await hass.async_add_executor_job(
-                                hass.states.set,
-                                entity_id,
-                                str(round(increasing / adjustment[_uom], 4)),
-                                None,
-                                True,
-                            )
-                        else:
-                            await hass.async_add_executor_job(
-                                hass.states.set,
-                                entity_id,
-                                str(round(increasing / adjustment[_uom], 4)),
-                                {"unit_of_measurement": _uom},
-                                True,
-                            )
-                    else:
-                        gap = False
+    async def record_history(entity_id: str, new_now: dt, increasing: float, gap: bool) -> None:
+        if not FASTER:
+            frozen_time.move_to(new_now)
+        if not gap:
+            if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
+                if FASTER:
+                    hass.states.async_set(
+                        entity_id,
+                        str(round(increasing / adjustment[_uom], 4)),
+                        None,
+                        timestamp=dt.timestamp(new_now),
+                    )
+                    await hass.async_block_till_done()
+                    for _ in range(BLOCKS):
+                        await hass.async_block_till_done()
+                else:
+                    await hass.async_add_executor_job(
+                        hass.states.set,
+                        entity_id,
+                        str(round(increasing / adjustment[_uom], 4)),
+                        None,
+                        True,
+                    )
+            else:  # noqa: PLR5501
+                if FASTER:
+                    hass.states.async_set(
+                        entity_id,
+                        str(round(increasing / adjustment[_uom], 4)),
+                        {"unit_of_measurement": _uom},
+                        timestamp=dt.timestamp(new_now),
+                    )
+                    for _ in range(BLOCKS):
+                        await hass.async_block_till_done()
+                else:
+                    await hass.async_add_executor_job(
+                        hass.states.set,
+                        entity_id,
+                        str(round(increasing / adjustment[_uom], 4)),
+                        {"unit_of_measurement": _uom},
+                        True,
+                    )
 
-    # Generation entities
-    now = (dt.now(UTC) - timedelta(days=entity_history["days_generation"])).replace(hour=14, minute=0, second=0)
-    site_generation: dict[str, float] = {}
+    def corrupt_data(i: int, sample: int, adjust: float, increase: bool, increasing: float) -> tuple[bool, bool, float, float]:
+        gap = False
+        if i == 18:
+            if sample in (0, 5, 6, 7, 8, 9):
+                # Take out samples in interval 19, including the first one
+                increase = True
+                gap = True
+            else:
+                gap = False
+        elif 20 < i < 24:
+            # Introduce flat period, with a catch-up spike to cause odd update by not incrementing
+            adjust += 0.1
+            increase = False
+        elif i == 24:
+            if adjust > 0.0:
+                increasing += round(adjust, 1)
+                adjust = 0.0
+                increase = False
+        elif 25 < i < 29:
+            # Introduce a gap to cause missing data
+            increase = False
+            gap = True
+        elif i == 32:
+            # Introduce a gap with a jump
+            increase = True
+            gap = True
+        return increase, gap, adjust, increasing
+
+    # Build entity histories.
+    entities: dict[str, float] = {}
     for api_key in options["api_key"].split(","):
         for site in API_KEY_SITES[api_key]["sites"]:
-            site_generation[site["resource_id"]] = site["capacity"]
-    for site, generation in site_generation.items():
+            entities[site["resource_id"]] = site["capacity"]
+    entities["site_export_sensor"] = 0.0
+    for site, generation in entities.items():
         if site == "3333-3333-3333-3333":
             continue
         power = {}
-        for interval in range(48):
-            power[interval] = (
-                0.5 * generation * GENERATION_FACTOR[interval]
-                if interval < 20
-                else (
-                    round(0.7 * 0.5 * generation * GENERATION_FACTOR[interval], 1)
-                    if interval > 32
-                    else round(0.97 * 0.5 * generation * GENERATION_FACTOR[interval], 1)
+        if site != "site_export_sensor":
+            now = (dt.now(UTC) - timedelta(days=entity_history["days_generation"])).replace(hour=14, minute=0, second=0)
+            for interval in range(48):
+                power[interval] = (
+                    0.5 * generation * GENERATION_FACTOR[interval]
+                    if interval < 20
+                    else (
+                        round(0.7 * 0.5 * generation * GENERATION_FACTOR[interval], 1)
+                        if interval > 32
+                        else round(0.97 * 0.5 * generation * GENERATION_FACTOR[interval], 1)
+                    )
                 )
-            )
-        entity = "solar_export_sensor_" + site.replace("-", "_")
+            entity = "solar_export_sensor_" + site.replace("-", "_")
+        else:
+            now = (dt.now(UTC) - timedelta(days=entity_history["days_export"])).replace(hour=14, minute=0, second=0)
+            if extra_sensors == ExtraSensors.DODGY:
+                for interval in range(48):
+                    power[interval] = 0.0 if (interval < 24 or interval > 34) else (5.0 if interval != 34 else 2.0)
+            else:
+                for interval in range(48):
+                    power[interval] = 0.0 if (interval < 30 or interval > 34) else (5.0 if interval != 34 else 2.0)
+            entity = site
         entity_id = "sensor." + entity
 
-        entity_registry.async_get_or_create(
-            "sensor",
-            "pytest",
-            entity,
-            config_entry=entry,
-            suggested_object_id=entity,
-            unit_of_measurement=_uom,
-        )
+        if site != "site_export_sensor" or (extra_sensors != ExtraSensors.YES_NO_UNIT and site == "site_export_sensor"):
+            entity_registry.async_get_or_create(
+                "sensor",
+                "pytest",
+                entity,
+                config_entry=entry,
+                suggested_object_id=entity,
+                unit_of_measurement=_uom,
+            )
 
         gap = False
-        with freeze_time(now + timedelta(days=entity_history["offset"]) - timedelta(hours=off), tz_offset=0) as frozen_time:
-
-            async def record_history(entity_id: str, new_now: dt, increasing: float) -> None:
-                nonlocal gap
-
-                if not FASTER:
-                    frozen_time.move_to(new_now)
-                if not gap:
-                    if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-                        if FASTER:
-                            hass.states.async_set(
-                                entity_id,
-                                str(round(increasing / adjustment[_uom], 4)),
-                                None,
-                                timestamp=dt.timestamp(new_now),
-                            )
-                            await hass.async_block_till_done()
-                            for _ in range(BLOCKS):
-                                await hass.async_block_till_done()
-                        else:
-                            await hass.async_add_executor_job(
-                                hass.states.set,
-                                entity_id,
-                                str(round(increasing / adjustment[_uom], 4)),
-                                None,
-                                True,
-                            )
-                    else:
-                        if FASTER:
-                            hass.states.async_set(
-                                entity_id,
-                                str(round(increasing / adjustment[_uom], 4)),
-                                {"unit_of_measurement": _uom},
-                                timestamp=dt.timestamp(new_now),
-                            )
-                            for _ in range(BLOCKS):
-                                await hass.async_block_till_done()
-                        else:
-                            await hass.async_add_executor_job(
-                                hass.states.set,
-                                entity_id,
-                                str(round(increasing / adjustment[_uom], 4)),
-                                {"unit_of_measurement": _uom},
-                                True,
-                            )
-                else:
-                    gap = False
-
-            if "1111" in entity_id:  # 1111 as a generation-consistent profile
-                gen_bumps = {}
+        with freeze_time(
+            now + (timedelta(hours=0) if site == "site_export_sensor" else timedelta(days=entity_history["offset"]) - timedelta(hours=off)),
+            tz_offset=0,
+        ) as frozen_time:
+            gen_bumps = {}
+            if site in ("1111-1111-1111-1111", "site_export_sensor"):  # 1111 and site export as a generation-consistent profile
                 for i, p in power.items():
                     bumps = p / 0.1
                     if bumps > 0:
-                        bump_seconds = int(1800 / bumps)
-                        gen_bumps[i] = list(range(0, 1800, bump_seconds))
-                increasing = 0.0
-                adjust = 0.0
-                increase = True
-                for interval in range(48 * entity_history["days_generation"]):
-                    i = interval % 48
-                    day = interval // 48
-                    if gen_bumps.get(i):
-                        for b in gen_bumps[i]:
-                            if extra_sensors == ExtraSensors.DODGY:
-                                if 25 < i < 29:
-                                    # Introduce a gap in the generation to cause missing data
-                                    increase = False
-                                    gap = True
-                                elif 20 < i < 24:
-                                    # Introduce flat generation, with a catch-up spike to cause odd generation by not incrementing
-                                    adjust += 0.1
-                                    increase = False
-                                elif i == 24:
-                                    if adjust > 0.0:
-                                        increasing += round(adjust, 1)
-                                        adjust = 0.0
-                                        increase = False
-                                if increase:
-                                    increasing += 0.1
-                                else:
-                                    increase = True
-                            else:
-                                increasing += 0.1
-                            new_now = (
-                                now
-                                + timedelta(days=entity_history["offset"])
-                                - timedelta(hours=off)
-                                + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
-                            )
-                            await record_history(entity_id, new_now, increasing)
+                        bump_seconds = int(1800 / bumps)  # Use a varying period for each bump to reach interval generation
+                        bump_times = list(range(0, 1800, bump_seconds))
+                        gen_bumps[i] = (bump_times, 0.1)
             else:  # 2222 as a time-consistent profile
-                gen_bumps = {}
                 for i, p in power.items():
-                    # Use a fixed period of 63 seconds for each bump
                     if p > 0:
-                        bump_times = list(range(0, 1800, 63))
-                        # Calculate the increment so that sum(increments) == p over 1800 seconds
-                        # Number of bumps = len(bump_times)
+                        bump_times = list(range(0, 1800, 63))  # Use a fixed period of 63 seconds for each bump
                         num_bumps = len(bump_times)
-                        increment = p / num_bumps if num_bumps > 0 else 0
-                        gen_bumps[i] = (bump_times, increment)  # pyright: ignore[reportArgumentType]
-                increasing = 0.0
-                adjust = 0.0
-                increase = True
-                for interval in range(48 * entity_history["days_generation"]):
-                    i = interval % 48
-                    day = interval // 48
-                    if i == 0:
-                        # Reset for second entity to emulate a resetting daily meter
-                        increasing = 0.0
-                    if gen_bumps.get(i):
-                        bump_t, increment = gen_bumps[i]
-                        for sample, b in enumerate(bump_t):
-                            if extra_sensors == ExtraSensors.DODGY:
-                                if i == 18 and sample in (0, 5, 6, 7, 8, 9):
-                                    # Take out samples in interval 19, including the first one
-                                    increase = True
-                                    gap = True
-                                elif 25 < i < 29:
-                                    # Introduce a gap in the generation to cause missing data
-                                    increase = False
-                                    gap = True
-                                elif 20 < i < 24:
-                                    # Introduce flat generation, with a catch-up spike
-                                    adjust += increment
-                                    increase = False
-                                elif i == 24:
-                                    if adjust > 0.0:
-                                        increasing += adjust
-                                        adjust = 0.0
-                                        increase = False
-                                if increase:
-                                    increasing += increment
-                                else:
-                                    increase = True
-                            else:
+                        gen_bumps[i] = (bump_times, p / num_bumps)
+            increasing = 0.0
+            adjust = 0.0
+            increase = True
+            for interval in range(
+                48 * (entity_history["days_export"] if site == "site_export_sensor" else entity_history["days_generation"])
+            ):
+                i = interval % 48
+                day = interval // 48
+                gap = False
+                if site == "2222-2222-2222-2222" and i == 0:
+                    # Reset for second entity to emulate a resetting daily meter
+                    increasing = 0.0
+                if gen_bumps.get(i):
+                    bump_t, increment = gen_bumps[i]
+                    for sample, b in enumerate(bump_t):
+                        if extra_sensors == ExtraSensors.DODGY:
+                            increase, gap, adjust, increasing = corrupt_data(i, sample, adjust, increase, increasing)
+                            if increase:
                                 increasing += increment
-                            new_now = (
-                                now
-                                + timedelta(days=entity_history["offset"])
-                                - timedelta(hours=off)
-                                + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
-                            )
-                            await record_history(entity_id, new_now, increasing)
+                            else:
+                                increase = True
+                        else:
+                            increasing += increment
+                        new_now = (
+                            now
+                            + timedelta(days=entity_history["offset"])
+                            - timedelta(hours=off)
+                            + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
+                        )
+                        await record_history(entity_id, new_now, increasing, gap)
 
     # Surplus day energy sensor to be cleaned up.
     entity_registry.async_get_or_create(

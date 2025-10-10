@@ -2447,7 +2447,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         return conversion_factor
 
-    async def get_pv_generation(self) -> None:  # noqa: C901
+    async def get_pv_generation(self) -> None:
         """Get PV generation from external entity/entities.
 
         Sensors must be increasing energy values (may reset at midnight), and the entities must have state history.
