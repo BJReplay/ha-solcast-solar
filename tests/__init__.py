@@ -387,34 +387,6 @@ async def async_setup_extra_sensors(  # noqa: C901
                         True,
                     )
 
-    def corrupt_data(i: int, sample: int, adjust: float, increase: bool, increasing: float) -> tuple[bool, bool, float, float]:
-        gap = False
-        if i == 18:
-            if sample in (0, 5, 6, 7, 8, 9):
-                # Take out samples in interval 19, including the first one
-                increase = True
-                gap = True
-            else:
-                gap = False
-        elif 20 < i < 24:
-            # Introduce flat period, with a catch-up spike to cause odd update by not incrementing
-            adjust += 0.1
-            increase = False
-        elif i == 24:
-            if adjust > 0.0:
-                increasing += round(adjust, 1)
-                adjust = 0.0
-                increase = False
-        elif 25 < i < 29:
-            # Introduce a gap to cause missing data
-            increase = False
-            gap = True
-        elif i == 32:
-            # Introduce a gap with a jump
-            increase = True
-            gap = True
-        return increase, gap, adjust, increasing
-
     # Build entity histories.
     entities: dict[str, float] = {}
     for api_key in options["api_key"].split(","):
@@ -488,13 +460,35 @@ async def async_setup_extra_sensors(  # noqa: C901
                 day = interval // 48
                 gap = False
                 if site == "2222-2222-2222-2222" and i == 0:
-                    # Reset for second entity to emulate a resetting daily meter
-                    increasing = 0.0
+                    increasing = 0.0  # Reset for second entity to emulate a resetting daily meter
                 if gen_bumps.get(i):
                     bump_t, increment = gen_bumps[i]
                     for sample, b in enumerate(bump_t):
                         if extra_sensors == ExtraSensors.DODGY:
-                            increase, gap, adjust, increasing = corrupt_data(i, sample, adjust, increase, increasing)
+                            if i == 18:
+                                if sample in (0, 5, 6, 7, 8, 9):
+                                    # Take out samples in interval 19, including the first one
+                                    increase = True
+                                    gap = True
+                                else:
+                                    gap = False
+                            elif 20 < i < 24:
+                                # Introduce flat period, with a catch-up spike to cause odd update by not incrementing
+                                adjust += 0.1
+                                increase = False
+                            elif i == 24:
+                                if adjust > 0.0:
+                                    increasing += round(adjust, 1)
+                                    adjust = 0.0
+                                    increase = False
+                            elif 25 < i < 29:
+                                # Introduce a gap to cause missing data
+                                increase = False
+                                gap = True
+                            elif i == 32:
+                                # Introduce a gap with a jump
+                                increase = True
+                                gap = True
                             if increase:
                                 increasing += increment
                             else:
