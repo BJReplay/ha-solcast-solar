@@ -26,7 +26,7 @@ from homeassistant.components.solcast_solar.const import (
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
-from homeassistant.components.solcast_solar.util import find_percentile
+from homeassistant.components.solcast_solar.util import percentile
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
@@ -204,8 +204,8 @@ async def test_auto_dampen(
 
         assert "Auto-dampening suppressed: Excluded site for 3333-3333-3333-3333" in caplog.text
         assert "Interval 08:30 has peak estimated actual 0.936" in caplog.text
-        assert "Interval 08:30 max generation: 0.800" in caplog.text
-        assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
+        assert "Interval 08:30 max generation: 0.755" in caplog.text
+        assert "Auto-dampen factor for 08:30 is 0.807" in caplog.text
         assert "Auto-dampen factor for 11:00" not in caplog.text
         assert "Ignoring insignificant factor for 11:00 of 0.988" in caplog.text
         assert "Ignoring excessive PV generation" not in caplog.text
@@ -248,7 +248,7 @@ async def test_auto_dampen(
             solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"][removed - 24]["period_start"]  # pyright: ignore[reportPrivateUsage]
             == value_removed["period_start"]
         )  # pyright: ignore[reportPrivateUsage]
-        assert "Auto-dampen factor for 08:30 is 0.855" in caplog.text
+        assert "Auto-dampen factor for 08:30 is 0.807" in caplog.text
 
         # Verify that the dampening entity that should be disabled by default is, then enable it.
         entity = "sensor.solcast_pv_forecast_dampening"
@@ -396,24 +396,24 @@ async def test_percentile() -> None:
     data: list[float]
 
     data = [1.0, 2.0, 3.0, 4.0, 5.0]
-    assert find_percentile(data, 0) == 1.0
-    assert find_percentile(data, 25) == 2.0
-    assert find_percentile(data, 50) == 3.0
-    assert find_percentile(data, 75) == 4.0
-    assert find_percentile(data, 100) == 5.0
+    assert percentile(data, 0) == 1.0
+    assert percentile(data, 25) == 2.0
+    assert percentile(data, 50) == 3.0
+    assert percentile(data, 75) == 4.0
+    assert percentile(data, 100) == 5.0
 
     data = [5.0]
-    assert find_percentile(data, 0) == 5.0
-    assert find_percentile(data, 25) == 5.0
-    assert find_percentile(data, 50) == 5.0
-    assert find_percentile(data, 75) == 5.0
-    assert find_percentile(data, 100) == 5.0
+    assert percentile(data, 0) == 5.0
+    assert percentile(data, 25) == 5.0
+    assert percentile(data, 50) == 5.0
+    assert percentile(data, 75) == 5.0
+    assert percentile(data, 100) == 5.0
 
     data = [0.1] * 10 + [0.5]
-    assert find_percentile(data, 90) == 0.1
+    assert percentile(data, 90) == 0.1
 
     data = [0.1] * 8 + [0.5]
-    assert round(find_percentile(data, 90), 2) == 0.18
+    assert round(percentile(data, 90), 2) == 0.18
 
     data = []
-    assert find_percentile(data, 50) == 0.0
+    assert percentile(data, 50) == 0.0

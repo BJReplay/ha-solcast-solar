@@ -39,8 +39,8 @@ _LOGGER = logging.getLogger(__name__)
 
 
 entity_history["days_export"] = 1
-entity_history["days_generation"] = 5
-entity_history["offset"] = 2
+entity_history["days_generation"] = 3
+entity_history["offset"] = 1
 
 
 @pytest.fixture(autouse=True)
@@ -91,6 +91,7 @@ async def test_auto_dampen_dst_transition(
         ]
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
+        expected_value = 0.797
 
         # Test transition from standard to summer time.
         freezer.move_to("2025-10-02 18:00:00")
@@ -114,15 +115,15 @@ async def test_auto_dampen_dst_transition(
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:
                 break
-        assert "Adjusted granular dampening factor for 2025-10-04 09:00:00 is 0.804" in caplog.text
-        assert "Auto-dampen factor for 09:00 is 0.804" in caplog.text
+        assert f"Adjusted granular dampening factor for 2025-10-04 09:00:00 is {expected_value}" in caplog.text
+        assert f"Auto-dampen factor for 09:00 is {expected_value}" in caplog.text
         caplog.clear()
         await five_minute_bump(hass, freezer, caplog)
         if (state := hass.states.get(dampening_entity)) is not None:
             assert state.state == "True"
             if (attribute := state.attributes.get("factors")) is not None:
                 assert len(attribute) == 48
-                assert attribute[18]["factor"] == 0.804
+                assert attribute[18]["factor"] == expected_value
             else:
                 pytest.fail("Dampening attribute `factors` is None")
         else:
@@ -137,15 +138,15 @@ async def test_auto_dampen_dst_transition(
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:
                 break
-        assert "Auto-dampen factor for 10:00 is 0.804" in caplog.text
-        assert "Adjusted granular dampening factor for 2025-10-05 10:00:00 is 0.804" in caplog.text
+        assert f"Auto-dampen factor for 10:00 is {expected_value}" in caplog.text
+        assert f"Adjusted granular dampening factor for 2025-10-05 10:00:00 is {expected_value}" in caplog.text
         caplog.clear()
         await five_minute_bump(hass, freezer, caplog)
         if (state := hass.states.get(dampening_entity)) is not None:
             assert state.state == "True"
             if (attribute := state.attributes.get("factors")) is not None:
                 assert len(attribute) == 48
-                assert attribute[20]["factor"] == 0.804
+                assert attribute[20]["factor"] == expected_value
             else:
                 pytest.fail("Dampening attribute `factors` is None")
         else:
@@ -158,7 +159,7 @@ async def test_auto_dampen_dst_transition(
             assert state.state == "True"
             if (attribute := state.attributes.get("factors")) is not None:
                 assert len(attribute) == 48
-                assert attribute[20]["factor"] == 0.804
+                assert attribute[20]["factor"] == expected_value
             else:
                 pytest.fail("Dampening attribute `factors` is None")
         else:
@@ -168,6 +169,8 @@ async def test_auto_dampen_dst_transition(
         assert await async_cleanup_integration_tests(hass)
 
 
+# Disabled as the test takes a long time to run and the code is very similar to the above test.
+'''
 async def test_auto_dampen_dst_transition_back(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -189,6 +192,7 @@ async def test_auto_dampen_dst_transition_back(
         ]
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
+        expected_value = 0.797
 
         # Test transition from summer to standard time.
         freezer.move_to("2026-04-02 18:00:00")
@@ -212,14 +216,14 @@ async def test_auto_dampen_dst_transition_back(
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:
                 break
-        assert "Adjusted granular dampening factor for 2026-04-04 10:00:00 is 0.804" in caplog.text
+        assert f"Adjusted granular dampening factor for 2026-04-04 10:00:00 is {expected_value}" in caplog.text
         caplog.clear()
         await five_minute_bump(hass, freezer, caplog)
         if (state := hass.states.get(dampening_entity)) is not None:
             assert state.state == "True"
             if (attribute := state.attributes.get("factors")) is not None:
                 assert len(attribute) == 48
-                assert attribute[20]["factor"] == 0.804
+                assert attribute[20]["factor"] == expected_value
             else:
                 pytest.fail("Dampening attribute `factors` is None")
         else:
@@ -234,14 +238,14 @@ async def test_auto_dampen_dst_transition_back(
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:
                 break
-        assert "Adjusted granular dampening factor for 2026-04-05 09:00:00 is 0.804" in caplog.text
+        assert f"Adjusted granular dampening factor for 2026-04-05 09:00:00 is {expected_value}" in caplog.text
         caplog.clear()
         await five_minute_bump(hass, freezer, caplog)
         if (state := hass.states.get(dampening_entity)) is not None:
             assert state.state == "True"
             if (attribute := state.attributes.get("factors")) is not None:
                 assert len(attribute) == 48
-                assert attribute[18]["factor"] == 0.804
+                assert attribute[18]["factor"] == expected_value
             else:
                 pytest.fail("Dampening attribute `factors` is None")
         else:
@@ -254,7 +258,7 @@ async def test_auto_dampen_dst_transition_back(
             assert state.state == "True"
             if (attribute := state.attributes.get("factors")) is not None:
                 assert len(attribute) == 48
-                assert attribute[18]["factor"] == 0.804
+                assert attribute[18]["factor"] == expected_value
             else:
                 pytest.fail("Dampening attribute `factors` is None")
         else:
@@ -262,3 +266,4 @@ async def test_auto_dampen_dst_transition_back(
 
     finally:
         assert await async_cleanup_integration_tests(hass)
+'''

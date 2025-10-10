@@ -138,19 +138,34 @@ class JSONDecoder(json.JSONDecoder):
         return result
 
 
-def find_percentile(data: list[float], percentile: float) -> float:
+def percentile(data: list[Any], _percentile: float) -> float | int:
     """Find the given percentile in a sorted list of values."""
 
     if not data:
         return 0.0
-    k = (len(data) - 1) * (percentile / 100)
+    k = (len(data) - 1) * (_percentile / 100)
     f = math.floor(k)
     c = math.ceil(k)
     if f == c:
         return data[int(k)]
     d0 = data[int(f)] * (c - k)
     d1 = data[int(c)] * (k - f)
-    return d0 + d1
+    return round(d0 + d1, 4)
+
+
+def interquartile_bounds(sorted_data: list[Any], factor: float = 1.5) -> tuple[float | int, float | int]:
+    """Return the lower and upper interquartile bounds of a sorted data set."""
+
+    lower = 0.0
+    upper = float("inf")
+    iqr = 0.0
+    if len(sorted_data) > 4:
+        q1 = percentile(sorted_data, 25)
+        q3 = percentile(sorted_data, 75)
+        iqr = round(q3 - q1, 5)
+        lower = round(q1 - factor * iqr, 4)
+        upper = round(q3 + factor * iqr, 4)
+    return (lower, upper)
 
 
 def diff(lst: list[Any], non_negative: bool = True) -> list[Any]:

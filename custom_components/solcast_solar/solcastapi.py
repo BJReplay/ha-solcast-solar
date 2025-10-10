@@ -74,7 +74,8 @@ from .util import (
     UsageStatus,
     cubic_interp,
     diff,
-    find_percentile,
+    interquartile_bounds,
+    percentile,
 )
 
 API: Final = Api.HOBBYIST  # The API to use. Presently only the hobbyist API is allowed for hobbyist accounts.
@@ -2454,7 +2455,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Very large units of measurement are not supported (e.g. GWh, TWh) because of precision loss.
         """
 
-        _EXCESSIVE_FACTOR = 3
         start_time = time.time()
 
         # Load the generation history.
@@ -2502,20 +2502,76 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         0.0,
                         *diff([float(e.state) * conversion_factor for e in entity_history[entity] if e.state.replace(".", "").isnumeric()]),
                     ]
+                    sample_generation_time: list[dt] = [
+                        e.last_updated.astimezone(datetime.UTC) for e in entity_history[entity] if e.state.replace(".", "").isnumeric()
+                    ]
+                    sample_timedelta: list[int] = [
+                        0,
+                        *diff(
+                            [
+                                (
+                                    e.last_updated.astimezone(datetime.UTC)
+                                    - (self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1))
+                                ).total_seconds()
+                                for e in entity_history[entity]
+                                if e.state.replace(".", "").isnumeric()
+                            ]
+                        ),
+                    ]
+
+                    # Detemine generation-consistent or time-consistent increments, and the inter-quartile upper bound for ignoring excessive jumps.
+                    uniform_increment = False
+                    non_zero_samples = sorted([round(sample, 5) for sample in sample_generation if sample > 0.0003])
+                    if percentile(non_zero_samples, 25) == percentile(non_zero_samples, 75):
+                        uniform_increment = True
+                    else:
+                        non_zero_samples = sorted([sample for sample in sample_timedelta if sample > 0])
+                    _, upper = interquartile_bounds(non_zero_samples, factor=(1.5 if uniform_increment else 2.2))
+                    upper += 0.1 if uniform_increment else 1
+                    _LOGGER.debug(
+                        f"%s increments detected for entity: %s, outlier upper bound: {'%.3f kWh' if uniform_increment else '%d seconds'}",  # noqa: G004
+                        "Generation-consistent" if uniform_increment else "Time-consistent",
+                        entity,
+                        upper,
+                    )
+
                     # Build generation values for each interval, ignoring any excessive jumps.
-                    non_zero_generation = sorted([kWh for kWh in sample_generation if kWh > 0])
-                    typical_gen = find_percentile(non_zero_generation, 90)
-                    _LOGGER.debug("Typical generation jump: %.3f kWh", typical_gen)
-                    for interval, kWh in zip(sample_time, sample_generation, strict=True):
-                        if kWh <= typical_gen * _EXCESSIVE_FACTOR:  # Ignore excessive jumps.
-                            generation_intervals[interval] += kWh
+                    ignored: dict[dt, bool] = {}
+                    last_interval: dt | None = None
+                    for interval, kWh, report_time, time_delta in zip(
+                        sample_time, sample_generation, sample_generation_time, sample_timedelta, strict=True
+                    ):
+                        if interval != last_interval:
+                            # Only check the first sample of each interval for an excessive jump
+                            last_interval = interval
+                            if uniform_increment:
+                                if round(kWh, 4) > upper:  # Ignore excessive jumps.
+                                    ignored[interval] = True
+                                else:
+                                    generation_intervals[interval] += kWh
+                            elif time_delta > upper and kWh > 0.0003:  # Ignore excessive jumps.
+                                if kWh <= 0.14:  # Small increments are probably valid
+                                    generation_intervals[interval] += kWh
+                                else:
+                                    ignored[interval] = True
+                            else:
+                                generation_intervals[interval] += kWh
+                            if ignored.get(interval):
+                                # Invalidate both this interval and the previous one because errant sample straddles the half-hour boundary.
+                                ignored[interval - timedelta(minutes=30)] = True
+                                _LOGGER.debug(
+                                    "Ignoring excessive PV generation jump of %.3f kWh, time delta %d seconds, at %s from entity: %s; Invalidating intervals %s and %s",
+                                    kWh,
+                                    time_delta,
+                                    report_time.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M:%S"),
+                                    entity,
+                                    (interval - timedelta(minutes=30)).astimezone(self.options.tz).strftime("%H:%M"),
+                                    interval.astimezone(self.options.tz).strftime("%H:%M"),
+                                )
                         else:
-                            _LOGGER.debug(
-                                "Ignoring excessive PV generation jump of %.3f kWh in interval %s from entity: %s",
-                                kWh,
-                                interval.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
-                                entity,
-                            )
+                            generation_intervals[interval] += kWh
+                    for interval in ignored:
+                        generation_intervals[interval] = 0.0
                 else:
                     _LOGGER.debug("No day %d PV generation data from entity: %s (%s)", -1 + day * -1, entity, entity_history.get(entity))
             for i, gen in generation_intervals.items():
@@ -2629,6 +2685,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Automated dampening is not enabled, skipping model_automated_dampening()")
             return
 
+        MINIMUM_INTERVALS = 1  # Minimum number of matching intervals to consider dampening
+
         start_time = time.time()
 
         export_limited_intervals = dict.fromkeys(range(48), False)
@@ -2713,13 +2771,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
                 )
                 _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
-                if peak < self._peak_intervals[interval]:
-                    factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 0.0
-                    if factor < noise:
-                        _LOGGER.debug("Auto-dampen factor for %s is %.3f", interval_time, factor)
-                        dampening[interval] = round(factor, 3)
+                msg = f"Not enough matching intervals for {interval_time} to consider dampening"
+                log_msg = True
+                if len(matching) > MINIMUM_INTERVALS:
+                    if peak < self._peak_intervals[interval]:
+                        factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 0.0
+                        if factor < noise:
+                            msg = f"Auto-dampen factor for {interval_time} is {factor:.3f}"
+                            dampening[interval] = round(factor, 3)
+                        else:
+                            msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
                     else:
-                        _LOGGER.debug("Ignoring insignificant factor for %s of %.3f", interval_time, factor)
+                        log_msg = False
+                if log_msg:
+                    _LOGGER.debug(msg)
 
         if dampening != self.granular_dampening.get("all"):
             self.granular_dampening["all"] = dampening
@@ -3136,12 +3201,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
 
             await self.sort_and_prune(site["resource_id"], self._data, 730, forecasts)
-            _LOGGER.debug(
-                "Forecasts dictionary length for %s is %s (%s un-dampened)",
-                site["resource_id"],
-                len(forecasts),
-                len(self._data_undampened["siteinfo"][site["resource_id"]]["forecasts"]),
-            )
 
     async def sort_and_prune(self, site: str | None, data: dict[str, Any], past_days: int, forecasts: dict[Any, Any]) -> None:
         """Sort and prune a forecast list."""
@@ -3623,6 +3682,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             commencing: datetime.date,
             actuals: dict[dt, dict[str, dt | float]],
             sites_hard_limit: defaultdict[str, dict[str, dict[dt, Any]]],
+            log_dictionary_length: bool = False,
         ) -> list[Any]:
             nonlocal build_success
 
@@ -3667,7 +3727,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             "period_start": period_start,
                                             "pv_estimate": site_actuals[period_start]["pv_estimate"],
                                         }
-                        # site_data_forecasts[resource_id] = sorted(site_actuals.values(), key=itemgetter("period_start"))
+                        if log_dictionary_length:
+                            _LOGGER.debug(
+                                "Estimated actuals dictionary length for %s is %s",
+                                resource_id,
+                                len(self._data_actuals["siteinfo"][resource_id]["forecasts"]),
+                            )
                 return sorted(actuals.values(), key=itemgetter("period_start"))
             except Exception as e:  # noqa: BLE001
                 _LOGGER.error("Exception in build_data_actuals(): %s: %s", e, traceback.format_exc())
@@ -3680,6 +3745,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             commencing,
             actuals,
             self._sites_hard_limit,
+            log_dictionary_length=True,
         )
         self._data_estimated_actuals_dampened = await build_data_actuals(
             self._data_actuals_dampened,
@@ -3899,6 +3965,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             if tally is not None:
                                 siteinfo["tally"] = rounded_tally
                             self._tally[resource_id] = rounded_tally
+                            _LOGGER.debug(
+                                "Forecasts dictionary length for %s is %s (%s un-dampened)",
+                                resource_id,
+                                len(forecasts),
+                                len(self._data_undampened["siteinfo"][resource_id]["forecasts"]),
+                            )
                 if update_tally:
                     self._data_forecasts = sorted(forecasts.values(), key=itemgetter("period_start"))
                 else:

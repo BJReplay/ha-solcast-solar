@@ -657,7 +657,7 @@ Automated dampening will apply the same dampening factors to all rooftop sites, 
 >
 > **Be warned**: THINK, INVESTIGATE, and **then** REPORT any issues with automated dampening, IN THAT ORDER. It may look like a "tick and flick" option in the configuration, but this is not.
 >
-> If you think and investigate, and spot something that could be improved for everybody, then report it please. If you raise an issue without showing your working - demonstrating that you have thought, investigated, and then reported for that issue - your issue may be closed quickly with little or no support.
+> If you think and investigate, and spot something that could be improved for everybody, then report it please. If you raise an issue without showing your working to demonstrate that you have thought, investigated, and then reported for that issue, then your issue may be closed quickly with little or no support.
 >
 > If you investigate and find that an issue is because your hand-built generation entity is not like anyone elses, then please, roll your own dampening solution. The component parts are available for you to do so by utilising granular dampening.
 
@@ -667,7 +667,7 @@ The theory of operation is simple, relying on two key inputs, and an optional th
 
 ##### Theory of operation
 
-Automated dampening first builds a "consistently best" set of half-hourly generation periods for the past fourteen days from [estimated actual data](#key-input-estimated-actual-data-from-solcast). It then compares that to [generation history](#key-input-actual-pv-generation-for-your-site) for these periods (excluding periods where export limits may have been hit by [optional export limiting](#optional-input-site-export-to-the-grid-combined-with-a-limit-value)), and then selects the highest actual generation value from a majority of similar best periods. This value determines whether external factors are likely impacting generation, and is used to calculate a "base" dampening factor.
+Automated dampening first builds a "consistently best" set of (more than one) half-hourly generation periods for the past fourteen days from [estimated actual data](#key-input-estimated-actual-data-from-solcast). It then compares that to [generation history](#key-input-actual-pv-generation-for-your-site) for these periods (excluding periods where export limits may have been hit by [optional export limiting](#optional-input-site-export-to-the-grid-combined-with-a-limit-value)), and then selects the highest actual generation value from a majority of similar best periods. This value determines whether external factors are likely impacting generation, and is used to calculate a "base" dampening factor.
 
 Because forecast periods vary from best estimates due to cloud cover, the base factor is then altered before it is applied to forecasts by using a logarithmic difference calculation. If the forecast solar generation varies significantly to the best estimated solar generation that was used to determine the base dampening factor, then it is adjusted so it has little impact (i.e. adjusted closer to a factor of 1.0). This determination is made based on the value of every forecasted interval, so each day will likely have different factors applied.
 
@@ -675,7 +675,7 @@ The base dampening factor adjustment is done because when there is significant f
 
 > [!TIP]
 >
-> Examine the `detailedForecast` attribute for each day forecast to see the dampening factors that have been applied to each interval. An Apex chart example is included in [`TEMPLATES.md`](https://github.com/BJReplay/ha-solcast-solar/blob/main/TEMPLATES.md) to show a practical application for this dampening information.
+> Examine the `detailedForecast` attribute for each day forecast to see the automated dampening factors that have been applied to each interval. An Apex chart example is included in [`TEMPLATES.md`](https://github.com/BJReplay/ha-solcast-solar/blob/main/TEMPLATES.md) to show a practical application for this dampening information.
 
 ##### Key input: Estimated actual data from Solcast
 
@@ -732,6 +732,10 @@ A modelled factor of greater than 0.95 is considered insignificant and is ignore
 These small factors would be corrected based on forecasted generation, so a case could be made to not ignore them. However a small and regular deviation from forecast is likely due to rooftop site misconfiguration or seasonal drift, and not shading.
 
 The aim of automated dampening is not to correct for Solcast rooftop site misconfiguration, nor panel type generation quirks, nor improve forecasting. The aim is to detect consistently poor actual generation against that which is forecasted because of local factors.
+
+> [!TIP]
+>
+> If you have two weeks of history data accumulated, and dampening factors are being generated for every half-hourly period when the sun is up then it is almost certain that you have a configuration issue somewhere. Generation is never matching the estimated actual generation, and it is likely that your Solcast rooftop site configuration is wrong.
 
 Any rooftop site misconfiguration can have a significant impact on reported forecast, but that should be corrected in the rooftop site configuration. It is highly recommended to prove that the configuration is correct, and that forecasts are reasonably accurate on good generation days before attempting to configure automated dampening. Said in another way, if questionable forecasting is apparent then disable automated dampening before diagnosing the questionable forecasting.
 
@@ -1175,6 +1179,15 @@ The caches reside in the Home Assistant configuration folder (usually `/config/`
 The code itself resides at `/config/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
 
 ## Changes
+
+v4.4.5
+
+* Auto-dampen, utilise inter-quartile anomaly detection for generation entities by @autoSteve
+* Auto-dampen, adapt to generation-consistent or time-consistent generation entities by @autoSteve
+* Auto-dampen, ignore entire generation intervals having anomalies by @autoSteve
+* Auto-dampen, minimum number of matching intervals must be greater than one by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.4...v4.4.5
 
 v4.4.4
 
