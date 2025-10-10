@@ -2685,6 +2685,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Automated dampening is not enabled, skipping model_automated_dampening()")
             return
 
+        MINIMUM_INTERVALS = 1  # Minimum number of matching intervals to consider dampening
+
         start_time = time.time()
 
         export_limited_intervals = dict.fromkeys(range(48), False)
@@ -2769,13 +2771,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
                 )
                 _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
-                if peak < self._peak_intervals[interval]:
-                    factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 0.0
-                    if factor < noise:
-                        _LOGGER.debug("Auto-dampen factor for %s is %.3f", interval_time, factor)
-                        dampening[interval] = round(factor, 3)
-                    else:
-                        _LOGGER.debug("Ignoring insignificant factor for %s of %.3f", interval_time, factor)
+                msg = f"Not enough matching intervals for {interval_time} to consider dampening"
+                if len(matching) > MINIMUM_INTERVALS:
+                    if peak < self._peak_intervals[interval]:
+                        factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 0.0
+                        if factor < noise:
+                            msg = f"Auto-dampen factor for {interval_time} is {factor:.3f}"
+                            dampening[interval] = round(factor, 3)
+                        else:
+                            msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
+                _LOGGER.debug(msg)
 
         if dampening != self.granular_dampening.get("all"):
             self.granular_dampening["all"] = dampening
