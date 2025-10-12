@@ -737,6 +737,8 @@ This is where you can get creative with a templated sensor to cause PV generatio
 
 If a template is created with the name of `solcast_suppress_auto_dampening` in any of the platforms "sensor", "binary_sensor", "input_boolean", "input_select", or "input_text", then the integration will monitor those state changes. When a state is one of "on", "off", "1", "0", "true", "false", "True", or "False" then this will signal automated dampening to vary its behaviour, and either include a generation sample, or ignore it.
 
+This entity _must_ begin each day in a state that is considered 'off'.
+
 ##### Automated dampening notes
 
 A modelled factor of greater than 0.95 is considered insignificant and is ignored. Feedback is welcomed as to whether these small factors should be significant and utilised.
