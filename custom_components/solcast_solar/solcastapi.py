@@ -2447,7 +2447,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         return conversion_factor
 
-    async def get_pv_generation(self) -> None:
+    async def get_pv_generation(self) -> None:  # noqa: C901
         """Get PV generation from external entity/entities.
 
         Sensors must be increasing energy values (may reset at midnight), and the entities must have state history.
@@ -2577,12 +2577,72 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for i, gen in generation_intervals.items():
                 generation_intervals[i] = round(gen, 3)
 
-            # Detect site export limiting
             export_limiting: dict[dt, bool] = {
                 self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1) + timedelta(minutes=minute): False
                 for minute in range(0, 1440, 30)
             }
 
+            # Identify intervals intentionally disabled by the user.
+            platforms = ["sensor", "binary_sensor", "input_boolean", "input_select", "input_text"]
+            find_entity = "solcast_suppress_auto_dampening"
+            entity = ""
+            found = False
+            for p in platforms:
+                entity = f"{p}.{find_entity}"
+                r_entity = entity_registry.async_get(entity)
+                if r_entity is not None and r_entity.disabled_by is None:
+                    found = True
+                    break
+            if found:
+                _LOGGER.debug("Suppression entity %s exists", entity)
+                entity_history = await get_instance(self.hass).async_add_executor_job(
+                    state_changes_during_period,
+                    self.hass,
+                    self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1),
+                    self.get_day_start_utc(future=(-1 * day)),
+                    entity,
+                )
+                if entity_history.get(entity) and len(entity_history[entity]):
+                    entity_state: dict[dt, bool] = {}
+                    state = False
+                    for e in entity_history[entity]:
+                        if e.state not in ("on", "off", "1", "0", "true", "false", "True", "False"):
+                            continue
+                        interval = e.last_updated.astimezone(datetime.UTC).replace(
+                            minute=e.last_updated.astimezone(datetime.UTC).minute // 30 * 30, second=0, microsecond=0
+                        )
+                        if e.state in ("on", "1", "true", "True"):
+                            state = True
+                            if not entity_state.get(interval):
+                                entity_state[interval] = state
+                                if state and entity_state.get(interval + timedelta(minutes=30)) is not None:
+                                    entity_state.pop(interval + timedelta(minutes=30))
+                            _LOGGER.debug(
+                                "Interval %s state change %s at %s",
+                                interval.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
+                                entity_state[interval],
+                                e.last_updated.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
+                            )
+                        elif state:
+                            state = False
+                            entity_state[interval + timedelta(minutes=30)] = False
+                            _LOGGER.debug(
+                                "Interval %s state change %s at %s",
+                                (interval + timedelta(minutes=30)).astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
+                                entity_state[interval + timedelta(minutes=30)],
+                                e.last_updated.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M"),
+                            )
+                    state = False
+                    for interval in export_limiting:
+                        if entity_state.get(interval) is not None:
+                            state = entity_state[interval]
+                        export_limiting[interval] = state
+                        if state:
+                            _LOGGER.debug(
+                                "Auto-dampen suppressed for interval %s", interval.astimezone(self.options.tz).strftime("%Y-%m-%d %H:%M")
+                            )
+
+            # Detect site export limiting
             if self.options.site_export_limit > 0 and self.options.site_export_entity != "":
                 _INTERVAL = 5
 
@@ -2752,7 +2812,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             generation_samples: list[float] = [
                 generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
             ]
-            if len(matching) > 0 and len(generation_samples) > 0:  # and len(generation_samples) > len(matching) / 2:
+            if len(matching) > 0 and len(generation_samples) > 0:
                 peak = max(generation_samples)
 
                 interval_time = f"{
@@ -2771,7 +2831,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
                 )
                 _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
-                msg = f"Not enough matching intervals for {interval_time} to consider dampening"
+                msg = f"Not enough matching intervals for {interval_time} to determine dampening"
                 log_msg = True
                 if len(matching) > MINIMUM_INTERVALS:
                     if peak < self._peak_intervals[interval]:
