@@ -910,7 +910,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         log = (
                             _LOGGER.warning
                             if issue_registry.async_get_issue(DOMAIN, "unusual_azimuth_northern") is None
-                            and issue_registry.async_get_issue(DOMAIN, "unusual_azimuth_southern") is None
+                            or issue_registry.async_get_issue(DOMAIN, "unusual_azimuth_southern") is None
                             else _LOGGER.debug
                         )
                         log(self.__redact_lat_lon_simple(f"Unusual azimuth {azimuth} for site {site}, latitude {v['latitude']}"))
