@@ -725,6 +725,18 @@ For automated dampening to operate it must have access to a minimum set of data.
 >
 > Most automated dampening messages are logged at `DEBUG` level, however messages indicating that dampening factors cannot yet be modelled (and the reason why) is logged at `INFO` level. If your minimum log level for the integration is `WARNING` or higher then you will not see these notifications.
 
+##### Modifying automated dampening behaviour
+
+Automated dampening will suit many folks, yet there are situations where it will not suit "out of the box". For these situations there are opportunities for "roll-you-own" modification.
+
+At the core of automated dampening is that a PV generation value is a reliable thing. If this is not reliable, because of utility export limiting, or intended artificial limiting then the integration needs to know.
+
+For simple utility export limiting to a fixed value this is straightforward and is a built in feature, but it is also possible to indicate that a given interval is unreliable based on more complex circumstances.
+
+This is where you can get creative with a templated sensor to cause PV generation intervals to be ignored when they cannot be relied upon to be accurate when compared to estimated actual generation.
+
+If a template is created with the name of `solcast_suppress_auto_dampening` in any of the platforms "sensor", "binary_sensor", "input_boolean", "input_select", or "input_text", then the integration will monitor those state changes. When a state is one of "on", "off", "1", "0", "true", "false", "True", or "False" then this will signal automated dampening to vary its behaviour, and either include a generation sample, or ignore it.
+
 ##### Automated dampening notes
 
 A modelled factor of greater than 0.95 is considered insignificant and is ignored. Feedback is welcomed as to whether these small factors should be significant and utilised.
