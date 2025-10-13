@@ -162,6 +162,7 @@ MOCK_SESSION_CONFIG: dict[str, Any] = {
 entity_history = {
     "days_export": 1,
     "days_generation": 7,
+    "days_suppression": 7,
     "offset": 3,
 }
 
@@ -174,6 +175,7 @@ class ExtraSensors(Enum):
     YES_WATT_HOUR = 2
     YES_NO_UNIT = 3
     YES_UNIT_NOT_IN_HISTORY = 4
+    YES_WITH_SUPPRESSION = 5
     DODGY = 9
 
 
@@ -502,6 +504,46 @@ async def async_setup_extra_sensors(  # noqa: C901
                             + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                         )
                         await record_history(entity_id, new_now, increasing, gap)
+
+    if extra_sensors == ExtraSensors.YES_WITH_SUPPRESSION:
+        entity = "solcast_suppress_auto_dampening"
+        entity_registry.async_get_or_create(
+            "sensor",
+            "pytest",
+            entity,
+            config_entry=entry,
+            suggested_object_id=entity,
+            unit_of_measurement=_uom,
+        )
+        entity_id = "sensor." + entity
+        sequence: list[dict[str, Any]] = [
+            {"hours": 12, "minutes": 14, "seconds": 5, "value": "on"},
+            {"hours": 12, "minutes": 18, "seconds": 5, "value": "off"},
+            {"hours": 12, "minutes": 22, "seconds": 5, "value": "on"},
+            {"hours": 12, "minutes": 48, "seconds": 5, "value": "off"},
+            {"hours": 12, "minutes": 49, "seconds": 5, "value": "on"},
+            {"hours": 13, "minutes": 14, "seconds": 5, "value": "off"},
+            {"hours": 13, "minutes": 14, "seconds": 50, "value": "yeahnah"},
+            {"hours": 13, "minutes": 15, "seconds": 5, "value": "on"},
+            {"hours": 13, "minutes": 45, "seconds": 5, "value": "off"},
+            {"hours": 13, "minutes": 46, "seconds": 5, "value": "on"},
+            {"hours": 14, "minutes": 14, "seconds": 5, "value": "off"},
+        ]
+        now = (dt.now(UTC) - timedelta(days=entity_history["days_suppression"])).replace(hour=14, minute=0, second=0)
+        with freeze_time(
+            now,
+            tz_offset=0,
+        ) as frozen_time:
+            for day in range(entity_history["days_suppression"]):
+                for s in sequence:
+                    frozen_time.move_to(now + timedelta(days=day, hours=s["hours"], minutes=s["minutes"], seconds=s["seconds"]))
+                    await hass.async_add_executor_job(
+                        hass.states.set,
+                        entity_id,
+                        s["value"],
+                        None,
+                        True,
+                    )
 
     # Surplus day energy sensor to be cleaned up.
     entity_registry.async_get_or_create(

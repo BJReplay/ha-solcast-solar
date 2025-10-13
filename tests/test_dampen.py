@@ -6,6 +6,7 @@ import datetime
 from datetime import datetime as dt, timedelta
 import logging
 from pathlib import Path
+import re
 from zoneinfo import ZoneInfo
 
 from freezegun.api import FrozenDateTimeFactory
@@ -309,6 +310,7 @@ async def test_auto_dampen(
 @pytest.mark.parametrize(
     "extra_sensors",
     [
+        ExtraSensors.YES_WITH_SUPPRESSION,
         ExtraSensors.YES_UNIT_NOT_IN_HISTORY,
         ExtraSensors.YES_NO_UNIT,
         ExtraSensors.DODGY,
@@ -333,8 +335,9 @@ async def test_auto_dampen_issues(
             "sensor.solar_export_sensor_1111_1111_1111_1111",
             "sensor.solar_export_sensor_2222_2222_2222_2222",
         ]
-        options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
-        options[SITE_EXPORT_LIMIT] = 5.0
+        if extra_sensors != ExtraSensors.YES_WITH_SUPPRESSION:
+            options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
+            options[SITE_EXPORT_LIMIT] = 5.0
         if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
             options[GENERATION_ENTITIES][0] = "sensor.not_valid"
         if extra_sensors == ExtraSensors.DODGY:
@@ -369,6 +372,10 @@ async def test_auto_dampen_issues(
         _no_exception(caplog)
 
         match extra_sensors:
+            case ExtraSensors.YES_WITH_SUPPRESSION:
+                for interval in ("12:00", "12:30", "13:00", "13:30", "14:00"):
+                    assert re.search(r"Auto-dampen suppressed for interval.+" + interval, caplog.text) is not None
+                    assert f"Interval {interval} has peak estimated actual" not in caplog.text
             case ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
                 assert "has no unit_of_measurement, assuming kWh" not in caplog.text
                 assert f"Generation entity {options[GENERATION_ENTITIES][0]} is not a valid entity" in caplog.text

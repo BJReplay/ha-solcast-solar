@@ -1200,6 +1200,7 @@ v4.4.5
 * Auto-dampen, adapt to generation-consistent or time-consistent generation entities by @autoSteve
 * Auto-dampen, ignore entire generation intervals having anomalies by @autoSteve
 * Auto-dampen, minimum number of matching intervals must be greater than one by @autoSteve
+* Auto-dampen, add generation suppression entity support by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.4...v4.4.5
 
