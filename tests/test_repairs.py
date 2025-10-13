@@ -6,6 +6,7 @@ from datetime import datetime as dt, timedelta
 import json
 import logging
 from pathlib import Path
+import re
 from typing import Any
 
 import pytest
@@ -146,6 +147,7 @@ async def test_unusual_azimuth(
             assert issue.is_persistent is True
             assert issue.translation_placeholders is not None
             assert issue.translation_placeholders.get("proposal") == str(scenario["proposal"])
+            assert re.search(r"WARNING.+Unusual azimuth", caplog.text) is not None
 
             if scenario["proposal"] != -130:
                 # Fix the issue at Solcast and reload the integration
@@ -163,6 +165,9 @@ async def test_unusual_azimuth(
                 assert "Remove ignored issue for unusual_azimuth_northern" in caplog.text
                 assert f"Raise issue `{issue.issue_id}`" not in caplog.text
                 assert len(issue_registry.issues) == 0
+                caplog.clear()
+                await _reload(hass, entry)
+                assert re.search(r"DEBUG.+Unusual azimuth", caplog.text) is not None
         else:
             # Assert the issue is not present
             assert len(issue_registry.issues) == 0
