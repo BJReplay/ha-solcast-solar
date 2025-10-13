@@ -727,17 +727,29 @@ For automated dampening to operate it must have access to a minimum set of data.
 
 ##### Modifying automated dampening behaviour
 
-Automated dampening will suit many folks, yet there are situations where it will not suit "out of the box". For these situations there are opportunities for "roll-you-own" modification.
+Automated dampening will suit many folks, yet there are situations where it will not suit as implemented. For these situations modification of behaviour may be desired.
 
-At the core of automated dampening is that a PV generation value is a reliable thing. If this is not reliable, because of utility export limiting, or intended artificial limiting then the integration needs to know.
-
-For simple utility export limiting to a fixed value this is straightforward and is a built in feature, but it is also possible to indicate that a given interval is unreliable based on more complex circumstances.
+At the core of automated dampening is that a PV generation value is a reliable measurement when compared to estimated actual generation. If this is not reliable, because of utility export limiting, or intended artificial limiting then the integration must know. For simple utility export limiting to a fixed value this is straightforward and is a built in feature, but it is also possible to indicate that a given interval is unreliable based on more complex circumstances.
 
 This is where you can get creative with a templated sensor to cause PV generation intervals to be ignored when they cannot be relied upon to be accurate when compared to estimated actual generation.
 
-If a template is created with the name of `solcast_suppress_auto_dampening` in any of the platforms "sensor", "binary_sensor", "input_boolean", "input_select", or "input_text", then the integration will monitor those state changes. When a state is one of "on", "off", "1", "0", "true", "false", "True", or "False" then this will signal automated dampening to vary its behaviour, and either include a generation sample, or ignore it.
+Example scenarios include not being able to export to the grid, or choosing to not export. At these times, household consumption will match generation, and will confuse automated dampening.
 
-This entity _must_ begin each day in a state that is considered 'off'.
+To modify the behaviour of automated dampening, a template entity can be created with the name of `solcast_suppress_auto_dampening`. This can be using any of the platforms "sensor", "binary_sensor", "input_boolean", "input_select", or "input_text".
+
+The integration will monitor this entity for state changes. When a state is one of "on", "off", "1", "0", "true", "false", "True", or "False" then this will signal automated dampening to vary its behaviour, and either include a generation sample, or ignore it.
+
+This entity _must_ begin and end each day in a state that is considered 'off', and it _must_ have history to make any sense, so getting started can be problematic. This is a capability where you will need to inject common sense, and patience.
+
+Here is a likely implementation sequence:
+
+* 1. Create the entity.
+* 2. Turn off automated dampening because it will be broken and confusing (but it was already broken and confusing before because you can't export or choose not to because negative wholesale price.)
+* 3. Delete your `/config/solcast-generation.json` file. Any history is likely going to taint automated dampening results.
+* 4. Ensure that recorder is configured with `purge_keep_days` of at least seven. When automated dampening is enabled it will attempt to load up to seven days of generation history. Let it. (You do not need to disable acquisition of estimated actuals.)
+* 5. Completely restart HA to enable the recorder setting and get the Solcast integration to understand that generation data is now missing.
+* 6. Wait patiently for one week to build history in the new entity.
+* 7. Eventually turn on automated dampening and watch it do its thing with your adaptation entity.
 
 ##### Automated dampening notes
 
