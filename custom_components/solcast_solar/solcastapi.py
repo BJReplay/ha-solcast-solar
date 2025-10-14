@@ -2584,7 +2584,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             }
 
             # Identify intervals intentionally disabled by the user.
-            platforms = ["sensor", "binary_sensor", "input_boolean", "input_select", "input_text"]
+            platforms = ["sensor", "binary_sensor"]
             find_entity = "solcast_suppress_auto_dampening"
             entity = ""
             found = False

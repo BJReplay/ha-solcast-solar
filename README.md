@@ -735,15 +735,19 @@ This is where you can get creative with a specifically named templated sensor to
 
 Example scenarios include not being able to export to the grid, or choosing not to export. At these times, household consumption will match generation, and will confuse automated dampening.
 
-To modify the behaviour of automated dampening, a template entity can be created with the name of `solcast_suppress_auto_dampening`. This can be using any of the platforms "sensor", "binary_sensor", "input_boolean", "input_select", or "input_text".
+To modify the behaviour of automated dampening, a template entity can be created with the name of `solcast_suppress_auto_dampening`. This can be using either the platform "sensor" or "binary_sensor".
 
 The integration will monitor this entity for state changes. When a state is one of "on", "off", "1", "0", "true", "false", "True", or "False" then this will signal automated dampening to vary its behaviour, and either include a half-hourly generation interval, or ignore it.
 
-This entity _must_ begin and end each day in a state that is considered 'off', and it _must_ have history to make any sense, so getting started will take time. This is a capability where you will need to inject common sense, and patience.
+This entity _must_ begin and end each day in a state that is considered 'off', so rigging a sensor value of always 'on' will break things. State must change throughout the day, or be permanently 'off', and _never_ permanently 'on'.
+
+Its suppression is also complementary to that provided by site export limit detection, so those configuration aspects should likely be removed, or carefully considered.
+
+It also must have state change history to make any sense, so getting started will take time. This is a capability where you will need to inject common sense, and patience.
 
 Here is a likely implementation sequence:
 
-* 1. Create the templated entity.
+* 1. Create the templated `solcast_suppress_auto_dampening` entity.
 * 2. Turn off automated dampening because it will be broken and confusing (but it was already broken and confusing before because you can't export or choose not to because negative wholesale price.)
 * 3. Delete your `/config/solcast-generation.json` file. Any history is likely going to taint automated dampening results.
 * 4. Ensure that recorder is configured with `purge_keep_days` of at least seven. When automated dampening is enabled it will attempt to load up to seven days of generation history. Let it when the time comes. If you usually purge more aggressively then it can always be changed back in a week. (You do not need to disable acquisition of estimated actuals.)
