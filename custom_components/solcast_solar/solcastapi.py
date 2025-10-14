@@ -4090,12 +4090,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         return index
 
     async def check_data_records(self) -> None:
-        """Log whether all records are present for each day.
+        """Log whether all records are present for each day."""
 
-        Returns:
-            bool: A flag indicating success or failure.
-
-        """
         contiguous: int = 0
         contiguous_start_date: Any = None
         contiguous_end_date: Any = None
@@ -4112,15 +4108,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             start_index, end_index = self.__get_list_slice(self._data_forecasts, start_utc, end_utc)
 
             expected_intervals = 48
-            _is_dst: bool | None = None
-            for interval in range(start_index, end_index):
-                if interval == start_index:
-                    _is_dst = self.is_dst(self._data_forecasts[interval])
-                else:
-                    is_daylight = self.is_dst(self._data_forecasts[interval])
-                    if is_daylight is not None and is_daylight != _is_dst:
-                        summer_time_transitioning = True
-                        expected_intervals = 50 if _is_dst else 46
+            _is_dst: bool | None = self.is_dst(self._data_forecasts[start_index]) if start_index < len(self._data_forecasts) else None
+            for interval in range(start_index, min(len(self._data_forecasts), start_index + 8)):
+                is_daylight = self.is_dst(self._data_forecasts[interval])
+                if is_daylight is not None and is_daylight != _is_dst:
+                    summer_time_transitioning = True
+                    expected_intervals = 50 if _is_dst else 46
+                    break
             intervals = end_index - start_index
             forecasts_date = dt.now(self._tz).date() + timedelta(days=future_day)
 
@@ -4188,7 +4182,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 raise_issue: str | None
                 raise_issue = "records_missing_fixable" if self.entry.options["auto_update"] == AutoUpdate.NONE else "records_missing"
                 # If auto-update is enabled yet the prior forecast update was manual then do not raise an issue.
-                raise_issue = None if self._data["auto_updated"] == 0 and self.entry.options["auto_update"] != 0 else raise_issue
+                raise_issue = (
+                    None if self._data["auto_updated"] == 0 and self.entry.options["auto_update"] != AutoUpdate.NONE else raise_issue
+                )
                 if raise_issue is not None and issue_registry.async_get_issue(DOMAIN, raise_issue) is None:
                     _LOGGER.warning("Raise issue `%s` for missing forecast data", raise_issue)
                     ir.async_create_issue(
