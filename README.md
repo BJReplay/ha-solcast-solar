@@ -651,15 +651,15 @@ Automated dampening will apply the same dampening factors to all rooftop sites, 
 
 > [!NOTE]
 >
-> Automated dampening may not work for you, especially because of the way that your generation entities report energy, or if you are on a wholesale energy market plan where prices can go negative so you limit site export at those times.
+> Automated dampening may not work for you, especially because of the way that your generation entities report energy, or if you are on a wholesale energy market plan where prices can go negative so you limit site export at those times. (But do read on for a likely solution on that front.)
 >
 > This integrated automated dampening feature will suit many people, but it is not a panacea.
 >
-> **Be warned**: THINK, INVESTIGATE, and **then** REPORT any issues with automated dampening, IN THAT ORDER. It may look like a "tick and flick" option in the configuration, but this is not.
+> It may look like a "tick and flick" option in the configuration, but this is not. It is a complex piece of code that has to deal with different types of PV generation reporting and possible communications issues between your inverter and Home Assistant, whilst spotting anomalous generation caused by shading.
 >
-> If you think and investigate, and spot something that could be improved for everybody, then report it please. If you raise an issue without showing your working to demonstrate that you have thought, investigated, and then reported for that issue, then your issue may be closed quickly with little or no support.
+> If you think auto dampening is not working correctly then please THINK, INVESTIGATE, and then REPORT any issues with automated dampening, in that order. Include details of why you think auto dampening is not working and the possible solution in any issue report.
 >
-> If you investigate and find that an issue is because your hand-built generation entity is not like anyone elses, then please, roll your own dampening solution. The component parts are available for you to do so by utilising granular dampening.
+> If you investigate and find that an issue is because of your hand-built generation entity then auto-dampening may not be for you and in this case please roll your own dampening solution, or be technically constructive in any suggested improvement. The component parts are available for you to build your own by utilising granular dampening.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
 
@@ -668,6 +668,8 @@ The theory of operation is simple, relying on two key inputs, and an optional th
 ##### Theory of operation
 
 Automated dampening first builds a "consistently best" set of (more than one) half-hourly generation periods for the past fourteen days from [estimated actual data](#key-input-estimated-actual-data-from-solcast). It then compares that to [generation history](#key-input-actual-pv-generation-for-your-site) for these periods (excluding periods where export limits may have been hit by [optional export limiting](#optional-input-site-export-to-the-grid-combined-with-a-limit-value)), and then selects the highest actual generation value from a majority of similar best periods. This value determines whether external factors are likely impacting generation, and is used to calculate a "base" dampening factor.
+
+As auto dampening is looking to identify when shading is affecting your solar generation it will discard 'non-best PV generation' days. These are days when PV generation is reduced due to cloud, rain, etc.
 
 Because forecast periods vary from best estimates due to cloud cover, the base factor is then altered before it is applied to forecasts by using a logarithmic difference calculation. If the forecast solar generation varies significantly to the best estimated solar generation that was used to determine the base dampening factor, then it is adjusted so it has little impact (i.e. adjusted closer to a factor of 1.0). This determination is made based on the value of every forecasted interval, so each day will likely have different factors applied.
 
@@ -696,6 +698,10 @@ Generation is gathered from history data of a sensor entity (or entities). A sin
 An increasing energy sensor (or sensors) must be supplied. This increasing sensor may reset at midnight, or may be a "total increasing" type; of importance is that it is increasing throughout the day.
 
 The integration determines the units by inspecting the `unit_of_measurement` attribute and adjusts accordingly. Where this attribute is not set it assumes values are kWh. Generation history updates occur at midnight local time.
+
+> [!TIP]
+>
+> In order for the integration to be able to spot anomalous PV generation, it needs the generation entities to regularly report to Home Assistant. Entities that report a latest generation value periodically or increase in regular steps are supported. If your PV generation entity does not fall into a similar generation pattern then auto dampening might not work for you.
 
 > [!NOTE]
 >
@@ -729,7 +735,7 @@ For automated dampening to operate it must have access to a minimum set of data.
 
 Automated dampening will suit many people, yet there are situations where it will not suit as implemented. For these situations modification of behaviour may be desired by advanced users.
 
-At the core of automated dampening is that a PV generation value must be a reliable measurement when compared to estimated actual generation. If this is not reliable, because of artificial curtailment (limiting) then the feature must know. For simple utility export limiting to a fixed value this is straightforward and is a built-in feature, but it is also possible to indicate that a given interval is unreliable based on more complex circumstances.
+At the core of automated dampening is that a PV generation value must be a reliable measurement when compared to estimated actual generation. If this is not reliable, because of artificial curtailment (limiting) then auto dampening needs to know that this is occurring. For simple utility export limiting to a fixed export value this is straightforward and is a built-in feature, but it is also possible to indicate that PV generation in a given interval is unreliable based on more complex circumstances.
 
 This is where you can get creative with a specifically named templated sensor to cause PV generation intervals to be ignored when they cannot be relied upon to be accurate (i.e. not at "full" production).
 
@@ -737,7 +743,7 @@ Example scenarios include not being able to export to the grid, or choosing not 
 
 To modify the behaviour of automated dampening, a template entity can be created with the name of `solcast_suppress_auto_dampening`. This can be using either the platform "sensor" or "binary_sensor".
 
-The integration will monitor this entity for state changes. When a state is one of "on", "off", "1", "0", "true", "false", "True", or "False" then this will signal automated dampening to vary its behaviour, and either include a half-hourly generation interval, or ignore it.
+The integration will monitor this entity for state changes. When a state is one of "on", "1", "true" or "True" then this will signal automated dampening to vary its behaviour and exclude a half-hourly generation interval, or if the entity state is one of "off", "0", "false" or "False", the PV generation interval will be included as normal in auto dampening.
 
 This entity _must_ begin and end each day in a state that is considered 'off', so rigging a sensor value of always 'on' will break things. State must change throughout the day, or be permanently 'off', and _never_ permanently 'on'.
 
