@@ -4108,7 +4108,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             start_index, end_index = self.__get_list_slice(self._data_forecasts, start_utc, end_utc)
 
             expected_intervals = 48
-            _is_dst: bool | None = self.is_dst(self._data_forecasts[start_index]) if start_index < len(self._data_forecasts) else None
+            _is_dst: bool | None = self.is_dst(self._data_forecasts[start_index]) if start_index < len(self._data_forecasts) else False
             for interval in range(start_index, min(len(self._data_forecasts), start_index + 8)):
                 is_daylight = self.is_dst(self._data_forecasts[interval])
                 if is_daylight is not None and is_daylight != _is_dst:
