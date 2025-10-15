@@ -517,7 +517,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         def set_sites(response_json: dict[str, Any], api_key: str) -> None:
             sites_data = response_json
             _LOGGER.debug(
-                "Sites data received %s",
+                "Sites data %s",
                 self.__redact_msg_api_key(self.__redact_lat_lon(str(sites_data)), api_key),
             )
             for site in sites_data["sites"]:

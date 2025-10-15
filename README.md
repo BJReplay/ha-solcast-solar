@@ -743,7 +743,7 @@ Example scenarios include not being able to export to the grid, or choosing not 
 
 To modify the behaviour of automated dampening, a template entity can be created with the name of `solcast_suppress_auto_dampening`. This can be using either the platform "sensor" or "binary_sensor".
 
-The integration will monitor this entity for state changes. When a state is one of "on", "1", "true" or "True" then this will signal automated dampening to vary its behaviour and exclude a half-hourly generation interval, or if the entity state is one of "off", "0", "false" or "False", the PV generation interval will be included as normal in auto dampening.
+The integration will monitor this entity for state changes. When a state is one of "on", "1", "true" or "True" at _any time in a half-hourly PV generation interval_ then this will signal automated dampening to vary its behaviour and exclude that interval, or if the entity state is one of "off", "0", "false" or "False" for the _entire interval_, the interval will be included as normal in auto dampening.
 
 This entity _must_ begin and end each day in a state that is considered 'off', so rigging a sensor value of always 'on' will break things. State must change throughout the day, or be permanently 'off', and _never_ permanently 'on'.
 
