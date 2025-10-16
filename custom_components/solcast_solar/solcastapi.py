@@ -4150,7 +4150,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if future_day == 0 and interval_assessment[forecasts_date]["correct"]:
                 contiguous_start_date = forecasts_date
         if summer_time_transitioning:
-            _LOGGER.debug("Transitioning between summer/standard time")
+            _LOGGER.debug("Transitioning between Summer/Winter time")
         if contiguous > 1:
             _LOGGER.debug(
                 "Forecast data from %s to %s contains all intervals",

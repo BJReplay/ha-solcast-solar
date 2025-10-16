@@ -93,21 +93,34 @@ async def test_midnight(
         await async_cleanup_integration_tests(hass)
 
 
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        {"timezone": "Australia/Sydney", "start_date": "2025-04-04", "end_date": "2025-10-01"},
+        {"timezone": "Europe/Dublin", "start_date": "2025-10-15", "end_date": "2026-03-16"},
+    ],
+)
 async def test_timezone_transition(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
     caplog: pytest.LogCaptureFixture,
+    scenario: dict[str, str],
 ) -> None:
     """Test summer time transitions."""
 
     try:
         # Test transition from summer to standard time.
-        freezer.move_to("2025-04-04 00:00:00")
-        entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone="Australia/Sydney")
+        freezer.move_to(scenario["start_date"] + " 00:00:00")
+        entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone=scenario["timezone"])
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        assert coordinator.solcast.dst(dt.now())
 
-        assert "Transitioning between summer/standard time" in caplog.text
-        assert f"Forecast data from 2025-04-04 to 2025-04-{2 + FORECAST_DAYS:02d} contains all intervals" in caplog.text
+        assert "Transitioning between Summer/Winter time" in caplog.text
+        assert (
+            f"Forecast data from {scenario['start_date']} to {scenario['start_date'][:-2]}{int(scenario['start_date'][-2:]) - 2 + FORECAST_DAYS:02d} contains all intervals"
+            in caplog.text
+        )
 
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
@@ -116,11 +129,16 @@ async def test_timezone_transition(
         await async_cleanup_integration_tests(hass)
 
         # Test transition from standard to summer time.
-        freezer.move_to("2025-10-01 00:00:00")
-        entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone="Australia/Sydney")
+        freezer.move_to(scenario["end_date"] + " 00:00:00")
+        entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone=scenario["timezone"])
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        assert not coordinator.solcast.dst(dt.now())
 
-        assert "Transitioning between summer/standard time" in caplog.text
-        assert f"Forecast data from 2025-10-01 to 2025-10-{FORECAST_DAYS - 1:02d} contains all intervals" in caplog.text
+        assert "Transitioning between Summer/Winter time" in caplog.text
+        assert (
+            f"Forecast data from {scenario['end_date']} to {scenario['end_date'][:-2]}{int(scenario['end_date'][-2:]) - 1 + FORECAST_DAYS - 1:02d} contains all intervals"
+            in caplog.text
+        )
 
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
