@@ -116,7 +116,10 @@ async def test_timezone_transition(
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
         assert coordinator.solcast.dst(dt.now())
 
-        assert "Transitioning between Summer/Winter time" in caplog.text
+        assert (
+            f"Transitioning between {'standard/Summer' if scenario['timezone'] == 'Australia/Sydney' else 'standard/Winter'} time"
+            in caplog.text
+        )
         assert (
             f"Forecast data from {scenario['start_date']} to {scenario['start_date'][:-2]}{int(scenario['start_date'][-2:]) - 2 + FORECAST_DAYS:02d} contains all intervals"
             in caplog.text
@@ -134,7 +137,10 @@ async def test_timezone_transition(
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
         assert not coordinator.solcast.dst(dt.now())
 
-        assert "Transitioning between Summer/Winter time" in caplog.text
+        assert (
+            f"Transitioning between {'standard/Summer' if scenario['timezone'] == 'Australia/Sydney' else 'standard/Winter'} time"
+            in caplog.text
+        )
         assert (
             f"Forecast data from {scenario['end_date']} to {scenario['end_date'][:-2]}{int(scenario['end_date'][-2:]) - 1 + FORECAST_DAYS - 1:02d} contains all intervals"
             in caplog.text
