@@ -1220,6 +1220,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 v4.4.5
 
+* Europe/Dublin transition between standard/Winter time accommodated by @autoSteve
 * Auto-dampen, utilise inter-quartile anomaly detection for generation entities by @autoSteve
 * Auto-dampen, adapt to generation-consistent or time-consistent generation entities by @autoSteve
 * Auto-dampen, ignore entire generation intervals having anomalies by @autoSteve
