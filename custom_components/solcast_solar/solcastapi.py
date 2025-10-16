@@ -60,6 +60,7 @@ from .const import (
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
     USE_ACTUALS,
+    WINTER_TIME,
 )
 from .util import (
     Api,
@@ -1704,9 +1705,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         }
         return {k: v for k, v in result.items() if v is not None}
 
-    def is_dst(self, interval: dict[str, Any]) -> bool | None:
-        """Return whether an interval is daylight savings time."""
-        return (interval["period_start"].astimezone(self._tz).dst() == timedelta(hours=1)) if interval["period_start"] is not None else None
+    def dst(self, dt_obj: dt | None = None) -> bool:
+        """Return whether a given date is daylight savings time or standard summer time for zones using Winter time transition."""
+        result = False
+        if dt_obj is not None:
+            delta = timedelta(hours=1) if str(self.options.tz) not in WINTER_TIME else timedelta(hours=0)
+            result = dt_obj.astimezone(self._tz).dst() == delta
+        return result
+
+    def is_interval_dst(self, interval: dict[str, Any]) -> bool:
+        """Return whether an interval is daylight savings time or standard summer time for zones using Winter time transition."""
+        return self.dst(interval["period_start"].astimezone(self._tz))
 
     def get_day_start_utc(self, future: int = 0) -> dt:
         """Datetime helper.
@@ -2720,7 +2729,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     def adjusted_interval(self, interval: dict[str, Any]) -> int:
         """Adjust a forecast/actual interval as standard time."""
-        offset = 1 if self.is_dst(interval) else 0
+        offset = 1 if self.is_interval_dst(interval) else 0
         return (
             ((interval["period_start"].astimezone(self._tz).hour - offset) * 2 + interval["period_start"].astimezone(self._tz).minute // 30)
             if interval["period_start"].astimezone(self._tz).hour - offset >= 0
@@ -2729,7 +2738,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     def adjusted_interval_dt(self, interval: dt) -> int:
         """Adjust a datetime as standard time."""
-        offset = 1 if interval.astimezone(self._tz).dst() == timedelta(hours=1) else 0
+        offset = 1 if self.dst(interval.astimezone(self._tz)) else 0
         return (
             ((interval.astimezone(self._tz).hour - offset) * 2 + interval.astimezone(self._tz).minute // 30)
             if interval.astimezone(self._tz).hour - offset >= 0
@@ -2820,8 +2829,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     interval // 2
                     + (
                         1
-                        if dt.now(self._tz).replace(hour=interval // 2, minute=30 * (interval % 2), second=0, microsecond=0).dst()
-                        == timedelta(hours=1)
+                        if self.dst(dt.now(self._tz).replace(hour=interval // 2, minute=30 * (interval % 2), second=0, microsecond=0))
                         else 0
                     ):02}:{30 * (interval % 2):02}"
                 _LOGGER.debug(
@@ -4108,10 +4116,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             start_index, end_index = self.__get_list_slice(self._data_forecasts, start_utc, end_utc)
 
             expected_intervals = 48
-            _is_dst: bool | None = self.is_dst(self._data_forecasts[start_index]) if start_index < len(self._data_forecasts) else False
+            _is_dst: bool | None = (
+                self.is_interval_dst(self._data_forecasts[start_index]) if start_index < len(self._data_forecasts) else None
+            )
             for interval in range(start_index, min(len(self._data_forecasts), start_index + 8)):
-                is_daylight = self.is_dst(self._data_forecasts[interval])
-                if is_daylight is not None and is_daylight != _is_dst:
+                is_daylight = self.is_interval_dst(self._data_forecasts[interval])
+                if is_daylight != _is_dst:
                     summer_time_transitioning = True
                     expected_intervals = 50 if _is_dst else 46
                     break
