@@ -1706,7 +1706,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         return {k: v for k, v in result.items() if v is not None}
 
     def dst(self, dt_obj: dt | None = None) -> bool:
-        """Return whether a given date is daylight savings time or standard summer time for zones using Winter time transition."""
+        """Return whether a given date is daylight savings time, or for zones using Winter time whether standard time."""
         result = False
         if dt_obj is not None:
             delta = timedelta(hours=1) if str(self.options.tz) not in WINTER_TIME else timedelta(hours=0)
@@ -1714,7 +1714,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         return result
 
     def is_interval_dst(self, interval: dict[str, Any]) -> bool:
-        """Return whether an interval is daylight savings time or standard summer time for zones using Winter time transition."""
+        """Return whether an interval is daylight savings time, or for zones using Winter time whether standard time."""
         return self.dst(interval["period_start"].astimezone(self._tz))
 
     def get_day_start_utc(self, future: int = 0) -> dt:
@@ -4104,7 +4104,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         contiguous_start_date: Any = None
         contiguous_end_date: Any = None
         all_records_good = True
-        summer_time_transitioning = False
+        time_transitioning = False
         interval_assessment: dict[datetime.date, Any] = {}
 
         # The latest period is used to determine whether any history should be updated on stale start.
@@ -4122,7 +4122,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for interval in range(start_index, min(len(self._data_forecasts), start_index + 8)):
                 is_daylight = self.is_interval_dst(self._data_forecasts[interval])
                 if is_daylight != _is_dst:
-                    summer_time_transitioning = True
+                    time_transitioning = True
                     expected_intervals = 50 if _is_dst else 46
                     break
             intervals = end_index - start_index
@@ -4149,7 +4149,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 contiguous = set_assessment(forecasts_date, expected_intervals, intervals, contiguous, False)
             if future_day == 0 and interval_assessment[forecasts_date]["correct"]:
                 contiguous_start_date = forecasts_date
-        if summer_time_transitioning:
+        if time_transitioning:
             _LOGGER.debug("Transitioning between %s time", "standard/Summer" if str(self._tz) not in WINTER_TIME else "standard/Winter")
         if contiguous > 1:
             _LOGGER.debug(
