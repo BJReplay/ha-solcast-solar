@@ -176,7 +176,7 @@ async def test_auto_dampen(
         config_dir = hass.config.config_dir
 
         options = copy.deepcopy(DEFAULT_INPUT2)
-        options[AUTO_UPDATE] = 1
+        options[AUTO_UPDATE] = 0
         options[GET_ACTUALS] = True
         options[USE_ACTUALS] = 1
         options[AUTO_DAMPEN] = True
