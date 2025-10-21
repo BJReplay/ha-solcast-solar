@@ -709,7 +709,7 @@ The integration determines the units by inspecting the `unit_of_measurement` att
 
 ##### Optional input: Site export to the grid, combined with a limit value
 
-Where locally generated excess power is exported to the electricity grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because export is at the limit value for ten minutes or more) then the generation period will be excluded from any automated dampening consideration. This mechanism ensures differentiation of generation being limited by shade from a tree or chimney, or artificial site export limiting.
+Where locally generated excess power is exported to the electricity grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because export is at the limit value for five minutes or more) then the generation period will be excluded from any automated dampening consideration. This mechanism ensures differentiation of generation being limited by shade from a tree or chimney, or artificial site export limiting.
 
 Export to the grid generally occurs in the middle of the day, which is a time rarely impacted by shading.
 
