@@ -50,7 +50,7 @@ ZONE = ZoneInfo(ZONE_RAW)
 NOW = dt.now(ZONE)
 
 entity_history["days_export"] = 1
-entity_history["days_generation"] = 2
+entity_history["days_generation"] = 3
 entity_history["offset"] = 0
 
 _LOGGER = logging.getLogger(__name__)

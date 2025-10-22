@@ -461,6 +461,8 @@ async def async_setup_extra_sensors(  # noqa: C901
                 i = interval % 48
                 day = interval // 48
                 gap = False
+                if day == 1 and site == "1111-1111-1111-1111":
+                    continue  # Skip day 1 for first entity to emulate a missing day
                 if site == "2222-2222-2222-2222" and i == 0:
                     increasing = 0.0  # Reset for second entity to emulate a resetting daily meter
                 if gen_bumps.get(i):
