@@ -51,7 +51,7 @@ NOW = dt.now(ZONE)
 
 entity_history["days_export"] = 1
 entity_history["days_generation"] = 3
-entity_history["offset"] = 0
+entity_history["offset"] = -1
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -371,8 +371,9 @@ async def test_auto_dampen_issues(
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
         _no_exception(caplog)
         if extra_sensors not in [ExtraSensors.YES_UNIT_NOT_IN_HISTORY, ExtraSensors.YES_NO_UNIT]:
-            assert "No day -1 PV generation data (or barely any) from entity: sensor.solar_export_sensor_1111_1111_1111_1111" in caplog.text
-            assert "Retrieved day -2 PV generation data from entity: sensor.solar_export_sensor_1111_1111_1111_1111" in caplog.text
+            assert "Retrieved day -1 PV generation data from entity: sensor.solar_export_sensor_1111_1111_1111_1111" in caplog.text
+            assert "No day -2 PV generation data (or barely any) from entity: sensor.solar_export_sensor_1111_1111_1111_1111" in caplog.text
+            assert "Retrieved day -3 PV generation data from entity: sensor.solar_export_sensor_1111_1111_1111_1111" in caplog.text
 
         match extra_sensors:
             case ExtraSensors.YES_WITH_SUPPRESSION:
