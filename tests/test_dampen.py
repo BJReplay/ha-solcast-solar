@@ -370,6 +370,9 @@ async def test_auto_dampen_issues(
             await hass.async_block_till_done()
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
         _no_exception(caplog)
+        if extra_sensors not in [ExtraSensors.YES_UNIT_NOT_IN_HISTORY, ExtraSensors.YES_NO_UNIT]:
+            assert "No day -1 PV generation data (or barely any) from entity: sensor.solar_export_sensor_1111_1111_1111_1111" in caplog.text
+            assert "Retrieved day -2 PV generation data from entity: sensor.solar_export_sensor_1111_1111_1111_1111" in caplog.text
 
         match extra_sensors:
             case ExtraSensors.YES_WITH_SUPPRESSION:
