@@ -2765,6 +2765,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Automated dampening is not enabled, skipping model_automated_dampening()")
             return
 
+        MODEL_DAYS = 14  # Number of days over which to model
         MINIMUM_INTERVALS = 1  # Minimum number of matching intervals to consider dampening
 
         start_time = time.time()
@@ -2795,7 +2796,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 return
             start, end = self.__get_list_slice(
                 self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"],
-                self._data_generation["generation"][0]["period_start"],
+                self.get_day_start_utc() - timedelta(days=MODEL_DAYS),  # self._data_generation["generation"][0]["period_start"],
                 self.get_day_start_utc(),
                 search_past=True,
             )
@@ -2809,7 +2810,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 else:
                     actuals[period_start] = actual["pv_estimate"] * 0.5
 
-        # Collect top intervals from the past fourteen days.
+        # Collect top intervals from the past MODEL_DAYS days.
         self._peak_intervals = dict.fromkeys(range(48), 0.0)
         for period_start, actual in actuals.items():
             interval = self.adjusted_interval_dt(period_start)
@@ -3853,10 +3854,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         forecasts: dict[dt, dict[str, dt | float]] = {}
         forecasts_undampened: dict[dt, dict[str, dt | float]] = {}
 
-        self._data_forecasts = []
-        self._data_forecasts_undampened = []
-
-        build_success = True
+        build_success = True  # Be optimistic
 
         async def build_data(  # noqa: C901
             data: dict[str, Any],
