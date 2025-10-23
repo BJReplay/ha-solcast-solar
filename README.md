@@ -1220,7 +1220,8 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 v4.4.6
 
-* Fix: Auto-dampen, ignore generation days with a small number of history samples @autoSteve
+* Fix: Auto-dampen, ignore generation days with a small number of history samples by @autoSteve
+* Fix: Restrict auto-dampen modelling to 14 days (it was up to generation history) by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.5...v4.4.6
 
