@@ -671,7 +671,7 @@ Automated dampening first builds a "consistently best" set of (more than one) ha
 
 As automated dampening is looking to identify when shading is affecting your solar generation it will discard 'non-best estimated PV generation' day intervals. These are intervals on days when PV generation is reduced due to cloud, rain, etc.
 
-Said another way, and in very simple English, Solcast have estimated in the past that production should have been 'X' kW average at a certain time of day, but the most that has been achieved has been 'Y' kW. So the integration will adjust future forecasts towards 'Y'.
+Said another way, and in very simple English, Solcast have estimated in the past that production should have been 'X' kW average at a certain time of day, but the most that has been achieved has been 'Y' kW. So the integration will adjust future forecasts towards 'Y'. Or even simpler, the estimated actual generation is consistently higher than what can be achieved, so reduce the forecast.
 
 Because forecast periods vary from best estimates due to cloud cover, the base factor is then altered before it is applied to forecasts by using a logarithmic difference calculation. If the forecast solar generation varies significantly to the best estimated solar generation that was used to determine the base dampening factor, then it is adjusted so it has little impact (i.e. adjusted closer to a factor of 1.0). This determination is made based on the value of every forecasted interval, so each day will likely have different factors applied.
 
