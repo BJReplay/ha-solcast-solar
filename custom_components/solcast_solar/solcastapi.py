@@ -52,6 +52,7 @@ from .const import (
     EXCLUDE_SITES,
     FORECAST_DAYS,
     GENERATION_ENTITIES,
+    GENERATION_HISTORY_LOAD_DAYS,
     GENERATION_VERSION,
     GET_ACTUALS,
     HARD_LIMIT_API,
@@ -2469,7 +2470,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         # Load the generation history.
         generation: dict[dt, dict[str, Any]] = {generated["period_start"]: generated for generated in self._data_generation["generation"]}
-        days = 1 if len(generation) > 0 else 7
+        days = 1 if len(generation) > 0 else GENERATION_HISTORY_LOAD_DAYS
 
         entity_registry = er.async_get(self.hass)
 

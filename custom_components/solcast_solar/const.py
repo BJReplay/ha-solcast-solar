@@ -34,6 +34,7 @@ EXCLUDE_SITES: Final[str] = "exclude_sites"
 FORECAST_DAYS: Final[int] = 14  # Minimum 8, maximum 14
 FORECAST_DAY_SENSORS: Final[int] = 8  # Minimum 8, maximum 14
 GENERATION_ENTITIES: Final[str] = "generation_entities"
+GENERATION_HISTORY_LOAD_DAYS: Final[int] = 7
 GENERATION_VERSION: Final[int] = 1
 GET_ACTUALS: Final[str] = "get_actuals"
 HARD_LIMIT: Final[str] = "hard_limit"
