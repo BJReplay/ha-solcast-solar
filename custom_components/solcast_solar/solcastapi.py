@@ -2770,13 +2770,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         start_time = time.time()
 
-        export_limited_intervals = dict.fromkeys(range(48), False)
-        for gen in self._data_generation["generation"]:
-            if gen["export_limiting"]:
-                export_limited_intervals[self.adjusted_interval(gen)] = True
+        # export_limited_intervals = dict.fromkeys(range(48), False)
+        # for gen in self._data_generation["generation"]:
+        #    if gen["export_limiting"]:
+        #        export_limited_intervals[self.adjusted_interval(gen)] = True
         generation: dict[dt, float] = {}
         for gen in self._data_generation["generation"]:
-            if not export_limited_intervals[self.adjusted_interval(gen)]:
+            if not gen["export_limiting"]:
                 generation[gen["period_start"]] = gen["generation"]
 
         actuals: OrderedDict[dt, float] = OrderedDict()
@@ -2833,16 +2833,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             generation_samples: list[float] = [
                 generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
             ]
-            if len(matching) > 0 and len(generation_samples) > 0:
-                peak = max(generation_samples)
-
-                interval_time = f"{
-                    interval // 2
-                    + (
-                        1
-                        if self.dst(dt.now(self._tz).replace(hour=interval // 2, minute=30 * (interval % 2), second=0, microsecond=0))
-                        else 0
-                    ):02}:{30 * (interval % 2):02}"
+            interval_time = f"{
+                interval // 2
+                + (
+                    1 if self.dst(dt.now(self._tz).replace(hour=interval // 2, minute=30 * (interval % 2), second=0, microsecond=0)) else 0
+                ):02}:{30 * (interval % 2):02}"
+            if len(matching) > 0:
                 _LOGGER.debug(
                     "Interval %s has peak estimated actual %.3f and %d matching intervals: %s",
                     interval_time,
@@ -2850,17 +2846,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     len(matching),
                     ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
                 )
+                peak = max(generation_samples) if len(generation_samples) > 0 else 0.0
                 _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
                 msg = f"Not enough matching intervals for {interval_time} to determine dampening"
                 log_msg = True
                 if len(matching) > MINIMUM_INTERVALS:
                     if peak < self._peak_intervals[interval]:
-                        factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 0.0
-                        if factor < noise:
-                            msg = f"Auto-dampen factor for {interval_time} is {factor:.3f}"
-                            dampening[interval] = round(factor, 3)
+                        if len(generation_samples) > 1:
+                            factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 0.0
+                            if factor < noise:
+                                msg = f"Auto-dampen factor for {interval_time} is {factor:.3f}"
+                                dampening[interval] = round(factor, 3)
+                            else:
+                                msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
                         else:
-                            msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
+                            msg = f"Not enough reliable generation samples for {interval_time} to determine dampening ({len(generation_samples)})"
                     else:
                         log_msg = False
                 if log_msg:

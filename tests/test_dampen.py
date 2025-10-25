@@ -379,7 +379,7 @@ async def test_auto_dampen_issues(
             case ExtraSensors.YES_WITH_SUPPRESSION:
                 for interval in ("12:00", "12:30", "13:00", "13:30", "14:00"):
                     assert re.search(r"Auto-dampen suppressed for interval.+" + interval, caplog.text) is not None
-                    assert f"Interval {interval} has peak estimated actual" not in caplog.text
+                    assert f"Interval {interval} max generation: 0.000, []" in caplog.text
             case ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
                 assert "has no unit_of_measurement, assuming kWh" not in caplog.text
                 assert f"Generation entity {options[GENERATION_ENTITIES][0]} is not a valid entity" in caplog.text
@@ -390,8 +390,8 @@ async def test_auto_dampen_issues(
             case ExtraSensors.DODGY:
                 assert "has an unsupported unit_of_measurement 'MJ'" in caplog.text  # A dodgy unit should be logged
                 assert f"Site export entity {options[SITE_EXPORT_ENTITY]} is not a valid entity" in caplog.text
-                assert "Interval 11:00 max generation:" not in caplog.text  # A jump in generation should not be seen as a peak
-                assert "Interval 13:00 has peak" not in caplog.text  # Dodgy generation should prevent interval consideration
+                assert "Interval 11:00 max generation: 0.000, []" in caplog.text  # A jump in generation should not be seen as a peak
+                assert "Interval 13:00 max generation: 0.000, []" in caplog.text  # Dodgy generation should prevent interval consideration
                 assert "Auto-dampen factor for 10:00 is 0.940" in caplog.text  # A valid interval still considered
                 assert "Ignoring excessive PV generation jump of 6.000 kWh" in caplog.text  # Dodgy generation should be logged
             case _:
