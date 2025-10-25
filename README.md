@@ -1222,6 +1222,12 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 ## Changes
 
+v4.4.7
+
+* Auto-dampen, improve interval unreliable generation exclusion by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.6...v4.4.7
+
 v4.4.6
 
 * Fix: Auto-dampen, ignore generation days with a small number of history samples by @autoSteve
