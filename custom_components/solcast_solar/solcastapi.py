@@ -46,6 +46,10 @@ from .const import (
     BRK_SITE,
     BRK_SITE_DETAILED,
     CUSTOM_HOUR_SENSOR,
+    DAMPENING_INSIGNIFICANT,
+    DAMPENING_LOG_DELTA_CORRECTIONS,
+    DAMPENING_MINIMUM_INTERVALS,
+    DAMPENING_MODEL_DAYS,
     DATE_FORMAT,
     DATE_MONTH_DAY,
     DOMAIN,
@@ -2766,9 +2770,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Automated dampening is not enabled, skipping model_automated_dampening()")
             return
 
-        MODEL_DAYS = 14  # Number of days over which to model
-        MINIMUM_INTERVALS = 2  # Minimum number of matching intervals to consider dampening
-
         start_time = time.time()
 
         # export_limited_intervals = dict.fromkeys(range(48), False)
@@ -2797,7 +2798,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 return
             start, end = self.__get_list_slice(
                 self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"],
-                self.get_day_start_utc() - timedelta(days=MODEL_DAYS),  # self._data_generation["generation"][0]["period_start"],
+                self.get_day_start_utc() - timedelta(days=DAMPENING_MODEL_DAYS),  # self._data_generation["generation"][0]["period_start"],
                 self.get_day_start_utc(),
                 search_past=True,
             )
@@ -2827,7 +2828,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         # Defaults.
         dampening: list[float] = [1.0] * 48
-        noise = 0.95
 
         # Check the generation for each interval and determine if it is consistently lower than the peak.
         for interval, matching in matching_intervals.items():
@@ -2851,15 +2851,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
                 msg = f"Not enough matching intervals for {interval_time} to determine dampening"
                 log_msg = True
-                if len(matching) >= MINIMUM_INTERVALS:
+                if len(matching) >= DAMPENING_MINIMUM_INTERVALS:
                     if peak < self._peak_intervals[interval]:
                         if len(generation_samples) > 1:
                             factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 0.0
-                            if factor < noise:
+                            if factor >= DAMPENING_INSIGNIFICANT:
+                                msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
+                            else:
                                 msg = f"Auto-dampen factor for {interval_time} is {factor:.3f}"
                                 dampening[interval] = round(factor, 3)
-                            else:
-                                msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
                         else:
                             msg = f"Not enough reliable generation samples for {interval_time} to determine dampening ({len(generation_samples)})"
                     else:
@@ -3177,7 +3177,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if site == "all" and self.options.auto_dampen and self.granular_dampening.get("all"):
             interval = self.adjusted_interval_dt(period_start)
             factor = self.granular_dampening["all"][interval]
-            if self._peak_intervals[interval] > 0 and interval_pv50 > 0 and factor < 1.0:
+            if DAMPENING_LOG_DELTA_CORRECTIONS and self._peak_intervals[interval] > 0 and interval_pv50 > 0 and factor < 1.0:
                 # Adjust the factor based on forecast vs. peak interval logarithmically.
                 factor_pre_adjustment = factor
                 factor = max(factor, min(1, factor + ((1 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50)))))
