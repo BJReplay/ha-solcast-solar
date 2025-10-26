@@ -2767,7 +2767,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             return
 
         MODEL_DAYS = 14  # Number of days over which to model
-        MINIMUM_INTERVALS = 1  # Minimum number of matching intervals to consider dampening
+        MINIMUM_INTERVALS = 2  # Minimum number of matching intervals to consider dampening
 
         start_time = time.time()
 
@@ -2851,7 +2851,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
                 msg = f"Not enough matching intervals for {interval_time} to determine dampening"
                 log_msg = True
-                if len(matching) > MINIMUM_INTERVALS:
+                if len(matching) >= MINIMUM_INTERVALS:
                     if peak < self._peak_intervals[interval]:
                         if len(generation_samples) > 1:
                             factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 0.0
