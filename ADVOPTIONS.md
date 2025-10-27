@@ -13,6 +13,16 @@ Example:
 }
 ```
 
+Changes to this file will be detected in near-real time, changing code behaviour. Application of of changed behaviour may only be seen at forecast or estimated actuals update, or possibly immediately should "reload_on_advanced_change" be set to `true`.
+
+The impact will vary by advanced option, and the reader is left to decide when the outcome should occur; this is advanced, and _you_ are advanced...
+
+Support for these advanced options will be limited. (Well, "support" for this integration is limited at the best of times. You expect, yet do not pay us, even though there are channels available, and we sometimes respond in kind by ignoring you. Yet, we endeavour not to.)
+
+Understand the implication of setting any of these options before raising any issue, and check set values for 'sanity', and clearly outline the issue faced in detail. (These advanced options are advanced, and modify otherwise predictable behaviour. When your behaviour is no longer predictable then **make sure it is stated well in any issue report**. Or a crystal ball will be required, which will likely not go well.)
+
+Value 'sanity checking' is almost non-existent for this feature. Aside from "is it the expected type" it is as dumb as a bagful of hammers, and will set a 'hammer' of your own making in place to club you forcefully. Do not report in this circumstance. You broke it. You fix your file. No negative values. No 'stupid' settings. What is set generally gets directly injected...
+
 ## Contents
 
 1. [Automated dampening](#automated-dampening)
