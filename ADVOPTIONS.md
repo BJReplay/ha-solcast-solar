@@ -13,7 +13,7 @@ Example:
 }
 ```
 
-Changes to this file will be detected in near-real time, changing code behaviour. Application of of changed behaviour may only be seen at forecast or estimated actuals update, or possibly immediately should "reload_on_advanced_change" be set to `true`.
+Changes to this file will be detected in near-real time, changing code behaviour. Application of changed behaviour may only be seen at forecast or estimated actuals update, or possibly immediately should "reload_on_advanced_change" be set to `true`.
 
 The impact will vary by advanced option, and the reader is left to decide when the outcome should occur; this is advanced, and _you_ are advanced...
 
