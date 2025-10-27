@@ -1236,7 +1236,8 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 v4.4.7
 
-* Add advanced options by @autoSteve
+* Add advanced options configuration file by @autoSteve
+* Add attribute `custom_hours` to `Forecast Next X Hours` sensor by @autoSteve
 * Auto-dampen, improve interval unreliable generation exclusion by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.6...v4.4.7
