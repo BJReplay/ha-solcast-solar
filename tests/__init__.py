@@ -326,7 +326,7 @@ async def async_setup_extra_sensors(  # noqa: C901
     """Set up extra sensors for testing."""
 
     FASTER = False  # True for fast tests, False for reliable ones.
-    BLOCKS = 5
+    BLOCKS = 5  # Number of blocks to wait for async processing when FASTER is True.
 
     match extra_sensors:
         case ExtraSensors.YES_WATT_HOUR:

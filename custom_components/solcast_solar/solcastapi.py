@@ -184,6 +184,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
 
+        self.advanced_options: dict[str, Any] = {}
         self.auto_update_divisions: int = 0
         self.custom_hour_sensor: int = options.custom_hour_sensor
         self.damp: dict[str, float] = options.dampening
@@ -207,6 +208,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.usage_status: UsageStatus = UsageStatus.UNKNOWN
 
         file_path = Path(options.file_path)
+        self.set_default_advanced_options()
 
         self._aiohttp_session = aiohttp_session
         self._api_limit: dict[str, int] = {}
@@ -233,6 +235,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._filename = options.file_path
         self._filename_actuals = f"{file_path.parent / file_path.stem}-actuals{file_path.suffix}"
         self._filename_actuals_dampened = f"{file_path.parent / file_path.stem}-actuals-dampened{file_path.suffix}"
+        self._filename_advanced = f"{file_path.parent / file_path.stem}-advanced.json"
         self._filename_generation = f"{file_path.parent / file_path.stem}-generation{file_path.suffix}"
         self._filename_undampened = f"{file_path.parent / file_path.stem}-undampened{file_path.suffix}"
         self._forecasts_moment: dict[str, dict[str, list[float]]] = {}
@@ -302,6 +305,51 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.hard_limit = self.options.hard_limit
         self._use_forecast_confidence = f"pv_{self.options.key_estimate}"
         self.estimate_set = self.__get_estimate_set(self.options)
+
+    async def read_advanced_options(self) -> bool:
+        """Read advanced JSON file options."""
+
+        change = False
+        if Path(self._filename_advanced).exists():
+            async with aiofiles.open(self._filename_advanced) as file:
+                try:
+                    response_json = json.loads(await file.read())
+                    for option, value in self.advanced_options.items():
+                        new_value = response_json.get(option)
+                        if new_value is not None and new_value != value:
+                            if isinstance(new_value, type(value)):
+                                self.advanced_options[option] = new_value
+                                _LOGGER.debug("Advanced option set %s: %s", option, new_value)
+                                change = True
+                            else:
+                                _LOGGER.error("Type mismatch for advanced option %s: should be %s", option, type(value))  # pyright: ignore[reportUnknownArgumentType]
+                except json.decoder.JSONDecodeError:
+                    _LOGGER.error("JSONDecodeError, advanced options ignored: %s", self._filename_advanced)
+        return change
+
+    def get_filename_advanced(self) -> str:
+        """Return the advanced configuration filename."""
+
+        return self._filename_advanced
+
+    def set_default_advanced_options(self) -> None:
+        """Set the default advanced options."""
+
+        initial = not self.advanced_options
+        defaults: dict[str, Any] = {
+            "automated_dampening_delta_adjustment_model": 0,
+            "automated_dampening_insignificant_factor": DAMPENING_INSIGNIFICANT,
+            "automated_dampening_minimum_matching_intervals": DAMPENING_MINIMUM_INTERVALS,
+            "automated_dampening_model_days": DAMPENING_MODEL_DAYS,
+            "automated_dampening_no_delta_corrections": not DAMPENING_LOG_DELTA_CORRECTIONS,
+            "reload_on_advanced_change": False,
+        }
+        for key, value in defaults.items():
+            if key not in self.advanced_options or self.advanced_options.get(key) != value:
+                defaults[key] = value
+                if not initial:
+                    _LOGGER.debug("Advanced option default set %s: %s", key, value)
+        self.advanced_options = defaults
 
     def __get_estimate_set(self, options: ConnectionOptions) -> list[str]:
         estimate_set: list[str] = []
@@ -2798,7 +2846,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 return
             start, end = self.__get_list_slice(
                 self._data_actuals["siteinfo"][site["resource_id"]]["forecasts"],
-                self.get_day_start_utc() - timedelta(days=DAMPENING_MODEL_DAYS),  # self._data_generation["generation"][0]["period_start"],
+                self.get_day_start_utc() - timedelta(days=self.advanced_options["automated_dampening_model_days"]),
                 self.get_day_start_utc(),
                 search_past=True,
             )
@@ -2851,11 +2899,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
                 msg = f"Not enough matching intervals for {interval_time} to determine dampening"
                 log_msg = True
-                if len(matching) >= DAMPENING_MINIMUM_INTERVALS:
+                if len(matching) >= self.advanced_options["automated_dampening_minimum_matching_intervals"]:
                     if peak < self._peak_intervals[interval]:
                         if len(generation_samples) > 1:
                             factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 0.0
-                            if factor >= DAMPENING_INSIGNIFICANT:
+                            if factor >= self.advanced_options["automated_dampening_insignificant_factor"]:
                                 msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
                             else:
                                 msg = f"Auto-dampen factor for {interval_time} is {factor:.3f}"
@@ -3177,19 +3225,29 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if site == "all" and self.options.auto_dampen and self.granular_dampening.get("all"):
             interval = self.adjusted_interval_dt(period_start)
             factor = self.granular_dampening["all"][interval]
-            if DAMPENING_LOG_DELTA_CORRECTIONS and self._peak_intervals[interval] > 0 and interval_pv50 > 0 and factor < 1.0:
-                # Adjust the factor based on forecast vs. peak interval logarithmically.
-                factor_pre_adjustment = factor
-                factor = max(factor, min(1, factor + ((1 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50)))))
-                if record_adjustment and period_start.astimezone(self._tz).date() == dt.now(self._tz).date():
-                    _LOGGER.debug(
-                        "Adjusted granular dampening factor for %s is %.3f (was %.3f, peak %.3f, interval pv50 %.3f)",
-                        period_start.astimezone(self._tz).strftime(DATE_FORMAT),
-                        factor,
-                        factor_pre_adjustment,
-                        self._peak_intervals[interval],
-                        interval_pv50,
-                    )
+            if (
+                not self.advanced_options["automated_dampening_no_delta_corrections"]
+                and self._peak_intervals[interval] > 0
+                and interval_pv50 > 0
+                and factor < 1.0
+            ):
+                match self.advanced_options["automated_dampening_delta_adjustment_model"]:
+                    case _:
+                        # Adjust the factor based on forecast vs. peak interval delta-logarithmically.
+                        factor_pre_adjustment = factor
+                        factor = max(
+                            factor, min(1, factor + ((1 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50))))
+                        )
+                        if record_adjustment and period_start.astimezone(self._tz).date() == dt.now(self._tz).date():
+                            _LOGGER.debug(
+                                "Adjusted granular dampening factor for %s is %.3f (was %.3f, peak %.3f, interval pv50 %.3f)",
+                                period_start.astimezone(self._tz).strftime(DATE_FORMAT),
+                                factor,
+                                factor_pre_adjustment,
+                                self._peak_intervals[interval],
+                                interval_pv50,
+                            )
+
         return factor
 
     def __get_dampening_factor(self, site: str | None, period_start: dt, interval_pv50: float, record_adjustment: bool = False) -> float:

@@ -350,11 +350,17 @@ async def test_auto_dampen_issues(
         entity_registry = er.async_get(hass)
         if extra_sensors == ExtraSensors.YES_NO_UNIT:
             e = entity_registry.async_get(options[GENERATION_ENTITIES][0])
-            entity_registry.async_update_entity(e.entity_id, disabled_by=RegistryEntryDisabler.USER)  # type: ignore[reportOptionalMemberAccess]
+            if e is not None:
+                entity_registry.async_update_entity(e.entity_id, disabled_by=RegistryEntryDisabler.USER)
+            else:
+                pytest.fail("Failed to get generation entity to disable")
             await hass.async_block_till_done()
         if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
             e = entity_registry.async_get(options[SITE_EXPORT_ENTITY])
-            entity_registry.async_update_entity(e.entity_id, disabled_by=RegistryEntryDisabler.USER)  # type: ignore[reportOptionalMemberAccess]
+            if e is not None:
+                entity_registry.async_update_entity(e.entity_id, disabled_by=RegistryEntryDisabler.USER)
+            else:
+                pytest.fail("Failed to get site export entity to disable")
             await hass.async_block_till_done()
 
         # Reload to load saved data and prime initial generation

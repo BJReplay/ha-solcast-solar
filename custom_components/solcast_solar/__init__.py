@@ -338,6 +338,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
     hass.data[DOMAIN]["presumed_dead"] = True  # Presumption that init will not be successful.
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options, hass, entry)
+    await solcast.read_advanced_options()
 
     solcast.headers = get_session_headers(version)
     await solcast.get_sites_and_usage(prior_crash=prior_crash)

@@ -194,8 +194,8 @@ SENSORS: dict[str, dict[str, Any]] = {
         "state": {"2": "13748", "1": "18904"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
-            "2": {"estimate": 13748, "estimate10": 11457, "estimate90": 15276},
-            "1": {"estimate": 18904, "estimate10": 15753, "estimate90": 21004},
+            "2": {"estimate": 13748, "estimate10": 11457, "estimate90": 15276, "custom_hours": 1},
+            "1": {"estimate": 18904, "estimate10": 15753, "estimate90": 21004, "custom_hours": 1},
         },
         "breakdown": {
             "1": {

@@ -465,6 +465,10 @@ For all sensors:
 * `estimate_1234_5678_9012_3456`: 50th for an individual site value (number)
 * `estimate90_1234_5678_9012_3456`: 90th for an individual site value (number)
 
+For the `Forecast Next X Hours` sensor only:
+
+* `custom_hours`: The number of hours reported by the sensor (number)
+
 For daily forecast sensors only:
 
 * `detailedForecast`: A half-hourly breakdown of expected average power generation for each interval (list of dicts, units in kW, not kWh), and if automated dampening is active then the factor determined for each interval is also included
@@ -971,6 +975,14 @@ Selecting sites to exclude and clicking `SUBMIT` will take effect immediately. I
 > 
 > The site names and resource IDs are sourced from the sites that are known at the time of last sites fetch from Solcast (this is at startup). It is not possible to both add a new API key and select a site to exclude from the new account being added. The new account must first be added, which will cause the integration to restart and load the new sites. After that the sites to exclude from the new account may be selected.
 
+### Advanced config options
+
+It is possible to change the behaviour of some integration functions, most notably for integrated automated dampening.
+
+These options may be set by creating a file called `solcast-advanced.json` in the Home Assistant configuration directory (usually `/config`).
+
+For the available options, see the documentation at https://github.com/BJReplay/ha-solcast-solar/blob/main/ADVOPTIONS.md.
+
 ## Sample template sensors
 
 ### Combining site data
@@ -1224,6 +1236,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 v4.4.7
 
+* Add advanced options by @autoSteve
 * Auto-dampen, improve interval unreliable generation exclusion by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.6...v4.4.7
