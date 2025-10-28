@@ -53,7 +53,7 @@ NO_ATTRIBUTES = ["api_counter", "api_limit", "dampen", "lastupdated"]
 
 
 class FileEvent(Enum):
-    """File file event types."""
+    """File event types."""
 
     NO_EVENT = 0
     CREATE = 1
