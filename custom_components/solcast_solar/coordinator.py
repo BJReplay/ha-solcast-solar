@@ -88,7 +88,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self.tasks: dict[str, Any] = {}
         self.version: str = version
 
-        self._file_dampening = f"{self.hass.config.config_dir}/solcast-dampening.json"
+        self._file_dampening = self.solcast.get_filename_dampening()
         self._file_advanced = self.solcast.get_filename_advanced()
         self._date_changed: bool = False
         self._data_updated: bool = False

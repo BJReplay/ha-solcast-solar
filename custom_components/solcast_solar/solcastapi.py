@@ -235,7 +235,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._filename = options.file_path
         self._filename_actuals = f"{file_path.parent / file_path.stem}-actuals{file_path.suffix}"
         self._filename_actuals_dampened = f"{file_path.parent / file_path.stem}-actuals-dampened{file_path.suffix}"
-        self._filename_advanced = f"{file_path.parent / file_path.stem}-advanced.json"
+        self._filename_advanced = f"{file_path.parent / file_path.stem}-advanced{file_path.suffix}"
+        self._filename_dampening = f"{file_path.parent / file_path.stem}-dampening{file_path.suffix}"
         self._filename_generation = f"{file_path.parent / file_path.stem}-generation{file_path.suffix}"
         self._filename_undampened = f"{file_path.parent / file_path.stem}-undampened{file_path.suffix}"
         self._forecasts_moment: dict[str, dict[str, list[float]]] = {}
@@ -389,6 +390,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _LOGGER.debug("Advanced option default set %s: %s", key, value)
         self.advanced_options = defaults
 
+    def get_filename_dampening(self) -> str:
+        """Return the dampening configuration filename."""
+        return self._filename_dampening
+
     def __get_estimate_set(self, options: ConnectionOptions) -> list[str]:
         estimate_set: list[str] = []
         if options.attr_brk_estimate:
@@ -507,18 +512,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
         return f"{self._config_dir}/solcast-sites{'' if not self.__is_multi_key() else '-' + api_key}.json"
-
-    def get_granular_dampening_filename(self) -> str:
-        """Build a fully qualified site dampening filename.
-
-        Arguments:
-            legacy (bool): Return the name of the legacy per-site dampening file.
-
-        Returns:
-            str: A fully qualified cache filename.
-
-        """
-        return f"{self._config_dir}/solcast-dampening.json"
 
     async def serialise_data(self, data: dict[str, Any], filename: str) -> bool:
         """Serialize data to file.
@@ -1167,7 +1160,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     async def serialise_granular_dampening(self):
         """Serialise the site dampening file."""
-        filename = self.get_granular_dampening_filename()
+        filename = self.get_filename_dampening()
         _LOGGER.debug("Writing granular dampening to %s", filename)
         payload = json.dumps(
             self.granular_dampening,
@@ -1206,7 +1199,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         error = False
         return_value = False
         mtime = True
-        filename = self.get_granular_dampening_filename()
+        filename = self.get_filename_dampening()
         try:
             if not Path(filename).is_file():
                 self.granular_dampening = {}
@@ -1255,8 +1248,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
     async def refresh_granular_dampening_data(self) -> None:
         """Load granular dampening data if the file has changed."""
-        if Path(self.get_granular_dampening_filename()).is_file():
-            mtime = Path(self.get_granular_dampening_filename()).stat().st_mtime
+        if Path(self.get_filename_dampening()).is_file():
+            mtime = Path(self.get_filename_dampening()).stat().st_mtime
             if mtime != self.granular_dampening_mtime:
                 await self.granular_dampening_data()
                 _LOGGER.info("Granular dampening loaded")
