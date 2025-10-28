@@ -307,29 +307,68 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.estimate_set = self.__get_estimate_set(self.options)
 
     async def read_advanced_options(self) -> bool:
-        """Read advanced JSON file options."""
+        """Read advanced JSON file options, validate and set them."""
 
         change = False
         if Path(self._filename_advanced).exists():
+            _LOGGER.debug("Advanced options file %s exists", self._filename_advanced)
             async with aiofiles.open(self._filename_advanced) as file:
                 try:
-                    response_json = json.loads(await file.read())
-                    for option, value in self.advanced_options.items():
-                        new_value = response_json.get(option)
-                        if new_value is not None and new_value != value:
+                    response_json: dict[str, Any] = json.loads(await file.read())
+                    value: int | float | str | list[str] | None
+                    new_value: int | float | str | list[str]
+                    for option, new_value in response_json.items():
+                        value = self.advanced_options.get(option)
+                        if value is None:
+                            _LOGGER.error("Unknown advanced option ignored: %s", option)
+                            continue
+                        if new_value != value:
+                            valid = True
                             if isinstance(new_value, type(value)):
+                                match option:
+                                    case "automated_dampening_ignore_intervals":
+                                        if isinstance(new_value, list):
+                                            seen: list[str] = []
+                                            t: str
+                                            for t in new_value:
+                                                if re.match(r"^([01]?[0-9]|2[0-3]):[03]{1}0$", t) is None:
+                                                    _LOGGER.error("Invalid time in advanced option %s: %s", option, t)
+                                                    valid = False
+                                                    continue
+                                                if t in seen:
+                                                    _LOGGER.error("Duplicate time in advanced option %s: %s", option, t)
+                                                    valid = False
+                                                    continue
+                                                seen.append(t)
+                                        else:
+                                            valid = False
+                                    case "automated_dampening_minimum_matching_intervals":
+                                        if isinstance(new_value, int) and (new_value < 1 or new_value > 21):
+                                            _LOGGER.error("Invalid value for advanced option %s: %s (must be 1-21)", option, new_value)
+                                            valid = False
+                                    case "automated_dampening_insignificant_factor":
+                                        if isinstance(new_value, float) and (new_value < 0.0 or new_value > 1.0):
+                                            _LOGGER.error("Invalid value for advanced option %s: %s (must be 0.0-1.0)", option, new_value)
+                                            valid = False
+                                    case "automated_dampening_model_days":
+                                        if isinstance(new_value, int) and (new_value < 2 or new_value > 21):
+                                            _LOGGER.error("Invalid value for advanced option %s: %s (must be 2-21)", option, new_value)
+                                            valid = False
+                                    case _:
+                                        pass
+                            else:
+                                _LOGGER.error("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
+                                valid = False
+                            if valid:
                                 self.advanced_options[option] = new_value
                                 _LOGGER.debug("Advanced option set %s: %s", option, new_value)
                                 change = True
-                            else:
-                                _LOGGER.error("Type mismatch for advanced option %s: should be %s", option, type(value))  # pyright: ignore[reportUnknownArgumentType]
                 except json.decoder.JSONDecodeError:
                     _LOGGER.error("JSONDecodeError, advanced options ignored: %s", self._filename_advanced)
         return change
 
     def get_filename_advanced(self) -> str:
         """Return the advanced configuration filename."""
-
         return self._filename_advanced
 
     def set_default_advanced_options(self) -> None:
@@ -338,6 +377,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         initial = not self.advanced_options
         defaults: dict[str, Any] = {
             "automated_dampening_delta_adjustment_model": 0,
+            "automated_dampening_ignore_intervals": [],
             "automated_dampening_insignificant_factor": DAMPENING_INSIGNIFICANT,
             "automated_dampening_minimum_matching_intervals": DAMPENING_MINIMUM_INTERVALS,
             "automated_dampening_model_days": DAMPENING_MODEL_DAYS,
@@ -2808,7 +2848,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             else 0
         )
 
-    async def model_automated_dampening(self, force: bool = False) -> None:
+    async def model_automated_dampening(self, force: bool = False) -> None:  # noqa: C901
         """Model the automated dampening of the forecast data.
 
         Look for consistently low PV generation in consistently high estimated actual intervals.
@@ -2817,13 +2857,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if not self.options.auto_dampen and not force:
             _LOGGER.debug("Automated dampening is not enabled, skipping model_automated_dampening()")
             return
+        _LOGGER.debug("Modelling automated dampening factors")
 
         start_time = time.time()
 
-        # export_limited_intervals = dict.fromkeys(range(48), False)
-        # for gen in self._data_generation["generation"]:
-        #    if gen["export_limiting"]:
-        #        export_limited_intervals[self.adjusted_interval(gen)] = True
+        ignored_intervals: list[int] = []  # Intervals to ignore in local time zone
+        for time_string in self.advanced_options["automated_dampening_ignore_intervals"]:
+            hour, minute = map(int, time_string.split(":"))
+            interval = hour * 2 + minute // 30
+            ignored_intervals.append(interval)
+
         generation: dict[dt, float] = {}
         for gen in self._data_generation["generation"]:
             if not gen["export_limiting"]:
@@ -2882,11 +2925,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             generation_samples: list[float] = [
                 generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
             ]
-            interval_time = f"{
-                interval // 2
-                + (
-                    1 if self.dst(dt.now(self._tz).replace(hour=interval // 2, minute=30 * (interval % 2), second=0, microsecond=0)) else 0
-                ):02}:{30 * (interval % 2):02}"
+            dst_offset = (
+                1 if self.dst(dt.now(self._tz).replace(hour=interval // 2, minute=30 * (interval % 2), second=0, microsecond=0)) else 0
+            )
+            interval_time = f"{interval // 2 + (dst_offset):02}:{30 * (interval % 2):02}"
+            if interval + dst_offset * 2 in ignored_intervals:
+                _LOGGER.debug("Interval %s is intentionally ignored, skipping", interval_time)
+                continue
             if len(matching) > 0:
                 _LOGGER.debug(
                     "Interval %s has peak estimated actual %.3f and %d matching intervals: %s",

@@ -13,15 +13,17 @@ Example:
 }
 ```
 
-Changes to this file will be detected in near-real time, changing code behaviour. Application of changed behaviour may only be seen at forecast or estimated actuals update, or possibly immediately should "reload_on_advanced_change" be set to `true`.
+Changes to this file will be detected in near-real time, changing code behaviour. Application of changed behaviour may only be seen at forecast or estimated actuals update, or possibly immediately should "reload_on_advanced_change" be set to `true` (see below).
 
-The impact will vary by advanced option, and the reader is left to decide when the outcome should occur; this is advanced, and _you_ are advanced...
+The impact of not restarting will vary by advanced option, and you are left to decide when the outcome should occur; this is advanced, and _you_ are expected to be advanced.
 
-Support for these advanced options will be limited. (Well, "support" for this integration is limited at the best of times. You expect, yet do not pay us, even though there are channels available, and we sometimes respond in kind by ignoring you. Yet, we endeavour not to.)
+Support for these advanced options will be limited. (Well, "support" for this integration is limited at the best of times. You expect it, yet we are not obliged to provide it; we endeavour to.)
 
-Understand the implication of setting any of these options before raising any issue, and check set values for 'sanity', and clearly outline the issue faced in detail. (These advanced options are advanced, and modify otherwise predictable behaviour. When your behaviour is no longer predictable then **make sure it is stated well in any issue report**. Or a crystal ball will be required, which will likely not go well.)
+Understand the implication of setting any of these options before reporting any problem, check set values for 'sanity', and if you then need to, clearly outline any problem faced in detail. (These settings modify otherwise predictable behaviour. When you use these, the values set are logged at `DEBUG` level, so please include that detail.)
 
-Value 'sanity checking' is almost non-existent for this feature. Aside from "is it the expected type" it is as dumb as a bagful of hammers, and will set a 'hammer' of your own making in place to club you forcefully. Do not report in this circumstance. You broke it. You fix your file. No negative values. No 'stupid' settings. What is set generally gets directly injected...
+Values are validated for sanity, however it is possible to set options in an inappropriate way. Do not raise an issue report in this circumstance. You broke it. You fix your file, or raise a discussion topic instead.
+
+You are free to raise an issue should a code exception occur after setting an advanced option, and `DEBUG` logging is _mandatory_ in this circumstance. Exceptions should not happen, and there will be no exception to requiring `DEBUG` logs in a raised issue.
 
 ## Contents
 
@@ -35,6 +37,16 @@ Value 'sanity checking' is almost non-existent for this feature. Aside from "is 
 Possible values: integer 0 (default 0)
 
 This option presently does nothing. It is reserved to accommodate the addition of alternatives to the present delta logarithmic adjustment of dampening factors where forecast deviates from matching past intervals.
+
+**Key: "automated_dampening_ignore_intervals"**
+
+Possible values: list of strings as "HH:MM" (default [])
+
+Certain intervals of the day can be set to be ignored by dampening, at times when there is no possibility of shading. A possible use case is when there are many matching estimated actual intervals and only a small number of older generation intervals comparable due to export limiting. This can happen as days get longer towards Summer.
+
+Double quotes are valid JSON format (single quotes are not). Times are specified in local time zone, and must match the format "HH:MM" with one or two digit hour and a minute of either "00" or "30", and be unique in the list.
+
+An example list: ["12:00","12:30","13:00","13:30","14:00","14:30","15:00"]
 
 **Key: "automated_dampening_insignificant_factor"**
 
