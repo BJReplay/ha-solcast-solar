@@ -238,10 +238,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 observer.join()
         finally:
             self.watchdog[task]["event"] = FileEvent.NO_EVENT
-            if self.tasks.get(task + "_start") is not None:
-                self.tasks[task + "_start"]()  # Cancel the task
-                self.tasks.pop(task + "_start", None)
-                _LOGGER.debug("Cancelled task %s_start", task)
 
     class EventHandler(FileSystemEventHandler):
         """Handle file modification."""
@@ -269,12 +265,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         try:
             event_handler = self.EventHandler(self, task, self._file_dampening)
             observer = Observer()
-            try:
-                observer.schedule(event_handler, path=self._file_dampening, recursive=False)
-                observer.start()
-            except Exception as e:  # noqa: BLE001
-                _LOGGER.debug("Not monitoring %s: %s", self._file_dampening, str(e).replace("Errno ", ""))
-                return
+            observer.schedule(event_handler, path=self._file_dampening, recursive=False)
+            observer.start()
 
             try:
                 while not self.hass.is_stopping and self.watchdog[task]["event"] != FileEvent.DELETE:
@@ -318,13 +310,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         try:
             event_handler = self.EventHandler(self, task, self._file_advanced)
             observer = Observer()
-            try:
-                observer.schedule(event_handler, path=self._file_advanced, recursive=False)
-                observer.start()
-                _LOGGER.debug("Monitoring %s", self._file_advanced)
-            except Exception as e:  # noqa: BLE001
-                _LOGGER.debug("Not monitoring %s: %s", self._file_advanced, str(e).replace("Errno ", ""))
-                return
+            observer.schedule(event_handler, path=self._file_advanced, recursive=False)
+            observer.start()
+            _LOGGER.debug("Monitoring %s", self._file_advanced)
 
             try:
                 while not self.hass.is_stopping and self.watchdog[task]["event"] != FileEvent.DELETE:

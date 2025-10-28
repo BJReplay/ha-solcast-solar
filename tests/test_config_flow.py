@@ -631,9 +631,9 @@ async def test_dampen(
     """Test dampening step."""
 
     user_input: dict[str, Any] = {**copy.deepcopy(DEFAULT_INPUT1), **value}
-    entry = await async_init_integration(hass, DEFAULT_INPUT1)
-
     try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+
         for key in value:
             assert entry.options[key] == 1.0
 
@@ -665,11 +665,11 @@ async def test_entry_options_upgrade(
         CONF_API_KEY: "1",
         "const_disableautopoll": False,
     }
-    config_dir = hass.config.config_dir
-    entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
-    assert hass.data[DOMAIN].get("presumed_dead", True) is False
-
     try:
+        config_dir = hass.config.config_dir
+        entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+
         assert entry.version == FINAL_VERSION
         # V4
         assert entry.options.get("const_disableautopoll") is None
@@ -733,9 +733,9 @@ async def test_presumed_dead_and_full_flow(
 ) -> None:
     """Test presumption of death by setting "presumed dead" flag, and testing a config change."""
 
-    entry = await async_init_integration(hass, DEFAULT_INPUT1)
-
     try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+
         # Test presumed dead
         caplog.clear()
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
@@ -780,6 +780,96 @@ async def test_presumed_dead_and_full_flow(
         )
         await hass.async_block_till_done()
         assert result.get("reason") == "reconfigured"
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_advanced_options(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test setting advanced options."""
+
+    config_dir = hass.config.config_dir
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+
+        async def wait():
+            for _ in range(50):
+                freezer.tick(0.1)
+                await hass.async_block_till_done()
+
+        data_file = Path(f"{config_dir}/solcast-advanced.json")
+        data_file_1: dict[str, Any] = {
+            "automated_dampening_minimum_matching_intervals": 2,
+            "automated_dampening_ignore_intervals": ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30"],
+            "automated_dampening_insignificant_factor": 0.95,
+            "automated_dampening_no_delta_corrections": False,
+            "automated_dampening_model_days": 14,
+            "reload_on_advanced_change": False,
+        }
+        data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
+        await wait()
+        assert "Running task watchdog_advanced" in caplog.text
+        assert "Monitoring" in caplog.text
+        assert "Advanced option set automated_dampening_ignore_intervals" in caplog.text
+        assert "automated_dampening_minimum_matching_intervals" not in caplog.text
+        assert "automated_dampening_insignificant_factor" not in caplog.text
+        assert "automated_dampening_no_delta_corrections" not in caplog.text
+        assert "automated_dampening_model_days" not in caplog.text
+        assert "reload_on_advanced_change" not in caplog.text
+
+        caplog.clear()
+
+        data_file_2: dict[str, Any] = {
+            "automated_dampening_minimum_matching_intervals": 0,
+            "automated_dampening_ignore_intervals": ["24:00", "12:20", "13:00", "13:00", "14:00", "14:30", "15:00", "15:30"],
+            "automated_dampening_insignificant_factor": 1.1,
+            "automated_dampening_no_delta_corrections": "wrong_type",
+            "automated_dampening_model_days": 22,
+            "reload_on_advanced_change": True,
+            "unknown_option": True,
+        }
+        data_file.write_text(json.dumps(data_file_2), encoding="utf-8")
+        await wait()
+        assert "automated_dampening_minimum_matching_intervals: 0 (must be 1-21)" in caplog.text
+        assert "automated_dampening_insignificant_factor: 1.1 (must be 0.0-1.0)" in caplog.text
+        assert "automated_dampening_model_days: 22 (must be 2-21)" in caplog.text
+        assert "automated_dampening_no_delta_corrections: should be bool" in caplog.text
+        assert "Advanced option set reload_on_advanced_change: True" in caplog.text
+        assert "Unknown advanced option ignored: unknown_option" in caplog.text
+        assert "Invalid time in advanced option automated_dampening_ignore_intervals: 24:00" in caplog.text
+        assert "Invalid time in advanced option automated_dampening_ignore_intervals: 12:20" in caplog.text
+        assert "Duplicate time in advanced option automated_dampening_ignore_intervals: 13:00" in caplog.text
+        assert "Advanced options changed, restarting" in caplog.text
+        assert "Start is not stale" in caplog.text
+
+        data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
+        await wait()
+        caplog.clear()
+        data_file = data_file.rename(f"{config_dir}/solcast-advanced.bak")
+        await wait()
+        assert "Advanced options file deleted, no longer monitoring" in caplog.text
+        caplog.clear()
+        data_file = data_file.rename(f"{config_dir}/solcast-advanced.json")
+        await wait()
+        assert "Running task watchdog_advanced" in caplog.text
+
+        caplog.clear()
+
+        data_file.write_text('{"option_1": "one", "option_2": "two",}', encoding="utf-8")  # trailing comma
+        await wait()
+        assert "JSONDecodeError, advanced options ignored" in caplog.text
+
+        data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
+        await wait()
+        await hass.config_entries.async_unload(entry.entry_id)
+        await wait()
+        assert "Cancelling coordinator task watchdog_advanced_start" in caplog.text
 
     finally:
         assert await async_cleanup_integration_tests(hass)

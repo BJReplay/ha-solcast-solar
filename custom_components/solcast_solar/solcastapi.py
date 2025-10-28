@@ -340,8 +340,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                     valid = False
                                                     continue
                                                 seen.append(t)
-                                        else:
-                                            valid = False
                                     case "automated_dampening_minimum_matching_intervals":
                                         if isinstance(new_value, int) and (new_value < 1 or new_value > 21):
                                             _LOGGER.error("Invalid value for advanced option %s: %s (must be 1-21)", option, new_value)
@@ -2830,6 +2828,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         await self.serialise_data(self._data_generation, self._filename_generation)
         _LOGGER.debug("Task get_pv_generation took %.3f seconds", time.time() - start_time)
 
+    '''
     def adjusted_interval(self, interval: dict[str, Any]) -> int:
         """Adjust a forecast/actual interval as standard time."""
         offset = 1 if self.is_interval_dst(interval) else 0
@@ -2838,6 +2837,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if interval["period_start"].astimezone(self._tz).hour - offset >= 0
             else 0
         )
+    '''
 
     def adjusted_interval_dt(self, interval: dt) -> int:
         """Adjust a datetime as standard time."""

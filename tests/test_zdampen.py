@@ -4,9 +4,11 @@ import asyncio
 import copy
 import datetime
 from datetime import datetime as dt, timedelta
+import json
 import logging
 from pathlib import Path
 import re
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from freezegun.api import FrozenDateTimeFactory
@@ -174,6 +176,12 @@ async def test_auto_dampen(
 
     try:
         config_dir = hass.config.config_dir
+
+        data_file = Path(f"{config_dir}/solcast-advanced.json")
+        data_file_1: dict[str, Any] = {
+            "automated_dampening_ignore_intervals": ["17:00"],
+        }
+        data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
 
         options = copy.deepcopy(DEFAULT_INPUT2)
         options[AUTO_UPDATE] = 0
