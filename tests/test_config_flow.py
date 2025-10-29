@@ -810,6 +810,7 @@ async def test_advanced_options(
             "automated_dampening_insignificant_factor": 0.95,
             "automated_dampening_no_delta_corrections": False,
             "automated_dampening_model_days": 14,
+            "forecast_history_max_days": 730,
             "reload_on_advanced_change": False,
         }
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
@@ -821,6 +822,7 @@ async def test_advanced_options(
         assert "automated_dampening_insignificant_factor" not in caplog.text
         assert "automated_dampening_no_delta_corrections" not in caplog.text
         assert "automated_dampening_model_days" not in caplog.text
+        assert "forecast_history_max_days" not in caplog.text
         assert "reload_on_advanced_change" not in caplog.text
 
         caplog.clear()
@@ -831,6 +833,7 @@ async def test_advanced_options(
             "automated_dampening_insignificant_factor": 1.1,
             "automated_dampening_no_delta_corrections": "wrong_type",
             "automated_dampening_model_days": 22,
+            "forecast_history_max_days": 10,
             "reload_on_advanced_change": True,
             "unknown_option": True,
         }
@@ -840,6 +843,7 @@ async def test_advanced_options(
         assert "automated_dampening_insignificant_factor: 1.1 (must be 0.0-1.0)" in caplog.text
         assert "automated_dampening_model_days: 22 (must be 2-21)" in caplog.text
         assert "automated_dampening_no_delta_corrections: should be bool" in caplog.text
+        assert "forecast_history_max_days: 10 (must be 22-3650)" in caplog.text
         assert "Advanced option set reload_on_advanced_change: True" in caplog.text
         assert "Unknown advanced option ignored: unknown_option" in caplog.text
         assert "Invalid time in advanced option automated_dampening_ignore_intervals: 24:00" in caplog.text

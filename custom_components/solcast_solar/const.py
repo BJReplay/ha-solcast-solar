@@ -43,6 +43,7 @@ GENERATION_VERSION: Final[int] = 1
 GET_ACTUALS: Final[str] = "get_actuals"
 HARD_LIMIT: Final[str] = "hard_limit"
 HARD_LIMIT_API: Final[str] = "hard_limit_api"
+HISTORY_MAX: Final[int] = 730  # Maximum number of history days to keep
 KEY_ESTIMATE: Final[str] = "key_estimate"
 MANUFACTURER: Final[str] = "BJReplay"
 SERVICE_CLEAR_DATA: Final[str] = "clear_all_solcast_data"

@@ -60,6 +60,7 @@ from .const import (
     GENERATION_VERSION,
     GET_ACTUALS,
     HARD_LIMIT_API,
+    HISTORY_MAX,
     KEY_ESTIMATE,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
@@ -353,6 +354,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                         if isinstance(new_value, int) and (new_value < 2 or new_value > 21):
                                             _LOGGER.error("Invalid value for advanced option %s: %s (must be 2-21)", option, new_value)
                                             valid = False
+                                    case "forecast_history_max_days":
+                                        if isinstance(new_value, int) and (new_value < 22 or new_value > 3650):
+                                            _LOGGER.error("Invalid value for advanced option %s: %s (must be 22-3650)", option, new_value)
+                                            valid = False
                                     case _:
                                         pass
                             else:
@@ -381,6 +386,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             "automated_dampening_minimum_matching_intervals": DAMPENING_MINIMUM_INTERVALS,
             "automated_dampening_model_days": DAMPENING_MODEL_DAYS,
             "automated_dampening_no_delta_corrections": not DAMPENING_LOG_DELTA_CORRECTIONS,
+            "forecast_history_max_days": HISTORY_MAX,
             "reload_on_advanced_change": False,
         }
         for key, value in defaults.items():
@@ -3023,7 +3029,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     round(actual["pv_estimate"], 4),
                 )
 
-            await self.sort_and_prune(site["resource_id"], self._data_actuals, 730, actuals)
+            await self.sort_and_prune(site["resource_id"], self._data_actuals, self.advanced_options["forecast_history_max_days"], actuals)
             _LOGGER.debug("Estimated actuals dictionary for site %s length %s", site["resource_id"], len(actuals))
 
         if status == DataCallStatus.SUCCESS and dampen_yesterday:
@@ -3071,7 +3077,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             ),
                         )
 
-                    await self.sort_and_prune(site["resource_id"], self._data_actuals_dampened, 730, extant_actuals)
+                    await self.sort_and_prune(
+                        site["resource_id"], self._data_actuals_dampened, self.advanced_options["forecast_history_max_days"], extant_actuals
+                    )
 
         if status != DataCallStatus.SUCCESS:
             _LOGGER.error("Update estimated actuals failed: %s", reason)
@@ -3377,7 +3385,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         round(forecast["pv_estimate90"], 4),
                     )
 
-            await self.sort_and_prune(site["resource_id"], self._data, 730, forecasts)
+            await self.sort_and_prune(site["resource_id"], self._data, self.advanced_options["forecast_history_max_days"], forecasts)
 
     async def sort_and_prune(self, site: str | None, data: dict[str, Any], past_days: int, forecasts: dict[Any, Any]) -> None:
         """Sort and prune a forecast list."""
@@ -3474,7 +3482,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     round(actual["pv_estimate"], 4),
                 )
 
-            await self.sort_and_prune(site, self._data_actuals, 730, actuals)
+            await self.sort_and_prune(site, self._data_actuals, self.advanced_options["forecast_history_max_days"], actuals)
 
             self._data_actuals["last_updated"] = dt.now(datetime.UTC).replace(microsecond=0)
             self._data_actuals["last_attempt"] = dt.now(datetime.UTC).replace(microsecond=0)
@@ -3763,7 +3771,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         )
         forecasts_start, _ = self.__get_list_slice(self._data_forecasts, self.get_day_start_utc(), search_past=True)
         actuals_start, actuals_end = self.__get_list_slice(
-            _data, self.get_day_start_utc() - timedelta(days=730), self.get_day_start_utc(), search_past=True
+            _data,
+            self.get_day_start_utc() - timedelta(days=self.advanced_options["forecast_history_max_days"]),
+            self.get_day_start_utc(),
+            search_past=True,
         )
         return {
             "wh_hours": OrderedDict(
@@ -3843,7 +3854,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             bool: A flag indicating success or failure.
 
         """
-        commencing: datetime.date = dt.now(self._tz).date() - timedelta(days=730)
+        commencing: datetime.date = dt.now(self._tz).date() - timedelta(days=self.advanced_options["forecast_history_max_days"])
         last_day: datetime.date = dt.now(self._tz).date()
 
         actuals: dict[dt, dict[str, dt | float]] = {}
@@ -3943,7 +3954,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
         today: datetime.date = dt.now(self._tz).date()
-        commencing: datetime.date = dt.now(self._tz).date() - timedelta(days=730)
+        commencing: datetime.date = dt.now(self._tz).date() - timedelta(days=self.advanced_options["forecast_history_max_days"])
         commencing_undampened: datetime.date = dt.now(self._tz).date() - timedelta(days=14)
         last_day: datetime.date = dt.now(self._tz).date() + timedelta(days=FORECAST_DAYS)
         logged_hard_limit: list[str] = []

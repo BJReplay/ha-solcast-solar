@@ -28,6 +28,7 @@ You are free to raise an issue should a code exception occur after setting an ad
 ## Contents
 
 1. [Automated dampening](#automated-dampening)
+1. [Forecasts](#forecasts)
 1. [General](#general)
 
 ## Automated dampening
@@ -71,6 +72,15 @@ The number of days of past estimated actual generation to use for modelling futu
 Possible values: boolean true/false (default false)
 
 If delta logarithmic adjustment of dampening factors is not desired then this option may be set to true.
+
+## Forecasts
+
+**Key: "forecast_history_max_days"**
+
+Possible values: integer 22-3650 (default 730)
+
+The number of days of history to retain for forecasts (and estimated actuals).
+
 
 ## General
 
