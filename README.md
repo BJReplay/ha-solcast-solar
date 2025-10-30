@@ -664,6 +664,8 @@ Automated dampening will apply the same dampening factors to all rooftop sites, 
 > If you think automated dampening is not working correctly then please THINK, INVESTIGATE, and then REPORT any issues with automated dampening, in that order. Include details of why you think automated dampening is not working and the possible solution in any issue report.
 >
 > If you investigate and find that an issue is because of your hand-built generation entity then auto-dampening may not be for you and in this case please roll your own dampening solution, or be technically constructive in any suggested improvement. The component parts are available for you to build your own by utilising granular dampening.
+>
+> Do also check out the "advanced options" for the integration. There are many "nerd knobs" that may be set for automated dampening, and these may solve for your issue with it.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/automated-dampening.png)
 
@@ -717,11 +719,11 @@ The integration determines the units by inspecting the `unit_of_measurement` att
 
 ##### Optional input: Site export to the grid, combined with a limit value
 
-Where locally generated excess power is exported to the electricity grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because export is at the limit value for five minutes or more) then the generation period will be excluded from any automated dampening consideration. This mechanism ensures differentiation of generation being limited by shade from a tree or chimney, or artificial site export limiting.
+Where locally generated excess power is exported to the electricity grid, it is likely that there will be a limit to the amount of energy that may be exported. The integration can monitor this export, and when periods of "export limiting" are detected (because export is at the limit value for five minutes or more) then the generation period will be excluded from any automated dampening consideration for _all_ days considered by automated dampening by default. This mechanism ensures differentiation of generation being limited by shade from a tree or chimney, or artificial site export limiting.
 
 Export to the grid generally occurs in the middle of the day, which is a time rarely impacted by shading.
 
-A single increasing energy sensor is allowed, and this may reset to zero at midnight. The optional export limit can only be specified in kW.
+A single increasing energy sensor is allowed, and this may reset to zero at midnight. The optional export limit can only be specified in kW. See the advanced options section for ways to vary this "all days" excluded behaviour.
 
 > [!TIP]
 >
