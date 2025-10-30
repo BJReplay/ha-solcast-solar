@@ -561,7 +561,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 log_file.get(filename, "unknown"),
             )
             return True
-        _LOGGER.error("Not serialising empty data for %s", filename)
+        _LOGGER.warning("Not serialising empty data for %s", filename)
         return False
 
     def __redact_lat_lon_simple(self, s: str) -> str:
