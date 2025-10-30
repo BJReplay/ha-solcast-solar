@@ -4,8 +4,7 @@
 Install:
 
 * This script runs in a Home Assistant DevContainer
-* Modify /etc/hosts (need sudo): 127.0.0.1 localhost api.solcast.com.au
-* Script start: python3 -m wsgi_sim.py
+* Script start: `python3 -m wsgi_sim.py`, or make the file executable and run `./wsgi_sim.py`
 
 Optional run arguments:
 
@@ -51,7 +50,6 @@ from pathlib import Path
 import random
 import subprocess
 import sys
-import traceback
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -152,16 +150,6 @@ app = Flask(__name__)  # pyright: ignore[reportPossiblyUnboundVariable]
 app.json = DtJSONProvider(app)
 _LOGGER = app.logger
 counter_last_reset = dt.now(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)  # Previous UTC midnight
-
-try:
-    with Path.open(Path("/etc/hosts")) as file:
-        hosts = file.read()
-        if "api.solcast.com.au" not in hosts:
-            _LOGGER.error("Hosts file contains:\n\n%s", hosts)
-            _LOGGER.error("Please add api.solcast.com.au as /etc/hosts localhost alias")
-            sys.exit()
-except Exception as e:  # noqa: BLE001
-    _LOGGER.error("%s: %s", e, traceback.format_exc())
 
 
 def validate_call(api_key: str, site_id: str | None = None, counter: bool = True) -> tuple[int, Any, Any]:
