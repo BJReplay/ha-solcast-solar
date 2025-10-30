@@ -77,7 +77,7 @@ Dampening modelling will skip intervals where there are a low number of matching
 
 **Key: "automated_dampening_model_days"**
 
-Possible values: integer 0-21 (default 14)
+Possible values: integer 2-21 (default 14)
 
 The number of days of past estimated actual generation to use for modelling future dampening.
 
