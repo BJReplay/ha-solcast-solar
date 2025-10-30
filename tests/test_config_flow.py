@@ -838,7 +838,8 @@ async def test_advanced_options(
         caplog.clear()
 
         data_file_2: dict[str, Any] = {
-            "automated_dampening_minimum_matching_intervals": 0,
+            "automated_dampening_minimum_matching_generation": 0,
+            "automated_dampening_minimum_matching_intervals": 1,
             "automated_dampening_ignore_intervals": ["24:00", "12:20", "13:00", "13:00", "14:00", "14:30", "15:00", "15:30"],
             "automated_dampening_insignificant_factor": 1.1,
             "automated_dampening_no_delta_corrections": "wrong_type",
@@ -854,7 +855,8 @@ async def test_advanced_options(
         }
         data_file.write_text(json.dumps(data_file_2), encoding="utf-8")
         await wait()
-        assert "automated_dampening_minimum_matching_intervals: 0 (must be 1-21)" in caplog.text
+        assert "automated_dampening_minimum_matching_generation: 0 (must be 1-21)" in caplog.text
+        assert "automated_dampening_minimum_matching_intervals: 1 (must be 2-21)" in caplog.text
         assert "automated_dampening_insignificant_factor: 1.1 (must be 0.0-1.0)" in caplog.text
         assert "automated_dampening_model_days: 22 (must be 2-21)" in caplog.text
         assert "automated_dampening_generation_history_load_days: 22 (must be 1-21)" in caplog.text

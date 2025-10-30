@@ -63,9 +63,15 @@ Possible values: float 0.0-1.0 (default 0.95)
 
 Dampening values modelled as higher than a certain threshold are ignored as insignificant.
 
-**Key: "automated_dampening_minimum_matching_intervals"**
+**Key: "automated_dampening_minimum_matching_generation"**
 
 Possible values: integer 1-model_days (default 2)
+
+Dampening modelling will skip intervals where there are a low number of matching generation samples for intervals. This is defaulted at two to get a "peak" generation value, but a value of one is also allowed for experimentation.
+
+**Key: "automated_dampening_minimum_matching_intervals"**
+
+Possible values: integer 2-model_days (default 2)
 
 Dampening modelling will skip intervals where there are a low number of matching past intervals. A low number of matches are generally seen at the beginning and end of each day, and these are ignored by default.
 

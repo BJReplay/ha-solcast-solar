@@ -24,6 +24,7 @@ CUSTOM_HOUR_SENSOR: Final[str] = "customhoursensor"
 DAMP_FACTOR: Final[str] = "damp_factor"
 DAMPENING_INSIGNIFICANT: Final[float] = 0.95  # Dampening factors considered insignificant for automated dampening
 DAMPENING_LOG_DELTA_CORRECTIONS: Final[bool] = True  # Whether to logarithmically adjust applied automated dampening factors
+DAMPENING_MINIMUM_GENERATION: Final[int] = 2  # Minimum number of matching intervals with generation data to consider
 DAMPENING_MINIMUM_INTERVALS: Final[int] = 2  # Minimum number of matching intervals to consider for automated dampening
 DAMPENING_MODEL_DAYS: Final[int] = 14  # Number of days over which to model automated dampening
 DATE_MONTH_DAY: Final[str] = "%m-%d"

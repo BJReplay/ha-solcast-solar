@@ -48,6 +48,7 @@ from .const import (
     CUSTOM_HOUR_SENSOR,
     DAMPENING_INSIGNIFICANT,
     DAMPENING_LOG_DELTA_CORRECTIONS,
+    DAMPENING_MINIMUM_GENERATION,
     DAMPENING_MINIMUM_INTERVALS,
     DAMPENING_MODEL_DAYS,
     DATE_FORMAT,
@@ -346,11 +347,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                     continue
                                                 seen.append(t)
                                     case (
-                                        "automated_dampening_minimum_matching_intervals"
+                                        "automated_dampening_minimum_matching_generation"
+                                        | "automated_dampening_minimum_matching_intervals"
                                         | "automated_dampening_model_days"
                                         | "automated_dampening_generation_history_load_days"
                                     ):
-                                        least = 2 if option == "automated_dampening_model_days" else 1
+                                        least = (
+                                            1
+                                            if option
+                                            in [
+                                                "automated_dampening_generation_history_load_days",
+                                                "automated_dampening_minimum_matching_generation",
+                                            ]
+                                            else 2
+                                        )
                                         if isinstance(new_value, int) and (new_value < least or new_value > 21):
                                             _LOGGER.error(
                                                 "Invalid value for advanced option %s: %s (must be %d-21)", option, new_value, least
@@ -394,6 +404,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             "automated_dampening_generation_history_load_days": GENERATION_HISTORY_LOAD_DAYS,
             "automated_dampening_ignore_intervals": [],
             "automated_dampening_insignificant_factor": DAMPENING_INSIGNIFICANT,
+            "automated_dampening_minimum_matching_generation": DAMPENING_MINIMUM_GENERATION,
             "automated_dampening_minimum_matching_intervals": DAMPENING_MINIMUM_INTERVALS,
             "automated_dampening_model_days": DAMPENING_MODEL_DAYS,
             "automated_dampening_no_delta_corrections": not DAMPENING_LOG_DELTA_CORRECTIONS,
@@ -2960,7 +2971,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 log_msg = True
                 if len(matching) >= self.advanced_options["automated_dampening_minimum_matching_intervals"]:
                     if peak < self._peak_intervals[interval]:
-                        if len(generation_samples) > 1:
+                        if len(generation_samples) >= self.advanced_options["automated_dampening_minimum_matching_generation"]:
                             factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 0.0
                             if factor >= self.advanced_options["automated_dampening_insignificant_factor"]:
                                 msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
