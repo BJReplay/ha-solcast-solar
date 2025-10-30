@@ -271,7 +271,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             observer.start()
 
             try:
-                while not self.hass.is_stopping and self.watchdog[task]["event"] != FileEvent.DELETE:
+                while not self.hass.is_stopping and self.tasks and self.watchdog[task]["event"] != FileEvent.DELETE:
                     await asyncio.sleep(1)
                     if (
                         self.watchdog[task]["event"] == FileEvent.UPDATE
@@ -317,7 +317,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.debug("Monitoring %s", self._file_advanced)
 
             try:
-                while not self.hass.is_stopping and self.watchdog[task]["event"] != FileEvent.DELETE:
+                while not self.hass.is_stopping and self.tasks and self.watchdog[task]["event"] != FileEvent.DELETE:
                     await asyncio.sleep(1)
                     if self.watchdog[task]["event"] == FileEvent.UPDATE:
                         self.watchdog[task]["event"] = FileEvent.NO_EVENT
