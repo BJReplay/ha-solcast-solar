@@ -134,6 +134,24 @@ FRESH_DATA: dict[str, Any] = {
     "version": JSON_VERSION,
 }
 
+ADVANCED_OPTIONS_DEFAULTS: dict[str, Any] = {
+    "automated_dampening_delta_adjustment_model": 0,
+    "automated_dampening_generation_history_load_days": GENERATION_HISTORY_LOAD_DAYS,
+    "automated_dampening_ignore_intervals": [],
+    "automated_dampening_ignore_limiting_consistently": DAMPENING_IGNORE_LIMITING_CONSISTENTLY,
+    "automated_dampening_insignificant_factor": DAMPENING_INSIGNIFICANT,
+    "automated_dampening_minimum_matching_generation": DAMPENING_MINIMUM_GENERATION,
+    "automated_dampening_minimum_matching_intervals": DAMPENING_MINIMUM_INTERVALS,
+    "automated_dampening_model_days": DAMPENING_MODEL_DAYS,
+    "automated_dampening_no_delta_corrections": not DAMPENING_LOG_DELTA_CORRECTIONS,
+    "entity_logging": SENSOR_UPDATE_LOGGING,
+    "forecast_day_entities": FORECAST_DAY_SENSORS,
+    "forecast_future_days": FORECAST_DAYS,
+    "forecast_history_max_days": HISTORY_MAX,
+    "reload_on_advanced_change": False,
+    "solcast_url": SOLCAST_URL,
+}
+
 _LOGGER = logging.getLogger(__name__)
 
 # Return the function name at a specified caller depth. 0=current, 1=caller, 2=caller of caller, etc.
@@ -324,6 +342,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     response_json: dict[str, Any] = json.loads(await file.read())
                     value: int | float | str | list[str] | None
                     new_value: int | float | str | list[str]
+                    options_present = response_json.keys()
                     for option, new_value in response_json.items():
                         value = self.advanced_options.get(option)
                         if value is None:
@@ -388,6 +407,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 self.advanced_options[option] = new_value
                                 _LOGGER.debug("Advanced option set %s: %s", option, new_value)
                                 change = True
+                    for option, value in self.advanced_options.items():
+                        if option not in options_present:
+                            default = ADVANCED_OPTIONS_DEFAULTS[option]
+                            if value != default:
+                                self.advanced_options[option] = default
+                                _LOGGER.debug("Advanced option default set %s: %s", option, default)
                 except json.decoder.JSONDecodeError:
                     _LOGGER.error("JSONDecodeError, advanced options ignored: %s", self._filename_advanced)
         return change
@@ -400,29 +425,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """Set the default advanced options."""
 
         initial = not self.advanced_options
-        defaults: dict[str, Any] = {
-            "automated_dampening_delta_adjustment_model": 0,
-            "automated_dampening_generation_history_load_days": GENERATION_HISTORY_LOAD_DAYS,
-            "automated_dampening_ignore_intervals": [],
-            "automated_dampening_ignore_limiting_consistently": DAMPENING_IGNORE_LIMITING_CONSISTENTLY,
-            "automated_dampening_insignificant_factor": DAMPENING_INSIGNIFICANT,
-            "automated_dampening_minimum_matching_generation": DAMPENING_MINIMUM_GENERATION,
-            "automated_dampening_minimum_matching_intervals": DAMPENING_MINIMUM_INTERVALS,
-            "automated_dampening_model_days": DAMPENING_MODEL_DAYS,
-            "automated_dampening_no_delta_corrections": not DAMPENING_LOG_DELTA_CORRECTIONS,
-            "entity_logging": SENSOR_UPDATE_LOGGING,
-            "forecast_day_entities": FORECAST_DAY_SENSORS,
-            "forecast_future_days": FORECAST_DAYS,
-            "forecast_history_max_days": HISTORY_MAX,
-            "reload_on_advanced_change": False,
-            "solcast_url": SOLCAST_URL,
-        }
-        for key, value in defaults.items():
+        for key, value in ADVANCED_OPTIONS_DEFAULTS.items():
             if key not in self.advanced_options or self.advanced_options.get(key) != value:
-                defaults[key] = value
+                self.advanced_options[key] = value
                 if not initial:
                     _LOGGER.debug("Advanced option default set %s: %s", key, value)
-        self.advanced_options = defaults
 
     def get_filename_dampening(self) -> str:
         """Return the dampening configuration filename."""

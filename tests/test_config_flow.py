@@ -812,7 +812,7 @@ async def test_advanced_options(
             "automated_dampening_no_delta_corrections": False,
             "automated_dampening_model_days": 14,
             "automated_dampening_generation_history_load_days": 7,
-            "entity_logging": False,
+            "entity_logging": True,
             "forecast_day_entities": 8,
             "forecast_future_days": 14,
             "forecast_history_max_days": 730,
@@ -830,7 +830,7 @@ async def test_advanced_options(
         assert "automated_dampening_no_delta_corrections" not in caplog.text
         assert "automated_dampening_model_days" not in caplog.text
         assert "automated_dampening_generation_history_load_days" not in caplog.text
-        assert "entity_logging" not in caplog.text
+        assert "entity_logging" in caplog.text  # The odd-man-out, detected as removed and set to default
         assert "forecast_day_entities" not in caplog.text
         assert "forecast_future_days" not in caplog.text
         assert "forecast_history_max_days" not in caplog.text
@@ -847,7 +847,6 @@ async def test_advanced_options(
             "automated_dampening_no_delta_corrections": "wrong_type",
             "automated_dampening_model_days": 22,
             "automated_dampening_generation_history_load_days": 22,
-            "entity_logging": False,
             "forecast_day_entities": 16,
             "forecast_future_days": 16,
             "forecast_history_max_days": 10,
