@@ -3,7 +3,9 @@
 import asyncio
 import copy
 from datetime import datetime as dt, timedelta
+import json
 import logging
+from pathlib import Path
 from zoneinfo import ZoneInfo
 
 from freezegun.api import FrozenDateTimeFactory
@@ -55,19 +57,21 @@ def frozen_time() -> None:
 async def midnight_utc(hass: HomeAssistant, freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture, at: str):
     """Set the time to midnight UTC."""
     freezer.move_to(at)
-    for _ in range(600):
-        freezer.tick(0.1)
-        await hass.async_block_till_done()
-        if "Updating sensor Third Site" in caplog.text:
-            break
+    async with asyncio.timeout(600):
+        for _ in range(600):
+            freezer.tick(0.1)
+            await hass.async_block_till_done()
+            if "Updating sensor Third Site" in caplog.text:
+                break
 
 
 async def five_minute_bump(hass: HomeAssistant, freezer: FrozenDateTimeFactory, caplog: pytest.LogCaptureFixture):
     """Set the time to the next five-minute point."""
     freezer.move_to(dt.now().replace(minute=dt.now().minute // 5 * 5, second=0, microsecond=0) + timedelta(minutes=5))
-    while "Updating sensor Dampening" not in caplog.text:
-        freezer.tick(0.01)
-        await hass.async_block_till_done()
+    async with asyncio.timeout(300):
+        while "Updating sensor Dampening" not in caplog.text:
+            freezer.tick(0.01)
+            await hass.async_block_till_done()
 
 
 async def test_auto_dampen_dst_transition(
@@ -92,6 +96,8 @@ async def test_auto_dampen_dst_transition(
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
         expected_value = 0.797
+
+        Path(f"{hass.config.config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
 
         # Test transition from standard to summer time.
         freezer.move_to("2025-10-02 18:00:00")
@@ -193,6 +199,8 @@ async def test_auto_dampen_dst_transition_back(
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
         expected_value = 0.797
+
+        Path(f"{hass.config.config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
 
         # Test transition from summer to standard time.
         freezer.move_to("2026-04-02 18:00:00")

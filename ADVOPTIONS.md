@@ -75,14 +75,35 @@ If delta logarithmic adjustment of dampening factors is not desired then this op
 
 ## Forecasts
 
+**Key: "forecast_day_entities"**
+
+Possible values: integer 8-14 (default 8)
+
+The number of forecast day entities to create (plus one). By default seven entities are created. Today, tomorrow, day 3, day 4, day 5, day 6 and day 7. This option enables creation of up to a day 13 entity.
+
+An integration reload is required to vary the number of entities. New entities created will be disabled by default, and if this option is reduced then entities will be cleaned up.
+
+**Key: "forecast_future_days"**
+
+Possible values: integer 8-14 (default 14)
+
+The number of days of forecasts to request from Solcast. Setting this lower than 14 will not remove forecasts already retrieved.
+
 **Key: "forecast_history_max_days"**
 
 Possible values: integer 22-3650 (default 730)
 
 The number of days of history to retain for forecasts (and estimated actuals).
 
-
 ## General
+
+**Key: "entity_logging"**
+
+Possible values: boolean true/false (default false)
+
+By default the value set in entities is not logged. This option enables that `DEBUG` logging.
+
+An integration reload is required.
 
 **Key: "reload_on_advanced_change"**
 

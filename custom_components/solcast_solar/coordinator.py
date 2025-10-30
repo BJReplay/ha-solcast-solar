@@ -88,6 +88,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self.tasks: dict[str, Any] = {}
         self.version: str = version
 
+        self.advanced_entity_logging: bool = solcast.advanced_options["entity_logging"]
+        self.advanced_day_entities: int = solcast.advanced_options["forecast_day_entities"]
         self._file_dampening = self.solcast.get_filename_dampening()
         self._file_advanced = self.solcast.get_filename_advanced()
         self._date_changed: bool = False

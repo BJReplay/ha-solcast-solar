@@ -1,7 +1,9 @@
 """Test midnight rollover."""
 
 from datetime import datetime as dt
+import json
 import logging
+from pathlib import Path
 
 from freezegun.api import FrozenDateTimeFactory
 import pytest
@@ -38,6 +40,8 @@ async def test_midnight(
     try:
         # Test midnight UTC usage reset.
         freezer.move_to("2025-01-10 23:59:59")
+
+        Path(f"{hass.config.config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator

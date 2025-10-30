@@ -15,7 +15,6 @@ from freezegun import freeze_time
 import pytest
 from yarl import URL
 
-from homeassistant.components.solcast_solar import const
 from homeassistant.components.solcast_solar.const import (
     API_QUOTA,
     AUTO_DAMPEN,
@@ -577,8 +576,6 @@ async def async_init_integration(
     simulated.modified_actuals = False
 
     hass.config.time_zone = timezone
-    const.SENSOR_UPDATE_LOGGING = True
-    # solcastapi.SENSOR_DEBUG_LOGGING = True
 
     if options.get(AUTO_UPDATE) is not None:
         options = copy.deepcopy(options)

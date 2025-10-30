@@ -554,6 +554,7 @@ async def test_integration(
     """Test integration init."""
 
     config_dir = hass.config.config_dir
+    Path(f"{hass.config.config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
 
     # Test startup
     entry: ConfigEntry = await async_init_integration(hass, options)
@@ -800,31 +801,38 @@ async def test_remaining_actions(
 ) -> None:
     """Test remaining actions."""
 
-    config_dir = hass.config.config_dir
-
-    # Start with two API keys and three sites
-    entry = await async_init_integration(hass, DEFAULT_INPUT2)
-    assert hass.data[DOMAIN].get("presumed_dead", True) is False
-    assert await hass.config_entries.async_unload(entry.entry_id)
-    await hass.async_block_till_done()
-
-    _no_exception(caplog)
-    caplog.clear()
-
-    # Switch to one API key and two sites to assert the initial clean-up
-    _LOGGER.debug("Swithching to one API key and two sites")
-    entry = await async_init_integration(hass, DEFAULT_INPUT1)
-    solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
-    assert hass.data[DOMAIN].get("presumed_dead", True) is False
-
-    def occurs_in_log(text: str, occurrences: int) -> None:
-        occurs = 0
-        for entry in caplog.messages:
-            if text in entry:
-                occurs += 1
-        assert occurrences == occurs
-
     try:
+        config_dir = hass.config.config_dir
+        Path(f"{hass.config.config_dir}/solcast-advanced.json").write_text(
+            json.dumps({"entity_logging": True, "forecast_day_entities": 10}), encoding="utf-8"
+        )
+
+        # Start with two API keys and three sites
+        entry = await async_init_integration(hass, DEFAULT_INPUT2)
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        assert await hass.config_entries.async_unload(entry.entry_id)
+        await hass.async_block_till_done()
+        _no_exception(caplog)
+
+        # Test for creation of additional forecast day entities
+        assert "Registered new sensor.solcast_solar entity: sensor.solcast_pv_forecast_forecast_day_8" in caplog.text
+        assert "Registered new sensor.solcast_solar entity: sensor.solcast_pv_forecast_forecast_day_9" in caplog.text
+
+        caplog.clear()
+
+        # Switch to one API key and two sites to assert the initial clean-up
+        _LOGGER.debug("Swithching to one API key and two sites")
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+
+        def occurs_in_log(text: str, occurrences: int) -> None:
+            occurs = 0
+            for entry in caplog.messages:
+                if text in entry:
+                    occurs += 1
+            assert occurrences == occurs
+
         # Test logs for cache load
         assert "Sites cache exists" in caplog.text
         assert f"Data cache {config_dir}/solcast.json exists, file type is <class 'dict'>" in caplog.text

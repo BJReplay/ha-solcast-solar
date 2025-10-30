@@ -24,13 +24,7 @@ from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (
-    ATTRIBUTION,
-    DOMAIN,
-    FORECAST_DAY_SENSORS,
-    MANUFACTURER,
-    SENSOR_UPDATE_LOGGING,
-)
+from .const import ATTRIBUTION, DOMAIN, MANUFACTURER
 from .coordinator import SolcastUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -268,7 +262,7 @@ async def async_setup_entry(
             sensor,
         )
         entities.append(sen)
-    for forecast_day in range(3, FORECAST_DAY_SENSORS):
+    for forecast_day in range(3, coordinator.advanced_day_entities):
         sen = SolcastSensor(
             coordinator,
             entry,
@@ -328,7 +322,7 @@ async def async_setup_entry(
         if entity.translation_key is not None:
             if (
                 entity.translation_key.startswith("total_kwh_forecast_d")
-                and int(entity.unique_id.split("_")[-1].split("d")[-1]) > FORECAST_DAY_SENSORS - 1
+                and int(entity.unique_id.split("_")[-1].split("d")[-1]) > coordinator.advanced_day_entities - 1
             ):
                 entity_registry.async_remove(entity.entity_id)
                 _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
@@ -478,7 +472,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
             self._sensor_data = None
         finally:
-            if SENSOR_UPDATE_LOGGING:
+            if self._coordinator.advanced_entity_logging:
                 _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
 
         self._attr_available = self._sensor_data is not None
@@ -609,7 +603,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
             _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
             self._sensor_data = None
         finally:
-            if SENSOR_UPDATE_LOGGING:
+            if self._coordinator.advanced_entity_logging:
                 _LOGGER.debug("Updating sensor %s to %s", self.entity_description.name, self._sensor_data)
 
         self._attr_available = self._sensor_data is not None

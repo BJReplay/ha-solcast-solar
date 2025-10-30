@@ -54,6 +54,7 @@ from .const import (
     DATE_MONTH_DAY,
     DOMAIN,
     EXCLUDE_SITES,
+    FORECAST_DAY_SENSORS,
     FORECAST_DAYS,
     GENERATION_ENTITIES,
     GENERATION_HISTORY_LOAD_DAYS,
@@ -62,6 +63,7 @@ from .const import (
     HARD_LIMIT_API,
     HISTORY_MAX,
     KEY_ESTIMATE,
+    SENSOR_UPDATE_LOGGING,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
@@ -342,21 +344,24 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                     valid = False
                                                     continue
                                                 seen.append(t)
-                                    case "automated_dampening_minimum_matching_intervals":
-                                        if isinstance(new_value, int) and (new_value < 1 or new_value > 21):
-                                            _LOGGER.error("Invalid value for advanced option %s: %s (must be 1-21)", option, new_value)
+                                    case "automated_dampening_minimum_matching_intervals" | "automated_dampening_model_days":
+                                        least = 2 if option == "automated_dampening_model_days" else 1
+                                        if isinstance(new_value, int) and (new_value < least or new_value > 21):
+                                            _LOGGER.error(
+                                                "Invalid value for advanced option %s: %s (must be %d-21)", option, new_value, least
+                                            )
                                             valid = False
                                     case "automated_dampening_insignificant_factor":
                                         if isinstance(new_value, float) and (new_value < 0.0 or new_value > 1.0):
                                             _LOGGER.error("Invalid value for advanced option %s: %s (must be 0.0-1.0)", option, new_value)
                                             valid = False
-                                    case "automated_dampening_model_days":
-                                        if isinstance(new_value, int) and (new_value < 2 or new_value > 21):
-                                            _LOGGER.error("Invalid value for advanced option %s: %s (must be 2-21)", option, new_value)
-                                            valid = False
                                     case "forecast_history_max_days":
                                         if isinstance(new_value, int) and (new_value < 22 or new_value > 3650):
                                             _LOGGER.error("Invalid value for advanced option %s: %s (must be 22-3650)", option, new_value)
+                                            valid = False
+                                    case "forecast_day_entities" | "forecast_future_days":
+                                        if isinstance(new_value, int) and (new_value < 8 or new_value > 14):
+                                            _LOGGER.error("Invalid value for advanced option %s: %s (must be 8-14)", option, new_value)
                                             valid = False
                                     case _:
                                         pass
@@ -386,6 +391,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             "automated_dampening_minimum_matching_intervals": DAMPENING_MINIMUM_INTERVALS,
             "automated_dampening_model_days": DAMPENING_MODEL_DAYS,
             "automated_dampening_no_delta_corrections": not DAMPENING_LOG_DELTA_CORRECTIONS,
+            "entity_logging": SENSOR_UPDATE_LOGGING,
+            "forecast_day_entities": FORECAST_DAY_SENSORS,
+            "forecast_future_days": FORECAST_DAYS,
             "forecast_history_max_days": HISTORY_MAX,
             "reload_on_advanced_change": False,
         }
@@ -3419,7 +3427,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             tuple[DataCallStatus, str]: A flag indicating success, failure or abort, and a reason for failure.
 
         """
-        last_day = self.get_day_start_utc(future=FORECAST_DAYS)
+        last_day = self.get_day_start_utc(future=self.advanced_options["forecast_future_days"])
         hours = math.ceil((last_day - self.get_now_utc()).total_seconds() / 3600)
         _LOGGER.debug(
             "Polling API for site %s, last day %s, %d hours",
@@ -3956,7 +3964,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         today: datetime.date = dt.now(self._tz).date()
         commencing: datetime.date = dt.now(self._tz).date() - timedelta(days=self.advanced_options["forecast_history_max_days"])
         commencing_undampened: datetime.date = dt.now(self._tz).date() - timedelta(days=14)
-        last_day: datetime.date = dt.now(self._tz).date() + timedelta(days=FORECAST_DAYS)
+        last_day: datetime.date = dt.now(self._tz).date() + timedelta(days=self.advanced_options["forecast_future_days"])
         logged_hard_limit: list[str] = []
 
         forecasts: dict[dt, dict[str, dt | float]] = {}
@@ -4226,7 +4234,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         # The latest period is used to determine whether any history should be updated on stale start.
         self.latest_period = self._data_forecasts[-1]["period_start"] if len(self._data_forecasts) > 0 else None
 
-        for future_day in range(FORECAST_DAYS):
+        for future_day in range(self.advanced_options["forecast_future_days"]):
             start_utc = self.get_day_start_utc(future=future_day)
             end_utc = self.get_day_start_utc(future=future_day + 1)
             start_index, end_index = self.__get_list_slice(self._data_forecasts, start_utc, end_utc)
@@ -4275,7 +4283,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             )
         else:
             contiguous_end_date = None
-        if contiguous < FORECAST_DAYS:
+        if contiguous < self.advanced_options["forecast_future_days"]:
             for day, assessment in OrderedDict(sorted(interval_assessment.items(), key=lambda k: k[0])).items():
                 if contiguous_end_date is not None and day <= contiguous_end_date:
                     continue
@@ -4286,12 +4294,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             day.strftime("%Y-%m-%d"),
                         )
                     case _:
-                        (_LOGGER.debug if contiguous == FORECAST_DAYS - 1 else _LOGGER.warning)(
+                        (_LOGGER.debug if contiguous == self.advanced_options["forecast_future_days"] - 1 else _LOGGER.warning)(
                             "Forecast data for %s contains %d of %d intervals%s",
                             day.strftime("%Y-%m-%d"),
                             assessment["intervals"],
                             assessment["expected_intervals"],
-                            ", which may be expected" if contiguous == FORECAST_DAYS - 1 else ", so is missing forecast data",
+                            ", which may be expected"
+                            if contiguous == self.advanced_options["forecast_future_days"] - 1
+                            else ", so is missing forecast data",
                         )
         issue_registry = ir.async_get(self.hass)
 
@@ -4302,7 +4312,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _LOGGER.debug("Remove issue for %s", check_issue)
                     ir.async_delete_issue(self.hass, DOMAIN, check_issue)
 
-        if 0 < contiguous < FORECAST_DAYS - 1:
+        if 0 < contiguous < self.advanced_options["forecast_future_days"] - 1:
             if self.entry is not None:
                 # If auto-update is enabled then raise an un-fixable issue, otherwise raise a fixable issue.
                 raise_issue: str | None
@@ -4327,6 +4337,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
                 if not raise_issue:
                     _remove_issues()
-        if contiguous >= FORECAST_DAYS - 1:
+        if contiguous >= self.advanced_options["forecast_future_days"] - 1:
             # If data is all (or mostly) present then remove any relevant issues.
             _remove_issues()

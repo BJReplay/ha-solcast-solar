@@ -4,7 +4,9 @@ import asyncio
 import contextlib
 import copy
 from datetime import datetime as dt, timedelta
+import json
 import logging
+from pathlib import Path
 from typing import Any
 
 from freezegun.api import FrozenDateTimeFactory
@@ -383,6 +385,8 @@ async def test_sensor_states(  # noqa: C901
         return estimate_set
 
     try:
+        Path(f"{hass.config.config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
+
         entry = await async_init_integration(hass, settings)
         freezer.move_to(dt.now() + timedelta(minutes=1))
         async with asyncio.timeout(10):
