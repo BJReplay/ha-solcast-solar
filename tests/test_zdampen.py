@@ -177,11 +177,15 @@ async def test_auto_dampen(
     try:
         config_dir = hass.config.config_dir
 
-        data_file = Path(f"{config_dir}/solcast-advanced.json")
-        data_file_1: dict[str, Any] = {
-            "automated_dampening_ignore_intervals": ["17:00"],
-        }
-        data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
+        Path(f"{config_dir}/solcast-advanced.json").write_text(
+            json.dumps(
+                {
+                    "automated_dampening_ignore_intervals": ["17:00"],
+                    "automated_dampening_ignore_limiting_consistently": False,
+                }
+            ),
+            encoding="utf-8",
+        )
 
         options = copy.deepcopy(DEFAULT_INPUT2)
         options[AUTO_UPDATE] = 0

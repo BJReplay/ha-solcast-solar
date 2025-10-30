@@ -47,6 +47,14 @@ By default, the integration assumes that there will not be generation history av
 
 This history load occurs when there is no `solcast-generation.json` present. An integration reload is required after deleting the generation cache file.
 
+**Key: "automated_dampening_ignore_limiting_consistently"**
+
+Possible values: boolean true/false (default true)
+
+Whenever export limiting of generation is seen (either by export limit detection, or manual limiting by using the entity `solcast_suppress_auto_dampening`) then all modelled day intervals of generation will be ignored over the period defined by "automated_dampening_model_days".
+
+Set this option to `false` to avoid this behaviour.
+
 **Key: "automated_dampening_ignore_intervals"**
 
 Possible values: list of strings as "HH:MM" (default [])

@@ -22,6 +22,7 @@ CONFIG_DAMP: Final[str] = "config_damp"
 CONFIG_VERSION: Final[int] = 18
 CUSTOM_HOUR_SENSOR: Final[str] = "customhoursensor"
 DAMP_FACTOR: Final[str] = "damp_factor"
+DAMPENING_IGNORE_LIMITING_CONSISTENTLY: Final[bool] = True  # Whether to ignore intervals that have been limited at least once
 DAMPENING_INSIGNIFICANT: Final[float] = 0.95  # Dampening factors considered insignificant for automated dampening
 DAMPENING_LOG_DELTA_CORRECTIONS: Final[bool] = True  # Whether to logarithmically adjust applied automated dampening factors
 DAMPENING_MINIMUM_GENERATION: Final[int] = 2  # Minimum number of matching intervals with generation data to consider

@@ -46,6 +46,7 @@ from .const import (
     BRK_SITE,
     BRK_SITE_DETAILED,
     CUSTOM_HOUR_SENSOR,
+    DAMPENING_IGNORE_LIMITING_CONSISTENTLY,
     DAMPENING_INSIGNIFICANT,
     DAMPENING_LOG_DELTA_CORRECTIONS,
     DAMPENING_MINIMUM_GENERATION,
@@ -403,6 +404,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             "automated_dampening_delta_adjustment_model": 0,
             "automated_dampening_generation_history_load_days": GENERATION_HISTORY_LOAD_DAYS,
             "automated_dampening_ignore_intervals": [],
+            "automated_dampening_ignore_limiting_consistently": DAMPENING_IGNORE_LIMITING_CONSISTENTLY,
             "automated_dampening_insignificant_factor": DAMPENING_INSIGNIFICANT,
             "automated_dampening_minimum_matching_generation": DAMPENING_MINIMUM_GENERATION,
             "automated_dampening_minimum_matching_intervals": DAMPENING_MINIMUM_INTERVALS,
@@ -2853,7 +2855,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         await self.serialise_data(self._data_generation, self._filename_generation)
         _LOGGER.debug("Task get_pv_generation took %.3f seconds", time.time() - start_time)
 
-    '''
     def adjusted_interval(self, interval: dict[str, Any]) -> int:
         """Adjust a forecast/actual interval as standard time."""
         offset = 1 if self.is_interval_dst(interval) else 0
@@ -2862,7 +2863,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if interval["period_start"].astimezone(self._tz).hour - offset >= 0
             else 0
         )
-    '''
 
     def adjusted_interval_dt(self, interval: dt) -> int:
         """Adjust a datetime as standard time."""
@@ -2892,9 +2892,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             interval = hour * 2 + minute // 30
             ignored_intervals.append(interval)
 
+        export_limited_intervals = dict.fromkeys(range(48), False)
+        if self.advanced_options["automated_dampening_ignore_limiting_consistently"]:
+            for gen in self._data_generation["generation"]:
+                if gen["export_limiting"]:
+                    export_limited_intervals[self.adjusted_interval(gen)] = True
+
         generation: dict[dt, float] = {}
         for gen in self._data_generation["generation"]:
-            if not gen["export_limiting"]:
+            if self.advanced_options["automated_dampening_ignore_limiting_consistently"]:
+                if not export_limited_intervals[self.adjusted_interval(gen)]:
+                    generation[gen["period_start"]] = gen["generation"]
+            elif not gen["export_limiting"]:
                 generation[gen["period_start"]] = gen["generation"]
 
         actuals: OrderedDict[dt, float] = OrderedDict()
