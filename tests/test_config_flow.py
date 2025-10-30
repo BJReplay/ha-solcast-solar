@@ -816,6 +816,7 @@ async def test_advanced_options(
             "forecast_future_days": 14,
             "forecast_history_max_days": 730,
             "reload_on_advanced_change": False,
+            "solcast_url": "https://api.solcast.com.au",
         }
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
         await wait()
@@ -832,6 +833,7 @@ async def test_advanced_options(
         assert "forecast_future_days" not in caplog.text
         assert "forecast_history_max_days" not in caplog.text
         assert "reload_on_advanced_change" not in caplog.text
+        assert "solcast_url" not in caplog.text
 
         caplog.clear()
 
@@ -848,6 +850,7 @@ async def test_advanced_options(
             "forecast_history_max_days": 10,
             "reload_on_advanced_change": True,
             "unknown_option": True,
+            "solcast_url": "https://localhost",
         }
         data_file.write_text(json.dumps(data_file_2), encoding="utf-8")
         await wait()
@@ -864,6 +867,7 @@ async def test_advanced_options(
         assert "Invalid time in advanced option automated_dampening_ignore_intervals: 24:00" in caplog.text
         assert "Invalid time in advanced option automated_dampening_ignore_intervals: 12:20" in caplog.text
         assert "Duplicate time in advanced option automated_dampening_ignore_intervals: 13:00" in caplog.text
+        assert "solcast_url: https://localhost" in caplog.text
         assert "Advanced options changed, restarting" in caplog.text
         assert "Start is not stale" in caplog.text
 

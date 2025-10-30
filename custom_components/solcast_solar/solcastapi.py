@@ -67,6 +67,7 @@ from .const import (
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
+    SOLCAST_URL,
     USE_ACTUALS,
     WINTER_TIME,
 )
@@ -401,6 +402,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             "forecast_future_days": FORECAST_DAYS,
             "forecast_history_max_days": HISTORY_MAX,
             "reload_on_advanced_change": False,
+            "solcast_url": SOLCAST_URL,
         }
         for key, value in defaults.items():
             if key not in self.advanced_options or self.advanced_options.get(key) != value:
@@ -677,7 +679,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 success = False
 
                 if not prior_crash:
-                    url = f"{self.options.host}/rooftop_sites"
+                    url = f"{self.advanced_options['solcast_url']}/rooftop_sites"
                     params = {"format": "json", "api_key": api_key}
                     _LOGGER.debug("Connecting to %s?format=json&api_key=%s", url, self.__redact_api_key(api_key))
                     response: ClientResponse = await self._aiohttp_session.get(url=url, params=params, headers=self.headers, ssl=False)
@@ -3620,7 +3622,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 async with asyncio.timeout(900):
                     if self._api_used[api_key] < self._api_limit[api_key] or force:
                         # if API == Api.HOBBYIST:
-                        url = f"{self.options.host}/rooftop_sites/{site}/{path}"
+                        url = f"{self.advanced_options['solcast_url']}/rooftop_sites/{site}/{path}"
                         params: dict[str, str | int] = {"format": "json", "api_key": api_key, "hours": hours}
 
                         tries = 10

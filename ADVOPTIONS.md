@@ -118,3 +118,11 @@ An integration reload is required.
 Possible values: boolean true/false (default false)
 
 Setting this option to true will cause the integration to reload whenever any advanced option is added or changed.
+
+**Key: "solcast_url"**
+
+Possible values: string URL (default "https://api.solcast.com.au")
+
+Do not set this option unless you are a developer and want to utilise the Solcast API Simulator.
+
+Do not add a trailing `/`. An integration reload is required.
