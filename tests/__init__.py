@@ -448,15 +448,16 @@ async def async_setup_extra_sensors(  # noqa: C901
             else:  # 2222 as a time-consistent profile
                 for i, p in power.items():
                     if p > 0:
-                        bump_times = list(range(0, 1800, 63))  # Use a fixed period of 63 seconds for each bump
+                        bump_times = list(range(0, 1800, 303))  # Use a fixed period of 303 seconds for each bump
                         num_bumps = len(bump_times)
                         gen_bumps[i] = (bump_times, p / num_bumps)
             increasing = 0.0
             adjust = 0.0
             increase = True
-            for interval in range(
-                48 * (entity_history["days_export"] if site == "site_export_sensor" else entity_history["days_generation"])
-            ):
+            intervals: list[int] = []
+            for day in range(entity_history["days_generation"] if site != "site_export_sensor" else entity_history["days_export"]):
+                intervals = intervals + list(range(day * 48 + 16, day * 48 + 34))  # Focus on middle of day to reduce history build time
+            for interval in intervals:
                 i = interval % 48
                 day = interval // 48
                 gap = False

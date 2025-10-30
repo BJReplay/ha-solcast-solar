@@ -175,8 +175,6 @@ async def test_auto_dampen_dst_transition(
         assert await async_cleanup_integration_tests(hass)
 
 
-# Disabled as the test takes a long time to run and the code is very similar to the above test.
-'''
 async def test_auto_dampen_dst_transition_back(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -274,4 +272,3 @@ async def test_auto_dampen_dst_transition_back(
 
     finally:
         assert await async_cleanup_integration_tests(hass)
-'''
