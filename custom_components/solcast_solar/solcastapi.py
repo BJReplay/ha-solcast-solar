@@ -344,7 +344,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                     valid = False
                                                     continue
                                                 seen.append(t)
-                                    case "automated_dampening_minimum_matching_intervals" | "automated_dampening_model_days":
+                                    case (
+                                        "automated_dampening_minimum_matching_intervals"
+                                        | "automated_dampening_model_days"
+                                        | "automated_dampening_generation_history_load_days"
+                                    ):
                                         least = 2 if option == "automated_dampening_model_days" else 1
                                         if isinstance(new_value, int) and (new_value < least or new_value > 21):
                                             _LOGGER.error(
@@ -386,6 +390,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         initial = not self.advanced_options
         defaults: dict[str, Any] = {
             "automated_dampening_delta_adjustment_model": 0,
+            "automated_dampening_generation_history_load_days": GENERATION_HISTORY_LOAD_DAYS,
             "automated_dampening_ignore_intervals": [],
             "automated_dampening_insignificant_factor": DAMPENING_INSIGNIFICANT,
             "automated_dampening_minimum_matching_intervals": DAMPENING_MINIMUM_INTERVALS,
@@ -2567,7 +2572,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         # Load the generation history.
         generation: dict[dt, dict[str, Any]] = {generated["period_start"]: generated for generated in self._data_generation["generation"]}
-        days = 1 if len(generation) > 0 else GENERATION_HISTORY_LOAD_DAYS
+        days = 1 if len(generation) > 0 else self.advanced_options["automated_dampening_generation_history_load_days"]
 
         entity_registry = er.async_get(self.hass)
 

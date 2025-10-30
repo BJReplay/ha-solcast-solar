@@ -39,6 +39,14 @@ Possible values: integer 0 (default 0)
 
 This option presently does nothing. It is reserved to accommodate the addition of alternatives to the present delta logarithmic adjustment of dampening factors where forecast deviates from matching past intervals.
 
+**Key: "automated_dampening_generation_history_load_days"**
+
+Possible values: integer 1-21 (default 7)
+
+By default, the integration assumes that there will not be generation history available beyond seven days. If Home Assistant is configured with `purge_keep_days` of a longer period for `recorder`, then this option may be used to accelerate the time to accuracy for automated dampening results.
+
+This history load occurs when there is no `solcast-generation.json` present. An integration reload is required after deleting the generation cache file.
+
 **Key: "automated_dampening_ignore_intervals"**
 
 Possible values: list of strings as "HH:MM" (default [])
