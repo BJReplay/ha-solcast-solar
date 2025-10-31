@@ -357,6 +357,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             if self.solcast.options.auto_dampen and self.solcast.options.generation_entities:
                 await self.solcast.get_pv_generation()
 
+            self.solcast.log_advanced_options()  # Daily reminder of advanced options in use
+
             if self.solcast.options.get_actuals:
                 update_at = dt.now(UTC) + timedelta(minutes=randint(1, 14), seconds=randint(0, 59))
                 _LOGGER.debug(

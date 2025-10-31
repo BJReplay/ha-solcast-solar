@@ -46,12 +46,12 @@ from .const import (
     BRK_SITE,
     BRK_SITE_DETAILED,
     CUSTOM_HOUR_SENSOR,
-    DAMPENING_IGNORE_LIMITING_CONSISTENTLY,
     DAMPENING_INSIGNIFICANT,
     DAMPENING_LOG_DELTA_CORRECTIONS,
     DAMPENING_MINIMUM_GENERATION,
     DAMPENING_MINIMUM_INTERVALS,
     DAMPENING_MODEL_DAYS,
+    DAMPENING_NO_LIMITING_CONSISTENCY,
     DATE_FORMAT,
     DATE_MONTH_DAY,
     DOMAIN,
@@ -138,12 +138,12 @@ ADVANCED_OPTIONS_DEFAULTS: dict[str, Any] = {
     "automated_dampening_delta_adjustment_model": 0,
     "automated_dampening_generation_history_load_days": GENERATION_HISTORY_LOAD_DAYS,
     "automated_dampening_ignore_intervals": [],
-    "automated_dampening_ignore_limiting_consistently": DAMPENING_IGNORE_LIMITING_CONSISTENTLY,
     "automated_dampening_insignificant_factor": DAMPENING_INSIGNIFICANT,
     "automated_dampening_minimum_matching_generation": DAMPENING_MINIMUM_GENERATION,
     "automated_dampening_minimum_matching_intervals": DAMPENING_MINIMUM_INTERVALS,
     "automated_dampening_model_days": DAMPENING_MODEL_DAYS,
     "automated_dampening_no_delta_corrections": not DAMPENING_LOG_DELTA_CORRECTIONS,
+    "automated_dampening_no_limiting_consistency": DAMPENING_NO_LIMITING_CONSISTENCY,
     "entity_logging": SENSOR_UPDATE_LOGGING,
     "forecast_day_entities": FORECAST_DAY_SENSORS,
     "forecast_future_days": FORECAST_DAYS,
@@ -420,6 +420,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     def get_filename_advanced(self) -> str:
         """Return the advanced configuration filename."""
         return self._filename_advanced
+
+    def log_advanced_options(self) -> None:
+        """Log the advanced options that are set differently to their defaults."""
+
+        for key, value in ADVANCED_OPTIONS_DEFAULTS.items():
+            if key not in self.advanced_options or self.advanced_options.get(key) != value:
+                _LOGGER.debug("Advanced option set %s: %s", key, self.advanced_options.get(key))
 
     def set_default_advanced_options(self) -> None:
         """Set the default advanced options."""
@@ -2900,14 +2907,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             ignored_intervals.append(interval)
 
         export_limited_intervals = dict.fromkeys(range(48), False)
-        if self.advanced_options["automated_dampening_ignore_limiting_consistently"]:
+        if not self.advanced_options["automated_dampening_no_limiting_consistency"]:
             for gen in self._data_generation["generation"]:
                 if gen["export_limiting"]:
                     export_limited_intervals[self.adjusted_interval(gen)] = True
 
         generation: dict[dt, float] = {}
         for gen in self._data_generation["generation"]:
-            if self.advanced_options["automated_dampening_ignore_limiting_consistently"]:
+            if not self.advanced_options["automated_dampening_no_limiting_consistency"]:
                 if not export_limited_intervals[self.adjusted_interval(gen)]:
                     generation[gen["period_start"]] = gen["generation"]
             elif not gen["export_limiting"]:
