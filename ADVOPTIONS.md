@@ -19,9 +19,9 @@ The impact of not restarting will vary by advanced option, and you are left to d
 
 Support for these advanced options will be limited. (Well, "support" for this integration is limited at the best of times. You expect it, yet we are not obliged to provide it; we endeavour to.)
 
-Understand the implication of setting any of these options before reporting any problem, and check that set values as sensible, and if you then need to, clearly outline any problem faced in detail in a discussion. Any value set is logged at `DEBUG` level, so please include that detail.
+Understand the implication of setting any of these options before reporting any problem, and check that set values are sensible, and if you then need to, clearly outline any problem faced in detail in a discussion. Any value set is logged at `DEBUG` level, so please include that detail.
 
-These options modify otherwise predictable and well-tested behaviour, so you are wandering into untested territory.
+These options modify otherwise predictable and well-tested behaviour, so you are wandering into poorly tested territory.
 
 Values are validated for sanity, however it is possible to set options in an inappropriate way. Do not raise an issue report in this circumstance. You broke it. You fix your config, or raise a discussion topic instead.
 
