@@ -256,10 +256,10 @@ async def test_reauth_api_key(
 
     Not parameterised for performance reasons and to maintain caches between tests.
     """
-    USER_INPUT = 0
-    REASON = 1
-
     try:
+        USER_INPUT = 0
+        REASON = 1
+
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
@@ -341,10 +341,10 @@ async def test_reconfigure_api_key1(
 
     Not parameterised for performance reasons.
     """
-    USER_INPUT = 0
-    REASON = 1
-
     try:
+        USER_INPUT = 0
+        REASON = 1
+
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         assert hass.data[DOMAIN].get("presumed_dead", True) is False
 
@@ -448,11 +448,11 @@ async def test_reconfigure_api_quota(
 
     Not parameterised for performance reasons.
     """
-    OPTIONS = 0
-    USER_INPUT = 1
-    REASON = 2
-
     try:
+        OPTIONS = 0
+        USER_INPUT = 1
+        REASON = 2
+
         _input = None
         for test in TEST_API_QUOTA:
             entry = await async_init_integration(hass, test[OPTIONS])  # type: ignore[arg-type]
@@ -630,8 +630,8 @@ async def test_dampen(
 ) -> None:
     """Test dampening step."""
 
-    user_input: dict[str, Any] = {**copy.deepcopy(DEFAULT_INPUT1), **value}
     try:
+        user_input: dict[str, Any] = {**copy.deepcopy(DEFAULT_INPUT1), **value}
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
 
         for key in value:
@@ -793,9 +793,8 @@ async def test_advanced_options(
 ) -> None:
     """Test setting advanced options."""
 
-    config_dir = hass.config.config_dir
-
     try:
+        config_dir = hass.config.config_dir
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
 
         async def wait():
