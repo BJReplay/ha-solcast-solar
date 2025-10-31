@@ -157,6 +157,7 @@ MOCK_SESSION_CONFIG: dict[str, Any] = {
     MOCK_NOT_FOUND: False,
     MOCK_OVER_LIMIT: False,
 }
+mock_session_default = copy.deepcopy(MOCK_SESSION_CONFIG)
 
 entity_history = {
     "days_export": 1,
@@ -635,6 +636,9 @@ async def async_cleanup_integration_tests(hass: HomeAssistant, **kwargs: Any) ->
         return [str(cache) for cache in Path(config_dir).glob("solcast*.json")]
 
     try:
+        for s in mock_session_default:  # Reset mock session settings
+            if s != "aioresponses":
+                MOCK_SESSION_CONFIG[s] = copy.deepcopy(mock_session_default[s])
         aioresponses_reset()
 
         caches = await hass.async_add_executor_job(list_files)

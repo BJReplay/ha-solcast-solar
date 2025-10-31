@@ -8,7 +8,6 @@ import json
 import logging
 from pathlib import Path
 import re
-from typing import Any
 from zoneinfo import ZoneInfo
 
 from freezegun.api import FrozenDateTimeFactory
@@ -58,35 +57,6 @@ entity_history["offset"] = -1
 _LOGGER = logging.getLogger(__name__)
 
 
-def get_now_utc() -> dt:
-    """Mock get_now_utc, spoof middle-of-the-day-ish."""
-
-    return NOW.replace(hour=12, minute=27, second=0, microsecond=0).astimezone(datetime.UTC)
-
-
-def get_real_now_utc() -> dt:
-    """Mock get_real_now_utc, spoof middle-of-the-day-ish."""
-
-    return NOW.replace(hour=12, minute=27, second=27, microsecond=27272).astimezone(datetime.UTC)
-
-
-def get_hour_start_utc() -> dt:
-    """Mock get_hour_start_utc, spoof middle-of-the-day-ish."""
-
-    return NOW.replace(hour=12, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
-
-
-def patch_solcast_api(solcast: SolcastApi):
-    """Patch SolcastApi to return a fixed time.
-
-    Cannot use freezegun with these tests because time must tick (the tick= option won't work).
-    """
-    solcast.get_now_utc = get_now_utc  # type: ignore[method-assign]
-    solcast.get_real_now_utc = get_real_now_utc  # type: ignore[method-assign]
-    solcast.get_hour_start_utc = get_hour_start_utc  # type: ignore[method-assign]
-    return solcast
-
-
 def _no_exception(caplog: pytest.LogCaptureFixture):
     assert "Error" not in caplog.text
     assert "Exception" not in caplog.text
@@ -100,8 +70,7 @@ async def _reload(hass: HomeAssistant, entry: ConfigEntry) -> tuple[SolcastUpdat
     await hass.async_block_till_done()
     if hass.data[DOMAIN].get(entry.entry_id):
         try:
-            coordinator = entry.runtime_data.coordinator
-            return coordinator, patch_solcast_api(coordinator.solcast)
+            return entry.runtime_data.coordinator, entry.runtime_data.coordinator.solcast
         except:  # noqa: E722
             _LOGGER.error("Failed to load coordinator (or solcast), which may be expected given test conditions")
     return None, None
