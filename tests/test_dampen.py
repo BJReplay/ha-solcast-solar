@@ -42,17 +42,12 @@ from . import (
     ExtraSensors,
     async_cleanup_integration_tests,
     async_init_integration,
-    entity_history,
     session_clear,
     session_set,
 )
 
 ZONE = ZoneInfo(ZONE_RAW)
 NOW = dt.now(ZONE)
-
-entity_history["days_export"] = 1
-entity_history["days_generation"] = 3
-entity_history["offset"] = -1
 
 _LOGGER = logging.getLogger(__name__)
 

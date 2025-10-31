@@ -161,9 +161,9 @@ mock_session_default = copy.deepcopy(MOCK_SESSION_CONFIG)
 
 entity_history = {
     "days_export": 1,
-    "days_generation": 7,
-    "days_suppression": 7,
-    "offset": 3,
+    "days_generation": 3,
+    "days_suppression": 3,
+    "offset": -1,
 }
 
 
