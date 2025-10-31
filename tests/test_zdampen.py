@@ -181,7 +181,7 @@ async def test_auto_dampen(
             json.dumps(
                 {
                     "automated_dampening_ignore_intervals": ["17:00"],
-                    "automated_dampening_ignore_limiting_consistently": False,
+                    "automated_dampening_no_limiting_consistency": True,
                 }
             ),
             encoding="utf-8",

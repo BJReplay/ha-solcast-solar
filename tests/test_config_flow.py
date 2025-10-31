@@ -806,10 +806,10 @@ async def test_advanced_options(
         data_file = Path(f"{config_dir}/solcast-advanced.json")
         data_file_1: dict[str, Any] = {
             "automated_dampening_minimum_matching_intervals": 2,
-            "automated_dampening_ignore_limiting_consistently": True,
             "automated_dampening_ignore_intervals": ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30"],
             "automated_dampening_insignificant_factor": 0.95,
             "automated_dampening_no_delta_corrections": False,
+            "automated_dampening_no_limiting_consistency": False,
             "automated_dampening_model_days": 14,
             "automated_dampening_generation_history_load_days": 7,
             "entity_logging": True,
@@ -825,12 +825,12 @@ async def test_advanced_options(
         assert "Monitoring" in caplog.text
         assert "Advanced option set automated_dampening_ignore_intervals" in caplog.text
         assert "automated_dampening_minimum_matching_intervals" not in caplog.text
-        assert "automated_dampening_ignore_limiting_consistently" not in caplog.text
         assert "automated_dampening_insignificant_factor" not in caplog.text
         assert "automated_dampening_no_delta_corrections" not in caplog.text
+        assert "automated_dampening_no_limiting_consistency" not in caplog.text
         assert "automated_dampening_model_days" not in caplog.text
         assert "automated_dampening_generation_history_load_days" not in caplog.text
-        assert "entity_logging" in caplog.text  # The odd-man-out, detected as removed and set to default
+        assert "entity_logging" in caplog.text  # The odd-man-out, detected as removed laterand set to default
         assert "forecast_day_entities" not in caplog.text
         assert "forecast_future_days" not in caplog.text
         assert "forecast_history_max_days" not in caplog.text
