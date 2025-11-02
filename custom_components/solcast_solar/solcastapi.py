@@ -140,7 +140,7 @@ ADVANCED_OPTIONS_DEFAULTS: dict[str, Any] = {
     "automated_dampening_generation_history_load_days": GENERATION_HISTORY_LOAD_DAYS,
     "automated_dampening_ignore_intervals": [],
     "automated_dampening_insignificant_factor": DAMPENING_INSIGNIFICANT,
-    "automated_dampening_insignificant_adjusted_factor": DAMPENING_INSIGNIFICANT_ADJUSTED,
+    "automated_dampening_insignificant_factor_adjusted": DAMPENING_INSIGNIFICANT_ADJUSTED,
     "automated_dampening_minimum_matching_generation": DAMPENING_MINIMUM_GENERATION,
     "automated_dampening_minimum_matching_intervals": DAMPENING_MINIMUM_INTERVALS,
     "automated_dampening_model_days": DAMPENING_MODEL_DAYS,
@@ -389,7 +389,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                 "Invalid value for advanced option %s: %s (must be %d-21)", option, new_value, least
                                             )
                                             valid = False
-                                    case "automated_dampening_insignificant_factor" | "automated_dampening_insignificant_adjusted_factor":
+                                    case "automated_dampening_insignificant_factor" | "automated_dampening_insignificant_factor_adjusted":
                                         if isinstance(new_value, float) and (new_value < 0.0 or new_value > 1.0):
                                             _LOGGER.error("Invalid value for advanced option %s: %s (must be 0.0-1.0)", option, new_value)
                                             valid = False
@@ -3339,7 +3339,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             factor, min(1, factor + ((1 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50))))
                         )
                         interval_time = period_start.astimezone(self._tz).strftime(DATE_FORMAT)
-                        if factor >= self.advanced_options["automated_dampening_insignificant_adjusted_factor"]:
+                        if factor >= self.advanced_options["automated_dampening_insignificant_factor_adjusted"]:
                             if record_adjustment and period_start.astimezone(self._tz).date() == dt.now(self._tz).date():
                                 _LOGGER.debug(
                                     "Ignoring insignificant adjusted factor for %s of %.3f (was %.3f, peak %.3f, interval pv50 %.3f)",

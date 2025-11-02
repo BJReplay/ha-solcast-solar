@@ -808,7 +808,7 @@ async def test_advanced_options(
             "automated_dampening_minimum_matching_intervals": 2,
             "automated_dampening_ignore_intervals": ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30"],
             "automated_dampening_insignificant_factor": 0.95,
-            "automated_dampening_insignificant_adjusted_factor": 1.0,
+            "automated_dampening_insignificant_factor_adjusted": 0.95,
             "automated_dampening_no_delta_corrections": False,
             "automated_dampening_no_limiting_consistency": False,
             "automated_dampening_model_days": 14,
@@ -827,7 +827,7 @@ async def test_advanced_options(
         assert "Advanced option set automated_dampening_ignore_intervals" in caplog.text
         assert "automated_dampening_minimum_matching_intervals" not in caplog.text
         assert "automated_dampening_insignificant_factor" not in caplog.text
-        assert "automated_dampening_insignificant_adjusted_factor" not in caplog.text
+        assert "automated_dampening_insignificant_factor_adjusted" not in caplog.text
         assert "automated_dampening_no_delta_corrections" not in caplog.text
         assert "automated_dampening_no_limiting_consistency" not in caplog.text
         assert "automated_dampening_model_days" not in caplog.text
@@ -846,7 +846,7 @@ async def test_advanced_options(
             "automated_dampening_minimum_matching_intervals": 0,
             "automated_dampening_ignore_intervals": ["24:00", "12:20", "13:00", "13:00", "14:00", "14:30", "15:00", "15:30"],
             "automated_dampening_insignificant_factor": 1.1,
-            "automated_dampening_insignificant_adjusted_factor": 1.1,
+            "automated_dampening_insignificant_factor_adjusted": 1.1,
             "automated_dampening_no_delta_corrections": "wrong_type",
             "automated_dampening_model_days": 22,
             "automated_dampening_generation_history_load_days": 22,
@@ -862,7 +862,7 @@ async def test_advanced_options(
         assert f"automated_dampening_minimum_matching_generation: 0 (must be {LEAST}-21)" in caplog.text
         assert f"automated_dampening_minimum_matching_intervals: 0 (must be {LEAST}-21)" in caplog.text
         assert "automated_dampening_insignificant_factor: 1.1 (must be 0.0-1.0)" in caplog.text
-        assert "automated_dampening_insignificant_adjusted_factor: 1.1 (must be 0.0-1.0)" in caplog.text
+        assert "automated_dampening_insignificant_factor_adjusted: 1.1 (must be 0.0-1.0)" in caplog.text
         assert "automated_dampening_model_days: 22 (must be 2-21)" in caplog.text
         assert "automated_dampening_generation_history_load_days: 22 (must be 1-21)" in caplog.text
         assert "automated_dampening_no_delta_corrections: should be bool" in caplog.text

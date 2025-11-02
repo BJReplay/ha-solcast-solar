@@ -67,9 +67,9 @@ Possible values: float `0.0`..`1.0` (default `0.95`)
 
 Dampening values modelled as higher than a certain threshold are ignored as insignificant.
 
-**Key: "automated_dampening_insignificant_adjusted_factor"**
+**Key: "automated_dampening_insignificant_factor_adjusted"**
 
-Possible values: float `0.0`..`1.0` (default `1.0`)
+Possible values: float `0.0`..`1.0` (default `0.95`)
 
 Dampening values adjusted by delta adjustment as higher than a certain threshold are ignored as insignificant.
 

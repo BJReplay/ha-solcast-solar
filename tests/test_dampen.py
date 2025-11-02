@@ -153,7 +153,7 @@ async def test_auto_dampen(
                     "automated_dampening_ignore_intervals": ["17:00"],
                     "automated_dampening_no_limiting_consistency": True,
                     "automated_dampening_insignificant_factor": 0.988,
-                    "automated_dampening_insignificant_adjusted_factor": 0.989,
+                    "automated_dampening_insignificant_factor_adjusted": 0.989,
                 }
             ),
             encoding="utf-8",
