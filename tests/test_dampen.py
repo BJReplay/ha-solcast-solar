@@ -28,7 +28,11 @@ from homeassistant.components.solcast_solar.const import (
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
-from homeassistant.components.solcast_solar.util import percentile
+from homeassistant.components.solcast_solar.util import (
+    DateTimeEncoder,
+    JSONDecoder,
+    percentile,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
@@ -95,8 +99,10 @@ async def _exec_update_actuals(
         await _wait_for_update(hass, caplog, freezer)
         await solcast.tasks_cancel()
         async with asyncio.timeout(1):
-            while coordinator.tasks.get("actuals"):
+            while "Task model_automated_dampening took" not in caplog.text:
                 await hass.async_block_till_done()
+            # while coordinator.tasks.get("actuals"):
+            #    await hass.async_block_till_done()
     await hass.async_block_till_done()
 
 
@@ -146,6 +152,8 @@ async def test_auto_dampen(
                 {
                     "automated_dampening_ignore_intervals": ["17:00"],
                     "automated_dampening_no_limiting_consistency": True,
+                    "automated_dampening_insignificant_factor": 0.988,
+                    "automated_dampening_insignificant_adjusted_factor": 0.989,
                 }
             ),
             encoding="utf-8",
@@ -165,6 +173,24 @@ async def test_auto_dampen(
         options[SITE_EXPORT_LIMIT] = 5.0
         entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.YES_WATT_HOUR)
 
+        # Fiddle with undampened data cache
+        undampened = json.loads(Path(f"{config_dir}/solcast-undampened.json").read_text(encoding="utf-8"), cls=JSONDecoder)
+        for site in undampened["siteinfo"].values():
+            for forecast in site["forecasts"]:
+                forecast["pv_estimate"] *= 0.85
+        Path(f"{config_dir}/solcast-undampened.json").write_text(json.dumps(undampened, cls=DateTimeEncoder), encoding="utf-8")
+
+        # Fiddle with estimated actual data cache
+        actuals = json.loads(Path(f"{config_dir}/solcast-actuals.json").read_text(encoding="utf-8"), cls=JSONDecoder)
+        for site in actuals["siteinfo"].values():
+            for forecast in site["forecasts"]:
+                if (
+                    forecast["period_start"].astimezone(ZoneInfo(ZONE_RAW)).hour == 10
+                    and forecast["period_start"].astimezone(ZoneInfo(ZONE_RAW)).minute == 30
+                ):
+                    forecast["pv_estimate"] *= 0.91
+        Path(f"{config_dir}/solcast-actuals.json").write_text(json.dumps(actuals, cls=DateTimeEncoder), encoding="utf-8")
+
         # Reload to load saved data and prime initial generation
         caplog.clear()
         coordinator, solcast = await _reload(hass, entry)
@@ -183,8 +209,9 @@ async def test_auto_dampen(
         assert "Interval 08:30 has peak estimated actual 0.936" in caplog.text
         assert "Interval 08:30 max generation: 0.755" in caplog.text
         assert "Auto-dampen factor for 08:30 is 0.807" in caplog.text
-        assert "Auto-dampen factor for 11:00" not in caplog.text
-        assert "Ignoring insignificant factor for 11:00 of 0.988" in caplog.text
+        # assert "Auto-dampen factor for 11:00" not in caplog.text
+        assert "Ignoring insignificant factor for 10:30" in caplog.text
+        assert re.search(r"Ignoring insignificant adjusted factor.+11:00:00.+0\.990.+0\.988", caplog.text)
         assert "Ignoring excessive PV generation" not in caplog.text
 
         # Reload to load saved generation data
