@@ -53,6 +53,7 @@ from .const import (
     DAMPENING_MINIMUM_INTERVALS,
     DAMPENING_MODEL_DAYS,
     DAMPENING_NO_LIMITING_CONSISTENCY,
+    DAMPENING_SIMILAR_PEAK,
     DATE_FORMAT,
     DATE_MONTH_DAY,
     DOMAIN,
@@ -146,6 +147,7 @@ ADVANCED_OPTIONS_DEFAULTS: dict[str, Any] = {
     "automated_dampening_model_days": DAMPENING_MODEL_DAYS,
     "automated_dampening_no_delta_corrections": not DAMPENING_LOG_DELTA_CORRECTIONS,
     "automated_dampening_no_limiting_consistency": DAMPENING_NO_LIMITING_CONSISTENCY,
+    "automated_dampening_similar_peak": DAMPENING_SIMILAR_PEAK,
     "entity_logging": SENSOR_UPDATE_LOGGING,
     "forecast_day_entities": FORECAST_DAY_SENSORS,
     "forecast_future_days": FORECAST_DAYS,
@@ -389,7 +391,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                 "Invalid value for advanced option %s: %s (must be %d-21)", option, new_value, least
                                             )
                                             valid = False
-                                    case "automated_dampening_insignificant_factor" | "automated_dampening_insignificant_factor_adjusted":
+                                    case (
+                                        "automated_dampening_insignificant_factor"
+                                        | "automated_dampening_insignificant_factor_adjusted"
+                                        | "automated_dampening_similar_peak"
+                                    ):
                                         if isinstance(new_value, float) and (new_value < 0.0 or new_value > 1.0):
                                             _LOGGER.error("Invalid value for advanced option %s: %s (must be 0.0-1.0)", option, new_value)
                                             valid = False
@@ -2965,7 +2971,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         matching_intervals: dict[int, list[dt]] = {i: [] for i in range(48)}
         for period_start, actual in actuals.items():
             interval = self.adjusted_interval_dt(period_start)
-            if actual > 0.90 * self._peak_intervals[interval]:
+            if actual > self.advanced_options["automated_dampening_similar_peak"] * self._peak_intervals[interval]:
                 matching_intervals[interval].append(period_start)
 
         # Defaults.

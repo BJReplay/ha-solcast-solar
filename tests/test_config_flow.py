@@ -813,6 +813,7 @@ async def test_advanced_options(
             "automated_dampening_no_limiting_consistency": False,
             "automated_dampening_model_days": 14,
             "automated_dampening_generation_history_load_days": 7,
+            "automated_dampening_similar_peak": 0.90,
             "entity_logging": True,
             "forecast_day_entities": 8,
             "forecast_future_days": 14,
@@ -832,6 +833,7 @@ async def test_advanced_options(
         assert "automated_dampening_no_limiting_consistency" not in caplog.text
         assert "automated_dampening_model_days" not in caplog.text
         assert "automated_dampening_generation_history_load_days" not in caplog.text
+        assert "automated_dampening_similar_peak" not in caplog.text
         assert "entity_logging" in caplog.text  # The odd-man-out, detected as removed laterand set to default
         assert "forecast_day_entities" not in caplog.text
         assert "forecast_future_days" not in caplog.text
@@ -850,6 +852,7 @@ async def test_advanced_options(
             "automated_dampening_no_delta_corrections": "wrong_type",
             "automated_dampening_model_days": 22,
             "automated_dampening_generation_history_load_days": 22,
+            "automated_dampening_similar_peak": 1.1,
             "forecast_day_entities": 16,
             "forecast_future_days": 16,
             "forecast_history_max_days": 10,
@@ -866,6 +869,7 @@ async def test_advanced_options(
         assert "automated_dampening_model_days: 22 (must be 2-21)" in caplog.text
         assert "automated_dampening_generation_history_load_days: 22 (must be 1-21)" in caplog.text
         assert "automated_dampening_no_delta_corrections: should be bool" in caplog.text
+        assert "automated_dampening_similar_peak: 1.1 (must be 0.0-1.0)" in caplog.text
         assert "forecast_day_entities: 16 (must be 8-14)" in caplog.text
         assert "forecast_future_days: 16 (must be 8-14)" in caplog.text
         assert "forecast_history_max_days: 10 (must be 22-3650)" in caplog.text

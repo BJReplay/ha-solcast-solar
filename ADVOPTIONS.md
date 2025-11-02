@@ -111,6 +111,14 @@ Said another way, if there is limiting detected for any interval on any day, the
 
 Set this option to `true` to prevent this behaviour.
 
+**Key: "automated_dampening_similar_peak"**
+
+Possible values: float `0.0`..`1.0` (default `0.9`)
+
+Estimated actual peaks are compared to find a similar number of "matching" peaks from which to compare maximum generation. By default this is intervals within 0.9 * peak that are considered.
+
+This setting is variable by using this option.
+
 ## Forecasts
 
 **Key: "forecast_day_entities"**
