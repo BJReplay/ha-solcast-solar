@@ -77,7 +77,7 @@ Do not set this value higher than the number of past days considered for automat
 
 **Key: "automated_dampening_minimum_matching_intervals"**
 
-Possible values: integer `2`..`21` (default `2`)
+Possible values: integer `1`..`21` (default `2`)
 
 Dampening modelling will skip intervals where there are a low number of matching past intervals. A low number of matches are generally seen at the beginning and end of each day, and these are ignored by default.
 

@@ -377,6 +377,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             if option
                                             in [
                                                 "automated_dampening_generation_history_load_days",
+                                                "automated_dampening_minimum_matching_intervals",
                                                 "automated_dampening_minimum_matching_generation",
                                             ]
                                             else 2

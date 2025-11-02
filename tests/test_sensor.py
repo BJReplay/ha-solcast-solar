@@ -515,6 +515,13 @@ async def test_sensor_states(  # noqa: C901
             assert attribs.get("loss_factor")
             assert attribs.get("tags")
 
+            attribs: ReadOnlyDict[str, Any] = hass.states.get("sensor.solcast_pv_forecast_forecast_today").attributes  # type: ignore[union-attr]
+            assert attribs
+            assert attribs.get("detailedForecast")
+            assert attribs.get("detailedHourly")
+            assert isinstance(attribs.get("detailedForecast"), list)
+            assert isinstance(attribs.get("detailedHourly"), list)
+
         # Test last sensor update time.
         freezer.move_to(now.replace(hour=2, minute=30, second=0, microsecond=0))
         async_fire_time_changed(hass)
