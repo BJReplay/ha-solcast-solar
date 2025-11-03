@@ -36,6 +36,7 @@ DATE_FORMAT_UTC: Final[str] = "%Y-%m-%d %H:%M:%S UTC"
 DATE_ONLY_FORMAT: Final[str] = "%Y-%m-%d"
 DOMAIN: Final[str] = "solcast_solar"
 ENTRY_TYPE_SERVICE: Final[str] = "service"
+ESTIMATED_ACTUALS_FETCH_DELAY: Final[int] = 0  # Minutes to wait after midnight before fetching estimated actuals (plus random offset)
 EVENT_END_DATETIME: Final[str] = "end_date_time"
 EVENT_START_DATETIME: Final[str] = "start_date_time"
 EXCLUDE_SITES: Final[str] = "exclude_sites"

@@ -178,6 +178,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         for task in sorted(self.tasks):
             _LOGGER.debug("Running task %s", task)
 
+        await self.__check_estimated_actuals_fetch()
+
         return True
 
     async def __restart(self, called_at: dt | None = None) -> None:
@@ -359,19 +361,31 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
             self.solcast.log_advanced_options()  # Daily reminder of advanced options in use
 
-            if self.solcast.options.get_actuals:
-                update_at = dt.now(UTC) + timedelta(minutes=randint(1, 14), seconds=randint(0, 59))
-                _LOGGER.debug(
-                    "Scheduling estimated actuals update at %s", update_at.astimezone(self.solcast.options.tz).strftime(TIME_FORMAT)
-                )
-                self.tasks["new_day_actuals"] = async_track_point_in_utc_time(
-                    self.hass,
-                    self.__actuals,
-                    update_at,
-                )
+            await self.__check_estimated_actuals_fetch()
 
         await self.solcast.cleanup_issues()
         self.async_update_listeners()
+
+    async def __check_estimated_actuals_fetch(self) -> None:
+        """Check if estimated actuals fetch was missed and schedule it."""
+
+        if self.solcast.options.get_actuals:
+            if not self.solcast.get_estimated_actuals_updated_today():
+                now_minute = dt.now(self.solcast.options.tz).minute
+                if now_minute < self.solcast.advanced_options["estimated_actuals_fetch_delay"] + 15:
+                    update_at = (
+                        dt.now(self.solcast.options.tz).replace(hour=0, minute=0, second=0, microsecond=0)  # i.e. midnight local
+                        + timedelta(minutes=max(now_minute, self.solcast.advanced_options["estimated_actuals_fetch_delay"]))
+                        + timedelta(minutes=randint(1, 14), seconds=randint(0, 59))
+                    )
+                    _LOGGER.debug(
+                        "Scheduling estimated actuals update at %s", update_at.astimezone(self.solcast.options.tz).strftime(TIME_FORMAT)
+                    )
+                    self.tasks["new_day_actuals"] = async_track_point_in_utc_time(
+                        self.hass,
+                        self.__actuals,
+                        update_at,
+                    )
 
     async def __restart_time_track_midnight_update(self) -> None:
         """Cancel and restart UTC time change tracker."""

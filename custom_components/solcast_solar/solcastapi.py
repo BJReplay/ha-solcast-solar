@@ -57,6 +57,7 @@ from .const import (
     DATE_FORMAT,
     DATE_MONTH_DAY,
     DOMAIN,
+    ESTIMATED_ACTUALS_FETCH_DELAY,
     EXCLUDE_SITES,
     FORECAST_DAY_SENSORS,
     FORECAST_DAYS,
@@ -149,6 +150,7 @@ ADVANCED_OPTIONS_DEFAULTS: dict[str, Any] = {
     "automated_dampening_no_limiting_consistency": DAMPENING_NO_LIMITING_CONSISTENCY,
     "automated_dampening_similar_peak": DAMPENING_SIMILAR_PEAK,
     "entity_logging": SENSOR_UPDATE_LOGGING,
+    "estimated_actuals_fetch_delay": ESTIMATED_ACTUALS_FETCH_DELAY,
     "forecast_day_entities": FORECAST_DAY_SENSORS,
     "forecast_future_days": FORECAST_DAYS,
     "forecast_history_max_days": HISTORY_MAX,
@@ -343,6 +345,24 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Advanced options file %s exists", self._filename_advanced)
             async with aiofiles.open(self._filename_advanced) as file:
                 try:
+                    limits = {
+                        "automated_dampening_insignificant_factor": {"type": "float", "min": 0.0, "max": 1.0},
+                        "automated_dampening_insignificant_factor_adjusted": {"type": "float", "min": 0.0, "max": 1.0},
+                        "automated_dampening_similar_peak": {"type": "float", "min": 0.0, "max": 1.0},
+                        "automated_dampening_model_days": {"type": "int", "min": 2, "max": 21},
+                        "automated_dampening_minimum_matching_generation": {"type": "int", "min": 1, "max": 21},
+                        "automated_dampening_minimum_matching_intervals": {"type": "int", "min": 1, "max": 21},
+                        "automated_dampening_generation_history_load_days": {"type": "int", "min": 1, "max": 21},
+                        "estimated_actuals_fetch_delay": {"type": "int", "min": 0, "max": 120},
+                        "forecast_future_days": {"type": "int", "min": 8, "max": 14},
+                        "forecast_day_entities": {"type": "int", "min": 8, "max": 14},
+                        "forecast_history_max_days": {"type": "int", "min": 22, "max": 3650},
+                        "automated_dampening_no_delta_corrections": {"type": "bool"},
+                        "automated_dampening_no_limiting_consistency": {"type": "bool"},
+                        "entity_logging": {"type": "bool"},
+                        "reload_on_advanced_change": {"type": "bool"},
+                        "solcast_url": {"type": "str"},
+                    }
                     response_json: dict[str, Any] = json.loads(await file.read())
                     value: int | float | str | list[str] | None
                     new_value: int | float | str | list[str]
@@ -370,45 +390,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                     valid = False
                                                     continue
                                                 seen.append(t)
-                                    case (
-                                        "automated_dampening_minimum_matching_generation"
-                                        | "automated_dampening_minimum_matching_intervals"
-                                        | "automated_dampening_model_days"
-                                        | "automated_dampening_generation_history_load_days"
-                                    ):
-                                        least = (
-                                            1
-                                            if option
-                                            in [
-                                                "automated_dampening_generation_history_load_days",
-                                                "automated_dampening_minimum_matching_intervals",
-                                                "automated_dampening_minimum_matching_generation",
-                                            ]
-                                            else 2
-                                        )
-                                        if isinstance(new_value, int) and (new_value < least or new_value > 21):
-                                            _LOGGER.error(
-                                                "Invalid value for advanced option %s: %s (must be %d-21)", option, new_value, least
-                                            )
-                                            valid = False
-                                    case (
-                                        "automated_dampening_insignificant_factor"
-                                        | "automated_dampening_insignificant_factor_adjusted"
-                                        | "automated_dampening_similar_peak"
-                                    ):
-                                        if isinstance(new_value, float) and (new_value < 0.0 or new_value > 1.0):
-                                            _LOGGER.error("Invalid value for advanced option %s: %s (must be 0.0-1.0)", option, new_value)
-                                            valid = False
-                                    case "forecast_history_max_days":
-                                        if isinstance(new_value, int) and (new_value < 22 or new_value > 3650):
-                                            _LOGGER.error("Invalid value for advanced option %s: %s (must be 22-3650)", option, new_value)
-                                            valid = False
-                                    case "forecast_day_entities" | "forecast_future_days":
-                                        if isinstance(new_value, int) and (new_value < 8 or new_value > 14):
-                                            _LOGGER.error("Invalid value for advanced option %s: %s (must be 8-14)", option, new_value)
-                                            valid = False
                                     case _:
-                                        pass
+                                        if limits[option]["type"] in ["int", "float"]:
+                                            if new_value < limits[option]["min"] or new_value > limits[option]["max"]:
+                                                _LOGGER.error(
+                                                    "Invalid value for advanced option %s: %s (must be %s-%s)",
+                                                    option,
+                                                    new_value,
+                                                    limits[option]["min"],
+                                                    limits[option]["max"],
+                                                )
+                                                valid = False
                             else:
                                 _LOGGER.error("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
                                 valid = False
@@ -1678,6 +1670,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         """
         return self._data["last_attempt"].replace(microsecond=0)
+
+    def get_estimated_actuals_updated_today(self) -> bool:
+        """Check if estimated actuals were updated today.
+
+        Returns:
+            bool: True if updated today, False otherwise.
+
+        """
+        return (
+            self._data_actuals["last_updated"] == self._data_actuals["last_attempt"]
+            and self._data_actuals["last_updated"].astimezone(self._tz).date() == dt.now(self._tz).date()
+        )
 
     def get_failures_last_24h(self) -> int:
         """Get the number of failures in the last 24 hours.

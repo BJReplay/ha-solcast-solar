@@ -30,6 +30,7 @@ You are free to raise an issue should a code exception occur after setting an ad
 ## Contents
 
 1. [Automated dampening](#automated-dampening)
+1. [Estimated actuals](#estimated-actuals)
 1. [Forecasts](#forecasts)
 1. [General](#general)
 
@@ -118,6 +119,18 @@ Possible values: float `0.0`..`1.0` (default `0.9`)
 Estimated actual peaks are compared to find a similar number of "matching" peaks from which to compare maximum generation. By default this is intervals within 0.9 * peak that are considered.
 
 This setting is variable by using this option.
+
+## Estimated actuals
+
+**Key: "estimated_actuals_fetch_delay"**
+
+Possible values: int `0`..`120` (default `0`)
+
+A number of minutes to delay beyond midnight before estimated actuals are retrieved (in addition to a randomised up-to fifteen minute delay). This may be of use should the retrieval of estimated actuals often fail just after midnight local time.
+
+If automated dampening is enabled then modelling of new factors will occur immediately following retrieval.
+
+If Home Assistant is restarted in the period between midnight and estimated actuals being retrieved then retrieval will be rescheduled.
 
 ## Forecasts
 

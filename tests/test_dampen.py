@@ -101,8 +101,6 @@ async def _exec_update_actuals(
         async with asyncio.timeout(1):
             while "Task model_automated_dampening took" not in caplog.text:
                 await hass.async_block_till_done()
-            # while coordinator.tasks.get("actuals"):
-            #    await hass.async_block_till_done()
     await hass.async_block_till_done()
 
 
@@ -244,12 +242,18 @@ async def test_auto_dampen(
         removed = -5
         value_removed = solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"].pop(removed)  # pyright: ignore[reportPrivateUsage]
         freezer.move_to((dt.now(solcast._tz) + timedelta(hours=12)).replace(minute=0, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
+        await hass.async_block_till_done()
+        # assert False
+        await _wait_for_it(hass, caplog, freezer, "Scheduling estimated actuals update")
+        assert "Advanced option set automated_dampening_ignore_intervals: ['17:00']" in caplog.text
+        coordinator, solcast = await _reload(hass, entry)
+        caplog.clear()
         await _wait_for_it(hass, caplog, freezer, "Applying future dampening", long_time=True)
         assert "Getting estimated actuals update for site" in caplog.text
         assert "Apply dampening to previous day estimated actuals" in caplog.text
         assert "Task model_automated_dampening took" in caplog.text
         assert (
-            solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"][removed - 24]["period_start"]  # pyright: ignore[reportPrivateUsage]
+            solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"][removed - 24]["period_start"]  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]
             == value_removed["period_start"]
         )  # pyright: ignore[reportPrivateUsage]
         assert "Auto-dampen factor for 08:30 is 0.807" in caplog.text
@@ -267,7 +271,7 @@ async def test_auto_dampen(
         _LOGGER.debug("Rolling over to another tomorrow")
         caplog.clear()
         session_set(MOCK_CORRUPT_ACTUALS)
-        freezer.move_to((dt.now(solcast._tz) + timedelta(days=1)).replace(minute=0, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
+        freezer.move_to((dt.now(solcast._tz) + timedelta(days=1)).replace(minute=0, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]
         await _wait_for_it(hass, caplog, freezer, "Update estimated actuals failed: No valid json returned", long_time=True)
         session_clear(MOCK_CORRUPT_ACTUALS)
         for _ in range(300):  # Extra time needed for get_generation to complete
@@ -277,22 +281,22 @@ async def test_auto_dampen(
         # Cause an actual build exception
         _LOGGER.debug("Causing an actual build exception")
         caplog.clear()
-        old_data = copy.deepcopy(solcast._data_actuals)  # pyright: ignore[reportPrivateUsage]
-        solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"] = None  # pyright: ignore[reportPrivateUsage]
-        status = await solcast.build_forecast_and_actuals()
+        old_data = copy.deepcopy(solcast._data_actuals)  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]
+        solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"] = None  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]
+        status = await solcast.build_forecast_and_actuals()  # pyright: ignore[reportOptionalMemberAccess]
         assert "Failed to build estimated actual data" in status
-        await solcast.model_automated_dampening()  # Hit an actuals missing deal-breaker
+        await solcast.model_automated_dampening()  # pyright: ignore[reportOptionalMemberAccess] # Hit an actuals missing deal-breaker
         assert "Auto-dampening suppressed: No estimated actuals yet for 1111-1111-1111-1111" in caplog.text
-        solcast._data_actuals = old_data  # pyright: ignore[reportPrivateUsage]
+        solcast._data_actuals = old_data  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]
 
         # Cause a forecast build exception
         _LOGGER.debug("Causing a forecast build exception")
         caplog.clear()
-        old_data = copy.deepcopy(solcast._data)  # pyright: ignore[reportPrivateUsage]
-        solcast._data["siteinfo"]["1111-1111-1111-1111"] = None  # pyright: ignore[reportPrivateUsage]
-        status = await solcast.build_forecast_and_actuals()
+        old_data = copy.deepcopy(solcast._data)  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]
+        solcast._data["siteinfo"]["1111-1111-1111-1111"] = None  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess,reportOptionalMemberAccess]
+        status = await solcast.build_forecast_and_actuals()  # pyright: ignore[reportOptionalMemberAccess]
         assert "Failed to build forecast data" in status
-        solcast._data = old_data  # pyright: ignore[reportPrivateUsage]
+        solcast._data = old_data  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]
 
         # Turn off auto-dampen.
         caplog.clear()
