@@ -1,6 +1,6 @@
 """Constants for the Solcast Solar integration."""
 
-from typing import Final
+from typing import Any, Final
 
 # Development flags
 SENSOR_UPDATE_LOGGING: bool = False
@@ -23,7 +23,7 @@ CONFIG_VERSION: Final[int] = 18
 CUSTOM_HOUR_SENSOR: Final[str] = "customhoursensor"
 DAMP_FACTOR: Final[str] = "damp_factor"
 DAMPENING_INSIGNIFICANT: Final[float] = 0.95  # Dampening factors considered insignificant for automated dampening
-DAMPENING_INSIGNIFICANT_ADJUSTED: Final[float] = 0.95  # Adjusted dampening factors considered insignificant for automated dampening
+DAMPENING_INSIGNIFICANT_ADJ: Final[float] = 0.95  # Adjusted dampening factors considered insignificant for automated dampening
 DAMPENING_LOG_DELTA_CORRECTIONS: Final[bool] = True  # Whether to logarithmically adjust applied automated dampening factors
 DAMPENING_MINIMUM_GENERATION: Final[int] = 2  # Minimum number of matching intervals with generation data to consider
 DAMPENING_MINIMUM_INTERVALS: Final[int] = 2  # Minimum number of matching intervals to consider for automated dampening
@@ -71,3 +71,24 @@ TITLE: Final[str] = "Solcast Solar"
 UNDAMPENED: Final[str] = "undampened"
 USE_ACTUALS: Final[str] = "use_actuals"
 WINTER_TIME: Final[list[str]] = ["Europe/Dublin"]  # Zones that use "Winter time" rather than "Daylight time"
+
+ADVANCED_OPTIONS: dict[str, dict[str, Any]] = {
+    "automated_dampening_delta_adjustment_model": {"type": "int", "min": 0, "max": 0, "default": 0},
+    "automated_dampening_generation_history_load_days": {"type": "int", "min": 1, "max": 21, "default": GENERATION_HISTORY_LOAD_DAYS},
+    "automated_dampening_ignore_intervals": {"type": "list", "default": []},
+    "automated_dampening_insignificant_factor": {"type": "float", "min": 0.0, "max": 1.0, "default": DAMPENING_INSIGNIFICANT},
+    "automated_dampening_insignificant_factor_adjusted": {"type": "float", "min": 0.0, "max": 1.0, "default": DAMPENING_INSIGNIFICANT_ADJ},
+    "automated_dampening_minimum_matching_generation": {"type": "int", "min": 1, "max": 21, "default": DAMPENING_MINIMUM_GENERATION},
+    "automated_dampening_minimum_matching_intervals": {"type": "int", "min": 1, "max": 21, "default": DAMPENING_MINIMUM_INTERVALS},
+    "automated_dampening_model_days": {"type": "int", "min": 2, "max": 21, "default": DAMPENING_MODEL_DAYS},
+    "automated_dampening_no_delta_corrections": {"type": "bool", "default": not DAMPENING_LOG_DELTA_CORRECTIONS},
+    "automated_dampening_no_limiting_consistency": {"type": "bool", "default": DAMPENING_NO_LIMITING_CONSISTENCY},
+    "automated_dampening_similar_peak": {"type": "float", "min": 0.0, "max": 1.0, "default": DAMPENING_SIMILAR_PEAK},
+    "entity_logging": {"type": "bool", "default": SENSOR_UPDATE_LOGGING},
+    "estimated_actuals_fetch_delay": {"type": "int", "min": 0, "max": 120, "default": ESTIMATED_ACTUALS_FETCH_DELAY},
+    "forecast_future_days": {"type": "int", "min": 8, "max": 14, "default": FORECAST_DAYS},
+    "forecast_day_entities": {"type": "int", "min": 8, "max": 14, "default": FORECAST_DAY_SENSORS},
+    "forecast_history_max_days": {"type": "int", "min": 22, "max": 3650, "default": HISTORY_MAX},
+    "reload_on_advanced_change": {"type": "bool", "default": False},
+    "solcast_url": {"type": "str", "default": SOLCAST_URL},
+}

@@ -37,6 +37,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
 from .const import (
+    ADVANCED_OPTIONS,
     AUTO_DAMPEN,
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
@@ -46,33 +47,18 @@ from .const import (
     BRK_SITE,
     BRK_SITE_DETAILED,
     CUSTOM_HOUR_SENSOR,
-    DAMPENING_INSIGNIFICANT,
-    DAMPENING_INSIGNIFICANT_ADJUSTED,
-    DAMPENING_LOG_DELTA_CORRECTIONS,
-    DAMPENING_MINIMUM_GENERATION,
-    DAMPENING_MINIMUM_INTERVALS,
-    DAMPENING_MODEL_DAYS,
-    DAMPENING_NO_LIMITING_CONSISTENCY,
-    DAMPENING_SIMILAR_PEAK,
     DATE_FORMAT,
     DATE_MONTH_DAY,
     DOMAIN,
-    ESTIMATED_ACTUALS_FETCH_DELAY,
     EXCLUDE_SITES,
-    FORECAST_DAY_SENSORS,
-    FORECAST_DAYS,
     GENERATION_ENTITIES,
-    GENERATION_HISTORY_LOAD_DAYS,
     GENERATION_VERSION,
     GET_ACTUALS,
     HARD_LIMIT_API,
-    HISTORY_MAX,
     KEY_ESTIMATE,
-    SENSOR_UPDATE_LOGGING,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
-    SOLCAST_URL,
     USE_ACTUALS,
     WINTER_TIME,
 )
@@ -109,7 +95,7 @@ SET_ALLOW_RESET: Final = True
 # A HTTP 418 error is included here for fun. This was introduced in RFC2324#section-2.3.2 as an April Fools joke in 1998.
 # 400 >= HTTP error <= 599
 # 900 >= Exceptions < 1000, to be potentially handled with retries.
-STATUS_TRANSLATE: Final = {
+STATUS_TRANSLATE: dict[int, str] = {
     200: "Success",
     400: "Bad request",
     401: "Unauthorized",
@@ -137,26 +123,6 @@ FRESH_DATA: dict[str, Any] = {
     "version": JSON_VERSION,
 }
 
-ADVANCED_OPTIONS_DEFAULTS: dict[str, Any] = {
-    "automated_dampening_delta_adjustment_model": 0,
-    "automated_dampening_generation_history_load_days": GENERATION_HISTORY_LOAD_DAYS,
-    "automated_dampening_ignore_intervals": [],
-    "automated_dampening_insignificant_factor": DAMPENING_INSIGNIFICANT,
-    "automated_dampening_insignificant_factor_adjusted": DAMPENING_INSIGNIFICANT_ADJUSTED,
-    "automated_dampening_minimum_matching_generation": DAMPENING_MINIMUM_GENERATION,
-    "automated_dampening_minimum_matching_intervals": DAMPENING_MINIMUM_INTERVALS,
-    "automated_dampening_model_days": DAMPENING_MODEL_DAYS,
-    "automated_dampening_no_delta_corrections": not DAMPENING_LOG_DELTA_CORRECTIONS,
-    "automated_dampening_no_limiting_consistency": DAMPENING_NO_LIMITING_CONSISTENCY,
-    "automated_dampening_similar_peak": DAMPENING_SIMILAR_PEAK,
-    "entity_logging": SENSOR_UPDATE_LOGGING,
-    "estimated_actuals_fetch_delay": ESTIMATED_ACTUALS_FETCH_DELAY,
-    "forecast_day_entities": FORECAST_DAY_SENSORS,
-    "forecast_future_days": FORECAST_DAYS,
-    "forecast_history_max_days": HISTORY_MAX,
-    "reload_on_advanced_change": False,
-    "solcast_url": SOLCAST_URL,
-}
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -345,24 +311,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Advanced options file %s exists", self._filename_advanced)
             async with aiofiles.open(self._filename_advanced) as file:
                 try:
-                    limits = {
-                        "automated_dampening_insignificant_factor": {"type": "float", "min": 0.0, "max": 1.0},
-                        "automated_dampening_insignificant_factor_adjusted": {"type": "float", "min": 0.0, "max": 1.0},
-                        "automated_dampening_similar_peak": {"type": "float", "min": 0.0, "max": 1.0},
-                        "automated_dampening_model_days": {"type": "int", "min": 2, "max": 21},
-                        "automated_dampening_minimum_matching_generation": {"type": "int", "min": 1, "max": 21},
-                        "automated_dampening_minimum_matching_intervals": {"type": "int", "min": 1, "max": 21},
-                        "automated_dampening_generation_history_load_days": {"type": "int", "min": 1, "max": 21},
-                        "estimated_actuals_fetch_delay": {"type": "int", "min": 0, "max": 120},
-                        "forecast_future_days": {"type": "int", "min": 8, "max": 14},
-                        "forecast_day_entities": {"type": "int", "min": 8, "max": 14},
-                        "forecast_history_max_days": {"type": "int", "min": 22, "max": 3650},
-                        "automated_dampening_no_delta_corrections": {"type": "bool"},
-                        "automated_dampening_no_limiting_consistency": {"type": "bool"},
-                        "entity_logging": {"type": "bool"},
-                        "reload_on_advanced_change": {"type": "bool"},
-                        "solcast_url": {"type": "str"},
-                    }
                     response_json: dict[str, Any] = json.loads(await file.read())
                     value: int | float | str | list[str] | None
                     new_value: int | float | str | list[str]
@@ -391,14 +339,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                     continue
                                                 seen.append(t)
                                     case _:
-                                        if limits[option]["type"] in ["int", "float"]:
-                                            if new_value < limits[option]["min"] or new_value > limits[option]["max"]:
+                                        if ADVANCED_OPTIONS[option]["type"] in ["int", "float"]:
+                                            if new_value < ADVANCED_OPTIONS[option]["min"] or new_value > ADVANCED_OPTIONS[option]["max"]:
                                                 _LOGGER.error(
                                                     "Invalid value for advanced option %s: %s (must be %s-%s)",
                                                     option,
                                                     new_value,
-                                                    limits[option]["min"],
-                                                    limits[option]["max"],
+                                                    ADVANCED_OPTIONS[option]["min"],
+                                                    ADVANCED_OPTIONS[option]["max"],
                                                 )
                                                 valid = False
                             else:
@@ -410,7 +358,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 change = True
                     for option, value in self.advanced_options.items():
                         if option not in options_present:
-                            default = ADVANCED_OPTIONS_DEFAULTS[option]
+                            default = ADVANCED_OPTIONS[option]["default"]
                             if value != default:
                                 self.advanced_options[option] = default
                                 _LOGGER.debug("Advanced option default set %s: %s", option, default)
@@ -425,19 +373,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     def log_advanced_options(self) -> None:
         """Log the advanced options that are set differently to their defaults."""
 
-        for key, value in ADVANCED_OPTIONS_DEFAULTS.items():
-            if key not in self.advanced_options or self.advanced_options.get(key) != value:
+        for key, value in ADVANCED_OPTIONS.items():
+            if key not in self.advanced_options or self.advanced_options.get(key) != value["default"]:
                 _LOGGER.debug("Advanced option set %s: %s", key, self.advanced_options.get(key))
 
     def set_default_advanced_options(self) -> None:
         """Set the default advanced options."""
 
         initial = not self.advanced_options
-        for key, value in ADVANCED_OPTIONS_DEFAULTS.items():
-            if key not in self.advanced_options or self.advanced_options.get(key) != value:
-                self.advanced_options[key] = value
+        for key, value in ADVANCED_OPTIONS.items():
+            if key not in self.advanced_options or self.advanced_options.get(key) != value["default"]:
+                self.advanced_options[key] = value["default"]
                 if not initial:
-                    _LOGGER.debug("Advanced option default set %s: %s", key, value)
+                    _LOGGER.debug("Advanced option default set %s: %s", key, value["default"])
 
     def get_filename_dampening(self) -> str:
         """Return the dampening configuration filename."""
