@@ -75,7 +75,7 @@ WINTER_TIME: Final[list[str]] = ["Europe/Dublin"]  # Zones that use "Winter time
 ADVANCED_OPTIONS: dict[str, dict[str, Any]] = {
     "automated_dampening_delta_adjustment_model": {"type": "int", "min": 0, "max": 0, "default": 0},
     "automated_dampening_generation_history_load_days": {"type": "int", "min": 1, "max": 21, "default": GENERATION_HISTORY_LOAD_DAYS},
-    "automated_dampening_ignore_intervals": {"type": "list", "default": []},
+    "automated_dampening_ignore_intervals": {"type": "time_list", "default": []},
     "automated_dampening_insignificant_factor": {"type": "float", "min": 0.0, "max": 1.0, "default": DAMPENING_INSIGNIFICANT},
     "automated_dampening_insignificant_factor_adjusted": {"type": "float", "min": 0.0, "max": 1.0, "default": DAMPENING_INSIGNIFICANT_ADJ},
     "automated_dampening_minimum_matching_generation": {"type": "int", "min": 1, "max": 21, "default": DAMPENING_MINIMUM_GENERATION},

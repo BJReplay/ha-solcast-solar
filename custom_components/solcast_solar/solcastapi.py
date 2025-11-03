@@ -311,35 +311,27 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug("Advanced options file %s exists", self._filename_advanced)
             async with aiofiles.open(self._filename_advanced) as file:
                 try:
-                    response_json: dict[str, Any] = json.loads(await file.read())
-                    value: int | float | str | list[str] | None
-                    new_value: int | float | str | list[str]
-                    options_present = response_json.keys()
-                    for option, new_value in response_json.items():
-                        value = self.advanced_options.get(option)
-                        if value is None:
-                            _LOGGER.error("Unknown advanced option ignored: %s", option)
-                            continue
-                        if new_value != value:
-                            valid = True
-                            if isinstance(new_value, type(value)):
-                                match option:
-                                    case "automated_dampening_ignore_intervals":
-                                        if isinstance(new_value, list):
-                                            seen: list[str] = []
-                                            t: str
-                                            for t in new_value:
-                                                if re.match(r"^([01]?[0-9]|2[0-3]):[03]{1}0$", t) is None:
-                                                    _LOGGER.error("Invalid time in advanced option %s: %s", option, t)
-                                                    valid = False
-                                                    continue
-                                                if t in seen:
-                                                    _LOGGER.error("Duplicate time in advanced option %s: %s", option, t)
-                                                    valid = False
-                                                    continue
-                                                seen.append(t)
-                                    case _:
-                                        if ADVANCED_OPTIONS[option]["type"] in ["int", "float"]:
+                    _TIME = r"^([01]?[0-9]|2[0-3]):[03]{1}0$"
+
+                    content = await file.read()
+                    if content.replace("\n", "").replace("\r", "").strip() != "":  # i.e. not empty
+                        response_json: dict[str, Any] = json.loads(content)
+                        value: int | float | str | list[str] | None
+                        new_value: int | float | str | list[str]
+                        if not isinstance(response_json, dict):
+                            _LOGGER.error("Advanced options file invalid format, expected JSON `dict`: %s", self._filename_advanced)
+                            return change
+                        options_present = response_json.keys()
+                        for option, new_value in response_json.items():
+                            value = self.advanced_options.get(option)
+                            if value is None:
+                                _LOGGER.error("Unknown advanced option ignored: %s", option)
+                                continue
+                            if new_value != value:
+                                valid = True
+                                if isinstance(new_value, type(value)):
+                                    match ADVANCED_OPTIONS[option]["type"]:
+                                        case "int" | "float":
                                             if new_value < ADVANCED_OPTIONS[option]["min"] or new_value > ADVANCED_OPTIONS[option]["max"]:
                                                 _LOGGER.error(
                                                     "Invalid value for advanced option %s: %s (must be %s-%s)",
@@ -349,13 +341,32 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                     ADVANCED_OPTIONS[option]["max"],
                                                 )
                                                 valid = False
-                            else:
-                                _LOGGER.error("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
-                                valid = False
-                            if valid:
-                                self.advanced_options[option] = new_value
-                                _LOGGER.debug("Advanced option set %s: %s", option, new_value)
-                                change = True
+                                        # case "time":
+                                        #    if re.match(_TIME, new_value) is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
+                                        #        _LOGGER.error("Invalid time in advanced option %s: %s", option, new_value)
+                                        #        valid = False
+                                        case "time_list":
+                                            seen: list[str] = []
+                                            t: str
+                                            for t in new_value:  # pyright: ignore[reportGeneralTypeIssues]
+                                                if re.match(_TIME, t) is None:
+                                                    _LOGGER.error("Invalid time in advanced option %s: %s", option, t)
+                                                    valid = False
+                                                    continue
+                                                if t in seen:
+                                                    _LOGGER.error("Duplicate time in advanced option %s: %s", option, t)
+                                                    valid = False
+                                                    continue
+                                                seen.append(t)
+                                        case _:
+                                            pass
+                                else:
+                                    _LOGGER.error("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
+                                    valid = False
+                                if valid:
+                                    self.advanced_options[option] = new_value
+                                    _LOGGER.debug("Advanced option set %s: %s", option, new_value)
+                                    change = True
                     for option, value in self.advanced_options.items():
                         if option not in options_present:
                             default = ADVANCED_OPTIONS[option]["default"]

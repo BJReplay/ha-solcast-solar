@@ -804,6 +804,25 @@ async def test_advanced_options(
                 await hass.async_block_till_done()
 
         data_file = Path(f"{config_dir}/solcast-advanced.json")
+
+        caplog.clear()
+        data_file.write_text(json.dumps("   \r \r\n"), encoding="utf-8")
+        await wait()
+        assert "exists" in caplog.text
+        assert "is not valid JSON" not in caplog.text
+        assert "Advanced option set" not in caplog.text
+        assert "Advanced option default set" not in caplog.text
+        assert "JSONDecodeError" not in caplog.text
+        data_file.unlink()
+        await wait()
+
+        caplog.clear()
+        data_file.write_text(json.dumps("[]"), encoding="utf-8")
+        await wait()
+        assert "Advanced options file invalid format, expected JSON `dict`" in caplog.text
+        data_file.unlink()
+        await wait()
+
         data_file_1: dict[str, Any] = {
             "automated_dampening_minimum_matching_intervals": 2,
             "automated_dampening_ignore_intervals": ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30"],
@@ -822,6 +841,7 @@ async def test_advanced_options(
             "reload_on_advanced_change": False,
             "solcast_url": "https://api.solcast.com.au",
         }
+        caplog.clear()
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
         await wait()
         assert "Running task watchdog_advanced" in caplog.text
