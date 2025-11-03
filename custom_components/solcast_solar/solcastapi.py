@@ -1215,14 +1215,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 mtime = False
                 return option(GRANULAR_DAMPENING_OFF)
             async with aiofiles.open(filename) as file:
+                content = await file.read()
                 try:
-                    response_json = json.loads(await file.read())
+                    response_json = json.loads(content)
                 except json.decoder.JSONDecodeError:
                     _LOGGER.error("JSONDecodeError, dampening ignored: %s", filename)
                     error = True
                     return option(GRANULAR_DAMPENING_OFF, SET_ALLOW_RESET)
                 self.granular_dampening = cast(dict[str, Any], response_json)
-                if self.granular_dampening:
+                if (
+                    content.replace("\n", "").replace("\r", "").strip() != ""
+                    and isinstance(response_json, dict)
+                    and self.granular_dampening
+                ):
                     first_site_len = 0
                     for site, damp_list in self.granular_dampening.items():
                         if first_site_len == 0:
