@@ -1240,8 +1240,10 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 v4.4.8
 
 * Ignore adjusted automated dampening factors above 'insignificant' threshold by @autoSteve
-* Add advanced auto-dampen option insignificant factor adjusted by @autoSteve
-* Modify advanced auto-dampen option minimum matching intervals to accept `1` by @autoSteve
+* Add advanced auto-dampen option 'insignificant factor adjusted' by @autoSteve
+* Add advanced auto-dampen option 'similar peak' by @autoSteve
+* Add advanced estimated actuals 'fetch delay' by @autoSteve
+* Modify advanced auto-dampen option 'minimum matching intervals' to accept `1` by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.7...v4.4.8
 

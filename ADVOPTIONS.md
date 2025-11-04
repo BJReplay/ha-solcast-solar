@@ -13,17 +13,17 @@ Example:
 }
 ```
 
-Changes to this file will be detected in near-real time, changing code behaviour. Application of changed behaviour may only be seen at forecast or estimated actuals update, or possibly immediately should "reload_on_advanced_change" be set to `true` (see below).
+Changes to this file will be detected in near-real time, changing code behaviour. The impact of that changed behaviour may only be seen at forecast or estimated actuals update. For other changes, setting `reload_on_advanced_change` can be set to `true` (see below), so that things like dampening modelling and entity set up can occur on reload.
 
-The impact of not restarting will vary by advanced option, and you are left to decide when the outcome should occur; this is advanced, and _you_ are expected to be advanced.
+The impact of not restarting will vary by advanced option, and you are left to decide when the outcome should occur; this is advanced, and _you_ are expected to be advanced about option application. If you're unsure then just set `reload_on_advanced_change` while testing.
 
 Support for these advanced options will be limited. (Well, "support" for this integration is limited at the best of times. You expect it, yet we are not obliged to provide it; we endeavour to.)
 
-Understand the implication of setting any of these options before reporting any problem, and check that set values are sensible, and if you then need to, clearly outline any problem faced in detail in a discussion. Any value set is logged at `DEBUG` level, so please include that detail.
+Understand the implication of setting any of these options before reporting any problem, and check that set values are sensible, and if you then need to seek help, clearly outline any problem faced in detail in a discussion. Any value set is logged at `DEBUG` level, so please include that detail.
 
-These options modify otherwise predictable and well-tested behaviour, so you are wandering into poorly tested territory.
+These options modify otherwise predictable and well-tested behaviour, so you are wandering into poorly tested/test-it-yourself territory, where enabling `DEBUG` logging will likely be essential to see what's going on.
 
-Values are validated for sanity, however it is possible to set options in an inappropriate way. Do not raise an issue report in this circumstance. You broke it. You fix your config, or raise a discussion topic instead.
+Values are validated for individual sanity, however it is possible to set multiple option values together in an inappropriate way. Do not raise a problem report in this circumstance. You broke it. You fix your config, or revert to defaults and reload, or raise a discussion topic instead.
 
 You are free to raise an issue should a code exception occur after setting an advanced option, and `DEBUG` logging is _mandatory_ in this circumstance. Exceptions should not happen, and there will be no exception to requiring `DEBUG` logs in a raised issue.
 
@@ -128,7 +128,7 @@ Possible values: int `0`..`120` (default `0`)
 
 A number of minutes to delay beyond midnight before estimated actuals are retrieved (in addition to a randomised up-to fifteen minute delay). This may be of use should the retrieval of estimated actuals often fail just after midnight local time.
 
-If automated dampening is enabled then modelling of new factors will occur immediately following retrieval.
+If automated dampening is enabled then modelling of new dampening factors will occur immediately following retrieval.
 
 If Home Assistant is restarted in the period between midnight and estimated actuals being retrieved then retrieval will be rescheduled.
 
