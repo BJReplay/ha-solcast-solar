@@ -1,6 +1,7 @@
 {
     "config": {
         "abort": {
+            "internal_error": "Vyskytla sa interná chyba",
             "reconfigured": "Použila sa nová konfigurácia",
             "reauth_successful": "Nový kľúč API bol úspešne použitý",
             "single_instance_allowed": "Povolená je iba jedna inštancia Solcast"
@@ -65,7 +66,7 @@
             "forecast_this_hour": {
                 "name": "Predpoveď túto hodinu"
             },
-            "get_remaining_today": {
+            "forecast_remaining_today": {
                 "name": "Predpoveď zostávajúca dnes"
             },
             "forecast_next_hour": {
@@ -89,7 +90,7 @@
             "api_limit": {
                 "name": "Limit API"
             },
-            "lastupdated": {
+            "last_updated": {
                 "name": "API naposledy dotazované"
             },
             "total_kwh_forecast_d3": {
@@ -243,6 +244,7 @@
     },
     "options": {
         "abort": {
+            "internal_error": "Vyskytla sa interná chyba",
             "reconfigured": "Použila sa nová konfigurácia"
         },
         "error": {

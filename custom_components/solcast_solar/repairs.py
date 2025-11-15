@@ -18,7 +18,7 @@ from homeassistant.helpers.selector import (
 )
 
 from . import current_entry
-from .const import AUTO_UPDATE, DOMAIN
+from .const import AUTO_UPDATE, DOMAIN, LEARN_MORE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -45,7 +45,7 @@ class SolcastRepair(RepairsFlow):
         placeholders: dict[str, Any] = {}
         if issue := issue_registry.issues.get((DOMAIN, self.issue_id)):
             if issue.learn_more_url:
-                placeholders["learn_more"] = issue.learn_more_url
+                placeholders[LEARN_MORE] = issue.learn_more_url
 
         return placeholders
 

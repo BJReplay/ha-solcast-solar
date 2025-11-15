@@ -13,7 +13,12 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.repairs import ConfirmRepairFlow
-from homeassistant.components.solcast_solar.const import AUTO_UPDATE, DOMAIN
+from homeassistant.components.solcast_solar.const import (
+    AUTO_UPDATE,
+    CONFIG_DISCRETE_NAME,
+    CONFIG_FOLDER_DISCRETE,
+    DOMAIN,
+)
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.repairs import async_create_fix_flow
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
@@ -51,14 +56,14 @@ async def test_missing_data_fixable(
 ) -> None:
     """Test missing fixable."""
 
-    options = copy.deepcopy(DEFAULT_INPUT1)
-    options[AUTO_UPDATE] = "0"
-    entry = await async_init_integration(hass, options)
-
     try:
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[AUTO_UPDATE] = "0"
+        entry = await async_init_integration(hass, options)
+        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
 
         def remove_future_forecasts():
-            for file_name in [f"{hass.config.config_dir}/solcast.json", f"{hass.config.config_dir}/solcast-undampened.json"]:
+            for file_name in [f"{config_dir}/solcast.json", f"{config_dir}/solcast-undampened.json"]:
                 data_file = Path(file_name)
                 data = json.loads(data_file.read_text(encoding="utf-8"))
                 # Remove future forecasts from "now" plus six days

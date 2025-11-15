@@ -1,6 +1,7 @@
 {
     "config": {
         "abort": {
+            "internal_error": "Wystąpił błąd wewnętrzny",
             "reconfigured": "Zastosowano nową konfigurację",
             "reauth_successful": "Nowy klucz API został pomyślnie zastosowany",
             "single_instance_allowed": "Dozwolona tylko jedna instancja Solcast"
@@ -65,7 +66,7 @@
             "forecast_this_hour": {
                 "name": "Prognoza na bieżącą godzinę"
             },
-            "get_remaining_today": {
+            "forecast_remaining_today": {
                 "name": "Pozostała prognoza na dziś"
             },
             "forecast_next_hour": {
@@ -89,7 +90,7 @@
             "api_limit": {
                 "name": "Limit zapytań API"
             },
-            "lastupdated": {
+            "last_updated": {
                 "name": "Ostatnia aktualizacja API"
             },
             "total_kwh_forecast_d3": {
@@ -243,6 +244,7 @@
     },
     "options": {
         "abort": {
+            "internal_error": "Wystąpił błąd wewnętrzny",
             "reconfigured": "Zastosowano nową konfigurację"
         },
         "error": {

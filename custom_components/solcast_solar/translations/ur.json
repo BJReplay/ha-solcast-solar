@@ -1,6 +1,7 @@
 {
     "config": {
         "abort": {
+            "internal_error": "اندرونی خرابی پیش آگئی ہے۔",
             "reconfigured": "نئی کنفیگریشن لاگو کر دی گئی۔",
             "reauth_successful": "نئی کلید کامیابی کے ساتھ لاگو ہو گئی۔",
             "single_instance_allowed": "صرف ایک سولکاسٹ مثال کی اجازت ہے۔"
@@ -65,7 +66,7 @@
             "forecast_this_hour": {
                 "name": "اس گھنٹے کی پیشن گوئی"
             },
-            "get_remaining_today": {
+            "forecast_remaining_today": {
                 "name": "آج باقی رہنے والی پیشن گوئی"
             },
             "forecast_next_hour": {
@@ -89,7 +90,7 @@
             "api_limit": {
                 "name": "API کی حد"
             },
-            "lastupdated": {
+            "last_updated": {
                 "name": "API کی آخری رائے شماری"
             },
             "total_kwh_forecast_d3": {
@@ -243,6 +244,7 @@
     },
     "options": {
         "abort": {
+            "internal_error": "اندرونی خرابی پیش آگئی ہے۔",
             "reconfigured": "نئی کنفیگریشن لاگو کر دی گئی۔"
         },
         "error": {

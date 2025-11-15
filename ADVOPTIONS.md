@@ -1,6 +1,6 @@
 # Advanced options
 
-It is possible to alter the behaviour of some integration functions by creating a file called `solcast-advanced.json` in the Home Assistant configuration directory.
+It is possible to alter the behaviour of some integration functions by creating a file called `solcast-advanced.json` in the Home Assistant configuration directory `solcast_solar` subdirectory.
 
 This file has a JSON structure of a dictionary containing key/value pairs.
 
@@ -13,9 +13,9 @@ Example:
 }
 ```
 
-Changes to this file will be detected in near-real time, changing code behaviour. The impact of that changed behaviour may only be seen at forecast or estimated actuals update. For other changes, setting `reload_on_advanced_change` can be set to `true` (see below), so that things like dampening modelling and entity set up can occur on reload.
+Changes to this file will be detected in near-real time, changing code behaviour. The impact of that changed behaviour may only be seen at forecast or estimated actuals update. For other changes, `reload_on_advanced_change` can be set to `true` (see below), so that things like dampening modelling and entity set up can occur on reload.
 
-The impact of not restarting will vary by advanced option, and you are left to decide when the outcome should occur; this is advanced, and _you_ are expected to be advanced about option application. If you're unsure then just set `reload_on_advanced_change` while testing.
+The impact of not restarting will vary by advanced option, and you are left to decide when the outcome should occur. This is advanced, and _you_ are expected to be advanced about option application. If you're unsure then just set `reload_on_advanced_change` while testing.
 
 Support for these advanced options will be limited. (Well, "support" for this integration is limited at the best of times. You expect it, yet we are not obliged to provide it; we endeavour to.)
 
@@ -80,7 +80,7 @@ Possible values: integer `1`..`21` (default `2`)
 
 Dampening modelling will skip intervals where there are a low number of matching generation samples for intervals. This is defaulted at two to get a "peak" generation value, but a value of one is also allowed for experimentation.
 
-Do not set this value higher than the number of past days considered for automated dampening.
+Do not set this value higher than the minimum matching intervals or the number of past days considered for automated dampening.
 
 **Key: "automated_dampening_minimum_matching_intervals"**
 
@@ -88,13 +88,13 @@ Possible values: integer `1`..`21` (default `2`)
 
 Dampening modelling will skip intervals where there are a low number of matching past intervals. A low number of matches are generally seen at the beginning and end of each day, and these are ignored by default.
 
-Do not set this value higher than the number of past days considered for automated dampening.
+Do not set this value lower than the minimum matching generation, or higher than the number of past days considered for automated dampening.
 
 **Key: "automated_dampening_model_days"**
 
 Possible values: integer `2`..`21` (default `14`)
 
-The number of days of past estimated actual and generation to use for modelling future dampening.
+The maximum number of days of past estimated actuals and generation to use for modelling future dampening.
 
 **Key: "automated_dampening_no_delta_corrections"**
 
@@ -106,9 +106,9 @@ If delta logarithmic adjustment of dampening factors is not desired then this op
 
 Possible values: boolean `true`/`false` (default `false`)
 
-Whenever export limiting of generation is seen (either by export limit detection, or manual limiting by using the entity `solcast_suppress_auto_dampening`) then all intervals of generation will be ignored over the period defined by "automated_dampening_model_days", which is `14` by default.
+Default limiting behaviour is that whenever export limiting of generation is seen (either by export limit detection, or manual limiting by using the entity `solcast_suppress_auto_dampening`) then all intervals of generation will be ignored over the period defined by `automated_dampening_model_days`, which is `14` by default.
 
-Said another way, if there is limiting detected for any interval on any day, then that interval will be ignored for every day of the past fourteen days.
+Said another way, the default behaviour is that if there is limiting detected for any interval on any day, then that interval will be ignored for every day of the past fourteen days.
 
 Set this option to `true` to prevent this behaviour.
 
@@ -116,9 +116,9 @@ Set this option to `true` to prevent this behaviour.
 
 Possible values: float `0.0`..`1.0` (default `0.9`)
 
-Estimated actual peaks are compared to find a similar number of "matching" peaks from which to compare maximum generation. By default this is intervals within 0.9 * peak that are considered.
+Estimated actual peaks are compared to find a similar number of "matching" peaks from which to compare maximum generation. By default this is intervals within `0.9 * peak` that are considered.
 
-This setting is variable by using this option.
+This option varies what is considered a similar interval from all modelled days.
 
 ## Estimated actuals
 
@@ -132,6 +132,22 @@ If automated dampening is enabled then modelling of new dampening factors will o
 
 If Home Assistant is restarted in the period between midnight and estimated actuals being retrieved then retrieval will be rescheduled.
 
+**Key: "estimated_actuals_log_ape_percentiles"**
+
+Possible values: list[int] (default [50])
+
+By default a 50th percentile Actual Percentage Error (APE) is logged on day change and at startup. Specify alternate or more percentiles to analyse with this option.
+
+**Key: "estimated_actuals_log_mape_breakdown"**
+
+Possible values: boolean `true`/`false` (default `false`)
+
+A Mean Actual Percentage Error (MAPE) value for estimated actuals vs. actual generation is logged on day change and at startup. Enable this option to also log the daily percentage error (APE).
+
+Both undampened and dampened are logged when automated dampening is enabled.
+
+Note: Totals for both generation and estimated actuals do not include half-hourly intervals that have experienced site export limiting.
+
 ## Forecasts
 
 **Key: "forecast_day_entities"**
@@ -142,11 +158,15 @@ The number of forecast day entities to create (plus one). By default seven entit
 
 An integration reload is required to vary the number of entities. New entities created will be disabled by default, and if this option is reduced then entities will be cleaned up.
 
+Do not set this value higher than the number of forecast future days.
+
 **Key: "forecast_future_days"**
 
 Possible values: integer `8`..`14` (default `14`)
 
 The number of days of forecasts to request from Solcast. Setting this lower than 14 will not remove forecasts already retrieved.
+
+Consider the setting of `forecast_day_entities` when lowering this option.
 
 **Key: "forecast_history_max_days"**
 

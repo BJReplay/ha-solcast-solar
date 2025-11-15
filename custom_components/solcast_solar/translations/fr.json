@@ -1,6 +1,7 @@
 {
     "config": {
         "abort": {
+            "internal_error": "Une erreur interne est survenue",
             "reconfigured": "Nouvelle configuration appliquée",
             "reauth_successful": "Nouvelle clé API appliquée avec succès",
             "single_instance_allowed": "Une seule instance Solcast autorisée"
@@ -65,7 +66,7 @@
             "forecast_this_hour": {
                 "name": "Prévisions heure actuel"
             },
-            "get_remaining_today": {
+            "forecast_remaining_today": {
                 "name": "Prévisions de production  restantes aujourd'hui"
             },
             "forecast_next_hour": {
@@ -89,7 +90,7 @@
             "api_limit": {
                 "name": "Limite API"
             },
-            "lastupdated": {
+            "last_updated": {
                 "name": "Dernière interrogation de l'API"
             },
             "total_kwh_forecast_d3": {
@@ -243,6 +244,7 @@
     },
     "options": {
         "abort": {
+            "internal_error": "Une erreur interne est survenue",
             "reconfigured": "Nouvelle configuration appliquée"
         },
         "error": {

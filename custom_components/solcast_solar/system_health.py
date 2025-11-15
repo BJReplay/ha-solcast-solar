@@ -7,7 +7,7 @@ from typing import Any
 from homeassistant.components import system_health
 from homeassistant.core import HomeAssistant, callback
 
-from .const import SOLCAST_URL
+from .const import SOLCAST_HTTPS_URL
 
 
 @callback
@@ -21,5 +21,5 @@ async def system_health_info(hass: HomeAssistant) -> dict[str, Any]:
     """Get info for the info page."""
 
     return {
-        "can_reach_server": system_health.async_check_can_reach_url(hass, SOLCAST_URL),
+        "can_reach_server": system_health.async_check_can_reach_url(hass, SOLCAST_HTTPS_URL),
     }

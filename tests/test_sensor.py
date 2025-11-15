@@ -8,6 +8,7 @@ import json
 import logging
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from freezegun.api import FrozenDateTimeFactory
 import pytest
@@ -20,6 +21,8 @@ from homeassistant.components.solcast_solar.const import (
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
     BRK_SITE,
+    CONFIG_DISCRETE_NAME,
+    CONFIG_FOLDER_DISCRETE,
     CUSTOM_HOUR_SENSOR,
     FORECAST_DAY_SENSORS,
     FORECAST_DAYS,
@@ -94,31 +97,31 @@ SENSORS: dict[str, dict[str, Any]] = {
         "can_be_unavailable": True,
     },
     "peak_time_today": {
-        "state": {"2": "2024-01-01T02:00:00+00:00", "1": "2024-01-01T02:00:00+00:00"},
+        "state": {"2": "2024-01-01T12:00:00+10:00", "1": "2024-01-01T12:00:00+10:00"},
         "attributes": {
             "2": {
-                "estimate": "2024-01-01T02:00:00+00:00",
-                "estimate10": "2024-01-01T02:00:00+00:00",
-                "estimate90": "2024-01-01T02:00:00+00:00",
+                "estimate": "2024-01-01T12:00:00+10:00",
+                "estimate10": "2024-01-01T12:00:00+10:00",
+                "estimate90": "2024-01-01T12:00:00+10:00",
             },
             "1": {
-                "estimate": "2024-01-01T02:00:00+00:00",
-                "estimate10": "2024-01-01T02:00:00+00:00",
-                "estimate90": "2024-01-01T02:00:00+00:00",
+                "estimate": "2024-01-01T12:00:00+10:00",
+                "estimate10": "2024-01-01T12:00:00+10:00",
+                "estimate90": "2024-01-01T12:00:00+10:00",
             },
         },
         "breakdown": {
             "1": {
-                "1111_1111_1111_1111": "2024-01-01T02:00:00+00:00",
-                "estimate_1111_1111_1111_1111": "2024-01-01T02:00:00+00:00",
-                "estimate10_1111_1111_1111_1111": "2024-01-01T02:00:00+00:00",
-                "estimate90_1111_1111_1111_1111": "2024-01-01T02:00:00+00:00",
+                "1111_1111_1111_1111": "2024-01-01T12:00:00+10:00",
+                "estimate_1111_1111_1111_1111": "2024-01-01T12:00:00+10:00",
+                "estimate10_1111_1111_1111_1111": "2024-01-01T12:00:00+10:00",
+                "estimate90_1111_1111_1111_1111": "2024-01-01T12:00:00+10:00",
             },
             "2": {
-                "2222_2222_2222_2222": "2024-01-01T02:00:00+00:00",
-                "estimate_2222_2222_2222_2222": "2024-01-01T02:00:00+00:00",
-                "estimate10_2222_2222_2222_2222": "2024-01-01T02:00:00+00:00",
-                "estimate90_2222_2222_2222_2222": "2024-01-01T02:00:00+00:00",
+                "2222_2222_2222_2222": "2024-01-01T12:00:00+10:00",
+                "estimate_2222_2222_2222_2222": "2024-01-01T12:00:00+10:00",
+                "estimate10_2222_2222_2222_2222": "2024-01-01T12:00:00+10:00",
+                "estimate90_2222_2222_2222_2222": "2024-01-01T12:00:00+10:00",
             },
         },
         "can_be_unavailable": True,
@@ -240,31 +243,31 @@ SENSORS: dict[str, dict[str, Any]] = {
         "can_be_unavailable": True,
     },
     "peak_time_tomorrow": {
-        "state": {"2": "2024-01-01T02:00:00+00:00", "1": "2024-01-01T02:00:00+00:00"},
+        "state": {"2": "2024-01-01T12:00:00+10:00", "1": "2024-01-01T12:00:00+10:00"},
         "attributes": {
             "2": {
-                "estimate": "2024-01-01T02:00:00+00:00",
-                "estimate10": "2024-01-01T02:00:00+00:00",
-                "estimate90": "2024-01-01T02:00:00+00:00",
+                "estimate": "2024-01-01T12:00:00+10:00",
+                "estimate10": "2024-01-01T12:00:00+10:00",
+                "estimate90": "2024-01-01T12:00:00+10:00",
             },
             "1": {
-                "estimate": "2024-01-01T02:00:00+00:00",
-                "estimate10": "2024-01-01T02:00:00+00:00",
-                "estimate90": "2024-01-01T02:00:00+00:00",
+                "estimate": "2024-01-01T12:00:00+10:00",
+                "estimate10": "2024-01-01T12:00:00+10:00",
+                "estimate90": "2024-01-01T12:00:00+10:00",
             },
         },
         "breakdown": {
             "1": {
-                "1111_1111_1111_1111": "2024-01-01T02:00:00+00:00",
-                "estimate_1111_1111_1111_1111": "2024-01-01T02:00:00+00:00",
-                "estimate10_1111_1111_1111_1111": "2024-01-01T02:00:00+00:00",
-                "estimate90_1111_1111_1111_1111": "2024-01-01T02:00:00+00:00",
+                "1111_1111_1111_1111": "2024-01-01T12:00:00+10:00",
+                "estimate_1111_1111_1111_1111": "2024-01-01T12:00:00+10:00",
+                "estimate10_1111_1111_1111_1111": "2024-01-01T12:00:00+10:00",
+                "estimate90_1111_1111_1111_1111": "2024-01-01T12:00:00+10:00",
             },
             "2": {
-                "2222_2222_2222_2222": "2024-01-01T02:00:00+00:00",
-                "estimate_2222_2222_2222_2222": "2024-01-01T02:00:00+00:00",
-                "estimate10_2222_2222_2222_2222": "2024-01-01T02:00:00+00:00",
-                "estimate90_2222_2222_2222_2222": "2024-01-01T02:00:00+00:00",
+                "2222_2222_2222_2222": "2024-01-01T12:00:00+10:00",
+                "estimate_2222_2222_2222_2222": "2024-01-01T12:00:00+10:00",
+                "estimate10_2222_2222_2222_2222": "2024-01-01T12:00:00+10:00",
+                "estimate90_2222_2222_2222_2222": "2024-01-01T12:00:00+10:00",
             },
         },
         "can_be_unavailable": True,
@@ -385,7 +388,10 @@ async def test_sensor_states(  # noqa: C901
         return estimate_set
 
     try:
-        Path(f"{hass.config.config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
+        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+        if CONFIG_FOLDER_DISCRETE:
+            Path(config_dir).mkdir(parents=False, exist_ok=True)
+        Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
 
         entry = await async_init_integration(hass, settings)
         freezer.move_to(dt.now() + timedelta(minutes=1))
@@ -468,7 +474,7 @@ async def test_sensor_states(  # noqa: C901
                 test = state.state
                 with contextlib.suppress(AttributeError, ValueError):
                     testd = dt.fromisoformat(test)
-                    test = testd.replace(year=2024, month=1, day=1).isoformat()
+                    test = testd.replace(year=2024, month=1, day=1).astimezone(ZoneInfo(hass.config.time_zone)).isoformat()
                 if attrs["state"][key] == "isodate":
                     assert dt.fromisoformat(test)
                 else:

@@ -766,7 +766,7 @@ Here is a likely implementation sequence:
 
 * 1. Create the templated `solcast_suppress_auto_dampening` entity.
 * 2. Turn off automated dampening because it will be broken and confusing (but it was already broken and confusing before because you can't export or choose not to because negative wholesale price.)
-* 3. Delete your `/config/solcast-generation.json` file. Any history is likely going to taint automated dampening results.
+* 3. Delete your `/config/solcast_solar/solcast-generation.json` file. Any history is likely going to taint automated dampening results.
 * 4. Ensure that recorder is configured with `purge_keep_days` of at least seven. When automated dampening is enabled it will attempt to load up to seven days of generation history. Let it when the time comes. If you usually purge more aggressively then it can always be changed back in a week. (You do not need to disable acquisition of estimated actuals.)
 * 5. Completely restart HA to enable the recorder setting and get the Solcast integration to understand that generation data is now missing.
 * 6. Wait patiently for one week to build history for the new entity.
@@ -982,7 +982,7 @@ Selecting sites to exclude and clicking `SUBMIT` will take effect immediately. I
 
 It is possible to change the behaviour of some integration functions, most notably for integrated automated dampening.
 
-These options may be set by creating a file called `solcast-advanced.json` in the Home Assistant configuration directory (usually `/config`).
+These options may be set by creating a file called `solcast-advanced.json` in the Home Assistant Solcast Solar configuration directory (usually `/config/solcast_solar`).
 
 For the available options, see the documentation at [Advanced options](https://github.com/BJReplay/ha-solcast-solar/blob/main/ADVOPTIONS.md).
 
@@ -1231,7 +1231,7 @@ To completely remove all traces of the integration start with navigating to `Set
 
 At this point the configuration settings have been reset, but the code and forecast information caches will still exist (setting up the integration again will re-use this cached data, which may or may not be desirable).
 
-The caches reside in the Home Assistant configuration folder (usually `/config/` or `/homeassistant/`, but its location can vary based on Home Assistant deployment type). These files are named after the integration, and may be removed with `rm solcast*.json`.
+The caches reside in the Home Assistant Solcast Solar configuration folder (usually `/config/solcast_solar` or `/homeassistant/solcast_solar`, but its location can vary based on Home Assistant deployment type). These files are named after the integration, and may be removed with `rm solcast*.json`.
 
 The code itself resides at `/config/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
 
@@ -1239,11 +1239,15 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 v4.4.8
 
+* Move all cache and configuration files to `config/solcast_solar` by @autoSteve
 * Ignore adjusted automated dampening factors above 'insignificant' threshold by @autoSteve
 * Add advanced auto-dampen option 'insignificant factor adjusted' by @autoSteve
 * Add advanced auto-dampen option 'similar peak' by @autoSteve
-* Add advanced estimated actuals 'fetch delay' by @autoSteve
+* Add advanced estimated actuals option 'log mape breakdown' by @autoSteve
+* Add advanced estimated actuals option 'log ape percentiles' by @autoSteve
+* Add advanced estimated actuals option 'fetch delay' by @autoSteve
 * Modify advanced auto-dampen option 'minimum matching intervals' to accept `1` by @autoSteve
+* Attribute consistency as local time zone for datetime values by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.7...v4.4.8
 

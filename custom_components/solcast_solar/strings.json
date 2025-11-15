@@ -1,6 +1,7 @@
 {
     "config": {
         "abort": {
+            "internal_error": "Internal error occurred",
             "reconfigured": "New configuration applied successfully",
             "reauth_successful": "New API key applied successfully",
             "single_instance_allowed": "Only one Solcast instance allowed"
@@ -62,7 +63,7 @@
             "forecast_this_hour": {
                 "name": "Forecast This Hour"
             },
-            "get_remaining_today": {
+            "forecast_remaining_today": {
                 "name": "Forecast Remaining Today"
             },
             "hard_limit": {
@@ -71,7 +72,7 @@
             "hard_limit_api": {
                 "name": "Hard Limit Set {api_key}"
             },
-            "lastupdated": {
+            "last_updated": {
                 "name": "API Last Polled"
             },
             "peak_w_time_today": {
@@ -243,6 +244,7 @@
     },
     "options": {
         "abort": {
+            "internal_error": "Internal error occurred",
             "reconfigured": "New configuration applied successfully"
         },
         "error": {

@@ -44,6 +44,8 @@ query_estimate_data:
       example: "2024-10-06T10:00:00Z"
       selector:
         datetime:
+    undampened:
+      example: "false"
 
 set_dampening:
   name: Set forecasts dampening

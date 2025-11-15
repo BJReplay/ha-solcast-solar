@@ -26,6 +26,12 @@
             "total_kwh_forecast_d5": {"default": "mdi:solar-power"},
             "total_kwh_forecast_d6": {"default": "mdi:solar-power"},
             "total_kwh_forecast_d7": {"default": "mdi:solar-power"},
+            "total_kwh_forecast_d8": {"default": "mdi:solar-power"},
+            "total_kwh_forecast_d9": {"default": "mdi:solar-power"},
+            "total_kwh_forecast_d10": {"default": "mdi:solar-power"},
+            "total_kwh_forecast_d11": {"default": "mdi:solar-power"},
+            "total_kwh_forecast_d12": {"default": "mdi:solar-power"},
+            "total_kwh_forecast_d13": {"default": "mdi:solar-power"},
             "total_kwh_forecast_today": {"default": "mdi:solar-power"},
             "total_kwh_forecast_tomorrow": {"default": "mdi:solar-power"}
         }

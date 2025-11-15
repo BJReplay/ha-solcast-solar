@@ -15,6 +15,8 @@ from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
     AUTO_DAMPEN,
     AUTO_UPDATE,
+    CONFIG_DISCRETE_NAME,
+    CONFIG_FOLDER_DISCRETE,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
     GET_ACTUALS,
@@ -91,7 +93,10 @@ async def test_auto_dampen_dst_transition(
         options[SITE_EXPORT_LIMIT] = 5.0
         expected_value = 0.797
 
-        Path(f"{hass.config.config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
+        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+        if CONFIG_FOLDER_DISCRETE:
+            Path(config_dir).mkdir(parents=False, exist_ok=True)
+        Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
 
         # Test transition from standard to summer time.
         freezer.move_to("2025-10-02 18:00:00")
@@ -115,7 +120,7 @@ async def test_auto_dampen_dst_transition(
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:
                 break
-        assert f"Adjusted granular dampening factor for 2025-10-04 09:00:00 is {expected_value}" in caplog.text
+        assert f"Adjusted granular dampening factor for 2025-10-04 09:00:00, {expected_value}" in caplog.text
         assert f"Auto-dampen factor for 09:00 is {expected_value}" in caplog.text
         caplog.clear()
         await five_minute_bump(hass, freezer, caplog)
@@ -139,7 +144,7 @@ async def test_auto_dampen_dst_transition(
             if "Applying future dampening" in caplog.text:
                 break
         assert f"Auto-dampen factor for 10:00 is {expected_value}" in caplog.text
-        assert f"Adjusted granular dampening factor for 2025-10-05 10:00:00 is {expected_value}" in caplog.text
+        assert f"Adjusted granular dampening factor for 2025-10-05 10:00:00, {expected_value}" in caplog.text
         caplog.clear()
         await five_minute_bump(hass, freezer, caplog)
         if (state := hass.states.get(dampening_entity)) is not None:
@@ -192,7 +197,10 @@ async def test_auto_dampen_dst_transition_back(
         options[SITE_EXPORT_LIMIT] = 5.0
         expected_value = 0.797
 
-        Path(f"{hass.config.config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
+        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+        if CONFIG_FOLDER_DISCRETE:
+            Path(config_dir).mkdir(parents=False, exist_ok=True)
+        Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
 
         # Test transition from summer to standard time.
         freezer.move_to("2026-04-02 18:00:00")
@@ -216,7 +224,7 @@ async def test_auto_dampen_dst_transition_back(
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:
                 break
-        assert f"Adjusted granular dampening factor for 2026-04-04 10:00:00 is {expected_value}" in caplog.text
+        assert f"Adjusted granular dampening factor for 2026-04-04 10:00:00, {expected_value}" in caplog.text
         caplog.clear()
         await five_minute_bump(hass, freezer, caplog)
         if (state := hass.states.get(dampening_entity)) is not None:
@@ -238,7 +246,7 @@ async def test_auto_dampen_dst_transition_back(
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:
                 break
-        assert f"Adjusted granular dampening factor for 2026-04-05 09:00:00 is {expected_value}" in caplog.text
+        assert f"Adjusted granular dampening factor for 2026-04-05 09:00:00, {expected_value}" in caplog.text
         caplog.clear()
         await five_minute_bump(hass, freezer, caplog)
         if (state := hass.states.get(dampening_entity)) is not None:
