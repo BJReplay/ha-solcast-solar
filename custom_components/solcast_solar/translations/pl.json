@@ -213,7 +213,7 @@
     "issues": {
         "records_missing": {
             "title": "Brak prognoz na przyszłość",
-            "description": "Brak danych prognozy na przyszłość, co jest nieoczekiwane, ponieważ włączona jest automatyczna aktualizacja."
+            "description": "Brakuje danych prognozy na przyszłość, co jest nieoczekiwane, ponieważ automatyczna aktualizacja jest włączona. Zbadaj przyczynę, sprawdzając dziennik Home Assistanta. Przeczytaj FAQ dotyczące rozwiązywania problemów przed zgłoszeniem problemu z integracją."
         },
         "records_missing_fixable": {
             "title": "Brak prognoz na przyszłość",

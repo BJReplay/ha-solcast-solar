@@ -213,7 +213,7 @@
     "issues": {
         "records_missing": {
             "title": "Previsioni future mancanti",
-            "description": "I dati delle previsioni future sono mancanti, il che è inaspettato perché l'aggiornamento automatico è abilitato."
+            "description": "I dati delle previsioni future mancano, il che è inaspettato perché l'aggiornamento automatico è attivato. Indaga sulla causa esaminando il registro di Home Assistant. Leggi le FAQ sulla risoluzione dei problemi prima di segnalare un problema di integrazione."
         },
         "records_missing_fixable": {
             "title": "Previsioni future mancanti",

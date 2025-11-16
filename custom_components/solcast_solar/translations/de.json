@@ -213,7 +213,7 @@
     "issues": {
         "records_missing": {
             "title": "Zukunftsprognosen fehlen",
-            "description": "Zukünftige Prognosedaten fehlen, was unerwartet ist, da die automatische Aktualisierung aktiviert ist."
+            "description": "Zukünftige Vorhersagedaten fehlen, was unerwartet ist, da die automatische Aktualisierung aktiviert ist. Untersuche die Ursache, indem du das Log von Home Assistant überprüfst. Lies die FAQ zur Fehlerbehebung, bevor du ein Integrationsproblem meldest."
         },
         "records_missing_fixable": {
             "title": "Zukunftsprognosen fehlen",

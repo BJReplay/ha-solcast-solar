@@ -212,7 +212,7 @@
     },
     "issues": {
         "records_missing": {
-            "description": "Future forecast data is missing, which is unexpected because auto-update is enabled.",
+            "description": "Future forecast data is missing, which is unexpected because auto-update is enabled. Investigate the cause by examining the Home Assistant log. Read the troubleshooting FAQ before raising an integration issue.",
             "title": "Future forecasts missing"
         },
         "records_missing_fixable": {

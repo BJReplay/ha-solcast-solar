@@ -213,7 +213,7 @@
     "issues": {
         "records_missing": {
             "title": "Predpovede do budúcnosti chýbajú",
-            "description": "Údaje budúcej prognózy chýbajú, čo je neočakávané, pretože je povolená automatická aktualizácia."
+            "description": "Chýbajú údaje o budúcej predpovedi, čo je nečakané, pretože je povolená automatická aktualizácia. Preskúmajte príčinu skúmaním záznamu Home Assistant. Pred nahlásením problému s integráciou si prečítajte často kladené otázky o riešení problémov."
         },
         "records_missing_fixable": {
             "title": "Predpovede do budúcnosti chýbajú",

@@ -213,7 +213,7 @@
     "issues": {
         "records_missing": {
             "title": "Faltan previsiones de futuro",
-            "description": "Faltan datos de pronóstico futuro, lo cual es inesperado porque la actualización automática está habilitada."
+            "description": "Faltan los datos de pronóstico futuro, lo cual es inesperado porque la actualización automática está activada. Investiga la causa examinando el registro de Home Assistant. Lee las preguntas frecuentes de solución de problemas antes de plantear un problema de integración."
         },
         "records_missing_fixable": {
             "title": "Faltan previsiones de futuro",
