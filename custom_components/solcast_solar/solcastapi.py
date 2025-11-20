@@ -3144,7 +3144,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         )
 
                         _LOGGER.debug(
-                            "Selected estimated actuals for %s: %s", interval_time, ", ".join(str(round(act,3) for act in actual_samples))
+                            "Selected estimated actuals for %s: %s", interval_time, actual_samples)
                             )
                         _LOGGER.debug(
                             "Selected generation for %s: %s", interval_time, generation_samples)
