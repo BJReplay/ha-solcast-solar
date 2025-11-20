@@ -47,6 +47,7 @@ from .const import (
     ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_CORRECTIONS,
     ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY,
+    ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK,
     ADVANCED_FORECAST_FUTURE_DAYS,
     ADVANCED_FORECAST_HISTORY_MAX_DAYS,
@@ -3102,9 +3103,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         # Defaults.
         dampening: list[float] = [1.0] * 48
+        preserved_msg = "Dampening factors carried forward"
+        log_preserved_msg = False
 
         # Check the generation for each interval and determine if it is consistently lower than the peak.
         for interval, matching in matching_intervals.items():
+
+            # Get current factor if possible
+
+            try:
+                prior_factor = self.granular_dampening[ALL][interval]
+            except:
+                prior_factor = 1
+
             generation_samples: list[float] = [
                 generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
             ]
@@ -3139,10 +3150,28 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             dampening[interval] = round(factor, 3)
                         else:
                             msg = f"Not enough reliable generation samples for {interval_time} to determine dampening ({len(generation_samples)})"
+                            if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]:
+                                dampening[interval] = prior_factor
+                                if prior_factor != 1:
+                                    msg = msg + f", preserving prior factor {prior_factor:.3f}"
+                                    preserved_msg = preserved_msg + f", {interval_time} : {prior_factor:.3f}"
+                                    log_preserved_msg = True
                     else:
                         log_msg = False
+                else:
+                    msg = f"Not enough matching intervals for {interval_time} to determine dampening"
+                    if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]:
+                        dampening[interval] = prior_factor
+                        if prior_factor != 1:
+                            msg = msg + f", preserving prior factor {prior_factor:.3f}"
+                            preserved_msg = preserved_msg + f", {interval_time} : {factor:.3f}"
+                            log_preserved_msg = True                       
                 if log_msg:
                     _LOGGER.debug(msg)
+
+
+        if log_preserved_msg:
+            _LOGGER.warning (preserved_msg)
 
         if dampening != self.granular_dampening.get(ALL):
             self.granular_dampening[ALL] = dampening
@@ -3443,6 +3472,24 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 interval_time = period_start.astimezone(self._tz).strftime(DATE_FORMAT)
                 factor_pre_adjustment = factor
                 match self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL]:
+                    case 1:
+                        # Adjust the factor based on forecast vs. peak interval delta exponentially.
+                        factor = max(factor, factor + ((1 - factor) * ((1-(interval_pv50/self._peak_intervals[interval]))**2)))
+                        if record_adjustment and period_start.astimezone(self._tz).date() == dt.now(self._tz).date():
+                            _LOGGER.debug(
+                                "%sdjusted granular dampening factor for %s, %.3f (was %.3f, peak %.3f, interval pv50 %.3f)",
+                                "Ignoring insignificant a"
+                                if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED] <= factor < 1.0
+                                else "A",
+                                interval_time,
+                                factor,
+                                factor_pre_adjustment,
+                                self._peak_intervals[interval],
+                                interval_pv50,
+                            )
+                        if factor >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED]:
+                            factor = 1.0
+
                     case _:
                         # Adjust the factor based on forecast vs. peak interval delta-logarithmically.
                         factor = max(
