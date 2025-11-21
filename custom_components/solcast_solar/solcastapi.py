@@ -3110,21 +3110,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         # Check the generation for each interval and determine if it is consistently lower than the peak.
         for interval, matching in matching_intervals.items():
 
-            # Get current factor if possible
-
-            try:
-                prior_factor = self.granular_dampening[ALL][interval]
-            except:
-                prior_factor = 1
-
-            generation_samples: list[float] = [
-                generation.get(timestamp, 0.0) for timestamp in matching #if generation.get(timestamp, 0.0) != 0.0
-            ]
-
-            actual_samples: list[float] = [
-                actuals.get(timestamp, 0.0) for timestamp in matching #if actuals.get(timestamp, 0.0) != 0.0
-            ]
-            
+            # Get current factor if required
+            if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]:
+                prior_factor = self.granular_dampening[ALL][interval] if self.granular_dampening.get(ALL) is not None else 1.0
+           
             dst_offset = (
                 1 if self.dst(dt.now(self._tz).replace(hour=interval // 2, minute=30 * (interval % 2), second=0, microsecond=0)) else 0
             )
@@ -3143,9 +3132,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
                         )
 
+                        actual_samples: list[float] = [
+                           actuals.get(timestamp, 0.0) for timestamp in matching 
+                        ]
+
                         _LOGGER.debug(
-                            "Selected estimated actuals for %s: %s", interval_time, actual_samples)
-                            
+                            "Selected estimated actuals for %s: %s",
+                            interval_time,
+                            ", ".join(f"{act:.3f}" for act in actual_samples),
+                        )
+                        
+                        generation_samples: list[float] = [
+                            generation.get(timestamp, 0.0) for timestamp in matching 
+                        ]
+
                         _LOGGER.debug(
                             "Selected generation for %s: %s", interval_time, generation_samples)
                         
@@ -3196,6 +3196,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             len(matching),
                             ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
                         )
+
+                        generation_samples: list[float] = [
+                            generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
+                        ]
+
                         peak = max(generation_samples) if len(generation_samples) > 0 else 0.0
                         _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
                         msg = f"Not enough matching intervals for {interval_time} to determine dampening"
