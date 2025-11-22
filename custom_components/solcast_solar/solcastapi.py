@@ -3122,9 +3122,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.debug("Interval %s is intentionally ignored, skipping", interval_time)
                 continue
 
+            
+            generation_samples: list[float] = [
+                generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
+            ]
+
+            preserve_this_interval = False
+
             if len(matching) > 0:            
                 match self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]:
-                    case 1 | 2:
+                    case 1 | 2 | 3:
                         _LOGGER.debug(
                             "Interval %s has %d matching intervals: %s",
                             interval_time,
@@ -3133,7 +3140,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         )
 
                         actual_samples: list[float] = [
-                           actuals.get(timestamp, 0.0) for timestamp in matching 
+                           actuals.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
                         ]
 
                         _LOGGER.debug(
@@ -3142,10 +3149,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             ", ".join(f"{act:.3f}" for act in actual_samples),
                         )
                         
-                        generation_samples: list[float] = [
-                            generation.get(timestamp, 0.0) for timestamp in matching 
-                        ]
-
                         _LOGGER.debug(
                             "Selected generation for %s: %s", interval_time, generation_samples)
                         
@@ -3157,15 +3160,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             else:
                                 raw_factors: list[float] = []
                                 for act, gen in zip(actual_samples, generation_samples):
-                                    raw_factors.append(round(min(gen / act,1),3)) if act > 0 else 1
+                                    raw_factors.append(min(gen / act,1.0)) if act > 0 else 1.0
 
-                            _LOGGER.debug("Raw factors for %s: %s", interval_time, raw_factors) 
+                            _LOGGER.debug("Raw factors for %s: %s", 
+                                          interval_time, 
+                                          ", ".join(f"{fact:.3f}" for fact in raw_factors),
+                                          ) 
 
                             match self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]:
                                 case 1: # max factor from matched pairs
                                     factor = max(raw_factors)
                                 case 2: # average factor from matched pairs
                                     factor = sum(raw_factors) / len(raw_factors)
+                                case 3: # min factor from matched pairs
+                                    factor = min(raw_factors)      
 
                             factor = round(factor,3) if factor > 0 else 1.0
 
@@ -3179,13 +3187,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     
                         else:
                             msg = f"Not enough matching intervals for {interval_time} to determine dampening"
-                            if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]:
-                                dampening[interval] = prior_factor
-                                if prior_factor != 1:
-                                    msg = msg + f", preserving prior factor {prior_factor:.3f}"
-                                    preserved_msg = preserved_msg + f", {interval_time} : {prior_factor:.3f}"
-                                    log_preserved_msg = True    
-
+                            preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]                               
                         
                     case _:
                     
@@ -3196,10 +3198,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             len(matching),
                             ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
                         )
-
-                        generation_samples: list[float] = [
-                            generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
-                        ]
 
                         peak = max(generation_samples) if len(generation_samples) > 0 else 0.0
                         _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
@@ -3217,28 +3215,27 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     dampening[interval] = round(factor, 3)
                                 else:
                                     msg = f"Not enough reliable generation samples for {interval_time} to determine dampening ({len(generation_samples)})"
-                                    if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]:
-                                        dampening[interval] = prior_factor
-                                        if prior_factor != 1:
-                                            msg = msg + f", preserving prior factor {prior_factor:.3f}"
-                                            preserved_msg = preserved_msg + f", {interval_time} : {prior_factor:.3f}"
-                                            log_preserved_msg = True
+                                    preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
+                                        
                             else:
                                 log_msg = False
                         else:
                             msg = f"Not enough matching intervals for {interval_time} to determine dampening"
-                            if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]:
-                                dampening[interval] = prior_factor
-                                if prior_factor != 1:
-                                    msg = msg + f", preserving prior factor {prior_factor:.3f}"
-                                    preserved_msg = preserved_msg + f", {interval_time} : {factor:.3f}"
-                                    log_preserved_msg = True                       
+                            preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
+
+                if preserve_this_interval:
+                    dampening[interval] = prior_factor
+                    if prior_factor != 1:
+                        msg = msg + f", preserving prior factor {prior_factor:.3f}"
+                        preserved_msg = preserved_msg + f" {interval_time} : {prior_factor:.3f},"
+                        log_preserved_msg = True 
+
                 if log_msg:
                     _LOGGER.debug(msg)
 
 
         if log_preserved_msg:
-            _LOGGER.warning (preserved_msg)
+            _LOGGER.warning(preserved_msg[:-1]) #remove trailing comma
 
         if dampening != self.granular_dampening.get(ALL):
             self.granular_dampening[ALL] = dampening
