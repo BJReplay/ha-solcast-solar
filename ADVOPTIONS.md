@@ -38,9 +38,19 @@ You are free to raise an issue should a code exception occur after setting an ad
 
 **Key: "automated_dampening_delta_adjustment_model"**
 
-Possible values: integer `0` (default `0`)
+Possible values: integer `0`,`1` (default `0`)
 
-This option presently does nothing. It is reserved to accommodate the addition of alternatives to the present delta logarithmic adjustment of dampening factors where forecast deviates from matching past intervals.
+Allows the selection of different calculations to nudge the base dampening factors closer to 1.0 when forecast generation for an interval is below the recent peak.
+
+Option 0 selects a logarithmic difference adjustment:
+
+    adjusted_factor = base_factor + ((1 - base_factor) * (ln(interval_peak) - ln(interval_forecast)))
+   
+Option 1 selects an exponential adjustment
+
+    adjusted_factor = base_factor + ((1 - base_factor) * ((1-(interval_forecast/interval_peak))^2))
+   
+Adjusted factors are constrained to lie within the range 0 to 1.
 
 **Key: "automated_dampening_generation_fetch_delay"**
 
@@ -99,6 +109,16 @@ Possible values: integer `1`..`21` (default `2`)
 Dampening modelling will skip intervals where there are a low number of matching past intervals. A low number of matches are generally seen at the beginning and end of each day, and these are ignored by default.
 
 This value must be greater than or equal to the minimum matching generation, or higher than the number of past days considered for automated dampening.
+
+**Key: "automated_dampening_model"**
+
+Possible values: integer `0`..`3` (default `0`)
+
+Selects the algorithm to be used to determine automated dampening factors
+
+Option 0 is the default model described in the documentation.  This first identifies the peak estimated actual for each interval from the lest ```automated_dampening_model_days```.  Matching intervals are then identified as days where the estimated actual is within ```automated_dampening_similar_peak``` of the peak.  The peak generation from those matching intervals is then used to calculate a dampening factor as ```peak_generation/peak_estimated_actual```
+
+Options 1 to 3 follow a similar approach to the above, but calculate a list of raw factors from each matching interval's generation and estimate actual.  Option 1 then returns the maximum of those raw factors, Option 2 returns the mean and Option 3 returns the minimum.  Option 1 can be thought of as a best case scenario which will tend to give a higher forecast than Option 2, with Option 3 as the worst case scenario giving the lowest forecast.      
 
 **Key: "automated_dampening_model_days"**
 
