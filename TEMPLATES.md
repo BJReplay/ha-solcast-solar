@@ -15,6 +15,7 @@ Jinja2 templates are super handy to use when building template sensors, but don'
     1. [Combining data from multiple sites](#combining-data-from-multiple-sites)
     1. [Visualising multiple days of PV generation forecast](#visualising-multiple-days-of-pv-generation-forecast)
     1. [Visualising automated dampening factors](#visualising-automated-dampening-factors)
+    1. [Adding undampened solar prediction to PV Power chart](#visualising-undampened-solar-forecast)
 1. [Advanced examples](#advanced-exmaples)
     1. [Virtual Power Plant adaptive battery discharge](#virtual-power-plant-adaptive-battery-discharge)
     1. [A scale-modifying Apex chart](#a-scale-modifying-apex-chart)
@@ -219,6 +220,38 @@ This chart shows both sets of dampening factors described above.
 
 <img width="670" height="465" alt="image" src=".github/SCREENSHOTS/dampening_chart.png" />
 
+
+### Visualising undampened solar forecast
+
+**Scenario**: You have created the [Sample Apex dashboard chart](README.md#sample-apex-chart-for-dashboard) to show a graph of today's PV generation, PV forecast and PV10 forecast.
+
+You are using [automated dampening](README.md#automated-dampening) to adjust your solar forecast based upon actual PV generation compared to estimated actuals, and want to visualise the undampened solar forecast on your Apex chart.
+
+Add the following **additional** YAML code to your Apex chart:
+
+```yaml
+  - entity: sensor.solcast_pv_forecast_forecast_today
+    name: Undampened
+    color: Blue
+    opacity: 0.7
+    stroke_width: 2
+    stroke_dash: 6
+    type: line
+    time_delta: +15min
+    extend_to: false
+    yaxis_id: kWh
+    show:
+      legend_value: false
+      in_header: false
+    data_generator: |
+      return entity.attributes.detailedForecast.map((entry) => {
+            return [new Date(entry.period_start), entry.pv_estimate/entry.dampening_factor];
+          });
+```
+
+This adds the undamped forecast as a blue dashed line:
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/undampened_forecast_today.jpeg">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/undampened_forecast_today.jpeg)
 
 
 ## Advanced examples
