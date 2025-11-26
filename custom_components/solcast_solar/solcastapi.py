@@ -3126,16 +3126,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             ]
             preserve_this_interval = False           
             if len(matching) > 0:
-                _LOGGER.debug(
-                    "Interval %s has %d matching intervals: %s",
-                    interval_time,
-                    len(matching),
-                    ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
-                )
                 msg = f"Not enough matching intervals for {interval_time} to determine dampening"
                 log_msg = True            
                 match self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]:
                     case 1 | 2 | 3:
+                        _LOGGER.debug(
+                            "Interval %s has %d matching intervals: %s",
+                            interval_time,
+                            len(matching),
+                            ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
+                        )
                         if len(matching) >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS]:
                             actual_samples: list[float] = [
                             actuals.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
@@ -3180,6 +3180,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             msg = f"Not enough matching intervals for {interval_time} to determine dampening"
                             preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
                     case _:
+                        _LOGGER.debug(
+                            "Interval %s has peak estimated actual %.3f and %d matching intervals: %s",
+                            interval_time,
+                            self._peak_intervals[interval],
+                            len(matching),
+                            ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
+                        )
                         peak = max(generation_samples) if len(generation_samples) > 0 else 0.0
                         _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
                         if len(matching) >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS]:
