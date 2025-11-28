@@ -52,7 +52,7 @@ Option `1` selects an exponential adjustment
    
 Adjusted dampening factors are constrained to lie within the range 0 to 1.  The chart below illustrates the behaviour of the two different adjustment calculations for base factors of 0.5 and 0.9.  As the forecast generation decreases in relation to the recent generation peak the logarithmic calculation tends to give a higher adjusted factor than the exponential calculation.  The logarithmic calculation gives an adjusted factor of 1.0 for any forecast below around 36% of the peak whereas the adjusted factor from the exponential calculation only approaches 1.0 as forecast generation approaches 0.
 
-<img width="675"  alt="Dampeningcomparison" src=".github/SCREENSHOTS/Dampeningcomparison.png" />
+<img width="675"  alt="Dampening comparison" src=".github/SCREENSHOTS/Dampeningcomparison.png" />
 
 **Key: "automated_dampening_generation_fetch_delay"**
 
@@ -118,9 +118,9 @@ Possible values: integer `0`..`3` (default `0`)
 
 Selects the algorithm to be used to determine automated dampening factors.
 
-Option `0` is the default model described in the documentation.  This first identifies the peak estimated actual for each interval from the last ```automated_dampening_model_days```.  Matching intervals are then identified as days where the estimated actual is within ```automated_dampening_similar_peak``` days of the peak.  The peak generation from those matching intervals is then used to calculate a dampening factor as ```peak_generation/peak_estimated_actual```.  In this model it is possible the peak estimated actual and peak generation occur on different days.
+Option `0` is the default model described in the documentation.  This first identifies the peak estimated actual for each interval from the last ```automated_dampening_model_days```.  Matching intervals are then identified as days where the estimated actual is within ```automated_dampening_similar_peak``` days of the peak.  The peak generation from those matching intervals is then used to calculate a dampening factor as ```peak_generation/peak_estimated_actual```.  In this model it is possible that the peak estimated actual and peak generation occur on different days.
 
-Options `1` to `3` follow a similar approach to the above, but calculate a list of raw factors from the paired generation and estimate actual data in each matching interval, so each raw_factor is calculated from a single day.  
+Options `1` to `3` follow a similar approach to the above, but calculate a list of raw factors from the paired generation and estimate actual data in each matching interval, so each raw factor is calculated from a single day.  
 
 - Option `1` then returns the maximum of those raw factors.
 - Option `2` returns the mean of the raw factors.
