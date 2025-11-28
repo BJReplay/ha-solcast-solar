@@ -42,17 +42,19 @@ Possible values: integer `0`,`1` (default `0`)
 
 Allows the selection of different calculations to nudge the base dampening factors closer to 1.0 when forecast generation for an interval is below the recent peak.
 
-Option `0` selects a logarithmic difference adjustment:
+Option `0` selects an adjustment based on the logarithmic difference between peak and forecast:
 
     adjusted_factor = base_factor + ((1 - base_factor) * (ln(interval_peak) - ln(interval_forecast)))
    
-Option `1` selects an exponential adjustment
+Option `1` selects an adjustment based on the squared ratio of forecast and peak:
 
     adjusted_factor = base_factor + ((1 - base_factor) * ((1-(interval_forecast/interval_peak))^2))
    
-Adjusted dampening factors are constrained to lie within the range 0 to 1.  The chart below illustrates the behaviour of the two different adjustment calculations for base factors of 0.5 and 0.9.  As the forecast generation decreases in relation to the recent generation peak the logarithmic calculation tends to give a higher adjusted factor than the exponential calculation.  The logarithmic calculation gives an adjusted factor of 1.0 for any forecast below around 36% of the peak whereas the adjusted factor from the exponential calculation only approaches 1.0 as forecast generation approaches 0.
+Adjusted dampening factors are constrained to lie within the range 0 to 1.  The chart below illustrates the behaviour of the two different adjustment calculations for base factors of 0.5 and 0.9.  
 
 <img width="675"  alt="Dampening comparison" src=".github/SCREENSHOTS/Dampeningcomparison.png" />
+
+As the forecast generation decreases in relation to the recent generation peak the logarithmic difference calculation tends to give a higher adjusted factors than the squared ratio calculation.  The logarithmic difference calculation will give an adjusted factor of 1.0 for any forecast below around 36% of the peak whereas the adjusted factor from the squared ratio calculation only approaches 1.0 as forecast generation approaches 0.
 
 **Key: "automated_dampening_generation_fetch_delay"**
 
