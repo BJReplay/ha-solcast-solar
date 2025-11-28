@@ -3104,8 +3104,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         # Defaults.
         dampening: list[float] = [1.0] * 48
-        preserved_msg = []
-        log_preserved_msg = False
 
         # Check the generation for each interval and determine if it is consistently lower than the peak.
         for interval, matching in matching_intervals.items():
@@ -3210,14 +3208,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 if preserve_this_interval:
                     dampening[interval] = prior_factor
-                    if prior_factor != 1:
-                        msg = msg + f", preserving prior factor {prior_factor:.3f}"
-                        preserved_msg.append(f" {interval_time} : {prior_factor:.3f}")
-                        log_preserved_msg = True 
+                    msg = msg + f", preserving prior factor {prior_factor:.3f}" if prior_factor != 1.0 else msg 
+
                 if log_msg:
                     _LOGGER.debug(msg)
-        if log_preserved_msg:
-            _LOGGER.warning("Dampening factors carried forward %s", ",".join(preserved_msg)) 
+
         if dampening != self.granular_dampening.get(ALL):
             self.granular_dampening[ALL] = dampening
             await self.serialise_granular_dampening()
