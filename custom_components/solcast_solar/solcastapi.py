@@ -44,9 +44,11 @@ from .const import (
     ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED,
     ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION,
     ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS,
+    ADVANCED_AUTOMATED_DAMPENING_MODEL,
     ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_CORRECTIONS,
     ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY,
+    ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK,
     ADVANCED_FORECAST_FUTURE_DAYS,
     ADVANCED_FORECAST_HISTORY_MAX_DAYS,
@@ -3105,9 +3107,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         # Check the generation for each interval and determine if it is consistently lower than the peak.
         for interval, matching in matching_intervals.items():
-            generation_samples: list[float] = [
-                generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
-            ]
+
+            # Get current factor if required
+            if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]:
+                prior_factor = self.granular_dampening[ALL][interval] if self.granular_dampening.get(ALL) is not None else 1.0
+           
             dst_offset = (
                 1 if self.dst(dt.now(self._tz).replace(hour=interval // 2, minute=30 * (interval % 2), second=0, microsecond=0)) else 0
             )
@@ -3115,32 +3119,97 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if interval + dst_offset * 2 in ignored_intervals:
                 _LOGGER.debug("Interval %s is intentionally ignored, skipping", interval_time)
                 continue
+            generation_samples: list[float] = [
+                generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
+            ]
+            preserve_this_interval = False           
             if len(matching) > 0:
-                _LOGGER.debug(
-                    "Interval %s has peak estimated actual %.3f and %d matching intervals: %s",
-                    interval_time,
-                    self._peak_intervals[interval],
-                    len(matching),
-                    ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
-                )
-                peak = max(generation_samples) if len(generation_samples) > 0 else 0.0
-                _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
                 msg = f"Not enough matching intervals for {interval_time} to determine dampening"
-                log_msg = True
-                if len(matching) >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS]:
-                    if peak < self._peak_intervals[interval]:
-                        if len(generation_samples) >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION]:
-                            factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 1.0
-                            if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR] <= factor < 1.0:
-                                msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
-                                factor = 1.0
+                log_msg = True            
+                match self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]:
+                    case 1 | 2 | 3:
+                        _LOGGER.debug(
+                            "Interval %s has %d matching intervals: %s",
+                            interval_time,
+                            len(matching),
+                            ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
+                        )
+                        if len(matching) >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS]:
+                            actual_samples: list[float] = [
+                            actuals.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
+                            ]
+                            _LOGGER.debug(
+                                "Selected %d estimated actuals for %s: %s",
+                                len(actual_samples),
+                                interval_time,
+                                ", ".join(f"{act:.3f}" for act in actual_samples),
+                            )
+                            _LOGGER.debug(
+                                "Selected %d generation records for %s: %s", len(generation_samples), interval_time, generation_samples)
+                            if len(generation_samples) >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION]:
+                                if len(actual_samples) != len(generation_samples):
+                                    msg = f"Mismatched sample lengths for {interval_time}: {len(actual_samples)} actuals vs {len(generation_samples)} generations"
+                                else:
+                                    raw_factors: list[float] = []
+                                    for act, gen in zip(actual_samples, generation_samples):
+                                        raw_factors.append(min(gen / act,1.0)) if act > 0 else 1.0
+                                    _LOGGER.debug("Raw factors for %s: %s", 
+                                                interval_time, 
+                                                ", ".join(f"{fact:.3f}" for fact in raw_factors),
+                                                ) 
+                                    match self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]:
+                                        case 1: # max factor from matched pairs
+                                            factor = max(raw_factors)
+                                        case 2: # average factor from matched pairs
+                                            factor = sum(raw_factors) / len(raw_factors)
+                                        case 3: # min factor from matched pairs
+                                            factor = min(raw_factors)      
+                                    factor = round(factor,3) if factor > 0 else 1.0
+                                    if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR] <= factor < 1.0:
+                                        msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
+                                        factor = 1.0
+                                    else:
+                                        msg = f"Auto-dampen factor for {interval_time} is {factor:.3f}"      
+                                    dampening[interval] = factor
                             else:
-                                msg = f"Auto-dampen factor for {interval_time} is {factor:.3f}"
-                            dampening[interval] = round(factor, 3)
+                                msg = f"Not enough reliable generation samples for {interval_time} to determine dampening ({len(generation_samples)})"
+                                preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]                                                     
                         else:
-                            msg = f"Not enough reliable generation samples for {interval_time} to determine dampening ({len(generation_samples)})"
-                    else:
-                        log_msg = False
+                            msg = f"Not enough matching intervals for {interval_time} to determine dampening"
+                            preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
+                    case _:
+                        _LOGGER.debug(
+                            "Interval %s has peak estimated actual %.3f and %d matching intervals: %s",
+                            interval_time,
+                            self._peak_intervals[interval],
+                            len(matching),
+                            ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
+                        )
+                        peak = max(generation_samples) if len(generation_samples) > 0 else 0.0
+                        _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
+                        if len(matching) >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS]:
+                            if peak < self._peak_intervals[interval]:
+                                if len(generation_samples) >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION]:
+                                    factor = (peak / self._peak_intervals[interval]) if self._peak_intervals[interval] != 0 else 1.0
+                                    if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR] <= factor < 1.0:
+                                        msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
+                                        factor = 1.0
+                                    else:
+                                        msg = f"Auto-dampen factor for {interval_time} is {factor:.3f}"
+                                    dampening[interval] = round(factor, 3)
+                                else:
+                                    msg = f"Not enough reliable generation samples for {interval_time} to determine dampening ({len(generation_samples)})"
+                                    preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]                                        
+                            else:
+                                log_msg = False
+                        else:
+                            msg = f"Not enough matching intervals for {interval_time} to determine dampening"
+                            preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
+
+                if preserve_this_interval:
+                    dampening[interval] = prior_factor
+                    msg = msg + f", preserving prior factor {prior_factor:.3f}" if prior_factor != 1.0 else msg 
+
                 if log_msg:
                     _LOGGER.debug(msg)
 
@@ -3442,27 +3511,31 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             ):
                 interval_time = period_start.astimezone(self._tz).strftime(DATE_FORMAT)
                 factor_pre_adjustment = factor
+                
                 match self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL]:
+                    case 1:
+                        # Adjust the factor based on forecast vs. peak interval delta exponentially.
+                        factor = max(factor, factor + ((1 - factor) * ((1-(interval_pv50/self._peak_intervals[interval]))**2)))
                     case _:
                         # Adjust the factor based on forecast vs. peak interval delta-logarithmically.
                         factor = max(
                             factor,
                             min(1.0, factor + ((1.0 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50)))),
                         )
-                        if record_adjustment and period_start.astimezone(self._tz).date() == dt.now(self._tz).date():
-                            _LOGGER.debug(
-                                "%sdjusted granular dampening factor for %s, %.3f (was %.3f, peak %.3f, interval pv50 %.3f)",
-                                "Ignoring insignificant a"
-                                if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED] <= factor < 1.0
-                                else "A",
-                                interval_time,
-                                factor,
-                                factor_pre_adjustment,
-                                self._peak_intervals[interval],
-                                interval_pv50,
-                            )
-                        if factor >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED]:
-                            factor = 1.0
+                if record_adjustment and period_start.astimezone(self._tz).date() == dt.now(self._tz).date():
+                    _LOGGER.debug(
+                        "%sdjusted granular dampening factor for %s, %.3f (was %.3f, peak %.3f, interval pv50 %.3f)",
+                        "Ignoring insignificant a"
+                        if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED] <= factor < 1.0
+                        else "A",
+                        interval_time,
+                        factor,
+                        factor_pre_adjustment,
+                        self._peak_intervals[interval],
+                        interval_pv50,
+                    )
+                if factor >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED]:
+                    factor = 1.0
 
         return min(1.0, factor)
 

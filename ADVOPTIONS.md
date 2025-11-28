@@ -38,9 +38,23 @@ You are free to raise an issue should a code exception occur after setting an ad
 
 **Key: "automated_dampening_delta_adjustment_model"**
 
-Possible values: integer `0` (default `0`)
+Possible values: integer `0`,`1` (default `0`)
 
-This option presently does nothing. It is reserved to accommodate the addition of alternatives to the present delta logarithmic adjustment of dampening factors where forecast deviates from matching past intervals.
+Allows the selection of different calculations to nudge the base dampening factors closer to 1.0 when forecast generation for an interval is below the recent peak.
+
+Option `0` selects an adjustment based on the logarithmic difference between peak and forecast:
+
+    adjusted_factor = base_factor + ((1 - base_factor) * (ln(interval_peak) - ln(interval_forecast)))
+   
+Option `1` selects an adjustment based on the squared ratio of forecast and peak:
+
+    adjusted_factor = base_factor + ((1 - base_factor) * ((1-(interval_forecast/interval_peak))^2))
+   
+Adjusted dampening factors are constrained to lie within the range 0 to 1.  The chart below illustrates the behaviour of the two different adjustment calculations for base factors of 0.5 and 0.9.  
+
+<img width="675"  alt="Dampening comparison" src=".github/SCREENSHOTS/Dampeningcomparison.png" />
+
+As the forecast generation decreases in relation to the recent generation peak the logarithmic difference calculation tends to give a higher adjusted factors than the squared ratio calculation.  The logarithmic difference calculation will give an adjusted factor of 1.0 for any forecast below around 36% of the peak whereas the adjusted factor from the squared ratio calculation only approaches 1.0 as forecast generation approaches 0.
 
 **Key: "automated_dampening_generation_fetch_delay"**
 
@@ -100,6 +114,22 @@ Dampening modelling will skip intervals where there are a low number of matching
 
 This value must be greater than or equal to the minimum matching generation, or higher than the number of past days considered for automated dampening.
 
+**Key: "automated_dampening_model"**
+
+Possible values: integer `0`..`3` (default `0`)
+
+Selects the algorithm to be used to determine automated dampening factors.
+
+Option `0` is the default model described in the documentation.  This first identifies the peak estimated actual for each interval from the last ```automated_dampening_model_days```.  Matching intervals are then identified as days where the estimated actual is within ```automated_dampening_similar_peak``` days of the peak.  The peak generation from those matching intervals is then used to calculate a dampening factor as ```peak_generation/peak_estimated_actual```.  In this model it is possible that the peak estimated actual and peak generation occur on different days.
+
+Options `1` to `3` follow a similar approach to the above, but calculate a list of raw factors from the paired generation and estimate actual data in each matching interval, so each raw factor is calculated from a single day.  
+
+- Option `1` then returns the maximum of those raw factors.
+- Option `2` returns the mean of the raw factors.
+- Option `3` returns the minimum of the raw factors.
+
+Option `1` can be thought of as a best case scenario which will tend to give a higher forecast than Option `2`, with Option `3` as the worst case scenario giving the lowest forecast.      
+
 **Key: "automated_dampening_model_days"**
 
 Possible values: integer `2`..`21` (default `14`)
@@ -121,6 +151,14 @@ Default limiting behaviour is that whenever export limiting of generation is see
 Said another way, the default behaviour is that if there is limiting detected for any interval on any day, then that interval will be ignored for every day of the past fourteen days.
 
 Set this option to `true` to prevent this behaviour.
+
+**Key: "automated_dampening_preserve_unmatched_factors"**
+
+Possible values: boolean `true`/`false` (default `false`)
+
+Default behaviour when calculating base dampening factors is that any interval with insufficient matching intervals or generation (see above) will have a dampening factor of 1.0.  This can be an issue if there is a sustained period of poor solar generation (e.g. a sustained cloudy spell) when previously calculated dampening factors for these intervals may be reset to 1.0 leading to a higher generation forecast until sufficent 'good' intervals are recorded and the dampening factors can be recalculated.
+
+Setting this option to `true` will retain the previously calculated factor for such an interval, with factors reverting to 1.0 when all recent estimated actuals for the interval are 0. 
 
 **Key: "automated_dampening_similar_peak"**
 
