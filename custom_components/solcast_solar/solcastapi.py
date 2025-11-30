@@ -3154,7 +3154,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     raw_factors: list[float] = []
                                     for act, gen in zip(actual_samples, generation_samples):
                                         raw_factors.append(min(gen / act,1.0)) if act > 0 else 1.0
-                                    _LOGGER.debug("Raw factors for %s: %s", 
+                                    _LOGGER.debug("Candidate factors for %s: %s", 
                                                 interval_time, 
                                                 ", ".join(f"{fact:.3f}" for fact in raw_factors),
                                                 ) 
