@@ -120,15 +120,15 @@ Possible values: integer `0`..`3` (default `0`)
 
 Selects the algorithm to be used to determine automated dampening factors.
 
-Option `0` is the default model described in the documentation.  This first identifies the peak estimated actual for each interval from the last ```automated_dampening_model_days```.  Matching intervals are then identified as days where the estimated actual is within ```automated_dampening_similar_peak``` days of the peak.  The peak generation from those matching intervals is then used to calculate a dampening factor as ```peak_generation/peak_estimated_actual```.  In this model it is possible that the peak estimated actual and peak generation occur on different days.
+Option `0` is the default model described in the documentation.  This compares the recent peak estimated actual with the recent peak generation for each interval to calculate a dampening factor.  In this model it is possible that the peak estimated actual and peak generation occur on different days.
 
-Options `1` to `3` follow a similar approach to the above, but calculate a list of raw factors from the paired generation and estimate actual data in each matching interval, so each raw factor is calculated from a single day.  
+Options `1` to `3` follow a similar approach to the above, but calculate a list of candidate factors from the paired generation and estimated actual data in each interval, so each candidate factor is calculated from a single day.  
 
-- Option `1` then returns the maximum of those raw factors.
-- Option `2` returns the mean of the raw factors.
-- Option `3` returns the minimum of the raw factors.
+- Option `1` returns the maximum of the candidate factors.
+- Option `2` returns the mean of the candidate factors.
+- Option `3` returns the minimum of the candidate factors.
 
-Option `1` can be thought of as a best case scenario which will tend to give a higher forecast than Option `2`, with Option `3` as the worst case scenario giving the lowest forecast.      
+Option `1` can be thought of as a most optimistic scenario which will tend to give a higher forecast than Option `2`, with Option `3` as the most pessimistic scenario giving the lowest forecast.      
 
 **Key: "automated_dampening_model_days"**
 
