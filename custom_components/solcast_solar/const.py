@@ -95,7 +95,7 @@ DEFAULT_DAMPENING_INSIGNIFICANT_ADJ: Final[float] = 0.95  # Adjusted dampening f
 DEFAULT_DAMPENING_LOG_DELTA_CORRECTIONS: Final[bool] = True  # Whether to logarithmically adjust applied automated dampening factors
 DEFAULT_DAMPENING_MINIMUM_GENERATION: Final[int] = 2  # Minimum number of matching intervals with generation data to consider
 DEFAULT_DAMPENING_MINIMUM_INTERVALS: Final[int] = 2  # Minimum number of matching intervals to consider for automated dampening
-DEFAULT_DAMPENING_MODEL: Final[int] = 0  # Damping calculation model (0 = Unmatched peaks, 1 = Max matched peak, 2 = mean matched peak)
+DEFAULT_DAMPENING_MODEL: Final[int] = 0  # Damping calculation model (0 = Default, 1 = Max matched, 2 = Mean matched, 3 = Min matched)
 DEFAULT_DAMPENING_MODEL_DAYS: Final[int] = 14  # Number of days over which to model automated dampening
 DEFAULT_DAMPENING_NO_LIMITING_CONSISTENCY: Final[bool] = False  # Whether to ignore intervals that have been limited at least once
 DEFAULT_DAMPENING_SIMILAR_PEAK: Final[float] = 0.90  # Factor to consider similar estimated actual peak generation for automated dampening
