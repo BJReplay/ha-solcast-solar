@@ -147,6 +147,12 @@
         "auto_use_normal": {
             "message": "Automatická aktualizácia nie je povolená, pri vynútenej aktualizácii prognózy ignorujete udalosť služby, namiesto toho použite Aktualizovať."
         },
+        "build_failed_actuals": {
+            "message": "Nepodarilo sa zostaviť odhadované skutočné údaje (poškodený config/solcast-actuals.json?)"
+        },
+        "build_failed_forecasts": {
+            "message": "Nepodarilo sa zostaviť údaje predpovede (poškodený config/solcast.json?)"
+        },
         "damp_auto_enabled": {
             "message": "Automatizované tlmenie je povolené, nenastavujú sa manuálne tlmiace faktory."
         },
@@ -189,8 +195,11 @@
         "init_cannot_get_sites_cache_invalid": {
             "message": "Údaje stránok sa nepodarilo načítať a vyrovnávacia pamäť je neplatná."
         },
+        "init_corrupt": {
+            "message": "Uložené údaje v {file} sú poškodené, navrhuje sa ich odstránenie alebo oprava."
+        },
         "init_incompatible": {
-            "message": "Údaje súboru `config/solcast.json` vo vyrovnávacej pamäti sú nekompatibilné, odstráňte ich."
+            "message": "Uložené údaje v `{file}` sú nekompatibilné, navrhuje sa ich odstránenie."
         },
         "init_key_invalid": {
             "message": "Kľúč API je neplatný."
@@ -202,7 +211,7 @@
             "message": "Výnimka pri načítavaní údajov stránok."
         },
         "init_usage_corrupt": {
-            "message": "Údaje o používaní sú poškodené, skontrolujte alebo odstráňte súbor `config/solcast-usage.json`."
+            "message": "Údaje o používaní sú poškodené, skontrolujte alebo odstráňte súbor `config/solcast_solar/solcast-usage.json`."
         },
         "integration_not_loaded": {
             "message": "Integrácia nie je načítaná, nevykonáva akciu."

@@ -11,9 +11,19 @@ import math
 import re
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import IntegrationError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
-from .const import ESTIMATE, ESTIMATE10, ESTIMATE90
+from .const import (
+    DOMAIN,
+    ESTIMATE,
+    ESTIMATE10,
+    ESTIMATE90,
+    PRIOR_CRASH_EXCEPTION,
+    PRIOR_CRASH_PLACEHOLDERS,
+    PRIOR_CRASH_TRANSLATION_KEY,
+)
 
 if TYPE_CHECKING:
     from . import coordinator
@@ -57,8 +67,12 @@ class SolcastApiStatus(Enum):
     """The state of the Solcast API."""
 
     OK = 0
-    DATA_INCOMPATIBLE = 1
-    ERROR = 2
+    DATA_CORRUPT = 1
+    DATA_INCOMPATIBLE = 2
+    BUILD_FAILED_FORECASTS = 3
+    BUILD_FAILED_ACTUALS = 4
+    ERROR = 5
+    UNKNOWN = 99
 
 
 class DataCallStatus(Enum):
@@ -216,6 +230,16 @@ def forecast_entry_update(forecasts: dict[dt, Any], period_start: dt, pv: float,
             "period_start": period_start,
             "pv_estimate": pv,
         }
+
+
+def raise_and_record(
+    hass: HomeAssistant, exception: type[IntegrationError], translation_key: str, translation_placeholders: dict | None = None
+) -> None:
+    """Raise and record an exception during initialisation."""
+    hass.data[DOMAIN][PRIOR_CRASH_EXCEPTION] = exception
+    hass.data[DOMAIN][PRIOR_CRASH_TRANSLATION_KEY] = translation_key
+    hass.data[DOMAIN][PRIOR_CRASH_PLACEHOLDERS] = translation_placeholders
+    raise exception(translation_domain=DOMAIN, translation_key=translation_key, translation_placeholders=translation_placeholders)
 
 
 def percentile(data: list[Any], _percentile: float) -> float | int:

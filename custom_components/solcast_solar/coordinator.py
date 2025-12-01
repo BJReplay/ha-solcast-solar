@@ -627,12 +627,17 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 f", ({error_dampened_percentiles[i]:.2f}% dampened)" if error_dampened_percentiles[i] != -1.0 else "",
             )
 
+    def __get_minute_of_day(self, time_point: dt) -> int:
+        """Get the minute of the day for a given time point."""
+
+        return time_point.hour * 60 + time_point.minute
+
     async def __check_generation_fetch(self) -> None:
         """Check if generation fetch was missed and schedule it."""
 
         if self.solcast.options.get_actuals:
             if not self.solcast.get_estimated_actuals_updated_today():
-                now_minute = dt.now(self.solcast.options.tz).minute + dt.now(self.solcast.options.tz).hour * 60
+                now_minute = self.__get_minute_of_day(dt.now(self.solcast.options.tz))
                 if now_minute <= self.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY]:
                     update_at = (
                         dt.now(self.solcast.options.tz).replace(
@@ -656,8 +661,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         scheduled = False
         if self.solcast.options.get_actuals:
             if not self.solcast.get_estimated_actuals_updated_today():
-                now_minute = dt.now(self.solcast.options.tz).minute
-                if now_minute < self.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY] + 15:
+                now_minute = self.__get_minute_of_day(dt.now(self.solcast.options.tz))
+                if now_minute <= self.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY]:
                     update_at = (
                         dt.now(self.solcast.options.tz).replace(hour=0, minute=0, second=0, microsecond=0)  # i.e. midnight local
                         + timedelta(minutes=max(now_minute, self.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY]))

@@ -43,6 +43,7 @@ from homeassistant.components.solcast_solar.const import (
     HARD_LIMIT,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
+    PRESUMED_DEAD,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
@@ -267,7 +268,7 @@ async def test_reauth_api_key(
         REASON = 1
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
 
         for test in TEST_REAUTH_API_KEY:
             result = await entry.start_reauth_flow(hass)
@@ -352,7 +353,7 @@ async def test_reconfigure_api_key1(
         REASON = 1
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
 
         for test in TEST_API_KEY:
             result = await hass.config_entries.flow.async_init(
@@ -375,7 +376,7 @@ async def test_reconfigure_api_key1(
         await hass.async_block_till_done()
 
         # Test start after reconfigure when presumed dead...
-        hass.data[DOMAIN]["presumed_dead"] = True
+        hass.data[DOMAIN][PRESUMED_DEAD] = True
         simulator.API_KEY_SITES["4"] = simulator.API_KEY_SITES.pop("1")  # Change the key
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id}, data=entry.data
@@ -407,7 +408,7 @@ async def test_reconfigure_api_key2(
 
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
 
         if set == MOCK_EXCEPTION:
             await async_cleanup_integration_caches(hass)
@@ -462,7 +463,7 @@ async def test_reconfigure_api_quota(
         _input = None
         for test in TEST_API_QUOTA:
             entry = await async_init_integration(hass, test[OPTIONS])  # type: ignore[arg-type]
-            assert hass.data[DOMAIN].get("presumed_dead", True) is False
+            assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
 
             if _input is None or test[OPTIONS] != _input:
                 _input = copy.deepcopy(test[OPTIONS])
@@ -674,7 +675,7 @@ async def test_entry_options_upgrade(
     try:
         config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
         entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
 
         assert entry.version == FINAL_VERSION
         # V4
@@ -721,7 +722,7 @@ async def test_entry_options_upgrade(
             json.dumps({"daily_limit": 50, "daily_limit_consumed": 34, "reset": "2024-01-01T00:00:00+00:00"}), encoding="utf-8"
         )
         entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
         assert entry.options.get(API_QUOTA) == "50"
 
         assert await hass.config_entries.async_unload(entry.entry_id)
@@ -744,11 +745,11 @@ async def test_presumed_dead_and_full_flow(
 
         # Test presumed dead
         caplog.clear()
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
 
         option: dict[str, Any] = {BRK_ESTIMATE: False, USE_ACTUALS: "0", SITE_EXPORT_ENTITY: []}
         user_input = DEFAULT_INPUT1_NO_DAMP | option
-        hass.data[DOMAIN]["presumed_dead"] = True
+        hass.data[DOMAIN][PRESUMED_DEAD] = True
 
         result = await hass.config_entries.options.async_init(entry.entry_id)
         await hass.async_block_till_done()

@@ -147,6 +147,12 @@
         "auto_use_normal": {
             "message": "L'aggiornamento automatico non è abilitato, ignorando l'evento di servizio per l'aggiornamento forzato delle previsioni, utilizzare invece Aggiornamento."
         },
+        "build_failed_actuals": {
+            "message": "Impossibile creare i dati effettivi stimati (config/solcast-actuals.json danneggiato?)"
+        },
+        "build_failed_forecasts": {
+            "message": "Impossibile creare i dati di previsione (config/solcast.json danneggiato?)"
+        },
         "damp_auto_enabled": {
             "message": "È abilitato lo smorzamento automatico, senza impostare manualmente i fattori di smorzamento."
         },
@@ -189,8 +195,11 @@
         "init_cannot_get_sites_cache_invalid": {
             "message": "Impossibile recuperare i dati dei siti e la cache non è valida."
         },
+        "init_corrupt": {
+            "message": "I dati memorizzati nella cache in {file} sono corrotti, si consiglia di eliminarli o ripararli."
+        },
         "init_incompatible": {
-            "message": "Dati `config/solcast.json` memorizzati nella cache incompatibili. Eliminarli."
+            "message": "I dati memorizzati nella cache in `{file}` non sono compatibili, si consiglia di eliminarli."
         },
         "init_key_invalid": {
             "message": "La chiave API non è valida."
@@ -202,7 +211,7 @@
             "message": "Eccezione durante il caricamento dei dati dei siti."
         },
         "init_usage_corrupt": {
-            "message": "I dati di utilizzo sono corrotti, controllare o eliminare `config/solcast-usage.json`."
+            "message": "I dati di utilizzo sono corrotti, controllare o eliminare `config/solcast_solar/solcast-usage.json`."
         },
         "integration_not_loaded": {
             "message": "Integrazione non caricata, nessuna azione eseguita."

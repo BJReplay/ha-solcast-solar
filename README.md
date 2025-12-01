@@ -1248,6 +1248,16 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 ## Changes
 
+v4.4.9
+
+* Add advanced option auto-dampen model variants by @Nilogax
+* Add advanced option auto-dampen delta adjustment variant by @Nilogax
+* Add advanced option auto-dampen preserve prior factors by @Nilogax
+* Refine startup behaviour and translate startup status messages by @autoSteve
+* Fix benign bug regarding startup when estimated actuals not yet acquired by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.8...v4.4.9
+
 v4.4.8
 
 * Move all cache and configuration files to `config/solcast_solar` by @autoSteve

@@ -35,6 +35,7 @@ from homeassistant.components.solcast_solar.const import (
     CONFIG_FOLDER_DISCRETE,
     CUSTOM_HOUR_SENSOR,
     DEFAULT_FORECAST_DAYS,
+    DELAYED_RESTART_ON_CRASH,
     DOMAIN,
     EVENT_END_DATETIME,
     EVENT_START_DATETIME,
@@ -43,6 +44,8 @@ from homeassistant.components.solcast_solar.const import (
     GET_ACTUALS,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
+    PRESUMED_DEAD,
+    PRIOR_CRASH_TIME,
     SITE,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
@@ -331,7 +334,7 @@ async def test_api_failure(
             entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
             session_clear(MOCK_BUSY)
-            hass.data[DOMAIN]["presumed_dead"] = False
+            hass.data[DOMAIN][PRESUMED_DEAD] = False
 
         async def bad_response(assertions: Callable[[ConfigEntry], None]):
             for returned in [MOCK_CORRUPT_SITES, MOCK_CORRUPT_ACTUALS, MOCK_CORRUPT_FORECAST]:
@@ -339,22 +342,22 @@ async def test_api_failure(
                 entry = await async_init_integration(hass, DEFAULT_INPUT2)
                 assertions(entry)
                 session_clear(returned)
-                hass.data[DOMAIN]["presumed_dead"] = False
+                hass.data[DOMAIN][PRESUMED_DEAD] = False
 
         async def exceptions(assertions: Callable[[ConfigEntry], None]):
             session_set(MOCK_EXCEPTION, exception=ConnectionRefusedError)
             entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
-            hass.data[DOMAIN]["presumed_dead"] = False
+            hass.data[DOMAIN][PRESUMED_DEAD] = False
             session_set(MOCK_EXCEPTION, exception=TimeoutError)
             entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
-            hass.data[DOMAIN]["presumed_dead"] = False
+            hass.data[DOMAIN][PRESUMED_DEAD] = False
             session_set(MOCK_EXCEPTION, exception=ClientConnectionError)
             entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
             session_clear(MOCK_EXCEPTION)
-            hass.data[DOMAIN]["presumed_dead"] = False
+            hass.data[DOMAIN][PRESUMED_DEAD] = False
 
         async def exceptions_update():
             tests: list[dict[str, Any]] = [
@@ -376,7 +379,7 @@ async def test_api_failure(
                 coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
                 solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
                 solcast.options.auto_update = AutoUpdate.NONE
-                hass.data[DOMAIN]["presumed_dead"] = False
+                hass.data[DOMAIN][PRESUMED_DEAD] = False
                 await hass.async_block_till_done()
                 caplog.clear()
 
@@ -569,7 +572,7 @@ async def test_integration(
 
         if options == BAD_INPUT:
             assert entry.state is ConfigEntryState.SETUP_ERROR
-            assert hass.data[DOMAIN].get("presumed_dead", True) is True
+            assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is True
             assert "Dampening factors corrupt or not found, setting to 1.0" in caplog.text
             assert "Get sites failed, last call result: 403/Forbidden" in caplog.text
             assert "API key is invalid" in caplog.text
@@ -583,7 +586,7 @@ async def test_integration(
             return
 
         assert entry.state is ConfigEntryState.LOADED
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
 
         # Enable the dampening entity
         dampening_entity = "sensor.solcast_pv_forecast_dampening"
@@ -839,7 +842,7 @@ async def test_remaining_actions(
 
         # Start with two API keys and three sites
         entry = await async_init_integration(hass, DEFAULT_INPUT2)
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
         assert await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
         _no_exception(caplog)
@@ -854,7 +857,7 @@ async def test_remaining_actions(
         _LOGGER.debug("Swithching to one API key and two sites")
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
 
         def occurs_in_log(text: str, occurrences: int) -> None:
             occurs = 0
@@ -1202,7 +1205,7 @@ async def test_scenarios(
 
         # Assert good start
         _LOGGER.debug("Testing good start happened")
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
         assert "Hard limit is set to limit peak forecast values" in caplog.text
         _no_exception(caplog)
         caplog.clear()
@@ -1372,7 +1375,7 @@ async def test_scenarios(
         assert "has changed and sites are different invalidating the cache" in caplog.text
         session_clear(MOCK_BUSY)
         caplog.clear()
-        hass.data[DOMAIN]["presumed_dead"] = False  # Clear presumption of death
+        hass.data[DOMAIN][PRESUMED_DEAD] = False  # Clear presumption of death
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
@@ -1390,32 +1393,36 @@ async def test_scenarios(
         # Test no sites call on start when in a presumed dead state, then an allowed call after sixty minutes.
         session_set(MOCK_BUSY)
 
-        hass.data[DOMAIN]["presumed_dead"] = True  # Set presumption of death
+        hass.data[DOMAIN][PRESUMED_DEAD] = True  # Set presumption of death
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
         assert "Get sites failed, last call result: 999/Prior crash" in caplog.text
         assert "Connecting to https://api.solcast.com.au/rooftop_sites" not in caplog.text
         caplog.clear()
-        hass.data[DOMAIN]["presumed_dead"] = True  # Set presumption of death
-        hass.data[DOMAIN]["prior_crash_allow_sites"] = dt_util.now(dt_util.UTC) - timedelta(minutes=31)
+        hass.data[DOMAIN][PRESUMED_DEAD] = True  # Set presumption of death
+        hass.data[DOMAIN][PRIOR_CRASH_TIME] = dt_util.now(dt_util.UTC) - timedelta(
+            minutes=DELAYED_RESTART_ON_CRASH - DELAYED_RESTART_ON_CRASH / 2
+        )
         coordinator, solcast = await _reload(hass, entry)
-        assert "Prior crash detected" in caplog.text
+        assert re.search(r"Prior crash detected.+, skipping load for \d+ minutes", caplog.text)
         assert "Integration failed to load previously" in caplog.text
         assert "Connecting to https://api.solcast.com.au/rooftop_sites" not in caplog.text
-        hass.data[DOMAIN]["prior_crash_allow_sites"] = dt_util.now(dt_util.UTC) - timedelta(minutes=61)
+        hass.data[DOMAIN][PRIOR_CRASH_TIME] = dt_util.now(dt_util.UTC) - timedelta(minutes=DELAYED_RESTART_ON_CRASH + 1)
         coordinator, solcast = await _reload(hass, entry)
         assert "Prior crash detected" in caplog.text
-        assert "Prior crash was more than 60 minutes ago" in caplog.text
+        assert f"Prior crash was more than {DELAYED_RESTART_ON_CRASH} minutes ago" in caplog.text
         assert "Connecting to https://api.solcast.com.au/rooftop_sites" in caplog.text
-        hass.data[DOMAIN].pop("presumed_dead", None)
-        hass.data[DOMAIN].pop("prior_crash_allow_sites", None)
+        hass.data[DOMAIN].pop(PRESUMED_DEAD, None)
+        hass.data[DOMAIN].pop(PRIOR_CRASH_TIME, None)
 
         caplog.clear()
         _LOGGER.debug("Unlinking sites cache files")
         for f in ["solcast-sites.json", "solcast-sites-1.json", "solcast-sites-2.json"]:
             Path(f"{config_dir}/{f}").unlink(missing_ok=True)  # Remove sites cache file
-        hass.data[DOMAIN]["prior_crash_allow_sites"] = dt_util.now(dt_util.UTC) - timedelta(minutes=31)
+        hass.data[DOMAIN]["prior_crash_allow_sites"] = dt_util.now(dt_util.UTC) - timedelta(
+            minutes=DELAYED_RESTART_ON_CRASH - DELAYED_RESTART_ON_CRASH / 2
+        )
         coordinator, solcast = await _reload(hass, entry)
         assert "Sites data could not be retrieved" in caplog.text
         assert hass.data[DOMAIN].get("prior_crash_allow_sites")
@@ -1424,7 +1431,7 @@ async def test_scenarios(
         assert "At least one successful API 'get sites' call is needed" in caplog.text
         caplog.clear()
 
-        hass.data[DOMAIN]["presumed_dead"] = False  # Clear presumption of death
+        hass.data[DOMAIN][PRESUMED_DEAD] = False  # Clear presumption of death
         session_clear(MOCK_BUSY)
 
         # Test corrupt cache start, integration will mostly not load, and will not attempt reload
@@ -1436,6 +1443,9 @@ async def test_scenarios(
 
         def _really_corrupt_data():
             data_file.write_text(corrupt, encoding="utf-8")
+
+        def _really_corrupt_data_2():
+            data_file.write_text(json.dumps([corrupt]), encoding="utf-8")
 
         def _corrupt_data():
             data = json.loads(data_file.read_text(encoding="utf-8"))
@@ -1453,7 +1463,7 @@ async def test_scenarios(
         caplog.clear()
 
         # Corrupt usage.json
-        hass.data[DOMAIN].pop("presumed_dead", None)
+        hass.data[DOMAIN].pop(PRESUMED_DEAD, None)
         hass.data[DOMAIN].pop("prior_crash_allow_sites", None)
         usage_corruption: list[dict[str, Any]] = [
             {"daily_limit": "10", "daily_limit_consumed": 8, "reset": "2025-01-05T00:00:00+00:00"},
@@ -1465,9 +1475,9 @@ async def test_scenarios(
             usage_file.write_text(json.dumps(test), encoding="utf-8")
             await _reload(hass, entry)
             assert entry.state is ConfigEntryState.SETUP_ERROR
-            assert hass.data[DOMAIN].get("presumed_dead") is True
+            assert hass.data[DOMAIN].get(PRESUMED_DEAD) is True
             assert hass.data[DOMAIN].get("prior_crash_allow_sites") is None
-            hass.data[DOMAIN].pop("presumed_dead", None)  # Clear presumption of death
+            hass.data[DOMAIN].pop(PRESUMED_DEAD, None)  # Clear presumption of death
             hass.data[DOMAIN].pop("prior_crash_allow_sites", None)
         usage_file.write_text(corrupt, encoding="utf-8")
         await _reload(hass, entry)
@@ -1479,7 +1489,7 @@ async def test_scenarios(
         _LOGGER.debug("Testing corruption: solcast.json")
         _corrupt_data()
         await _reload(hass, entry)
-        assert hass.data[DOMAIN].get("presumed_dead", True) is True
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is True
         caplog.clear()
 
         _LOGGER.debug("Testing extreme corruption: solcast.json")
@@ -1487,7 +1497,16 @@ async def test_scenarios(
         await _reload(hass, entry)
         assert "is corrupt in load_saved_data" in caplog.text
         assert "integration not ready yet" in caplog.text
-        assert hass.data[DOMAIN].get("presumed_dead", True) is True
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is True
+
+        _LOGGER.debug("Testing extreme corruption as acceptable (but unacceptable) JSON list: solcast.json")
+        hass.data[DOMAIN].pop(PRESUMED_DEAD)
+        _really_corrupt_data_2()
+        await _reload(hass, entry)
+        assert "cache appears corrupt" in caplog.text
+        assert "is corrupt in load_saved_data" in caplog.text
+        assert "integration not ready yet" in caplog.text
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is True
 
     finally:
         assert await async_cleanup_integration_tests(hass)
@@ -1513,7 +1532,7 @@ async def test_estimated_actuals(
 
         # Assert good start, that actuals are enabled, and that the cache is saved
         _LOGGER.debug("Testing good start happened")
-        assert hass.data[DOMAIN].get("presumed_dead", True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
         _no_exception(caplog)
         assert Path(f"{config_dir}/solcast-actuals.json").is_file()
         caplog.clear()

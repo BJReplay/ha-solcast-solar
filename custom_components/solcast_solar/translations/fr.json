@@ -147,6 +147,12 @@
         "auto_use_normal": {
             "message": "La mise à jour automatique n'est pas activée, ignorant l'événement de service pour forcer la mise à jour des prévisions, utilisez plutôt Update."
         },
+        "build_failed_actuals": {
+            "message": "Échec de la création des données réelles estimées (config/solcast-actuals.json corrompu ?)"
+        },
+        "build_failed_forecasts": {
+            "message": "Échec de la création des données de prévision (config/solcast.json corrompu ?)"
+        },
         "damp_auto_enabled": {
             "message": "L'amortissement automatique est activé, pas de définition de facteurs d'amortissement manuels."
         },
@@ -189,8 +195,11 @@
         "init_cannot_get_sites_cache_invalid": {
             "message": "Les données des sites n'ont pas pu être récupérées et le cache n'est pas valide."
         },
+        "init_corrupt": {
+            "message": "Les données mises en cache dans {file} sont corrompues, suggèrent de les supprimer ou de les réparer."
+        },
         "init_incompatible": {
-            "message": "Données `config/solcast.json` mises en cache incompatibles, supprimez-les."
+            "message": "Les données mises en cache dans `{file}` sont incompatibles, suggérez de les supprimer."
         },
         "init_key_invalid": {
             "message": "La clé API n'est pas valide."
@@ -202,7 +211,7 @@
             "message": "Exception lors du chargement des données des sites."
         },
         "init_usage_corrupt": {
-            "message": "Les données d'utilisation sont corrompues, vérifiez ou supprimez `config/solcast-usage.json`."
+            "message": "Les données d'utilisation sont corrompues, vérifiez ou supprimez `config/solcast_solar/solcast-usage.json`."
         },
         "integration_not_loaded": {
             "message": "L'intégration n'est pas chargée, n'effectue aucune action."

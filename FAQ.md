@@ -145,7 +145,7 @@ So short-term pain on restore from backup. Long-term gain on having auto-update 
 
 Don't like the behaviour? Send feedback in a discussion, and revert to using an HA automation to update the forecast.
 
-### Q: Does the integration cope with daylight savings time / Summer time transitions?
+### Q: Does the integration cope with daylight savings / Summer / Winter time transitions?
 
 It does.
 
@@ -154,6 +154,8 @@ If it is logging odd things for you in debug level logs, and you're getting mult
 The transition to daylight time results in Solcast varying the number of half-hourly forecast intervals for the day of transition. When transitioning to daylight time there will be only 46 intervals, and not the usual 48. This is because 2AM will no longer exist for that day. When transitioning from daylight time we get a sleep-in, and there are two 2AMs and a total of 50 intervals.
 
 The integration was messing up the UTC time of period start and end, and using a fixed number of 48 intervals. Now it does not.
+
+More recently "Winter time" transition support was added for Ireland (their Summer period is considered "standard" time, and the net time shift is the same, but this gets treated differently by Python code, which the integration is written in).
 
 ### Q: Why are certain sensors Watt, while others are Watt-hour or kilo-Watt-hour? Shouldn't these be the same? Why?
 
@@ -169,7 +171,7 @@ The values for Watt-hour/kWh are calculated by the integration from the power nu
 
 ### Q: Why have my historical forecasts disappeared from the energy dashboard? I now only see 10/14 days!
 
-At some point, your /config/solcast.json file has gone missing, and was recreated. This contains the history.
+At some point, your /config/solcast_solar/solcast.json file has gone missing, and was recreated. This contains the history.
 
 First ask yourself, what use are historic forecasts to me anyway? A dashed line that extends back as far as since this integration was first installed is really only visually pleasing, and not really of value.
 
@@ -251,6 +253,6 @@ And if you re-started HA immediately before an auto-update was scheduled to fire
 
 So depending on circumstance, the v4.2.5+ answer is possibly, but probably not.
 
-And a final "what the???" API use scenario: If the integration had been in a failed state that has caused forecast history to be aged out beyond one week then "estimated actuals" will be retrieved from Solcast to cover the gap. This is done to support integration scenarios that rely on recent history, so API calls used to get history. (But it will likely not be an issue as the integration had not been running and using quota for forecast updates...)
+And a final "what the???" API use scenario: If the integration had been in a failed state that has caused forecast history to be aged out beyond one week then "estimated actuals" will be retrieved from Solcast to cover the gap. This is done to support integration scenarios that rely on recent history, so API calls will be used to get history, and a fresh forecast. (But this will likely not be an issue as the integration has not been running and using quota for forecast updates...)
 
 That is _way_ too many words to describe that lot, but I trust it has explained every scenario.

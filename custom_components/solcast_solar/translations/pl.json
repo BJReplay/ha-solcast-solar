@@ -147,6 +147,12 @@
         "auto_use_normal": {
             "message": "Automatyczna aktualizacja nie jest włączona. Zdarzenie serwisowe jest ignorowane w celu wymuszenia aktualizacji prognozy. Zamiast tego użyj opcji Aktualizuj."
         },
+        "build_failed_actuals": {
+            "message": "Nie udało się zbudować szacowanych danych rzeczywistych (uszkodzony config/solcast-actuals.json?)."
+        },
+        "build_failed_forecasts": {
+            "message": "Nie udało się zbudować danych prognozy (uszkodzony config/solcast.json?)."
+        },
         "damp_auto_enabled": {
             "message": "Włączono automatyczne tłumienie, nie ma konieczności ręcznego ustawiania współczynników tłumienia."
         },
@@ -189,8 +195,11 @@
         "init_cannot_get_sites_cache_invalid": {
             "message": "Nie można pobrać danych witryn, a pamięć podręczna jest nieprawidłowa."
         },
+        "init_corrupt": {
+            "message": "Zbuforowane dane w {file} są uszkodzone, sugeruje się ich usunięcie lub naprawienie."
+        },
         "init_incompatible": {
-            "message": "Niekompatybilne dane w pamięci podręcznej `config/solcast.json`, usuń je."
+            "message": "Zbuforowane dane w `{file}` są niekompatybilne, sugeruje się ich usunięcie."
         },
         "init_key_invalid": {
             "message": "Klucz API jest nieprawidłowy."
@@ -202,7 +211,7 @@
             "message": "Wyjątek podczas ładowania danych witryn."
         },
         "init_usage_corrupt": {
-            "message": "Dane użytkowania są uszkodzone. Sprawdź lub usuń plik `config/solcast-usage.json`."
+            "message": "Dane użytkowania są uszkodzone. Sprawdź lub usuń plik `config/solcast_solar/solcast-usage.json`."
         },
         "integration_not_loaded": {
             "message": "Integracja nie została załadowana, nie wykonuje akcji."

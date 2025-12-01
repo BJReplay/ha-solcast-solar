@@ -147,6 +147,12 @@
         "auto_use_normal": {
             "message": "Die automatische Aktualisierung ist nicht aktiviert. Dienstereignisse werden ignoriert, um eine Prognoseaktualisierung zu erzwingen. Verwenden Sie stattdessen „Aktualisierung“."
         },
+        "build_failed_actuals": {
+            "message": "Fehler beim Erstellen der geschätzten Ist-Daten (beschädigte config/solcast-actuals.json?)"
+        },
+        "build_failed_forecasts": {
+            "message": "Fehler beim Erstellen der Prognosedaten (beschädigte config/solcast.json?)"
+        },
         "damp_auto_enabled": {
             "message": "Automatisierte Dämpfung ist aktiviert, es werden keine manuellen Dämpfungsfaktoren festgelegt."
         },
@@ -189,8 +195,11 @@
         "init_cannot_get_sites_cache_invalid": {
             "message": "Die Site-Daten konnten nicht abgerufen werden und der Cache ist ungültig."
         },
+        "init_corrupt": {
+            "message": "Die zwischengespeicherten Daten in {file} sind beschädigt. Es wird empfohlen, sie zu löschen oder zu reparieren."
+        },
         "init_incompatible": {
-            "message": "Zwischengespeicherte „config/solcast.json“-Daten sind nicht kompatibel, löschen Sie sie."
+            "message": "Die zwischengespeicherten Daten in `{file}` sind nicht kompatibel. Es wird empfohlen, sie zu löschen."
         },
         "init_key_invalid": {
             "message": "Der API-Schlüssel ist ungültig."
@@ -202,7 +211,7 @@
             "message": "Ausnahme beim Laden von Site-Daten."
         },
         "init_usage_corrupt": {
-            "message": "Die Nutzungsdaten sind beschädigt. Überprüfen oder löschen Sie „config/solcast-usage.json“."
+            "message": "Die Nutzungsdaten sind beschädigt. Überprüfen oder löschen Sie „config/solcast_solar/solcast-usage.json“."
         },
         "integration_not_loaded": {
             "message": "Integration nicht geladen, keine Aktion ausgeführt."

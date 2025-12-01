@@ -147,6 +147,12 @@
         "auto_use_normal": {
             "message": "Auto-update is not enabled, ignoring service event for force forecast update, use Update instead."
         },
+        "build_failed_actuals": {
+            "message": "Failed to build estimated actual data (corrupt config/solcast-actuals.json?)"
+        },
+        "build_failed_forecasts": {
+            "message": "Failed to build forecast data (corrupt config/solcast.json?)"
+        },
         "damp_auto_enabled": {
             "message": "Automated dampening is enabled, not setting manual dampening factors."
         },
@@ -189,8 +195,11 @@
         "init_cannot_get_sites_cache_invalid": {
             "message": "Sites data could not be retrieved and cache is invalid."
         },
+        "init_corrupt": {
+            "message": "The cached data in {file} is corrupted, suggest deleting or repairing it."
+        },
         "init_incompatible": {
-            "message": "Cached `config/solcast.json` data incompatible. Delete it."
+            "message": "The cached data in `{file}` is incompatible, suggest deleting it."
         },
         "init_key_invalid": {
             "message": "API key is invalid."
@@ -202,7 +211,7 @@
             "message": "Exception loading sites data."
         },
         "init_usage_corrupt": {
-            "message": "Usage data is corrupt, check or delete `config/solcast-usage.json`."
+            "message": "Usage data is corrupt, check or delete `config/solcast_solar/solcast-usage.json`."
         },
         "integration_not_loaded": {
             "message": "Integration not loaded, not performing action."

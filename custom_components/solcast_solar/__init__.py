@@ -54,6 +54,7 @@ from .const import (
     DAMP_FACTOR,
     DATE_FORMAT,
     DEFAULT_SOLCAST_HTTPS_URL,
+    DELAYED_RESTART_ON_CRASH,
     DOMAIN,
     ENTRY_OPTIONS,
     EVENT_END_DATETIME,
@@ -70,7 +71,10 @@ from .const import (
     OLD_API_KEY,
     OLD_HARD_LIMIT,
     PRESUMED_DEAD,
-    PRIOR_CRASH_ALLOW_SITES,
+    PRIOR_CRASH_EXCEPTION,
+    PRIOR_CRASH_PLACEHOLDERS,
+    PRIOR_CRASH_TIME,
+    PRIOR_CRASH_TRANSLATION_KEY,
     RESET_OLD_KEY,
     RESOURCE_ID,
     SCHEMA,
@@ -101,7 +105,6 @@ from .const import (
     TRANSLATE_HARD_TOO_MANY,
     TRANSLATE_INIT_CANNOT_GET_SITES,
     TRANSLATE_INIT_CANNOT_GET_SITES_CACHE_INVALID,
-    TRANSLATE_INIT_INCOMPATIBLE,
     TRANSLATE_INIT_KEY_INVALID,
     TRANSLATE_INIT_NO_SITES,
     TRANSLATE_INIT_UNKNOWN,
@@ -119,9 +122,9 @@ from .util import (
     AutoUpdate,
     HistoryType,
     SitesStatus,
-    SolcastApiStatus,
     SolcastData,
     UsageStatus,
+    raise_and_record,
 )
 
 PLATFORMS: Final = [
@@ -357,6 +360,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         entry (ConfigEntry): The integration entry instance, contains the options and other information.
 
     Raises:
+        ConfigEntryAuthFailed: Instructs Home Assistant that the integration cannot be loaded due to authentication failure.
+        ConfigEntryError: Instructs Home Assistant that the integration cannot be loaded when a load failure occurs.
         ConfigEntryNotReady: Instructs Home Assistant that the integration is not yet ready when a load failure occurs.
 
     Returns:
@@ -372,22 +377,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     __setup_storage(hass)
 
     prior_crash = hass.data[DOMAIN].get(PRESUMED_DEAD, False)
-    prior_crash_allow_sites: dt | None = hass.data[DOMAIN].get(PRIOR_CRASH_ALLOW_SITES)
-    deny_startup: bool = prior_crash_allow_sites is not None
+    prior_crash_time: dt | None = hass.data[DOMAIN].get(PRIOR_CRASH_TIME)
+    deny_startup: bool = prior_crash_time is not None
     if prior_crash:
         if not deny_startup:
             _LOGGER.debug("Prior crash detected, set the time of crash")
-            hass.data[DOMAIN][PRIOR_CRASH_ALLOW_SITES] = dt_util.now(dt_util.UTC)  # Set the time of the crash.
-        elif prior_crash_allow_sites < dt_util.now(dt_util.UTC) - timedelta(minutes=60):
-            _LOGGER.info("Prior crash was more than 60 minutes ago, allowing sites to be reloaded")
-            hass.data[DOMAIN][PRIOR_CRASH_ALLOW_SITES] = dt_util.now(dt_util.UTC)
+            hass.data[DOMAIN][PRIOR_CRASH_TIME] = dt_util.now(dt_util.UTC)  # Set the time of the crash.
+        elif prior_crash_time < dt_util.now(dt_util.UTC) - timedelta(minutes=DELAYED_RESTART_ON_CRASH):
+            _LOGGER.info("Prior crash was more than %d minutes ago, allowing sites to be reloaded", DELAYED_RESTART_ON_CRASH)
+            hass.data[DOMAIN][PRIOR_CRASH_TIME] = dt_util.now(dt_util.UTC)
             prior_crash = False
     if prior_crash and deny_startup:
-        _LOGGER.debug(
-            "Prior crash detected (%s), skipping reload for now to avoid repeated crashes",
-            dt.strftime(prior_crash_allow_sites, DATE_FORMAT),
+        _LOGGER.warning(
+            "Prior crash detected (%s), skipping load for %d minutes to avoid repeated crashes - fix the issue and restart Home Assistant to retry sooner",
+            dt.strftime(prior_crash_time, DATE_FORMAT),
+            DELAYED_RESTART_ON_CRASH,
         )
-        raise ConfigEntryNotReady(translation_domain=DOMAIN, translation_key=TRANSLATE_INTEGRATION_PRIOR_CRASH)
+        if hass.data[DOMAIN].get(PRIOR_CRASH_EXCEPTION) is not None:
+            _LOGGER.debug(
+                "Raising prior exception: %s(%s)",
+                hass.data[DOMAIN].get(PRIOR_CRASH_EXCEPTION),
+                hass.data[DOMAIN].get(PRIOR_CRASH_TRANSLATION_KEY),
+            )
+            raise hass.data[DOMAIN][PRIOR_CRASH_EXCEPTION](  # Re-raise prior exception
+                translation_domain=DOMAIN,
+                translation_key=hass.data[DOMAIN].get(PRIOR_CRASH_TRANSLATION_KEY, TRANSLATE_INTEGRATION_PRIOR_CRASH),
+                translation_placeholders=hass.data[DOMAIN].get(PRIOR_CRASH_PLACEHOLDERS),
+            )
 
     hass.data[DOMAIN][PRESUMED_DEAD] = True  # Presumption that init will not be successful.
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options, hass, entry)
@@ -397,22 +413,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     await solcast.get_sites_and_usage(prior_crash=prior_crash)
     match solcast.sites_status:
         case SitesStatus.BAD_KEY:
-            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key=TRANSLATE_INIT_KEY_INVALID)
+            raise_and_record(hass, ConfigEntryAuthFailed, TRANSLATE_INIT_KEY_INVALID)
         case SitesStatus.API_BUSY:
-            raise ConfigEntryNotReady(translation_domain=DOMAIN, translation_key=TRANSLATE_INIT_CANNOT_GET_SITES)
+            raise_and_record(hass, ConfigEntryNotReady, TRANSLATE_INIT_CANNOT_GET_SITES)
         case SitesStatus.ERROR:
-            raise ConfigEntryError(translation_domain=DOMAIN, translation_key=TRANSLATE_INIT_CANNOT_GET_SITES)
+            raise_and_record(hass, ConfigEntryError, TRANSLATE_INIT_CANNOT_GET_SITES)
         case SitesStatus.CACHE_INVALID:
-            raise ConfigEntryError(translation_domain=DOMAIN, translation_key=TRANSLATE_INIT_CANNOT_GET_SITES_CACHE_INVALID)
+            raise_and_record(hass, ConfigEntryError, TRANSLATE_INIT_CANNOT_GET_SITES_CACHE_INVALID)
         case SitesStatus.NO_SITES:
-            raise ConfigEntryError(translation_domain=DOMAIN, translation_key=TRANSLATE_INIT_NO_SITES)
+            raise_and_record(hass, ConfigEntryError, TRANSLATE_INIT_NO_SITES)
         case SitesStatus.UNKNOWN:
-            raise ConfigEntryError(translation_domain=DOMAIN, translation_key=TRANSLATE_INIT_UNKNOWN)
+            raise_and_record(hass, ConfigEntryError, TRANSLATE_INIT_UNKNOWN)
         case SitesStatus.OK:
             pass
     match solcast.usage_status:
         case UsageStatus.ERROR:
-            raise ConfigEntryError(translation_domain=DOMAIN, translation_key=TRANSLATE_INIT_USAGE_CORRUPT)
+            raise_and_record(hass, ConfigEntryError, TRANSLATE_INIT_USAGE_CORRUPT)
         case _:
             pass
 
@@ -420,19 +436,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     hass.data[DOMAIN][SOLCAST] = solcast
     hass.data[DOMAIN][ENTRY_OPTIONS] = {**entry.options}
 
-    status = await solcast.load_saved_data()
-    if status == "":
+    if await solcast.load_saved_data():
         await solcast.model_automated_dampening()
         await solcast.apply_forward_dampening()
-        status = await solcast.build_forecast_and_actuals()
-    if status != "":
-        raise ConfigEntryNotReady(status)
-
-    match solcast.status:
-        case SolcastApiStatus.DATA_INCOMPATIBLE:
-            raise ConfigEntryError(translation_domain=DOMAIN, translation_key=TRANSLATE_INIT_INCOMPATIBLE)
-        case _:
-            pass
+        await solcast.build_forecast_and_actuals(raise_exc=True)
 
     coordinator = SolcastUpdateCoordinator(hass, entry, solcast, version)
     entry.runtime_data = SolcastData(coordinator=coordinator)
@@ -448,8 +455,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
     _LOGGER.debug("Clear presumed dead flag")
     hass.data[DOMAIN][PRESUMED_DEAD] = False  # Initialisation was successful, so we're not dead.
-    if hass.data[DOMAIN].get(PRIOR_CRASH_ALLOW_SITES) is not None:
-        del hass.data[DOMAIN][PRIOR_CRASH_ALLOW_SITES]
+    hass.data[DOMAIN].pop(PRIOR_CRASH_TIME, None)
+    hass.data[DOMAIN].pop(PRIOR_CRASH_TRANSLATION_KEY, None)
+    hass.data[DOMAIN].pop(PRIOR_CRASH_PLACEHOLDERS, None)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = True
 
     if not await __check_auto_update_missed(coordinator):

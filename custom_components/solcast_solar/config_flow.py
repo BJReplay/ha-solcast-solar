@@ -60,7 +60,6 @@ from .const import (
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     NAME,
-    PLATFORM_SENSOR,
     PRESUMED_DEAD,
     RESET_OLD_KEY,
     RESOURCE_ID,
@@ -584,8 +583,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         sensors = [
             SelectOptionDict(label=entry, value=entry)
             for entry, details in entity_registry.entities.items()
-            if details.domain == PLATFORM_SENSOR
-            and "solcast_pv_forecast" not in entry
+            if "solcast_pv_forecast" not in entry
             and details.disabled_by is None
             and (SensorDeviceClass.ENERGY in (details.device_class, details.original_device_class))
         ]
