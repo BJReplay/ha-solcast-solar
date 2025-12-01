@@ -269,20 +269,34 @@ async def test_auto_dampen(
         )  # pyright: ignore[reportPrivateUsage]
         assert "Auto-dampen factor for 08:30 is 0.807" in caplog.text
 
-        for model in (0, 1, 2, 3):
-            caplog.clear()
-            solcast.advanced_options["automated_dampening_model"] = model
-            await solcast.model_automated_dampening()
-            assert "Auto-dampen factor for 08:30 is 0.807" in caplog.text
-            for adjustment_model in (0, 1):
+        ADVANCED_CHECKS = {
+            0: {"base": 0.807, "adjusted": [0.838, 0.811]},
+            1: {"base": 0.807, "adjusted": [0.838, 0.811]},
+            2: {"base": 0.629, "adjusted": [0.689, 0.637]},
+            3: {"base": 0.272, "adjusted": [0.390, 0.288]},
+        }
+        for preseve in (False, True):
+            solcast.advanced_options["automated_dampening_preserve_unmatched_factors"] = preseve
+            for model in (0, 1, 2, 3):
                 caplog.clear()
-                solcast.advanced_options["automated_dampening_delta_adjustment_model"] = adjustment_model
-                await solcast.apply_forward_dampening()
-                match adjustment_model:
-                    case 1:
-                        assert re.search(r"Adjusted granular dampening factor for .+ 08:30:00, 0.838", caplog.text) is not None  # 0.811
-                    case _:
-                        assert re.search(r"Adjusted granular dampening factor for .+ 08:30:00, 0.838", caplog.text) is not None
+                solcast.advanced_options["automated_dampening_model"] = model
+                await solcast.model_automated_dampening()
+                assert "Auto-dampen factor for 08:30 is {:.3f}".format(ADVANCED_CHECKS[model]["base"]) in caplog.text
+
+                for adjustment_model in (0, 1):
+                    caplog.clear()
+                    solcast.advanced_options["automated_dampening_delta_adjustment_model"] = adjustment_model
+                    await solcast.apply_forward_dampening()
+                    _LOGGER.critical("Model %d/%d tested", model, adjustment_model)
+                    assert (
+                        re.search(
+                            r"Adjusted granular dampening factor for .+ 08:30:00, {:.3f}".format(
+                                ADVANCED_CHECKS[model]["adjusted"][adjustment_model]
+                            ),
+                            caplog.text,
+                        )
+                        is not None
+                    )
 
         # Verify that the dampening entity that should be disabled by default is, then enable it.
         entity = "sensor.solcast_pv_forecast_dampening"

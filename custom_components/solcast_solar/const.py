@@ -95,7 +95,7 @@ DEFAULT_DAMPENING_INSIGNIFICANT_ADJ: Final[float] = 0.95  # Adjusted dampening f
 DEFAULT_DAMPENING_LOG_DELTA_CORRECTIONS: Final[bool] = True  # Whether to logarithmically adjust applied automated dampening factors
 DEFAULT_DAMPENING_MINIMUM_GENERATION: Final[int] = 2  # Minimum number of matching intervals with generation data to consider
 DEFAULT_DAMPENING_MINIMUM_INTERVALS: Final[int] = 2  # Minimum number of matching intervals to consider for automated dampening
-DEFAULT_DAMPENING_MODEL: Final[int] = 0 # Damping calculation model (0 = Unmatched peaks, 1 = Max matched peak, 2 = mean matched peak)
+DEFAULT_DAMPENING_MODEL: Final[int] = 0  # Damping calculation model (0 = Unmatched peaks, 1 = Max matched peak, 2 = mean matched peak)
 DEFAULT_DAMPENING_MODEL_DAYS: Final[int] = 14  # Number of days over which to model automated dampening
 DEFAULT_DAMPENING_NO_LIMITING_CONSISTENCY: Final[bool] = False  # Whether to ignore intervals that have been limited at least once
 DEFAULT_DAMPENING_SIMILAR_PEAK: Final[float] = 0.90  # Factor to consider similar estimated actual peak generation for automated dampening
@@ -307,7 +307,6 @@ WINTER_TIME: Final[list[str]] = ["Europe/Dublin"]  # Zones that use "Winter time
 
 ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
     ADVANCED_API_RAISE_ISSUES: {ADVANCED_TYPE: ADVANCED_OPTION.BOOL, DEFAULT: True},
-    ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: {ADVANCED_TYPE: ADVANCED_OPTION.INT, MINIMUM: 0, MAXIMUM: 0, DEFAULT: 0},
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
         MINIMUM: 0,
@@ -361,7 +360,7 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         MAXIMUM: 3,
         DEFAULT: DEFAULT_DAMPENING_MODEL,
     },
-        ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS: {
+    ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
         MINIMUM: 2,
         MAXIMUM: 21,
@@ -377,7 +376,7 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
     },
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
-        DEFAULT: False, 
+        DEFAULT: False,
     },
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: {
         ADVANCED_TYPE: ADVANCED_OPTION.FLOAT,
