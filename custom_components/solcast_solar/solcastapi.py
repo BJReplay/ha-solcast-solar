@@ -3168,6 +3168,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
                             else:
                                 log_msg = False
+
                 if not preserve_this_interval:
                     msg = (
                         f"Not enough matching intervals for {interval_time} to determine dampening"
