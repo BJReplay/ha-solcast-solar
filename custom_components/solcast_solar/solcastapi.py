@@ -3147,9 +3147,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             else:
                                 msg = f"Not enough reliable generation samples for {interval_time} to determine dampening ({len(generation_samples)})"
                                 preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
-                        else:
-                            msg = f"Not enough matching intervals for {interval_time} to determine dampening"
-                            preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
                     case _:
                         peak = max(generation_samples) if len(generation_samples) > 0 else 0.0
                         _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
@@ -3171,9 +3168,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
                             else:
                                 log_msg = False
-                        else:
-                            msg = f"Not enough matching intervals for {interval_time} to determine dampening"
-                            preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
+                if not preserve_this_interval:
+                    msg = (
+                        f"Not enough matching intervals for {interval_time} to determine dampening"
+                        if len(matching) < self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS]
+                        else msg
+                    )
+                    preserve_this_interval = (
+                        self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
+                        and len(matching) < self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS]
+                    )
 
                 if preserve_this_interval:
                     dampening[interval] = prior_factor

@@ -156,9 +156,9 @@ Set this option to `true` to prevent this behaviour.
 
 Possible values: boolean `true`/`false` (default `false`)
 
-Default behaviour when calculating base dampening factors is that any interval with insufficient matching intervals or generation (see above) will have a dampening factor of 1.0.  This can be an issue if there is a sustained period of poor solar generation (e.g. a sustained cloudy spell) when previously calculated dampening factors for these intervals may be reset to 1.0 leading to a higher generation forecast until sufficient 'good' intervals are recorded and the dampening factors can be recalculated.
+Default behaviour when calculating base dampening factors is that any interval with insufficient matching intervals or generation (see `automated_dampening_minimum_matching_generation` and `automated_dampening_minimum_matching_intervals`) will have a dampening factor of 1.0.  This can be an issue if there is a sustained period of poor solar generation (e.g. a sustained cloudy spell) when previously calculated dampening factors for these intervals may be reset to 1.0 leading to a higher generation forecast until sufficient 'good' intervals are recorded and the dampening factors can be recalculated.
 
-Setting this option to `true` will retain the previously calculated factor for such an interval, with factors reverting to 1.0 when all recent estimated actuals for the interval are 0. 
+Setting this option to `true` will retain the previously calculated factor for such an interval, with factors reverting to 1.0 when all recent estimated actuals for the interval are 0.
 
 **Key: "automated_dampening_similar_peak"**
 
