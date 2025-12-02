@@ -146,9 +146,9 @@ If delta logarithmic adjustment of dampening factors is not desired then this op
 
 Possible values: boolean `true`/`false` (default `false`)
 
-Default limiting behaviour is that whenever export limiting of generation is seen (either by export limit detection, or manual limiting by using the entity `solcast_suppress_auto_dampening`) then all intervals of generation will be ignored over the period defined by `automated_dampening_model_days`, which is `14` by default.
+Default limiting behaviour is that whenever export limiting of generation is seen (either by export limit detection, or manual limiting by using the entity `solcast_suppress_auto_dampening`) then all of the same intervals of generation will be ignored over the period defined by `automated_dampening_model_days`, which is `14` by default.
 
-Said another way, the default behaviour is that if there is limiting detected for any interval on any day, then that interval will be ignored for every day of the past fourteen days.
+Said another way, the default behaviour is that if there is limiting detected for any interval on any day, then that interval will be ignored for every day of the past fourteen days unless this option is enabled.
 
 Set this option to `true` to prevent this behaviour.
 
@@ -156,7 +156,7 @@ Set this option to `true` to prevent this behaviour.
 
 Possible values: boolean `true`/`false` (default `false`)
 
-Default behaviour when calculating base dampening factors is that any interval with insufficient matching intervals or generation (see above) will have a dampening factor of 1.0.  This can be an issue if there is a sustained period of poor solar generation (e.g. a sustained cloudy spell) when previously calculated dampening factors for these intervals may be reset to 1.0 leading to a higher generation forecast until sufficent 'good' intervals are recorded and the dampening factors can be recalculated.
+Default behaviour when calculating base dampening factors is that any interval with insufficient matching intervals or generation (see above) will have a dampening factor of 1.0.  This can be an issue if there is a sustained period of poor solar generation (e.g. a sustained cloudy spell) when previously calculated dampening factors for these intervals may be reset to 1.0 leading to a higher generation forecast until sufficient 'good' intervals are recorded and the dampening factors can be recalculated.
 
 Setting this option to `true` will retain the previously calculated factor for such an interval, with factors reverting to 1.0 when all recent estimated actuals for the interval are 0. 
 

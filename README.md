@@ -773,15 +773,22 @@ Its suppression is also complementary to that provided by site export limit dete
 
 It also must have state change history to make any sense, so getting started will take time. This is a capability where you will need to inject common sense, and patience.
 
+> [!TIP]
+>
+> Also set the advanced option `automated_dampening_no_limiting_consistency` to `true` if required.
+>
+> The default behaviour is that if there is limiting detected for any interval on any day, then that interval will be ignored for every day of the past fourteen days unless this option is enabled.
+
 Here is a likely implementation sequence:
 
-* 1. Create the templated `solcast_suppress_auto_dampening` entity.
-* 2. Turn off automated dampening because it will be broken and confusing (but it was already broken and confusing before because you can't export or choose not to because negative wholesale price.)
-* 3. Delete your `/config/solcast_solar/solcast-generation.json` file. Any history is likely going to taint automated dampening results.
-* 4. Ensure that recorder is configured with `purge_keep_days` of at least seven. When automated dampening is enabled it will attempt to load up to seven days of generation history. Let it when the time comes. If you usually purge more aggressively then it can always be changed back in a week. (You do not need to disable acquisition of estimated actuals.)
-* 5. Completely restart HA to enable the recorder setting and get the Solcast integration to understand that generation data is now missing.
-* 6. Wait patiently for one week to build history for the new entity.
-* 7. Turn on automated dampening and watch it do its thing with your adaptation entity.
+1. Create the templated `solcast_suppress_auto_dampening` entity.
+1. Turn off automated dampening because it will be broken and confusing (but it was already broken and confusing before because you can't export or choose not to because negative wholesale price.)
+1. Delete your `/config/solcast_solar/solcast-generation.json` file. Any history is likely going to taint automated dampening results.
+1. Ensure that recorder is configured with `purge_keep_days` of at least seven. When automated dampening is enabled it will attempt to load up to seven days of generation history (there is an advanced option to get more). Let it when the time comes. If you usually purge more aggressively then it can always be changed back in a week. (You do not need to disable acquisition of estimated actuals.)
+1. Set advanced option `automated_dampening_no_limiting_consistency` to `true` if required
+1. Completely restart HA to enable the recorder setting and get the Solcast integration to understand that generation data is now missing.
+1. Wait patiently for one week to build history for the new entity.
+1. Turn on automated dampening and watch it do its thing with your adaptation entity.
 
 Having `DEBUG` level logging enabled for the integration will expose what happens, and this is a sensible thing to do while getting this set up. If you want any assistance then having the logs to hand, and sharing them will be _essential_.
 
