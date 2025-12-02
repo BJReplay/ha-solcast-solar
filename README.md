@@ -763,13 +763,11 @@ This is where you can get creative with a specifically named templated sensor to
 
 Example scenarios include not being able to export to the grid, or choosing not to export. At these times, household consumption will match generation, and will confuse automated dampening.
 
-To modify the behaviour of automated dampening, a template entity can be created with the name of `solcast_suppress_auto_dampening`. This can be using either the platform "sensor" or "binary_sensor".
+To modify the behaviour of automated dampening, a template entity can be created with the name of `solcast_suppress_auto_dampening`. This can be using either the platform "sensor", "binary_sensor" or "switch".
 
 The integration will monitor this entity for state changes. When a state is one of "on", "1", "true" or "True" at _any time in a half-hourly PV generation interval_ then this will signal automated dampening to vary its behaviour and exclude that interval, or if the entity state is one of "off", "0", "false" or "False" for the _entire interval_, the interval will be included as normal in automated dampening.
 
-This entity _must_ begin and end each day in a state that is considered 'off', so rigging a sensor value of always 'on' will break things. State must change throughout the day, or be permanently 'off', and _never_ permanently 'on'.
-
-Its suppression is also complementary to that provided by site export limit detection, so those configuration aspects should likely be removed, or carefully considered.
+Suppression is also complementary to that provided by site export limit detection, so those configuration aspects should likely be removed, or carefully considered.
 
 It also must have state change history to make any sense, so getting started will take time. This is a capability where you will need to inject common sense, and patience.
 
@@ -1260,6 +1258,7 @@ v4.4.9
 * Add advanced option auto-dampen model variants by @Nilogax
 * Add advanced option auto-dampen delta adjustment variant by @Nilogax
 * Add advanced option auto-dampen preserve prior factors by @Nilogax
+* Add switch platform support for generation suppression entity by @autoSteve
 * Refine startup behaviour and translate startup status messages by @autoSteve
 * Fix benign bug regarding startup when estimated actuals not yet acquired by @autoSteve
 

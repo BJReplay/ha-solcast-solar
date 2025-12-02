@@ -29,7 +29,10 @@ from aiohttp import ClientConnectionError, ClientResponseError, ClientSession
 from aiohttp.client_reqrep import ClientResponse
 
 from homeassistant.components.recorder import get_instance
-from homeassistant.components.recorder.history import state_changes_during_period
+from homeassistant.components.recorder.history import (
+    get_last_state_changes,
+    state_changes_during_period,
+)
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_UNIT_OF_MEASUREMENT, CONF_API_KEY
 from homeassistant.core import HomeAssistant, State
@@ -146,6 +149,7 @@ from .const import (
     PERIOD_START,
     PLATFORM_BINARY_SENSOR,
     PLATFORM_SENSOR,
+    PLATFORM_SWITCH,
     PROPOSAL,
     RESET,
     RESOURCE_ID,
@@ -2838,7 +2842,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             }
 
             # Identify intervals intentionally disabled by the user.
-            platforms = [PLATFORM_SENSOR, PLATFORM_BINARY_SENSOR]
+            platforms = [PLATFORM_BINARY_SENSOR, PLATFORM_SENSOR, PLATFORM_SWITCH]
             find_entity = "solcast_suppress_auto_dampening"
             entity = ""
             found = False
@@ -2850,16 +2854,34 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     break
             if found:
                 _LOGGER.debug("Suppression entity %s exists", entity)
+                query_start_time = self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1)
+                query_end_time = self.get_day_start_utc(future=(-1 * day))
+
+                # Get state changes during the period
                 entity_history = await get_instance(self.hass).async_add_executor_job(
                     state_changes_during_period,
                     self.hass,
-                    self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1),
-                    self.get_day_start_utc(future=(-1 * day)),
+                    query_start_time,
+                    query_end_time,
                     entity,
                 )
+
+                # Get the last state change
+                initial_state_history = await get_instance(self.hass).async_add_executor_job(get_last_state_changes, self.hass, 1, entity)
+
                 if entity_history.get(entity) and len(entity_history[entity]):
                     entity_state: dict[dt, bool] = {}
+                    # Determine the initial state from the query result
                     state = False
+                    if initial_state_history.get(entity) and len(initial_state_history[entity]) > 0:
+                        initial_state_obj = initial_state_history[entity][0]
+                        # Only use this state if it's before or at the start time
+                        state = (
+                            initial_state_obj.state in ("on", "1", "true", "True")
+                            if initial_state_obj.last_updated <= query_start_time
+                            else state
+                        )
+
                     for e in entity_history[entity]:
                         if e.state not in ("on", "off", "1", "0", "true", "false", "True", "False"):
                             continue
