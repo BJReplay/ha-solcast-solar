@@ -2706,6 +2706,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         start_time = time.time()
 
+        _ON = ("on", "1", "true", "True")
+        _ALL = ("on", "off", "1", "0", "true", "false", "True", "False")
+
         # Load the generation history.
         generation: dict[dt, dict[str, Any]] = {generated[PERIOD_START]: generated for generated in self._data_generation[GENERATION]}
         days = 1 if len(generation) > 0 else self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS]
@@ -2866,29 +2869,42 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     entity,
                 )
 
-                # Get the last state change
-                initial_state_history = await get_instance(self.hass).async_add_executor_job(get_last_state_changes, self.hass, 1, entity)
-
                 if entity_history.get(entity) and len(entity_history[entity]):
                     entity_state: dict[dt, bool] = {}
-                    # Determine the initial state from the query result
+                    # Determine the start-of-day state from history query. Find a state before query_start_time using overkill.
                     state = False
-                    if initial_state_history.get(entity) and len(initial_state_history[entity]) > 0:
-                        initial_state_obj = initial_state_history[entity][0]
-                        # Only use this state if it's before or at the start time
-                        state = (
-                            initial_state_obj.state in ("on", "1", "true", "True")
-                            if initial_state_obj.last_updated <= query_start_time
-                            else state
+                    limit = 10
+                    max_iterations = 10
+                    iteration = 0
+                    while iteration < max_iterations:
+                        initial_state_history = await get_instance(self.hass).async_add_executor_job(
+                            get_last_state_changes, self.hass, limit, entity
                         )
+                        if initial_state_history.get(entity) and len(initial_state_history[entity]) > 0:
+                            # Find the most recent state that was before query_start_time
+                            found_earlier_state = False
+                            for historical_state in reversed(initial_state_history[entity]):
+                                if historical_state.last_updated < query_start_time:
+                                    state = historical_state.state in _ON
+                                    found_earlier_state = True
+                                    break
+                            if found_earlier_state:
+                                break
+                            if len(initial_state_history[entity]) < limit:
+                                # Beginning of history reached, so initial state is False
+                                break
+                            limit *= 2
+                            iteration += 1
+                        else:
+                            break
 
                     for e in entity_history[entity]:
-                        if e.state not in ("on", "off", "1", "0", "true", "false", "True", "False"):
+                        if e.state not in _ALL:
                             continue
                         interval = e.last_updated.astimezone(datetime.UTC).replace(
                             minute=e.last_updated.astimezone(datetime.UTC).minute // 30 * 30, second=0, microsecond=0
                         )
-                        if e.state in ("on", "1", "true", "True"):
+                        if e.state in _ON:
                             state = True
                             if not entity_state.get(interval):
                                 entity_state[interval] = state
