@@ -2872,7 +2872,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 if entity_history.get(entity) and len(entity_history[entity]):
                     entity_state: dict[dt, bool] = {}
-                    # Determine the start-of-day state from history query. Find a state before query_start_time using overkill.
+                    # Determine the start-of-day state from history query. Find a state before query_start_time.
                     state = False
                     limit = 10
                     max_iterations = 10
@@ -2893,9 +2893,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             break
                                     if found_earlier_state:
                                         break
+                                    # Check if it is possible to go further back
                                     if len(initial_state_history[entity]) < limit:
-                                        # Beginning of history reached, so initial state is False
                                         break
+                                    # Got exactly limit results without finding anything earlier than query_start_time
+                                    # Double the limit and try again to find even older history
                                     limit *= 2
                                     iteration += 1
 
