@@ -615,9 +615,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
             if opt[SITE_DAMP] == old_damp:
                 await solcast.apply_forward_dampening()
                 await coordinator.solcast.build_forecast_data()
-                coordinator.set_data_updated(True)
-                await coordinator.update_integration_listeners()
-                coordinator.set_data_updated(False)
+        coordinator.set_data_updated(True)
+        await coordinator.update_integration_listeners()
+        coordinator.set_data_updated(False)
 
         hass.config_entries.async_update_entry(entry, options=opt)
 

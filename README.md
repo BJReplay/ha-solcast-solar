@@ -1259,8 +1259,11 @@ v4.4.9
 * Add advanced option auto-dampen delta adjustment variant by @Nilogax
 * Add advanced option auto-dampen preserve prior factors by @Nilogax
 * Add switch platform support for generation suppression entity by @autoSteve
+* Suppression entity may now begin and end day each day in any state by @autoSteve
 * Refine startup behaviour and translate startup status messages by @autoSteve
+* Fix update dampening entity on hourly dampening set by action to all 1.0 by @autoSteve
 * Fix benign bug regarding startup when estimated actuals not yet acquired by @autoSteve
+* Fix exception when using hourly dampening and the dampening entity is enabled by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.8...v4.4.9
 
