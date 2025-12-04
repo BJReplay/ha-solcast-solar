@@ -1108,7 +1108,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 ret.update(to_return)
 
         if key == "dampen":
-            if self.solcast.entry_options[SITE_DAMP]:
+            if self.solcast.entry_options.get(SITE_DAMP):
                 # Granular dampening
                 ret[INTEGRATION_AUTOMATED] = self.solcast.options.auto_dampen
                 ret[LAST_UPDATED] = (
