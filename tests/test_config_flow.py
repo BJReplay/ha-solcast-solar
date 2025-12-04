@@ -850,6 +850,7 @@ async def test_advanced_options(
             "automated_dampening_generation_fetch_delay": 0,
             "automated_dampening_generation_history_load_days": 7,
             "automated_dampening_similar_peak": 0.90,
+            "automated_dampening_suppression_entity": "solcast_suppress_auto_dampening",
             "entity_logging": True,  # The odd-man-out, detected as removed later and set to default
             "estimated_actuals_fetch_delay": 0,
             "estimated_actuals_log_ape_percentiles": [50],
@@ -890,6 +891,7 @@ async def test_advanced_options(
             "automated_dampening_generation_fetch_delay": -10,
             "automated_dampening_generation_history_load_days": 22,
             "automated_dampening_similar_peak": 1.1,
+            "automated_dampening_suppression_entity": 5,
             "estimated_actuals_fetch_delay": 140,
             "estimated_actuals_log_ape_percentiles": [10, 50, 10, "wrong_type", 0.5],
             "forecast_day_entities": 16,
