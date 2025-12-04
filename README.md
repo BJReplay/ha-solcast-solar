@@ -1258,6 +1258,7 @@ v4.4.9
 * Add advanced option auto-dampen model variants by @Nilogax
 * Add advanced option auto-dampen delta adjustment variant by @Nilogax
 * Add advanced option auto-dampen preserve prior factors by @Nilogax
+* Add advanced option auto-dampen suppression entity by @autoSteve
 * Add switch platform support for generation suppression entity by @autoSteve
 * Suppression entity may now begin and end day each day in any state by @autoSteve
 * Refine startup behaviour and translate startup status messages by @autoSteve

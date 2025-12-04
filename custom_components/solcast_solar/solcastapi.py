@@ -57,6 +57,7 @@ from .const import (
     ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY,
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK,
+    ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY,
     ADVANCED_FORECAST_FUTURE_DAYS,
     ADVANCED_FORECAST_HISTORY_MAX_DAYS,
     ADVANCED_OPTION,
@@ -2846,7 +2847,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             # Identify intervals intentionally disabled by the user.
             platforms = [PLATFORM_BINARY_SENSOR, PLATFORM_SENSOR, PLATFORM_SWITCH]
-            find_entity = "solcast_suppress_auto_dampening"
+            find_entity = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY]
             entity = ""
             found = False
             for p in platforms:
@@ -2876,27 +2877,27 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     limit = 10
                     max_iterations = 10
                     iteration = 0
-                    while iteration < max_iterations:
-                        initial_state_history = await get_instance(self.hass).async_add_executor_job(
-                            get_last_state_changes, self.hass, limit, entity
-                        )
-                        if initial_state_history.get(entity) and len(initial_state_history[entity]) > 0:
-                            # Find the most recent state that was before query_start_time
-                            found_earlier_state = False
-                            for historical_state in reversed(initial_state_history[entity]):
-                                if historical_state.last_updated < query_start_time:
-                                    state = historical_state.state in _ON
-                                    found_earlier_state = True
-                                    break
-                            if found_earlier_state:
-                                break
-                            if len(initial_state_history[entity]) < limit:
-                                # Beginning of history reached, so initial state is False
-                                break
-                            limit *= 2
-                            iteration += 1
-                        else:
-                            break
+                    with contextlib.suppress(asyncio.TimeoutError):
+                        async with asyncio.timeout(1):
+                            while iteration < max_iterations:
+                                initial_state_history = await get_instance(self.hass).async_add_executor_job(
+                                    get_last_state_changes, self.hass, limit, entity
+                                )
+                                if initial_state_history.get(entity) and len(initial_state_history[entity]) > 0:
+                                    # Find the most recent state that was before query_start_time
+                                    found_earlier_state = False
+                                    for historical_state in reversed(initial_state_history[entity]):
+                                        if historical_state.last_updated < query_start_time:
+                                            state = historical_state.state in _ON
+                                            found_earlier_state = True
+                                            break
+                                    if found_earlier_state:
+                                        break
+                                    if len(initial_state_history[entity]) < limit:
+                                        # Beginning of history reached, so initial state is False
+                                        break
+                                    limit *= 2
+                                    iteration += 1
 
                     for e in entity_history[entity]:
                         if e.state not in _ALL:

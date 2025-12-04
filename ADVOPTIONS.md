@@ -168,6 +168,12 @@ Estimated actual peaks are compared to find a similar number of "matching" peaks
 
 This option varies what is considered a similar interval from all modelled days.
 
+**Key: "automated_dampening_suppression_entity"**
+
+Possible values: string (default `"solcast_suppress_auto_dampening"`)
+
+A templated suppression entity in the `sensor`, `binary_sensor` or `switch` platform can be used to intentionally ignore intervals of generation. This option allows the entity name searched for to be changed.
+
 ## Estimated actuals
 
 **Key: "estimated_actuals_fetch_delay"**
