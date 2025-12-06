@@ -29,10 +29,7 @@ from aiohttp import ClientConnectionError, ClientResponseError, ClientSession
 from aiohttp.client_reqrep import ClientResponse
 
 from homeassistant.components.recorder import get_instance
-from homeassistant.components.recorder.history import (
-    get_last_state_changes,
-    state_changes_during_period,
-)
+from homeassistant.components.recorder.history import state_changes_during_period
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_UNIT_OF_MEASUREMENT, CONF_API_KEY
 from homeassistant.core import HomeAssistant, State
