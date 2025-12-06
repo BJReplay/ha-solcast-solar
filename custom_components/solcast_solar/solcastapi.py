@@ -2868,38 +2868,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     query_start_time,
                     query_end_time,
                     entity,
+                    True,  # No attributes
+                    False,  # Descending order
+                    None,  # Limit
+                    True,  # Include start time state
                 )
 
                 if entity_history.get(entity) and len(entity_history[entity]):
                     entity_state: dict[dt, bool] = {}
-                    # Determine the start-of-day state from history query. Find a state before query_start_time.
                     state = False
-                    limit = 10
-                    max_iterations = 10
-                    iteration = 0
-                    with contextlib.suppress(asyncio.TimeoutError):
-                        async with asyncio.timeout(1):
-                            while iteration < max_iterations:
-                                initial_state_history = await get_instance(self.hass).async_add_executor_job(
-                                    get_last_state_changes, self.hass, limit, entity
-                                )
-                                if initial_state_history.get(entity) and len(initial_state_history[entity]) > 0:
-                                    # Find the most recent state that was before query_start_time
-                                    found_earlier_state = False
-                                    for historical_state in reversed(initial_state_history[entity]):
-                                        if historical_state.last_updated < query_start_time:
-                                            state = historical_state.state in _ON
-                                            found_earlier_state = True
-                                            break
-                                    if found_earlier_state:
-                                        break
-                                    # Check if it is possible to go further back
-                                    if len(initial_state_history[entity]) < limit:
-                                        break
-                                    # Got exactly limit results without finding anything earlier than query_start_time
-                                    # Double the limit and try again to find even older history
-                                    limit *= 2
-                                    iteration += 1
 
                     for e in entity_history[entity]:
                         if e.state not in _ALL:
