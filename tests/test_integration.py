@@ -1452,6 +1452,9 @@ async def test_scenarios(
             data["siteinfo"]["3333-3333-3333-3333"]["forecasts"] = [{"bob": 0}]
             data_file.write_text(json.dumps(data), encoding="utf-8")
 
+        def _corrupt_with_zero_length():
+            data_file.write_text("", encoding="utf-8")
+
         # Corrupt sites.json
         _LOGGER.debug("Testing corruption: sites.json")
         session_set(MOCK_BUSY)
@@ -1483,6 +1486,13 @@ async def test_scenarios(
         await _reload(hass, entry)
         assert "corrupt, re-creating cache with zero usage" in caplog.text
         usage_file.write_text(json.dumps(usage), encoding="utf-8")
+        caplog.clear()
+
+        # Corrupt solcast.json as zero length
+        _LOGGER.debug("Testing corruption: solcast.json")
+        _corrupt_with_zero_length()
+        await _reload(hass, entry)
+        assert re.search(rf"CRITICAL.+Removing zero-length file.+{data_file}", caplog.text) is not None
         caplog.clear()
 
         # Corrupt solcast.json

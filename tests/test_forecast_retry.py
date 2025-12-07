@@ -114,7 +114,7 @@ async def test_forecast_retry(
 
         solcast._data["last_updated"] -= timedelta(minutes=20)
         with mock.patch("homeassistant.components.solcast_solar.solcastapi.SolcastApi._sleep", new_callable=AsyncMockDoNothing):
-            for _ in range(150):
+            for _ in range(1500):
                 freezer.tick(0.09)
                 await hass.async_block_till_done()
 
