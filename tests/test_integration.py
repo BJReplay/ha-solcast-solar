@@ -1489,7 +1489,7 @@ async def test_scenarios(
         caplog.clear()
 
         # Corrupt solcast.json as zero length
-        _LOGGER.debug("Testing corruption: solcast.json")
+        _LOGGER.debug("Testing zero-length corruption: solcast.json")
         _corrupt_with_zero_length()
         await _reload(hass, entry)
         assert re.search(rf"CRITICAL.+Removing zero-length file.+{data_file}", caplog.text) is not None

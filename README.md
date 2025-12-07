@@ -1184,10 +1184,24 @@ series:
 ## Known issues
 
 * Altering hard limit will alter recorded forecast history. This is currently by design and may not change.
-* Sample sites (if set up in your Solcast dashboard) will be included in your forecasts retrieved by this integration and returned to Home Assistant.
-<details>
-    If you see sample sites (such as these [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSites.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSites.png)) remove them from your Solcast dashboard.
-</details>
+* Any zero-length integration JSON files will be removed on startup (see below)
+* Sample sites (if set up in your Solcast dashboard) will be included in your forecasts retrieved by this integration and returned to Home Assistant (see below)
+
+### Removal of zero-length files
+
+In the past there have been occurrences of the cache files being written by the integration as zero length files. This has been incredibly infrequent, and can be a reminder to keep backups of your installation.
+
+The cause might be a code issue (which has repeatedly been looked at, and likely solved in v4.4.8), or some external factor that we cannot control does it, but it definitely occurs on shutdown, with the integration (previously) failing to start again, usually occurring after it has been upgraded.
+
+The data is gone. And the fix was to remove the empty file, or to restore the file from backup then restart.
+
+It will now start in this 'empty file' situation, as of v4.4.10, with a `CRITICAL` level logged event that the zero-length file has been removed. This will cause extra API call usage on startup. **_You will likely lose all forecast history._**
+
+Expect API usage issues, which will clear within 24 hours.
+
+### Sample sites
+
+If you see sample sites (such as these [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSites.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSites.png)) remove them from your Solcast dashboard.
 
 ## Troubleshooting
 
@@ -1252,6 +1266,12 @@ The caches reside in the Home Assistant Solcast Solar configuration folder (usua
 The code itself resides at `/config/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
 
 ## Changes
+
+v4.4.10
+
+* Remove zero-length cache files on startup by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.9...v4.4.10
 
 v4.4.9
 
