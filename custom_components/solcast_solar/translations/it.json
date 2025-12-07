@@ -228,6 +228,10 @@
             "description": "L'API Solcast ha segnalato ripetutamente lo stato `429 / Riprova più tardi` durante un aggiornamento.\n\n* Non tentare di risolvere questa situazione.\n* Non modificare la chiave API.\n* Evita di riavviare l'integrazione\n* Non è un problema di integrazione e si risolverà da solo. Non cambiare nulla.\n\n(Per sopprimere questo problema, crea un'opzione di configurazione avanzata api_raise_issue e impostala su false.)",
             "title": "API Solcast temporaneamente non disponibile"
         },
+        "corrupt_file": {
+            "description": "Il/i file di dati memorizzati nella cache `{files}` è/sono danneggiato/i. L'integrazione tenterà di recuperare eliminando il/i file e recuperando nuovamente i dati da Solcast. Prevedere un aumento dell'utilizzo dell'API e potenziali errori dell'API e la perdita della cronologia delle previsioni a causa di questa situazione. È possibile recuperare i file dal backup, ma prevedere comunque errori nelle chiamate API.",
+            "title": "Dati memorizzati nella cache danneggiati"
+        },
         "records_missing": {
             "description": "I dati delle previsioni future mancano, il che è inaspettato perché l'aggiornamento automatico è attivato. Indaga sulla causa esaminando il registro di Home Assistant. Leggi le FAQ sulla risoluzione dei problemi prima di segnalare un problema di integrazione.",
             "title": "Previsioni future mancanti"

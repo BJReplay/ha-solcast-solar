@@ -228,6 +228,10 @@
             "description": "Podczas aktualizacji Solcast API wielokrotnie zgłaszało status `429 / Spróbuj ponownie później`.\n\n* Nie próbuj rozwiązać tej sytuacji.\n* Nie zmieniaj klucza API.\n* Unikaj ponownego uruchamiania integracji\n* To nie jest problem z integracją i rozwiąże się samoczynnie. Nic nie zmieniaj.\n\n(Aby wyciszyć ten problem, utwórz zaawansowana opcja konfiguracji api_raise_issue i ustaw ją na false.)",
             "title": "Solcast API tymczasowo niedostępne"
         },
+        "corrupt_file": {
+            "description": "Plik(i) danych w pamięci podręcznej `{files}` jest(są) uszkodzony(e). Integracja spróbuje się odzyskać, usuwając plik(i) i ponownie pobierając dane z Solcast. Spodziewaj się zwiększonego wykorzystania API i potencjalnych awarii API oraz utraty historii prognoz z powodu tej sytuacji. Możliwe jest odzyskanie plików z kopii zapasowej, ale nadal spodziewaj się awarii wywołań API.",
+            "title": "Uszkodzone dane w pamięci podręcznej"
+        },
         "records_missing": {
             "description": "Brakuje danych prognozy na przyszłość, co jest nieoczekiwane, ponieważ automatyczna aktualizacja jest włączona. Zbadaj przyczynę, sprawdzając dziennik Home Assistanta. Przeczytaj FAQ dotyczące rozwiązywania problemów przed zgłoszeniem problemu z integracją.",
             "title": "Brak prognoz na przyszłość"

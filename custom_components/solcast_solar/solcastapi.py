@@ -82,6 +82,7 @@ from .const import (
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
     CORRECT,
+    CORRUPT_FILE,
     CUSTOM_HOUR_SENSOR,
     DAILY_LIMIT,
     DAILY_LIMIT_CONSUMED,
@@ -111,6 +112,7 @@ from .const import (
     EXPORT_LIMITING,
     EXTANT,
     FAILURE,
+    FILES,
     FORECASTS,
     FORMAT,
     GENERATION,
@@ -132,6 +134,7 @@ from .const import (
     LAST_UPDATED,
     LATITUDE,
     LEARN_MORE,
+    LEARN_MORE_CORRUPT_FILE,
     LEARN_MORE_MISSING_FORECAST_DATA,
     LEARN_MORE_UNUSUAL_AZIMUTH,
     LONGITUDE,
@@ -357,12 +360,30 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 target_path = Path(self._config_dir) / file.name
                 _LOGGER.info("Migrating config directory file %s to %s", file.resolve(), target_path)
                 file.replace(target_path)
+
+        unlinked: list[str] = []
         for file in Path(self._config_dir).glob("solcast*.json"):
             if file.stat().st_size == 0:
                 _LOGGER.critical("Removing zero-length file %s", file.resolve())
                 file.unlink()
+                unlinked.append(str(file.name))
             else:
                 _LOGGER.debug("File %s has length %d", file.resolve(), file.stat().st_size)
+        if unlinked:
+            _LOGGER.debug("Raise issue `%s` for files %s", CORRUPT_FILE, str(unlinked))
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                CORRUPT_FILE,
+                is_fixable=False,
+                is_persistent=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=CORRUPT_FILE,
+                translation_placeholders={
+                    FILES: str(unlinked),
+                },
+                learn_more_url=LEARN_MORE_CORRUPT_FILE,
+            )
         with contextlib.suppress(OSError):
             ((Path(self._config_dir) / "solcast_solar").rmdir()) if not CONFIG_FOLDER_DISCRETE else None
 
@@ -1489,7 +1510,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             json_data: dict[str, Any] = json.loads(await data_file.read(), cls=JSONDecoder)
                             if not isinstance(json_data, dict):
                                 _LOGGER.error("The %s cache appears corrupt", filename)
-                                self.raise_and_record(ConfigEntryNotReady, TRANSLATE_INIT_CORRUPT, {"file": file})
+                                raise_and_record(self.hass, ConfigEntryNotReady, TRANSLATE_INIT_CORRUPT, {"file": file})
                             json_version = json_data.get(VERSION, 1)
                             _LOGGER.debug(
                                 "Data cache %s exists, file type is %s",

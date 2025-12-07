@@ -228,6 +228,10 @@
             "description": "A API Solcast reportou repetidamente o estado `429 / Tente novamente mais tarde` durante uma atualização.\n\n* Não tente resolver esta situação.\n* Não altere sua chave API.\n* Evite reiniciar a integração\n* Isto não é um problema de integração e se resolverá sozinho. Não mude nada.\n\n(Para suprimir este problema, crie uma opção de configuração avançada api_raise_issue e defina-a como false.)",
             "title": "API Solcast temporariamente indisponível"
         },
+        "corrupt_file": {
+            "description": "O(s) arquivo(s) de dados em cache `{files}` está(ão) corrompido(s). A integração tentará se recuperar excluindo o(s) arquivo(s) e buscando os dados novamente do Solcast. Espere um aumento no uso da API e possíveis falhas na API, e perda do histórico de previsões devido a esta situação. Possivelmente recupere os arquivos do backup, mas ainda espere falhas nas chamadas da API.",
+            "title": "Dados em cache corrompidos"
+        },
         "records_missing": {
             "description": "Faltam dados da previsão futura, o que é inesperado porque a atualização automática está ativada. Investigue a causa examinando o registo do Home Assistant. Leia as perguntas frequentes de resolução de problemas antes de levantar um problema de integração.",
             "title": "Previsões futuras em falta"

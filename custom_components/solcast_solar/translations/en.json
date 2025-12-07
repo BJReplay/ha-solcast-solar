@@ -228,6 +228,10 @@
             "description": "The Solcast API has reported `429 / Try again later` status repeatedly during an update.\n\n* Do not attempt to fix this situation.\n* Do not change your API key.\n* Avoid restarting the integration\n* This is not an integration issue and will resolve itself. Change nothing.\n\n(To suppress this issue, create an advanced configuration option api_raise_issue and set it to false.)",
             "title": "Solcast API temporarily unavailable"
         },
+        "corrupt_file": {
+            "description": "The cached data file(s) `{files}` is corrupted. The integration will attempt to recover by deleting the file(s) and re-fetching data from Solcast. Expect increased API usage and potential API failures, and loss of forecast history due to this situation. Possibly recover the files from backup, but still expect API call failures.",
+            "title": "Corrupted cached data"
+        },
         "records_missing": {
             "description": "Future forecast data is missing, which is unexpected because auto-update is enabled. Investigate the cause by examining the Home Assistant log. Read the troubleshooting FAQ before raising an integration issue.",
             "title": "Future forecasts missing"
