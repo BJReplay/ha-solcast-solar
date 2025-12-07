@@ -33,6 +33,7 @@ from homeassistant.components.solcast_solar.const import (
     BRK_SITE_DETAILED,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
+    CORRUPT_FILE,
     CUSTOM_HOUR_SENSOR,
     DEFAULT_FORECAST_DAYS,
     DELAYED_RESTART_ON_CRASH,
@@ -63,7 +64,7 @@ from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from homeassistant.util import dt as dt_util
 
 from . import (
@@ -1156,6 +1157,7 @@ async def test_scenarios(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
+    issue_registry: ir.IssueRegistry,
 ) -> None:
     """Test various integration scenarios."""
 
@@ -1493,6 +1495,11 @@ async def test_scenarios(
         _corrupt_with_zero_length()
         await _reload(hass, entry)
         assert re.search(rf"CRITICAL.+Removing zero-length file.+{data_file}", caplog.text) is not None
+        assert len(issue_registry.issues) == 1
+        issue = list(issue_registry.issues.values())[0]
+        assert issue.issue_id == CORRUPT_FILE
+        assert issue.is_persistent is False
+        assert f"Raise issue `{issue.issue_id}`" in caplog.text
         caplog.clear()
 
         # Corrupt solcast.json
