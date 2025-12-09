@@ -3059,10 +3059,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             ignored_intervals.append(interval)
 
         export_limited_intervals = dict.fromkeys(range(50), False)
+        export_limited_specific_intervals: dict[dt, bool] = {}
         if not self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY]:
             for gen in self._data_generation[GENERATION][-1 * self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] * 48 :]:
                 if gen[EXPORT_LIMITING]:
                     export_limited_intervals[self.adjusted_interval(gen)] = True
+        else:
+            for gen in self._data_generation[GENERATION][-1 * self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] * 48 :]:
+                export_limited_specific_intervals[gen[PERIOD_START]] = gen[EXPORT_LIMITING]
 
         generation: dict[dt, float] = {}
         for gen in self._data_generation[GENERATION][-1 * self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] * 48 :]:
@@ -3093,9 +3097,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     generation_reassembled[period_start] = 0.0
                 generation_reassembled[period_start] += generation_shifted[shifted_ts] if period_start <= shifted_ts < period_end else 0.0
             for interval in generation_reassembled:
-                if (
-                    export_limited_intervals[self.adjusted_interval_dt(interval)]
-                    or export_limited_intervals[self.adjusted_interval_dt(interval - timedelta(minutes=30))]
+                if not self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY]:
+                    if (
+                        export_limited_intervals[self.adjusted_interval_dt(interval)]
+                        or export_limited_intervals[self.adjusted_interval_dt(interval + timedelta(minutes=30))]
+                    ):
+                        generation_reassembled[interval] = 0.0
+                elif export_limited_specific_intervals.get(interval) or export_limited_specific_intervals.get(
+                    interval + timedelta(minutes=30)
                 ):
                     generation_reassembled[interval] = 0.0
             generation = generation_reassembled
