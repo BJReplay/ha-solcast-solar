@@ -864,7 +864,14 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     hass.data[DOMAIN][OLD_HARD_LIMIT] = entry.options[HARD_LIMIT_API]
 
     # Config changes, which when changed will cause a reload.
-    reload = changed(CONF_API_KEY) or changed(API_QUOTA) or changed(AUTO_UPDATE) or changed(HARD_LIMIT_API) or changed(CUSTOM_HOUR_SENSOR)
+    reload = (
+        changed(CONF_API_KEY)
+        or changed(API_QUOTA)
+        or changed(AUTO_UPDATE)
+        or changed(HARD_LIMIT_API)
+        or changed(CUSTOM_HOUR_SENSOR)
+        or changed(SITE_EXPORT_ENTITY)
+    )
 
     # Config changes, which when changed will cause a forecast recalculation only, without reload.
     # Dampening must be the first check with the code as-is...

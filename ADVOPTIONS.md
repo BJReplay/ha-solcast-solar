@@ -172,7 +172,7 @@ So what's the catch? Export limiting.
 
 Usually, when export limiting is detected (or intentionally set), then individual generation thirty minute intervals are excluded from consideration. When this option is set then when an interval is excluded, _the interval preceding it_ will also be excluded. The reason is because to do the shift each interval is halved and the shifted halves are re-combined.
 
-If you don't export limit then there is no downside.
+If you don't export limit, or explicitly suppress intervals then there is no downside, and in this circumstance the fifteen minute shifting will occur by default.
 
 **Key: "automated_dampening_similar_peak"**
 

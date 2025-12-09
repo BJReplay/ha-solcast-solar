@@ -343,6 +343,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._sites_actual_hard_limit_undampened: defaultdict[str, Any] = defaultdict(dict)
         self._spline_period = list(range(0, 90000, 1800))
         self._serialise_lock = asyncio.Lock()
+        self._suppression = self.options.site_export_limit > 0 and self.options.site_export_entity != ""
         self._tally: dict[str, float | None] = {}
         self._tz = options.tz
         self._use_forecast_confidence = f"pv_{options.key_estimate}"
@@ -2883,6 +2884,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     break
             if found:
                 _LOGGER.debug("Suppression entity %s exists", entity)
+                self._suppression = True
                 query_start_time = self.get_day_start_utc(future=(-1 * day)) - timedelta(days=1)
                 query_end_time = self.get_day_start_utc(future=(-1 * day))
 
@@ -2939,6 +2941,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             _LOGGER.debug(
                                 "Auto-dampen suppressed for interval %s", interval.astimezone(self._tz).strftime("%Y-%m-%d %H:%M")
                             )
+            elif self.options.site_export_limit == 0 and self.options.site_export_entity == "":
+                self._suppression = False
 
             # Detect site export limiting
             if self.options.site_export_limit > 0 and self.options.site_export_entity != "":
@@ -3070,7 +3074,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             else:
                 generation[gen[PERIOD_START]] = 0.0
 
-        if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_SHIFT_FIFTEEN]:
+        if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_SHIFT_FIFTEEN] or not self._suppression:
             # Shift generation earlier by 15 minutes
             generation_15min: dict[dt, float] = {}
             for period_start, value in generation.items():
