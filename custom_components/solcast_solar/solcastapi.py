@@ -53,6 +53,7 @@ from .const import (
     ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_CORRECTIONS,
     ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY,
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
+    ADVANCED_AUTOMATED_DAMPENING_SHIFT_FIFTEEN,
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK,
     ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY,
     ADVANCED_FORECAST_FUTURE_DAYS,
@@ -2369,7 +2370,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         confidences: list[str],
         reducing: bool = False,
     ) -> None:
-        """Build a forecast spline, momentary or day reducing.
+        """Build a spline, momentary or day reducing.
 
         Arguments:
             spline (dict): The data structure to populate.
@@ -3066,6 +3067,34 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     generation[gen[PERIOD_START]] = gen[GENERATION]
             elif not gen[EXPORT_LIMITING]:
                 generation[gen[PERIOD_START]] = gen[GENERATION]
+            else:
+                generation[gen[PERIOD_START]] = 0.0
+
+        if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_SHIFT_FIFTEEN]:
+            # Shift generation earlier by 15 minutes
+            generation_15min: dict[dt, float] = {}
+            for period_start, value in generation.items():
+                value_15min = value / 2
+                for i in range(2):
+                    generation_15min[period_start + timedelta(minutes=15 * i)] = value_15min
+            generation_shifted: dict[dt, float] = {}
+            for timestamp, value in generation_15min.items():
+                shifted_timestamp = timestamp - timedelta(minutes=15)
+                generation_shifted[shifted_timestamp] = value
+            generation_reassembled: dict[dt, float] = {}
+            for shifted_ts in sorted(generation_shifted.keys()):
+                period_start = shifted_ts.replace(minute=(shifted_ts.minute // 30) * 30, second=0, microsecond=0)
+                period_end = period_start + timedelta(minutes=30)
+                if period_start not in generation_reassembled:
+                    generation_reassembled[period_start] = 0.0
+                generation_reassembled[period_start] += generation_shifted[shifted_ts] if period_start <= shifted_ts < period_end else 0.0
+            for interval in generation_reassembled:
+                if (
+                    export_limited_intervals[self.adjusted_interval_dt(interval)]
+                    or export_limited_intervals[self.adjusted_interval_dt(interval - timedelta(minutes=30))]
+                ):
+                    generation_reassembled[interval] = 0.0
+            generation = generation_reassembled
 
         actuals: OrderedDict[dt, float] = OrderedDict()
         for site in self.sites:

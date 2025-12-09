@@ -160,6 +160,20 @@ Default behaviour when calculating base dampening factors is that any interval w
 
 Setting this option to `true` will retain the previously calculated factor for such an interval, with factors reverting to 1.0 when all recent estimated actuals for the interval are 0.
 
+**Key: "automated_dampening_shift_fifteen"**
+
+Possible values: boolean `true`/`false` (default `false`)
+
+Estimated actual half-hourly interval values are an average estimated generation value for that half hour period. When modelling automated dampening it will become apparent that intervals earlier in the day will compare peak generation that will rarely meet the estimated actual, and later in the day will almost always exceed the estimated actual. The reason is the average estimated generation, assumed by modelling to occur at the beginning of the interval, and not somewhere in the middle.
+
+This option corrects for this shift, but it is not without its downside.
+
+So what's the catch? Export limiting.
+
+Usually, when export limiting is detected (or intentionally set), then individual generation thirty minute intervals are excluded from consideration. When this option is set then when an interval is excluded, _the interval preceding it_ will also be excluded. The reason is because to do the shift each interval is halved and the shifted halves are re-combined.
+
+If you don't export limit then there is no downside.
+
 **Key: "automated_dampening_similar_peak"**
 
 Possible values: float `0.0`..`1.0` (default `0.9`)

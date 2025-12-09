@@ -31,6 +31,7 @@ ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS: Final[str] = "automated_dampening_model
 ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_CORRECTIONS: Final[str] = "automated_dampening_no_delta_corrections"
 ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY: Final[str] = "automated_dampening_no_limiting_consistency"
 ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: Final[str] = "automated_dampening_preserve_unmatched_factors"
+ADVANCED_AUTOMATED_DAMPENING_SHIFT_FIFTEEN: Final[str] = "automated_dampening_shift_fifteen"
 ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: Final[str] = "automated_dampening_similar_peak"
 ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY: Final[str] = "automated_dampening_suppression_entity"
 ADVANCED_ENTITY_LOGGING: Final[str] = "entity_logging"
@@ -100,6 +101,7 @@ DEFAULT_DAMPENING_MINIMUM_INTERVALS: Final[int] = 2  # Minimum number of matchin
 DEFAULT_DAMPENING_MODEL: Final[int] = 0  # Damping calculation model (0 = Default, 1 = Max matched, 2 = Mean matched, 3 = Min matched)
 DEFAULT_DAMPENING_MODEL_DAYS: Final[int] = 14  # Number of days over which to model automated dampening
 DEFAULT_DAMPENING_NO_LIMITING_CONSISTENCY: Final[bool] = False  # Whether to ignore intervals that have been limited at least once
+DEFAULT_DAMPENING_SHIFT_FIFTEEN: Final[bool] = False  # Whether to shift automated dampening modelling by 15 minutes earlier
 DEFAULT_DAMPENING_SIMILAR_PEAK: Final[float] = 0.90  # Factor to consider similar estimated actual peak generation for automated dampening
 DEFAULT_DAMPENING_SUPPRESSION_ENTITY: Final[str] = "solcast_suppress_auto_dampening"  # Entity ID to invalidate generation when active
 DEFAULT_ESTIMATED_ACTUALS_FETCH_DELAY: Final[int] = 0  # Minutes to wait after midnight before get estimated actuals (plus random offset)
@@ -382,6 +384,10 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
         DEFAULT: False,
+    },
+    ADVANCED_AUTOMATED_DAMPENING_SHIFT_FIFTEEN: {
+        ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
+        DEFAULT: DEFAULT_DAMPENING_SHIFT_FIFTEEN,
     },
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: {
         ADVANCED_TYPE: ADVANCED_OPTION.FLOAT,
