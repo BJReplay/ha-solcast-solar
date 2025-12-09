@@ -2941,8 +2941,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             _LOGGER.debug(
                                 "Auto-dampen suppressed for interval %s", interval.astimezone(self._tz).strftime("%Y-%m-%d %H:%M")
                             )
-            elif self.options.site_export_limit == 0 and self.options.site_export_entity == "":
-                self._suppression = False
+            else:
+                self._suppression = (
+                    False if self.options.site_export_limit == 0 and self.options.site_export_entity == "" else self._suppression
+                )
 
             # Detect site export limiting
             if self.options.site_export_limit > 0 and self.options.site_export_entity != "":
@@ -3096,13 +3098,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if period_start not in generation_reassembled:
                     generation_reassembled[period_start] = 0.0
                 generation_reassembled[period_start] += generation_shifted[shifted_ts] if period_start <= shifted_ts < period_end else 0.0
-            for interval in generation_reassembled:
+            for interval, value in generation_reassembled.items():
                 if not self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY]:
-                    if (
-                        export_limited_intervals[self.adjusted_interval_dt(interval)]
-                        or export_limited_intervals[self.adjusted_interval_dt(interval + timedelta(minutes=30))]
-                    ):
-                        generation_reassembled[interval] = 0.0
+                    generation_reassembled[interval] = (
+                        0.0
+                        if (
+                            export_limited_intervals[self.adjusted_interval_dt(interval)]
+                            or export_limited_intervals[self.adjusted_interval_dt(interval + timedelta(minutes=30))]
+                        )
+                        else value
+                    )
                 elif export_limited_specific_intervals.get(interval) or export_limited_specific_intervals.get(
                     interval + timedelta(minutes=30)
                 ):

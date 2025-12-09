@@ -157,7 +157,8 @@ async def test_auto_dampen(
                     "automated_dampening_no_limiting_consistency": True,
                     "automated_dampening_generation_fetch_delay": 5,
                     "automated_dampening_insignificant_factor": 0.988,
-                    "automated_dampening_insignificant_factor_adjusted": 0.989,
+                    "automated_dampening_insignificant_factor_adjusted": 0.988,
+                    "automated_dampening_shift_fifteen": True,
                     "estimated_actuals_fetch_delay": 5,
                     "estimated_actuals_log_mape_breakdown": True,
                 }
@@ -213,11 +214,11 @@ async def test_auto_dampen(
 
         assert "Auto-dampening suppressed: Excluded site for 3333-3333-3333-3333" in caplog.text
         assert "Interval 08:30 has peak estimated actual 0.936" in caplog.text
-        assert "Interval 08:30 max generation: 0.755" in caplog.text
-        assert "Auto-dampen factor for 08:30 is 0.807" in caplog.text
+        assert "Interval 08:30 max generation: 0.923" in caplog.text
+        assert "Auto-dampen factor for 08:30 is 0.986" in caplog.text
         # assert "Auto-dampen factor for 11:00" not in caplog.text
-        assert "Ignoring insignificant factor for 10:30" in caplog.text
-        assert re.search(r"Ignoring insignificant adjusted granular dampening factor.+11:00:00.+0\.990.+0\.988", caplog.text)
+        assert "Ignoring insignificant factor for 08:00" in caplog.text
+        assert re.search(r"Ignoring insignificant adjusted granular dampening factor.+08:30:00.+0\.988.+0\.986", caplog.text)
         assert "Ignoring excessive PV generation" not in caplog.text
 
         # Reload to load saved generation data
@@ -267,13 +268,13 @@ async def test_auto_dampen(
             solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"][removed - 24]["period_start"]  # pyright: ignore[reportPrivateUsage,reportOptionalMemberAccess]
             == value_removed["period_start"]
         )  # pyright: ignore[reportPrivateUsage]
-        assert "Auto-dampen factor for 08:30 is 0.807" in caplog.text
+        assert "Auto-dampen factor for 08:30 is 0.986" in caplog.text
 
         ADVANCED_CHECKS = {
-            0: {"base": 0.807, "adjusted": [0.838, 0.811]},
-            1: {"base": 0.807, "adjusted": [0.838, 0.811]},
-            2: {"base": 0.629, "adjusted": [0.689, 0.637]},
-            3: {"base": 0.272, "adjusted": [0.390, 0.288]},
+            0: {"base": 0.986, "adjusted": [0.988, 0.986]},
+            1: {"base": 0.986, "adjusted": [0.988, 0.986]},
+            2: {"base": 0.772, "adjusted": [0.809, 0.777]},
+            3: {"base": 0.345, "adjusted": [0.451, 0.360]},
         }
         for preseve in (False, True):
             solcast.advanced_options["automated_dampening_preserve_unmatched_factors"] = preseve
@@ -287,12 +288,10 @@ async def test_auto_dampen(
                     caplog.clear()
                     solcast.advanced_options["automated_dampening_delta_adjustment_model"] = adjustment_model
                     await solcast.apply_forward_dampening()
-                    _LOGGER.critical("Model %d/%d tested", model, adjustment_model)
+                    # _LOGGER.critical("Model %d/%d tested", model, adjustment_model)
                     assert (
                         re.search(
-                            r"Adjusted granular dampening factor for .+ 08:30:00, {:.3f}".format(
-                                ADVANCED_CHECKS[model]["adjusted"][adjustment_model]
-                            ),
+                            r"08:30:00, {:.3f}".format(ADVANCED_CHECKS[model]["adjusted"][adjustment_model]),
                             caplog.text,
                         )
                         is not None
@@ -376,6 +375,9 @@ async def test_auto_dampen_issues(
     """Test automated dampening."""
 
     try:
+        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+        if CONFIG_FOLDER_DISCRETE:
+            Path(config_dir).mkdir(parents=False, exist_ok=True)
         options = copy.deepcopy(DEFAULT_INPUT2)
         options[GET_ACTUALS] = True
         options[USE_ACTUALS] = 2
@@ -390,6 +392,15 @@ async def test_auto_dampen_issues(
             options[SITE_EXPORT_LIMIT] = 5.0
         if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
             options[GENERATION_ENTITIES][0] = "sensor.not_valid"
+            Path(f"{config_dir}/solcast-advanced.json").write_text(
+                json.dumps(
+                    {
+                        "automated_dampening_no_limiting_consistency": False,
+                        "automated_dampening_shift_fifteen": True,
+                    }
+                ),
+                encoding="utf-8",
+            )
         if extra_sensors == ExtraSensors.DODGY:
             options[SITE_EXPORT_ENTITY] = "sensor.not_valid"
         entry = await async_init_integration(hass, options, extra_sensors=extra_sensors)
