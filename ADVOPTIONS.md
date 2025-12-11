@@ -164,21 +164,21 @@ Setting this option to `true` will retain the previously calculated factor for s
 
 Possible values: boolean `true`/`false` (default `false`)
 
-Estimated actual half-hourly interval values are an average estimated generation value for that half hour period. When modelling automated dampening it will become apparent that intervals earlier in the day will compare peak generation that will rarely meet the estimated actual, and later in the day will almost always exceed the estimated actual. The reason is the average estimated generation, assumed by modelling to occur at the beginning of the interval, and not somewhere in the middle.
+Estimated actual half-hourly interval values are an average estimated generation value for that half hour period. (If `DEBUG` logging is on, and you are export limiting), when automated dampening modelling occurs you may notice that intervals earlier in the day will compare peak generation that will rarely meet the estimated actual, and later in the day will almost always exceed the estimated actual. The reason is the average estimated actual generation, which is assumed by modelling to occur at the beginning of the interval, is then evenly spread across that interval. Really the average should be somewhere near the middle of the interval.
 
-This option corrects for this shift, but it is not without its downside.
+This option force corrects with a fifteen minute shift, but it is not without its downside.
 
-So what's the catch? Export limiting.
+The downside is export limiting.
 
-Usually, when export limiting is detected (or intentionally set), then individual generation thirty minute intervals are excluded from consideration. When this option is set then when an interval is excluded, _the interval preceding it_ will also be excluded. The reason is because to do the shift each interval is halved and the shifted halves are re-combined.
+Usually, when export limiting is detected (or intentionally set), then individual generation thirty minute intervals are excluded from consideration by automated dampening. When this option is set then when an interval is excluded, _the interval preceding it will also be excluded_, whether limiting has occurred or not. The reason is because to do the shift each interval is halved and the shifted halves are re-combined.
 
-If you don't export limit, or explicitly suppress intervals then there is no downside, and in this circumstance the fifteen minute shifting will occur by default.
+If you don't export limit, or explicitly suppress intervals then there is no downside, and in this circumstance the fifteen minute shifting will occur by default and there will be no need to set this option. Setting it to `true` in this case will not alter behaviour in any way.
 
 **Key: "automated_dampening_similar_peak"**
 
 Possible values: float `0.0`..`1.0` (default `0.9`)
 
-Estimated actual peaks are compared to find a similar number of "matching" peaks from which to compare maximum generation. By default this is intervals within `0.9 * peak` that are considered.
+Estimated actual peaks are compared to find a similar number of "matching" peaks from which to compare maximum generation. By default this is intervals within 90% to 100% of peak.
 
 This option varies what is considered a similar interval from all modelled days.
 
