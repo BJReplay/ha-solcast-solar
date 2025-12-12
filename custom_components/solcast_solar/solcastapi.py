@@ -3129,7 +3129,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.debug("Interval %s is intentionally ignored, skipping", interval_time)
                 continue
             generation_samples: list[float] = [
-                generation.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
+                round(generation.get(timestamp, 0.0), 3) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
             ]
             preserve_this_interval = False
             if len(matching) > 0:

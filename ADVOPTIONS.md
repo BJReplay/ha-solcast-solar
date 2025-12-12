@@ -164,7 +164,7 @@ Setting this option to `true` will retain the previously calculated factor for s
 
 Possible values: float `0.0`..`1.0` (default `0.9`)
 
-Estimated actual peaks are compared to find a similar number of "matching" peaks from which to compare maximum generation. By default this is intervals within `0.9 * peak` that are considered.
+Estimated actual peaks are compared to find a similar number of "matching" peaks from which to compare maximum generation. By default this is intervals within 90% to 100% of peak.
 
 This option varies what is considered a similar interval from all modelled days.
 
