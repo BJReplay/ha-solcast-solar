@@ -28,7 +28,7 @@ ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION: Final[str] = "automate
 ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS: Final[str] = "automated_dampening_minimum_matching_intervals"
 ADVANCED_AUTOMATED_DAMPENING_MODEL: Final[str] = "automated_dampening_model"
 ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS: Final[str] = "automated_dampening_model_days"
-ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_CORRECTIONS: Final[str] = "automated_dampening_no_delta_corrections"
+ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT: Final[str] = "automated_dampening_no_delta_adjustment"
 ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY: Final[str] = "automated_dampening_no_limiting_consistency"
 ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: Final[str] = "automated_dampening_preserve_unmatched_factors"
 ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: Final[str] = "automated_dampening_similar_peak"
@@ -40,6 +40,7 @@ ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN: Final[str] = "estimated_actuals_l
 ADVANCED_FORECAST_FUTURE_DAYS: Final[str] = "forecast_future_days"
 ADVANCED_FORECAST_DAY_ENTITIES: Final[str] = "forecast_day_entities"
 ADVANCED_FORECAST_HISTORY_MAX_DAYS: Final[str] = "forecast_history_max_days"
+ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: Final[str] = "granular_dampening_delta_adjustment"
 ADVANCED_RELOAD_ON_ADVANCED_CHANGE: Final[str] = "reload_on_advanced_change"
 ADVANCED_SOLCAST_URL: Final[str] = "solcast_url"
 ADVANCED_TRIGGER_ON_API_AVAILABLE: Final[str] = "trigger_on_api_available"
@@ -94,7 +95,7 @@ DEFAULT: Final[str] = "default"
 DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[int] = 0  # Logarithmic adjustment is default model
 DEFAULT_DAMPENING_INSIGNIFICANT: Final[float] = 0.95  # Dampening factors considered insignificant for automated dampening
 DEFAULT_DAMPENING_INSIGNIFICANT_ADJ: Final[float] = 0.95  # Adjusted dampening factors considered insignificant for automated dampening
-DEFAULT_DAMPENING_LOG_DELTA_CORRECTIONS: Final[bool] = True  # Whether to logarithmically adjust applied automated dampening factors
+DEFAULT_DAMPENING_LOG_DELTA_ADJUSTMENT: Final[bool] = True  # Whether to logarithmically adjust applied automated dampening factors
 DEFAULT_DAMPENING_MINIMUM_GENERATION: Final[int] = 2  # Minimum number of matching intervals with generation data to consider
 DEFAULT_DAMPENING_MINIMUM_INTERVALS: Final[int] = 2  # Minimum number of matching intervals to consider for automated dampening
 DEFAULT_DAMPENING_MODEL: Final[int] = 0  # Damping calculation model (0 = Default, 1 = Max matched, 2 = Mean matched, 3 = Min matched)
@@ -107,6 +108,7 @@ DEFAULT_FORECAST_DAYS: Final[int] = 14  # Minimum 8, maximum 14
 DEFAULT_FORECAST_DAY_SENSORS: Final[int] = 8  # Minimum 8, maximum 14
 DEFAULT_GENERATION_FETCH_DELAY: Final[int] = 0  # Minutes to wait after midnight before get past day generation
 DEFAULT_GENERATION_HISTORY_LOAD_DAYS: Final[int] = 7  # Number of days of generation history to load when no data present
+DEFAULT_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: Final[bool] = False  # Whether to use delta adjustment for granular dampening
 DEFAULT_HISTORY_MAX: Final[int] = 730  # Maximum number of history days to keep
 DEFAULT_SOLCAST_HTTPS_URL: Final[str] = "https://api.solcast.com.au"
 DELAYED_RESTART_ON_CRASH: Final[int] = 15  # Minutes to delay restart after crash
@@ -203,6 +205,7 @@ OLD_API_KEY: Final[str] = "old_api_key"
 OLD_HARD_LIMIT: Final[str] = "old_hard_limit"
 OPTION_GREATER_THAN_OR_EQUAL: Final[str] = "greater_than_or_equal"
 OPTION_LESS_THAN_OR_EQUAL: Final[str] = "less_than_or_equal"
+OPTION_NOT_SET_IF: Final[str] = "not_set_if"
 PERIOD_END: Final[str] = "period_end"
 PERIOD_START: Final[str] = "period_start"
 PLATFORM_BINARY_SENSOR: Final[str] = "binary_sensor"
@@ -371,9 +374,9 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         MAXIMUM: 21,
         DEFAULT: DEFAULT_DAMPENING_MODEL_DAYS,
     },
-    ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_CORRECTIONS: {
+    ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
-        DEFAULT: not DEFAULT_DAMPENING_LOG_DELTA_CORRECTIONS,
+        DEFAULT: not DEFAULT_DAMPENING_LOG_DELTA_ADJUSTMENT,
     },
     ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
@@ -409,6 +412,11 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         OPTION_LESS_THAN_OR_EQUAL: [ADVANCED_FORECAST_FUTURE_DAYS],
     },
     ADVANCED_FORECAST_HISTORY_MAX_DAYS: {ADVANCED_TYPE: ADVANCED_OPTION.INT, MINIMUM: 22, MAXIMUM: 3650, DEFAULT: DEFAULT_HISTORY_MAX},
+    ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: {
+        ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
+        DEFAULT: DEFAULT_GRANULAR_DAMPENING_DELTA_ADJUSTMENT,
+        OPTION_NOT_SET_IF: [ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT],
+    },
     ADVANCED_RELOAD_ON_ADVANCED_CHANGE: {ADVANCED_TYPE: ADVANCED_OPTION.BOOL, DEFAULT: False},
     ADVANCED_SOLCAST_URL: {ADVANCED_TYPE: ADVANCED_OPTION.STR, DEFAULT: DEFAULT_SOLCAST_HTTPS_URL},
     ADVANCED_TRIGGER_ON_API_AVAILABLE: {ADVANCED_TYPE: ADVANCED_OPTION.STR, DEFAULT: ""},

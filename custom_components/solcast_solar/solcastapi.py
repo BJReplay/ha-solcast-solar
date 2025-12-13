@@ -50,13 +50,14 @@ from .const import (
     ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS,
     ADVANCED_AUTOMATED_DAMPENING_MODEL,
     ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS,
-    ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_CORRECTIONS,
+    ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT,
     ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY,
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK,
     ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY,
     ADVANCED_FORECAST_FUTURE_DAYS,
     ADVANCED_FORECAST_HISTORY_MAX_DAYS,
+    ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT,
     ADVANCED_OPTION,
     ADVANCED_OPTIONS,
     ADVANCED_SOLCAST_URL,
@@ -146,6 +147,7 @@ from .const import (
     OLD_API_KEY,
     OPTION_GREATER_THAN_OR_EQUAL,
     OPTION_LESS_THAN_OR_EQUAL,
+    OPTION_NOT_SET_IF,
     PERIOD_END,
     PERIOD_START,
     PLATFORM_BINARY_SENSOR,
@@ -535,6 +537,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             f"{opt} ({advanced_options_proposal[opt]})"
                                             for opt in ADVANCED_OPTIONS[option][OPTION_LESS_THAN_OR_EQUAL]
                                         ]
+                                    ),
+                                )
+                                invalid.append(option)
+                        if ADVANCED_OPTIONS[option].get(OPTION_NOT_SET_IF) is not None:
+                            if any(advanced_options_proposal[opt] for opt in ADVANCED_OPTIONS[option][OPTION_NOT_SET_IF]):
+                                _LOGGER.error(
+                                    "Advanced option %s: %s can not be set with %s",
+                                    option,
+                                    value,
+                                    ", ".join(
+                                        [f"{opt}: {advanced_options_proposal[opt]}" for opt in ADVANCED_OPTIONS[option][OPTION_NOT_SET_IF]]
                                     ),
                                 )
                                 invalid.append(option)
@@ -3514,11 +3527,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if len(self.granular_dampening[site]) == 24
             else ((period_start.hour * 2) + (1 if period_start.minute > 0 else 0))
         ]
-        if site == ALL and self.options.auto_dampen and self.granular_dampening.get(ALL):
+        if (
+            site == ALL
+            and (self.options.auto_dampen or self.advanced_options[ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT])
+            and self.granular_dampening.get(ALL)
+        ):
             interval = self.adjusted_interval_dt(period_start)
             factor = min(1.0, self.granular_dampening[ALL][interval])
             if (
-                not self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_CORRECTIONS]
+                not self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT]
                 and self._peak_intervals[interval] > 0
                 and interval_pv50 > 0
                 and factor < 1.0

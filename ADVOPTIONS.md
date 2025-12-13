@@ -230,6 +230,14 @@ The number of days of history to retain for forecasts (and estimated actuals).
 
 There may be a performance implication when too much history data is retained, depending on the platform used for Home Assistant.
 
+## Granular dampening
+
+**Key: "granular_dampening_delta_adjustment"**
+
+Possible values: boolean `true`/`false`` (default `false`)
+
+Implements the option "automated_dampening_delta_adjustment_model" for granular dampening, to enable utilising this mechanism for automation-driven or manual dampening.
+
 ## General
 
 **Key: "api_raise_issue"**

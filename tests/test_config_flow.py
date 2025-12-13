@@ -844,7 +844,7 @@ async def test_advanced_options(
             "automated_dampening_ignore_intervals": ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30"],
             "automated_dampening_insignificant_factor": 0.95,
             "automated_dampening_insignificant_factor_adjusted": 0.95,
-            "automated_dampening_no_delta_corrections": False,
+            "automated_dampening_no_delta_adjustment": False,
             "automated_dampening_no_limiting_consistency": False,
             "automated_dampening_model_days": 14,
             "automated_dampening_generation_fetch_delay": 0,
@@ -886,7 +886,7 @@ async def test_advanced_options(
             "automated_dampening_ignore_intervals": ["24:00", "12:20", "13:00", "13:00", "14:00", "14:30", "15:00", "15:30"],
             "automated_dampening_insignificant_factor": 1.1,
             "automated_dampening_insignificant_factor_adjusted": 1.1,
-            "automated_dampening_no_delta_corrections": "wrong_type",
+            "automated_dampening_no_delta_adjustment": "wrong_type",
             "automated_dampening_model_days": 22,
             "automated_dampening_generation_fetch_delay": -10,
             "automated_dampening_generation_history_load_days": 22,
@@ -897,6 +897,7 @@ async def test_advanced_options(
             "forecast_day_entities": 16,
             "forecast_future_days": 16,
             "forecast_history_max_days": 10,
+            "granular_dampening_delta_adjustment": False,
             "reload_on_advanced_change": True,
             "unknown_option": True,
             "solcast_url": "https://localhost",
@@ -943,6 +944,8 @@ async def test_advanced_options(
             "estimated_actuals_fetch_delay": 30,
             "forecast_future_days": 8,
             "forecast_day_entities": 10,
+            "granular_dampening_delta_adjustment": True,
+            "automated_dampening_no_delta_adjustment": True,
         }
         data_file.write_text(json.dumps(data_file_3), encoding="utf-8")
         await wait()
@@ -951,6 +954,10 @@ async def test_advanced_options(
         assert "Advanced option forecast_day_entities: 10 must be less than or equal" in caplog.text
         assert "Advanced option proposed forecast_future_days: 8" in caplog.text
         assert "Advanced option set forecast_future_days: 8" in caplog.text
+        assert (
+            "Advanced option granular_dampening_delta_adjustment: True can not be set with automated_dampening_no_delta_adjustment: True"
+            in caplog.text
+        )
         caplog.clear()
 
         data_file = data_file.rename(f"{config_dir}/solcast-advanced.bak")
