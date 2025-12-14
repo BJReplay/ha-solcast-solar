@@ -59,7 +59,11 @@ from homeassistant.components.solcast_solar.solcastapi import (
     SitesStatus,
     SolcastApi,
 )
-from homeassistant.components.solcast_solar.util import AutoUpdate
+from homeassistant.components.solcast_solar.util import (
+    AutoUpdate,
+    DateTimeEncoder,
+    JSONDecoder,
+)
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -267,7 +271,8 @@ async def _reload(hass: HomeAssistant, entry: ConfigEntry) -> tuple[SolcastUpdat
 
     _LOGGER.warning("Reloading integration")
     await hass.config_entries.async_reload(entry.entry_id)
-    await hass.async_block_till_done()
+    for _ in range(10):
+        await hass.async_block_till_done()
     if hass.data[DOMAIN].get(entry.entry_id):
         try:
             coordinator = entry.runtime_data.coordinator
@@ -770,17 +775,57 @@ async def test_integration(
             assert "Determining peak estimated actual intervals" in caplog.text
             assert "Automated dampening is not enabled" in caplog.text
 
-            # Modify the granular dampening file directly
-            granular_dampening = {"1111-1111-1111-1111": [0.7] * 48, "2222-2222-2222-2222": [0.8] * 48}
-            granular_dampening_file.write_text(json.dumps(granular_dampening), encoding="utf-8")
-            await _wait_for(caplog, "Updating sensor Forecast Tomorrow")
-            assert "Granular dampening mtime changed" in caplog.text
-            assert "Granular dampening loaded" in caplog.text
-            sensor = hass.states.get("sensor.solcast_pv_forecast_forecast_tomorrow")
-            if sensor is not None:
-                assert sensor.state == "31.3821"
+            if options == DEFAULT_INPUT1:
+                scenario: list[dict[str, Any]] = [
+                    {"factors": {"1111-1111-1111-1111": [0.7] * 48, "2222-2222-2222-2222": [0.8] * 48}, "result": "31.3821"},
+                    {"factors": {"1111-1111-1111-1111": [0.85] * 48, "2222-2222-2222-2222": [0.85] * 48}, "result": "36.1691"},
+                    {"factors": {"all": [0.55] * 48}, "result": "24.3738"},
+                ]
+                # Modify the granular dampening file directly
+                first = True
+                for test in scenario:
+                    if first:
+                        first = False
+                        # Fiddle with estimated actual data cache
+                        actuals = json.loads(Path(f"{config_dir}/solcast-actuals.json").read_text(encoding="utf-8"), cls=JSONDecoder)
+                        for site in actuals["siteinfo"].values():
+                            for forecast in site["forecasts"]:
+                                if (
+                                    forecast["period_start"].astimezone(ZoneInfo(ZONE_RAW)).hour > 10
+                                    and forecast["period_start"].astimezone(ZoneInfo(ZONE_RAW)).hour < 14
+                                ):
+                                    forecast["pv_estimate"] *= 1.11
+                        Path(f"{config_dir}/solcast-actuals.json").write_text(json.dumps(actuals, cls=DateTimeEncoder), encoding="utf-8")
+
+                        # Reload to load saved data and prime initial generation
+                        caplog.clear()
+                        coordinator, solcast = await _reload(hass, entry)
+                        if coordinator is None or solcast is None:
+                            pytest.fail("Reload failed")
+                        await _wait_for(caplog, "Running task watchdog_advanced")
+                    granular_dampening_file.write_text(json.dumps(test["factors"]), encoding="utf-8")
+                    await _wait_for(caplog, "Updating sensor Forecast Tomorrow")
+                    assert "Granular dampening mtime changed" in caplog.text
+                    assert "Granular dampening loaded" in caplog.text
+                    sensor = hass.states.get("sensor.solcast_pv_forecast_forecast_tomorrow")
+                    if sensor is not None:
+                        assert sensor.state == test["result"]
+                        if test.get("factors", {}).get("all") is not None:
+                            assert "Adjusted granular dampening factor for 2025-12-14 12:00:00, 0.597 (was 0.550" in caplog.text
+                    else:
+                        pytest.fail("Test dampened: State of forecast_tomorrow is None")
+                    caplog.clear()
             else:
-                pytest.fail("Test dampened: State of forecast_tomorrow is None")
+                granular_dampening = {"1111-1111-1111-1111": [0.7] * 48, "2222-2222-2222-2222": [0.8] * 48}
+                granular_dampening_file.write_text(json.dumps(granular_dampening), encoding="utf-8")
+                await _wait_for(caplog, "Updating sensor Forecast Tomorrow")
+                assert "Granular dampening mtime changed" in caplog.text
+                assert "Granular dampening loaded" in caplog.text
+                sensor = hass.states.get("sensor.solcast_pv_forecast_forecast_tomorrow")
+                if sensor is not None:
+                    assert sensor.state == "31.3821"
+                else:
+                    pytest.fail("Test dampened: State of forecast_tomorrow is None")
 
             Path(f"{config_dir}/solcast-advanced.json").write_text(
                 json.dumps(advanced_options),
@@ -791,6 +836,9 @@ async def test_integration(
             # Remove the granular dampening file
             granular_dampening_file.unlink()
             await _wait_for(caplog, "Granular dampening file deleted, no longer monitoring")
+
+        # Reset at runtime for no auto-update
+        solcast.options.auto_update = AutoUpdate.NONE
 
         # Verify data schema
         verify_data_schema(solcast._data)  # pyright: ignore[reportPrivateUsage]

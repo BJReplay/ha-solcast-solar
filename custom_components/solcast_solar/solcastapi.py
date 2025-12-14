@@ -3567,7 +3567,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             factor,
                             min(1.0, factor + ((1.0 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50)))),
                         )
-                if record_adjustment and period_start.astimezone(self._tz).date() == dt.now(self._tz).date():
+                if (
+                    record_adjustment and period_start.astimezone(self._tz).date() == dt.now(self._tz).date()
+                    # and round(factor, 3) != round(factor_pre_adjustment, 3)
+                ):
                     _LOGGER.debug(
                         "%sdjusted granular dampening factor for %s, %.3f (was %.3f, peak %.3f, interval pv50 %.3f)",
                         "Ignoring insignificant a"
