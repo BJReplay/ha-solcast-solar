@@ -500,6 +500,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                 seen_members.append(member)
                                         case _:
                                             pass
+                                    if (
+                                        option == ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT
+                                        and new_value
+                                        and not self.options.get_actuals
+                                    ):
+                                        _LOGGER.error("Granular dampening delta adjustment requires estimated actuals to be fetched")
+                                        valid = False
                                 else:
                                     _LOGGER.error("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
                                     valid = False
@@ -3058,10 +3065,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         deal_breaker = ""
         deal_breaker_site = ""
         actuals: OrderedDict[dt, float] = OrderedDict()
-        if self.options.auto_dampen or self.advanced_options[ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT]:
-            if self.advanced_options[ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT] and not self.options.get_actuals:
-                _LOGGER.error("Granular dampening delta adjustment requires estimated actuals to be fetched")
-                return
+        if (self.options.auto_dampen or self.advanced_options[ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT]) and self.options.get_actuals:
             _LOGGER.debug("Determining peak estimated actual intervals")
             for site in self.sites:
                 if self._data_actuals[SITE_INFO].get(site[RESOURCE_ID]) is None:

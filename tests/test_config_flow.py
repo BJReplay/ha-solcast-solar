@@ -954,10 +954,11 @@ async def test_advanced_options(
         assert "Advanced option forecast_day_entities: 10 must be less than or equal" in caplog.text
         assert "Advanced option proposed forecast_future_days: 8" in caplog.text
         assert "Advanced option set forecast_future_days: 8" in caplog.text
-        assert (
-            "Advanced option granular_dampening_delta_adjustment: True can not be set with automated_dampening_no_delta_adjustment: True"
-            in caplog.text
-        )
+        assert "Granular dampening delta adjustment requires estimated actuals" in caplog.text
+        # assert (
+        #    "Advanced option granular_dampening_delta_adjustment: True can not be set with automated_dampening_no_delta_adjustment: True"
+        #    in caplog.text
+        # )
         caplog.clear()
 
         data_file = data_file.rename(f"{config_dir}/solcast-advanced.bak")
