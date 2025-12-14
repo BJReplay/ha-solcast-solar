@@ -136,7 +136,7 @@ Possible values: integer `2`..`21` (default `14`)
 
 The maximum number of days of past estimated actuals and generation to use for modelling future dampening.
 
-**Key: "automated_dampening_no_delta_corrections"**
+**Key: "automated_dampening_no_delta_adjustment"**
 
 Possible values: boolean `true`/`false` (default `false`)
 
@@ -237,6 +237,8 @@ There may be a performance implication when too much history data is retained, d
 Possible values: boolean `true`/`false`` (default `false`)
 
 Implements the option "automated_dampening_delta_adjustment_model" for granular dampening, to enable utilising this mechanism for automation-driven or manual dampening.
+
+Fetching estimated actuals is required.
 
 ## General
 

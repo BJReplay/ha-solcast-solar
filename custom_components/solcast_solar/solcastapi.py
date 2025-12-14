@@ -3053,12 +3053,60 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Look for consistently low PV generation in consistently high estimated actual intervals.
         Dampening factors are always referenced using standard time (not daylight savings time).
         """
+        start_time = time.time()
+
+        deal_breaker = ""
+        deal_breaker_site = ""
+        actuals: OrderedDict[dt, float] = OrderedDict()
+        if self.options.auto_dampen or self.advanced_options[ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT]:
+            if self.advanced_options[ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT] and not self.options.get_actuals:
+                _LOGGER.error("Granular dampening delta adjustment requires estimated actuals to be fetched")
+                return
+            _LOGGER.debug("Determining peak estimated actual intervals")
+            for site in self.sites:
+                if self._data_actuals[SITE_INFO].get(site[RESOURCE_ID]) is None:
+                    deal_breaker = "No estimated actuals yet"
+                    deal_breaker_site = site[RESOURCE_ID]
+                    break
+                if site[RESOURCE_ID] in self.options.exclude_sites:
+                    _LOGGER.debug("Auto-dampening suppressed: Excluded site for %s", site[RESOURCE_ID])
+                    continue
+                start, end = self.__get_list_slice(
+                    self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS],
+                    self.get_day_start_utc() - timedelta(days=self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS]),
+                    self.get_day_start_utc(),
+                    search_past=True,
+                )
+                site_actuals = {
+                    actual[PERIOD_START]: actual for actual in self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS][start:end]
+                }
+                for period_start, actual in site_actuals.items():
+                    extant: float | None = actuals.get(period_start)
+                    if extant is not None:
+                        actuals[period_start] += actual[ESTIMATE] * 0.5
+                    else:
+                        actuals[period_start] = actual[ESTIMATE] * 0.5
+
+            if deal_breaker == "":
+                # Collect top intervals from the past MODEL_DAYS days.
+                self._peak_intervals = dict.fromkeys(range(48), 0.0)
+                for period_start, actual in actuals.items():
+                    interval = self.adjusted_interval_dt(period_start)
+                    if self._peak_intervals[interval] < actual:
+                        self._peak_intervals[interval] = round(actual, 3)
+
         if not self.options.auto_dampen and not force:
             _LOGGER.debug("Automated dampening is not enabled, skipping model_automated_dampening()")
             return
         _LOGGER.debug("Modelling automated dampening factors")
 
-        start_time = time.time()
+        if deal_breaker == "":
+            if len(self._data_generation[GENERATION]) == 0:
+                deal_breaker = "No generation yet"
+
+        if deal_breaker != "":
+            _LOGGER.info("Auto-dampening suppressed: %s%s", deal_breaker, f" for {deal_breaker_site}" if deal_breaker_site != "" else "")
+            return
 
         ignored_intervals: list[int] = []  # Intervals to ignore in local time zone
         for time_string in self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS]:
@@ -3079,44 +3127,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     generation[gen[PERIOD_START]] = gen[GENERATION]
             elif not gen[EXPORT_LIMITING]:
                 generation[gen[PERIOD_START]] = gen[GENERATION]
-
-        actuals: OrderedDict[dt, float] = OrderedDict()
-        for site in self.sites:
-            deal_breaker = ""
-            if site[RESOURCE_ID] in self.options.exclude_sites:
-                deal_breaker = "Excluded site"
-            if self._data_actuals[SITE_INFO].get(site[RESOURCE_ID]) is None:
-                deal_breaker = "No estimated actuals yet"
-            if len(self._data_generation[GENERATION]) == 0:
-                deal_breaker = "No generation yet"
-            if deal_breaker != "":
-                if deal_breaker == "Excluded site":
-                    _LOGGER.debug("Auto-dampening suppressed: %s for %s", deal_breaker, site[RESOURCE_ID])
-                    continue
-                _LOGGER.info("Auto-dampening suppressed: %s for %s", deal_breaker, site[RESOURCE_ID])
-                return
-            start, end = self.__get_list_slice(
-                self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS],
-                self.get_day_start_utc() - timedelta(days=self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS]),
-                self.get_day_start_utc(),
-                search_past=True,
-            )
-            site_actuals = {
-                actual[PERIOD_START]: actual for actual in self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS][start:end]
-            }
-            for period_start, actual in site_actuals.items():
-                extant: float | None = actuals.get(period_start)
-                if extant is not None:
-                    actuals[period_start] += actual[ESTIMATE] * 0.5
-                else:
-                    actuals[period_start] = actual[ESTIMATE] * 0.5
-
-        # Collect top intervals from the past MODEL_DAYS days.
-        self._peak_intervals = dict.fromkeys(range(48), 0.0)
-        for period_start, actual in actuals.items():
-            interval = self.adjusted_interval_dt(period_start)
-            if self._peak_intervals[interval] < actual:
-                self._peak_intervals[interval] = round(actual, 3)
 
         # Collect intervals that are close to the peak.
         matching_intervals: dict[int, list[dt]] = {i: [] for i in range(48)}
