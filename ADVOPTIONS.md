@@ -21,17 +21,18 @@ Support for these advanced options will be limited. (Well, "support" for this in
 
 Understand the implication of setting any of these options before reporting any problem, and check that set values are sensible, and if you then need to seek help, clearly outline any problem faced in detail in a discussion. Any value set is logged at `DEBUG` level, so please include that detail.
 
-These options modify otherwise predictable and well-tested behaviour, so you are wandering into poorly tested/test-it-yourself territory, where enabling `DEBUG` logging will likely be essential to see what's going on.
+These options modify otherwise predictable and well-tested behaviour, so you are wandering into poorly tested/test-it-yourself territory, where enabling `DEBUG` logging will likely be essential to see what's going on. That said, some of these options are quite well synthetically tested, but others are not at all. No exceptions should arise.
 
-Values are validated for individual sanity, however it is possible to set multiple option values together in an inappropriate way. Do not raise a problem report in this circumstance. You broke it. You fix your config, or revert to defaults and reload, or raise a discussion topic instead.
+Values are validated for sanity individually, and in conjunction with other options set. Do not raise an issue report should validation fail to catch a weird set up. You broke it. You fix your config, or revert to defaults and reload. Please raise a discussion topic describing the experience, as we do want to know about weird combinations. These are advanced options so it is not "Issue" raising stuff, just for discussion. The maintainers watch discussions with the same attention as they do issues, so any "issue" raised in this context will likely be converted to a "discussion" _very_ quickly anyway.
 
-You are free to raise an issue should a code exception occur after setting an advanced option, and `DEBUG` logging is _mandatory_ in this circumstance. Exceptions should not happen, and there will be no exception to requiring `DEBUG` logs in a raised issue.
+You are free to raise an issue should a code exception occur after setting an advanced option, and `DEBUG` logging is _mandatory_ in this circumstance. Exceptions should not happen, and there will be no exception to requiring `DEBUG` logs in any raised issue. These will not be converted to discussions.
 
 ## Contents
 
 1. [Automated dampening](#automated-dampening)
 1. [Estimated actuals](#estimated-actuals)
 1. [Forecasts](#forecasts)
+1. [Granular dampening](#granular-dampening)
 1. [General](#general)
 
 ## Automated dampening
