@@ -234,7 +234,7 @@ There may be a performance implication when too much history data is retained, d
 
 **Key: "granular_dampening_delta_adjustment"**
 
-Possible values: boolean `true`/`false`` (default `false`)
+Possible values: boolean `true`/`false` (default `false`)
 
 Implements the option "automated_dampening_delta_adjustment_model" for granular dampening, to enable utilising this mechanism for automation-driven or manual dampening.
 
