@@ -240,6 +240,8 @@ Implements the option "automated_dampening_delta_adjustment_model" for granular 
 
 Fetching estimated actuals is required.
 
+The adjustment will only apply to `ALL` factors, and not individual per-site dampening, which is in line with how automated dampening operates.
+
 ## General
 
 **Key: "api_raise_issue"**
