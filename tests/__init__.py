@@ -100,6 +100,8 @@ DEFAULT_INPUT2[HARD_LIMIT_API] = "12,6"
 DEFAULT_INPUT_NO_SITES = copy.deepcopy(DEFAULT_INPUT1)
 DEFAULT_INPUT_NO_SITES[CONF_API_KEY] = KEY_NO_SITES
 
+DEFAULT_INPUT1[GET_ACTUALS] = True
+
 STATUS_401: dict[str, Any] = {
     "response_status": {
         "error_code": "InvalidApiKey",

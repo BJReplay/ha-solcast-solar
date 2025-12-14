@@ -566,10 +566,13 @@ async def test_integration(
         config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
         if CONFIG_FOLDER_DISCRETE:
             Path(config_dir).mkdir(parents=False, exist_ok=True)
-        Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
+        Path(f"{config_dir}/solcast-advanced.json").write_text(
+            json.dumps(advanced_options := {"entity_logging": True}),
+            encoding="utf-8",
+        )
 
         # Test startup
-        entry: ConfigEntry = await async_init_integration(hass, options)
+        entry: ConfigEntry = await async_init_integration(hass, options | ({GET_ACTUALS: True} if options == DEFAULT_INPUT1 else {}))
 
         if options == BAD_INPUT:
             assert entry.state is ConfigEntryState.SETUP_ERROR
@@ -757,6 +760,16 @@ async def test_integration(
             else:
                 pytest.fail("Test undampened: State of forecast_tomorrow is None")
 
+            Path(f"{config_dir}/solcast-advanced.json").write_text(
+                json.dumps(advanced_options | {"granular_dampening_delta_adjustment": True}),
+                encoding="utf-8",
+            )
+            await _wait_for(caplog, "Advanced option set granular_dampening_delta_adjustment: True")
+
+            await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates", wait=True)
+            assert "Determining peak estimated actual intervals" in caplog.text
+            assert "Automated dampening is not enabled" in caplog.text
+
             # Modify the granular dampening file directly
             granular_dampening = {"1111-1111-1111-1111": [0.7] * 48, "2222-2222-2222-2222": [0.8] * 48}
             granular_dampening_file.write_text(json.dumps(granular_dampening), encoding="utf-8")
@@ -768,6 +781,12 @@ async def test_integration(
                 assert sensor.state == "31.3821"
             else:
                 pytest.fail("Test dampened: State of forecast_tomorrow is None")
+
+            Path(f"{config_dir}/solcast-advanced.json").write_text(
+                json.dumps(advanced_options),
+                encoding="utf-8",
+            )
+            await _wait_for(caplog, "Advanced option set entity_logging: True")
 
             # Remove the granular dampening file
             granular_dampening_file.unlink()

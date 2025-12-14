@@ -778,8 +778,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         if task in self.tasks:
             self.tasks.pop(task, None)
 
+        await self.solcast.model_automated_dampening()
         if self.solcast.options.auto_dampen:
-            await self.solcast.model_automated_dampening()
             await self.solcast.apply_forward_dampening()
             await self.solcast.build_forecast_data()
 

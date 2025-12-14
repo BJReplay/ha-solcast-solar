@@ -803,7 +803,9 @@ async def test_advanced_options(
     LEAST = 1
     try:
         config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[GET_ACTUALS] = False
+        entry = await async_init_integration(hass, options)
 
         async def wait():
             for _ in range(1000):
