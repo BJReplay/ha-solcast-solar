@@ -39,13 +39,14 @@ ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES: Final[str] = "estimated_actuals_
 ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN: Final[str] = "estimated_actuals_log_mape_breakdown"
 ADVANCED_FORECAST_FUTURE_DAYS: Final[str] = "forecast_future_days"
 ADVANCED_FORECAST_DAY_ENTITIES: Final[str] = "forecast_day_entities"
-ADVANCED_FORECAST_HISTORY_MAX_DAYS: Final[str] = "forecast_history_max_days"
 ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: Final[str] = "granular_dampening_delta_adjustment"
+ADVANCED_HISTORY_MAX_DAYS: Final[str] = "history_max_days"
 ADVANCED_RELOAD_ON_ADVANCED_CHANGE: Final[str] = "reload_on_advanced_change"
 ADVANCED_SOLCAST_URL: Final[str] = "solcast_url"
 ADVANCED_TRIGGER_ON_API_AVAILABLE: Final[str] = "trigger_on_api_available"
 ADVANCED_TRIGGER_ON_API_UNAVAILABLE: Final[str] = "trigger_on_api_unavailable"
 ADVANCED_USER_AGENT: Final[str] = "user_agent"
+ALIASES: Final[str] = "aliases"
 ALL: Final[str] = "all"
 API_KEY: Final[str] = "api_key"
 API_QUOTA: Final[str] = "api_quota"
@@ -75,6 +76,7 @@ CONFIG_FOLDER_DISCRETE: Final[bool] = True  # Whether to use a sub-folder for co
 CONFIG_VERSION: Final[int] = 18
 CORRECT: Final[str] = "correct"
 CORRUPT_FILE: Final[str] = "corrupt_file"
+CURRENT_NAME: Final[str] = "current_name"
 CUSTOM_HOURS: Final[str] = "custom_hours"
 CUSTOM_HOUR_SENSOR: Final[str] = "customhoursensor"
 DAILY_LIMIT: Final[str] = "daily_limit"
@@ -112,6 +114,7 @@ DEFAULT_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: Final[bool] = False  # Whether to u
 DEFAULT_HISTORY_MAX: Final[int] = 730  # Maximum number of history days to keep
 DEFAULT_SOLCAST_HTTPS_URL: Final[str] = "https://api.solcast.com.au"
 DELAYED_RESTART_ON_CRASH: Final[int] = 15  # Minutes to delay restart after crash
+DEPRECATED: Final[str] = "deprecated"
 DESCRIPTION: Final[str] = "description"
 DETAILED_FORECAST: Final[str] = "detailedForecast"
 DETAILED_HOURLY: Final[str] = "detailedHourly"
@@ -377,6 +380,7 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
     ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
         DEFAULT: not DEFAULT_DAMPENING_LOG_DELTA_ADJUSTMENT,
+        ALIASES: [{NAME: "automated_dampening_no_delta_correction", DEPRECATED: True}],
     },
     ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
@@ -411,7 +415,13 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         DEFAULT: DEFAULT_FORECAST_DAY_SENSORS,
         OPTION_LESS_THAN_OR_EQUAL: [ADVANCED_FORECAST_FUTURE_DAYS],
     },
-    ADVANCED_FORECAST_HISTORY_MAX_DAYS: {ADVANCED_TYPE: ADVANCED_OPTION.INT, MINIMUM: 22, MAXIMUM: 3650, DEFAULT: DEFAULT_HISTORY_MAX},
+    ADVANCED_HISTORY_MAX_DAYS: {
+        ADVANCED_TYPE: ADVANCED_OPTION.INT,
+        MINIMUM: 22,
+        MAXIMUM: 3650,
+        DEFAULT: DEFAULT_HISTORY_MAX,
+        ALIASES: [{NAME: "forecast_history_max_days", DEPRECATED: True}],
+    },
     ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
         DEFAULT: DEFAULT_GRANULAR_DAMPENING_DELTA_ADJUSTMENT,

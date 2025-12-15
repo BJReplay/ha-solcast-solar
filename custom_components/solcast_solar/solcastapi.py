@@ -56,14 +56,15 @@ from .const import (
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK,
     ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY,
     ADVANCED_FORECAST_FUTURE_DAYS,
-    ADVANCED_FORECAST_HISTORY_MAX_DAYS,
     ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT,
+    ADVANCED_HISTORY_MAX_DAYS,
     ADVANCED_OPTION,
     ADVANCED_OPTIONS,
     ADVANCED_SOLCAST_URL,
     ADVANCED_TRIGGER_ON_API_AVAILABLE,
     ADVANCED_TRIGGER_ON_API_UNAVAILABLE,
     ADVANCED_TYPE,
+    ALIASES,
     ALL,
     API_KEY,
     API_UNAVAILABLE,
@@ -84,6 +85,7 @@ from .const import (
     CONFIG_FOLDER_DISCRETE,
     CORRECT,
     CORRUPT_FILE,
+    CURRENT_NAME,
     CUSTOM_HOUR_SENSOR,
     DAILY_LIMIT,
     DAILY_LIMIT_CONSUMED,
@@ -97,6 +99,7 @@ from .const import (
     DATE_MONTH_DAY,
     DAY_NAME,
     DEFAULT,
+    DEPRECATED,
     DETAILED_FORECAST,
     DETAILED_HOURLY,
     DISMISSAL,
@@ -435,6 +438,41 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._use_forecast_confidence = f"pv_{self.options.key_estimate}"
         self.estimate_set = self.__get_estimate_set(self.options)
 
+    def _advanced_options_with_aliases(self) -> tuple[dict[str, dict[str, Any]], list[str]]:
+        """Return advanced options including aliases."""
+
+        deprecated: list[str] = []
+        advanced_options_with_aliases = copy.deepcopy(ADVANCED_OPTIONS)
+        for option, characteristics in advanced_options_with_aliases.copy().items():
+            advanced_options_with_aliases[option][CURRENT_NAME] = option
+            for alias in characteristics.get(ALIASES, []):
+                advanced_options_with_aliases[alias[NAME]] = characteristics
+                del advanced_options_with_aliases[alias[NAME]][ALIASES]
+                advanced_options_with_aliases[alias[NAME]][CURRENT_NAME] = option
+                if alias[DEPRECATED]:
+                    deprecated.append(alias[NAME])
+        return advanced_options_with_aliases, deprecated
+
+    def _advanced_with_aliases(self, names: dict[str, Any]) -> list[str]:
+        """Return advanced options including aliases."""
+
+        advanced_options_with_aliases, _ = self._advanced_options_with_aliases()
+        present_names: list[str] = []
+        name: str
+        for name in names:
+            if advanced_options_with_aliases.get(name) is not None:
+                present_names.append(advanced_options_with_aliases[name][CURRENT_NAME])
+            else:
+                present_names.extend(
+                    [
+                        characteristics[CURRENT_NAME]
+                        for _, characteristics in advanced_options_with_aliases.items()
+                        for alias in characteristics.get(ALIASES, [])
+                        if name == alias[NAME]
+                    ]
+                )
+        return present_names
+
     async def read_advanced_options(self) -> bool:  # noqa: C901
         """Read advanced JSON file options, validate and set them."""
 
@@ -448,6 +486,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         ADVANCED_OPTION.INT: r"^\d+$",
                         ADVANCED_OPTION.TIME: r"^([01]?[0-9]|2[0-3]):[03]{1}0$",
                     }
+                    advanced_options_with_aliases, deprecated = self._advanced_options_with_aliases()
 
                     content = await file.read()
                     if content.replace("\n", "").replace("\r", "").strip() != "":  # i.e. not empty
@@ -457,27 +496,33 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         if not isinstance(response_json, dict):
                             _LOGGER.error("Advanced options file invalid format, expected JSON `dict`: %s", self._filename_advanced)
                             return change
-                        options_present = response_json.keys()
+                        options_present = self._advanced_with_aliases(response_json)
                         for option, new_value in response_json.items():
-                            value = self.advanced_options.get(option)
-                            if value is None:
+                            if advanced_options_with_aliases.get(option) is None:
                                 _LOGGER.error("Unknown advanced option ignored: %s", option)
                                 continue
+                            if option in deprecated:
+                                _LOGGER.warning(
+                                    "Advanced option %s is deprecated, please use %s",
+                                    option,
+                                    advanced_options_with_aliases[option][CURRENT_NAME],
+                                )
+                            value = self.advanced_options.get(option)
                             if new_value != value:
                                 valid = True
                                 if isinstance(new_value, type(value)):
-                                    match ADVANCED_OPTIONS[option][ADVANCED_TYPE]:
+                                    match advanced_options_with_aliases[option][ADVANCED_TYPE]:
                                         case ADVANCED_OPTION.INT | ADVANCED_OPTION.FLOAT:
                                             if (
-                                                new_value < ADVANCED_OPTIONS[option][MINIMUM]
-                                                or new_value > ADVANCED_OPTIONS[option][MAXIMUM]
+                                                new_value < advanced_options_with_aliases[option][MINIMUM]
+                                                or new_value > advanced_options_with_aliases[option][MAXIMUM]
                                             ):
                                                 _LOGGER.error(
                                                     "Invalid value for advanced option %s: %s (must be %s-%s)",
                                                     option,
                                                     new_value,
-                                                    ADVANCED_OPTIONS[option][MINIMUM],
-                                                    ADVANCED_OPTIONS[option][MAXIMUM],
+                                                    advanced_options_with_aliases[option][MINIMUM],
+                                                    advanced_options_with_aliases[option][MAXIMUM],
                                                 )
                                                 valid = False
                                         # case ADVANCED_OPTION.TIME:
@@ -485,7 +530,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                         #        _LOGGER.error("Invalid time in advanced option %s: %s", option, new_value)
                                         #        valid = False
                                         case ADVANCED_OPTION.LIST_INT | ADVANCED_OPTION.LIST_TIME:
-                                            member_type = ADVANCED_OPTIONS[option][ADVANCED_TYPE].split("_")[1]
+                                            member_type = advanced_options_with_aliases[option][ADVANCED_TYPE].split("_")[1]
                                             seen_members: list[Any] = []
                                             member: Any
                                             for member in new_value:  # pyright: ignore[reportGeneralTypeIssues]
@@ -511,15 +556,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     _LOGGER.error("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
                                     valid = False
                                 if valid:
-                                    advanced_options_proposal[option] = new_value
-                                    if ADVANCED_OPTIONS[option][ADVANCED_TYPE] in (ADVANCED_OPTION.FLOAT, ADVANCED_OPTION.INT):
-                                        _LOGGER.debug("Advanced option proposed %s: %s", option, new_value)
+                                    advanced_options_proposal[advanced_options_with_aliases[option][CURRENT_NAME]] = new_value
+                                    if advanced_options_with_aliases[option][ADVANCED_TYPE] in (ADVANCED_OPTION.FLOAT, ADVANCED_OPTION.INT):
+                                        _LOGGER.debug(
+                                            "Advanced option proposed %s: %s",
+                                            advanced_options_with_aliases[option][CURRENT_NAME],
+                                            new_value,
+                                        )
 
                     invalid: list[str] = []
                     for option, value in advanced_options_proposal.items():
-                        if ADVANCED_OPTIONS[option].get(OPTION_GREATER_THAN_OR_EQUAL) is not None:
+                        if advanced_options_with_aliases[option].get(OPTION_GREATER_THAN_OR_EQUAL) is not None:
                             if any(
-                                value < advanced_options_proposal[opt] for opt in ADVANCED_OPTIONS[option][OPTION_GREATER_THAN_OR_EQUAL]
+                                value < advanced_options_proposal[opt]
+                                for opt in advanced_options_with_aliases[option][OPTION_GREATER_THAN_OR_EQUAL]
                             ):
                                 _LOGGER.error(
                                     "Advanced option %s: %s must be greater than or equal to the value of %s",
@@ -528,13 +578,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     ", ".join(
                                         [
                                             f"{opt} ({advanced_options_proposal[opt]})"
-                                            for opt in ADVANCED_OPTIONS[option][OPTION_GREATER_THAN_OR_EQUAL]
+                                            for opt in advanced_options_with_aliases[option][OPTION_GREATER_THAN_OR_EQUAL]
                                         ]
                                     ),
                                 )
                                 invalid.append(option)
-                        if ADVANCED_OPTIONS[option].get(OPTION_LESS_THAN_OR_EQUAL) is not None:
-                            if any(value > advanced_options_proposal[opt] for opt in ADVANCED_OPTIONS[option][OPTION_LESS_THAN_OR_EQUAL]):
+                        if advanced_options_with_aliases[option].get(OPTION_LESS_THAN_OR_EQUAL) is not None:
+                            if any(
+                                value > advanced_options_proposal[opt]
+                                for opt in advanced_options_with_aliases[option][OPTION_LESS_THAN_OR_EQUAL]
+                            ):
                                 _LOGGER.error(
                                     "Advanced option %s: %s must be less than or equal to the value of %s",
                                     option,
@@ -542,27 +595,33 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     ", ".join(
                                         [
                                             f"{opt} ({advanced_options_proposal[opt]})"
-                                            for opt in ADVANCED_OPTIONS[option][OPTION_LESS_THAN_OR_EQUAL]
+                                            for opt in advanced_options_with_aliases[option][OPTION_LESS_THAN_OR_EQUAL]
                                         ]
                                     ),
                                 )
                                 invalid.append(option)
-                        if ADVANCED_OPTIONS[option].get(OPTION_NOT_SET_IF) is not None:
-                            if any(advanced_options_proposal[opt] for opt in ADVANCED_OPTIONS[option][OPTION_NOT_SET_IF]):
+                        if advanced_options_with_aliases[option].get(OPTION_NOT_SET_IF) is not None:
+                            if any(advanced_options_proposal[opt] for opt in advanced_options_with_aliases[option][OPTION_NOT_SET_IF]):
                                 _LOGGER.error(
                                     "Advanced option %s: %s can not be set with %s",
                                     option,
                                     value,
                                     ", ".join(
-                                        [f"{opt}: {advanced_options_proposal[opt]}" for opt in ADVANCED_OPTIONS[option][OPTION_NOT_SET_IF]]
+                                        [
+                                            f"{opt}: {advanced_options_proposal[opt]}"
+                                            for opt in advanced_options_with_aliases[option][OPTION_NOT_SET_IF]
+                                        ]
                                     ),
                                 )
                                 invalid.append(option)
 
                     for option, value in advanced_options_proposal.items():
-                        default = ADVANCED_OPTIONS[option][DEFAULT]
+                        default = advanced_options_with_aliases[option][DEFAULT]
+                        option = advanced_options_with_aliases[option][CURRENT_NAME]
                         if option in invalid:
-                            advanced_options_proposal[option] = self.advanced_options.get(option, default)
+                            advanced_options_proposal[advanced_options_with_aliases[option][CURRENT_NAME]] = self.advanced_options.get(
+                                advanced_options_with_aliases[option][CURRENT_NAME], default
+                            )
                             continue
                         if option not in options_present:
                             if value != default:
@@ -588,15 +647,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     def log_advanced_options(self) -> None:
         """Log the advanced options that are set differently to their defaults."""
 
-        for key, value in ADVANCED_OPTIONS.items():
+        advanced_options_with_aliases, _ = self._advanced_options_with_aliases()
+        for key, value in advanced_options_with_aliases.items():
             if key not in self.advanced_options or self.advanced_options.get(key) != value[DEFAULT]:
                 _LOGGER.debug("Advanced option set %s: %s", key, self.advanced_options.get(key))
 
     def set_default_advanced_options(self) -> None:
         """Set the default advanced options."""
 
+        advanced_options_with_aliases, _ = self._advanced_options_with_aliases()
         initial = not self.advanced_options
-        for key, value in ADVANCED_OPTIONS.items():
+        for key, value in advanced_options_with_aliases.items():
             if key not in self.advanced_options or self.advanced_options.get(key) != value[DEFAULT]:
                 self.advanced_options[key] = value[DEFAULT]
                 if not initial:
@@ -3326,9 +3387,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     round(actual[ESTIMATE], 4),
                 )
 
-            await self.sort_and_prune(
-                site[RESOURCE_ID], self._data_actuals, self.advanced_options[ADVANCED_FORECAST_HISTORY_MAX_DAYS], actuals
-            )
+            await self.sort_and_prune(site[RESOURCE_ID], self._data_actuals, self.advanced_options[ADVANCED_HISTORY_MAX_DAYS], actuals)
             _LOGGER.debug("Estimated actuals dictionary for site %s length %s", site[RESOURCE_ID], len(actuals))
 
         if status == DataCallStatus.SUCCESS and dampen_yesterday:
@@ -3377,7 +3436,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     await self.sort_and_prune(
                         site[RESOURCE_ID],
                         self._data_actuals_dampened,
-                        self.advanced_options[ADVANCED_FORECAST_HISTORY_MAX_DAYS],
+                        self.advanced_options[ADVANCED_HISTORY_MAX_DAYS],
                         extant_actuals,
                     )
 
@@ -3678,9 +3737,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             round(forecast[ESTIMATE90], 4),
                         )
 
-                await self.sort_and_prune(
-                    site[RESOURCE_ID], self._data, self.advanced_options[ADVANCED_FORECAST_HISTORY_MAX_DAYS], forecasts
-                )
+                await self.sort_and_prune(site[RESOURCE_ID], self._data, self.advanced_options[ADVANCED_HISTORY_MAX_DAYS], forecasts)
 
     async def sort_and_prune(self, site: str | None, data: dict[str, Any], past_days: int, forecasts: dict[Any, Any]) -> None:
         """Sort and prune a forecast list."""
@@ -3776,7 +3833,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     round(actual[ESTIMATE], 4),
                 )
 
-            await self.sort_and_prune(site, self._data_actuals, self.advanced_options[ADVANCED_FORECAST_HISTORY_MAX_DAYS], actuals)
+            await self.sort_and_prune(site, self._data_actuals, self.advanced_options[ADVANCED_HISTORY_MAX_DAYS], actuals)
 
             self._data_actuals[LAST_UPDATED] = dt.now(datetime.UTC).replace(microsecond=0)
             self._data_actuals[LAST_ATTEMPT] = dt.now(datetime.UTC).replace(microsecond=0)
@@ -4105,7 +4162,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         forecasts_start, _ = self.__get_list_slice(self._data_forecasts, self.get_day_start_utc(), search_past=True)
         actuals_start, actuals_end = self.__get_list_slice(
             _data,
-            self.get_day_start_utc() - timedelta(days=self.advanced_options[ADVANCED_FORECAST_HISTORY_MAX_DAYS]),
+            self.get_day_start_utc() - timedelta(days=self.advanced_options[ADVANCED_HISTORY_MAX_DAYS]),
             self.get_day_start_utc(),
             search_past=True,
         )
@@ -4268,7 +4325,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Returns:
             bool: A flag indicating success or failure.
         """
-        commencing: datetime.date = dt.now(self._tz).date() - timedelta(days=self.advanced_options[ADVANCED_FORECAST_HISTORY_MAX_DAYS])
+        commencing: datetime.date = dt.now(self._tz).date() - timedelta(days=self.advanced_options[ADVANCED_HISTORY_MAX_DAYS])
         last_day: datetime.date = dt.now(self._tz).date()
 
         actuals: dict[dt, dict[str, dt | float]] = {}
@@ -4371,7 +4428,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             bool: A flag indicating success or failure.
         """
         today: datetime.date = dt.now(self._tz).date()
-        commencing: datetime.date = dt.now(self._tz).date() - timedelta(days=self.advanced_options[ADVANCED_FORECAST_HISTORY_MAX_DAYS])
+        commencing: datetime.date = dt.now(self._tz).date() - timedelta(days=self.advanced_options[ADVANCED_HISTORY_MAX_DAYS])
         commencing_undampened: datetime.date = dt.now(self._tz).date() - timedelta(days=14)
         last_day: datetime.date = dt.now(self._tz).date() + timedelta(days=self.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS])
         logged_hard_limit: list[str] = []

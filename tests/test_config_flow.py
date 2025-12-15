@@ -22,7 +22,6 @@ from homeassistant.components.solcast_solar.config_flow import (
 )
 from homeassistant.components.solcast_solar.const import (
     ADVANCED_OPTION,
-    ADVANCED_OPTIONS,
     API_QUOTA,
     AUTO_DAMPEN,
     AUTO_UPDATE,
@@ -806,6 +805,9 @@ async def test_advanced_options(
         options = copy.deepcopy(DEFAULT_INPUT1)
         options[GET_ACTUALS] = False
         entry = await async_init_integration(hass, options)
+        coodinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = coodinator.solcast
+        advanced_options_with_aliases, _ = solcast._advanced_options_with_aliases()
 
         async def wait():
             for _ in range(1000):
@@ -871,12 +873,13 @@ async def test_advanced_options(
         assert "Running task watchdog_advanced" in caplog.text
         assert "Monitoring" in caplog.text
         for option, value in data_file_1.items():
-            if value == ADVANCED_OPTIONS[option]["default"]:
-                assert f"{option}" not in caplog.text
+            if value == advanced_options_with_aliases[option]["default"]:
+                assert f"Advanced option set {option}" not in caplog.text
             else:
-                if ADVANCED_OPTIONS[option]["type"] in (ADVANCED_OPTION.FLOAT, ADVANCED_OPTION.INT):
+                if advanced_options_with_aliases[option]["type"] in (ADVANCED_OPTION.FLOAT, ADVANCED_OPTION.INT):
                     assert f"Advanced option proposed {option}: {value}" in caplog.text
                 assert f"Advanced option set {option}: {value}" in caplog.text
+        assert "Advanced option forecast_history_max_days is deprecated, please use history_max_days" in caplog.text
 
         caplog.clear()
 
@@ -898,7 +901,7 @@ async def test_advanced_options(
             "estimated_actuals_log_ape_percentiles": [10, 50, 10, "wrong_type", 0.5],
             "forecast_day_entities": 16,
             "forecast_future_days": 16,
-            "forecast_history_max_days": 10,
+            "history_max_days": 10,
             "granular_dampening_delta_adjustment": False,
             "reload_on_advanced_change": True,
             "unknown_option": True,
@@ -909,15 +912,15 @@ async def test_advanced_options(
         for option, value in data_file_1.items():
             if option in ["reload_on_advanced_change", "solcast_url"]:
                 continue
-            if ADVANCED_OPTIONS.get(option) is None:
+            if advanced_options_with_aliases.get(option) is None:
                 assert f"Unknown advanced option ignored: {option}" in caplog.text
-            elif value != ADVANCED_OPTIONS.get(option, {}).get("default"):
-                if ADVANCED_OPTIONS[option]["type"] in (int, float):
+            elif value != advanced_options_with_aliases.get(option, {}).get("default"):
+                if advanced_options_with_aliases[option]["type"] in (int, float):
                     assert (
-                        f"{option}: {value} (must be {LEAST if 'matching' in option else ADVANCED_OPTIONS[option]['min']}-{ADVANCED_OPTIONS[option]['max']})"
+                        f"{option}: {value} (must be {LEAST if 'matching' in option else advanced_options_with_aliases[option]['min']}-{advanced_options_with_aliases[option]['max']})"
                         not in caplog.text
                     )
-                elif ADVANCED_OPTIONS[option]["type"] is bool:
+                elif advanced_options_with_aliases[option]["type"] is bool:
                     assert f"{option}: {value} (must be bool)" not in caplog.text
 
         assert "Advanced option set api_raise_issues: False" in caplog.text
@@ -948,6 +951,7 @@ async def test_advanced_options(
             "forecast_day_entities": 10,
             "granular_dampening_delta_adjustment": True,
             "automated_dampening_no_delta_adjustment": True,
+            "forecast_history_max_days": 365,
         }
         data_file.write_text(json.dumps(data_file_3), encoding="utf-8")
         await wait()
@@ -956,7 +960,9 @@ async def test_advanced_options(
         assert "Advanced option forecast_day_entities: 10 must be less than or equal" in caplog.text
         assert "Advanced option proposed forecast_future_days: 8" in caplog.text
         assert "Advanced option set forecast_future_days: 8" in caplog.text
+        assert "Advanced option set history_max_days: 365" in caplog.text
         assert "Granular dampening delta adjustment requires estimated actuals" in caplog.text
+        assert "Advanced option forecast_history_max_days is deprecated, please use history_max_days" in caplog.text
         # assert (
         #    "Advanced option granular_dampening_delta_adjustment: True can not be set with automated_dampening_no_delta_adjustment: True"
         #    in caplog.text
