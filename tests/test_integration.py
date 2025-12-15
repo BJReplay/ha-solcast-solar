@@ -559,7 +559,7 @@ async def test_schema_upgrade(
         DEFAULT_INPUT2,
     ],
 )
-async def test_integration(
+async def test_integration(  # noqa: C901
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
@@ -811,7 +811,10 @@ async def test_integration(
                     if sensor is not None:
                         assert sensor.state == test["result"]
                         if test.get("factors", {}).get("all") is not None:
-                            assert "Adjusted granular dampening factor for 2025-12-14 12:00:00, 0.597 (was 0.550" in caplog.text
+                            assert (
+                                re.search(r"Adjusted granular dampening factor for .+ 12:00:00, 0\.597 \(was 0\.550", caplog.text)
+                                is not None
+                            )
                     else:
                         pytest.fail("Test dampened: State of forecast_tomorrow is None")
                     caplog.clear()

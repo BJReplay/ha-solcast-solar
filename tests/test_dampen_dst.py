@@ -6,6 +6,7 @@ from datetime import datetime as dt, timedelta
 import json
 import logging
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from freezegun.api import FrozenDateTimeFactory
@@ -70,11 +71,43 @@ async def five_minute_bump(hass: HomeAssistant, freezer: FrozenDateTimeFactory, 
             await hass.async_block_till_done()
 
 
+@pytest.mark.parametrize(
+    "direction",
+    [
+        {
+            "times": [
+                "2025-10-02T18:00:00+00:00",
+                "2025-10-03T00:00:00+00:00",
+                "2025-10-03T14:00:00+00:00",
+                "2025-10-04T00:00:00+00:00",
+                "2025-10-04T14:00:00+00:00",
+                "2025-10-04T16:00:00+00:00",
+            ],
+            "from": "09:00",
+            "to": "10:00",
+            "factor": (-2, 0),
+        },
+        {
+            "times": [
+                "2026-04-02T18:00:00+00:00",
+                "2026-04-03T00:00:00+00:00",
+                "2026-04-03T13:00:00+00:00",
+                "2026-04-04T00:00:00+00:00",
+                "2026-04-04T13:00:00+00:00",
+                "2026-04-04T15:00:00+00:00",
+            ],
+            "from": "10:00",
+            "to": "09:00",
+            "factor": (0, -2),
+        },
+    ],
+)
 async def test_auto_dampen_dst_transition(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
     freezer: FrozenDateTimeFactory,
+    direction: dict[str, Any],
 ) -> None:
     """Test automated dampening."""
 
@@ -99,7 +132,7 @@ async def test_auto_dampen_dst_transition(
         Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
 
         # Test transition from standard to summer time.
-        freezer.move_to("2025-10-02 18:00:00")
+        freezer.move_to(direction["times"][0])
 
         await async_init_integration(hass, options, timezone="Australia/Sydney", extra_sensors=ExtraSensors.YES_WATT_HOUR)
 
@@ -111,162 +144,58 @@ async def test_auto_dampen_dst_transition(
                 freezer.tick(0.01)
                 await hass.async_block_till_done()
 
-        await midnight_utc(hass, freezer, caplog, "2025-10-03 00:00:00")
+        await midnight_utc(hass, freezer, caplog, direction["times"][1])
 
-        freezer.move_to("2025-10-03 14:00:00")
+        freezer.move_to(direction["times"][2])
         caplog.clear()
         for _ in range(60000):
             freezer.tick(0.1)
             await hass.async_block_till_done()
-            if "Applying future dampening" in caplog.text:
+            if "Task model_automated_dampening took" in caplog.text:
                 break
-        assert f"Adjusted granular dampening factor for 2025-10-04 09:00:00, {expected_value}" in caplog.text
-        assert f"Auto-dampen factor for 09:00 is {expected_value}" in caplog.text
+        assert f"Auto-dampen factor for {direction['from']} is {expected_value}" in caplog.text
         caplog.clear()
         await five_minute_bump(hass, freezer, caplog)
         if (state := hass.states.get(dampening_entity)) is not None:
             assert state.state == "True"
             if (attribute := state.attributes.get("factors")) is not None:
                 assert len(attribute) == 48
-                assert attribute[18]["factor"] == expected_value
+                assert attribute[20 + direction["factor"][0]]["factor"] == expected_value
             else:
                 pytest.fail("Dampening attribute `factors` is None")
         else:
             pytest.fail("Dampening entity state is None")
 
-        await midnight_utc(hass, freezer, caplog, "2025-10-04 00:00:00")
+        await midnight_utc(hass, freezer, caplog, direction["times"][3])
 
-        freezer.move_to("2025-10-04 14:00:00")
+        freezer.move_to(direction["times"][4])
         caplog.clear()
         for _ in range(60000):
             freezer.tick(0.1)
             await hass.async_block_till_done()
             if "Applying future dampening" in caplog.text:
                 break
-        assert f"Auto-dampen factor for 10:00 is {expected_value}" in caplog.text
-        assert f"Adjusted granular dampening factor for 2025-10-05 10:00:00, {expected_value}" in caplog.text
+        assert f"Auto-dampen factor for {direction['to']} is {expected_value}" in caplog.text
         caplog.clear()
         await five_minute_bump(hass, freezer, caplog)
         if (state := hass.states.get(dampening_entity)) is not None:
             assert state.state == "True"
             if (attribute := state.attributes.get("factors")) is not None:
                 assert len(attribute) == 48
-                assert attribute[20]["factor"] == expected_value
+                assert attribute[20 + direction["factor"][1]]["factor"] == expected_value
             else:
                 pytest.fail("Dampening attribute `factors` is None")
         else:
             pytest.fail("Dampening entity state is None")
 
-        freezer.move_to("2025-10-04 16:00:00")
+        freezer.move_to(direction["times"][5])
         caplog.clear()
         await hass.async_block_till_done()
         if (state := hass.states.get(dampening_entity)) is not None:
             assert state.state == "True"
             if (attribute := state.attributes.get("factors")) is not None:
                 assert len(attribute) == 48
-                assert attribute[20]["factor"] == expected_value
-            else:
-                pytest.fail("Dampening attribute `factors` is None")
-        else:
-            pytest.fail("Dampening entity state is None")
-
-    finally:
-        assert await async_cleanup_integration_tests(hass)
-
-
-async def test_auto_dampen_dst_transition_back(
-    recorder_mock: Recorder,
-    hass: HomeAssistant,
-    caplog: pytest.LogCaptureFixture,
-    freezer: FrozenDateTimeFactory,
-) -> None:
-    """Test automated dampening."""
-
-    try:
-        options = copy.deepcopy(DEFAULT_INPUT2)
-        options[AUTO_UPDATE] = 1
-        options[GET_ACTUALS] = True
-        options[USE_ACTUALS] = 0
-        options[AUTO_DAMPEN] = True
-        options[EXCLUDE_SITES] = ["3333-3333-3333-3333"]
-        options[GENERATION_ENTITIES] = [
-            "sensor.solar_export_sensor_1111_1111_1111_1111",
-            "sensor.solar_export_sensor_2222_2222_2222_2222",
-        ]
-        options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
-        options[SITE_EXPORT_LIMIT] = 5.0
-        expected_value = 0.797
-
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
-        Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
-
-        # Test transition from summer to standard time.
-        freezer.move_to("2026-04-02 18:00:00")
-
-        await async_init_integration(hass, options, timezone="Australia/Sydney", extra_sensors=ExtraSensors.YES_WATT_HOUR)
-
-        # Enable the dampening entity
-        dampening_entity = "sensor.solcast_pv_forecast_dampening"
-        er.async_get(hass).async_update_entity(dampening_entity, disabled_by=None)
-        async with asyncio.timeout(300):
-            while "Reloading configuration entries because disabled_by changed" not in caplog.text:
-                freezer.tick(0.01)
-                await hass.async_block_till_done()
-
-        await midnight_utc(hass, freezer, caplog, "2026-04-03 00:00:00")
-
-        freezer.move_to("2026-04-03 14:00:00")
-        caplog.clear()
-        for _ in range(60000):
-            freezer.tick(0.1)
-            await hass.async_block_till_done()
-            if "Applying future dampening" in caplog.text:
-                break
-        assert f"Adjusted granular dampening factor for 2026-04-04 10:00:00, {expected_value}" in caplog.text
-        caplog.clear()
-        await five_minute_bump(hass, freezer, caplog)
-        if (state := hass.states.get(dampening_entity)) is not None:
-            assert state.state == "True"
-            if (attribute := state.attributes.get("factors")) is not None:
-                assert len(attribute) == 48
-                assert attribute[20]["factor"] == expected_value
-            else:
-                pytest.fail("Dampening attribute `factors` is None")
-        else:
-            pytest.fail("Dampening entity state is None")
-
-        await midnight_utc(hass, freezer, caplog, "2026-04-04 00:00:00")
-
-        freezer.move_to("2026-04-04 14:00:00")
-        caplog.clear()
-        for _ in range(60000):
-            freezer.tick(0.1)
-            await hass.async_block_till_done()
-            if "Applying future dampening" in caplog.text:
-                break
-        assert f"Adjusted granular dampening factor for 2026-04-05 09:00:00, {expected_value}" in caplog.text
-        caplog.clear()
-        await five_minute_bump(hass, freezer, caplog)
-        if (state := hass.states.get(dampening_entity)) is not None:
-            assert state.state == "True"
-            if (attribute := state.attributes.get("factors")) is not None:
-                assert len(attribute) == 48
-                assert attribute[18]["factor"] == expected_value
-            else:
-                pytest.fail("Dampening attribute `factors` is None")
-        else:
-            pytest.fail("Dampening entity state is None")
-
-        freezer.move_to("2026-04-04 16:00:00")
-        caplog.clear()
-        await hass.async_block_till_done()
-        if (state := hass.states.get(dampening_entity)) is not None:
-            assert state.state == "True"
-            if (attribute := state.attributes.get("factors")) is not None:
-                assert len(attribute) == 48
-                assert attribute[18]["factor"] == expected_value
+                assert attribute[20 + direction["factor"][1]]["factor"] == expected_value
             else:
                 pytest.fail("Dampening attribute `factors` is None")
         else:

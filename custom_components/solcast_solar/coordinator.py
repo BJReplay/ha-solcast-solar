@@ -473,7 +473,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
             if self.solcast.options.auto_dampen and self.solcast.options.generation_entities:
                 await self.__check_generation_fetch()
-                # await self.solcast.get_pv_generation()
 
             await self.__check_estimated_actuals_fetch()
 
