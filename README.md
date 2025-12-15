@@ -1272,6 +1272,7 @@ v4.4.10
 * Remove zero-length cache files on startup by @autoSteve
 * Add advanced option granular_dampening_delta_adjustment by @autoSteve
 * Rename automated_dampening_no_delta_adjustment by @autoSteve
+* Deprecation warnings for advanced options by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.9...v4.4.10
 
