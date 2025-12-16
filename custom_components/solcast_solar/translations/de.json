@@ -225,7 +225,7 @@
     },
     "issues": {
         "advanced_deprecated": {
-            "description": "Erweiterte Konfigurationsoption(en) `{option}` wurden in `{new_option}` geändert. Bitte aktualisieren Sie Ihre erweiterten Konfigurationsoptionen, um den neuen Optionsnamen zu verwenden.",
+            "description": "Erweiterte Konfigurationsoption(en) `{option}` wurden in `{new_option}` geändert. Bitte aktualisieren Sie Ihre erweiterten Konfigurationsoptionen, um den neuen Optionsnamen zu verwenden.{stops_working}",
             "title": "Erweiterte Option veraltet"
         },
         "advanced_problem": {

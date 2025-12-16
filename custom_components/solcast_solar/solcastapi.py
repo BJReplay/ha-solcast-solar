@@ -97,6 +97,7 @@ from .const import (
     DATA_SET_FORECAST_UNDAMPENED,
     DATE_FORMAT,
     DATE_MONTH_DAY,
+    DATE_ONLY_FORMAT,
     DAY_NAME,
     DEFAULT,
     DEPRECATED,
@@ -166,6 +167,7 @@ from .const import (
     SITE_EXPORT_LIMIT,
     SITE_INFO,
     SITES,
+    STOPS_WORKING,
     TAGS,
     TALLY,
     TASK_ACTUALS_FETCH,
@@ -440,19 +442,29 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._use_forecast_confidence = f"pv_{self.options.key_estimate}"
         self.estimate_set = self.__get_estimate_set(self.options)
 
-    def _advanced_options_with_aliases(self) -> tuple[dict[str, dict[str, Any]], list[str]]:
+    def _advanced_options_with_aliases(self) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
         """Return advanced options including aliases."""
 
-        deprecated: list[str] = []
+        deprecated: dict[str, str] = {}
         advanced_options_with_aliases = copy.deepcopy(ADVANCED_OPTIONS)
         for option, characteristics in advanced_options_with_aliases.copy().items():
             advanced_options_with_aliases[option][CURRENT_NAME] = option
             for alias in characteristics.get(ALIASES, []):
-                advanced_options_with_aliases[alias[NAME]] = characteristics
-                del advanced_options_with_aliases[alias[NAME]][ALIASES]
-                advanced_options_with_aliases[alias[NAME]][CURRENT_NAME] = option
-                if alias[DEPRECATED]:
-                    deprecated.append(alias[NAME])
+                if not (
+                    not alias[DEPRECATED]
+                    and (
+                        dt.strptime(
+                            alias.get(STOPS_WORKING, dt.strftime(dt.now(self.options.tz) - timedelta(days=1), DATE_ONLY_FORMAT)),
+                            DATE_ONLY_FORMAT,
+                        ).date()
+                        > dt.now(self.options.tz).date()
+                    )
+                ):
+                    advanced_options_with_aliases[alias[NAME]] = characteristics
+                    del advanced_options_with_aliases[alias[NAME]][ALIASES]
+                    advanced_options_with_aliases[alias[NAME]][CURRENT_NAME] = option
+                    if alias[DEPRECATED]:
+                        deprecated[alias[NAME]] = alias.get(STOPS_WORKING)
         return advanced_options_with_aliases, deprecated
 
     def _advanced_with_aliases(self, names: dict[str, Any]) -> list[str]:
@@ -498,7 +510,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         ADVANCED_OPTION.INT: r"^\d+$",
                         ADVANCED_OPTION.TIME: r"^([01]?[0-9]|2[0-3]):[03]{1}0$",
                     }
-                    advanced_options_with_aliases, deprecated = self._advanced_options_with_aliases()
+                    advanced_options_with_aliases = self._advanced_options_with_aliases()
 
                     content = await file.read()
                     if content.replace("\n", "").replace("\r", "").strip() != "":  # i.e. not empty
@@ -512,32 +524,32 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             return change
                         options_present = self._advanced_with_aliases(response_json)
                         for option, new_value in response_json.items():
-                            if advanced_options_with_aliases.get(option) is None:
+                            if advanced_options_with_aliases[0].get(option) is None:
                                 add_problem("Unknown option: %s, ignored", option)
                                 continue
-                            if option in deprecated:
-                                deprecated_in_use[option] = advanced_options_with_aliases[option][CURRENT_NAME]
+                            if option in advanced_options_with_aliases[1]:
+                                deprecated_in_use[option] = advanced_options_with_aliases[0][option][CURRENT_NAME]
                                 _LOGGER.warning(
                                     "Advanced option %s is deprecated, please use %s",
                                     option,
-                                    advanced_options_with_aliases[option][CURRENT_NAME],
+                                    advanced_options_with_aliases[0][option][CURRENT_NAME],
                                 )
                             value = self.advanced_options.get(option)
                             if new_value != value:
                                 valid = True
                                 if isinstance(new_value, type(value)):
-                                    match advanced_options_with_aliases[option][ADVANCED_TYPE]:
+                                    match advanced_options_with_aliases[0][option][ADVANCED_TYPE]:
                                         case ADVANCED_OPTION.INT | ADVANCED_OPTION.FLOAT:
                                             if (
-                                                new_value < advanced_options_with_aliases[option][MINIMUM]
-                                                or new_value > advanced_options_with_aliases[option][MAXIMUM]
+                                                new_value < advanced_options_with_aliases[0][option][MINIMUM]
+                                                or new_value > advanced_options_with_aliases[0][option][MAXIMUM]
                                             ):
                                                 add_problem(
                                                     "Invalid value for advanced option %s: %s (must be %s-%s)",
                                                     option,
                                                     new_value,
-                                                    advanced_options_with_aliases[option][MINIMUM],
-                                                    advanced_options_with_aliases[option][MAXIMUM],
+                                                    advanced_options_with_aliases[0][option][MINIMUM],
+                                                    advanced_options_with_aliases[0][option][MAXIMUM],
                                                 )
                                                 valid = False
                                         # case ADVANCED_OPTION.TIME:
@@ -545,10 +557,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                         #        add_problem("Invalid time in advanced option %s: %s", option, new_value)
                                         #        valid = False
                                         case ADVANCED_OPTION.LIST_INT | ADVANCED_OPTION.LIST_TIME:
-                                            member_type = advanced_options_with_aliases[option][ADVANCED_TYPE].split("_")[1]
+                                            member_type = advanced_options_with_aliases[0][option][ADVANCED_TYPE].split("_")[1]
                                             seen_members: list[Any] = []
                                             member: Any
-                                            for member in new_value:  # pyright: ignore[reportGeneralTypeIssues]
+                                            for member in new_value:
                                                 if re.match(_VALIDATION[member_type], str(member)) is None:
                                                     add_problem("Invalid %s in advanced option %s: %s", member_type, option, member)
                                                     valid = False
@@ -571,20 +583,23 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     add_problem("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
                                     valid = False
                                 if valid:
-                                    advanced_options_proposal[advanced_options_with_aliases[option][CURRENT_NAME]] = new_value
-                                    if advanced_options_with_aliases[option][ADVANCED_TYPE] in (ADVANCED_OPTION.FLOAT, ADVANCED_OPTION.INT):
+                                    advanced_options_proposal[advanced_options_with_aliases[0][option][CURRENT_NAME]] = new_value
+                                    if advanced_options_with_aliases[0][option][ADVANCED_TYPE] in (
+                                        ADVANCED_OPTION.FLOAT,
+                                        ADVANCED_OPTION.INT,
+                                    ):
                                         _LOGGER.debug(
                                             "Advanced option proposed %s: %s",
-                                            advanced_options_with_aliases[option][CURRENT_NAME],
+                                            advanced_options_with_aliases[0][option][CURRENT_NAME],
                                             new_value,
                                         )
 
                     invalid: list[str] = []
                     for option, value in advanced_options_proposal.items():
-                        if advanced_options_with_aliases[option].get(OPTION_GREATER_THAN_OR_EQUAL) is not None:
+                        if advanced_options_with_aliases[0][option].get(OPTION_GREATER_THAN_OR_EQUAL) is not None:
                             if any(
                                 value < advanced_options_proposal[opt]
-                                for opt in advanced_options_with_aliases[option][OPTION_GREATER_THAN_OR_EQUAL]
+                                for opt in advanced_options_with_aliases[0][option][OPTION_GREATER_THAN_OR_EQUAL]
                             ):
                                 add_problem(
                                     "Advanced option %s: %s must be greater than or equal to the value of %s",
@@ -593,15 +608,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     ", ".join(
                                         [
                                             f"{opt} ({advanced_options_proposal[opt]})"
-                                            for opt in advanced_options_with_aliases[option][OPTION_GREATER_THAN_OR_EQUAL]
+                                            for opt in advanced_options_with_aliases[0][option][OPTION_GREATER_THAN_OR_EQUAL]
                                         ]
                                     ),
                                 )
                                 invalid.append(option)
-                        if advanced_options_with_aliases[option].get(OPTION_LESS_THAN_OR_EQUAL) is not None:
+                        if advanced_options_with_aliases[0][option].get(OPTION_LESS_THAN_OR_EQUAL) is not None:
                             if any(
                                 value > advanced_options_proposal[opt]
-                                for opt in advanced_options_with_aliases[option][OPTION_LESS_THAN_OR_EQUAL]
+                                for opt in advanced_options_with_aliases[0][option][OPTION_LESS_THAN_OR_EQUAL]
                             ):
                                 add_problem(
                                     "Advanced option %s: %s must be less than or equal to the value of %s",
@@ -610,13 +625,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     ", ".join(
                                         [
                                             f"{opt} ({advanced_options_proposal[opt]})"
-                                            for opt in advanced_options_with_aliases[option][OPTION_LESS_THAN_OR_EQUAL]
+                                            for opt in advanced_options_with_aliases[0][option][OPTION_LESS_THAN_OR_EQUAL]
                                         ]
                                     ),
                                 )
                                 invalid.append(option)
-                        if advanced_options_with_aliases[option].get(OPTION_NOT_SET_IF) is not None:
-                            if any(advanced_options_proposal[opt] for opt in advanced_options_with_aliases[option][OPTION_NOT_SET_IF]):
+                        if advanced_options_with_aliases[0][option].get(OPTION_NOT_SET_IF) is not None:
+                            if any(advanced_options_proposal[opt] for opt in advanced_options_with_aliases[0][option][OPTION_NOT_SET_IF]):
                                 add_problem(
                                     "Advanced option %s: %s can not be set with %s",
                                     option,
@@ -624,18 +639,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     ", ".join(
                                         [
                                             f"{opt}: {advanced_options_proposal[opt]}"
-                                            for opt in advanced_options_with_aliases[option][OPTION_NOT_SET_IF]
+                                            for opt in advanced_options_with_aliases[0][option][OPTION_NOT_SET_IF]
                                         ]
                                     ),
                                 )
                                 invalid.append(option)
 
                     for option, value in advanced_options_proposal.items():
-                        default = advanced_options_with_aliases[option][DEFAULT]
-                        option = advanced_options_with_aliases[option][CURRENT_NAME]
+                        default = advanced_options_with_aliases[0][option][DEFAULT]
+                        option = advanced_options_with_aliases[0][option][CURRENT_NAME]
                         if option in invalid:
-                            advanced_options_proposal[advanced_options_with_aliases[option][CURRENT_NAME]] = self.advanced_options.get(
-                                advanced_options_with_aliases[option][CURRENT_NAME], default
+                            advanced_options_proposal[advanced_options_with_aliases[0][option][CURRENT_NAME]] = self.advanced_options.get(
+                                advanced_options_with_aliases[0][option][CURRENT_NAME], default
                             )
                             continue
                         if option not in options_present:
@@ -653,7 +668,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     self.advanced_options.update(advanced_options_proposal)
             finally:
                 await raise_or_clear_advanced_problems(problems, self.hass)
-                await raise_or_clear_advanced_deprecated(deprecated_in_use, self.hass)
+                await raise_or_clear_advanced_deprecated(
+                    deprecated_in_use,
+                    self.hass,
+                    stops_working={
+                        o: dt.strptime(stops, DATE_ONLY_FORMAT)
+                        for o, stops in advanced_options_with_aliases[1].items()
+                        if stops is not None
+                    },
+                )
 
         return change
 

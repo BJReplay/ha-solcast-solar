@@ -222,7 +222,7 @@
     },
     "issues": {
         "advanced_deprecated": {
-            "description": "La(s) opción(es) de configuración avanzada `{option}` cambiaron a `{new_option}`. Actualice sus opciones de configuración avanzada para usar el nuevo nombre de opción.",
+            "description": "La(s) opción(es) de configuración avanzada `{option}` cambiaron a `{new_option}`. Actualice sus opciones de configuración avanzada para usar el nuevo nombre de opción.{stops_working}",
             "title": "Opción avanzada obsoleta"
         },
         "advanced_problem": {

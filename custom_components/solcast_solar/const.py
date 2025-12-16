@@ -248,6 +248,7 @@ SITE_EXPORT_ENTITY: Final[str] = "site_export_entity"
 SITE_EXPORT_LIMIT: Final[str] = "site_export_limit"
 SITE_INFO: Final[str] = "siteinfo"
 SOLCAST: Final[str] = "solcast"
+STOPS_WORKING: Final[str] = "stops_working"
 SUGGESTED_VALUE: Final[str] = "suggested_value"
 SUPPORTS_RESPONSE: Final[str] = "supports_response"
 TAGS: Final[str] = "tags"
@@ -426,7 +427,13 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         MINIMUM: 22,
         MAXIMUM: 3650,
         DEFAULT: DEFAULT_HISTORY_MAX,
-        ALIASES: [{NAME: "forecast_history_max_days", DEPRECATED: True}],
+        ALIASES: [
+            {
+                NAME: "forecast_history_max_days",
+                DEPRECATED: True,
+                # STOPS_WORKING: "2026-05-01", # Example of when to stop supporting deprecated alias
+            }
+        ],
     },
     ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,

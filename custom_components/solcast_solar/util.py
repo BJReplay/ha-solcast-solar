@@ -18,6 +18,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
+    DATE_ONLY_FORMAT,
     DOMAIN,
     ESTIMATE,
     ESTIMATE10,
@@ -31,6 +32,7 @@ from .const import (
     PRIOR_CRASH_PLACEHOLDERS,
     PRIOR_CRASH_TRANSLATION_KEY,
     PROBLEMS,
+    STOPS_WORKING,
 )
 
 if TYPE_CHECKING:
@@ -280,7 +282,6 @@ async def raise_or_clear_advanced_problems(problems: list[str], hass: HomeAssist
             learn_more_url=LEARN_MORE_ADVANCED,
         )
         issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_PROBLEM)
-        _LOGGER.critical(issue)
     else:
         issue_registry = ir.async_get(hass)
         issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_PROBLEM)
@@ -289,7 +290,9 @@ async def raise_or_clear_advanced_problems(problems: list[str], hass: HomeAssist
             ir.async_delete_issue(hass, DOMAIN, ISSUE_ID_ADVANCED_PROBLEM)
 
 
-async def raise_or_clear_advanced_deprecated(deprecated_in_use: dict[str, str], hass: HomeAssistant):
+async def raise_or_clear_advanced_deprecated(
+    deprecated_in_use: dict[str, str], hass: HomeAssistant, stops_working: dict[str, dt] | None = None
+):
     """Raise or clear advanced deprecated option issues."""
     if deprecated_in_use:
         ir.async_create_issue(
@@ -302,6 +305,19 @@ async def raise_or_clear_advanced_deprecated(deprecated_in_use: dict[str, str], 
             translation_placeholders={
                 OPTION: ", ".join(deprecated_in_use.keys()),
                 NEW_OPTION: ", ".join(deprecated_in_use.values()),
+                STOPS_WORKING: (
+                    " ("
+                    + ", ".join(
+                        [
+                            f"{option} stops working after {date.strftime(DATE_ONLY_FORMAT)}"
+                            for option, date in stops_working.items()
+                            if option in deprecated_in_use
+                        ]
+                    )
+                    + ")"
+                )
+                if stops_working
+                else "",
             },
             severity=ir.IssueSeverity.WARNING,
             learn_more_url=LEARN_MORE_ADVANCED,

@@ -225,7 +225,7 @@
     },
     "issues": {
         "advanced_deprecated": {
-            "description": "Pokročilá konfiguračná možnosť(y) `{option}` sa zmenila na `{new_option}`. Aktualizujte svoje pokročilé konfiguračné možnosti, aby ste použili nový názov možnosti.",
+            "description": "Pokročilá konfiguračná možnosť(y) `{option}` sa zmenila na `{new_option}`. Aktualizujte svoje pokročilé konfiguračné možnosti, aby ste použili nový názov možnosti.{stops_working}",
             "title": "Pokročilá možnosť je zastaraná"
         },
         "advanced_problem": {

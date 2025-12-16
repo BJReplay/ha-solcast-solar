@@ -225,7 +225,7 @@
     },
     "issues": {
         "advanced_deprecated": {
-            "description": "Advanced configuration option(s) `{option}` changed to `{new_option}`. Please update your advanced configuration options to use the new option name.",
+            "description": "Advanced configuration option(s) `{option}` changed to `{new_option}`. Please update your advanced configuration options to use the new option name.{stops_working}",
             "title": "Advanced option deprecated"
         },
         "advanced_problem": {

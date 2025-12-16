@@ -225,7 +225,7 @@
     },
     "issues": {
         "advanced_deprecated": {
-            "description": "L'option de configuration avancée `{option}` a été modifiée en `{new_option}`. Veuillez mettre à jour vos options de configuration avancées pour utiliser le nouveau nom d'option.",
+            "description": "L'option de configuration avancée `{option}` a été modifiée en `{new_option}`. Veuillez mettre à jour vos options de configuration avancées pour utiliser le nouveau nom d'option.{stops_working}",
             "title": "Option avancée obsolète"
         },
         "advanced_problem": {

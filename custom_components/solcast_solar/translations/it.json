@@ -225,7 +225,7 @@
     },
     "issues": {
         "advanced_deprecated": {
-            "description": "L'opzione di configurazione avanzata `{option}` è stata modificata in `{new_option}`. Aggiorna le opzioni di configurazione avanzate per utilizzare il nuovo nome dell'opzione.",
+            "description": "L'opzione di configurazione avanzata `{option}` è stata modificata in `{new_option}`. Aggiorna le opzioni di configurazione avanzate per utilizzare il nuovo nome dell'opzione.{stops_working}",
             "title": "Opzione avanzata deprecata"
         },
         "advanced_problem": {
