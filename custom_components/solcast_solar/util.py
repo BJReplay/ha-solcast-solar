@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import IntegrationError
 from homeassistant.helpers import issue_registry as ir
-from homeassistant.helpers.issue_registry import IssueEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (

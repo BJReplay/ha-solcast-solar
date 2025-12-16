@@ -41,6 +41,8 @@ from homeassistant.components.solcast_solar.const import (
     GET_ACTUALS,
     HARD_LIMIT,
     HARD_LIMIT_API,
+    ISSUE_ID_DEPRECATED_ADVANCED,
+    ISSUE_ID_UNKNOWN_ADVANCED,
     KEY_ESTIMATE,
     PRESUMED_DEAD,
     SITE_DAMP,
@@ -55,7 +57,7 @@ from homeassistant.components.solcast_solar.util import HistoryType
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
 from . import (
     DEFAULT_INPUT1,
@@ -801,6 +803,8 @@ async def test_advanced_options(
 
     LEAST = 1
     try:
+        issue_registry = ir.async_get(hass)
+
         config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
         options = copy.deepcopy(DEFAULT_INPUT1)
         options[GET_ACTUALS] = False
@@ -861,7 +865,7 @@ async def test_advanced_options(
             "estimated_actuals_log_mape_breakdown": False,
             "forecast_day_entities": 8,
             "forecast_future_days": 14,
-            "forecast_history_max_days": 730,
+            "forecast_history_max_days": 730,  # Intentionally using deprecated name to test aliasing
             "reload_on_advanced_change": False,
             "solcast_url": "https://api.solcast.com.au",
             "trigger_on_api_available": "",
@@ -880,6 +884,7 @@ async def test_advanced_options(
                     assert f"Advanced option proposed {option}: {value}" in caplog.text
                 assert f"Advanced option set {option}: {value}" in caplog.text
         assert "Advanced option forecast_history_max_days is deprecated, please use history_max_days" in caplog.text
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_DEPRECATED_ADVANCED) is not None
 
         caplog.clear()
 
@@ -914,6 +919,7 @@ async def test_advanced_options(
                 continue
             if advanced_options_with_aliases.get(option) is None:
                 assert f"Unknown advanced option ignored: {option}" in caplog.text
+                assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_UNKNOWN_ADVANCED + "_" + option) is not None
             elif value != advanced_options_with_aliases.get(option, {}).get("default"):
                 if advanced_options_with_aliases[option]["type"] in (int, float):
                     assert (
@@ -923,6 +929,8 @@ async def test_advanced_options(
                 elif advanced_options_with_aliases[option]["type"] is bool:
                     assert f"{option}: {value} (must be bool)" not in caplog.text
 
+        assert "Removing advanced deprecation issue" in caplog.text
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_DEPRECATED_ADVANCED) is None
         assert "Advanced option set api_raise_issues: False" in caplog.text
         assert "Advanced option proposed reload_on_advanced_change: True" not in caplog.text
         assert "Advanced option set reload_on_advanced_change: True" in caplog.text
@@ -940,6 +948,8 @@ async def test_advanced_options(
         _LOGGER.debug("Testing advanced options revert to defaults")
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
         await wait()
+        assert "Removing unknown advanced option issue unknown_option" in caplog.text
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_UNKNOWN_ADVANCED + "_" + "unknown_option") is None
 
         caplog.clear()
 
