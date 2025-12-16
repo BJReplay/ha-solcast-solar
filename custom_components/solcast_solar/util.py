@@ -7,12 +7,15 @@ from dataclasses import dataclass
 from datetime import datetime as dt
 from enum import Enum
 import json
+import logging
 import math
 import re
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import IntegrationError
+from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.issue_registry import IssueEntry
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
@@ -20,6 +23,11 @@ from .const import (
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
+    ISSUE_ID_DEPRECATED_ADVANCED,
+    ISSUE_ID_UNKNOWN_ADVANCED,
+    LEARN_MORE_ADVANCED,
+    NEW_OPTION,
+    OPTION,
     PRIOR_CRASH_EXCEPTION,
     PRIOR_CRASH_PLACEHOLDERS,
     PRIOR_CRASH_TRANSLATION_KEY,
@@ -51,6 +59,8 @@ STATUS_TRANSLATE: dict[int, str] = {
     997: "Connect call failed",
     999: "Prior crash",
 }
+
+_LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -240,6 +250,59 @@ def raise_and_record(
     hass.data[DOMAIN][PRIOR_CRASH_TRANSLATION_KEY] = translation_key
     hass.data[DOMAIN][PRIOR_CRASH_PLACEHOLDERS] = translation_placeholders
     raise exception(translation_domain=DOMAIN, translation_key=translation_key, translation_placeholders=translation_placeholders)
+
+
+def raise_or_clear_advanced_unknown(unknown_in_use: list[str], hass: HomeAssistant):
+    """Raise or clear advanced unknown option issues."""
+    if unknown_in_use:
+        for issue_id in unknown_in_use:
+            ir.async_create_issue(
+                hass,
+                DOMAIN,
+                issue_id,
+                is_fixable=False,
+                is_persistent=True,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key=ISSUE_ID_UNKNOWN_ADVANCED,
+                translation_placeholders={
+                    OPTION: issue_id.replace(ISSUE_ID_UNKNOWN_ADVANCED + "_", ""),
+                },
+                learn_more_url=LEARN_MORE_ADVANCED,
+            )
+    else:
+        # Remove any relevant issues that may exist.
+        issue_registry = ir.async_get(hass)
+        for issue in issue_registry.issues.copy().values():
+            if issue.issue_id.startswith(ISSUE_ID_UNKNOWN_ADVANCED + "_"):
+                option = issue.issue_id.replace(ISSUE_ID_UNKNOWN_ADVANCED + "_", "")
+                _LOGGER.debug("Removing unknown advanced option issue %s", option)
+                ir.async_delete_issue(hass, DOMAIN, issue.issue_id)
+
+
+def raise_or_clear_advanced_deprecated(deprecated_in_use: dict[str, str], hass: HomeAssistant):
+    """Raise or clear advanced deprecated option issues."""
+    if deprecated_in_use:
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            ISSUE_ID_DEPRECATED_ADVANCED,
+            is_fixable=False,
+            is_persistent=True,
+            translation_key=ISSUE_ID_DEPRECATED_ADVANCED,
+            translation_placeholders={
+                OPTION: ", ".join(deprecated_in_use.keys()),
+                NEW_OPTION: ", ".join(deprecated_in_use.values()),
+            },
+            severity=ir.IssueSeverity.WARNING,
+            learn_more_url=LEARN_MORE_ADVANCED,
+        )
+    else:
+        # Remove any relevant issues that may exist.
+        issue_registry = ir.async_get(hass)
+        issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID_DEPRECATED_ADVANCED)
+        if issue is not None:
+            _LOGGER.debug("Removing advanced deprecation issue")
+            ir.async_delete_issue(hass, DOMAIN, ISSUE_ID_DEPRECATED_ADVANCED)
 
 
 def percentile(data: list[Any], _percentile: float) -> float | int:

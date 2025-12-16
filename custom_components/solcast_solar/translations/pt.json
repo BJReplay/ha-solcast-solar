@@ -224,6 +224,14 @@
         }
     },
     "issues": {
+        "advanced_deprecated": {
+            "description": "A opção de configuração avançada `{option}` foi alterada para `{new_option}`. Atualize suas opções de configuração avançadas para usar o novo nome da opção.",
+            "title": "Opção avançada obsoleta"
+        },
+        "advanced_not_recognised": {
+            "description": "A opção de configuração avançada `{option}` não é reconhecida e será ignorada. Verifique as opções avançadas disponíveis na documentação da integração.",
+            "title": "Opção avançada não reconhecida"
+        },
         "api_unavailable": {
             "description": "A API Solcast reportou repetidamente o estado `429 / Tente novamente mais tarde` durante uma atualização.\n\n* Não tente resolver esta situação.\n* Não altere sua chave API.\n* Evite reiniciar a integração\n* Isto não é um problema de integração e se resolverá sozinho. Não mude nada.\n\n(Para suprimir este problema, crie uma opção de configuração avançada api_raise_issue e defina-a como false.)",
             "title": "API Solcast temporariamente indisponível"

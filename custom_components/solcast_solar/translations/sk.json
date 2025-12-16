@@ -224,6 +224,14 @@
         }
     },
     "issues": {
+        "advanced_deprecated": {
+            "description": "Pokročilá konfiguračná možnosť(y) `{option}` sa zmenila na `{new_option}`. Aktualizujte svoje pokročilé konfiguračné možnosti, aby ste použili nový názov možnosti.",
+            "title": "Pokročilá možnosť je zastaraná"
+        },
+        "advanced_not_recognised": {
+            "description": "Pokročilá konfiguračná možnosť `{option}` nie je rozpoznaná a bude ignorovaná. Skontrolujte dostupné pokročilé možnosti v dokumentácii integrácie.",
+            "title": "Pokročilá možnosť nie je rozpoznaná"
+        },
         "api_unavailable": {
             "description": "Počas aktualizácie Solcast API opakovane hlásilo stav `429 / Skúste to znova neskôr`.\n\n* Nesnažte sa túto situáciu riešiť.\n* Nezmeňte svoj kľúč API.\n* Vyhnite sa reštartovaniu integrácie\n* Nie je to problém s integráciou a vyrieši sa to samo. Nič nemeňte.\n\n(Ak chcete tento problém potlačiť, vytvorte možnosť pokročilej konfigurácie api_raise_issue a nastavte ju na false.)",
             "title": "Solcast API dočasne nedostupné"

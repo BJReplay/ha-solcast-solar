@@ -127,6 +127,7 @@ from .const import (
     HOURS,
     INSTALL_DATE,
     INTERVALS,
+    ISSUE_ID_UNKNOWN_ADVANCED,
     JSON,
     JSON_VERSION,
     KEY_ESTIMATE,
@@ -200,6 +201,8 @@ from .util import (
     interquartile_bounds,
     percentile,
     raise_and_record,
+    raise_or_clear_advanced_deprecated,
+    raise_or_clear_advanced_unknown,
     redact_api_key,
     redact_lat_lon,
     redact_lat_lon_simple,
@@ -480,6 +483,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         change = False
         if Path(self._filename_advanced).exists():
             _LOGGER.debug("Advanced options file %s exists", self._filename_advanced)
+            deprecated_in_use: dict[str, str] = {}
+            unknown_in_use: list[str] = []
             async with aiofiles.open(self._filename_advanced) as file:
                 try:
                     _VALIDATION = {
@@ -500,8 +505,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         for option, new_value in response_json.items():
                             if advanced_options_with_aliases.get(option) is None:
                                 _LOGGER.error("Unknown advanced option ignored: %s", option)
+                                unknown_in_use.append(ISSUE_ID_UNKNOWN_ADVANCED + "_" + option)
                                 continue
                             if option in deprecated:
+                                deprecated_in_use[option] = advanced_options_with_aliases[option][CURRENT_NAME]
                                 _LOGGER.warning(
                                     "Advanced option %s is deprecated, please use %s",
                                     option,
@@ -638,6 +645,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     self.advanced_options.update(advanced_options_proposal)
                 except json.decoder.JSONDecodeError:
                     _LOGGER.error("JSONDecodeError, advanced options ignored: %s", self._filename_advanced)
+
+            raise_or_clear_advanced_unknown(unknown_in_use, self.hass)
+            raise_or_clear_advanced_deprecated(deprecated_in_use, self.hass)
+
         return change
 
     def get_filename_advanced(self) -> str:

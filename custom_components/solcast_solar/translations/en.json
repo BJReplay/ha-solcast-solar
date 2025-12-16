@@ -224,6 +224,14 @@
         }
     },
     "issues": {
+        "advanced_deprecated": {
+            "description": "Advanced configuration option(s) `{option}` changed to `{new_option}`. Please update your advanced configuration options to use the new option name.",
+            "title": "Advanced option deprecated"
+        },
+        "advanced_not_recognised": {
+            "description": "The advanced configuration option `{option}` is not recognised and will be ignored. Please check the available advanced options in the integration documentation.",
+            "title": "Advanced option not recognised"
+        },
         "api_unavailable": {
             "description": "The Solcast API has reported `429 / Try again later` status repeatedly during an update.\n\n* Do not attempt to fix this situation.\n* Do not change your API key.\n* Avoid restarting the integration\n* This is not an integration issue and will resolve itself. Change nothing.\n\n(To suppress this issue, create an advanced configuration option api_raise_issue and set it to false.)",
             "title": "Solcast API temporarily unavailable"

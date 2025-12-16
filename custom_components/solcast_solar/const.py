@@ -159,6 +159,8 @@ INTEGRATION: Final[str] = "Solcast PV Forecast"
 INTEGRATION_AUTOMATED: Final[str] = "integration_automated"
 INTERVAL: Final[str] = "interval"
 INTERVALS: Final[str] = "intervals"
+ISSUE_ID_DEPRECATED_ADVANCED: Final[str] = "advanced_deprecated"
+ISSUE_ID_UNKNOWN_ADVANCED: Final[str] = "advanced_not_recognised"
 JSON: Final[str] = "json"
 JSON_VERSION: Final[int] = 8
 KEY_API_COUNTER: Final[str] = "api_counter"
@@ -191,6 +193,7 @@ LAST_PERIOD: Final[str] = "last_period"
 LAST_UPDATED: Final[str] = "last_updated"
 LATITUDE: Final[str] = "latitude"
 LEARN_MORE: Final[str] = "learn_more"
+LEARN_MORE_ADVANCED: Final[str] = "https://github.com/BJReplay/ha-solcast-solar/blob/main/ADVOPTIONS.md"
 LEARN_MORE_CORRUPT_FILE: Final[str] = "https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#known-issues"
 LEARN_MORE_MISSING_FORECAST_DATA: Final[str] = "https://github.com/BJReplay/ha-solcast-solar/blob/main/FAQ.md"
 LEARN_MORE_UNUSUAL_AZIMUTH: Final[str] = "https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#solcast-requirements"
@@ -202,10 +205,12 @@ MESSAGE: Final[str] = "message"
 METHOD: Final[str] = "method"
 MINIMUM: Final[str] = "min"
 NAME: Final[str] = "name"
+NEW_OPTION: Final[str] = "new_option"
 NEXT_AUTO_UPDATE: Final[str] = "next_auto_update"
 NEED_HISTORY_HOURS: Final[str] = "need_history_hours"
 OLD_API_KEY: Final[str] = "old_api_key"
 OLD_HARD_LIMIT: Final[str] = "old_hard_limit"
+OPTION: Final[str] = "option"
 OPTION_GREATER_THAN_OR_EQUAL: Final[str] = "greater_than_or_equal"
 OPTION_LESS_THAN_OR_EQUAL: Final[str] = "less_than_or_equal"
 OPTION_NOT_SET_IF: Final[str] = "not_set_if"
@@ -380,7 +385,7 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
     ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
         DEFAULT: not DEFAULT_DAMPENING_LOG_DELTA_ADJUSTMENT,
-        ALIASES: [{NAME: "automated_dampening_no_delta_correction", DEPRECATED: True}],
+        ALIASES: [{NAME: "automated_dampening_no_delta_corrections", DEPRECATED: True}],
     },
     ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
