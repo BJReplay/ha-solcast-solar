@@ -41,8 +41,8 @@ from homeassistant.components.solcast_solar.const import (
     GET_ACTUALS,
     HARD_LIMIT,
     HARD_LIMIT_API,
-    ISSUE_ID_DEPRECATED_ADVANCED,
-    ISSUE_ID_UNKNOWN_ADVANCED,
+    ISSUE_ID_ADVANCED_DEPRECATED,
+    ISSUE_ID_ADVANCED_PROBLEM,
     KEY_ESTIMATE,
     PRESUMED_DEAD,
     SITE_DAMP,
@@ -884,7 +884,7 @@ async def test_advanced_options(
                     assert f"Advanced option proposed {option}: {value}" in caplog.text
                 assert f"Advanced option set {option}: {value}" in caplog.text
         assert "Advanced option forecast_history_max_days is deprecated, please use history_max_days" in caplog.text
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_DEPRECATED_ADVANCED) is not None
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_DEPRECATED) is not None
 
         caplog.clear()
 
@@ -919,7 +919,14 @@ async def test_advanced_options(
                 continue
             if advanced_options_with_aliases.get(option) is None:
                 assert f"Unknown advanced option ignored: {option}" in caplog.text
-                assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_UNKNOWN_ADVANCED + "_" + option) is not None
+                issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_PROBLEM)
+                if issue is not None:
+                    if issue.translation_placeholders is not None:
+                        assert "Unknown" in issue.translation_placeholders["errors"]
+                    else:
+                        pytest.fail("Expected advanced option issue translation placeholders not found")
+                else:
+                    pytest.fail("Expected unknown advanced option issue not found")
             elif value != advanced_options_with_aliases.get(option, {}).get("default"):
                 if advanced_options_with_aliases[option]["type"] in (int, float):
                     assert (
@@ -930,7 +937,7 @@ async def test_advanced_options(
                     assert f"{option}: {value} (must be bool)" not in caplog.text
 
         assert "Removing advanced deprecation issue" in caplog.text
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_DEPRECATED_ADVANCED) is None
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_DEPRECATED) is None
         assert "Advanced option set api_raise_issues: False" in caplog.text
         assert "Advanced option proposed reload_on_advanced_change: True" not in caplog.text
         assert "Advanced option set reload_on_advanced_change: True" in caplog.text
@@ -948,8 +955,8 @@ async def test_advanced_options(
         _LOGGER.debug("Testing advanced options revert to defaults")
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
         await wait()
-        assert "Removing unknown advanced option issue unknown_option" in caplog.text
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_UNKNOWN_ADVANCED + "_" + "unknown_option") is None
+        assert "Removing advanced problems issue" in caplog.text
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_PROBLEM) is None
 
         caplog.clear()
 
@@ -991,7 +998,7 @@ async def test_advanced_options(
 
         data_file.write_text('{"option_1": "one", "option_2": "two",}', encoding="utf-8")  # trailing comma
         await wait()
-        assert "JSONDecodeError, advanced options ignored" in caplog.text
+        assert "Advanced options file invalid format, expected JSON `dict`" in caplog.text
 
         data_file_1["reload_on_advanced_change"] = True
         data_file_1["forecast_day_entities"] = 14

@@ -228,9 +228,9 @@
             "description": "Erweiterte Konfigurationsoption(en) `{option}` wurden in `{new_option}` geändert. Bitte aktualisieren Sie Ihre erweiterten Konfigurationsoptionen, um den neuen Optionsnamen zu verwenden.",
             "title": "Erweiterte Option veraltet"
         },
-        "advanced_not_recognised": {
-            "description": "Die erweiterte Konfigurationsoption `{option}` wird nicht erkannt und wird ignoriert. Bitte überprüfen Sie die verfügbaren erweiterten Optionen in der Integrationsdokumentation.",
-            "title": "Erweiterte Option nicht erkannt"
+        "advanced_problem": {
+            "description": "Die erweiterte Konfigurationsdatei enthält Fehler.\n{problems}\n\nBitte beheben Sie diese, indem Sie sich auf die Integrationsdokumentation unter dem Link 'Mehr erfahren' beziehen.",
+            "title": "Problem mit erweiterter Option"
         },
         "api_unavailable": {
             "description": "Die Solcast-API hat während eines Updates wiederholt den Status `429 / Versuchen Sie es später noch einmal` gemeldet.\n\n* Versuchen Sie nicht, diese Situation zu beheben.\n* Ändern Sie Ihren API-Schlüssel nicht.\n* Vermeiden Sie einen Neustart der Integration\n* Dies ist kein Integrationsproblem und wird sich von selbst lösen. Ändere nichts.\n\n(Um dieses Problem zu unterdrücken, erstellen Sie eine erweiterte Konfigurationsoption api_raise_issue und setzen Sie sie auf false.)",

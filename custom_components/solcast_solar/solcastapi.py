@@ -127,7 +127,6 @@ from .const import (
     HOURS,
     INSTALL_DATE,
     INTERVALS,
-    ISSUE_ID_UNKNOWN_ADVANCED,
     JSON,
     JSON_VERSION,
     KEY_ESTIMATE,
@@ -202,7 +201,7 @@ from .util import (
     percentile,
     raise_and_record,
     raise_or_clear_advanced_deprecated,
-    raise_or_clear_advanced_unknown,
+    raise_or_clear_advanced_problems,
     redact_api_key,
     redact_lat_lon,
     redact_lat_lon_simple,
@@ -484,9 +483,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if Path(self._filename_advanced).exists():
             _LOGGER.debug("Advanced options file %s exists", self._filename_advanced)
             deprecated_in_use: dict[str, str] = {}
-            unknown_in_use: list[str] = []
-            async with aiofiles.open(self._filename_advanced) as file:
-                try:
+            problems: list[str] = []
+
+            def add_problem(issue_problem: str, *args) -> None:
+                """Add an advanced option problem to the issues registry."""
+                nonlocal problems
+                problem = issue_problem % args if args else issue_problem
+                _LOGGER.error(problem)
+                problems.append(problem)
+
+            try:
+                async with aiofiles.open(self._filename_advanced) as file:
                     _VALIDATION = {
                         ADVANCED_OPTION.INT: r"^\d+$",
                         ADVANCED_OPTION.TIME: r"^([01]?[0-9]|2[0-3]):[03]{1}0$",
@@ -495,17 +502,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                     content = await file.read()
                     if content.replace("\n", "").replace("\r", "").strip() != "":  # i.e. not empty
-                        response_json: dict[str, Any] = json.loads(content)
+                        response_json = ""
                         value: int | float | str | list[str] | None
                         new_value: int | float | str | list[str]
+                        with contextlib.suppress(json.JSONDecodeError):
+                            response_json = json.loads(content)
                         if not isinstance(response_json, dict):
-                            _LOGGER.error("Advanced options file invalid format, expected JSON `dict`: %s", self._filename_advanced)
+                            add_problem("Advanced options file invalid format, expected JSON `dict`: %s", self._filename_advanced)
                             return change
                         options_present = self._advanced_with_aliases(response_json)
                         for option, new_value in response_json.items():
                             if advanced_options_with_aliases.get(option) is None:
-                                _LOGGER.error("Unknown advanced option ignored: %s", option)
-                                unknown_in_use.append(ISSUE_ID_UNKNOWN_ADVANCED + "_" + option)
+                                add_problem("Unknown option: %s, ignored", option)
                                 continue
                             if option in deprecated:
                                 deprecated_in_use[option] = advanced_options_with_aliases[option][CURRENT_NAME]
@@ -524,7 +532,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                 new_value < advanced_options_with_aliases[option][MINIMUM]
                                                 or new_value > advanced_options_with_aliases[option][MAXIMUM]
                                             ):
-                                                _LOGGER.error(
+                                                add_problem(
                                                     "Invalid value for advanced option %s: %s (must be %s-%s)",
                                                     option,
                                                     new_value,
@@ -534,7 +542,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                 valid = False
                                         # case ADVANCED_OPTION.TIME:
                                         #    if re.match(_VALIDATION[ADVANCED_OPTION.TIME], new_value) is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
-                                        #        _LOGGER.error("Invalid time in advanced option %s: %s", option, new_value)
+                                        #        add_problem("Invalid time in advanced option %s: %s", option, new_value)
                                         #        valid = False
                                         case ADVANCED_OPTION.LIST_INT | ADVANCED_OPTION.LIST_TIME:
                                             member_type = advanced_options_with_aliases[option][ADVANCED_TYPE].split("_")[1]
@@ -542,11 +550,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             member: Any
                                             for member in new_value:  # pyright: ignore[reportGeneralTypeIssues]
                                                 if re.match(_VALIDATION[member_type], str(member)) is None:
-                                                    _LOGGER.error("Invalid %s in advanced option %s: %s", member_type, option, member)
+                                                    add_problem("Invalid %s in advanced option %s: %s", member_type, option, member)
                                                     valid = False
                                                     continue
                                                 if member in seen_members:
-                                                    _LOGGER.error("Duplicate %s in advanced option %s: %s", member_type, option, member)
+                                                    add_problem("Duplicate %s in advanced option %s: %s", member_type, option, member)
                                                     valid = False
                                                     continue
                                                 seen_members.append(member)
@@ -557,10 +565,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                         and new_value
                                         and not self.options.get_actuals
                                     ):
-                                        _LOGGER.error("Granular dampening delta adjustment requires estimated actuals to be fetched")
+                                        add_problem("Granular dampening delta adjustment requires estimated actuals to be fetched")
                                         valid = False
                                 else:
-                                    _LOGGER.error("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
+                                    add_problem("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
                                     valid = False
                                 if valid:
                                     advanced_options_proposal[advanced_options_with_aliases[option][CURRENT_NAME]] = new_value
@@ -578,7 +586,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 value < advanced_options_proposal[opt]
                                 for opt in advanced_options_with_aliases[option][OPTION_GREATER_THAN_OR_EQUAL]
                             ):
-                                _LOGGER.error(
+                                add_problem(
                                     "Advanced option %s: %s must be greater than or equal to the value of %s",
                                     option,
                                     value,
@@ -595,7 +603,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 value > advanced_options_proposal[opt]
                                 for opt in advanced_options_with_aliases[option][OPTION_LESS_THAN_OR_EQUAL]
                             ):
-                                _LOGGER.error(
+                                add_problem(
                                     "Advanced option %s: %s must be less than or equal to the value of %s",
                                     option,
                                     value,
@@ -609,7 +617,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 invalid.append(option)
                         if advanced_options_with_aliases[option].get(OPTION_NOT_SET_IF) is not None:
                             if any(advanced_options_proposal[opt] for opt in advanced_options_with_aliases[option][OPTION_NOT_SET_IF]):
-                                _LOGGER.error(
+                                add_problem(
                                     "Advanced option %s: %s can not be set with %s",
                                     option,
                                     value,
@@ -643,11 +651,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             _LOGGER.debug("Advanced option default set %s: %s", option, default)
                             change = True
                     self.advanced_options.update(advanced_options_proposal)
-                except json.decoder.JSONDecodeError:
-                    _LOGGER.error("JSONDecodeError, advanced options ignored: %s", self._filename_advanced)
-
-            raise_or_clear_advanced_unknown(unknown_in_use, self.hass)
-            raise_or_clear_advanced_deprecated(deprecated_in_use, self.hass)
+            finally:
+                await raise_or_clear_advanced_problems(problems, self.hass)
+                await raise_or_clear_advanced_deprecated(deprecated_in_use, self.hass)
 
         return change
 
