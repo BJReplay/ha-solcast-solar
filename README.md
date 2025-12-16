@@ -373,20 +373,20 @@ DEBUG (MainThread) [custom_components.solcast_solar.solcastapi] HTTP session sta
 
 ### Set up HA energy dashboard settings
 
-Go to `Settings`, `Dashboards`, `Energy`
+Go to `Settings`, `Dashboards`, `Energy` and click on the Pencil icon to edit your Energy dashboard configuration.
 
 The solar forecast has to be associated with a solar generation item in your Energy dashboard.
 
 Edit a `Solar Panels` `Solar production` item you have previously created (or will create now). Do not add a separate `Solar production` item as things will just get weird.
 
-There can only be a single configuration of the total Solcast PV Forecast in the Energy dashboard, it is not possible to split the forecast for different solar arrays/Solcast sites.
+There can only be a single configuration of the total Solcast PV Forecast in the Energy dashboard covering all sites (arrays) in your Solcast account, it is not possible to split the forecast on the Energy dashboard for different solar arrays/Solcast sites.
 
 > [!IMPORTANT]  
-> If you do not have a solar generation sensor in your system then this integration will not work in the Energy dashboard. The graph and adding the forecast integration rely on there being a generation sensor set up.
+> If you do not have a solar generation sensor in your system then this integration will not work in the Energy dashboard. The graph and adding the forecast integration rely on there being a solar generation sensor set up.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolarPanels.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolarPanels.png)
 
-Select `Forecast Production` and select the `Solcast Solar` option. Click `SAVE`, and Home Assistant will do the rest for you.
+In the `Solar production forecast` section, select `Forecast Production` and then select the `Solcast Solar` option. Click `Save`, and Home Assistant will do the rest for you.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolcastSolar.png" width="500">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolcastSolar.png)
 
