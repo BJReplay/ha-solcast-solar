@@ -897,7 +897,7 @@ async def test_advanced_options(
             "automated_dampening_insignificant_factor": 1.1,
             "automated_dampening_insignificant_factor_adjusted": 1.1,
             "automated_dampening_no_delta_adjustment": "wrong_type",
-            "automated_dampening_model_days": 22,
+            "automated_dampening_model_days": 21,
             "automated_dampening_generation_fetch_delay": -10,
             "automated_dampening_generation_history_load_days": 22,
             "automated_dampening_similar_peak": 1.1,
@@ -938,6 +938,7 @@ async def test_advanced_options(
 
         assert "Removing advanced deprecation issue" in caplog.text
         assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_DEPRECATED) is None
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_PROBLEM) is not None
         assert "Advanced option set api_raise_issues: False" in caplog.text
         assert "Advanced option proposed reload_on_advanced_change: True" not in caplog.text
         assert "Advanced option set reload_on_advanced_change: True" in caplog.text
@@ -951,6 +952,13 @@ async def test_advanced_options(
 
         assert "Advanced options changed, restarting" in caplog.text
         assert "Start is not stale" in caplog.text
+
+        # Cause an additional error to check issue gets re-raised
+        data_file_2["automated_dampening_model_days"] = 99
+        data_file.write_text(json.dumps(data_file_2), encoding="utf-8")
+        await wait()
+        assert "automated_dampening_model_days: 99 (must be 2-21)" in caplog.text
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_PROBLEM) is not None
 
         _LOGGER.debug("Testing advanced options revert to defaults")
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
