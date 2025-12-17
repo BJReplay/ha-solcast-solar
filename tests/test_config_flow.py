@@ -958,7 +958,10 @@ async def test_advanced_options(
         data_file.write_text(json.dumps(data_file_2), encoding="utf-8")
         await wait()
         assert "automated_dampening_model_days: 99 (must be 2-21)" in caplog.text
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_PROBLEM) is not None
+        issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_PROBLEM)
+        assert issue is not None and issue.translation_placeholders is not None
+        assert "automated_dampening_model_days: 99" in issue.translation_placeholders["problems"]
+        assert "unknown_option" in issue.translation_placeholders["problems"]
 
         _LOGGER.debug("Testing advanced options revert to defaults")
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
