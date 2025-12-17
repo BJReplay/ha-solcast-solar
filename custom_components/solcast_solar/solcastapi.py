@@ -58,6 +58,7 @@ from .const import (
     ADVANCED_FORECAST_FUTURE_DAYS,
     ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT,
     ADVANCED_HISTORY_MAX_DAYS,
+    ADVANCED_INVALID_JSON_TASK,
     ADVANCED_OPTION,
     ADVANCED_OPTIONS,
     ADVANCED_SOLCAST_URL,
@@ -504,6 +505,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.error(problem)
                 problems.append(problem)
 
+            async def add_problem_later(issue_problem: str, *args) -> None:
+                """Add an advanced option problem to the issues registry."""
+                try:
+                    problem = issue_problem % args if args else issue_problem
+                    _LOGGER.warning("Raise issue in 60 seconds if unresolved: %s", problem)
+                    for _ in range(600):
+                        await asyncio.sleep(0.1)
+                    _LOGGER.error(problem)
+                    await raise_or_clear_advanced_problems([problem], self.hass)
+                except asyncio.CancelledError:
+                    self.tasks.pop(ADVANCED_INVALID_JSON_TASK, None)
+
             try:
                 async with aiofiles.open(self._filename_advanced) as file:
                     _VALIDATION = {
@@ -517,10 +530,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         response_json = ""
                         value: int | float | str | list[str] | None
                         new_value: int | float | str | list[str]
+                        if self.tasks.get(ADVANCED_INVALID_JSON_TASK) is not None:
+                            self.tasks[ADVANCED_INVALID_JSON_TASK].cancel()
+                            self.tasks.pop(ADVANCED_INVALID_JSON_TASK)
                         with contextlib.suppress(json.JSONDecodeError):
                             response_json = json.loads(content)
                         if not isinstance(response_json, dict):
-                            add_problem("Advanced options file invalid format, expected JSON `dict`: %s", self._filename_advanced)
+                            self.tasks[ADVANCED_INVALID_JSON_TASK] = asyncio.create_task(
+                                add_problem_later("Advanced options file invalid format, expected JSON `dict`: %s", self._filename_advanced)
+                            )
                             return change
                         options_present = self._advanced_with_aliases(response_json)
                         for option, new_value in response_json.items():
