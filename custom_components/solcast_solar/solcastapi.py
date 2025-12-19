@@ -2599,7 +2599,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 else:
                     # Data is missing at the start of the set, so adjust the start time to the first available forecast.
                     start, end = self.__get_list_slice(forecasts, forecasts[0][PERIOD_START], self.get_day_start_utc(future=1))
-                    xx = list(range((48 - start) * 300, 1800 * len(self._spline_period), 300))
+                    xx = list(range(1800 * (48 - (end - start)), 1800 * len(self._spline_period), 300))
             except IndexError:
                 start = 0
                 end = 0
