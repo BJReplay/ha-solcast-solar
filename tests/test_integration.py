@@ -1323,9 +1323,7 @@ async def test_scenarios(  # noqa: C901
             data["auto_updated"] = 10
             # Remove forecasts today up to "now"
             for site in data["siteinfo"].values():
-                site["forecasts"] = [
-                    f for f in site["forecasts"] if f["period_start"] >= dt.now(datetime.UTC).replace(second=0, microsecond=0).isoformat()
-                ]
+                site["forecasts"] = [f for f in site["forecasts"] if f["period_start"] > dt.now(datetime.UTC).isoformat()]
             data_file.write_text(json.dumps(data), encoding="utf-8")
             session_reset_usage()
 
