@@ -2520,11 +2520,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         for forecast_confidence in confidences:
             try:
-                y = [data[start + index][forecast_confidence] for index in range(len(self._spline_period))]
+                spline_period_length = len(xx) // 6
+                y = [data[start + index][forecast_confidence] for index in range(spline_period_length)]
                 if reducing:
                     # Build a decreasing set of forecasted values instead.
-                    y = [0.5 * sum(y[index:]) for index in range(len(self._spline_period))]
-                spline[forecast_confidence] = cubic_interp(xx, self._spline_period, y)
+                    y = [0.5 * sum(y[index:]) for index in range(spline_period_length)]
+                spline[forecast_confidence] = cubic_interp(xx, self._spline_period[-spline_period_length:], y)
+                spline[forecast_confidence] = [0] * (len(self._spline_period) - len(xx)) + spline[forecast_confidence]
                 self.__sanitise_spline(spline, forecast_confidence, xx, y, reducing=reducing)
                 continue
             except IndexError:

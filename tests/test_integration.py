@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 
 import aiohttp
 from aiohttp import ClientConnectionError
+from freezegun.api import FrozenDateTimeFactory
 import pytest
 from voluptuous.error import MultipleInvalid
 
@@ -232,6 +233,26 @@ async def _wait_for_update(hass: HomeAssistant, caplog: pytest.LogCaptureFixture
             and "ConfigEntryAuthFailed" not in caplog.text
         ):  # Wait for task to complete
             await asyncio.sleep(0.01)
+            await hass.async_block_till_done()
+
+
+async def _wait_for_frozen_update(hass: HomeAssistant, caplog: pytest.LogCaptureFixture, freezer: FrozenDateTimeFactory) -> None:
+    """Wait for forecast update completion."""
+
+    async with asyncio.timeout(10):
+        while (
+            "Forecast update completed successfully" not in caplog.text
+            and "Not requesting a solar forecast" not in caplog.text
+            and "aborting forecast update" not in caplog.text
+            and "update already in progress" not in caplog.text
+            and "pausing" not in caplog.text
+            and "Completed task update" not in caplog.text
+            and "Completed task force_update" not in caplog.text
+            and "Completed task actuals" not in caplog.text
+            and "Completed task force_actuals" not in caplog.text
+            and "ConfigEntryAuthFailed" not in caplog.text
+        ):  # Wait for task to complete
+            freezer.tick(0.1)
             await hass.async_block_till_done()
 
 
@@ -1223,11 +1244,12 @@ async def test_remaining_actions(
         assert await async_cleanup_integration_tests(hass)
 
 
-async def test_scenarios(
+async def test_scenarios(  # noqa: C901
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
     issue_registry: ir.IssueRegistry,
+    freezer: FrozenDateTimeFactory,
 ) -> None:
     """Test various integration scenarios."""
 
@@ -1235,6 +1257,9 @@ async def test_scenarios(
         config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
         if CONFIG_FOLDER_DISCRETE:
             Path(config_dir).mkdir(parents=False, exist_ok=True)
+        Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
+
+        freezer.move_to(dt(2025, 12, 21, 2, 0, 0, tzinfo=datetime.UTC))
 
         options = copy.deepcopy(DEFAULT_INPUT1)
         options[HARD_LIMIT_API] = "6.0"
@@ -1287,6 +1312,10 @@ async def test_scenarios(
         data_file_undampened = Path(f"{config_dir}/solcast-undampened.json")
         original_data = json.loads(data_file.read_text(encoding="utf-8"))
 
+        def alter_in_memory_as_stale():
+            extant_data = copy.deepcopy(solcast._data_forecasts)  # pyright: ignore[reportOptionalMemberAccess]
+            solcast._data_forecasts = [f for f in extant_data if f["period_start"] >= dt.now(datetime.UTC).replace(second=0, microsecond=0)]  # pyright: ignore[reportOptionalMemberAccess]
+
         def alter_last_updated_as_stale():
             data = json.loads(data_file.read_text(encoding="utf-8"))
             data["last_updated"] = (dt.now(datetime.UTC) - timedelta(days=5)).isoformat()
@@ -1294,7 +1323,9 @@ async def test_scenarios(
             data["auto_updated"] = 10
             # Remove forecasts today up to "now"
             for site in data["siteinfo"].values():
-                site["forecasts"] = [f for f in site["forecasts"] if f["period_start"] > dt.now(datetime.UTC).isoformat()]
+                site["forecasts"] = [
+                    f for f in site["forecasts"] if f["period_start"] >= dt.now(datetime.UTC).replace(second=0, microsecond=0).isoformat()
+                ]
             data_file.write_text(json.dumps(data), encoding="utf-8")
             session_reset_usage()
 
@@ -1328,13 +1359,37 @@ async def test_scenarios(
         def restore_data():
             data_file.write_text(json.dumps(original_data), encoding="utf-8")
 
+        # Test missing data at beginning of forecast data set
+        _LOGGER.debug("Testing remaining and moment with missing prior data")
+        await coordinator.update_integration_listeners()
+        state_assertions = {
+            "sensor.solcast_pv_forecast_power_in_30_minutes": 6000,
+            "sensor.solcast_pv_forecast_forecast_remaining_today": 21.944,
+        }
+        for entity_id, expected_state in state_assertions.items():
+            _LOGGER.debug("Asserting pre-update state for %s is %s", entity_id, expected_state)
+            state = hass.states.get(entity_id)
+            assert state is not None
+            assert float(state.state) == expected_state
+
+        alter_in_memory_as_stale()
+        await solcast.recalculate_splines()
+        await coordinator.update_integration_listeners()
+
+        for entity_id, expected_state in state_assertions.items():
+            _LOGGER.debug("Asserting post-update state for %s is %s", entity_id, expected_state)
+            state = hass.states.get(entity_id)
+            assert state is not None
+            assert float(state.state) == expected_state
+
         # Test stale start with auto update enabled
         _LOGGER.debug("Testing stale start with auto update enabled")
         alter_last_updated_as_stale()
+
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
-        await _wait_for_update(hass, caplog)
+        await _wait_for_frozen_update(hass, caplog, freezer)
         assert "is older than expected, should be" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)  # pyright: ignore[reportPrivateUsage]
         assert "ERROR" not in caplog.text
@@ -1356,7 +1411,7 @@ async def test_scenarios(
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
-        await _wait_for_update(hass, caplog)
+        await _wait_for_frozen_update(hass, caplog, freezer)
         assert "is older than expected, should be" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)  # pyright: ignore[reportPrivateUsage]
         assert "hours of past data" in caplog.text
@@ -1376,7 +1431,7 @@ async def test_scenarios(
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
-        await _wait_for_update(hass, caplog)
+        await _wait_for_frozen_update(hass, caplog, freezer)
         assert "The update automation has not been running" in caplog.text
         _no_exception(caplog)
 
@@ -1389,7 +1444,7 @@ async def test_scenarios(
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
-        await _wait_for_update(hass, caplog)
+        await _wait_for_frozen_update(hass, caplog, freezer)
         assert "The update automation has not been running" in caplog.text
         assert solcast._data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)  # pyright: ignore[reportPrivateUsage]
         assert "hours of past data" in caplog.text
