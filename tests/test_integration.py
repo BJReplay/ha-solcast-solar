@@ -1366,21 +1366,19 @@ async def test_scenarios(  # noqa: C901
             "sensor.solcast_pv_forecast_power_in_30_minutes": 6000,
             "sensor.solcast_pv_forecast_forecast_remaining_today": 21.944,
         }
-        for entity_id, expected_state in state_assertions.items():
-            _LOGGER.debug("Asserting pre-update state for %s is %s", entity_id, expected_state)
-            state = hass.states.get(entity_id)
-            assert state is not None
-            assert float(state.state) == expected_state
 
+        def assert_state_assertions(pre_post: str):
+            for entity_id, expected_state in state_assertions.items():
+                _LOGGER.debug("Asserting %s state for %s is %s", pre_post, entity_id, expected_state)
+                state = hass.states.get(entity_id)
+                assert state is not None
+                assert float(state.state) == expected_state
+
+        assert_state_assertions("pre-update")
         alter_in_memory_as_stale()
         await solcast.recalculate_splines()
         await coordinator.update_integration_listeners()
-
-        for entity_id, expected_state in state_assertions.items():
-            _LOGGER.debug("Asserting post-update state for %s is %s", entity_id, expected_state)
-            state = hass.states.get(entity_id)
-            assert state is not None
-            assert float(state.state) == expected_state
+        assert_state_assertions("post-update")
 
         # Test stale start with auto update enabled
         _LOGGER.debug("Testing stale start with auto update enabled")
