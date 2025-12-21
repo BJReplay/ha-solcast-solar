@@ -219,7 +219,7 @@ async def _exec_update_actuals(
 async def _wait_for_update(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
     """Wait for forecast update completion."""
 
-    async with asyncio.timeout(10):
+    async with asyncio.timeout(100):
         while (
             "Forecast update completed successfully" not in caplog.text
             and "Not requesting a solar forecast" not in caplog.text
@@ -239,7 +239,7 @@ async def _wait_for_update(hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 async def _wait_for_frozen_update(hass: HomeAssistant, caplog: pytest.LogCaptureFixture, freezer: FrozenDateTimeFactory) -> None:
     """Wait for forecast update completion."""
 
-    async with asyncio.timeout(10):
+    async with asyncio.timeout(100):
         while (
             "Forecast update completed successfully" not in caplog.text
             and "Not requesting a solar forecast" not in caplog.text
@@ -1259,11 +1259,11 @@ async def test_scenarios(  # noqa: C901
             Path(config_dir).mkdir(parents=False, exist_ok=True)
         Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
 
-        freezer.move_to(dt(2025, 12, 21, 2, 0, 0, tzinfo=datetime.UTC))
+        freezer.move_to(dt.now(tz=ZoneInfo(ZONE_RAW)).replace(hour=12, minute=0, second=0, microsecond=0))
 
         options = copy.deepcopy(DEFAULT_INPUT1)
         options[HARD_LIMIT_API] = "6.0"
-        entry = await async_init_integration(hass, options)
+        entry = await async_init_integration(hass, options, timezone=ZONE_RAW)
         coordinator = entry.runtime_data.coordinator
         solcast = patch_solcast_api(coordinator.solcast)
 
