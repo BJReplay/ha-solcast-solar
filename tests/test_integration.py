@@ -212,7 +212,7 @@ async def _exec_update_actuals(
         await solcast.tasks_cancel()
         async with asyncio.timeout(1):
             while coordinator.tasks.get("actuals"):
-                await hass.async_block_till_done()
+                await asyncio.sleep(0.01)
     await hass.async_block_till_done()
 
 
@@ -233,7 +233,6 @@ async def _wait_for_update(hass: HomeAssistant, caplog: pytest.LogCaptureFixture
             and "ConfigEntryAuthFailed" not in caplog.text
         ):  # Wait for task to complete
             await asyncio.sleep(0.01)
-            await hass.async_block_till_done()
 
 
 async def _wait_for_frozen_update(hass: HomeAssistant, caplog: pytest.LogCaptureFixture, freezer: FrozenDateTimeFactory) -> None:
@@ -280,7 +279,6 @@ async def _wait_for_raise(hass: HomeAssistant, exception: Exception) -> None:
     async def wait_for_exception():
         async with asyncio.timeout(10):
             while True:
-                await hass.async_block_till_done()
                 await asyncio.sleep(0.01)
 
     with pytest.raises(exception):  # type: ignore[call-overload]
@@ -313,7 +311,6 @@ async def five_minute_bump(hass: HomeAssistant, caplog: pytest.LogCaptureFixture
     async with asyncio.timeout(1):
         while "Updating sensor Dampening" not in caplog.text:
             await asyncio.sleep(0.1)
-            await hass.async_block_till_done()
     assert "Updating sensor Dampening" in caplog.text
 
 
@@ -407,7 +404,6 @@ async def test_api_failure(
                 solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
                 solcast.options.auto_update = AutoUpdate.NONE
                 hass.data[DOMAIN][PRESUMED_DEAD] = False
-                await hass.async_block_till_done()
                 caplog.clear()
 
                 if isinstance(test["exception"], str):
@@ -447,7 +443,6 @@ async def test_api_failure(
         # Normal start and teardown to create caches
         session_clear(MOCK_BUSY)
         entry: ConfigEntry = await async_init_integration(hass, DEFAULT_INPUT2)
-        await hass.async_block_till_done()
         assert await hass.config_entries.async_unload(entry.entry_id)
 
         # Test API too busy during get sites with the cache present
@@ -706,7 +701,6 @@ async def test_integration(  # noqa: C901
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "seconds before retry" in caplog.text
         assert "ERROR" not in caplog.text
-        await hass.async_block_till_done()
         await _wait_for(caplog, "Forecast has not been updated")
         session_clear(MOCK_BUSY)
 
