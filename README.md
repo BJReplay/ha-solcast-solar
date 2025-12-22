@@ -234,11 +234,17 @@ Make sure you use your `API Key` and not your rooftop ID created in Solcast. You
 
 ### Updating forecasts
 
+ All sites must be updated as-at the same point in time by the integration, so a differing API key limit will use the lowest limit of all configured keys.
+ 
+ > [!NOTE]
+ >
+ > The reason for using least limit is simple, and a work-around is problematic; the forecasted values for each thirty minute interval are combined to form the overall forecast, so all sites must be represented for all intervals. (You may be tempted to think that "interpolation" of other site intervals might be an option, but remember that this is a forecast. Pull requests will be considered, as long as they are accompanied by complete `pytest` scenarios.)
+
 #### Auto-update of forecasts
 
 The default for new installations is automatic scheduled forecast update.
 
-Using auto-update will get forecast updates that are automatically spread across hours when the sun is up, or alternatively over a 24-hour period. It calculates the number of daily updates that will occur according to the number of Solcast sites and the API limit that is configured (or lowest limit in the case of multiple API keys).
+Using auto-update will get forecast updates that are automatically spread across hours when the sun is up, or alternatively over a 24-hour period. It calculates the number of daily updates that will occur according to the number of Solcast rooftop sites and the API limit that is configured, or lowest possible number of updates for all sites in the case of multiple API keys.
 
 Should it be desired to fetch an update outside of these hours, then the API limit in the integration configuration may be reduced, and an automation may then be set up to call the action `solcast_solar.force_update_forecasts` at the desired time of day. (Note that calling the action `solcast_solar.update_forecasts` will be refused if auto-update is enabled, so use force update instead.)
 
