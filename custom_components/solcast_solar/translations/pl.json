@@ -261,6 +261,10 @@
             },
             "title": "Brak prognoz na przyszłość"
         },
+        "records_missing_initial": {
+            "description": "Brakuje danych prognozy i/lub szacowanych wartości rzeczywistych, prawdopodobnie dlatego, że nie nastąpiła początkowa aktualizacja prognozy. Prawdopodobnie jest to spowodowane osiągnięciem limitu wywołań API. Będziesz mieć problemy z jednostkami czujników, a pulpit nawigacyjny Energii prawdopodobnie będzie miał brakujące dane. Sytuacja ta rozwiąże się sama.",
+            "title": "Brak prognoz"
+        },
         "records_missing_unfixable": {
             "description": "Brak danych prognozy na przyszłość, co jest nieoczekiwane. Sprawdź dzienniki.",
             "title": "Brak prognoz na przyszłość"

@@ -257,6 +257,10 @@
             },
             "title": "Prévisions manquantes"
         },
+        "records_missing_initial": {
+            "description": "Les données de prévisions et/ou les données réelles estimées sont manquantes, probablement parce que la mise à jour initiale des prévisions n'a pas eu lieu. Cela est probablement dû au fait que la limite d'appels API a été atteinte. Vous _aurez_ des problèmes d'entités de capteurs, et le tableau de bord Énergie aura probablement des données manquantes. Cela se résoudra de lui-même.",
+            "title": "Prévisions manquantes"
+        },
         "records_missing_unfixable": {
             "description": "Les données de prévisions futures sont manquantes, ce qui est inattendu. Vérifiez les journaux.",
             "title": "Prévisions manquantes"

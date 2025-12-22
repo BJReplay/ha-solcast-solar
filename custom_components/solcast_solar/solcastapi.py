@@ -129,6 +129,10 @@ from .const import (
     HOURS,
     INSTALL_DATE,
     INTERVALS,
+    ISSUE_RECORDS_MISSING,
+    ISSUE_RECORDS_MISSING_FIXABLE,
+    ISSUE_RECORDS_MISSING_INITIAL,
+    ISSUE_RECORDS_MISSING_UNFIXABLE,
     JSON,
     JSON_VERSION,
     KEY_ESTIMATE,
@@ -555,7 +559,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             value = self.advanced_options.get(option)
                             if new_value != value:
                                 valid = True
-                                if isinstance(new_value, type(value)):
+                                if isinstance(new_value, type(value)) and new_value is not None:
                                     match advanced_options_with_aliases[0][option][ADVANCED_TYPE]:
                                         case ADVANCED_OPTION.INT | ADVANCED_OPTION.FLOAT:
                                             if (
@@ -3830,26 +3834,91 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Returns:
             tuple[DataCallStatus, str]: A flag indicating success, failure or abort, and a reason for failure.
         """
-        last_day = self.get_day_start_utc(future=self.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS])
-        hours = math.ceil((last_day - self.get_now_utc()).total_seconds() / 3600)
-        _LOGGER.debug(
-            "Polling API for site %s, last day %s, %d hours",
-            site,
-            last_day.strftime("%Y-%m-%d"),
-            hours,
-        )
+        failure = False
 
-        new_data: list[dict[str, Any]] = []
+        try:
+            last_day = self.get_day_start_utc(future=self.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS])
+            hours = math.ceil((last_day - self.get_now_utc()).total_seconds() / 3600)
+            _LOGGER.debug(
+                "Polling API for site %s, last day %s, %d hours",
+                site,
+                last_day.strftime("%Y-%m-%d"),
+                hours,
+            )
 
-        # Fetch past data. (Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.)
+            new_data: list[dict[str, Any]] = []
 
-        if do_past_hours > 0:
-            act_response: dict[str, Any] | None
+            # Fetch past data. (Run once, for a new install or if the solcast.json file is deleted. This will use up api call quota.)
+
+            if do_past_hours > 0:
+                act_response: dict[str, Any] | None
+                try:
+                    self.tasks[TASK_FORECASTS_FETCH] = asyncio.create_task(
+                        self.fetch_data(
+                            hours=do_past_hours,
+                            path=ESTIMATED_ACTUALS,
+                            site=site,
+                            api_key=api_key,
+                            force=force,
+                        )
+                    )
+                    await self.tasks[TASK_FORECASTS_FETCH]
+                finally:
+                    act_response = (
+                        self.tasks.pop(TASK_FORECASTS_FETCH).result() if self.tasks.get(TASK_FORECASTS_FETCH) is not None else None
+                    )
+                if not isinstance(act_response, dict):
+                    failure = True
+                    _LOGGER.error(
+                        "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
+                    )
+                    _LOGGER.error("API did not return a json object, returned `%s`", act_response)
+                    return DataCallStatus.FAIL, "No valid json returned"
+
+                estimate_actuals: list[dict[str, Any]] = act_response.get(ESTIMATED_ACTUALS, [])
+
+                oldest = (dt.now(self._tz).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)).astimezone(datetime.UTC)
+
+                actuals: dict[dt, Any] = {}
+                for estimate_actual in estimate_actuals:
+                    period_start = dt.fromisoformat(estimate_actual[PERIOD_END]).astimezone(datetime.UTC).replace(
+                        second=0, microsecond=0
+                    ) - timedelta(minutes=30)
+                    if period_start > oldest:
+                        new_data.append(
+                            {
+                                PERIOD_START: period_start,
+                                ESTIMATE: estimate_actual[ESTIMATE],
+                                ESTIMATE10: 0,
+                                ESTIMATE90: 0,
+                            }
+                        )
+                for actual in new_data:
+                    period_start = actual[PERIOD_START]
+
+                    # Add or update the new entries.
+                    forecast_entry_update(
+                        actuals,
+                        period_start,
+                        round(actual[ESTIMATE], 4),
+                    )
+
+                await self.sort_and_prune(site, self._data_actuals, self.advanced_options[ADVANCED_HISTORY_MAX_DAYS], actuals)
+
+                self._data_actuals[LAST_UPDATED] = dt.now(datetime.UTC).replace(microsecond=0)
+                self._data_actuals[LAST_ATTEMPT] = dt.now(datetime.UTC).replace(microsecond=0)
+
+            # Fetch latest data.
+
+            response: dict[str, Any] | None = None
+            if self.tasks.get(TASK_FORECASTS_FETCH) is not None:
+                _LOGGER.warning("A fetch task is already running, so aborting forecast update")
+                return DataCallStatus.ABORT, "Fetch already running"
             try:
                 self.tasks[TASK_FORECASTS_FETCH] = asyncio.create_task(
                     self.fetch_data(
-                        hours=do_past_hours,
-                        path=ESTIMATED_ACTUALS,
+                        hours=hours,
+                        path=FORECASTS,
                         site=site,
                         api_key=api_key,
                         force=force,
@@ -3857,111 +3926,74 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 await self.tasks[TASK_FORECASTS_FETCH]
             finally:
-                act_response = self.tasks.pop(TASK_FORECASTS_FETCH).result() if self.tasks.get(TASK_FORECASTS_FETCH) is not None else None
-            if not isinstance(act_response, dict):
-                _LOGGER.error(
-                    "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
-                )
-                _LOGGER.error("API did not return a json object, returned `%s`", act_response)
+                response = self.tasks.pop(TASK_FORECASTS_FETCH).result() if self.tasks.get(TASK_FORECASTS_FETCH) is not None else None
+            if response is None:
+                _LOGGER.error("No data was returned for forecasts")
+
+            if not isinstance(response, dict):
+                failure = True
+                _LOGGER.error("API did not return a json object. Returned %s", response)
                 return DataCallStatus.FAIL, "No valid json returned"
 
-            estimate_actuals: list[dict[str, Any]] = act_response.get(ESTIMATED_ACTUALS, [])
+            latest_forecasts = response.get(FORECASTS, [])
 
-            oldest = (dt.now(self._tz).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=6)).astimezone(datetime.UTC)
+            _LOGGER.debug("%d records returned", len(latest_forecasts))
 
-            actuals: dict[dt, Any] = {}
-            for estimate_actual in estimate_actuals:
-                period_start = dt.fromisoformat(estimate_actual[PERIOD_END]).astimezone(datetime.UTC).replace(
-                    second=0, microsecond=0
-                ) - timedelta(minutes=30)
-                if period_start > oldest:
+            for forecast in latest_forecasts:
+                period_start = dt.fromisoformat(forecast[PERIOD_END]).astimezone(datetime.UTC).replace(second=0, microsecond=0) - timedelta(
+                    minutes=30
+                )
+                if period_start < last_day:
                     new_data.append(
                         {
                             PERIOD_START: period_start,
-                            ESTIMATE: estimate_actual[ESTIMATE],
-                            ESTIMATE10: 0,
-                            ESTIMATE90: 0,
+                            ESTIMATE: forecast[ESTIMATE],
+                            ESTIMATE10: forecast[ESTIMATE10],
+                            ESTIMATE90: forecast[ESTIMATE90],
                         }
                     )
-            for actual in new_data:
-                period_start = actual[PERIOD_START]
 
-                # Add or update the new entries.
+            # Add or update forecasts with the latest data.
+
+            # Load the forecast history.
+            try:
+                forecasts_undampened = {forecast[PERIOD_START]: forecast for forecast in self._data_undampened[SITE_INFO][site][FORECASTS]}
+            except:  # noqa: E722
+                forecasts_undampened = {}
+
+            # Add new data to the undampened forecasts.
+            for forecast in new_data:
+                period_start = forecast[PERIOD_START]
                 forecast_entry_update(
-                    actuals,
+                    forecasts_undampened,
                     period_start,
-                    round(actual[ESTIMATE], 4),
+                    round(forecast[ESTIMATE], 4),
+                    round(forecast[ESTIMATE10], 4),
+                    round(forecast[ESTIMATE90], 4),
                 )
 
-            await self.sort_and_prune(site, self._data_actuals, self.advanced_options[ADVANCED_HISTORY_MAX_DAYS], actuals)
-
-            self._data_actuals[LAST_UPDATED] = dt.now(datetime.UTC).replace(microsecond=0)
-            self._data_actuals[LAST_ATTEMPT] = dt.now(datetime.UTC).replace(microsecond=0)
-
-        # Fetch latest data.
-
-        response: dict[str, Any] | None = None
-        if self.tasks.get(TASK_FORECASTS_FETCH) is not None:
-            _LOGGER.warning("A fetch task is already running, so aborting forecast update")
-            return DataCallStatus.ABORT, "Fetch already running"
-        try:
-            self.tasks[TASK_FORECASTS_FETCH] = asyncio.create_task(
-                self.fetch_data(
-                    hours=hours,
-                    path=FORECASTS,
-                    site=site,
-                    api_key=api_key,
-                    force=force,
-                )
-            )
-            await self.tasks[TASK_FORECASTS_FETCH]
+            await self.sort_and_prune(site, self._data_undampened, 14, forecasts_undampened)
         finally:
-            response = self.tasks.pop(TASK_FORECASTS_FETCH).result() if self.tasks.get(TASK_FORECASTS_FETCH) is not None else None
-        if response is None:
-            _LOGGER.error("No data was returned for forecasts")
-
-        if not isinstance(response, dict):
-            _LOGGER.error("API did not return a json object. Returned %s", response)
-            return DataCallStatus.FAIL, "No valid json returned"
-
-        latest_forecasts = response.get(FORECASTS, [])
-
-        _LOGGER.debug("%d records returned", len(latest_forecasts))
-
-        for forecast in latest_forecasts:
-            period_start = dt.fromisoformat(forecast[PERIOD_END]).astimezone(datetime.UTC).replace(second=0, microsecond=0) - timedelta(
-                minutes=30
-            )
-            if period_start < last_day:
-                new_data.append(
-                    {
-                        PERIOD_START: period_start,
-                        ESTIMATE: forecast[ESTIMATE],
-                        ESTIMATE10: forecast[ESTIMATE10],
-                        ESTIMATE90: forecast[ESTIMATE90],
-                    }
+            issue_registry = ir.async_get(self.hass)
+            if (
+                failure
+                and (
+                    self._data_undampened[SITE_INFO].get(site) is None
+                    or self._data_undampened[SITE_INFO][site][FORECASTS][0][PERIOD_START] > dt.now(datetime.UTC) - timedelta(hours=1)
                 )
-
-        # Add or update forecasts with the latest data.
-
-        # Load the forecast history.
-        try:
-            forecasts_undampened = {forecast[PERIOD_START]: forecast for forecast in self._data_undampened[SITE_INFO][site][FORECASTS]}
-        except:  # noqa: E722
-            forecasts_undampened = {}
-
-        # Add new data to the undampened forecasts.
-        for forecast in new_data:
-            period_start = forecast[PERIOD_START]
-            forecast_entry_update(
-                forecasts_undampened,
-                period_start,
-                round(forecast[ESTIMATE], 4),
-                round(forecast[ESTIMATE10], 4),
-                round(forecast[ESTIMATE90], 4),
-            )
-
-        await self.sort_and_prune(site, self._data_undampened, 14, forecasts_undampened)
+                and issue_registry.async_get_issue(DOMAIN, ISSUE_RECORDS_MISSING_INITIAL) is None
+            ):
+                _LOGGER.warning("Raise issue `%s` for missing forecast data", ISSUE_RECORDS_MISSING_INITIAL)
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    ISSUE_RECORDS_MISSING_INITIAL,
+                    is_fixable=False,
+                    is_persistent=True,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key=ISSUE_RECORDS_MISSING_INITIAL,
+                    learn_more_url=LEARN_MORE_MISSING_FORECAST_DATA,
+                )
 
         return DataCallStatus.SUCCESS, ""
 
@@ -4729,7 +4761,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         def _remove_issues():
             # Remove any relevant issues that may exist.
-            for check_issue in ("records_missing", "records_missing_fixable"):
+            for check_issue in (
+                ISSUE_RECORDS_MISSING,
+                ISSUE_RECORDS_MISSING_FIXABLE,
+                ISSUE_RECORDS_MISSING_INITIAL,  # Raised elsewhere but cleaned up here
+                ISSUE_RECORDS_MISSING_UNFIXABLE,
+            ):
                 if issue_registry.async_get_issue(DOMAIN, check_issue) is not None:
                     _LOGGER.debug("Remove issue for %s", check_issue)
                     ir.async_delete_issue(self.hass, DOMAIN, check_issue)
@@ -4739,7 +4776,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 # If auto-update is enabled then raise an un-fixable issue, otherwise raise a fixable issue unless there have been failues seen.
                 raise_issue: str | None = None
                 if self.entry.options[AUTO_UPDATE] == AutoUpdate.NONE:
-                    raise_issue = "records_missing_unfixable" if any(self._data[FAILURE][LAST_14D]) else "records_missing_fixable"
+                    raise_issue = ISSUE_RECORDS_MISSING_UNFIXABLE if any(self._data[FAILURE][LAST_14D]) else ISSUE_RECORDS_MISSING_FIXABLE
 
                 # If auto-update is enabled yet the prior forecast update was manual then do not raise an issue.
                 raise_issue = None if self._data[AUTO_UPDATED] == 0 and self.entry.options[AUTO_UPDATE] != AutoUpdate.NONE else raise_issue

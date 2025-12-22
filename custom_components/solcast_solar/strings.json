@@ -261,6 +261,10 @@
             },
             "title": "Future forecasts missing"
         },
+        "records_missing_initial": {
+            "description": "Forecast and/or estimated actual data is missing, likely because the initial forecast update did not occur. This is likely because the API call limit has been reached. You _will_ have sensor entity issues, and the Energy dashboard will likely have missing data. This will resolve itself.",
+            "title": "Forecasts missing"
+        },
         "records_missing_unfixable": {
             "description": "Future forecast data is missing, which is unexpected. Check the logs.",
             "title": "Future forecasts missing"

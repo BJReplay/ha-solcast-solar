@@ -1,5 +1,6 @@
 """Test the Solcast Solar repairs flow."""
 
+import asyncio
 import copy
 import datetime
 from datetime import datetime as dt, timedelta
@@ -8,7 +9,9 @@ import logging
 from pathlib import Path
 import re
 from typing import Any
+from zoneinfo import ZoneInfo
 
+from freezegun.api import FrozenDateTimeFactory
 import pytest
 
 from homeassistant.components.recorder import Recorder
@@ -18,6 +21,8 @@ from homeassistant.components.solcast_solar.const import (
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
     DOMAIN,
+    SERVICE_CLEAR_DATA,
+    SERVICE_UPDATE,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.repairs import async_create_fix_flow
@@ -27,7 +32,15 @@ from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import issue_registry as ir
 
-from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
+from . import (
+    DEFAULT_INPUT1,
+    MOCK_OVER_LIMIT,
+    ZONE_RAW,
+    async_cleanup_integration_tests,
+    async_init_integration,
+    session_clear,
+    session_set,
+)
 from .simulator import API_KEY_SITES
 
 _LOGGER = logging.getLogger(__name__)
@@ -103,6 +116,70 @@ async def test_missing_data_fixable(
         assert "Auto forecast updates" in caplog.text
         assert result["type"] == FlowResultType.ABORT
         assert result["reason"] == "reconfigured"
+
+    finally:
+        await async_cleanup_integration_tests(hass)
+
+
+async def test_missing_data_initial(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    issue_registry: ir.IssueRegistry,
+    caplog: pytest.LogCaptureFixture,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Test missing data after history reset."""
+
+    try:
+
+        def assert_issue_present():
+            # Assert the issue is present, unfixable and persistent
+            assert len(issue_registry.issues) == 1
+            issue = list(issue_registry.issues.values())[0]
+            assert issue.domain == DOMAIN
+            assert issue.issue_id == "records_missing_initial"
+            assert issue.is_fixable is False
+            assert issue.is_persistent is True
+
+        def assert_issue_not_present():
+            # Assert the issue is not present
+            assert len(issue_registry.issues) == 0
+
+        async def update_forecast():
+            await hass.services.async_call(DOMAIN, SERVICE_UPDATE, {}, blocking=True)
+            async with asyncio.timeout(100):
+                while "Completed task update" not in caplog.text:
+                    freezer.tick(0.1)
+                    await hass.async_block_till_done()
+
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[AUTO_UPDATE] = "0"
+        entry = await async_init_integration(hass, options)
+        solcast = entry.runtime_data.coordinator.solcast
+
+        caplog.clear()
+        session_set(MOCK_OVER_LIMIT)
+        await hass.services.async_call(DOMAIN, SERVICE_CLEAR_DATA, {}, blocking=True)
+        await hass.async_block_till_done()
+
+        assert_issue_present()
+
+        caplog.clear()
+        session_clear(MOCK_OVER_LIMIT)
+        await solcast.reset_api_usage(force=True)
+        assert "Reset API usage" in caplog.text
+        await update_forecast()
+        assert_issue_present()
+
+        caplog.clear()
+        freezer.move_to((dt.now(tz=ZoneInfo(ZONE_RAW))).replace(hour=23, minute=59, second=0, microsecond=0))
+        await update_forecast()
+
+        caplog.clear()
+        freezer.move_to((dt.now(tz=ZoneInfo(ZONE_RAW)) + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0))
+        await hass.async_block_till_done()
+        await update_forecast()
+        assert_issue_not_present()
 
     finally:
         await async_cleanup_integration_tests(hass)

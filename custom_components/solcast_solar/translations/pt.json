@@ -261,6 +261,10 @@
             },
             "title": "Previsões futuras em falta"
         },
+        "records_missing_initial": {
+            "description": "Faltam dados de previsão e/ou dados reais estimados, provavelmente porque a atualização inicial da previsão não ocorreu. Isso provavelmente se deve ao fato de o limite de chamadas da API ter sido atingido. Você _terá_ problemas com as entidades do sensor e o painel de energia provavelmente terá dados ausentes. Isso se resolverá sozinho.",
+            "title": "Previsões em falta"
+        },
         "records_missing_unfixable": {
             "description": "Dados de previsão futura em falta, o que é inesperado. Verifique os registos.",
             "title": "Previsões futuras em falta"

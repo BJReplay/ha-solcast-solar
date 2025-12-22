@@ -257,6 +257,10 @@
             },
             "title": "Predpovede do budúcnosti chýbajú"
         },
+        "records_missing_initial": {
+            "description": "Chýbajú údaje o predpovedi a/alebo odhadované skutočné údaje, pravdepodobne preto, že nedošlo k počiatočnej aktualizácii predpovede. Pravdepodobne je to preto, že bol dosiahnutý limit volaní API. Budete mať problémy s entitami snímačov a na paneli Energy pravdepodobne budú chýbať údaje. Toto sa vyrieši samo.",
+            "title": "Predpovede chýbajú"
+        },
         "records_missing_unfixable": {
             "description": "Údaje budúcej prognózy chýbajú, čo je neočakávané. Skontrolujte denníky.",
             "title": "Predpovede do budúcnosti chýbajú"

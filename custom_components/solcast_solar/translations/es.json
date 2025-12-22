@@ -258,6 +258,10 @@
             },
             "title": "Faltan previsiones de futuro"
         },
+        "records_missing_initial": {
+            "description": "Faltan datos de pronóstico y/o datos reales estimados, probablemente porque no se produjo la actualización inicial del pronóstico. Probablemente se deba a que se ha alcanzado el límite de llamadas a la API. _Tendrá_ problemas con las entidades de los sensores y es probable que el panel de energía tenga datos faltantes. Esto se resolverá por sí solo.",
+            "title": "Faltan previsiones"
+        },
         "records_missing_unfixable": {
             "description": "Faltan datos de pronóstico futuro, lo cual es inesperado. Verifique los registros.",
             "title": "Faltan previsiones de futuro"

@@ -231,14 +231,14 @@ def verify_data_schema(data: dict[str, Any]) -> None:
         raise AssertionError("Schema verification failed")
 
 
-def _check_abend(api_key: str, site: str | None = None) -> CallbackResult | None:
+def _check_abend(api_key: str, site: str | None = None, get_sites: bool = False) -> CallbackResult | None:
     if MOCK_SESSION_CONFIG[MOCK_BUSY] or (MOCK_SESSION_CONFIG[MOCK_BUSY_SITE] and site == MOCK_SESSION_CONFIG[MOCK_BUSY_SITE]):
         return CallbackResult(status=429, body=STATUS_EMPTY)
     if MOCK_SESSION_CONFIG["api_used"].get(api_key, 0) >= MOCK_SESSION_CONFIG["api_limit"]:
         return CallbackResult(status=429, payload=STATUS_429_OVER)
     if MOCK_SESSION_CONFIG[MOCK_BUSY_UNEXPECTED]:
         return CallbackResult(status=429, payload=STATUS_429_UNEXPECTED)
-    if MOCK_SESSION_CONFIG[MOCK_OVER_LIMIT]:
+    if MOCK_SESSION_CONFIG[MOCK_OVER_LIMIT] and not get_sites:
         return CallbackResult(status=429, payload=STATUS_429_OVER)
     if MOCK_SESSION_CONFIG[MOCK_BAD_REQUEST]:
         return CallbackResult(status=400, body=STATUS_EMPTY)
@@ -256,7 +256,7 @@ async def _get_sites(url: str, **kwargs: Any) -> CallbackResult:
         params: dict[str, Any] | None = kwargs.get("params")
         if params is not None:
             api_key = params["api_key"]
-            if (abend := _check_abend(api_key)) is not None:
+            if (abend := _check_abend(api_key, get_sites=True)) is not None:
                 return abend
             if MOCK_SESSION_CONFIG[MOCK_CORRUPT_SITES]:
                 return CallbackResult(body="Not available, a string response")

@@ -261,6 +261,10 @@
             },
             "title": "Previsioni future mancanti"
         },
+        "records_missing_initial": {
+            "description": "I dati delle previsioni e/o i dati effettivi stimati mancano, probabilmente perché non si è verificato l'aggiornamento iniziale delle previsioni. Probabilmente ciò è dovuto al raggiungimento del limite di chiamate API. Avrai problemi con le entità dei sensori e il dashboard Energia probabilmente avrà dati mancanti. Questo si risolverà da solo.",
+            "title": "Previsioni mancanti"
+        },
         "records_missing_unfixable": {
             "description": "I dati delle previsioni future sono mancanti, il che è inaspettato. Controllare i registri.",
             "title": "Previsioni future mancanti"

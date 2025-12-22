@@ -261,6 +261,10 @@
             },
             "title": "Zukunftsprognosen fehlen"
         },
+        "records_missing_initial": {
+            "description": "Prognose- und/oder geschätzte Ist-Daten fehlen, wahrscheinlich weil das anfängliche Prognose-Update nicht stattgefunden hat. Dies liegt wahrscheinlich daran, dass das API-Aufruflimit erreicht wurde. Sie _werden_ Probleme mit Sensorentitäten haben, und das Energie-Dashboard wird wahrscheinlich fehlende Daten aufweisen. Dies wird sich von selbst lösen.",
+            "title": "Prognosen fehlen"
+        },
         "records_missing_unfixable": {
             "description": "Zukünftige Prognosedaten fehlen, was unerwartet ist. Überprüfen Sie die Protokolle.",
             "title": "Zukunftsprognosen fehlen"
