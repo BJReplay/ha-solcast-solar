@@ -1,5 +1,6 @@
 """Test forecasts update retry mechanism."""
 
+import asyncio
 from datetime import timedelta
 import json
 import logging
@@ -114,9 +115,10 @@ async def test_forecast_retry(
 
         solcast._data["last_updated"] -= timedelta(minutes=20)
         with mock.patch("homeassistant.components.solcast_solar.solcastapi.SolcastApi._sleep", new_callable=AsyncMockDoNothing):
-            for _ in range(1500):
-                freezer.tick(0.09)
-                await hass.async_block_till_done()
+            async with asyncio.timeout(10):
+                while "Raise issue for api_unavailable" not in caplog.text:
+                    freezer.tick(0.1)
+                    await hass.async_block_till_done()
 
         assert "API was tried 10 times, but all attempts failed" in caplog.text
         _occurs_in_log(caplog, "Call status 429/Try again later", 10)
@@ -124,14 +126,19 @@ async def test_forecast_retry(
         assert "Forecast has not been updated, next auto update at" in caplog.text
         assert "Completed task pending_update_009" in caplog.text
         assert "Raise issue for api_unavailable" in caplog.text
+        await solcast.tasks_cancel()
+        await coordinator.tasks_cancel()
 
         session_clear(MOCK_BUSY)
         caplog.clear()
         await hass.services.async_call(DOMAIN, SERVICE_FORCE_UPDATE_FORECASTS, {}, blocking=True)
-        for _ in range(150):
-            freezer.tick(0.09)
-            await hass.async_block_till_done()
+        async with asyncio.timeout(10):
+            while "Remove issue for api_unavailable" not in caplog.text:
+                freezer.tick(0.1)
+                await hass.async_block_till_done()
         assert "Remove issue for api_unavailable" in caplog.text
+        await solcast.tasks_cancel()
+        await coordinator.tasks_cancel()
 
     finally:
         await async_cleanup_integration_tests(hass)
