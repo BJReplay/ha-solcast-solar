@@ -28,41 +28,41 @@ from .const import (
     API_KEY,
     ATTRIBUTION,
     AUTO_UPDATE_DIVISIONS,
+    AUTO_UPDATE_NEXT,
     AUTO_UPDATE_QUEUE,
     DESCRIPTION,
     DETAILED_FORECAST,
     DETAILED_HOURLY,
     DOMAIN,
     ENABLED_BY_DEFAULT,
+    ENTITY_API_COUNTER,
+    ENTITY_API_LIMIT,
+    ENTITY_DAMPEN,
+    ENTITY_FORECAST_CUSTOM_HOURS,
+    ENTITY_FORECAST_NEXT_HOUR,
+    ENTITY_FORECAST_REMAINING_TODAY,
+    ENTITY_FORECAST_REMAINING_TODAY_OLD,
+    ENTITY_FORECAST_THIS_HOUR,
+    ENTITY_LAST_UPDATED,
+    ENTITY_LAST_UPDATED_OLD,
+    ENTITY_PEAK_W_TIME_TODAY,
+    ENTITY_PEAK_W_TIME_TOMORROW,
+    ENTITY_PEAK_W_TODAY,
+    ENTITY_PEAK_W_TOMORROW,
+    ENTITY_POWER_NOW,
+    ENTITY_POWER_NOW_1HR,
+    ENTITY_POWER_NOW_30M,
+    ENTITY_TOTAL_KWH_FORECAST,
+    ENTITY_TOTAL_KWH_FORECAST_TODAY,
+    ENTITY_TOTAL_KWH_FORECAST_TOMORROW,
     FACTORS,
     HARD_LIMIT,
     HARD_LIMIT_API,
     INTEGRATION,
-    KEY_API_COUNTER,
-    KEY_API_LIMIT,
-    KEY_DAMPEN,
-    KEY_FORECAST_CUSTOM_HOURS,
-    KEY_FORECAST_NEXT_HOUR,
-    KEY_FORECAST_REMAINING_TODAY,
-    KEY_FORECAST_REMAINING_TODAY_OLD,
-    KEY_FORECAST_THIS_HOUR,
-    KEY_LAST_UPDATED,
-    KEY_LAST_UPDATED_OLD,
-    KEY_PEAK_W_TIME_TODAY,
-    KEY_PEAK_W_TIME_TOMORROW,
-    KEY_PEAK_W_TODAY,
-    KEY_PEAK_W_TOMORROW,
-    KEY_POWER_NOW,
-    KEY_POWER_NOW_1HR,
-    KEY_POWER_NOW_30M,
-    KEY_SITES_DATA,
-    KEY_TOTAL_KWH_FORECAST,
-    KEY_TOTAL_KWH_FORECAST_TODAY,
-    KEY_TOTAL_KWH_FORECAST_TOMORROW,
     MANUFACTURER,
     NAME,
-    NEXT_AUTO_UPDATE,
     RESOURCE_ID,
+    SITES_DATA,
     UNRECORDED_ATTRIBUTES,
 )
 from .coordinator import SolcastUpdateCoordinator
@@ -71,195 +71,195 @@ from .util import api_key_last_six, redact_api_key
 _LOGGER = logging.getLogger(__name__)
 
 NAMES: Final[dict[str, str]] = {
-    KEY_API_COUNTER: "API Used",
-    KEY_API_LIMIT: "API Limit",
-    KEY_DAMPEN: "Dampening",
-    KEY_FORECAST_CUSTOM_HOURS: "Forecast Custom Hours",
-    KEY_FORECAST_NEXT_HOUR: "Forecast Next Hour",
-    KEY_FORECAST_THIS_HOUR: "Forecast This Hour",
-    KEY_FORECAST_REMAINING_TODAY: "Forecast Remaining Today",
-    KEY_FORECAST_REMAINING_TODAY_OLD: "Forecast Remaining Today",
-    KEY_LAST_UPDATED: "API Last Polled",
-    KEY_LAST_UPDATED_OLD: "API Last Polled",
-    KEY_PEAK_W_TIME_TODAY: "Peak Time Today",
-    KEY_PEAK_W_TIME_TOMORROW: "Peak Time Tomorrow",
-    KEY_PEAK_W_TODAY: "Peak Forecast Today",
-    KEY_PEAK_W_TOMORROW: "Peak Forecast Tomorrow",
-    KEY_POWER_NOW: "Power Now",
-    KEY_POWER_NOW_1HR: "Power in 1 Hour",
-    KEY_POWER_NOW_30M: "Power in 30 Minutes",
-    KEY_TOTAL_KWH_FORECAST_TODAY: "Forecast Today",
-    KEY_TOTAL_KWH_FORECAST_TOMORROW: "Forecast Tomorrow",
+    ENTITY_API_COUNTER: "API Used",
+    ENTITY_API_LIMIT: "API Limit",
+    ENTITY_DAMPEN: "Dampening",
+    ENTITY_FORECAST_CUSTOM_HOURS: "Forecast Custom Hours",
+    ENTITY_FORECAST_NEXT_HOUR: "Forecast Next Hour",
+    ENTITY_FORECAST_THIS_HOUR: "Forecast This Hour",
+    ENTITY_FORECAST_REMAINING_TODAY: "Forecast Remaining Today",
+    ENTITY_FORECAST_REMAINING_TODAY_OLD: "Forecast Remaining Today",
+    ENTITY_LAST_UPDATED: "API Last Polled",
+    ENTITY_LAST_UPDATED_OLD: "API Last Polled",
+    ENTITY_PEAK_W_TIME_TODAY: "Peak Time Today",
+    ENTITY_PEAK_W_TIME_TOMORROW: "Peak Time Tomorrow",
+    ENTITY_PEAK_W_TODAY: "Peak Forecast Today",
+    ENTITY_PEAK_W_TOMORROW: "Peak Forecast Tomorrow",
+    ENTITY_POWER_NOW: "Power Now",
+    ENTITY_POWER_NOW_1HR: "Power in 1 Hour",
+    ENTITY_POWER_NOW_30M: "Power in 30 Minutes",
+    ENTITY_TOTAL_KWH_FORECAST_TODAY: "Forecast Today",
+    ENTITY_TOTAL_KWH_FORECAST_TOMORROW: "Forecast Tomorrow",
 }
 
 SENSORS: Final[dict[str, dict[str, Any]]] = {
-    KEY_API_COUNTER: {
+    ENTITY_API_COUNTER: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_API_COUNTER,
-            translation_key=KEY_API_COUNTER,
-            name=NAMES[KEY_API_COUNTER],
+            key=ENTITY_API_COUNTER,
+            translation_key=ENTITY_API_COUNTER,
+            name=NAMES[ENTITY_API_COUNTER],
             entity_category=EntityCategory.DIAGNOSTIC,
         ),
         ATTRIBUTION: False,
     },
-    KEY_API_LIMIT: {
+    ENTITY_API_LIMIT: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_API_LIMIT,
-            translation_key=KEY_API_LIMIT,
-            name=NAMES[KEY_API_LIMIT],
+            key=ENTITY_API_LIMIT,
+            translation_key=ENTITY_API_LIMIT,
+            name=NAMES[ENTITY_API_LIMIT],
             entity_category=EntityCategory.DIAGNOSTIC,
         ),
         ATTRIBUTION: False,
     },
-    KEY_DAMPEN: {
+    ENTITY_DAMPEN: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_DAMPEN,
-            translation_key=KEY_DAMPEN,
-            name=NAMES[KEY_DAMPEN],
+            key=ENTITY_DAMPEN,
+            translation_key=ENTITY_DAMPEN,
+            name=NAMES[ENTITY_DAMPEN],
             entity_category=EntityCategory.DIAGNOSTIC,
         ),
         ATTRIBUTION: False,
         ENABLED_BY_DEFAULT: False,
     },
-    KEY_FORECAST_THIS_HOUR: {
+    ENTITY_FORECAST_THIS_HOUR: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_FORECAST_THIS_HOUR,
-            translation_key=KEY_FORECAST_THIS_HOUR,
+            key=ENTITY_FORECAST_THIS_HOUR,
+            translation_key=ENTITY_FORECAST_THIS_HOUR,
             device_class=SensorDeviceClass.ENERGY,
             native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
-            name=NAMES[KEY_FORECAST_THIS_HOUR],
+            name=NAMES[ENTITY_FORECAST_THIS_HOUR],
             suggested_display_precision=0,
         )
     },
-    KEY_FORECAST_CUSTOM_HOURS: {
+    ENTITY_FORECAST_CUSTOM_HOURS: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_FORECAST_CUSTOM_HOURS,
-            translation_key=KEY_FORECAST_CUSTOM_HOURS,
+            key=ENTITY_FORECAST_CUSTOM_HOURS,
+            translation_key=ENTITY_FORECAST_CUSTOM_HOURS,
             device_class=SensorDeviceClass.ENERGY,
             native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
-            name=NAMES[KEY_FORECAST_CUSTOM_HOURS],
+            name=NAMES[ENTITY_FORECAST_CUSTOM_HOURS],
             suggested_display_precision=0,
         ),
         ENABLED_BY_DEFAULT: False,
     },
-    KEY_FORECAST_NEXT_HOUR: {
+    ENTITY_FORECAST_NEXT_HOUR: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_FORECAST_NEXT_HOUR,
-            translation_key=KEY_FORECAST_NEXT_HOUR,
+            key=ENTITY_FORECAST_NEXT_HOUR,
+            translation_key=ENTITY_FORECAST_NEXT_HOUR,
             device_class=SensorDeviceClass.ENERGY,
             native_unit_of_measurement=UnitOfEnergy.WATT_HOUR,
-            name=NAMES[KEY_FORECAST_NEXT_HOUR],
+            name=NAMES[ENTITY_FORECAST_NEXT_HOUR],
             suggested_display_precision=0,
         )
     },
-    KEY_FORECAST_REMAINING_TODAY_OLD: {
+    ENTITY_FORECAST_REMAINING_TODAY_OLD: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_FORECAST_REMAINING_TODAY_OLD,
-            translation_key=KEY_FORECAST_REMAINING_TODAY,
+            key=ENTITY_FORECAST_REMAINING_TODAY_OLD,
+            translation_key=ENTITY_FORECAST_REMAINING_TODAY,
             device_class=SensorDeviceClass.ENERGY,
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-            name=NAMES[KEY_FORECAST_REMAINING_TODAY],
+            name=NAMES[ENTITY_FORECAST_REMAINING_TODAY],
             suggested_display_precision=2,
         )
     },
-    KEY_LAST_UPDATED_OLD: {
+    ENTITY_LAST_UPDATED_OLD: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_LAST_UPDATED_OLD,
-            translation_key=KEY_LAST_UPDATED,
+            key=ENTITY_LAST_UPDATED_OLD,
+            translation_key=ENTITY_LAST_UPDATED,
             device_class=SensorDeviceClass.TIMESTAMP,
-            name=NAMES[KEY_LAST_UPDATED],
+            name=NAMES[ENTITY_LAST_UPDATED],
             entity_category=EntityCategory.DIAGNOSTIC,
         ),
         ATTRIBUTION: False,
     },
-    KEY_PEAK_W_TIME_TODAY: {
+    ENTITY_PEAK_W_TIME_TODAY: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_PEAK_W_TIME_TODAY,
-            translation_key=KEY_PEAK_W_TIME_TODAY,
-            name=NAMES[KEY_PEAK_W_TIME_TODAY],
+            key=ENTITY_PEAK_W_TIME_TODAY,
+            translation_key=ENTITY_PEAK_W_TIME_TODAY,
+            name=NAMES[ENTITY_PEAK_W_TIME_TODAY],
             device_class=SensorDeviceClass.TIMESTAMP,
         )
     },
-    KEY_PEAK_W_TIME_TOMORROW: {
+    ENTITY_PEAK_W_TIME_TOMORROW: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_PEAK_W_TIME_TOMORROW,
-            translation_key=KEY_PEAK_W_TIME_TOMORROW,
-            name=NAMES[KEY_PEAK_W_TIME_TOMORROW],
+            key=ENTITY_PEAK_W_TIME_TOMORROW,
+            translation_key=ENTITY_PEAK_W_TIME_TOMORROW,
+            name=NAMES[ENTITY_PEAK_W_TIME_TOMORROW],
             device_class=SensorDeviceClass.TIMESTAMP,
         )
     },
-    KEY_PEAK_W_TODAY: {
+    ENTITY_PEAK_W_TODAY: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_PEAK_W_TODAY,
-            translation_key=KEY_PEAK_W_TODAY,
+            key=ENTITY_PEAK_W_TODAY,
+            translation_key=ENTITY_PEAK_W_TODAY,
             device_class=SensorDeviceClass.POWER,
             native_unit_of_measurement=UnitOfPower.WATT,
-            name=NAMES[KEY_PEAK_W_TODAY],
+            name=NAMES[ENTITY_PEAK_W_TODAY],
             suggested_display_precision=0,
             state_class=SensorStateClass.MEASUREMENT,
         )
     },
-    KEY_PEAK_W_TOMORROW: {
+    ENTITY_PEAK_W_TOMORROW: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_PEAK_W_TOMORROW,
-            translation_key=KEY_PEAK_W_TOMORROW,
+            key=ENTITY_PEAK_W_TOMORROW,
+            translation_key=ENTITY_PEAK_W_TOMORROW,
             device_class=SensorDeviceClass.POWER,
             native_unit_of_measurement=UnitOfPower.WATT,
-            name=NAMES[KEY_PEAK_W_TOMORROW],
+            name=NAMES[ENTITY_PEAK_W_TOMORROW],
             suggested_display_precision=0,
         )
     },
-    KEY_POWER_NOW: {
+    ENTITY_POWER_NOW: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_POWER_NOW,
-            translation_key=KEY_POWER_NOW,
+            key=ENTITY_POWER_NOW,
+            translation_key=ENTITY_POWER_NOW,
             device_class=SensorDeviceClass.POWER,
             native_unit_of_measurement=UnitOfPower.WATT,
-            name=NAMES[KEY_POWER_NOW],
-            suggested_display_precision=0,
-            state_class=SensorStateClass.MEASUREMENT,
-        )
-    },
-    KEY_POWER_NOW_1HR: {
-        DESCRIPTION: SensorEntityDescription(
-            key=KEY_POWER_NOW_1HR,
-            translation_key=KEY_POWER_NOW_1HR,
-            device_class=SensorDeviceClass.POWER,
-            native_unit_of_measurement=UnitOfPower.WATT,
-            name=NAMES[KEY_POWER_NOW_1HR],
+            name=NAMES[ENTITY_POWER_NOW],
             suggested_display_precision=0,
             state_class=SensorStateClass.MEASUREMENT,
         )
     },
-    KEY_POWER_NOW_30M: {
+    ENTITY_POWER_NOW_1HR: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_POWER_NOW_30M,
-            translation_key=KEY_POWER_NOW_30M,
+            key=ENTITY_POWER_NOW_1HR,
+            translation_key=ENTITY_POWER_NOW_1HR,
             device_class=SensorDeviceClass.POWER,
             native_unit_of_measurement=UnitOfPower.WATT,
-            name=NAMES[KEY_POWER_NOW_30M],
+            name=NAMES[ENTITY_POWER_NOW_1HR],
             suggested_display_precision=0,
             state_class=SensorStateClass.MEASUREMENT,
         )
     },
-    KEY_TOTAL_KWH_FORECAST_TODAY: {
+    ENTITY_POWER_NOW_30M: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_TOTAL_KWH_FORECAST_TODAY,
-            translation_key=KEY_TOTAL_KWH_FORECAST_TODAY,
+            key=ENTITY_POWER_NOW_30M,
+            translation_key=ENTITY_POWER_NOW_30M,
+            device_class=SensorDeviceClass.POWER,
+            native_unit_of_measurement=UnitOfPower.WATT,
+            name=NAMES[ENTITY_POWER_NOW_30M],
+            suggested_display_precision=0,
+            state_class=SensorStateClass.MEASUREMENT,
+        )
+    },
+    ENTITY_TOTAL_KWH_FORECAST_TODAY: {
+        DESCRIPTION: SensorEntityDescription(
+            key=ENTITY_TOTAL_KWH_FORECAST_TODAY,
+            translation_key=ENTITY_TOTAL_KWH_FORECAST_TODAY,
             device_class=SensorDeviceClass.ENERGY,
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-            name=NAMES[KEY_TOTAL_KWH_FORECAST_TODAY],
+            name=NAMES[ENTITY_TOTAL_KWH_FORECAST_TODAY],
             suggested_display_precision=2,
             state_class=SensorStateClass.TOTAL,
         )
     },
-    KEY_TOTAL_KWH_FORECAST_TOMORROW: {
+    ENTITY_TOTAL_KWH_FORECAST_TOMORROW: {
         DESCRIPTION: SensorEntityDescription(
-            key=KEY_TOTAL_KWH_FORECAST_TOMORROW,
-            translation_key=KEY_TOTAL_KWH_FORECAST_TOMORROW,
+            key=ENTITY_TOTAL_KWH_FORECAST_TOMORROW,
+            translation_key=ENTITY_TOTAL_KWH_FORECAST_TOMORROW,
             device_class=SensorDeviceClass.ENERGY,
             native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-            name=NAMES[KEY_TOTAL_KWH_FORECAST_TOMORROW],
+            name=NAMES[ENTITY_TOTAL_KWH_FORECAST_TOMORROW],
             suggested_display_precision=2,
             state_class=SensorStateClass.TOTAL,
         )
@@ -287,15 +287,15 @@ def get_sensor_update_policy(key: str) -> SensorUpdatePolicy:
 
     """
     if key in (
-        KEY_DAMPEN,
-        KEY_FORECAST_THIS_HOUR,
-        KEY_FORECAST_NEXT_HOUR,
-        KEY_FORECAST_CUSTOM_HOURS,
-        KEY_FORECAST_REMAINING_TODAY,
-        KEY_FORECAST_REMAINING_TODAY_OLD,
-        KEY_POWER_NOW,
-        KEY_POWER_NOW_30M,
-        KEY_POWER_NOW_1HR,
+        ENTITY_DAMPEN,
+        ENTITY_FORECAST_THIS_HOUR,
+        ENTITY_FORECAST_NEXT_HOUR,
+        ENTITY_FORECAST_CUSTOM_HOURS,
+        ENTITY_FORECAST_REMAINING_TODAY,
+        ENTITY_FORECAST_REMAINING_TODAY_OLD,
+        ENTITY_POWER_NOW,
+        ENTITY_POWER_NOW_30M,
+        ENTITY_POWER_NOW_1HR,
     ):
         return SensorUpdatePolicy.EVERY_TIME_INTERVAL
     return SensorUpdatePolicy.DEFAULT
@@ -331,10 +331,10 @@ async def async_setup_entry(
             entry,
             {
                 DESCRIPTION: SensorEntityDescription(
-                    key=f"{KEY_TOTAL_KWH_FORECAST}_d{forecast_day}",
+                    key=f"{ENTITY_TOTAL_KWH_FORECAST}_d{forecast_day}",
                     device_class=SensorDeviceClass.ENERGY,
                     native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
-                    translation_key=f"{KEY_TOTAL_KWH_FORECAST}_d{forecast_day}",
+                    translation_key=f"{ENTITY_TOTAL_KWH_FORECAST}_d{forecast_day}",
                     name=f"Forecast D{forecast_day}",
                     suggested_display_precision=2,
                     state_class=SensorStateClass.TOTAL,
@@ -384,7 +384,7 @@ async def async_setup_entry(
         # Clean up any orphaned day sensors.
         if entity.translation_key is not None:
             if (
-                entity.translation_key.startswith(f"{KEY_TOTAL_KWH_FORECAST}_d")
+                entity.translation_key.startswith(f"{ENTITY_TOTAL_KWH_FORECAST}_d")
                 and int(entity.unique_id.split("_")[-1].split("d")[-1]) > coordinator.advanced_day_entities - 1
             ):
                 entity_registry.async_remove(entity.entity_id)
@@ -395,7 +395,7 @@ async def async_setup_entry(
         k = {
             DESCRIPTION: SensorEntityDescription(
                 key=site[RESOURCE_ID],
-                translation_key=KEY_SITES_DATA,
+                translation_key=SITES_DATA,
                 name=site[NAME],
                 device_class=SensorDeviceClass.ENERGY,
                 native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
@@ -403,7 +403,7 @@ async def async_setup_entry(
             )
         }
         site_sen = RooftopSensor(
-            key=KEY_SITES_DATA,
+            key=SITES_DATA,
             coordinator=coordinator,
             entry=entry,
             sensor=k,
@@ -466,10 +466,10 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         """Entity about to be added to hass, so set recorder excluded attributes."""
         await super().async_added_to_hass()
 
-        if self.entity_description.key in (KEY_LAST_UPDATED, KEY_LAST_UPDATED_OLD):
-            self._state_info[UNRECORDED_ATTRIBUTES] = frozenset([NEXT_AUTO_UPDATE, AUTO_UPDATE_DIVISIONS, AUTO_UPDATE_QUEUE])
+        if self.entity_description.key in (ENTITY_LAST_UPDATED, ENTITY_LAST_UPDATED_OLD):
+            self._state_info[UNRECORDED_ATTRIBUTES] = frozenset([AUTO_UPDATE_NEXT, AUTO_UPDATE_DIVISIONS, AUTO_UPDATE_QUEUE])
 
-        elif str(self.entity_description.key).startswith(KEY_TOTAL_KWH_FORECAST):
+        elif str(self.entity_description.key).startswith(ENTITY_TOTAL_KWH_FORECAST):
             exclude = [DETAILED_FORECAST, DETAILED_HOURLY]
             if self._coordinator.solcast.options.attr_brk_site_detailed:
                 for s in self._coordinator.solcast.sites:

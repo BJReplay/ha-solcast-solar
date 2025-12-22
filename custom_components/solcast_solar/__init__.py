@@ -52,13 +52,30 @@ from .const import (
     CUSTOM_HOUR_SENSOR,
     DAILY_LIMIT,
     DAMP_FACTOR,
-    DATE_FORMAT,
     DEFAULT_SOLCAST_HTTPS_URL,
     DELAYED_RESTART_ON_CRASH,
     DOMAIN,
+    DT_DATE_FORMAT,
     ENTRY_OPTIONS,
     EVENT_END_DATETIME,
     EVENT_START_DATETIME,
+    EXCEPTION_DAMP_AUTO_ENABLED,
+    EXCEPTION_DAMP_COUNT_NOT_CORRECT,
+    EXCEPTION_DAMP_ERROR_PARSING,
+    EXCEPTION_DAMP_NO_ALL_24,
+    EXCEPTION_DAMP_NO_FACTORS,
+    EXCEPTION_DAMP_NOT_SITE,
+    EXCEPTION_DAMP_OUTSIDE_RANGE,
+    EXCEPTION_HARD_NOT_POSITIVE_NUMBER,
+    EXCEPTION_HARD_TOO_MANY,
+    EXCEPTION_INIT_CANNOT_GET_SITES,
+    EXCEPTION_INIT_CANNOT_GET_SITES_CACHE_INVALID,
+    EXCEPTION_INIT_KEY_INVALID,
+    EXCEPTION_INIT_NO_SITES,
+    EXCEPTION_INIT_UNKNOWN,
+    EXCEPTION_INIT_USAGE_CORRUPT,
+    EXCEPTION_INTEGRATION_NOT_LOADED,
+    EXCEPTION_INTEGRATION_PRIOR_CRASH,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
     GET_ACTUALS,
@@ -94,23 +111,6 @@ from .const import (
     SITE_EXPORT_LIMIT,
     SOLCAST,
     SUPPORTS_RESPONSE,
-    TRANSLATE_DAMP_AUTO_ENABLED,
-    TRANSLATE_DAMP_COUNT_NOT_CORRECT,
-    TRANSLATE_DAMP_ERROR_PARSING,
-    TRANSLATE_DAMP_NO_ALL_24,
-    TRANSLATE_DAMP_NO_FACTORS,
-    TRANSLATE_DAMP_NOT_SITE,
-    TRANSLATE_DAMP_OUTSIDE_RANGE,
-    TRANSLATE_HARD_NOT_POSITIVE_NUMBER,
-    TRANSLATE_HARD_TOO_MANY,
-    TRANSLATE_INIT_CANNOT_GET_SITES,
-    TRANSLATE_INIT_CANNOT_GET_SITES_CACHE_INVALID,
-    TRANSLATE_INIT_KEY_INVALID,
-    TRANSLATE_INIT_NO_SITES,
-    TRANSLATE_INIT_UNKNOWN,
-    TRANSLATE_INIT_USAGE_CORRUPT,
-    TRANSLATE_INTEGRATION_NOT_LOADED,
-    TRANSLATE_INTEGRATION_PRIOR_CRASH,
     UNDAMPENED,
     UPGRADE_FUNCTION,
     USE_ACTUALS,
@@ -327,8 +327,8 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> b
             ):
                 _LOGGER.info(
                     "Last auto update forecast recorded (%s) is older than expected, should be (%s), updating forecast",
-                    coordinator.solcast.get_data()[LAST_ATTEMPT].astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
-                    coordinator.interval_just_passed.astimezone(coordinator.solcast.options.tz).strftime(DATE_FORMAT),
+                    coordinator.solcast.get_data()[LAST_ATTEMPT].astimezone(coordinator.solcast.options.tz).strftime(DT_DATE_FORMAT),
+                    coordinator.interval_just_passed.astimezone(coordinator.solcast.options.tz).strftime(DT_DATE_FORMAT),
                 )
                 kwargs: dict[str, Any] = {
                     "ignore_auto_enabled": True,
@@ -390,7 +390,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     if prior_crash and deny_startup:
         _LOGGER.warning(
             "Prior crash detected (%s), skipping load for %d minutes to avoid repeated crashes - fix the issue and restart Home Assistant to retry sooner",
-            dt.strftime(prior_crash_time, DATE_FORMAT),
+            dt.strftime(prior_crash_time, DT_DATE_FORMAT),
             DELAYED_RESTART_ON_CRASH,
         )
         if hass.data[DOMAIN].get(PRIOR_CRASH_EXCEPTION) is not None:
@@ -401,7 +401,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
             )
             raise hass.data[DOMAIN][PRIOR_CRASH_EXCEPTION](  # Re-raise prior exception
                 translation_domain=DOMAIN,
-                translation_key=hass.data[DOMAIN].get(PRIOR_CRASH_TRANSLATION_KEY, TRANSLATE_INTEGRATION_PRIOR_CRASH),
+                translation_key=hass.data[DOMAIN].get(PRIOR_CRASH_TRANSLATION_KEY, EXCEPTION_INTEGRATION_PRIOR_CRASH),
                 translation_placeholders=hass.data[DOMAIN].get(PRIOR_CRASH_PLACEHOLDERS),
             )
 
@@ -413,22 +413,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
     await solcast.get_sites_and_usage(prior_crash=prior_crash)
     match solcast.sites_status:
         case SitesStatus.BAD_KEY:
-            raise_and_record(hass, ConfigEntryAuthFailed, TRANSLATE_INIT_KEY_INVALID)
+            raise_and_record(hass, ConfigEntryAuthFailed, EXCEPTION_INIT_KEY_INVALID)
         case SitesStatus.API_BUSY:
-            raise_and_record(hass, ConfigEntryNotReady, TRANSLATE_INIT_CANNOT_GET_SITES)
+            raise_and_record(hass, ConfigEntryNotReady, EXCEPTION_INIT_CANNOT_GET_SITES)
         case SitesStatus.ERROR:
-            raise_and_record(hass, ConfigEntryError, TRANSLATE_INIT_CANNOT_GET_SITES)
+            raise_and_record(hass, ConfigEntryError, EXCEPTION_INIT_CANNOT_GET_SITES)
         case SitesStatus.CACHE_INVALID:
-            raise_and_record(hass, ConfigEntryError, TRANSLATE_INIT_CANNOT_GET_SITES_CACHE_INVALID)
+            raise_and_record(hass, ConfigEntryError, EXCEPTION_INIT_CANNOT_GET_SITES_CACHE_INVALID)
         case SitesStatus.NO_SITES:
-            raise_and_record(hass, ConfigEntryError, TRANSLATE_INIT_NO_SITES)
+            raise_and_record(hass, ConfigEntryError, EXCEPTION_INIT_NO_SITES)
         case SitesStatus.UNKNOWN:
-            raise_and_record(hass, ConfigEntryError, TRANSLATE_INIT_UNKNOWN)
+            raise_and_record(hass, ConfigEntryError, EXCEPTION_INIT_UNKNOWN)
         case SitesStatus.OK:
             pass
     match solcast.usage_status:
         case UsageStatus.ERROR:
-            raise_and_record(hass, ConfigEntryError, TRANSLATE_INIT_USAGE_CORRUPT)
+            raise_and_record(hass, ConfigEntryError, EXCEPTION_INIT_USAGE_CORRUPT)
         case _:
             pass
 
@@ -563,7 +563,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         _LOGGER.info("Action: Set dampening")
 
         if solcast.options.auto_dampen:
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=TRANSLATE_DAMP_AUTO_ENABLED)
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_DAMP_AUTO_ENABLED)
 
         factors = call.data.get(DAMP_FACTOR, "")
         site = call.data.get(SITE)  # Optional site.
@@ -571,16 +571,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
         factors = factors.strip().replace(" ", "")
         factors = factors.split(",")
         if factors[0] == "":
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=TRANSLATE_DAMP_NO_FACTORS)
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_DAMP_NO_FACTORS)
         if len(factors) not in (24, 48):
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=TRANSLATE_DAMP_COUNT_NOT_CORRECT)
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_DAMP_COUNT_NOT_CORRECT)
         if site is not None:
             site = site.lower().replace("_", "-")
             if site == "all":
                 if (len(factors)) != 48:
-                    raise ServiceValidationError(translation_domain=DOMAIN, translation_key=TRANSLATE_DAMP_NO_ALL_24)
+                    raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_DAMP_NO_ALL_24)
             elif site not in [s[RESOURCE_ID] for s in solcast.sites]:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=TRANSLATE_DAMP_NOT_SITE)
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_DAMP_NOT_SITE)
         elif len(factors) == 48:
             site = "all"
         out_of_range = False
@@ -589,9 +589,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
                 if float(factor) < 0 or float(factor) > 1:
                     out_of_range = True
         except:  # noqa: E722
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=TRANSLATE_DAMP_ERROR_PARSING) from None
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_DAMP_ERROR_PARSING) from None
         if out_of_range:
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=TRANSLATE_DAMP_OUTSIDE_RANGE)
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_DAMP_OUTSIDE_RANGE)
 
         opt = {**entry.options}
 
@@ -662,11 +662,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
             if not limit.replace(".", "", 1).isdigit():
                 raise ServiceValidationError(
                     translation_domain=DOMAIN,
-                    translation_key=TRANSLATE_HARD_NOT_POSITIVE_NUMBER,
+                    translation_key=EXCEPTION_HARD_NOT_POSITIVE_NUMBER,
                 )
             to_set.append(f"{float(limit):.1f}")
         if len(to_set) > len(entry.options[API_KEY].split(",")):
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=TRANSLATE_HARD_TOO_MANY)
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_HARD_TOO_MANY)
 
         opt = {**entry.options}
         opt[HARD_LIMIT_API] = ",".join(to_set)
@@ -738,7 +738,7 @@ async def stub_action(call: ServiceCall) -> None:
 
     """
     _LOGGER.error("Integration not loaded")
-    raise ServiceValidationError(translation_domain=DOMAIN, translation_key=TRANSLATE_INTEGRATION_NOT_LOADED)
+    raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_INTEGRATION_NOT_LOADED)
 
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:

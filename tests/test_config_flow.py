@@ -41,13 +41,14 @@ from homeassistant.components.solcast_solar.const import (
     GET_ACTUALS,
     HARD_LIMIT,
     HARD_LIMIT_API,
-    ISSUE_ID_ADVANCED_DEPRECATED,
-    ISSUE_ID_ADVANCED_PROBLEM,
+    ISSUE_ADVANCED_DEPRECATED,
+    ISSUE_ADVANCED_PROBLEM,
     KEY_ESTIMATE,
     PRESUMED_DEAD,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
+    TASK_WATCHDOG_ADVANCED_FILE_CHANGE,
     TITLE,
     USE_ACTUALS,
 )
@@ -465,7 +466,6 @@ async def test_reconfigure_api_quota(
         for test in TEST_API_QUOTA:
             entry = await async_init_integration(hass, test[OPTIONS])  # type: ignore[arg-type]
             assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
-
             if _input is None or test[OPTIONS] != _input:
                 _input = copy.deepcopy(test[OPTIONS])
             result = await hass.config_entries.flow.async_init(
@@ -751,7 +751,6 @@ async def test_presumed_dead_and_full_flow(
         option: dict[str, Any] = {BRK_ESTIMATE: False, USE_ACTUALS: "0", SITE_EXPORT_ENTITY: []}
         user_input = DEFAULT_INPUT1_NO_DAMP | option
         hass.data[DOMAIN][PRESUMED_DEAD] = True
-
         result = await hass.config_entries.options.async_init(entry.entry_id)
         await hass.async_block_till_done()
         result = await hass.config_entries.options.async_configure(  # pyright: ignore[reportUnknownMemberType]
@@ -884,7 +883,7 @@ async def test_advanced_options(
                     assert f"Advanced option proposed {option}: {value}" in caplog.text
                 assert f"Advanced option set {option}: {value}" in caplog.text
         assert "Advanced option forecast_history_max_days is deprecated, please use history_max_days" in caplog.text
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_DEPRECATED) is not None
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_DEPRECATED) is not None
 
         caplog.clear()
 
@@ -919,7 +918,7 @@ async def test_advanced_options(
                 continue
             if advanced_options_with_aliases.get(option) is None:
                 assert f"Unknown advanced option ignored: {option}" in caplog.text
-                issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_PROBLEM)
+                issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_PROBLEM)
                 if issue is not None:
                     if issue.translation_placeholders is not None:
                         assert "Unknown" in issue.translation_placeholders["errors"]
@@ -937,8 +936,8 @@ async def test_advanced_options(
                     assert f"{option}: {value} (must be bool)" not in caplog.text
 
         assert "Removing advanced deprecation issue" in caplog.text
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_DEPRECATED) is None
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_PROBLEM) is not None
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_DEPRECATED) is None
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_PROBLEM) is not None
         assert "Advanced option set api_raise_issues: False" in caplog.text
         assert "Advanced option proposed reload_on_advanced_change: True" not in caplog.text
         assert "Advanced option set reload_on_advanced_change: True" in caplog.text
@@ -958,7 +957,7 @@ async def test_advanced_options(
         data_file.write_text(json.dumps(data_file_2), encoding="utf-8")
         await wait()
         assert "automated_dampening_model_days: 99 (must be 2-21)" in caplog.text
-        issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_PROBLEM)
+        issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_PROBLEM)
         assert issue is not None and issue.translation_placeholders is not None
         assert "automated_dampening_model_days: 99" in issue.translation_placeholders["problems"]
         assert "unknown_option" in issue.translation_placeholders["problems"]
@@ -967,7 +966,7 @@ async def test_advanced_options(
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
         await wait()
         assert "Removing advanced problems issue" in caplog.text
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ID_ADVANCED_PROBLEM) is None
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_PROBLEM) is None
 
         caplog.clear()
 
@@ -1026,7 +1025,7 @@ async def test_advanced_options(
 
         await hass.config_entries.async_unload(entry.entry_id)
         await wait()
-        assert "Cancelling coordinator task watchdog_advanced_start" in caplog.text
+        assert f"Cancelling coordinator task {TASK_WATCHDOG_ADVANCED_FILE_CHANGE}" in caplog.text
 
     finally:
         assert await async_cleanup_integration_tests(hass)

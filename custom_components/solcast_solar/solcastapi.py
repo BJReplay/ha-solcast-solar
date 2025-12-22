@@ -68,11 +68,9 @@ from .const import (
     ALIASES,
     ALL,
     API_KEY,
-    API_UNAVAILABLE,
     AUTO_DAMPEN,
     AUTO_UPDATE,
     AUTO_UPDATED,
-    AZIMUTH,
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
@@ -80,12 +78,8 @@ from .const import (
     BRK_HOURLY,
     BRK_SITE,
     BRK_SITE_DETAILED,
-    CAPACITY,
-    CAPACITY_DC,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
-    CORRECT,
-    CORRUPT_FILE,
     CURRENT_NAME,
     CUSTOM_HOUR_SENSOR,
     DAILY_LIMIT,
@@ -96,9 +90,6 @@ from .const import (
     DATA_SET_ACTUALS_UNDAMPENED,
     DATA_SET_FORECAST,
     DATA_SET_FORECAST_UNDAMPENED,
-    DATE_FORMAT,
-    DATE_MONTH_DAY,
-    DATE_ONLY_FORMAT,
     DAY_NAME,
     DEFAULT,
     DEPRECATED,
@@ -106,15 +97,20 @@ from .const import (
     DETAILED_HOURLY,
     DISMISSAL,
     DOMAIN,
-    EARLIEST_PERIOD,
+    DT_DATE_FORMAT,
+    DT_DATE_MONTH_DAY,
+    DT_DATE_ONLY_FORMAT,
     ENTRY_OPTIONS,
     ERROR_CODE,
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
     ESTIMATED_ACTUALS,
+    EXCEPTION_BUILD_FAILED_ACTUALS,
+    EXCEPTION_BUILD_FAILED_FORECASTS,
+    EXCEPTION_INIT_CORRUPT,
+    EXCEPTION_INIT_INCOMPATIBLE,
     EXCLUDE_SITES,
-    EXPECTED_INTERVALS,
     EXPORT_LIMITING,
     EXTANT,
     FAILURE,
@@ -127,12 +123,14 @@ from .const import (
     GET_ACTUALS,
     HARD_LIMIT_API,
     HOURS,
-    INSTALL_DATE,
-    INTERVALS,
+    ISSUE_API_UNAVAILABLE,
+    ISSUE_CORRUPT_FILE,
     ISSUE_RECORDS_MISSING,
     ISSUE_RECORDS_MISSING_FIXABLE,
     ISSUE_RECORDS_MISSING_INITIAL,
     ISSUE_RECORDS_MISSING_UNFIXABLE,
+    ISSUE_UNUSUAL_AZIMUTH_NORTHERN,
+    ISSUE_UNUSUAL_AZIMUTH_SOUTHERN,
     JSON,
     JSON_VERSION,
     KEY_ESTIMATE,
@@ -140,15 +138,11 @@ from .const import (
     LAST_14D,
     LAST_24H,
     LAST_ATTEMPT,
-    LAST_PERIOD,
     LAST_UPDATED,
-    LATITUDE,
     LEARN_MORE,
     LEARN_MORE_CORRUPT_FILE,
     LEARN_MORE_MISSING_FORECAST_DATA,
     LEARN_MORE_UNUSUAL_AZIMUTH,
-    LONGITUDE,
-    LOSS_FACTOR,
     MAXIMUM,
     MESSAGE,
     MINIMUM,
@@ -167,25 +161,25 @@ from .const import (
     RESOURCE_ID,
     RESPONSE_STATUS,
     SITE,
+    SITE_ATTRIBUTE_AZIMUTH,
+    SITE_ATTRIBUTE_CAPACITY,
+    SITE_ATTRIBUTE_CAPACITY_DC,
+    SITE_ATTRIBUTE_INSTALL_DATE,
+    SITE_ATTRIBUTE_LATITUDE,
+    SITE_ATTRIBUTE_LONGITUDE,
+    SITE_ATTRIBUTE_LOSS_FACTOR,
+    SITE_ATTRIBUTE_TAGS,
+    SITE_ATTRIBUTE_TILT,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
     SITE_INFO,
     SITES,
     STOPS_WORKING,
-    TAGS,
-    TALLY,
     TASK_ACTUALS_FETCH,
     TASK_FORECASTS_FETCH,
-    TILT,
     TOTAL_RECORDS,
-    TRANSLATE_BUILD_FAILED_ACTUALS,
-    TRANSLATE_BUILD_FAILED_FORECASTS,
-    TRANSLATE_INIT_CORRUPT,
-    TRANSLATE_INIT_INCOMPATIBLE,
     UNKNOWN,
-    UNUSUAL_AZIMUTH_NORTHERN,
-    UNUSUAL_AZIMUTH_SOUTHERN,
     USE_ACTUALS,
     VERSION,
     WINTER_TIME,
@@ -384,15 +378,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             else:
                 _LOGGER.debug("File %s has length %d", file.resolve(), file.stat().st_size)
         if unlinked:
-            _LOGGER.debug("Raise issue `%s` for files %s", CORRUPT_FILE, str(unlinked))
+            _LOGGER.debug("Raise issue `%s` for files %s", ISSUE_CORRUPT_FILE, str(unlinked))
             ir.async_create_issue(
                 self.hass,
                 DOMAIN,
-                CORRUPT_FILE,
+                ISSUE_CORRUPT_FILE,
                 is_fixable=False,
                 is_persistent=False,
                 severity=ir.IssueSeverity.WARNING,
-                translation_key=CORRUPT_FILE,
+                translation_key=ISSUE_CORRUPT_FILE,
                 translation_placeholders={
                     FILES: str(unlinked),
                 },
@@ -459,8 +453,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     not alias[DEPRECATED]
                     and (
                         dt.strptime(
-                            alias.get(STOPS_WORKING, dt.strftime(dt.now(self.options.tz) - timedelta(days=1), DATE_ONLY_FORMAT)),
-                            DATE_ONLY_FORMAT,
+                            alias.get(STOPS_WORKING, dt.strftime(dt.now(self.options.tz) - timedelta(days=1), DT_DATE_ONLY_FORMAT)),
+                            DT_DATE_ONLY_FORMAT,
                         ).date()
                         > dt.now(self.options.tz).date()
                     )
@@ -512,12 +506,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             async def add_problem_later(issue_problem: str, *args) -> None:
                 """Add an advanced option problem to the issues registry."""
                 try:
-                    problem = issue_problem % args if args else issue_problem
-                    _LOGGER.warning("Raise issue in 60 seconds if unresolved: %s", problem)
-                    for _ in range(600):
-                        await asyncio.sleep(0.1)
-                    _LOGGER.error(problem)
-                    await raise_or_clear_advanced_problems([problem], self.hass)
+                    if self.hass is not None:
+                        problem = issue_problem % args if args else issue_problem
+                        _LOGGER.warning("Raise issue in 60 seconds if unresolved: %s", problem)
+                        for _ in range(600):
+                            await asyncio.sleep(0.1)
+                        _LOGGER.error(problem)
+                        await raise_or_clear_advanced_problems([problem], self.hass)
                 except asyncio.CancelledError:
                     self.tasks.pop(ADVANCED_INVALID_JSON_TASK, None)
 
@@ -559,7 +554,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             value = self.advanced_options.get(option)
                             if new_value != value:
                                 valid = True
-                                if isinstance(new_value, type(value)) and new_value is not None:
+                                if isinstance(new_value, type(value)):
                                     match advanced_options_with_aliases[0][option][ADVANCED_TYPE]:
                                         case ADVANCED_OPTION.INT | ADVANCED_OPTION.FLOAT:
                                             if (
@@ -582,7 +577,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             member_type = advanced_options_with_aliases[0][option][ADVANCED_TYPE].split("_")[1]
                                             seen_members: list[Any] = []
                                             member: Any
-                                            for member in new_value:
+                                            for member in new_value:  # pyright: ignore[reportOptionalIterable, reportGeneralTypeIssues]
                                                 if re.match(_VALIDATION[member_type], str(member)) is None:
                                                     add_problem("Invalid %s in advanced option %s: %s", member_type, option, member)
                                                     valid = False
@@ -694,7 +689,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     deprecated_in_use,
                     self.hass,
                     stops_working={
-                        o: dt.strptime(stops, DATE_ONLY_FORMAT)
+                        o: dt.strptime(stops, DT_DATE_ONLY_FORMAT)
                         for o, stops in advanced_options_with_aliases[1].items()
                         if stops is not None
                     },
@@ -894,9 +889,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             )
             for site in sites_data[SITES]:
                 site[API_KEY] = api_key
-                site.pop(LONGITUDE, None)
-                self._site_latitude[site[RESOURCE_ID]][LATITUDE] = site.pop(LATITUDE, None)
-                self._site_latitude[site[RESOURCE_ID]][AZIMUTH] = site[AZIMUTH]
+                site.pop(SITE_ATTRIBUTE_LONGITUDE, None)
+                self._site_latitude[site[RESOURCE_ID]][SITE_ATTRIBUTE_LATITUDE] = site.pop(SITE_ATTRIBUTE_LATITUDE, None)
+                self._site_latitude[site[RESOURCE_ID]][SITE_ATTRIBUTE_AZIMUTH] = site[SITE_ATTRIBUTE_AZIMUTH]
             self.sites = self.sites + sites_data[SITES]
             self._api_used_reset[api_key] = None
             _LOGGER.debug(
@@ -1115,7 +1110,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _LOGGER.debug(
                         "Usage cache for %s last reset %s",
                         redact_api_key(api_key),
-                        used_reset.astimezone(self._tz).strftime(DATE_FORMAT),
+                        used_reset.astimezone(self._tz).strftime(DT_DATE_FORMAT),
                     )
                 if usage[DAILY_LIMIT] != quota[api_key]:  # Limit has been adjusted, so rewrite the cache.
                     self._api_limit[api_key] = quota[api_key]
@@ -1204,7 +1199,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def cleanup_issues(self, any_unusual: bool = True) -> None:
         """Check and clean up any existing issues if the conditions are now resolved."""
         issue_registry = ir.async_get(self.hass)
-        for issue in [UNUSUAL_AZIMUTH_NORTHERN, UNUSUAL_AZIMUTH_SOUTHERN]:
+        for issue in [ISSUE_UNUSUAL_AZIMUTH_NORTHERN, ISSUE_UNUSUAL_AZIMUTH_SOUTHERN]:
             if (i := issue_registry.async_get_issue(DOMAIN, issue)) is not None:
                 if (
                     i.dismissed_version is not None
@@ -1252,15 +1247,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for site, v in self._site_latitude.items():
                 unusual = False
                 proposal = 0
-                if v[LATITUDE] is None:
+                if v[SITE_ATTRIBUTE_LATITUDE] is None:
                     # Using cached data, so latitude is not known
                     continue
-                if LATITUDE in v and AZIMUTH in v:
-                    azimuth = v[AZIMUTH]
+                if SITE_ATTRIBUTE_LATITUDE in v and SITE_ATTRIBUTE_AZIMUTH in v:
+                    azimuth = v[SITE_ATTRIBUTE_AZIMUTH]
                     if azimuth is not None:
-                        if v[LATITUDE] > 0:  # pyright: ignore[reportOptionalOperand] - weird pyright warning
+                        if v[SITE_ATTRIBUTE_LATITUDE] > 0:  # pyright: ignore[reportOptionalOperand] - weird pyright warning
                             # Northern hemisphere, so azimuth should be 90 to 180, or -90 to -180
-                            raise_issue = UNUSUAL_AZIMUTH_NORTHERN
+                            raise_issue = ISSUE_UNUSUAL_AZIMUTH_NORTHERN
                             if azimuth > 0 and not (90 <= azimuth <= 180):
                                 unusual = True
                                 proposal = 180 - int(azimuth)
@@ -1269,7 +1264,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 proposal = -180 - int(azimuth)
                         else:
                             # Southern hemisphere, so azimuth should be 0 to 90, or -90 to 0
-                            raise_issue = UNUSUAL_AZIMUTH_SOUTHERN
+                            raise_issue = ISSUE_UNUSUAL_AZIMUTH_SOUTHERN
                             if azimuth > 0 and not (0 <= azimuth <= 90):
                                 unusual = True
                                 proposal = 180 - int(azimuth)
@@ -1279,12 +1274,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if unusual:
                         log = (
                             _LOGGER.warning
-                            if issue_registry.async_get_issue(DOMAIN, UNUSUAL_AZIMUTH_NORTHERN) is None
-                            and issue_registry.async_get_issue(DOMAIN, UNUSUAL_AZIMUTH_SOUTHERN) is None
+                            if issue_registry.async_get_issue(DOMAIN, ISSUE_UNUSUAL_AZIMUTH_NORTHERN) is None
+                            and issue_registry.async_get_issue(DOMAIN, ISSUE_UNUSUAL_AZIMUTH_SOUTHERN) is None
                             and not self._dismissal.get(site, False)
                             else _LOGGER.debug
                         )
-                        log(redact_lat_lon_simple(f"Unusual azimuth {azimuth} for site {site}, latitude {v[LATITUDE]}"))
+                        log(redact_lat_lon_simple(f"Unusual azimuth {azimuth} for site {site}, latitude {v[SITE_ATTRIBUTE_LATITUDE]}"))
 
                     if unusual and not any_raised and raise_issue != "":
                         if not self._dismissal.get(site, False):
@@ -1301,9 +1296,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 translation_key=raise_issue,
                                 translation_placeholders={
                                     SITE: site,
-                                    LATITUDE: str(v[LATITUDE]),
+                                    SITE_ATTRIBUTE_LATITUDE: str(v[SITE_ATTRIBUTE_LATITUDE]),
                                     PROPOSAL: str(proposal),
-                                    EXTANT: str(v[AZIMUTH]),
+                                    EXTANT: str(v[SITE_ATTRIBUTE_AZIMUTH]),
                                     LEARN_MORE: "",
                                 },
                                 learn_more_url=LEARN_MORE_UNUSUAL_AZIMUTH,
@@ -1457,7 +1452,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.granular_dampening_mtime = Path(filename).stat().st_mtime
         _LOGGER.debug(
             "Granular dampening file mtime %s",
-            dt.fromtimestamp(self.granular_dampening_mtime, self._tz).strftime(DATE_FORMAT),
+            dt.fromtimestamp(self.granular_dampening_mtime, self._tz).strftime(DT_DATE_FORMAT),
         )
 
     async def granular_dampening_data(self) -> bool:
@@ -1543,7 +1538,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.info("Granular dampening loaded")
                 _LOGGER.debug(
                     "Granular dampening file mtime %s",
-                    dt.fromtimestamp(mtime, self._tz).strftime(DATE_FORMAT),
+                    dt.fromtimestamp(mtime, self._tz).strftime(DT_DATE_FORMAT),
                 )
 
     def allow_granular_dampening_reset(self) -> bool:
@@ -1653,7 +1648,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             json_data: dict[str, Any] = json.loads(await data_file.read(), cls=JSONDecoder)
                             if not isinstance(json_data, dict):
                                 _LOGGER.error("The %s cache appears corrupt", filename)
-                                raise_and_record(self.hass, ConfigEntryNotReady, TRANSLATE_INIT_CORRUPT, {"file": file})
+                                raise_and_record(self.hass, ConfigEntryNotReady, EXCEPTION_INIT_CORRUPT, {"file": file})
                             json_version = json_data.get(VERSION, 1)
                             _LOGGER.debug(
                                 "Data cache %s exists, file type is %s",
@@ -1692,7 +1687,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                         self.status = SolcastApiStatus.DATA_INCOMPATIBLE
                                 if self.status == SolcastApiStatus.DATA_INCOMPATIBLE:
                                     _LOGGER.critical("The %s appears incompatible, so cannot upgrade it", filename)
-                                    raise_and_record(self.hass, ConfigEntryError, TRANSLATE_INIT_INCOMPATIBLE, {"file": file})
+                                    raise_and_record(self.hass, ConfigEntryError, EXCEPTION_INIT_INCOMPATIBLE, {"file": file})
 
                                 # What happened before v4 stays before v4. BJReplay has no visibility of ancient.
                                 # V3 and prior versions of the solcast.json file did not have a version key.
@@ -1888,7 +1883,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         except json.decoder.JSONDecodeError:
             _LOGGER.error("The cached data in %s is corrupt in load_saved_data()", file)
             self.status = SolcastApiStatus.DATA_CORRUPT
-            raise_and_record(self.hass, ConfigEntryNotReady, TRANSLATE_INIT_CORRUPT, {"file": file})
+            raise_and_record(self.hass, ConfigEntryNotReady, EXCEPTION_INIT_CORRUPT, {"file": file})
         return True
 
     async def build_forecast_and_actuals(self, raise_exc=False) -> bool:
@@ -1909,13 +1904,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 success = False
                 _LOGGER.error("Failed to build forecast data")
                 if raise_exc:
-                    raise_and_record(self.hass, ConfigEntryNotReady, TRANSLATE_BUILD_FAILED_FORECASTS)
+                    raise_and_record(self.hass, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_FORECASTS)
             if self.status == SolcastApiStatus.OK and self.options.get_actuals and not await self.build_actual_data():
                 self.status = SolcastApiStatus.BUILD_FAILED_ACTUALS
                 success = False
                 _LOGGER.error("Failed to build estimated actuals data")
                 if raise_exc:
-                    raise_and_record(self.hass, ConfigEntryNotReady, TRANSLATE_BUILD_FAILED_ACTUALS)
+                    raise_and_record(self.hass, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_ACTUALS)
         return success
 
     async def reset_failure_stats(self) -> None:
@@ -2128,15 +2123,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         result = {
             NAME: _site.get(NAME),
             RESOURCE_ID: _site.get(RESOURCE_ID),
-            CAPACITY: _site.get(CAPACITY),
-            CAPACITY_DC: _site.get(CAPACITY_DC),
-            LONGITUDE: _site.get(LONGITUDE),
-            LATITUDE: _site.get(LATITUDE),
-            AZIMUTH: _site.get(AZIMUTH),
-            TILT: _site.get(TILT),
-            INSTALL_DATE: _site.get(INSTALL_DATE),
-            LOSS_FACTOR: _site.get(LOSS_FACTOR),
-            TAGS: _site.get(TAGS),
+            SITE_ATTRIBUTE_CAPACITY: _site.get(SITE_ATTRIBUTE_CAPACITY),
+            SITE_ATTRIBUTE_CAPACITY_DC: _site.get(SITE_ATTRIBUTE_CAPACITY_DC),
+            SITE_ATTRIBUTE_LONGITUDE: _site.get(SITE_ATTRIBUTE_LONGITUDE),
+            SITE_ATTRIBUTE_LATITUDE: _site.get(SITE_ATTRIBUTE_LATITUDE),
+            SITE_ATTRIBUTE_AZIMUTH: _site.get(SITE_ATTRIBUTE_AZIMUTH),
+            SITE_ATTRIBUTE_TILT: _site.get(SITE_ATTRIBUTE_TILT),
+            SITE_ATTRIBUTE_INSTALL_DATE: _site.get(SITE_ATTRIBUTE_INSTALL_DATE),
+            SITE_ATTRIBUTE_LOSS_FACTOR: _site.get(SITE_ATTRIBUTE_LOSS_FACTOR),
+            SITE_ATTRIBUTE_TAGS: _site.get(SITE_ATTRIBUTE_TAGS),
         }
         return {k: v for k, v in result.items() if v is not None}
 
@@ -3292,7 +3287,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     interval_time,
                     self._peak_intervals[interval],
                     len(matching),
-                    ", ".join([date.astimezone(self._tz).strftime(DATE_MONTH_DAY) for date in matching]),
+                    ", ".join([date.astimezone(self._tz).strftime(DT_DATE_MONTH_DAY) for date in matching]),
                 )
                 match self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]:
                     case 1 | 2 | 3:
@@ -3677,7 +3672,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 and interval_pv50 > 0
                 and factor < 1.0
             ):
-                interval_time = period_start.astimezone(self._tz).strftime(DATE_FORMAT)
+                interval_time = period_start.astimezone(self._tz).strftime(DT_DATE_FORMAT)
                 factor_pre_adjustment = factor
 
                 match self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL]:
@@ -4150,9 +4145,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 _LOGGER.debug("API returned data, using force fetch so not incrementing API counter")
                             response_json = response_text
                             response_json = json.loads(response_json)
-                            if issue_registry.async_get_issue(DOMAIN, API_UNAVAILABLE) is not None:
-                                _LOGGER.debug("Remove issue for %s", API_UNAVAILABLE)
-                                ir.async_delete_issue(self.hass, DOMAIN, API_UNAVAILABLE)
+                            if issue_registry.async_get_issue(DOMAIN, ISSUE_API_UNAVAILABLE) is not None:
+                                _LOGGER.debug("Remove issue for %s", ISSUE_API_UNAVAILABLE)
+                                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_API_UNAVAILABLE)
                                 if (trigger := self.advanced_options[ADVANCED_TRIGGER_ON_API_AVAILABLE]) and trigger:
                                     await self.async_trigger_automation_by_name(trigger)
                             _LOGGER.debug(
@@ -4182,15 +4177,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             )
                             _LOGGER.debug("HTTP session status %s", http_status_translate(status))
 
-                            if received_429 == tries and issue_registry.async_get_issue(DOMAIN, API_UNAVAILABLE) is None:
-                                _LOGGER.debug("Raise issue for %s", API_UNAVAILABLE)
+                            if received_429 == tries and issue_registry.async_get_issue(DOMAIN, ISSUE_API_UNAVAILABLE) is None:
+                                _LOGGER.debug("Raise issue for %s", ISSUE_API_UNAVAILABLE)
                                 ir.async_create_issue(
                                     self.hass,
                                     DOMAIN,
-                                    API_UNAVAILABLE,
+                                    ISSUE_API_UNAVAILABLE,
                                     is_fixable=False,
                                     severity=ir.IssueSeverity.WARNING,
-                                    translation_key=API_UNAVAILABLE,
+                                    translation_key=ISSUE_API_UNAVAILABLE,
                                     learn_more_url=LEARN_MORE_MISSING_FORECAST_DATA,
                                 )
                                 if (trigger := self.advanced_options[ADVANCED_TRIGGER_ON_API_UNAVAILABLE]) and trigger:
@@ -4341,6 +4336,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         The API key hard limit for each site is calculated as proportion of the site contribution for the account.
         """
 
+        EARLIEST_PERIOD = "earliest_period"
+        LAST_PERIOD = "last_period"
+
         start_time = time.time()
         build_logged: list[str] = []
 
@@ -4381,8 +4379,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     )
                     _LOGGER.debug(
                         "Earliest period %s, latest period %s (%s)",
-                        dt.strftime(earliest.astimezone(self._tz), DATE_FORMAT),
-                        dt.strftime(latest.astimezone(self._tz), DATE_FORMAT),
+                        dt.strftime(earliest.astimezone(self._tz), DT_DATE_FORMAT),
+                        dt.strftime(latest.astimezone(self._tz), DT_DATE_FORMAT),
                         data_set,
                     )
                 periods: list[dt] = [earliest + timedelta(minutes=30 * x) for x in range(int((latest - earliest).total_seconds() / 1800))]
@@ -4519,6 +4517,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         Returns:
             bool: A flag indicating success or failure.
         """
+        TALLY = "tally"
+
         today: datetime.date = dt.now(self._tz).date()
         commencing: datetime.date = dt.now(self._tz).date() - timedelta(days=self.advanced_options[ADVANCED_HISTORY_MAX_DAYS])
         commencing_undampened: datetime.date = dt.now(self._tz).date() - timedelta(days=14)
@@ -4678,6 +4678,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def check_data_records(self) -> None:
         """Log whether all records are present for each day."""
 
+        CONTIGUOUS = "contiguous"
+        CORRECT = "correct"
+        INTERVALS = "intervals"
+        EXPECTED_INTERVALS = "expected_intervals"
+
         contiguous: int = 0
         contiguous_start_date: Any = None
         contiguous_end_date: Any = None
@@ -4788,7 +4793,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         raise_issue,
                         is_fixable=self.entry.options[AUTO_UPDATE] == AutoUpdate.NONE and any(self._data[FAILURE][LAST_14D]) == 0,
                         data={
-                            "contiguous": contiguous,
+                            CONTIGUOUS: contiguous,
                         },
                         severity=ir.IssueSeverity.WARNING,
                         translation_key=raise_issue,

@@ -34,7 +34,6 @@ from homeassistant.components.solcast_solar.const import (
     BRK_SITE_DETAILED,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
-    CORRUPT_FILE,
     CUSTOM_HOUR_SENSOR,
     DEFAULT_FORECAST_DAYS,
     DELAYED_RESTART_ON_CRASH,
@@ -45,6 +44,7 @@ from homeassistant.components.solcast_solar.const import (
     GENERATION_ENTITIES,
     GET_ACTUALS,
     HARD_LIMIT_API,
+    ISSUE_CORRUPT_FILE,
     KEY_ESTIMATE,
     PRESUMED_DEAD,
     PRIOR_CRASH_TIME,
@@ -1612,7 +1612,7 @@ async def test_scenarios(  # noqa: C901
         assert re.search(rf"CRITICAL.+Removing zero-length file.+{data_file}", caplog.text) is not None
         assert len(issue_registry.issues) == 1
         issue = list(issue_registry.issues.values())[0]
-        assert issue.issue_id == CORRUPT_FILE
+        assert issue.issue_id == ISSUE_CORRUPT_FILE
         assert issue.is_persistent is False
         assert f"Raise issue `{issue.issue_id}`" in caplog.text
         caplog.clear()

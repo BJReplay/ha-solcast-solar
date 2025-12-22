@@ -55,11 +55,34 @@ from .const import (
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
     CUSTOM_HOURS,
-    DATE_FORMAT,
-    DATE_ONLY_FORMAT,
     DOMAIN,
+    DT_DATE_FORMAT,
+    DT_DATE_ONLY_FORMAT,
+    DT_TIME_FORMAT,
+    ENTITY_API_COUNTER,
+    ENTITY_API_LIMIT,
+    ENTITY_DAMPEN,
+    ENTITY_FORECAST_CUSTOM_HOURS,
+    ENTITY_FORECAST_NEXT_HOUR,
+    ENTITY_FORECAST_REMAINING_TODAY,
+    ENTITY_FORECAST_REMAINING_TODAY_OLD,
+    ENTITY_FORECAST_THIS_HOUR,
+    ENTITY_LAST_UPDATED,
+    ENTITY_LAST_UPDATED_OLD,
+    ENTITY_PEAK_W_TIME_TODAY,
+    ENTITY_PEAK_W_TIME_TOMORROW,
+    ENTITY_PEAK_W_TODAY,
+    ENTITY_PEAK_W_TOMORROW,
+    ENTITY_POWER_NOW,
+    ENTITY_POWER_NOW_1HR,
+    ENTITY_POWER_NOW_30M,
+    ENTITY_TOTAL_KWH_FORECAST_TODAY,
+    ENTITY_TOTAL_KWH_FORECAST_TOMORROW,
     ESTIMATE,
     EVENT,
+    EXCEPTION_AUTO_USE_FORCE,
+    EXCEPTION_AUTO_USE_NORMAL,
+    EXCEPTION_INIT_KEY_INVALID,
     EXPORT_LIMITING,
     FACTOR,
     FACTORS,
@@ -67,25 +90,6 @@ from .const import (
     GET_ACTUALS,
     INTEGRATION_AUTOMATED,
     INTERVAL,
-    KEY_API_COUNTER,
-    KEY_API_LIMIT,
-    KEY_DAMPEN,
-    KEY_FORECAST_CUSTOM_HOURS,
-    KEY_FORECAST_NEXT_HOUR,
-    KEY_FORECAST_REMAINING_TODAY,
-    KEY_FORECAST_REMAINING_TODAY_OLD,
-    KEY_FORECAST_THIS_HOUR,
-    KEY_LAST_UPDATED,
-    KEY_LAST_UPDATED_OLD,
-    KEY_PEAK_W_TIME_TODAY,
-    KEY_PEAK_W_TIME_TOMORROW,
-    KEY_PEAK_W_TODAY,
-    KEY_PEAK_W_TOMORROW,
-    KEY_POWER_NOW,
-    KEY_POWER_NOW_1HR,
-    KEY_POWER_NOW_30M,
-    KEY_TOTAL_KWH_FORECAST_TODAY,
-    KEY_TOTAL_KWH_FORECAST_TOMORROW,
     LAST_UPDATED,
     METHOD,
     NEED_HISTORY_HOURS,
@@ -100,14 +104,10 @@ from .const import (
     TASK_NEW_DAY_ACTUALS,
     TASK_NEW_DAY_GENERATION,
     TASK_WATCHDOG_ADVANCED,
-    TASK_WATCHDOG_ADVANCED_START,
+    TASK_WATCHDOG_ADVANCED_FILE_CHANGE,
     TASK_WATCHDOG_DAMPENING,
+    TASK_WATCHDOG_DAMPENING_FILE_CHANGE,
     TASK_WATCHDOG_DAMPENING_LEGACY,
-    TASK_WATCHDOG_DAMPENING_START,
-    TIME_FORMAT,
-    TRANSLATE_AUTO_USE_FORCE,
-    TRANSLATE_AUTO_USE_NORMAL,
-    TRANSLATE_INIT_KEY_INVALID,
     VALUE,
 )
 from .solcastapi import SolcastApi
@@ -115,7 +115,7 @@ from .util import AutoUpdate, percentile
 
 _LOGGER = logging.getLogger(__name__)
 
-NO_ATTRIBUTES = [KEY_API_COUNTER, KEY_API_LIMIT, KEY_DAMPEN, KEY_LAST_UPDATED_OLD]
+NO_ATTRIBUTES = [ENTITY_API_COUNTER, ENTITY_API_LIMIT, ENTITY_DAMPEN, ENTITY_LAST_UPDATED_OLD]
 
 
 class FileEvent(Enum):
@@ -173,25 +173,25 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         # First list item is the sensor value method, additional items are only used for sensor attributes.
         self.__get_value: dict[str, list[dict[str, Any]]] = {
-            KEY_FORECAST_THIS_HOUR: [{METHOD: self.solcast.get_forecast_n_hour, VALUE: 0}],
-            KEY_FORECAST_NEXT_HOUR: [{METHOD: self.solcast.get_forecast_n_hour, VALUE: 1}],
-            KEY_FORECAST_CUSTOM_HOURS: [{METHOD: self.solcast.get_forecast_custom_hours, VALUE: self.solcast.custom_hour_sensor}],
-            KEY_FORECAST_REMAINING_TODAY: [{METHOD: self.solcast.get_forecast_remaining_today}],
-            KEY_FORECAST_REMAINING_TODAY_OLD: [{METHOD: self.solcast.get_forecast_remaining_today}],
-            KEY_POWER_NOW: [{METHOD: self.solcast.get_power_n_minutes, VALUE: 0}],
-            KEY_POWER_NOW_30M: [{METHOD: self.solcast.get_power_n_minutes, VALUE: 30}],
-            KEY_POWER_NOW_1HR: [{METHOD: self.solcast.get_power_n_minutes, VALUE: 60}],
-            KEY_PEAK_W_TIME_TODAY: [{METHOD: self.solcast.get_peak_time_day, VALUE: 0}],
-            KEY_PEAK_W_TIME_TOMORROW: [{METHOD: self.solcast.get_peak_time_day, VALUE: 1}],
-            KEY_PEAK_W_TODAY: [{METHOD: self.solcast.get_peak_power_day, VALUE: 0}],
-            KEY_PEAK_W_TOMORROW: [{METHOD: self.solcast.get_peak_power_day, VALUE: 1}],
-            KEY_API_COUNTER: [{METHOD: self.solcast.get_api_used_count}],
-            KEY_API_LIMIT: [{METHOD: self.solcast.get_api_limit}],
-            KEY_LAST_UPDATED: [{METHOD: self.solcast.get_last_updated}],
-            KEY_LAST_UPDATED_OLD: [{METHOD: self.solcast.get_last_updated}],
-            KEY_DAMPEN: [{METHOD: self.solcast.get_dampen}],
+            ENTITY_FORECAST_THIS_HOUR: [{METHOD: self.solcast.get_forecast_n_hour, VALUE: 0}],
+            ENTITY_FORECAST_NEXT_HOUR: [{METHOD: self.solcast.get_forecast_n_hour, VALUE: 1}],
+            ENTITY_FORECAST_CUSTOM_HOURS: [{METHOD: self.solcast.get_forecast_custom_hours, VALUE: self.solcast.custom_hour_sensor}],
+            ENTITY_FORECAST_REMAINING_TODAY: [{METHOD: self.solcast.get_forecast_remaining_today}],
+            ENTITY_FORECAST_REMAINING_TODAY_OLD: [{METHOD: self.solcast.get_forecast_remaining_today}],
+            ENTITY_POWER_NOW: [{METHOD: self.solcast.get_power_n_minutes, VALUE: 0}],
+            ENTITY_POWER_NOW_30M: [{METHOD: self.solcast.get_power_n_minutes, VALUE: 30}],
+            ENTITY_POWER_NOW_1HR: [{METHOD: self.solcast.get_power_n_minutes, VALUE: 60}],
+            ENTITY_PEAK_W_TIME_TODAY: [{METHOD: self.solcast.get_peak_time_day, VALUE: 0}],
+            ENTITY_PEAK_W_TIME_TOMORROW: [{METHOD: self.solcast.get_peak_time_day, VALUE: 1}],
+            ENTITY_PEAK_W_TODAY: [{METHOD: self.solcast.get_peak_power_day, VALUE: 0}],
+            ENTITY_PEAK_W_TOMORROW: [{METHOD: self.solcast.get_peak_power_day, VALUE: 1}],
+            ENTITY_API_COUNTER: [{METHOD: self.solcast.get_api_used_count}],
+            ENTITY_API_LIMIT: [{METHOD: self.solcast.get_api_limit}],
+            ENTITY_LAST_UPDATED: [{METHOD: self.solcast.get_last_updated}],
+            ENTITY_LAST_UPDATED_OLD: [{METHOD: self.solcast.get_last_updated}],
+            ENTITY_DAMPEN: [{METHOD: self.solcast.get_dampen}],
         }
-        days = [KEY_TOTAL_KWH_FORECAST_TODAY, KEY_TOTAL_KWH_FORECAST_TOMORROW] + [
+        days = [ENTITY_TOTAL_KWH_FORECAST_TODAY, ENTITY_TOTAL_KWH_FORECAST_TOMORROW] + [
             f"total_kwh_forecast_d{r}" for r in range(3, self.advanced_day_entities)
         ]
         self.__get_value |= {
@@ -235,11 +235,11 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self.tasks[TASK_MIDNIGHT_UPDATE] = async_track_utc_time_change(
             self.hass, self.__update_utc_midnight_usage_sensor_data, hour=0, minute=0, second=0
         )
-        self.tasks[TASK_WATCHDOG_ADVANCED_START] = (
+        self.tasks[TASK_WATCHDOG_ADVANCED_FILE_CHANGE] = (
             asyncio.create_task(self.watch_for_file(TASK_WATCHDOG_ADVANCED, self._file_advanced, self.watch_advanced_file))
         ).cancel
         if not self.solcast.options.auto_dampen:
-            self.tasks[TASK_WATCHDOG_DAMPENING_START] = (
+            self.tasks[TASK_WATCHDOG_DAMPENING_FILE_CHANGE] = (
                 asyncio.create_task(self.watch_for_file(TASK_WATCHDOG_DAMPENING, self._file_dampening, self.watch_dampening_file))
             ).cancel
             if CONFIG_FOLDER_DISCRETE:
@@ -556,7 +556,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 if self.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN]:
                     _LOGGER.debug(
                         "APE calculation for day %s, Actual %.2f kWh, Estimate %.2f kWh, Error %.2f%s",
-                        day.strftime(DATE_ONLY_FORMAT),
+                        day.strftime(DT_DATE_ONLY_FORMAT),
                         generation_day[day],
                         value,
                         error[day],
@@ -579,10 +579,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             if self.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN]:
                 _LOGGER.debug(
                     "Calculating dampened estimated actual MAPE from %s to %s",
-                    earliest_dampened_start.astimezone(self.solcast.options.tz).strftime(DATE_ONLY_FORMAT),
+                    earliest_dampened_start.astimezone(self.solcast.options.tz).strftime(DT_DATE_ONLY_FORMAT),
                     (self.solcast.get_day_start_utc() - timedelta(minutes=30))
                     .astimezone(self.solcast.options.tz)
-                    .strftime(DATE_ONLY_FORMAT),
+                    .strftime(DT_DATE_ONLY_FORMAT),
                 )
             inf_d, error_dampened, error_dampened_percentiles = await calculate_error(
                 generation_dampening_day,
@@ -600,8 +600,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         if self.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN]:
             _LOGGER.debug(
                 "Calculating undampened estimated actual MAPE from %s to %s",
-                earliest_undampened_start.astimezone(self.solcast.options.tz).strftime(DATE_ONLY_FORMAT),
-                (self.solcast.get_day_start_utc() - timedelta(minutes=30)).astimezone(self.solcast.options.tz).strftime(DATE_ONLY_FORMAT),
+                earliest_undampened_start.astimezone(self.solcast.options.tz).strftime(DT_DATE_ONLY_FORMAT),
+                (self.solcast.get_day_start_utc() - timedelta(minutes=30))
+                .astimezone(self.solcast.options.tz)
+                .strftime(DT_DATE_ONLY_FORMAT),
             )
         inf_u, error_undampened, error_undampened_percentiles = await calculate_error(
             generation_dampening_day,
@@ -647,7 +649,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         )  # i.e. just past midnight local
                         + timedelta(minutes=self.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY])
                     )
-                    _LOGGER.debug("Scheduling generation update at %s", update_at.astimezone(self.solcast.options.tz).strftime(TIME_FORMAT))
+                    _LOGGER.debug(
+                        "Scheduling generation update at %s", update_at.astimezone(self.solcast.options.tz).strftime(DT_TIME_FORMAT)
+                    )
                     self.tasks[TASK_NEW_DAY_GENERATION] = async_track_point_in_utc_time(
                         self.hass,
                         self.__generation,
@@ -668,7 +672,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         + timedelta(minutes=randint(1, 14), seconds=randint(0, 59))
                     )
                     _LOGGER.debug(
-                        "Scheduling estimated actuals update at %s", update_at.astimezone(self.solcast.options.tz).strftime(TIME_FORMAT)
+                        "Scheduling estimated actuals update at %s", update_at.astimezone(self.solcast.options.tz).strftime(DT_TIME_FORMAT)
                     )
                     self.tasks[TASK_NEW_DAY_ACTUALS] = async_track_point_in_utc_time(
                         self.hass,
@@ -695,7 +699,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         if len(self._intervals) > 0:
             next_update = self._intervals[0].astimezone(self.solcast.options.tz)
             self.solcast.set_next_update(
-                next_update.strftime(TIME_FORMAT) if next_update.date() == dt.now().date() else next_update.strftime(DATE_FORMAT)
+                next_update.strftime(DT_TIME_FORMAT) if next_update.date() == dt.now().date() else next_update.strftime(DT_DATE_FORMAT)
             )
 
     async def __actuals(self, _: dt | None = None) -> None:
@@ -857,7 +861,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 just_passed = "Unknown"
                 if self.interval_just_passed is not None:
                     if self.interval_just_passed in intervals_yesterday:
-                        just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(DATE_FORMAT)
+                        just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(DT_DATE_FORMAT)
                     else:
                         just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
                     _LOGGER.debug("Previous auto update UTC %s", self.interval_just_passed.isoformat())
@@ -947,7 +951,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
 
             if self.solcast.options.auto_update != AutoUpdate.NONE and "ignore_auto_enabled" not in kwargs:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=TRANSLATE_AUTO_USE_FORCE)
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_AUTO_USE_FORCE)
             update_kwargs: dict[str, Any] = {
                 COMPLETION: "Completed task update" if not kwargs.get(COMPLETION) else kwargs[COMPLETION],
                 NEED_HISTORY_HOURS: kwargs.get(NEED_HISTORY_HOURS, 0),
@@ -966,10 +970,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """
         if self.tasks.get(TASK_FORECASTS_FETCH_IMMEDIATE) is None and self.solcast.tasks.get(TASK_FORECASTS_FETCH) is None:
             if self.solcast.reauth_required:
-                raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key=TRANSLATE_INIT_KEY_INVALID)
+                raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key=EXCEPTION_INIT_KEY_INVALID)
 
             if self.solcast.options.auto_update == AutoUpdate.NONE:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=TRANSLATE_AUTO_USE_NORMAL)
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_AUTO_USE_NORMAL)
             task = asyncio.create_task(self.__forecast_update(force=True, completion="Completed task force_update"))
             self.tasks[TASK_FORECASTS_FETCH_IMMEDIATE] = task.cancel
         else:
@@ -1154,10 +1158,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     for i, f in self.solcast.options.dampening.items()
                 ]
 
-        if key in (LAST_UPDATED, KEY_LAST_UPDATED_OLD):
+        if key in (ENTITY_LAST_UPDATED, ENTITY_LAST_UPDATED_OLD):
             ret.update(self._get_auto_update_details())
 
-        if key == KEY_FORECAST_CUSTOM_HOURS:
+        if key == ENTITY_FORECAST_CUSTOM_HOURS:
             ret.update({CUSTOM_HOURS: self.solcast.options.custom_hour_sensor})
 
         return ret
