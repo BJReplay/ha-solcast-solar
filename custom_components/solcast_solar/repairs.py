@@ -17,8 +17,7 @@ from homeassistant.helpers.selector import (
     SelectSelectorMode,
 )
 
-from . import current_entry
-from .const import AUTO_UPDATE, DOMAIN, LEARN_MORE
+from .const import AUTO_UPDATE, DOMAIN, ENTRY_ID, LEARN_MORE
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -89,6 +88,7 @@ async def async_create_fix_flow(
     """Create flow."""
 
     if issue_id == "records_missing_fixable":
-        return RecordsMissingRepairFlow(entry=current_entry.get())
+        entry = hass.config_entries.async_get_entry(data[ENTRY_ID]) if data.get(ENTRY_ID) and data[ENTRY_ID] != "" else None
+        return RecordsMissingRepairFlow(entry=entry)
 
     return ConfirmRepairFlow()

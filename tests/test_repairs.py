@@ -101,7 +101,7 @@ async def test_missing_data_fixable(
         flow = await async_create_fix_flow(hass, "not_handled_issue", {})
         assert type(flow) is ConfirmRepairFlow
 
-        flow = await async_create_fix_flow(hass, issue.issue_id, {"entry": entry})
+        flow = await async_create_fix_flow(hass, issue.issue_id, {"contiguous": 8, "entry_id": entry.entry_id})
         flow.hass = hass
         flow.issue_id = "records_missing_fixable"
 

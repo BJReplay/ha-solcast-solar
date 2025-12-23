@@ -2,7 +2,6 @@
 
 from collections.abc import Awaitable, Callable
 import contextlib
-from contextvars import ContextVar
 from datetime import datetime as dt, timedelta
 import json
 import logging
@@ -163,8 +162,6 @@ SERVICE_QUERY_ESTIMATE_SCHEMA: Final = vol.All(
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-current_entry: ContextVar[ConfigEntry] = ContextVar("current_entry", default=NotImplemented)
 
 
 def __log_init_message(entry: ConfigEntry, version: str, solcast: SolcastApi) -> None:
@@ -371,7 +368,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:  #
 
     random.seed()
 
-    current_entry.set(entry)
     version = await get_version(hass)
     options = await __get_options(hass, entry)
     __setup_storage(hass)
@@ -794,8 +790,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             _LOGGER.debug("Remove action %s.%s", DOMAIN, action)
             hass.services.async_remove(DOMAIN, action)
             hass.services.async_register(DOMAIN, action, stub_action)  # Switch to an error action
-
-    current_entry.set(NotImplemented)
 
     return unload_ok
 

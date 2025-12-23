@@ -100,6 +100,7 @@ from .const import (
     DT_DATE_FORMAT,
     DT_DATE_MONTH_DAY,
     DT_DATE_ONLY_FORMAT,
+    ENTRY_ID,
     ENTRY_OPTIONS,
     ERROR_CODE,
     ESTIMATE,
@@ -4792,9 +4793,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         DOMAIN,
                         raise_issue,
                         is_fixable=self.entry.options[AUTO_UPDATE] == AutoUpdate.NONE and any(self._data[FAILURE][LAST_14D]) == 0,
-                        data={
-                            CONTIGUOUS: contiguous,
-                        },
+                        data={CONTIGUOUS: contiguous, ENTRY_ID: self.entry.entry_id if self.entry is not None else ""},
                         severity=ir.IssueSeverity.WARNING,
                         translation_key=raise_issue,
                         learn_more_url=LEARN_MORE_MISSING_FORECAST_DATA,
