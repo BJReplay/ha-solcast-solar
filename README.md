@@ -1275,6 +1275,7 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 v4.4.10
 
+* Fix an issue when missing forecast history (#423) by @autoSteve
 * Remove zero-length cache files on startup by @autoSteve
 * Add advanced option granular_dampening_delta_adjustment by @autoSteve
 * Rename automated_dampening_no_delta_adjustment by @autoSteve
