@@ -6,6 +6,7 @@
 * Q: I'm trying to set up (or re-set up) the integration, and **I'm getting 429 errors** and can't get any further.  What's happening?
 * Solcast's API status page at [https://status.solcast.com/](https://status.solcast.com/) says that the API status is all green, but **I'm getting 429 errors**.  What should I do?
 * Q: You asked for DEBUG logs to be provided when raising issues. How do I get these?
+* Q: The Solcast Toolkit site will not allow me to add a new rooftop site. I get a minus one error. Why?
 * Q: I don't understand the README, and it's too long. Can it be simplified?
 * Q: Is submitting debug logging going to expose my API key or location to the world?
 * Q: I get a timeout connecting to api.solcast.com.au!!! What the heck is happening? (...raises issue...)
@@ -74,6 +75,18 @@ Reviewing logs is quite simple, and can be done from the UI. Go to Settings | Sy
 <img width="231" height="170" alt="image" src="https://github.com/user-attachments/assets/1799752a-0bd6-4fc4-9b91-daaed9ad2f82" />
 
 You can't filter for just the Solcast integration in the UI, so it might be a good idea to download the log and filter it by another method (for example the *nix utility `less` "&/" command, or Notepad++ with the Linefilter2 plugin.)
+
+### Q: The Solcast Toolkit site will not allow me to add a new rooftop site. I get a minus one error. Why?
+
+If you get a notification that your hobbyist account is limited to the creation of -1 Home PV arrays within 1km of each other, then your account needs fixing by Solcast support.
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/solcast_minus_one.jpeg" width="379">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/solcast_minus_one.jpeg)
+
+Billy from Solcast advises, _"This is an issue on our backend. For any future issues, if you could please just email through to support@solcast.com we'll fix it up, which will allow you to create the second site next time you log in."_
+
+What you should see is this:
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/solcast_plus_two.png" width="379">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/solcast_plus_two.png)
 
 ### Q: I don't understand the README, and it's too long. Can it be simplified?
 
