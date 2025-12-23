@@ -103,7 +103,7 @@ async def test_missing_data_fixable(
 
         flow = await async_create_fix_flow(hass, issue.issue_id, {"contiguous": 8, "entry_id": entry.entry_id})
         flow.hass = hass
-        flow.issue_id = "records_missing_fixable"
+        flow.issue_id = issue.issue_id
 
         result = await flow.async_step_init()  # type: ignore[attr-defined]
         assert result["type"] == FlowResultType.FORM
