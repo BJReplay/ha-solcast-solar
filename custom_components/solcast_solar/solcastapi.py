@@ -303,7 +303,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.tasks: dict[str, Any] = {}
         self.usage_status: UsageStatus = UsageStatus.UNKNOWN
 
-        file_path = Path(options.file_path)
+        self._config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+        (Path(self._config_dir).mkdir(parents=False, exist_ok=True)) if CONFIG_FOLDER_DISCRETE else None
+        _LOGGER.debug("Configuration directory is %s", self._config_dir)
+        self.migrate_config_files()
+
+        file_path = Path(self._config_dir) / Path(options.file_path).name
         self.set_default_advanced_options()
 
         self._aiohttp_session = aiohttp_session
@@ -328,7 +333,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._dismissal: dict[str, bool] = {}
         self._extant_sites: defaultdict[str, list[dict[str, Any]]] = defaultdict(list[dict[str, Any]])
         self._extant_usage: defaultdict[str, dict[str, Any]] = defaultdict(dict[str, Any])
-        self._filename = options.file_path
+        self._filename = f"{file_path}"
         self._filename_actuals = f"{file_path.parent / file_path.stem}-actuals{file_path.suffix}"
         self._filename_actuals_dampened = f"{file_path.parent / file_path.stem}-actuals-dampened{file_path.suffix}"
         self._filename_advanced = f"{file_path.parent / file_path.stem}-advanced{file_path.suffix}"
@@ -354,11 +359,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._tally: dict[str, float | None] = {}
         self._tz = options.tz
         self._use_forecast_confidence = f"pv_{options.key_estimate}"
-
-        self._config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        (Path(self._config_dir).mkdir(parents=False, exist_ok=True)) if CONFIG_FOLDER_DISCRETE else None
-        _LOGGER.debug("Configuration directory is %s", self._config_dir)
-        self.migrate_config_files()
 
     def migrate_config_files(self) -> None:
         """Migrate config files to discrete folder if required."""
@@ -966,7 +966,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     for site in response_json.get(SITES, []):
                         site[API_KEY] = api_key
                         site[DISMISSAL] = self._dismissal.get(site[RESOURCE_ID], False)
-                    if response_json[TOTAL_RECORDS] > 0:
+                    if response_json.get(TOTAL_RECORDS, 0) > 0:
                         set_sites(response_json, api_key)
                         _ = check_rekey(response_json, api_key)
                         await save_cache(cache_filename, response_json)
@@ -974,8 +974,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         self.sites_status = SitesStatus.OK
                     else:
                         _LOGGER.error(
-                            "No sites for the API key %s are configured at solcast.com",
+                            "No sites for the API key %s are configured at solcast.com%s",
                             redact_api_key(api_key),
+                            f" (did not find total records in response: {redact_msg_api_key(str(response_json), api_key)})"
+                            if response_json.get(TOTAL_RECORDS) is None
+                            else "",
                         )
                         cache_exists = False  # Prevent cache load if no sites
                         self.sites_status = SitesStatus.NO_SITES

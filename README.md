@@ -1273,6 +1273,12 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 ## Changes
 
+v4.4.11
+
+* Fix an issue with config location naming on reconfigure by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.10...v4.4.11
+
 v4.4.10
 
 * Fix records missing repairable issue exception by @autoSteve
