@@ -53,6 +53,7 @@ from .const import (
     ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT,
     ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY,
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
+    ADVANCED_AUTOMATED_DAMPENING_SELECT_BEST_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK,
     ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY,
     ADVANCED_FORECAST_FUTURE_DAYS,
@@ -303,7 +304,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.tasks: dict[str, Any] = {}
         self.usage_status: UsageStatus = UsageStatus.UNKNOWN
 
-        file_path = Path(options.file_path)
+        self._config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+        (Path(self._config_dir).mkdir(parents=False, exist_ok=True)) if CONFIG_FOLDER_DISCRETE else None
+        _LOGGER.debug("Configuration directory is %s", self._config_dir)
+        self.migrate_config_files()
+
+        file_path = Path(self._config_dir) / Path(options.file_path).name
         self.set_default_advanced_options()
 
         self._aiohttp_session = aiohttp_session
@@ -314,6 +320,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._data: dict[str, Any] = copy.deepcopy(FRESH_DATA)
         self._data_actuals: dict[str, Any] = copy.deepcopy(FRESH_DATA)
         self._data_actuals_dampened: dict[str, Any] = copy.deepcopy(FRESH_DATA)
+        self._data_dampening_history: list[dict[str, Any]] = []
         self._data_energy_dashboard: dict[str, Any] = {}
         self._data_estimated_actuals: list[dict[str, Any]] = []
         self._data_estimated_actuals_dampened: list[dict[str, Any]] = []
@@ -328,11 +335,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._dismissal: dict[str, bool] = {}
         self._extant_sites: defaultdict[str, list[dict[str, Any]]] = defaultdict(list[dict[str, Any]])
         self._extant_usage: defaultdict[str, dict[str, Any]] = defaultdict(dict[str, Any])
-        self._filename = options.file_path
+        self._filename = f"{file_path}"
         self._filename_actuals = f"{file_path.parent / file_path.stem}-actuals{file_path.suffix}"
         self._filename_actuals_dampened = f"{file_path.parent / file_path.stem}-actuals-dampened{file_path.suffix}"
         self._filename_advanced = f"{file_path.parent / file_path.stem}-advanced{file_path.suffix}"
         self._filename_dampening = f"{file_path.parent / file_path.stem}-dampening{file_path.suffix}"
+        self._filename_dampening_history = f"{file_path.parent / file_path.stem}-dampening-history{file_path.suffix}"
         self._filename_generation = f"{file_path.parent / file_path.stem}-generation{file_path.suffix}"
         self._filename_undampened = f"{file_path.parent / file_path.stem}-undampened{file_path.suffix}"
         self._forecasts_moment: dict[str, dict[str, list[float]]] = {}
@@ -354,11 +362,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._tally: dict[str, float | None] = {}
         self._tz = options.tz
         self._use_forecast_confidence = f"pv_{options.key_estimate}"
-
-        self._config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        (Path(self._config_dir).mkdir(parents=False, exist_ok=True)) if CONFIG_FOLDER_DISCRETE else None
-        _LOGGER.debug("Configuration directory is %s", self._config_dir)
-        self.migrate_config_files()
 
     def migrate_config_files(self) -> None:
         """Migrate config files to discrete folder if required."""
@@ -824,6 +827,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 self._filename_actuals: "estimated actual",
                 self._filename_actuals_dampened: "dampened estimated actual",
                 self._filename_generation: "generation",
+                self._filename_dampening_history: "dampening history",
             }
             _LOGGER.debug(
                 "Saved %s cache",
@@ -966,7 +970,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     for site in response_json.get(SITES, []):
                         site[API_KEY] = api_key
                         site[DISMISSAL] = self._dismissal.get(site[RESOURCE_ID], False)
-                    if response_json[TOTAL_RECORDS] > 0:
+                    if response_json.get(TOTAL_RECORDS, 0) > 0:
                         set_sites(response_json, api_key)
                         _ = check_rekey(response_json, api_key)
                         await save_cache(cache_filename, response_json)
@@ -974,8 +978,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         self.sites_status = SitesStatus.OK
                     else:
                         _LOGGER.error(
-                            "No sites for the API key %s are configured at solcast.com",
+                            "No sites for the API key %s are configured at solcast.com%s",
                             redact_api_key(api_key),
+                            f" (did not find total records in response: {redact_msg_api_key(str(response_json), api_key)})"
+                            if response_json.get(TOTAL_RECORDS) is None
+                            else "",
                         )
                         cache_exists = False  # Prevent cache load if no sites
                         self.sites_status = SitesStatus.NO_SITES
@@ -3175,6 +3182,29 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             else 0
         )
 
+    async def check_deal_breaker_automated_dampening(self) -> bool:
+        """Check for deal breakers that would prevent automated dampening from running.
+
+        Returns:
+            bool: True if a deal breaker is found, False otherwise.
+        """
+        deal_breaker = ""
+        deal_breaker_site = ""
+        if not self.options.get_actuals:
+            deal_breaker = "Estimated actuals retrieval is not enabled"
+        elif len(self._data_generation[GENERATION]) == 0:
+            deal_breaker = "No generation yet"
+        else:
+            for site in self.sites:
+                if self._data_actuals[SITE_INFO].get(site[RESOURCE_ID]) is None:
+                    deal_breaker = "No estimated actuals yet"
+                    deal_breaker_site = site[RESOURCE_ID]
+                    break
+        if deal_breaker != "":
+            _LOGGER.info("Auto-dampening suppressed: %s%s", deal_breaker, f" for {deal_breaker_site}" if deal_breaker_site != "" else "")
+            return True
+        return False    
+
     async def model_automated_dampening(self, force: bool = False) -> None:  # noqa: C901
         """Model the automated dampening of the forecast data.
 
@@ -3183,16 +3213,125 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         start_time = time.time()
 
-        deal_breaker = ""
-        deal_breaker_site = ""
+        if await self.check_deal_breaker_automated_dampening():
+            return
+        
+        actuals, ignored_intervals, generation, matching_intervals = await self.prepare_dampening_data()
+
+        if not self.options.auto_dampen and not force:
+            _LOGGER.debug("Automated dampening is not enabled, skipping model_automated_dampening()")
+            return
+        _LOGGER.debug("Modelling automated dampening factors")
+
+        dampening = await self.calculate_dampening(matching_intervals, 
+                                                   generation, 
+                                                   actuals, 
+                                                   ignored_intervals, 
+                                                   self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL])
+
+        if dampening != self.granular_dampening.get(ALL):
+            self.granular_dampening[ALL] = dampening
+            await self.serialise_granular_dampening()
+            await self.granular_dampening_data()
+        _LOGGER.debug("Task model_automated_dampening took %.3f seconds", time.time() - start_time)
+
+    async def update_dampening_history(self) -> None:
+        """Generate history of dampening factors for all models."""
+        
+        if (self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_SELECT_BEST_CONFIGURATION]):
+        
+            start_time = time.time()
+
+            if await self.check_deal_breaker_automated_dampening():
+                return
+            
+            actuals, ignored_intervals, generation, matching_intervals = await self.prepare_dampening_data()
+
+            undampened_interval_pv50: dict[dt, float] = {}
+            for site in self.sites:
+                if site[RESOURCE_ID] in self.options.exclude_sites:
+                    continue
+                for forecast in self._data_undampened[SITE_INFO][site[RESOURCE_ID]][FORECASTS]:
+                    period_start = forecast[PERIOD_START]
+                    if period_start >= self.get_day_start_utc() and period_start < self.get_day_start_utc(future=1):
+                        if period_start not in undampened_interval_pv50:
+                            undampened_interval_pv50[period_start] = forecast[ESTIMATE] * 0.5
+                        else:
+                            undampened_interval_pv50[period_start] += forecast[ESTIMATE] * 0.5              
+
+            for dampening_model in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM],
+                                        ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM]+1):     
+                
+                dampening = await self.calculate_dampening(matching_intervals, 
+                                                        generation, 
+                                                        actuals, 
+                                                        ignored_intervals, 
+                                                        dampening_model, 
+                                                        False)
+                
+
+                
+                for delta_adjustment in range (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM],
+                                            ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]+1):
+                    adjusted_dampening = copy.deepcopy(dampening)
+                    for period_start in undampened_interval_pv50:
+                        interval = self.adjusted_interval_dt(period_start)
+                        if self._peak_intervals[interval] > 0 and undampened_interval_pv50[period_start] > 0 and dampening[interval] < 1.0:
+                            adjusted_dampening[interval] = self.apply_dampening_adjustment(undampened_interval_pv50[period_start], dampening[interval], interval, delta_adjustment)
+                            if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR] <= adjusted_dampening[interval] < 1.0:
+                                adjusted_dampening[interval] = 1.0
+
+                    await self.add_dampening_history(
+                        period_start=self.get_day_start_utc(),
+                        model=dampening_model,
+                        delta=delta_adjustment,
+                        factors=adjusted_dampening
+                    )
+                            
+                    _LOGGER.debug("Dampening factors for model %d and delta adjustment %d: %s", dampening_model, delta_adjustment, adjusted_dampening)
+
+            # Trim, sort and serialise.
+
+            self._data_dampening_history = sorted(
+                filter(
+                    lambda entry: entry["period_start"].astimezone(self._tz) >= self.get_day_start_utc(future=-14),
+                    self._data_dampening_history,
+                ),
+                key=lambda entry: entry["period_start"]
+            )
+
+            payload = json.dumps(self._data_dampening_history, ensure_ascii=False, cls=DateTimeEncoder)
+            async with self._serialise_lock, aiofiles.open(self._filename_dampening_history, "w") as file:
+                await file.write(payload)
+                
+            _LOGGER.debug("Task update_dampening_history took %.3f seconds", time.time() - start_time)
+
+    async def add_dampening_history(self, period_start: dt, model: int, delta: int, factors: list[float]) -> None:
+        # Look for existing period
+        for period in self._data_dampening_history:
+            if period["period_start"] == period_start:
+                period["dampening"].append({
+                    "model": model,
+                    "delta": delta,
+                    "factors": factors
+                })
+                return
+
+        # If not found, create a new period block
+        self._data_dampening_history.append({
+            "period_start": period_start,
+            "dampening": [{
+                "model": model,
+                "delta": delta,
+                "factors": factors
+            }]
+        })        
+
+    async def prepare_dampening_data(self):
         actuals: OrderedDict[dt, float] = OrderedDict()
         if (self.options.auto_dampen or self.advanced_options[ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT]) and self.options.get_actuals:
             _LOGGER.debug("Determining peak estimated actual intervals")
             for site in self.sites:
-                if self._data_actuals[SITE_INFO].get(site[RESOURCE_ID]) is None:
-                    deal_breaker = "No estimated actuals yet"
-                    deal_breaker_site = site[RESOURCE_ID]
-                    break
                 if site[RESOURCE_ID] in self.options.exclude_sites:
                     _LOGGER.debug("Auto-dampening suppressed: Excluded site for %s", site[RESOURCE_ID])
                     continue
@@ -3212,26 +3351,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     else:
                         actuals[period_start] = actual[ESTIMATE] * 0.5
 
-            if deal_breaker == "":
-                # Collect top intervals from the past MODEL_DAYS days.
-                self._peak_intervals = dict.fromkeys(range(48), 0.0)
-                for period_start, actual in actuals.items():
-                    interval = self.adjusted_interval_dt(period_start)
-                    if self._peak_intervals[interval] < actual:
-                        self._peak_intervals[interval] = round(actual, 3)
-
-        if not self.options.auto_dampen and not force:
-            _LOGGER.debug("Automated dampening is not enabled, skipping model_automated_dampening()")
-            return
-        _LOGGER.debug("Modelling automated dampening factors")
-
-        if deal_breaker == "":
-            if len(self._data_generation[GENERATION]) == 0:
-                deal_breaker = "No generation yet"
-
-        if deal_breaker != "":
-            _LOGGER.info("Auto-dampening suppressed: %s%s", deal_breaker, f" for {deal_breaker_site}" if deal_breaker_site != "" else "")
-            return
+            # Collect top intervals from the past MODEL_DAYS days.
+            self._peak_intervals = dict.fromkeys(range(48), 0.0)
+            for period_start, actual in actuals.items():
+                interval = self.adjusted_interval_dt(period_start)
+                if self._peak_intervals[interval] < actual:
+                    self._peak_intervals[interval] = round(actual, 3)
 
         ignored_intervals: list[int] = []  # Intervals to ignore in local time zone
         for time_string in self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS]:
@@ -3259,9 +3384,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             interval = self.adjusted_interval_dt(period_start)
             if actual > self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK] * self._peak_intervals[interval]:
                 matching_intervals[interval].append(period_start)
+        return actuals,ignored_intervals,generation,matching_intervals
 
-        # Defaults.
-        dampening: list[float] = [1.0] * 48
+    async def calculate_dampening(self, 
+                                  matching_intervals: dict[int, list[dt]], 
+                                  generation: dict[dt, float], 
+                                  actuals: dict[dt, float], 
+                                  ignored_intervals: list[int],
+                                  dampening_model: int, 
+                                  verbose_log: bool = True) -> list[float]:
+        
+        dampening = [1.0] * 48  # Initialize dampening factors
 
         # Check the generation for each interval and determine if it is consistently lower than the peak.
         for interval, matching in matching_intervals.items():
@@ -3274,7 +3407,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             )
             interval_time = f"{interval // 2 + (dst_offset):02}:{30 * (interval % 2):02}"
             if interval + dst_offset * 2 in ignored_intervals:
-                _LOGGER.debug("Interval %s is intentionally ignored, skipping", interval_time)
+                if verbose_log:
+                    _LOGGER.debug("Interval %s is intentionally ignored, skipping", interval_time)
                 continue
             generation_samples: list[float] = [
                 round(generation.get(timestamp, 0.0), 3) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
@@ -3283,39 +3417,42 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if len(matching) > 0:
                 msg = ""
                 log_msg = True
-                _LOGGER.debug(
-                    "Interval %s has peak estimated actual %.3f and %d matching intervals: %s",
-                    interval_time,
-                    self._peak_intervals[interval],
-                    len(matching),
-                    ", ".join([date.astimezone(self._tz).strftime(DT_DATE_MONTH_DAY) for date in matching]),
-                )
-                match self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]:
+                if verbose_log:
+                    _LOGGER.debug(
+                        "Interval %s has peak estimated actual %.3f and %d matching intervals: %s",
+                        interval_time,
+                        self._peak_intervals[interval],
+                        len(matching),
+                        ", ".join([date.astimezone(self._tz).strftime(DT_DATE_MONTH_DAY) for date in matching]),
+                    )
+                match dampening_model:
                     case 1 | 2 | 3:
                         if len(matching) >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS]:
                             actual_samples: list[float] = [
                                 actuals.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
                             ]
-                            _LOGGER.debug(
-                                "Selected %d estimated actuals for %s: %s",
-                                len(actual_samples),
-                                interval_time,
-                                ", ".join(f"{act:.3f}" for act in actual_samples),
-                            )
-                            _LOGGER.debug(
-                                "Selected %d generation records for %s: %s", len(generation_samples), interval_time, generation_samples
-                            )
+                            if verbose_log:
+                                _LOGGER.debug(
+                                    "Selected %d estimated actuals for %s: %s",
+                                    len(actual_samples),
+                                    interval_time,
+                                    ", ".join(f"{act:.3f}" for act in actual_samples),
+                                )
+                                _LOGGER.debug(
+                                    "Selected %d generation records for %s: %s", len(generation_samples), interval_time, generation_samples
+                                )
                             if len(generation_samples) >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION]:
                                 if len(actual_samples) == len(generation_samples):
                                     raw_factors: list[float] = []
                                     for act, gen in zip(actual_samples, generation_samples, strict=True):
                                         raw_factors.append(min(gen / act, 1.0)) if act > 0 else 1.0
-                                    _LOGGER.debug(
-                                        "Candidate factors for %s: %s",
-                                        interval_time,
-                                        ", ".join(f"{fact:.3f}" for fact in raw_factors),
-                                    )
-                                    match self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]:
+                                    if verbose_log:
+                                        _LOGGER.debug(
+                                            "Candidate factors for %s: %s",
+                                            interval_time,
+                                            ", ".join(f"{fact:.3f}" for fact in raw_factors),
+                                        )
+                                    match dampening_model:
                                         case 1:  # max factor from matched pairs
                                             factor = max(raw_factors)
                                         case 2:  # average factor from matched pairs
@@ -3339,7 +3476,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 preserve_this_interval = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
                     case _:
                         peak = max(generation_samples) if len(generation_samples) > 0 else 0.0
-                        _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
+                        if verbose_log:
+                            _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
                         if len(matching) >= self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS]:
                             if peak < self._peak_intervals[interval]:
                                 if (
@@ -3374,14 +3512,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     dampening[interval] = prior_factor
                     msg = msg + f", preserving prior factor {prior_factor:.3f}" if prior_factor != 1.0 else msg
 
-                if log_msg and msg != "":
+                if log_msg and msg != "" and verbose_log:
                     _LOGGER.debug(msg)
 
-        if dampening != self.granular_dampening.get(ALL):
-            self.granular_dampening[ALL] = dampening
-            await self.serialise_granular_dampening()
-            await self.granular_dampening_data()
-        _LOGGER.debug("Task model_automated_dampening took %.3f seconds", time.time() - start_time)
+        return dampening
+
 
     async def update_estimated_actuals(self, dampen_yesterday: bool = False) -> None:
         """Update estimated actuals."""
@@ -3676,16 +3811,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 interval_time = period_start.astimezone(self._tz).strftime(DT_DATE_FORMAT)
                 factor_pre_adjustment = factor
 
-                match self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL]:
-                    case 1:
-                        # Adjust the factor based on forecast vs. peak interval using squared ratio
-                        factor = max(factor, factor + ((1.0 - factor) * ((1.0 - (interval_pv50 / self._peak_intervals[interval])) ** 2)))
-                    case _:
-                        # Adjust the factor based on forecast vs. peak interval delta-logarithmically.
-                        factor = max(
-                            factor,
-                            min(1.0, factor + ((1.0 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50)))),
-                        )
+                factor = self.apply_dampening_adjustment(interval_pv50, factor, interval, self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL])
+
                 if (
                     record_adjustment
                     and period_start.astimezone(self._tz).date() == dt.now(self._tz).date()
@@ -3706,6 +3833,20 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     factor = 1.0
 
         return min(1.0, factor)
+
+    def apply_dampening_adjustment(self, interval_pv50, factor, interval, delta_adjustment_model) -> float:
+        match delta_adjustment_model:
+            case 1:
+                        # Adjust the factor based on forecast vs. peak interval using squared ratio
+                factor = max(factor, factor + ((1.0 - factor) * ((1.0 - (interval_pv50 / self._peak_intervals[interval])) ** 2)))
+            case _:
+                        # Adjust the factor based on forecast vs. peak interval delta-logarithmically.
+                factor = max(
+                            factor,
+                            min(1.0, factor + ((1.0 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50)))),
+                        )
+                
+        return factor
 
     def __get_dampening_factor(self, site: str | None, period_start: dt, interval_pv50: float, record_adjustment: bool = False) -> float:
         """Retrieve either a traditional or granular dampening factor."""
