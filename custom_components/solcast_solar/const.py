@@ -32,6 +32,7 @@ ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS: Final[str] = "automated_dampening_model
 ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT: Final[str] = "automated_dampening_no_delta_adjustment"
 ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY: Final[str] = "automated_dampening_no_limiting_consistency"
 ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: Final[str] = "automated_dampening_preserve_unmatched_factors"
+ADVANCED_AUTOMATED_DAMPENING_SELECT_BEST_CONFIGURATION: Final[str] = "automated_dampening_select_best_configuration"
 ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: Final[str] = "automated_dampening_similar_peak"
 ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY: Final[str] = "automated_dampening_suppression_entity"
 ADVANCED_ENTITY_LOGGING: Final[str] = "entity_logging"
@@ -304,6 +305,7 @@ TASK_LISTENERS: Final[str] = "listeners"
 TASK_MIDNIGHT_UPDATE: Final[str] = "midnight_update"
 TASK_NEW_DAY_ACTUALS: Final[str] = "new_day_actuals"
 TASK_NEW_DAY_GENERATION: Final[str] = "new_day_generation"
+TASK_UPDATE_DAMPENING_HISTORY: Final[str] = "update_dampening_history"
 TASK_WATCHDOG_ADVANCED: Final[str] = "watchdog_advanced"
 TASK_WATCHDOG_ADVANCED_FILE_CHANGE: Final[str] = "watchdog_advanced_file_change"
 TASK_WATCHDOG_DAMPENING: Final[str] = "watchdog_dampening"
@@ -394,6 +396,11 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
         DEFAULT: False,
+    },
+    ADVANCED_AUTOMATED_DAMPENING_SELECT_BEST_CONFIGURATION: {
+        ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
+        DEFAULT: False,
+        OPTION_NOT_SET_IF: [ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT],
     },
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: {
         ADVANCED_TYPE: ADVANCED_OPTION.FLOAT,
