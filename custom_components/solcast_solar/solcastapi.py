@@ -15,6 +15,7 @@ import json
 import logging
 import math
 from operator import itemgetter
+import os
 from pathlib import Path
 import random
 import re
@@ -526,7 +527,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         ADVANCED_OPTION.INT: r"^\d+$",
                         ADVANCED_OPTION.TIME: r"^([01]?[0-9]|2[0-3]):[03]{1}0$",
                     }
-                    advanced_options_with_aliases = self._advanced_options_with_aliases()
+                    advanced_options_with_aliases, deprecated = self._advanced_options_with_aliases()
+                    _LOGGER.critical(advanced_options_with_aliases)
+                    _LOGGER.critical(deprecated)
 
                     content = await file.read()
                     if content.replace("\n", "").replace("\r", "").strip() != "":  # i.e. not empty
@@ -545,82 +548,80 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             return change
                         options_present = self._advanced_with_aliases(response_json)
                         for option, new_value in response_json.items():
-                            if advanced_options_with_aliases[0].get(option) is None:
+                            if advanced_options_with_aliases.get(option) is None:
                                 add_problem("Unknown option: %s, ignored", option)
                                 continue
-                            if option in advanced_options_with_aliases[1]:
-                                deprecated_in_use[option] = advanced_options_with_aliases[0][option][CURRENT_NAME]
+                            if option in deprecated:
+                                deprecated_in_use[option] = advanced_options_with_aliases[option][CURRENT_NAME]
                                 _LOGGER.warning(
                                     "Advanced option %s is deprecated, please use %s",
                                     option,
-                                    advanced_options_with_aliases[0][option][CURRENT_NAME],
+                                    advanced_options_with_aliases[option][CURRENT_NAME],
                                 )
                             value = self.advanced_options.get(option)
-                            if new_value != value:
-                                valid = True
-                                if isinstance(new_value, type(value)):
-                                    match advanced_options_with_aliases[0][option][ADVANCED_TYPE]:
-                                        case ADVANCED_OPTION.INT | ADVANCED_OPTION.FLOAT:
-                                            if (
-                                                new_value < advanced_options_with_aliases[0][option][MINIMUM]
-                                                or new_value > advanced_options_with_aliases[0][option][MAXIMUM]
-                                            ):
-                                                add_problem(
-                                                    "Invalid value for advanced option %s: %s (must be %s-%s)",
-                                                    option,
-                                                    new_value,
-                                                    advanced_options_with_aliases[0][option][MINIMUM],
-                                                    advanced_options_with_aliases[0][option][MAXIMUM],
-                                                )
+                            valid = True
+                            if isinstance(new_value, type(value)):
+                                match advanced_options_with_aliases[option][ADVANCED_TYPE]:
+                                    case ADVANCED_OPTION.INT | ADVANCED_OPTION.FLOAT:
+                                        if (
+                                            new_value < advanced_options_with_aliases[option][MINIMUM]
+                                            or new_value > advanced_options_with_aliases[option][MAXIMUM]
+                                        ):
+                                            add_problem(
+                                                "Invalid value for advanced option %s: %s (must be %s-%s)",
+                                                option,
+                                                new_value,
+                                                advanced_options_with_aliases[option][MINIMUM],
+                                                advanced_options_with_aliases[option][MAXIMUM],
+                                            )
+                                            valid = False
+                                    # case ADVANCED_OPTION.TIME:
+                                    #    if re.match(_VALIDATION[ADVANCED_OPTION.TIME], new_value) is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
+                                    #        add_problem("Invalid time in advanced option %s: %s", option, new_value)
+                                    #        valid = False
+                                    case ADVANCED_OPTION.LIST_INT | ADVANCED_OPTION.LIST_TIME:
+                                        member_type = advanced_options_with_aliases[option][ADVANCED_TYPE].split("_")[1]
+                                        seen_members: list[Any] = []
+                                        member: Any
+                                        for member in new_value:  # pyright: ignore[reportOptionalIterable, reportGeneralTypeIssues]
+                                            if re.match(_VALIDATION[member_type], str(member)) is None:
+                                                add_problem("Invalid %s in advanced option %s: %s", member_type, option, member)
                                                 valid = False
-                                        # case ADVANCED_OPTION.TIME:
-                                        #    if re.match(_VALIDATION[ADVANCED_OPTION.TIME], new_value) is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
-                                        #        add_problem("Invalid time in advanced option %s: %s", option, new_value)
-                                        #        valid = False
-                                        case ADVANCED_OPTION.LIST_INT | ADVANCED_OPTION.LIST_TIME:
-                                            member_type = advanced_options_with_aliases[0][option][ADVANCED_TYPE].split("_")[1]
-                                            seen_members: list[Any] = []
-                                            member: Any
-                                            for member in new_value:  # pyright: ignore[reportOptionalIterable, reportGeneralTypeIssues]
-                                                if re.match(_VALIDATION[member_type], str(member)) is None:
-                                                    add_problem("Invalid %s in advanced option %s: %s", member_type, option, member)
-                                                    valid = False
-                                                    continue
-                                                if member in seen_members:
-                                                    add_problem("Duplicate %s in advanced option %s: %s", member_type, option, member)
-                                                    valid = False
-                                                    continue
-                                                seen_members.append(member)
-                                        case _:
-                                            pass
-                                    if (
-                                        option == ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT
-                                        and new_value
-                                        and not self.options.get_actuals
-                                    ):
-                                        add_problem("Granular dampening delta adjustment requires estimated actuals to be fetched")
-                                        valid = False
-                                else:
-                                    add_problem("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
-                                    valid = False
-                                if valid:
-                                    advanced_options_proposal[advanced_options_with_aliases[0][option][CURRENT_NAME]] = new_value
-                                    if advanced_options_with_aliases[0][option][ADVANCED_TYPE] in (
+                                                continue
+                                            if member in seen_members:
+                                                add_problem("Duplicate %s in advanced option %s: %s", member_type, option, member)
+                                                valid = False
+                                                continue
+                                            seen_members.append(member)
+                                    case _:
+                                        pass
+                                if option == ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT and new_value and not self.options.get_actuals:
+                                    _LOGGER.warning("Granular dampening delta adjustment requires estimated actuals to be fetched")
+                            else:
+                                add_problem("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
+                                valid = False
+                            if valid:
+                                advanced_options_proposal[advanced_options_with_aliases[option][CURRENT_NAME]] = new_value
+                                if (
+                                    advanced_options_with_aliases[option][ADVANCED_TYPE]
+                                    in (
                                         ADVANCED_OPTION.FLOAT,
                                         ADVANCED_OPTION.INT,
-                                    ):
-                                        _LOGGER.debug(
-                                            "Advanced option proposed %s: %s",
-                                            advanced_options_with_aliases[0][option][CURRENT_NAME],
-                                            new_value,
-                                        )
+                                    )
+                                    or advanced_options_with_aliases[option].get(OPTION_NOT_SET_IF) is not None
+                                ):
+                                    _LOGGER.debug(
+                                        "Advanced option proposed %s: %s",
+                                        advanced_options_with_aliases[option][CURRENT_NAME],
+                                        new_value,
+                                    )
 
                     invalid: list[str] = []
                     for option, value in advanced_options_proposal.items():
-                        if advanced_options_with_aliases[0][option].get(OPTION_GREATER_THAN_OR_EQUAL) is not None:
+                        if advanced_options_with_aliases[option].get(OPTION_GREATER_THAN_OR_EQUAL) is not None:
                             if any(
                                 value < advanced_options_proposal[opt]
-                                for opt in advanced_options_with_aliases[0][option][OPTION_GREATER_THAN_OR_EQUAL]
+                                for opt in advanced_options_with_aliases[option][OPTION_GREATER_THAN_OR_EQUAL]
                             ):
                                 add_problem(
                                     "Advanced option %s: %s must be greater than or equal to the value of %s",
@@ -629,15 +630,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     ", ".join(
                                         [
                                             f"{opt} ({advanced_options_proposal[opt]})"
-                                            for opt in advanced_options_with_aliases[0][option][OPTION_GREATER_THAN_OR_EQUAL]
+                                            for opt in advanced_options_with_aliases[option][OPTION_GREATER_THAN_OR_EQUAL]
                                         ]
                                     ),
                                 )
                                 invalid.append(option)
-                        if advanced_options_with_aliases[0][option].get(OPTION_LESS_THAN_OR_EQUAL) is not None:
+                        if advanced_options_with_aliases[option].get(OPTION_LESS_THAN_OR_EQUAL) is not None:
                             if any(
                                 value > advanced_options_proposal[opt]
-                                for opt in advanced_options_with_aliases[0][option][OPTION_LESS_THAN_OR_EQUAL]
+                                for opt in advanced_options_with_aliases[option][OPTION_LESS_THAN_OR_EQUAL]
                             ):
                                 add_problem(
                                     "Advanced option %s: %s must be less than or equal to the value of %s",
@@ -646,13 +647,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     ", ".join(
                                         [
                                             f"{opt} ({advanced_options_proposal[opt]})"
-                                            for opt in advanced_options_with_aliases[0][option][OPTION_LESS_THAN_OR_EQUAL]
+                                            for opt in advanced_options_with_aliases[option][OPTION_LESS_THAN_OR_EQUAL]
                                         ]
                                     ),
                                 )
                                 invalid.append(option)
-                        if advanced_options_with_aliases[0][option].get(OPTION_NOT_SET_IF) is not None:
-                            if any(advanced_options_proposal[opt] for opt in advanced_options_with_aliases[0][option][OPTION_NOT_SET_IF]):
+                        if advanced_options_with_aliases[option].get(OPTION_NOT_SET_IF) is not None:
+                            if any(
+                                advanced_options_proposal[opt] and value for opt in advanced_options_with_aliases[option][OPTION_NOT_SET_IF]
+                            ):
                                 add_problem(
                                     "Advanced option %s: %s can not be set with %s",
                                     option,
@@ -660,18 +663,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     ", ".join(
                                         [
                                             f"{opt}: {advanced_options_proposal[opt]}"
-                                            for opt in advanced_options_with_aliases[0][option][OPTION_NOT_SET_IF]
+                                            for opt in advanced_options_with_aliases[option][OPTION_NOT_SET_IF]
                                         ]
                                     ),
                                 )
                                 invalid.append(option)
 
                     for option, value in advanced_options_proposal.items():
-                        default = advanced_options_with_aliases[0][option][DEFAULT]
-                        option = advanced_options_with_aliases[0][option][CURRENT_NAME]
+                        default = advanced_options_with_aliases[option][DEFAULT]
+                        option = advanced_options_with_aliases[option][CURRENT_NAME]
                         if option in invalid:
-                            advanced_options_proposal[advanced_options_with_aliases[0][option][CURRENT_NAME]] = self.advanced_options.get(
-                                advanced_options_with_aliases[0][option][CURRENT_NAME], default
+                            advanced_options_proposal[advanced_options_with_aliases[option][CURRENT_NAME]] = self.advanced_options.get(
+                                advanced_options_with_aliases[option][CURRENT_NAME], default
                             )
                             continue
                         if option not in options_present:
@@ -692,11 +695,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 await raise_or_clear_advanced_deprecated(
                     deprecated_in_use,
                     self.hass,
-                    stops_working={
-                        o: dt.strptime(stops, DT_DATE_ONLY_FORMAT)
-                        for o, stops in advanced_options_with_aliases[1].items()
-                        if stops is not None
-                    },
+                    stops_working={o: dt.strptime(stops, DT_DATE_ONLY_FORMAT) for o, stops in deprecated.items() if stops is not None},
                 )
 
         return change
@@ -827,7 +826,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 self._filename_actuals: "estimated actual",
                 self._filename_actuals_dampened: "dampened estimated actual",
                 self._filename_generation: "generation",
-                self._filename_dampening_history: "dampening history",
             }
             _LOGGER.debug(
                 "Saved %s cache",
@@ -3234,6 +3232,206 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             await self.serialise_granular_dampening()
             await self.granular_dampening_data()
         _LOGGER.debug("Task model_automated_dampening took %.3f seconds", time.time() - start_time)
+
+    async def determine_best_dampening_settings(self) -> None:
+        _LOGGER.debug ("Determining best automated dampening settings")
+        start_time = time.time()
+   
+        # Load dampening history
+
+        dampening_history = await self.load_dampening_history(self._filename_dampening_history)
+
+        if not dampening_history:
+            _LOGGER.warning("Dampening history validation failed, cannot determine best settings")
+            return
+
+        self._data_dampening_history = copy.deepcopy(dampening_history)
+
+        # build actuals data for past 14 days
+
+        actuals: OrderedDict[dt, float] = OrderedDict()
+        
+        for site in self.sites:
+            if site[RESOURCE_ID] in self.options.exclude_sites:
+                _LOGGER.debug("Dampening histor actuals suppressed site %s", site[RESOURCE_ID])
+                continue
+            start, end = self.__get_list_slice(
+                self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS],
+                self.get_day_start_utc() - timedelta(days=14),
+                self.get_day_start_utc(),
+                search_past=True,
+            )
+            site_actuals = {
+                actual[PERIOD_START]: actual for actual in self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS][start:end]
+            }
+            for period_start, actual in site_actuals.items():
+                extant: float | None = actuals.get(period_start)
+                if extant is not None:
+                    actuals[period_start] += actual[ESTIMATE] * 0.5
+                else:
+                    actuals[period_start] = actual[ESTIMATE] * 0.5
+
+
+        best_ape = float('inf')
+        best_model = -1
+        best_delta = -1
+
+        for model in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1):
+            for delta in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA][MINIMUM],
+                               ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA][MAXIMUM] + 1):
+
+                _LOGGER.debug("Evaluating model %d and delta %d", model, delta)
+
+                valid = True
+                dampened_actuals = []
+
+                for period_start in actuals:
+                    # find dampening factors for this period_start from history
+                    period_key = None
+                    for period in dampening_history:
+                        if period_start.strftime("%Y-%m-%d") == period["period_start"]:
+                            period_key = period
+                            break
+                    if period_key is None:
+                        _LOGGER.warning("No dampening history found for period %s", period_start.strftime("%Y-%m-%d"))
+                        valid = False
+                        continue
+                    factor_entry = None
+                    for entry in period_key["dampening"]:
+                        if entry["model"] == model and entry["delta"] == delta:
+                            factor_entry = entry
+                            break
+                    if factor_entry is None:
+                        _LOGGER.warning("No dampening factors found for model %d and delta %d for period %s", model, delta, period_start.strftime("%Y-%m-%d"))
+                        valid = False
+                        continue
+                    adjusted_interval = self.adjusted_interval_dt(period_start)
+                    factor = factor_entry["factors"][adjusted_interval]
+                    dampened_value = actuals[period_start] * factor
+                    
+                    extant: float | None = dampened_actuals.get(period_start)
+                    if extant is not None:
+                        dampened_actuals[period_start] += dampened_value
+                    else:
+                        dampened_actuals[period_start] = dampened_value
+                
+                if valid:
+                    # calculate APE XXXXXXX NEED CORRECT APE CALC  calculate_accuracy_metrics in coordinator??  xxxxxx
+                    ape_total = 0.0
+                    count = 0
+                    for period_start in actuals:
+                        actual_value = actuals[period_start]
+                        dampened_value = dampened_actuals[period_start]
+                        if actual_value > 0:
+                            ape = abs((actual_value - dampened_value) / actual_value)
+                            ape_total += ape
+                            count += 1
+                    if count > 0:
+                        apr = (ape_total / count) * 100
+                        _LOGGER.debug("Model %d and delta %d achieved APR of %.3f%% over %d intervals", model, delta, apr, count)
+                    else:
+                        _LOGGER.debug("Model %d and delta %d had no valid intervals for APR calculation", model, delta)
+
+                    if count > 0 and apr < best_ape:
+                        best_ape = apr
+                        best_model = model
+                        best_delta = delta
+                    
+        if best_model != -1 and best_delta != -1:              
+            self.options[ADVANCED_AUTOMATED_DAMPENING_MODEL] = best_model
+            self.options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL] = best_delta
+            _LOGGER.info("Selected best automated dampening settings: model %d and delta %d with APE of %.3f%%", best_model, best_delta, best_ape)
+
+
+        _LOGGER.debug("Task determine_best_dampening_settings took %.3f seconds", time.time() - start_time)
+
+    async def load_dampening_history(self, path: str) -> list[dict[str, Any]]:
+        """Load dampening history from JSON, validate, and repopulate."""
+        
+        valid = True
+        msg = ""
+
+        if Path(self._filename_dampening_history).is_file():
+            async with aiofiles.open(self._filename_dampening_history) as file:
+                try:
+                    raw = json.loads(await file.read(), cls=JSONDecoder)
+                except json.decoder.JSONDecodeError:
+                    _LOGGER.warning("Dampening history file is corrupt - could not decode JSON")
+                    valid = False
+        else:
+            valid = False
+            _LOGGER.warning("No dampening history file found")
+
+        if valid:    
+
+            loaded_dampening_history = []
+
+            for period in raw:
+                period_start = period.get("period_start")
+                dampening_list = period.get("dampening", [])
+
+                if not isinstance(period_start, str):
+                    _LOGGER.warning("Invalid period_start in dampening history %s, skipping entry", period_start)
+                    continue
+
+                valid_entries: list[dict[str, Any]] = []
+
+                for entry in dampening_list:
+                    model = entry.get("model")
+                    delta = entry.get("delta")
+                    factors = entry.get("factors")
+
+                    # Validate model range
+                    if not (isinstance(model, int) and ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM] <= model <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM]):
+                        _LOGGER.warning("Invalid model %s in dampening history for period %s, skipping entry", model, period_start)
+                        continue
+
+                    # Validate delta range
+                    if not (isinstance(delta, int) and ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA][MINIMUM] <= delta <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA][MAXIMUM]):
+                        _LOGGER.warning("Invalid delta %s in dampening history for model %d, period %s, skipping entry", delta, model, period_start)
+                        continue    
+
+                    # Validate factors list exists and has exactly 48 values
+                    if not (isinstance(factors, list) and len(factors) == 48):
+                        _LOGGER.warning("Invalid length factors list in dampening history for model %d, delta %d, period %s, skipping entry", model, delta, period_start)
+                        continue
+
+                    # Validate all factors are numeric
+                    if not all(isinstance(x, (int, float)) for x in factors):
+                        _LOGGER.warning("Non-numeric factor found in dampening history for model %d, delta %d, period %s, skipping entry", model, delta, period_start)
+                        continue
+
+                    # Passed all checks
+                    valid_entries.append({
+                        "model": model,
+                        "delta": delta,
+                        "factors": factors
+                    })
+
+                # Only add periods that contain at least one valid entry
+                if valid_entries:
+                    loaded_dampening_history.append({
+                        "period_start": period_start,
+                        "dampening": valid_entries
+                    })    
+
+                    expected_entries = (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] - ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM] + 1) * \
+                                       (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] - ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM] + 1)    
+
+                    # Check number of periods
+                    if len(loaded_dampening_history) != 14:
+                        _LOGGER.warning("Dampening history contains %d periods, expected 14", len(loaded_dampening_history))
+                        valid = False
+
+                    # Check each period has the correct number of model/delta combinations
+                    for period in loaded_dampening_history:
+                        count = len(period["dampening"])
+                        if count != expected_entries:
+                            _LOGGER.warning("Period %s has %d entries, expected %d", period["period_start"], count, expected_entries)
+                            valid = False
+                            
+        return loaded_dampening_history if valid else []                
+  
 
     async def update_dampening_history(self) -> None:
         """Generate history of dampening factors for all models."""
