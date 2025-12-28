@@ -526,7 +526,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         ADVANCED_OPTION.INT: r"^\d+$",
                         ADVANCED_OPTION.TIME: r"^([01]?[0-9]|2[0-3]):[03]{1}0$",
                     }
-                    advanced_options_with_aliases = self._advanced_options_with_aliases()
+                    advanced_options_with_aliases, deprecated = self._advanced_options_with_aliases()
+                    _LOGGER.critical(advanced_options_with_aliases)
+                    _LOGGER.critical(deprecated)
 
                     content = await file.read()
                     if content.replace("\n", "").replace("\r", "").strip() != "":  # i.e. not empty
@@ -545,82 +547,80 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             return change
                         options_present = self._advanced_with_aliases(response_json)
                         for option, new_value in response_json.items():
-                            if advanced_options_with_aliases[0].get(option) is None:
+                            if advanced_options_with_aliases.get(option) is None:
                                 add_problem("Unknown option: %s, ignored", option)
                                 continue
-                            if option in advanced_options_with_aliases[1]:
-                                deprecated_in_use[option] = advanced_options_with_aliases[0][option][CURRENT_NAME]
+                            if option in deprecated:
+                                deprecated_in_use[option] = advanced_options_with_aliases[option][CURRENT_NAME]
                                 _LOGGER.warning(
                                     "Advanced option %s is deprecated, please use %s",
                                     option,
-                                    advanced_options_with_aliases[0][option][CURRENT_NAME],
+                                    advanced_options_with_aliases[option][CURRENT_NAME],
                                 )
                             value = self.advanced_options.get(option)
-                            if new_value != value:
-                                valid = True
-                                if isinstance(new_value, type(value)):
-                                    match advanced_options_with_aliases[0][option][ADVANCED_TYPE]:
-                                        case ADVANCED_OPTION.INT | ADVANCED_OPTION.FLOAT:
-                                            if (
-                                                new_value < advanced_options_with_aliases[0][option][MINIMUM]
-                                                or new_value > advanced_options_with_aliases[0][option][MAXIMUM]
-                                            ):
-                                                add_problem(
-                                                    "Invalid value for advanced option %s: %s (must be %s-%s)",
-                                                    option,
-                                                    new_value,
-                                                    advanced_options_with_aliases[0][option][MINIMUM],
-                                                    advanced_options_with_aliases[0][option][MAXIMUM],
-                                                )
+                            valid = True
+                            if isinstance(new_value, type(value)):
+                                match advanced_options_with_aliases[option][ADVANCED_TYPE]:
+                                    case ADVANCED_OPTION.INT | ADVANCED_OPTION.FLOAT:
+                                        if (
+                                            new_value < advanced_options_with_aliases[option][MINIMUM]
+                                            or new_value > advanced_options_with_aliases[option][MAXIMUM]
+                                        ):
+                                            add_problem(
+                                                "Invalid value for advanced option %s: %s (must be %s-%s)",
+                                                option,
+                                                new_value,
+                                                advanced_options_with_aliases[option][MINIMUM],
+                                                advanced_options_with_aliases[option][MAXIMUM],
+                                            )
+                                            valid = False
+                                    # case ADVANCED_OPTION.TIME:
+                                    #    if re.match(_VALIDATION[ADVANCED_OPTION.TIME], new_value) is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
+                                    #        add_problem("Invalid time in advanced option %s: %s", option, new_value)
+                                    #        valid = False
+                                    case ADVANCED_OPTION.LIST_INT | ADVANCED_OPTION.LIST_TIME:
+                                        member_type = advanced_options_with_aliases[option][ADVANCED_TYPE].split("_")[1]
+                                        seen_members: list[Any] = []
+                                        member: Any
+                                        for member in new_value:  # pyright: ignore[reportOptionalIterable, reportGeneralTypeIssues]
+                                            if re.match(_VALIDATION[member_type], str(member)) is None:
+                                                add_problem("Invalid %s in advanced option %s: %s", member_type, option, member)
                                                 valid = False
-                                        # case ADVANCED_OPTION.TIME:
-                                        #    if re.match(_VALIDATION[ADVANCED_OPTION.TIME], new_value) is None:  # pyright: ignore[reportArgumentType, reportCallIssue]
-                                        #        add_problem("Invalid time in advanced option %s: %s", option, new_value)
-                                        #        valid = False
-                                        case ADVANCED_OPTION.LIST_INT | ADVANCED_OPTION.LIST_TIME:
-                                            member_type = advanced_options_with_aliases[0][option][ADVANCED_TYPE].split("_")[1]
-                                            seen_members: list[Any] = []
-                                            member: Any
-                                            for member in new_value:  # pyright: ignore[reportOptionalIterable, reportGeneralTypeIssues]
-                                                if re.match(_VALIDATION[member_type], str(member)) is None:
-                                                    add_problem("Invalid %s in advanced option %s: %s", member_type, option, member)
-                                                    valid = False
-                                                    continue
-                                                if member in seen_members:
-                                                    add_problem("Duplicate %s in advanced option %s: %s", member_type, option, member)
-                                                    valid = False
-                                                    continue
-                                                seen_members.append(member)
-                                        case _:
-                                            pass
-                                    if (
-                                        option == ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT
-                                        and new_value
-                                        and not self.options.get_actuals
-                                    ):
-                                        add_problem("Granular dampening delta adjustment requires estimated actuals to be fetched")
-                                        valid = False
-                                else:
-                                    add_problem("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
-                                    valid = False
-                                if valid:
-                                    advanced_options_proposal[advanced_options_with_aliases[0][option][CURRENT_NAME]] = new_value
-                                    if advanced_options_with_aliases[0][option][ADVANCED_TYPE] in (
+                                                continue
+                                            if member in seen_members:
+                                                add_problem("Duplicate %s in advanced option %s: %s", member_type, option, member)
+                                                valid = False
+                                                continue
+                                            seen_members.append(member)
+                                    case _:
+                                        pass
+                                if option == ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT and new_value and not self.options.get_actuals:
+                                    _LOGGER.warning("Granular dampening delta adjustment requires estimated actuals to be fetched")
+                            else:
+                                add_problem("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
+                                valid = False
+                            if valid:
+                                advanced_options_proposal[advanced_options_with_aliases[option][CURRENT_NAME]] = new_value
+                                if (
+                                    advanced_options_with_aliases[option][ADVANCED_TYPE]
+                                    in (
                                         ADVANCED_OPTION.FLOAT,
                                         ADVANCED_OPTION.INT,
-                                    ):
-                                        _LOGGER.debug(
-                                            "Advanced option proposed %s: %s",
-                                            advanced_options_with_aliases[0][option][CURRENT_NAME],
-                                            new_value,
-                                        )
+                                    )
+                                    or advanced_options_with_aliases[option].get(OPTION_NOT_SET_IF) is not None
+                                ):
+                                    _LOGGER.debug(
+                                        "Advanced option proposed %s: %s",
+                                        advanced_options_with_aliases[option][CURRENT_NAME],
+                                        new_value,
+                                    )
 
                     invalid: list[str] = []
                     for option, value in advanced_options_proposal.items():
-                        if advanced_options_with_aliases[0][option].get(OPTION_GREATER_THAN_OR_EQUAL) is not None:
+                        if advanced_options_with_aliases[option].get(OPTION_GREATER_THAN_OR_EQUAL) is not None:
                             if any(
                                 value < advanced_options_proposal[opt]
-                                for opt in advanced_options_with_aliases[0][option][OPTION_GREATER_THAN_OR_EQUAL]
+                                for opt in advanced_options_with_aliases[option][OPTION_GREATER_THAN_OR_EQUAL]
                             ):
                                 add_problem(
                                     "Advanced option %s: %s must be greater than or equal to the value of %s",
@@ -629,15 +629,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     ", ".join(
                                         [
                                             f"{opt} ({advanced_options_proposal[opt]})"
-                                            for opt in advanced_options_with_aliases[0][option][OPTION_GREATER_THAN_OR_EQUAL]
+                                            for opt in advanced_options_with_aliases[option][OPTION_GREATER_THAN_OR_EQUAL]
                                         ]
                                     ),
                                 )
                                 invalid.append(option)
-                        if advanced_options_with_aliases[0][option].get(OPTION_LESS_THAN_OR_EQUAL) is not None:
+                        if advanced_options_with_aliases[option].get(OPTION_LESS_THAN_OR_EQUAL) is not None:
                             if any(
                                 value > advanced_options_proposal[opt]
-                                for opt in advanced_options_with_aliases[0][option][OPTION_LESS_THAN_OR_EQUAL]
+                                for opt in advanced_options_with_aliases[option][OPTION_LESS_THAN_OR_EQUAL]
                             ):
                                 add_problem(
                                     "Advanced option %s: %s must be less than or equal to the value of %s",
@@ -646,13 +646,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     ", ".join(
                                         [
                                             f"{opt} ({advanced_options_proposal[opt]})"
-                                            for opt in advanced_options_with_aliases[0][option][OPTION_LESS_THAN_OR_EQUAL]
+                                            for opt in advanced_options_with_aliases[option][OPTION_LESS_THAN_OR_EQUAL]
                                         ]
                                     ),
                                 )
                                 invalid.append(option)
-                        if advanced_options_with_aliases[0][option].get(OPTION_NOT_SET_IF) is not None:
-                            if any(advanced_options_proposal[opt] for opt in advanced_options_with_aliases[0][option][OPTION_NOT_SET_IF]):
+                        if advanced_options_with_aliases[option].get(OPTION_NOT_SET_IF) is not None:
+                            if any(
+                                advanced_options_proposal[opt] and value for opt in advanced_options_with_aliases[option][OPTION_NOT_SET_IF]
+                            ):
                                 add_problem(
                                     "Advanced option %s: %s can not be set with %s",
                                     option,
@@ -660,18 +662,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     ", ".join(
                                         [
                                             f"{opt}: {advanced_options_proposal[opt]}"
-                                            for opt in advanced_options_with_aliases[0][option][OPTION_NOT_SET_IF]
+                                            for opt in advanced_options_with_aliases[option][OPTION_NOT_SET_IF]
                                         ]
                                     ),
                                 )
                                 invalid.append(option)
 
                     for option, value in advanced_options_proposal.items():
-                        default = advanced_options_with_aliases[0][option][DEFAULT]
-                        option = advanced_options_with_aliases[0][option][CURRENT_NAME]
+                        default = advanced_options_with_aliases[option][DEFAULT]
+                        option = advanced_options_with_aliases[option][CURRENT_NAME]
                         if option in invalid:
-                            advanced_options_proposal[advanced_options_with_aliases[0][option][CURRENT_NAME]] = self.advanced_options.get(
-                                advanced_options_with_aliases[0][option][CURRENT_NAME], default
+                            advanced_options_proposal[advanced_options_with_aliases[option][CURRENT_NAME]] = self.advanced_options.get(
+                                advanced_options_with_aliases[option][CURRENT_NAME], default
                             )
                             continue
                         if option not in options_present:
@@ -692,15 +694,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 await raise_or_clear_advanced_deprecated(
                     deprecated_in_use,
                     self.hass,
-                    stops_working={
-                        o: dt.strptime(stops, DT_DATE_ONLY_FORMAT)
-                        for o, stops in advanced_options_with_aliases[1].items()
-                        if stops is not None
-                    },
+                    stops_working={o: dt.strptime(stops, DT_DATE_ONLY_FORMAT) for o, stops in deprecated.items() if stops is not None},
                 )
 
         return change
-
+    
     def get_filename_advanced(self) -> str:
         """Return the advanced configuration filename."""
         return self._filename_advanced
