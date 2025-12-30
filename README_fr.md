@@ -2,7 +2,7 @@
 
 <!--[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?style=for-the-badge)](https://github.com/hacs/integration)-->
 
-[](https://github.com/custom-components/hacs)![badge hacs](https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge)![Publication GitHub](https://img.shields.io/github/v/release/BJReplay/ha-solcast-solar?style=for-the-badge)[](https://github.com/BJReplay/ha-solcast-solar/releases/latest)![téléchargements hacs](https://img.shields.io/github/downloads/BJReplay/ha-solcast-solar/latest/total?style=for-the-badge)![Licence GitHub](https://img.shields.io/github/license/BJReplay/ha-solcast-solar?style=for-the-badge)![Activité de commit sur GitHub](https://img.shields.io/github/commit-activity/y/BJReplay/ha-solcast-solar?style=for-the-badge)![Entretien](https://img.shields.io/maintenance/yes/2025?style=for-the-badge)
+[](https://github.com/custom-components/hacs)![badge hacs](https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge)![Publication GitHub](https://img.shields.io/github/v/release/BJReplay/ha-solcast-solar?style=for-the-badge)[](https://github.com/BJReplay/ha-solcast-solar/releases/latest)![téléchargements hacs](https://img.shields.io/github/downloads/BJReplay/ha-solcast-solar/latest/total?style=for-the-badge)![Licence GitHub](https://img.shields.io/github/license/BJReplay/ha-solcast-solar?style=for-the-badge)![Activité de commit sur GitHub](https://img.shields.io/github/commit-activity/y/BJReplay/ha-solcast-solar?style=for-the-badge)![Entretien](https://img.shields.io/maintenance/yes/2026?style=for-the-badge)
 
 ## Préambule
 
