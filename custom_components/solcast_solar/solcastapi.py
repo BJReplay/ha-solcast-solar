@@ -3430,7 +3430,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         # Validate period_start is ISO datetime
                         if not isinstance(period_start, dt):
                             valid = False
-                            _LOGGER.debug("Invalid period_start in dampening history: %s for model %d and delta %d, got type %s", period_start_raw, model, delta, type(period_start_raw).__name__)
+                            _LOGGER.debug("Invalid period_start in dampening history: %s for model %d and delta %d, got type %s", period_start, model, delta, type(period_start).__name__)
                             continue
 
                         period_start = period_start
