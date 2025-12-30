@@ -1,481 +1,481 @@
 {
-    "config": {
-        "abort": {
-            "internal_error": "Ocorreu um erro interno",
-            "reauth_successful": "Nova chave API aplicada com sucesso",
-            "reconfigured": "Nova configuração aplicada com sucesso",
-            "single_instance_allowed": "Apenas uma instância Solcast permitida"
-        },
-        "error": {
-            "api_duplicate": "Chave de API duplicada especificada",
-            "api_looks_like_site": "A chave da API parece um ID de site",
-            "limit_not_number": "O limite da API não é um número",
-            "limit_one_or_greater": "O limite da API deve ser um ou maior",
-            "limit_too_many": "Há mais contagens de limite de API inseridas do que chaves"
-        },
-        "step": {
-            "reauth_confirm": {
-                "data": {
-                    "api_key": "Chave API (valores múltiplos separados por vírgula)"
-                },
-                "description": "Chave API da conta Solcast"
-            },
-            "reconfigure_confirm": {
-                "data": {
-                    "api_key": "Chave API (valores múltiplos separados por vírgula)",
-                    "api_quota": "Limite da API (opcionalmente valores múltiplos separados por vírgula para cada chave)",
-                    "auto_update": "Atualização automática"
-                },
-                "description": "Detalhes da conta Solcast\n\n(Se não usar a atualização automática, é necessária uma automação - consulte a documentação da integração)"
-            },
-            "user": {
-                "data": {
-                    "api_key": "Chave API (valores múltiplos separados por vírgula)",
-                    "api_quota": "Limite da API (opcionalmente valores múltiplos separados por vírgula para cada chave)",
-                    "auto_update": "Atualização automática"
-                },
-                "description": "Detalhes da conta Solcast\n\n(Se não usar a atualização automática, é necessária uma automação - consulte a documentação da integração)"
-            }
-        }
+  "config": {
+    "abort": {
+      "internal_error": "Ocorreu um erro interno",
+      "reauth_successful": "Nova chave API aplicada com sucesso",
+      "reconfigured": "Nova configuração aplicada com sucesso",
+      "single_instance_allowed": "Apenas uma instância Solcast permitida"
     },
-    "entity": {
-        "select": {
-            "estimate_mode": {
-                "name": "Usar Campo de Previsão"
-            }
-        },
-        "sensor": {
-            "api_counter": {
-                "name": "API Usada"
-            },
-            "api_limit": {
-                "name": "Limite da API"
-            },
-            "dampen": {
-                "name": "Amortecimento"
-            },
-            "forecast_custom_hours": {
-                "name": "Previsão para as Próximas X Horas"
-            },
-            "forecast_next_hour": {
-                "name": "Previsão para a Próxima Hora"
-            },
-            "forecast_remaining_today": {
-                "name": "Previsão Restante para Hoje"
-            },
-            "forecast_this_hour": {
-                "name": "Previsão para Esta Hora"
-            },
-            "hard_limit": {
-                "name": "Limite Rígido Definido"
-            },
-            "hard_limit_api": {
-                "name": "Limite Rígido Definido {api_key}"
-            },
-            "last_updated": {
-                "name": "Última Pesquisa da API"
-            },
-            "peak_w_time_today": {
-                "name": "Hora do Pico para Hoje"
-            },
-            "peak_w_time_tomorrow": {
-                "name": "Hora do Pico para Amanhã"
-            },
-            "peak_w_today": {
-                "name": "Pico de Previsão para Hoje"
-            },
-            "peak_w_tomorrow": {
-                "name": "Pico de Previsão para Amanhã"
-            },
-            "power_now": {
-                "name": "Potência Atual"
-            },
-            "power_now_1hr": {
-                "name": "Potência em 1 Hora"
-            },
-            "power_now_30m": {
-                "name": "Potência em 30 Minutos"
-            },
-            "total_kwh_forecast_d10": {
-                "name": "Previsão para o Dia 10"
-            },
-            "total_kwh_forecast_d11": {
-                "name": "Previsão para o Dia 11"
-            },
-            "total_kwh_forecast_d12": {
-                "name": "Previsão para o Dia 12"
-            },
-            "total_kwh_forecast_d13": {
-                "name": "Previsão para o Dia 13"
-            },
-            "total_kwh_forecast_d3": {
-                "name": "Previsão para o Dia 3"
-            },
-            "total_kwh_forecast_d4": {
-                "name": "Previsão para o Dia 4"
-            },
-            "total_kwh_forecast_d5": {
-                "name": "Previsão para o Dia 5"
-            },
-            "total_kwh_forecast_d6": {
-                "name": "Previsão para o Dia 6"
-            },
-            "total_kwh_forecast_d7": {
-                "name": "Previsão para o Dia 7"
-            },
-            "total_kwh_forecast_d8": {
-                "name": "Previsão para o Dia 8"
-            },
-            "total_kwh_forecast_d9": {
-                "name": "Previsão para o Dia 9"
-            },
-            "total_kwh_forecast_today": {
-                "name": "Previsão para Hoje"
-            },
-            "total_kwh_forecast_tomorrow": {
-                "name": "Previsão para Amanhã"
-            }
-        }
+    "error": {
+      "api_duplicate": "Chave de API duplicada especificada",
+      "api_looks_like_site": "A chave da API parece um ID de site",
+      "limit_not_number": "O limite da API não é um número",
+      "limit_one_or_greater": "O limite da API deve ser um ou maior",
+      "limit_too_many": "Há mais contagens de limite de API inseridas do que chaves"
     },
-    "exceptions": {
-        "actuals_not_enabled": {
-            "message": "A aquisição de valores reais estimados não está habilitada."
+    "step": {
+      "reauth_confirm": {
+        "data": {
+          "api_key": "Chave API (valores múltiplos separados por vírgula)"
         },
-        "auto_use_force": {
-            "message": "A atualização automática está ativada, ignorando o evento de serviço para atualização da previsão, use Atualização Forçada em vez disso."
+        "description": "Chave API da conta Solcast"
+      },
+      "reconfigure_confirm": {
+        "data": {
+          "api_key": "Chave API (valores múltiplos separados por vírgula)",
+          "api_quota": "Limite da API (opcionalmente valores múltiplos separados por vírgula para cada chave)",
+          "auto_update": "Atualização automática"
         },
-        "auto_use_normal": {
-            "message": "A atualização automática não está ativada, ignorando o evento de serviço para atualização forçada da previsão, use Atualizar em vez disso."
+        "description": "Detalhes da conta Solcast\n\n(Se não usar a atualização automática, é necessária uma automação - consulte a documentação da integração)"
+      },
+      "user": {
+        "data": {
+          "api_key": "Chave API (valores múltiplos separados por vírgula)",
+          "api_quota": "Limite da API (opcionalmente valores múltiplos separados por vírgula para cada chave)",
+          "auto_update": "Atualização automática"
         },
-        "build_failed_actuals": {
-            "message": "Falha ao construir dados reais estimados (config/solcast-actuals.json corrompido?)"
-        },
-        "build_failed_forecasts": {
-            "message": "Falha ao construir dados de previsão (config/solcast.json corrompido?)"
-        },
-        "damp_auto_enabled": {
-            "message": "A amortização automática está ativada, não definindo fatores de amortização manuais."
-        },
-        "damp_count_not_correct": {
-            "message": "Não existem 24 ou 48 números separados por vírgula entre 0.0 e 1.0."
-        },
-        "damp_error_parsing": {
-            "message": "Erro ao analisar os números separados por vírgula do fator de amortecimento."
-        },
-        "damp_no_all_24": {
-            "message": "Especificar um site de 'todos' não é permitido com 24 fatores, remova o site do pedido."
-        },
-        "damp_no_factors": {
-            "message": "Sem fatores de amortecimento, deve ser uma lista de números separados por vírgula entre 0.0 e 1.0."
-        },
-        "damp_not_for_site": {
-            "message": "O amortecimento do site não está definido para {site}."
-        },
-        "damp_not_site": {
-            "message": "Não é um site configurado."
-        },
-        "damp_outside_range": {
-            "message": "Valor do fator de amortecimento presente que não está entre 0.0 e 1.0."
-        },
-        "damp_use_all": {
-            "message": "O amortecimento do site não está definido para {site}, 'todos' é o único parâmetro de site disponível para a chamada de serviço."
-        },
-        "hard_empty": {
-            "message": "Valor de limite rígido vazio."
-        },
-        "hard_not_positive_number": {
-            "message": "O valor do limite rígido não é um número positivo."
-        },
-        "hard_too_many": {
-            "message": "Mais limites rígidos especificados do que chaves API existentes."
-        },
-        "init_cannot_get_sites": {
-            "message": "Os dados dos sites não puderam ser recuperados."
-        },
-        "init_cannot_get_sites_cache_invalid": {
-            "message": "Os dados dos sites não puderam ser recuperados e a cache é inválida."
-        },
-        "init_corrupt": {
-            "message": "Os dados em cache em {file} estão corrompidos, sugere-se eliminá-los ou repará-los."
-        },
-        "init_incompatible": {
-            "message": "Os dados em cache em `{file}` são incompatíveis, sugere-se eliminá-los."
-        },
-        "init_key_invalid": {
-            "message": "A chave API é inválida."
-        },
-        "init_no_sites": {
-            "message": "Nenhum site encontrado para a chave API."
-        },
-        "init_unknown": {
-            "message": "Exceção ao carregar dados dos sites."
-        },
-        "init_usage_corrupt": {
-            "message": "Os dados de uso estão corrompidos, verifique ou elimine `config/solcast_solar/solcast-usage.json`."
-        },
-        "integration_not_loaded": {
-            "message": "Integração não carregada, ação não realizada."
-        },
-        "integration_prior_crash": {
-            "message": "A integração não conseguiu carregar anteriormente, tentando novamente após um atraso."
-        },
-        "remove_cache_failed": {
-            "message": "Falha ao limpar todos os dados do Solcast."
-        }
-    },
-    "issues": {
-        "advanced_deprecated": {
-            "description": "A opção de configuração avançada `{option}` foi alterada para `{new_option}`. Atualize suas opções de configuração avançadas para usar o novo nome da opção.{stops_working}",
-            "title": "Opção avançada obsoleta"
-        },
-        "advanced_problem": {
-            "description": "O arquivo de configuração avançada contém erros.\n{problems}\n\nCorrija-os, consultando a documentação da integração no link 'Saiba mais'.",
-            "title": "Problema com opção avançada"
-        },
-        "api_unavailable": {
-            "description": "A API Solcast reportou repetidamente o estado `429 / Tente novamente mais tarde` durante uma atualização.\n\n* Não tente resolver esta situação.\n* Não altere sua chave API.\n* Evite reiniciar a integração\n* Isto não é um problema de integração e se resolverá sozinho. Não mude nada.\n\n(Para suprimir este problema, crie uma opção de configuração avançada api_raise_issue e defina-a como false.)",
-            "title": "API Solcast temporariamente indisponível"
-        },
-        "corrupt_file": {
-            "description": "O(s) arquivo(s) de dados em cache `{files}` está(ão) corrompido(s). A integração tentará se recuperar excluindo o(s) arquivo(s) e buscando os dados novamente do Solcast. Espere um aumento no uso da API e possíveis falhas na API, e perda do histórico de previsões devido a esta situação. Possivelmente recupere os arquivos do backup, mas ainda espere falhas nas chamadas da API.",
-            "title": "Dados em cache corrompidos"
-        },
-        "records_missing": {
-            "description": "Faltam dados da previsão futura, o que é inesperado porque a atualização automática está ativada. Investigue a causa examinando o registo do Home Assistant. Leia as perguntas frequentes de resolução de problemas antes de levantar um problema de integração.",
-            "title": "Previsões futuras em falta"
-        },
-        "records_missing_fixable": {
-            "fix_flow": {
-                "abort": {
-                    "reconfigured": "Nova configuração aplicada com sucesso"
-                },
-                "step": {
-                    "offer_auto": {
-                        "data": {
-                            "auto_update": "Atualização automática"
-                        },
-                        "description": "Uma automação de atualização de previsão não foi executada. Gostaria de ativar a atualização automática? (Saiba mais: {learn_more})",
-                        "title": "Previsões futuras em falta"
-                    }
-                }
-            },
-            "title": "Previsões futuras em falta"
-        },
-        "records_missing_initial": {
-            "description": "Faltam dados de previsão e/ou dados reais estimados, provavelmente porque a atualização inicial da previsão não ocorreu. Isso provavelmente se deve ao fato de o limite de chamadas da API ter sido atingido. Você _terá_ problemas com as entidades do sensor e o painel de energia provavelmente terá dados ausentes. Isso se resolverá sozinho.",
-            "title": "Previsões em falta"
-        },
-        "records_missing_unfixable": {
-            "description": "Dados de previsão futura em falta, o que é inesperado. Verifique os registos.",
-            "title": "Previsões futuras em falta"
-        },
-        "unusual_azimuth_northern": {
-            "description": "O azimute do local {site} é incomum para a latitude deste telhado no hemisfério norte. Deveria ser {proposal} em vez de {extant}? (Ignore o problema se o local estiver voltado para o norte.)",
-            "title": "Azimute incomum"
-        },
-        "unusual_azimuth_southern": {
-            "description": "O azimute do local {site} é incomum para a latitude deste telhado no hemisfério sul. Deveria ser {proposal} em vez de {extant}? (Ignore o problema se o local estiver voltado para o sul.)",
-            "title": "Azimute incomum"
-        }
-    },
-    "options": {
-        "abort": {
-            "internal_error": "Ocorreu um erro interno",
-            "reconfigured": "Nova configuração aplicada com sucesso"
-        },
-        "error": {
-            "actuals_not_enabled": "A aquisição de valores reais estimados não está habilitada",
-            "actuals_without_get": "Os valores reais estimados não podem ser usados ​​sem obtê-los",
-            "api_duplicate": "Chave de API duplicada especificada",
-            "api_looks_like_site": "A chave da API parece um ID de site",
-            "custom_invalid": "Sensor personalizado não entre 1 e 144",
-            "dampen_without_actuals": "Os valores reais estimados devem ser selecionados para usar o amortecimento automático",
-            "dampen_without_generation": "Pelo menos um sensor de geração PV Wh/kWh/MWh deve ser especificado para usar amortecimento automático",
-            "export_multiple_entities": "O site de exportação deve ser uma única entidade, não várias entidades",
-            "export_no_entity": "O site de exportação deve ser especificado se o limite de exportação do site estiver definido",
-            "hard_not_number": "Limite rígido não é um número positivo",
-            "hard_too_many": "Existem mais limites rígidos inseridos do que chaves",
-            "limit_not_number": "O limite da API não é um número",
-            "limit_one_or_greater": "O limite da API deve ser um ou maior",
-            "limit_too_many": "Há mais contagens de limite de API inseridas do que chaves"
-        },
-        "step": {
-            "dampen": {
-                "data": {
-                    "damp00": "00:00",
-                    "damp01": "01:00",
-                    "damp02": "02:00",
-                    "damp03": "03:00",
-                    "damp04": "04:00",
-                    "damp05": "05:00",
-                    "damp06": "06:00",
-                    "damp07": "07:00",
-                    "damp08": "08:00",
-                    "damp09": "09:00",
-                    "damp10": "10:00",
-                    "damp11": "11:00",
-                    "damp12": "12:00",
-                    "damp13": "13:00",
-                    "damp14": "14:00",
-                    "damp15": "15:00",
-                    "damp16": "16:00",
-                    "damp17": "17:00",
-                    "damp18": "18:00",
-                    "damp19": "19:00",
-                    "damp20": "20:00",
-                    "damp21": "21:00",
-                    "damp22": "22:00",
-                    "damp23": "23:00"
-                },
-                "description": "Modificar o fator de amortecimento horário"
-            },
-            "init": {
-                "data": {
-                    "api_key": "Chave API (valores múltiplos separados por vírgula)",
-                    "api_quota": "Limite da API (opcionalmente valores múltiplos separados por vírgula para cada chave)",
-                    "attr_brk_detailed": "Ativar detalhamento do site para atributos de detalhe de meia hora/hora (estes não serão guardados nos atributos de estado da base de dados)",
-                    "attr_brk_estimate": "Ativar atributos de sensor de estimativa 50",
-                    "attr_brk_estimate10": "Ativar atributos de sensor de estimativa 10",
-                    "attr_brk_estimate90": "Ativar atributos de sensor de estimativa 90",
-                    "attr_brk_halfhourly": "Ativar atributos de detalhe de previsão de meia hora",
-                    "attr_brk_hourly": "Ativar atributos de detalhe de previsão horária",
-                    "attr_brk_site": "Ativar atributos de sensor de detalhamento do site",
-                    "auto_dampen": "Amortecimento automático (requer estimativas reais e entidade de geração fotovoltaica, consulte a documentação de integração)",
-                    "auto_update": "Atualização automática (se não houver atualização automática, uma automação deve ser usada em vez disso)",
-                    "config_damp": "Modificar os fatores de amortecimento horários (após clicar em enviar)",
-                    "customhoursensor": "Sensor personalizado das próximas X horas (mín=1, máx=144)",
-                    "exclude_sites": "Site(s) a serem excluídos do painel de energia e dos totais do sensor",
-                    "generation_entities": "Entidade(s) de geração fotovoltaica para amortecimento automatizado (Wh/kWh/MWh, aumento total)",
-                    "get_actuals": "Estimativas reais atualizadas à meia-noite (consulte a documentação de integração, usa uma chamada de API por site por dia, portanto, um limite de API reduzido é necessário com esta opção ativada)",
-                    "hard_limit_api": "Limite rígido do inversor em kW (consulte a documentação da integração)",
-                    "key_estimate": "Probabilidade de previsão preferida a usar para sensores",
-                    "site_damp": "O amortecimento granular está definido: Limpar para reverter para o amortecimento horário geral",
-                    "site_export_entity": "Entidade de exportação de site opcional para amortecimento automatizado (Wh/kWh/MWh, total crescente)",
-                    "site_export_limit": "Limite de exportação de site se a exportação de site for especificada (kW)",
-                    "use_actuals": "História de previsões para mostrar no painel de energia"
-                },
-                "description": "Opções de configuração do Solcast"
-            }
-        }
-    },
-    "selector": {
-        "auto_update": {
-            "options": {
-                "0": "Sem atualização automática das previsões",
-                "1": "Atualização automática das previsões do nascer ao pôr do sol",
-                "2": "Atualização automática das previsões durante 24 horas"
-            }
-        },
-        "energy_history": {
-            "options": {
-                "0": "Previsões",
-                "1": "Estimativas reais",
-                "2": "Estimativas reais suavizadas"
-            }
-        },
-        "key_estimate": {
-            "options": {
-                "estimate": "Geração esperada mediana (estimativa)",
-                "estimate10": "10º percentil da geração esperada (limite inferior dos resultados possíveis, estimativa10)",
-                "estimate90": "90º percentil da geração esperada (limite superior dos resultados possíveis, estimativa90)"
-            }
-        }
-    },
-    "services": {
-        "clear_all_solcast_data": {
-            "description": "Elimina o ficheiro solcast.json para remover todos os dados atuais do site Solcast.",
-            "name": "Limpar todos os dados Solcast guardados"
-        },
-        "force_update_estimates": {
-            "description": "O Force busca os últimos dados reais estimados do Solcast.",
-            "name": "Forçar Atualização de Dados Reais Estimados"
-        },
-        "force_update_forecasts": {
-            "description": "Busca forçadamente os dados de previsão mais recentes do Solcast.",
-            "name": "Atualização Forçada"
-        },
-        "get_dampening": {
-            "description": "Obter os fatores de amortecimento da previsão.",
-            "fields": {
-                "site": {
-                    "description": "Site opcional para obter amortecimento. (Nota: Não funcionará se o amortecimento granular não estiver ativado.)",
-                    "name": "ID do Site"
-                }
-            },
-            "name": "Obter amortecimento das previsões"
-        },
-        "query_estimate_data": {
-            "description": "Devolver um conjunto de dados para uma determinada consulta.",
-            "fields": {
-                "end_date_time": {
-                    "description": "Interroga eventos de dados reais estimados até à data e hora.",
-                    "name": "Data e hora de fim"
-                },
-                "start_date_time": {
-                    "description": "Interroga eventos de dados reais estimados a partir da data e hora.",
-                    "name": "Data e hora de início"
-                }
-            },
-            "name": "Interroga dados reais estimados"
-        },
-        "query_forecast_data": {
-            "description": "Devolver um conjunto de dados para uma determinada consulta.",
-            "fields": {
-                "end_date_time": {
-                    "description": "Consultar eventos de dados de previsão até à data e hora.",
-                    "name": "Data e hora de fim"
-                },
-                "site": {
-                    "description": "Site opcional para recuperar uma previsão de site",
-                    "name": "ID do Site"
-                },
-                "start_date_time": {
-                    "description": "Consultar eventos de dados de previsão a partir da data e hora.",
-                    "name": "Data e hora de início"
-                },
-                "undampened": {
-                    "description": "Booleano opcional para recuperar a previsão não amortecida",
-                    "name": "Não amortecido"
-                }
-            },
-            "name": "Consultar dados de previsão"
-        },
-        "remove_hard_limit": {
-            "description": "Remover o limite definido.",
-            "name": "Remover limite rígido da previsão do inversor"
-        },
-        "set_dampening": {
-            "description": "Definir fatores de amortecimento da previsão.",
-            "fields": {
-                "damp_factor": {
-                    "description": "Cadeia de valores de fator de amortecimento separados por vírgula (24 ou 48 valores).",
-                    "name": "Cadeia de amortecimento"
-                },
-                "site": {
-                    "description": "Site opcional para definir o amortecimento por site. (Nota: Omitir o site limpa o amortecimento por site, a menos que 48 valores.)",
-                    "name": "ID do Site"
-                }
-            },
-            "name": "Definir amortecimento das previsões"
-        },
-        "set_hard_limit": {
-            "description": "Impedir que os valores de previsão sejam superiores ao que o inversor pode produzir.",
-            "fields": {
-                "hard_limit": {
-                    "description": "Definir o valor máximo em Watts que o inversor pode produzir.",
-                    "name": "Valor do limite em Watts"
-                }
-            },
-            "name": "Definir limite rígido da previsão do inversor"
-        },
-        "update_forecasts": {
-            "description": "Busca os dados de previsão mais recentes do Solcast.",
-            "name": "Atualizar"
-        }
-    },
-    "system_health": {
-        "info": {
-            "can_reach_server": "Conexão do servidor Solcast"
-        }
+        "description": "Detalhes da conta Solcast\n\n(Se não usar a atualização automática, é necessária uma automação - consulte a documentação da integração)"
+      }
     }
+  },
+  "entity": {
+    "select": {
+      "estimate_mode": {
+        "name": "Usar Campo de Previsão"
+      }
+    },
+    "sensor": {
+      "api_counter": {
+        "name": "API Usada"
+      },
+      "api_limit": {
+        "name": "Limite da API"
+      },
+      "dampen": {
+        "name": "Amortecimento"
+      },
+      "forecast_custom_hours": {
+        "name": "Previsão para as Próximas X Horas"
+      },
+      "forecast_next_hour": {
+        "name": "Previsão para a Próxima Hora"
+      },
+      "forecast_remaining_today": {
+        "name": "Previsão Restante para Hoje"
+      },
+      "forecast_this_hour": {
+        "name": "Previsão para Esta Hora"
+      },
+      "hard_limit": {
+        "name": "Limite Rígido Definido"
+      },
+      "hard_limit_api": {
+        "name": "Limite Rígido Definido {api_key}"
+      },
+      "last_updated": {
+        "name": "Última Pesquisa da API"
+      },
+      "peak_w_time_today": {
+        "name": "Hora do Pico para Hoje"
+      },
+      "peak_w_time_tomorrow": {
+        "name": "Hora do Pico para Amanhã"
+      },
+      "peak_w_today": {
+        "name": "Pico de Previsão para Hoje"
+      },
+      "peak_w_tomorrow": {
+        "name": "Pico de Previsão para Amanhã"
+      },
+      "power_now": {
+        "name": "Potência Atual"
+      },
+      "power_now_1hr": {
+        "name": "Potência em 1 Hora"
+      },
+      "power_now_30m": {
+        "name": "Potência em 30 Minutos"
+      },
+      "total_kwh_forecast_d10": {
+        "name": "Previsão para o Dia 10"
+      },
+      "total_kwh_forecast_d11": {
+        "name": "Previsão para o Dia 11"
+      },
+      "total_kwh_forecast_d12": {
+        "name": "Previsão para o Dia 12"
+      },
+      "total_kwh_forecast_d13": {
+        "name": "Previsão para o Dia 13"
+      },
+      "total_kwh_forecast_d3": {
+        "name": "Previsão para o Dia 3"
+      },
+      "total_kwh_forecast_d4": {
+        "name": "Previsão para o Dia 4"
+      },
+      "total_kwh_forecast_d5": {
+        "name": "Previsão para o Dia 5"
+      },
+      "total_kwh_forecast_d6": {
+        "name": "Previsão para o Dia 6"
+      },
+      "total_kwh_forecast_d7": {
+        "name": "Previsão para o Dia 7"
+      },
+      "total_kwh_forecast_d8": {
+        "name": "Previsão para o Dia 8"
+      },
+      "total_kwh_forecast_d9": {
+        "name": "Previsão para o Dia 9"
+      },
+      "total_kwh_forecast_today": {
+        "name": "Previsão para Hoje"
+      },
+      "total_kwh_forecast_tomorrow": {
+        "name": "Previsão para Amanhã"
+      }
+    }
+  },
+  "exceptions": {
+    "actuals_not_enabled": {
+      "message": "A aquisição de valores reais estimados não está habilitada."
+    },
+    "auto_use_force": {
+      "message": "A atualização automática está ativada, ignorando o evento de serviço para atualização da previsão, use Atualização Forçada em vez disso."
+    },
+    "auto_use_normal": {
+      "message": "A atualização automática não está ativada, ignorando o evento de serviço para atualização forçada da previsão, use Atualizar em vez disso."
+    },
+    "build_failed_actuals": {
+      "message": "Falha ao construir dados reais estimados (config/solcast-actuals.json corrompido?)"
+    },
+    "build_failed_forecasts": {
+      "message": "Falha ao construir dados de previsão (config/solcast.json corrompido?)"
+    },
+    "damp_auto_enabled": {
+      "message": "A amortização automática está ativada, não definindo fatores de amortização manuais."
+    },
+    "damp_count_not_correct": {
+      "message": "Não existem 24 ou 48 números separados por vírgula entre 0.0 e 1.0."
+    },
+    "damp_error_parsing": {
+      "message": "Erro ao analisar os números separados por vírgula do fator de amortecimento."
+    },
+    "damp_no_all_24": {
+      "message": "Especificar um site de 'todos' não é permitido com 24 fatores, remova o site do pedido."
+    },
+    "damp_no_factors": {
+      "message": "Sem fatores de amortecimento, deve ser uma lista de números separados por vírgula entre 0.0 e 1.0."
+    },
+    "damp_not_for_site": {
+      "message": "O amortecimento do site não está definido para {site}."
+    },
+    "damp_not_site": {
+      "message": "Não é um site configurado."
+    },
+    "damp_outside_range": {
+      "message": "Valor do fator de amortecimento presente que não está entre 0.0 e 1.0."
+    },
+    "damp_use_all": {
+      "message": "O amortecimento do site não está definido para {site}, 'todos' é o único parâmetro de site disponível para a chamada de serviço."
+    },
+    "hard_empty": {
+      "message": "Valor de limite rígido vazio."
+    },
+    "hard_not_positive_number": {
+      "message": "O valor do limite rígido não é um número positivo."
+    },
+    "hard_too_many": {
+      "message": "Mais limites rígidos especificados do que chaves API existentes."
+    },
+    "init_cannot_get_sites": {
+      "message": "Os dados dos sites não puderam ser recuperados."
+    },
+    "init_cannot_get_sites_cache_invalid": {
+      "message": "Os dados dos sites não puderam ser recuperados e a cache é inválida."
+    },
+    "init_corrupt": {
+      "message": "Os dados em cache em {file} estão corrompidos, sugere-se eliminá-los ou repará-los."
+    },
+    "init_incompatible": {
+      "message": "Os dados em cache em `{file}` são incompatíveis, sugere-se eliminá-los."
+    },
+    "init_key_invalid": {
+      "message": "A chave API é inválida."
+    },
+    "init_no_sites": {
+      "message": "Nenhum site encontrado para a chave API."
+    },
+    "init_unknown": {
+      "message": "Exceção ao carregar dados dos sites."
+    },
+    "init_usage_corrupt": {
+      "message": "Os dados de uso estão corrompidos, verifique ou elimine `config/solcast_solar/solcast-usage.json`."
+    },
+    "integration_not_loaded": {
+      "message": "Integração não carregada, ação não realizada."
+    },
+    "integration_prior_crash": {
+      "message": "A integração não conseguiu carregar anteriormente, tentando novamente após um atraso."
+    },
+    "remove_cache_failed": {
+      "message": "Falha ao limpar todos os dados do Solcast."
+    }
+  },
+  "issues": {
+    "advanced_deprecated": {
+      "description": "A opção de configuração avançada `{option}` foi alterada para `{new_option}`. Atualize suas opções de configuração avançadas para usar o novo nome da opção.{stops_working}",
+      "title": "Opção avançada obsoleta"
+    },
+    "advanced_problem": {
+      "description": "O arquivo de configuração avançada contém erros.\n{problems}\n\nCorrija-os, consultando a documentação da integração no link 'Saiba mais'.",
+      "title": "Problema com opção avançada"
+    },
+    "api_unavailable": {
+      "description": "A API Solcast reportou repetidamente o estado `429 / Tente novamente mais tarde` durante uma atualização.\n\n* Não tente resolver esta situação.\n* Não altere sua chave API.\n* Evite reiniciar a integração\n* Isto não é um problema de integração e se resolverá sozinho. Não mude nada.\n\n(Para suprimir este problema, crie uma opção de configuração avançada api_raise_issue e defina-a como false.)",
+      "title": "API Solcast temporariamente indisponível"
+    },
+    "corrupt_file": {
+      "description": "O(s) arquivo(s) de dados em cache `{files}` está(ão) corrompido(s). A integração tentará se recuperar excluindo o(s) arquivo(s) e buscando os dados novamente do Solcast. Espere um aumento no uso da API e possíveis falhas na API, e perda do histórico de previsões devido a esta situação. Possivelmente recupere os arquivos do backup, mas ainda espere falhas nas chamadas da API.",
+      "title": "Dados em cache corrompidos"
+    },
+    "records_missing": {
+      "description": "Faltam dados da previsão futura, o que é inesperado porque a atualização automática está ativada. Investigue a causa examinando o registo do Home Assistant. Leia as perguntas frequentes de resolução de problemas antes de levantar um problema de integração.",
+      "title": "Previsões futuras em falta"
+    },
+    "records_missing_fixable": {
+      "fix_flow": {
+        "abort": {
+          "reconfigured": "Nova configuração aplicada com sucesso"
+        },
+        "step": {
+          "offer_auto": {
+            "data": {
+              "auto_update": "Atualização automática"
+            },
+            "description": "Uma automação de atualização de previsão não foi executada. Gostaria de ativar a atualização automática? (Saiba mais: {learn_more})",
+            "title": "Previsões futuras em falta"
+          }
+        }
+      },
+      "title": "Previsões futuras em falta"
+    },
+    "records_missing_initial": {
+      "description": "Faltam dados de previsão e/ou dados reais estimados, provavelmente porque a atualização inicial da previsão não ocorreu. Isso provavelmente se deve ao fato de o limite de chamadas da API ter sido atingido. Você _terá_ problemas com as entidades do sensor e o painel de energia provavelmente terá dados ausentes. Isso se resolverá sozinho.",
+      "title": "Previsões em falta"
+    },
+    "records_missing_unfixable": {
+      "description": "Dados de previsão futura em falta, o que é inesperado. Verifique os registos.",
+      "title": "Previsões futuras em falta"
+    },
+    "unusual_azimuth_northern": {
+      "description": "O azimute do local {site} é incomum para a latitude deste telhado no hemisfério norte. Deveria ser {proposal} em vez de {extant}? (Ignore o problema se o local estiver voltado para o norte.)",
+      "title": "Azimute incomum"
+    },
+    "unusual_azimuth_southern": {
+      "description": "O azimute do local {site} é incomum para a latitude deste telhado no hemisfério sul. Deveria ser {proposal} em vez de {extant}? (Ignore o problema se o local estiver voltado para o sul.)",
+      "title": "Azimute incomum"
+    }
+  },
+  "options": {
+    "abort": {
+      "internal_error": "Ocorreu um erro interno",
+      "reconfigured": "Nova configuração aplicada com sucesso"
+    },
+    "error": {
+      "actuals_not_enabled": "A aquisição de valores reais estimados não está habilitada",
+      "actuals_without_get": "Os valores reais estimados não podem ser usados ​​sem obtê-los",
+      "api_duplicate": "Chave de API duplicada especificada",
+      "api_looks_like_site": "A chave da API parece um ID de site",
+      "custom_invalid": "Sensor personalizado não entre 1 e 144",
+      "dampen_without_actuals": "Os valores reais estimados devem ser selecionados para usar o amortecimento automático",
+      "dampen_without_generation": "Pelo menos um sensor de geração PV Wh/kWh/MWh deve ser especificado para usar amortecimento automático",
+      "export_multiple_entities": "O site de exportação deve ser uma única entidade, não várias entidades",
+      "export_no_entity": "O site de exportação deve ser especificado se o limite de exportação do site estiver definido",
+      "hard_not_number": "Limite rígido não é um número positivo",
+      "hard_too_many": "Existem mais limites rígidos inseridos do que chaves",
+      "limit_not_number": "O limite da API não é um número",
+      "limit_one_or_greater": "O limite da API deve ser um ou maior",
+      "limit_too_many": "Há mais contagens de limite de API inseridas do que chaves"
+    },
+    "step": {
+      "dampen": {
+        "data": {
+          "damp00": "00:00",
+          "damp01": "01:00",
+          "damp02": "02:00",
+          "damp03": "03:00",
+          "damp04": "04:00",
+          "damp05": "05:00",
+          "damp06": "06:00",
+          "damp07": "07:00",
+          "damp08": "08:00",
+          "damp09": "09:00",
+          "damp10": "10:00",
+          "damp11": "11:00",
+          "damp12": "12:00",
+          "damp13": "13:00",
+          "damp14": "14:00",
+          "damp15": "15:00",
+          "damp16": "16:00",
+          "damp17": "17:00",
+          "damp18": "18:00",
+          "damp19": "19:00",
+          "damp20": "20:00",
+          "damp21": "21:00",
+          "damp22": "22:00",
+          "damp23": "23:00"
+        },
+        "description": "Modificar o fator de amortecimento horário"
+      },
+      "init": {
+        "data": {
+          "api_key": "Chave API (valores múltiplos separados por vírgula)",
+          "api_quota": "Limite da API (opcionalmente valores múltiplos separados por vírgula para cada chave)",
+          "attr_brk_detailed": "Ativar detalhamento do site para atributos de detalhe de meia hora/hora (estes não serão guardados nos atributos de estado da base de dados)",
+          "attr_brk_estimate": "Ativar atributos de sensor de estimativa 50",
+          "attr_brk_estimate10": "Ativar atributos de sensor de estimativa 10",
+          "attr_brk_estimate90": "Ativar atributos de sensor de estimativa 90",
+          "attr_brk_halfhourly": "Ativar atributos de detalhe de previsão de meia hora",
+          "attr_brk_hourly": "Ativar atributos de detalhe de previsão horária",
+          "attr_brk_site": "Ativar atributos de sensor de detalhamento do site",
+          "auto_dampen": "Amortecimento automático (requer estimativas reais e entidade de geração fotovoltaica, consulte a documentação de integração)",
+          "auto_update": "Atualização automática (se não houver atualização automática, uma automação deve ser usada em vez disso)",
+          "config_damp": "Modificar os fatores de amortecimento horários (após clicar em enviar)",
+          "customhoursensor": "Sensor personalizado das próximas X horas (mín=1, máx=144)",
+          "exclude_sites": "Site(s) a serem excluídos do painel de energia e dos totais do sensor",
+          "generation_entities": "Entidade(s) de geração fotovoltaica para amortecimento automatizado (Wh/kWh/MWh, aumento total)",
+          "get_actuals": "Estimativas reais atualizadas à meia-noite (consulte a documentação de integração, usa uma chamada de API por site por dia, portanto, um limite de API reduzido é necessário com esta opção ativada)",
+          "hard_limit_api": "Limite rígido do inversor em kW (consulte a documentação da integração)",
+          "key_estimate": "Probabilidade de previsão preferida a usar para sensores",
+          "site_damp": "O amortecimento granular está definido: Limpar para reverter para o amortecimento horário geral",
+          "site_export_entity": "Entidade de exportação de site opcional para amortecimento automatizado (Wh/kWh/MWh, total crescente)",
+          "site_export_limit": "Limite de exportação de site se a exportação de site for especificada (kW)",
+          "use_actuals": "História de previsões para mostrar no painel de energia"
+        },
+        "description": "Opções de configuração do Solcast"
+      }
+    }
+  },
+  "selector": {
+    "auto_update": {
+      "options": {
+        "0": "Sem atualização automática das previsões",
+        "1": "Atualização automática das previsões do nascer ao pôr do sol",
+        "2": "Atualização automática das previsões durante 24 horas"
+      }
+    },
+    "energy_history": {
+      "options": {
+        "0": "Previsões",
+        "1": "Estimativas reais",
+        "2": "Estimativas reais suavizadas"
+      }
+    },
+    "key_estimate": {
+      "options": {
+        "estimate": "Geração esperada mediana (estimativa)",
+        "estimate10": "10º percentil da geração esperada (limite inferior dos resultados possíveis, estimativa10)",
+        "estimate90": "90º percentil da geração esperada (limite superior dos resultados possíveis, estimativa90)"
+      }
+    }
+  },
+  "services": {
+    "clear_all_solcast_data": {
+      "description": "Elimina o ficheiro solcast.json para remover todos os dados atuais do site Solcast.",
+      "name": "Limpar todos os dados Solcast guardados"
+    },
+    "force_update_estimates": {
+      "description": "O Force busca os últimos dados reais estimados do Solcast.",
+      "name": "Forçar Atualização de Dados Reais Estimados"
+    },
+    "force_update_forecasts": {
+      "description": "Busca forçadamente os dados de previsão mais recentes do Solcast.",
+      "name": "Atualização Forçada"
+    },
+    "get_dampening": {
+      "description": "Obter os fatores de amortecimento da previsão.",
+      "fields": {
+        "site": {
+          "description": "Site opcional para obter amortecimento. (Nota: Não funcionará se o amortecimento granular não estiver ativado.)",
+          "name": "ID do Site"
+        }
+      },
+      "name": "Obter amortecimento das previsões"
+    },
+    "query_estimate_data": {
+      "description": "Devolver um conjunto de dados para uma determinada consulta.",
+      "fields": {
+        "end_date_time": {
+          "description": "Interroga eventos de dados reais estimados até à data e hora.",
+          "name": "Data e hora de fim"
+        },
+        "start_date_time": {
+          "description": "Interroga eventos de dados reais estimados a partir da data e hora.",
+          "name": "Data e hora de início"
+        }
+      },
+      "name": "Interroga dados reais estimados"
+    },
+    "query_forecast_data": {
+      "description": "Devolver um conjunto de dados para uma determinada consulta.",
+      "fields": {
+        "end_date_time": {
+          "description": "Consultar eventos de dados de previsão até à data e hora.",
+          "name": "Data e hora de fim"
+        },
+        "site": {
+          "description": "Site opcional para recuperar uma previsão de site",
+          "name": "ID do Site"
+        },
+        "start_date_time": {
+          "description": "Consultar eventos de dados de previsão a partir da data e hora.",
+          "name": "Data e hora de início"
+        },
+        "undampened": {
+          "description": "Booleano opcional para recuperar a previsão não amortecida",
+          "name": "Não amortecido"
+        }
+      },
+      "name": "Consultar dados de previsão"
+    },
+    "remove_hard_limit": {
+      "description": "Remover o limite definido.",
+      "name": "Remover limite rígido da previsão do inversor"
+    },
+    "set_dampening": {
+      "description": "Definir fatores de amortecimento da previsão.",
+      "fields": {
+        "damp_factor": {
+          "description": "Cadeia de valores de fator de amortecimento separados por vírgula (24 ou 48 valores).",
+          "name": "Cadeia de amortecimento"
+        },
+        "site": {
+          "description": "Site opcional para definir o amortecimento por site. (Nota: Omitir o site limpa o amortecimento por site, a menos que 48 valores.)",
+          "name": "ID do Site"
+        }
+      },
+      "name": "Definir amortecimento das previsões"
+    },
+    "set_hard_limit": {
+      "description": "Impedir que os valores de previsão sejam superiores ao que o inversor pode produzir.",
+      "fields": {
+        "hard_limit": {
+          "description": "Definir o valor máximo em Watts que o inversor pode produzir.",
+          "name": "Valor do limite em Watts"
+        }
+      },
+      "name": "Definir limite rígido da previsão do inversor"
+    },
+    "update_forecasts": {
+      "description": "Busca os dados de previsão mais recentes do Solcast.",
+      "name": "Atualizar"
+    }
+  },
+  "system_health": {
+    "info": {
+      "can_reach_server": "Conexão do servidor Solcast"
+    }
+  }
 }

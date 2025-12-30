@@ -1273,6 +1273,14 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 ## Changes
 
+v4.4.11
+
+* Fix advanced option validation for `not_set_if` by @autoSteve
+* Add missing translation, ES, FR, PL, SK, UR by @GitLocalize
+* Consistent strings file spacing by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.10...v4.4.11
+
 v4.4.10
 
 * Fix records missing repairable issue exception by @autoSteve
