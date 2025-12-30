@@ -4,6 +4,8 @@
 
 [](https://github.com/custom-components/hacs)![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge)![GitHub-Veröffentlichung](https://img.shields.io/github/v/release/BJReplay/ha-solcast-solar?style=for-the-badge)[](https://github.com/BJReplay/ha-solcast-solar/releases/latest)![hacs_downloads](https://img.shields.io/github/downloads/BJReplay/ha-solcast-solar/latest/total?style=for-the-badge)![GitHub-Lizenz](https://img.shields.io/github/license/BJReplay/ha-solcast-solar?style=for-the-badge)![GitHub-Commit-Aktivität](https://img.shields.io/github/commit-activity/y/BJReplay/ha-solcast-solar?style=for-the-badge)![Wartung](https://img.shields.io/maintenance/yes/2026?style=for-the-badge)
 
+**Languages:** [🇦🇺 English](./README.md) | [🇫🇷 Français](./README-fr.md) | [🇩🇪 Deutsch](./README-de.md)
+
 ## Präambel
 
 Diese kundenspezifische Komponente integriert die Solcast PV-Vorhersage für Hobbyisten in Home Assistant (https://www.home-assistant.io).
