@@ -19,6 +19,7 @@ ADVANCED_OPTION.STR = "str"
 ADVANCED_OPTION.TIME = "time"
 ADVANCED_TYPE: Final[str] = "type"
 ADVANCED_API_RAISE_ISSUES: Final[str] = "api_raise_issues"
+ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: Final[str] = "automated_dampening_adaptive_model_configuration"
 ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[str] = "automated_dampening_delta_adjustment_model"
 ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: Final[str] = "automated_dampening_generation_fetch_delay"
 ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS: Final[str] = "automated_dampening_generation_history_load_days"
@@ -32,7 +33,6 @@ ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS: Final[str] = "automated_dampening_model
 ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT: Final[str] = "automated_dampening_no_delta_adjustment"
 ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY: Final[str] = "automated_dampening_no_limiting_consistency"
 ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: Final[str] = "automated_dampening_preserve_unmatched_factors"
-ADVANCED_AUTOMATED_DAMPENING_SELECT_BEST_CONFIGURATION: Final[str] = "automated_dampening_select_best_configuration"
 ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: Final[str] = "automated_dampening_similar_peak"
 ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY: Final[str] = "automated_dampening_suppression_entity"
 ADVANCED_ENTITY_LOGGING: Final[str] = "entity_logging"
@@ -397,7 +397,7 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
         DEFAULT: False,
     },
-    ADVANCED_AUTOMATED_DAMPENING_SELECT_BEST_CONFIGURATION: {
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
         DEFAULT: False,
         OPTION_NOT_SET_IF: [ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT],
