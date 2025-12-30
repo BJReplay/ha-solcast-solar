@@ -8,6 +8,8 @@
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/y/BJReplay/ha-solcast-solar?style=for-the-badge)
 ![Maintenance](https://img.shields.io/maintenance/yes/2026?style=for-the-badge)
 
+**Languages:** [English](./README.md) | [🇫🇷 Français](./README-fr.md) | [🇩🇪 Deutsch](./README-de.md)
+
 ## Preamble
 
 This custom component integrates the Solcast PV Forecast for hobbyists into Home Assistant (https://www.home-assistant.io).
