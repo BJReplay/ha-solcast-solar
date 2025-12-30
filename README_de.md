@@ -379,8 +379,7 @@ Bearbeiten Sie ein `Solar Panels` `Solar production` , das Sie zuvor erstellt ha
 
 Es kann nur eine einzige Konfiguration der gesamten Solcast PV-Prognose im Energie-Dashboard geben, die alle Standorte (Anlagen) Ihres Solcast-Kontos abdeckt. Es ist nicht möglich, die Prognose im Energie-Dashboard für verschiedene Solaranlagen/Solcast-Standorte aufzuteilen.
 
-> [!IMPORTANT]
->  If you do not have a solar generation sensor in your system then this integration will not work in the Energy dashboard. The graph and adding the forecast integration rely on there being a solar generation sensor set up.
+> [!IMPORTANT]<br> Wenn Ihr System keinen Solarstromsensor besitzt, funktioniert diese Integration im Energie-Dashboard nicht. Die grafische Darstellung und die Prognosefunktion setzen die Einrichtung eines Solarstromsensors voraus.
 
 [](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolarPanels.png)<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolarPanels.png" width="500">
 
@@ -2155,3 +2154,5 @@ Abgewandelt nach den großen Werken von
 - dannerph/homeassistant-solcast
 - cjtapper/solcast-py
 - home-assistant-libs/forecast_solar
+
+
