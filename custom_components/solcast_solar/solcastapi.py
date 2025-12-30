@@ -41,6 +41,7 @@ from homeassistant.exceptions import (
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
 from .const import (
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS,
@@ -53,7 +54,6 @@ from .const import (
     ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT,
     ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY,
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
-    ADVANCED_AUTOMATED_DAMPENING_SELECT_BEST_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK,
     ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY,
     ADVANCED_FORECAST_FUTURE_DAYS,
@@ -320,7 +320,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._data: dict[str, Any] = copy.deepcopy(FRESH_DATA)
         self._data_actuals: dict[str, Any] = copy.deepcopy(FRESH_DATA)
         self._data_actuals_dampened: dict[str, Any] = copy.deepcopy(FRESH_DATA)
-        self._data_dampening_history: list[dict[str, Any]] = []
+        self._data_dampening_history: dict[int, dict[int, list[dict[str, Any]]]] = {}
         self._data_energy_dashboard: dict[str, Any] = {}
         self._data_estimated_actuals: list[dict[str, Any]] = []
         self._data_estimated_actuals_dampened: list[dict[str, Any]] = []
@@ -527,8 +527,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         ADVANCED_OPTION.TIME: r"^([01]?[0-9]|2[0-3]):[03]{1}0$",
                     }
                     advanced_options_with_aliases, deprecated = self._advanced_options_with_aliases()
-                    _LOGGER.critical(advanced_options_with_aliases)
-                    _LOGGER.critical(deprecated)
 
                     content = await file.read()
                     if content.replace("\n", "").replace("\r", "").strip() != "":  # i.e. not empty
@@ -825,7 +823,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 self._filename_actuals: "estimated actual",
                 self._filename_actuals_dampened: "dampened estimated actual",
                 self._filename_generation: "generation",
-                self._filename_dampening_history: "dampening history",
             }
             _LOGGER.debug(
                 "Saved %s cache",
@@ -1856,6 +1853,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     generation_data = await load_generation_data()
                     if generation_data:
                         self._data_generation = generation_data
+
+                    # if using adaptive dampening config loaad the data
+                    if self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
+                        await self.load_dampening_history()                          
+                    
                     # If configured to get generation but there is no cached data, then get it.
                     if self.options.auto_dampen and self.options.generation_entities and len(self._data_generation[GENERATION]) == 0:
                         await self.get_pv_generation()
@@ -3233,10 +3235,235 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             await self.granular_dampening_data()
         _LOGGER.debug("Task model_automated_dampening took %.3f seconds", time.time() - start_time)
 
+    async def determine_best_dampening_settings(self) -> None:
+        _LOGGER.debug ("Determining best automated dampening settings")
+        start_time = time.time()
+        
+        # build actuals data for past 14 days
+
+        actuals: OrderedDict[dt, float] = OrderedDict()
+        dampened_actuals: OrderedDict[dt, float] = OrderedDict()
+        
+        for site in self.sites:
+            if site[RESOURCE_ID] in self.options.exclude_sites:
+                _LOGGER.debug("Dampening history actuals suppressed site %s", site[RESOURCE_ID])
+                continue
+            start, end = self.__get_list_slice(
+                self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS],
+                self.get_day_start_utc() - timedelta(days=14),
+                self.get_day_start_utc(),
+                search_past=True,
+            )
+            site_actuals = {
+                actual[PERIOD_START]: actual for actual in self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS][start:end]
+            }
+            for period_start, actual in site_actuals.items():
+                extant: float | None = actuals.get(period_start)
+                if extant is not None:
+                    actuals[period_start] += actual[ESTIMATE] * 0.5
+                else:
+                    actuals[period_start] = actual[ESTIMATE] * 0.5
+
+        generation_dampening, generation_dampening_day = await self.prepare_generation_data(self.get_day_start_utc() - timedelta(days=14)) 
+
+        best_ape = float('inf')
+        best_model = -1
+        best_delta = -1
+
+        for model in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1):
+            for delta in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM],
+                            ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1):
+
+                _LOGGER.debug("Evaluating model %d and delta %d", model, delta)
+
+                valid = True
+                dampened_actuals.clear()
+
+                for model_entry in self._data_dampening_history[model][delta]:
+                    period_start = model_entry["period_start"]
+                    factors = model_entry["factors"]
+
+                    # Match actuals to this period_start
+                    for actual_period_start, actual_value in actuals.items():
+                        # Only process actuals that fall within this period (same day)
+                        if actual_period_start.strftime("%Y-%m-%d") == period_start.strftime("%Y-%m-%d"):
+                            adjusted_interval = self.adjusted_interval_dt(actual_period_start)
+                            factor = factors[adjusted_interval]
+                            dampened_value = actual_value * factor
+                            
+                            extant: float | None = dampened_actuals.get(actual_period_start)
+                            if extant is not None:
+                                dampened_actuals[actual_period_start] += dampened_value
+                            else:
+                                dampened_actuals[actual_period_start] = dampened_value
+                    
+                if len(dampened_actuals) != len(actuals):  
+                    valid=False
+                    _LOGGER.debug("Model %d and delta %d produced mismatched actuals count (%d dampened vs %d actuals)", model, delta, len(dampened_actuals), len(actuals))    
+                
+                if valid:
+                    # calculate APE 
+
+                    inf_d = False
+
+                    values = tuple(
+                        {
+                            PERIOD_START: ts,
+                            ESTIMATE: value
+                        }
+                        for ts, value in dampened_actuals.items()
+                    )
+
+                    inf_d, error_dampened, error_dampened_percentiles = await self.calculate_error(
+                        generation_dampening_day,
+                        generation_dampening,
+                        values,
+                    )
+                    
+                    if inf_d:
+                        _LOGGER.debug("Ignored %s values for model %d and delta %d", math.inf, model, delta)
+                    
+                    if error_dampened != -1:
+                        _LOGGER.debug("Model %d and delta %d achieved mean APE of %.3f%%", model, delta, error_dampened)
+                    
+                        if error_dampened < best_ape:
+                            best_ape = error_dampened
+                            best_model = model
+                            best_delta = delta
+                    else:
+                        _LOGGER.debug("Skipping APE calculation for model %d and delta %d due to APE calculation issue", model, delta)        
+                else:
+                    _LOGGER.debug("Skipping APE calculation for model %d and delta %d", model, delta)        
+                    
+        if best_model != -1 and best_delta != -1:              
+            _LOGGER.info("Selected best automated dampening settings: model %d and delta %d with mean APE of %.3f%%", best_model, best_delta, best_ape)
+            
+            #################### REMOVE COMMENTS ONCE BETTER TESTED ############################
+            #self.advanced_options.update({
+            #    ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model,
+            #    ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: best_delta
+            #})
+            #await self.serialise_advanced_options()
+            
+        else:
+            _LOGGER.info("Could not determine best automated dampening settings - values unmodified")
+
+        _LOGGER.debug("Task determine_best_dampening_settings took %.3f seconds", time.time() - start_time)
+
+    async def load_dampening_history(self) -> bool:
+        """Load dampening history from JSON, validate, and repopulate."""
+
+        start_time = time.time()
+        _LOGGER.debug("Loading dampening history from file: %s", self._filename_dampening_history)
+        
+        valid = True
+        
+        if Path(self._filename_dampening_history).is_file():
+            async with aiofiles.open(self._filename_dampening_history) as file:
+                try:
+                    raw = json.loads(await file.read(), cls=JSONDecoder)
+                except json.decoder.JSONDecodeError:
+                    _LOGGER.warning("Dampening history file is corrupt - could not decode JSON")
+                    valid = False
+        else:
+            valid = False
+            _LOGGER.warning("No dampening history file found")
+
+        if valid:    
+
+            # --- Parse and validate ---
+            for model_str, deltas in raw.items():
+
+                # Validate model key
+                if not isinstance(model_str, str) or not model_str.isdigit():
+                    valid = False
+                    _LOGGER.debug("Invalid model key in dampening history: %s", model_str)  
+                    continue
+
+                model = int(model_str)
+                if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM] <= model <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM]):
+                    _LOGGER.debug("Model value out of range in dampening history: %d", model)
+                    continue
+
+                # Validate deltas
+                if not isinstance(deltas, dict):
+                    valid = False
+                    _LOGGER.debug("Invalid deltas structure in dampening history")
+                    continue
+
+                for delta_str, entries in deltas.items():
+
+                    # Validate delta key
+                    if not isinstance(delta_str, str) or not delta_str.isdigit():
+                        valid = False
+                        _LOGGER.debug("Invalid delta key in dampening history: %s", delta_str)
+                        continue
+
+                    delta = int(delta_str)
+                    if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM] <= delta <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]):
+                        valid = False
+                        _LOGGER.debug("Delta value out of range in dampening history: %d", delta)
+                        continue
+
+                    # Validate entries list
+                    if not isinstance(entries, list):
+                        valid = False
+                        _LOGGER.debug("Invalid entries structure in dampening history for model %d and delta %d", model, delta)
+                        continue
+
+                    for entry in entries:
+
+                        # Validate entry structure
+                        if not isinstance(entry, dict):
+                            valid = False
+                            _LOGGER.debug("Invalid entry structure in dampening history for model %d and delta %d", model, delta)
+                            continue
+
+                        if "period_start" not in entry or "factors" not in entry:
+                            _LOGGER.debug("Missing keys in dampening history entry for model %d and delta %d", model, delta)
+                            valid = False
+                            continue
+
+                        period_start = entry["period_start"]
+                        factors = entry["factors"]
+
+                        # Validate period_start is ISO datetime
+                        if not isinstance(period_start, dt):
+                            valid = False
+                            _LOGGER.debug("Invalid period_start in dampening history: %s for model %d and delta %d, got type %s", period_start_raw, model, delta, type(period_start_raw).__name__)
+                            continue
+
+                        period_start = period_start
+
+                        # Validate factors
+                        if not (isinstance(factors, list) and len(factors) == 48):
+                            _LOGGER.debug("Invalid factors list in dampening history for model %d and delta %d", model, delta)
+                            valid = False
+                            continue
+
+                        if not all(isinstance(x, (int, float)) for x in factors):
+                            _LOGGER.debug("Non-numeric factor found in dampening history for model %d and delta %d", model, delta)
+                            valid = False
+                            continue
+
+                        await self.add_dampening_history(
+                            period_start=period_start,
+                            model=model,
+                            delta=delta,
+                            factors=factors
+                        )
+                        
+            if not valid:
+                _LOGGER.warning("Dampening history validation failed - history not loaded")
+
+            _LOGGER.debug("Task load_dampening_history took %.3f seconds",  time.time() - start_time)
+
+            return valid
+                      
     async def update_dampening_history(self) -> None:
         """Generate history of dampening factors for all models."""
         
-        if (self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_SELECT_BEST_CONFIGURATION]):
+        if (self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]):
         
             start_time = time.time()
 
@@ -3290,40 +3517,167 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             # Trim, sort and serialise.
 
-            self._data_dampening_history = sorted(
-                filter(
-                    lambda entry: entry["period_start"].astimezone(self._tz) >= self.get_day_start_utc(future=-14),
-                    self._data_dampening_history,
-                ),
-                key=lambda entry: entry["period_start"]
-            )
+            cutoff = self.get_day_start_utc(future=-14)
 
-            payload = json.dumps(self._data_dampening_history, ensure_ascii=False, cls=DateTimeEncoder)
+            serializable = {}
+
+            for model, deltas in self._data_dampening_history.items():
+                serializable[model] = {}
+
+                for delta, entries in deltas.items():
+
+                    # Filter entries newer than cutoff
+                    recent_entries = [
+                        entry
+                        for entry in entries
+                        if entry["period_start"] >= cutoff
+                    ]
+
+                    # Sort by period_start
+                    recent_entries.sort(key=lambda e: e["period_start"])
+
+                    # Update in-memory structure
+                    self._data_dampening_history[model][delta] = recent_entries
+
+                    # Build serializable version
+                    serializable[model][delta] = [
+                        {
+                            "period_start": entry["period_start"].isoformat(),
+                            "factors": entry["factors"]
+                        }
+                        for entry in recent_entries
+                    ]
+
+            payload = json.dumps(serializable, ensure_ascii=False, cls=DateTimeEncoder)
             async with self._serialise_lock, aiofiles.open(self._filename_dampening_history, "w") as file:
                 await file.write(payload)
                 
             _LOGGER.debug("Task update_dampening_history took %.3f seconds", time.time() - start_time)
 
     async def add_dampening_history(self, period_start: dt, model: int, delta: int, factors: list[float]) -> None:
-        # Look for existing period
-        for period in self._data_dampening_history:
-            if period["period_start"] == period_start:
-                period["dampening"].append({
-                    "model": model,
-                    "delta": delta,
-                    "factors": factors
-                })
-                return
 
-        # If not found, create a new period block
-        self._data_dampening_history.append({
-            "period_start": period_start,
-            "dampening": [{
-                "model": model,
-                "delta": delta,
+        # --- Initialise structure if needed ---
+        if not self._data_dampening_history:
+            self._data_dampening_history = {
+                m: {
+                    d: []
+                    for d in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1)
+                }
+                for m in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1)
+            }
+
+        valid = True
+
+        # --- Validate model/delta ranges ---
+        if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM] <= model <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM]):
+            _LOGGER.debug(f"Add dampening passed invalid model {model}")
+            valid = False
+
+        if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM] <= delta <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]):
+            _LOGGER.debug(f"Add dampening passed invalid delta {delta}")
+            valid = False
+
+        # --- Validate factors ---
+        if not (isinstance(factors, list) and len(factors) == 48):
+            _LOGGER.debug ("Add dampening factors list contains %d elements, expected 48", len(factors))
+            valid = False
+
+        if valid:
+            for entry in self._data_dampening_history[model][delta]:
+                if entry["period_start"] == period_start:
+                    entry["factors"] = factors
+                    return
+            self._data_dampening_history[model][delta].append({
+                "period_start": period_start,
                 "factors": factors
-            }]
-        })        
+            })   
+
+    async def prepare_generation_data(self, earliest_start: dt) -> tuple[defaultdict[dt, dict[str, Any]], defaultdict[dt, float]]:
+        """Prepare generation data for accuracy metrics calculation."""
+
+        ignored_intervals: list[int] = []  # Intervals to ignore in local time zone
+        for time_string in self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS]:
+            hour, minute = map(int, time_string.split(":"))
+            interval = hour * 2 + minute // 30
+            ignored_intervals.append(interval)
+
+        export_limited_intervals = dict.fromkeys(range(50), False)
+        if not self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY]:
+            for gen in self.get_data_generation()[GENERATION][
+                -1 * self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] * 48 :
+            ]:
+                if gen[EXPORT_LIMITING]:
+                    export_limited_intervals[self.adjusted_interval(gen)] = True
+
+        data_generation = copy.deepcopy(self.get_data_generation())
+        generation_dampening: defaultdict[dt, dict[str, Any]] = defaultdict(dict[str, Any])
+        generation_dampening_day: defaultdict[dt, float] = defaultdict(float)
+        for record in data_generation.get(GENERATION, [])[
+            -1 * self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] * 48 :
+            ]:
+            if record[PERIOD_START] < earliest_start:
+                continue
+
+            interval = self.adjusted_interval_dt(record[PERIOD_START])
+            offset_interval = interval + (
+                2 if self.dst(record[PERIOD_START]) else 0
+            )
+            if offset_interval in ignored_intervals or export_limited_intervals[interval]:
+                record[EXPORT_LIMITING] = True
+                continue
+
+            generation_dampening[record[PERIOD_START]] = {
+                GENERATION: record[GENERATION],
+                EXPORT_LIMITING: record[EXPORT_LIMITING],
+            }
+            if not record[EXPORT_LIMITING]:
+                generation_dampening_day[
+                record[PERIOD_START].astimezone(self.options.tz).replace(hour=0, minute=0, second=0, microsecond=0)
+                ] += record[GENERATION]
+
+        return generation_dampening, generation_dampening_day
+
+    async def calculate_error(
+        self,
+        generation_day: defaultdict[dt, float],
+        generation: defaultdict[dt, dict[str, Any]],
+        values: tuple[dict[str, Any], ...],
+        percentiles: tuple[int, ...] = (50,),
+        log_breakdown: bool = False,
+        ) -> tuple[bool, float, list[float]]:
+        """Calculate mean and percentile absolute percentage error."""
+        value_day: defaultdict[dt, float] = defaultdict(float)
+        error: defaultdict[dt, float] = defaultdict(float)
+        last_day: dt | None = None
+        for interval in values:
+            i = interval[PERIOD_START].astimezone(self.options.tz).replace(hour=0, minute=0, second=0, microsecond=0)
+            if i != last_day:
+                value_day[i] = 0.0
+                last_day = i
+            if generation.get(interval[PERIOD_START]) is not None and not generation[interval[PERIOD_START]][EXPORT_LIMITING]:
+                value_day[i] += interval[ESTIMATE] / 2  # 30 minute intervals
+        for day, value in value_day.items():
+            error[day] = abs(generation_day[day] - value) / generation_day[day] * 100.0 if generation_day[day] > 0 else math.inf
+            if log_breakdown:
+                _LOGGER.debug(
+                    "APE calculation for day %s, Actual %.2f kWh, Estimate %.2f kWh, Error %.2f%s",
+                    day.strftime(DT_DATE_ONLY_FORMAT),
+                    generation_day[day],
+                    value,
+                    error[day],
+                    "%" if error[day] != math.inf else "",
+                )
+        non_inf_error: dict[dt, float] = {k: v for k, v in error.items() if v != math.inf}
+        return (
+            (
+                (len(error) != len(non_inf_error)),
+                sum(non_inf_error.values()) / len(non_inf_error),
+                [percentile(sorted(error.values()), p) for p in percentiles],
+            )
+            if len(non_inf_error) > 0
+            else (False, 0.0, [0.0] * len(percentiles))
+        )    
+        
 
     async def prepare_dampening_data(self):
         actuals: OrderedDict[dt, float] = OrderedDict()
