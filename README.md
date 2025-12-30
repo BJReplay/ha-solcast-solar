@@ -8,7 +8,7 @@
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/y/BJReplay/ha-solcast-solar?style=for-the-badge)
 ![Maintenance](https://img.shields.io/maintenance/yes/2026?style=for-the-badge)
 
-**Languages:** [🇦🇺 English](./README.md) | [🇫🇷 Français](./README-fr.md) | [🇩🇪 Deutsch](./README-de.md)
+**Languages:** [🇦🇺 English](./README.md) | [🇫🇷 Français](./README_fr.md) | [🇩🇪 Deutsch](./README_de.md)
 
 ## Preamble
 
