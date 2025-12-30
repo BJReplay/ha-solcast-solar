@@ -4,7 +4,7 @@
 
 [](https://github.com/custom-components/hacs)![hacs_badge](https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge)![GitHub-Veröffentlichung](https://img.shields.io/github/v/release/BJReplay/ha-solcast-solar?style=for-the-badge)[](https://github.com/BJReplay/ha-solcast-solar/releases/latest)![hacs_downloads](https://img.shields.io/github/downloads/BJReplay/ha-solcast-solar/latest/total?style=for-the-badge)![GitHub-Lizenz](https://img.shields.io/github/license/BJReplay/ha-solcast-solar?style=for-the-badge)![GitHub-Commit-Aktivität](https://img.shields.io/github/commit-activity/y/BJReplay/ha-solcast-solar?style=for-the-badge)![Wartung](https://img.shields.io/maintenance/yes/2026?style=for-the-badge)
 
-**Languages:** [🇦🇺 English](./README.md) | [🇫🇷 Français](./README-fr.md) | [🇩🇪 Deutsch](./README-de.md)
+**Languages:** [🇦🇺 English](./README.md) | [🇫🇷 Français](./README_fr.md) | [🇩🇪 Deutsch](./README_de.md)
 
 ## Präambel
 
@@ -257,7 +257,6 @@ Die Verwendung von „Force Update“ erhöht den API-Nutzungszähler nicht, was
 Wenn die automatische Aktualisierung nicht aktiviert ist, erstellen Sie eine oder mehrere neue Automatisierungen und legen Sie die gewünschten Auslösezeiten für die Abfrage neuer Solcast-Vorhersagedaten fest. Verwenden Sie dazu die Aktion `solcast_solar.update_forecasts` . Beispiele sind vorhanden; passen Sie diese an Ihre Bedürfnisse an oder erstellen Sie eigene.
 
 <details><summary><i>Klicken Sie hier, um die Beispiele anzuzeigen.</i><p></p></summary>
-</details>
 
 Um die täglich verfügbaren API-Aufrufe optimal zu nutzen, können Sie die Automatisierung so einstellen, dass sie die API in einem Intervall aufruft, das sich aus der Anzahl der Tagesstunden geteilt durch die Gesamtzahl der täglich möglichen API-Aufrufe ergibt.
 
@@ -340,6 +339,7 @@ actions:
     data: {}
 mode: single
 ```
+</details>
 
 
 
@@ -846,7 +846,6 @@ Wenn die granulare Dämpfung für einen einzelnen Standort in einer Mehrstandort
 Die Dämpfung kann selbstverständlich für alle einzelnen Standorte festgelegt werden. In diesem Fall müssen alle Standorte die gleiche Anzahl an Dämpfungswerten angeben, entweder 24 oder 48.
 
 <details><summary><i>Klicken Sie hier, um Beispiele für Dämpfungsdateien anzuzeigen.</i></summary>
-</details>
 
 Die folgenden Beispiele dienen als Vorlage für das Format der dateibasierten, granularen Dämpfung. Verwenden Sie unbedingt Ihre eigenen Website-Ressourcen-IDs anstelle der Beispiel-IDs. Die Datei sollte im Home Assistant-Konfigurationsordner unter dem Namen `solcast-dampening.json` gespeichert werden.
 
@@ -883,7 +882,7 @@ Beispiel für eine halbstündliche Dämpfung für alle Standorte:
   "all": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
 }
 ```
-
+</details>
 
 
 
@@ -1007,7 +1006,6 @@ Die Standortaufschlüsselung muss in den Integrationsoptionen aktiviert sein (di
 **Code enthüllen**
 
 <details><summary><i>klicken Sie hier</i></summary>
-</details>
 
 ```yaml
 template:
@@ -1037,7 +1035,7 @@ template:
             {% endfor %}
             {{ ns.combined | to_json() }}
 ```
-
+</details>
 
 
 
@@ -1056,7 +1054,6 @@ Passen Sie die Konfiguration mit den passenden Home Assistant-Sensoren an die he
 **Code enthüllen**
 
 <details><summary><i>klicken Sie hier</i></summary>
-</details>
 
 ```yaml
 type: custom:apexcharts-card
@@ -1175,6 +1172,7 @@ series:
       in_header: true
       in_chart: false
 ```
+</details>
 
 
 
@@ -1204,7 +1202,6 @@ Wenn Sie Beispielstandorte sehen (wie diese) [](https://github.com/BJReplay/ha-s
 ## Fehlerbehebung
 
 <details><summary><i>Klicken Sie hier, um die Tipps zur Fehlerbehebung auszublenden.</i></summary>
-</details>
 
 Diese Integration ist darauf ausgelegt, bei einwandfreiem Betrieb nur sehr wenige Protokolleinträge zu erstellen. Bei Problemen werden `ERROR` oder `CRITICAL` Protokolleinträge erzeugt, bei vorübergehenden oder kleineren Problemen hingegen `WARNING` . Überprüfen Sie die Protokolle immer als ersten Schritt bei der Fehlerbehebung.
 
@@ -1252,6 +1249,7 @@ Codefehler können zwar vorkommen, sollten aber nicht der erste Verdachtspunkt s
 ### Schlusswort
 
 Sollten äußerst ungewöhnliche Verhaltensweisen auftreten, die mit dem Auftreten von Ausnahmen einhergehen, kann eine schnelle Lösung darin bestehen, alle `/homeassistant/solcast*.json` zu sichern, diese zu entfernen und anschließend die Integration neu zu starten.
+</details>
 
 
 
@@ -1395,7 +1393,6 @@ Vollständiges Änderungsprotokoll: https://github.com/BJReplay/ha-solcast-solar
 ### Vorherige Änderungen
 
 <details><summary><i>Klicken Sie hier, um die Änderungen auf Version 3.0 zurückzusetzen.</i></summary>
-</details>
 
 Version 4.3.5
 
@@ -2143,6 +2140,7 @@ Version 3.0
 - komplett neu geschrieben
 
 Frühere Daten sind nicht verfügbar.
+</details>
 
 
 
