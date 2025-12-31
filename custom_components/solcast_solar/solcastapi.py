@@ -1856,8 +1856,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                     # if using adaptive dampening config loaad the data
                     if self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
-                        await self.load_dampening_history()  
-                        await self.determine_best_dampening_settings()                        
+                        await self.load_dampening_history()                      
                     
                     # If configured to get generation but there is no cached data, then get it.
                     if self.options.auto_dampen and self.options.generation_entities and len(self._data_generation[GENERATION]) == 0:
@@ -3372,17 +3371,29 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         valid = True
         issue_count = 0
         loaded_count = 0
+
+        expected_records = (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1) * (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1) * self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS]
+
+        # --- Initialise structure if needed ---
+        if not self._data_dampening_history:
+            self._data_dampening_history = {
+                m: {
+                    d: []
+                    for d in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1)
+                }
+                for m in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1)
+            }
         
         if Path(self._filename_dampening_history).is_file():
             async with aiofiles.open(self._filename_dampening_history) as file:
                 try:
                     raw = json.loads(await file.read(), cls=JSONDecoder)
                 except json.decoder.JSONDecodeError:
-                    _LOGGER.warning("Dampening history file is corrupt - could not decode JSON")
+                    _LOGGER.warning("Dampening history file is corrupt - could not decode JSON - adaptive model configuration failed")
                     valid = False
         else:
             valid = False
-            _LOGGER.warning("No dampening history file found")
+            _LOGGER.warning("No dampening history file found - adaptive model configuration failed")
 
         if valid:    
 
@@ -3443,7 +3454,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             continue
 
                         if "period_start" not in entry or "factors" not in entry:
-                            _LOGGER.debug("Missing keys in dampening history entry for model %d and delta %d", model, delta)
+                            _LOGGER.debug("Missing period_start or factors key in dampening history entry for model %d and delta %d", model, delta)
                             valid = False
                             issue_count += 1
                             continue
@@ -3478,9 +3489,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             factors=factors
                         )
                         loaded_count += 1
-                        
-            if not valid:
-                _LOGGER.warning("Load dampening history found %d issues, %d records loaded.  Adaptive model configuration may be affected", issue_count, loaded_count)
+
+            msg = f"Load dampening history loaded {loaded_count} of {expected_records} expected records" + (f", found {issue_count} issues." if issue_count > 0 else ".")
+            
+            if (not valid) or (loaded_count != expected_records):
+                _LOGGER.warning(msg+" Adaptive model configuration may be compromised.")
+            else:
+                _LOGGER.debug(msg)
 
         _LOGGER.debug("Task load_dampening_history took %.3f seconds",  time.time() - start_time)
 
@@ -3537,7 +3552,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         factors=adjusted_dampening
                     )
                             
-                    _LOGGER.debug("Dampening factors for model %d and delta adjustment %d: %s", dampening_model, delta_adjustment, adjusted_dampening)
+                    _LOGGER.debug("Dampening factors for model %d and delta adjustment %d: %s", dampening_model, delta_adjustment, ",".join(f"{factor:.3f}" for factor in adjusted_dampening))
 
             # Trim, sort and serialise.
 
