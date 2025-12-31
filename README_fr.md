@@ -257,7 +257,6 @@ L'utilisation de la mise à jour forcée n'incrémentera pas le compteur d'utili
 Si la mise à jour automatique n'est pas activée, créez une ou plusieurs automatisations et configurez les intervalles de déclenchement souhaités pour interroger Solcast afin d'obtenir de nouvelles données de prévision. Utilisez l'action `solcast_solar.update_forecasts` . Des exemples sont fournis ; vous pouvez les modifier ou créer les vôtres en fonction de vos besoins.
 
 <details><summary><i>Cliquez ici pour voir des exemples</i><p></p></summary>
-</details>
 
 Pour tirer le meilleur parti des appels API disponibles par jour, vous pouvez configurer l'automatisation pour qu'elle appelle l'API à un intervalle calculé en divisant le nombre d'heures de jour par le nombre total d'appels API que vous pouvez effectuer par jour.
 
@@ -340,6 +339,7 @@ actions:
     data: {}
 mode: single
 ```
+</details>
 
 
 
@@ -846,7 +846,6 @@ Si un amortissement granulaire est configuré pour un seul site au sein d'une co
 L'amortissement de chaque site peut bien sûr être défini, et dans ce cas, tous les sites doivent spécifier le même nombre de valeurs d'amortissement, soit 24, soit 48.
 
 <details><summary><i>Cliquez pour voir des exemples de fichiers d'amortissement</i></summary>
-</details>
 
 Les exemples suivants peuvent servir de point de départ pour la configuration de l'atténuation granulaire par fichier. Veillez à utiliser vos propres identifiants de ressources de site plutôt que ceux des exemples. Le fichier doit être enregistré dans le dossier de configuration de Home Assistant et nommé `solcast-dampening.json` .
 
@@ -884,6 +883,7 @@ Exemple d'atténuation par demi-heure pour tous les sites :
 }
 ```
 
+</details>
 
 
 
@@ -1007,7 +1007,6 @@ Les ventilations par site doivent être activées dans les options d'intégratio
 **Afficher le code**
 
 <details><summary><i>Cliquez ici</i></summary>
-</details>
 
 ```yaml
 template:
@@ -1037,6 +1036,7 @@ template:
             {% endfor %}
             {{ ns.combined | to_json() }}
 ```
+</details>
 
 
 
@@ -1056,7 +1056,6 @@ Personnalisez votre installation avec les capteurs Home Assistant appropriés po
 **Afficher le code**
 
 <details><summary><i>Cliquez ici</i></summary>
-</details>
 
 ```yaml
 type: custom:apexcharts-card
@@ -1175,6 +1174,7 @@ series:
       in_header: true
       in_chart: false
 ```
+</details>
 
 
 
@@ -1204,7 +1204,6 @@ Si vous consultez des exemples de sites (comme ceux-ci) [](https://github.com/BJ
 ## Dépannage
 
 <details><summary><i>Cliquez ici pour afficher plus de conseils de dépannage.</i></summary>
-</details>
 
 Cette intégration vise à minimiser la quantité d'informations consignées lorsque tout fonctionne correctement. En cas de problème, des entrées de journal `ERROR` ou `CRITICAL` seront générées, et des entrées de niveau `WARNING` en cas de problème temporaire ou mineur. Consultez toujours les journaux en premier lieu lors du dépannage.
 
@@ -1253,6 +1252,7 @@ Cela dit, des défauts de code peuvent survenir, mais ils ne doivent pas être l
 
 Si vous rencontrez un comportement très étrange, avec de nombreuses exceptions, une solution rapide peut consister à sauvegarder tous les fichiers `/homeassistant/solcast*.json` , à les supprimer, puis à redémarrer l'intégration.
 
+</details>
 
 
 
@@ -1403,7 +1403,6 @@ Journal des modifications complet : https://github.com/BJReplay/ha-solcast-sola
 ### Modifications antérieures
 
 <details><summary><i>Cliquez ici pour revenir à la version 3.0.</i></summary>
-</details>
 
 v4.3.5
 
@@ -2150,6 +2149,7 @@ v3.0
 - réécriture complète
 
 Les données historiques antérieures ne sont pas disponibles.
+</details>
 
 
 
