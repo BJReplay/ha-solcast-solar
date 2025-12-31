@@ -4,7 +4,7 @@
 
 [](https://github.com/custom-components/hacs)![insignia hacs](https://img.shields.io/badge/HACS-Default-orange.svg?style=for-the-badge)![Lanzamiento de GitHub](https://img.shields.io/github/v/release/BJReplay/ha-solcast-solar?style=for-the-badge)[](https://github.com/BJReplay/ha-solcast-solar/releases/latest)![descargas de hacs](https://img.shields.io/github/downloads/BJReplay/ha-solcast-solar/latest/total?style=for-the-badge)![Licencia de GitHub](https://img.shields.io/github/license/BJReplay/ha-solcast-solar?style=for-the-badge)![Actividad de confirmación de GitHub](https://img.shields.io/github/commit-activity/y/BJReplay/ha-solcast-solar?style=for-the-badge)![Mantenimiento](https://img.shields.io/maintenance/yes/2026?style=for-the-badge)
 
-**Idiomas:** [🇦🇺 Inglés](https://github.com/BJReplay/ha-solcast-solar/blob/main/README.md) | [🇩🇪 Alemán](https://github.com/BJReplay/ha-solcast-solar/blob/main/README_de.md) | [🇫🇷 Francés](https://github.com/BJReplay/ha-solcast-solar/blob/main/README_fr.md)
+**Idiomas:** [🇦🇺 Inglés](https://github.com/BJReplay/ha-solcast-solar/blob/main/README.md) | [🇩🇪 Alemán](https://github.com/BJReplay/ha-solcast-solar/blob/main/README_de.md) | [🇪🇸 Español](https://github.com/BJReplay/ha-solcast-solar/blob/main/README_es.md) | [🇫🇷 Francés](https://github.com/BJReplay/ha-solcast-solar/blob/main/README_fr.md)
 
 ## Preámbulo
 
