@@ -224,7 +224,7 @@ Asegúrate de usar tu `API Key` y no el ID de la azotea creado en Solcast. Puede
 
 [](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/install.png)<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/install.png" width="500">
 
-> [!IMPORTANT] The API key and associated sites will be checked when the initial configuration is saved. It is possible for this initial check to fail because the Solcast API is temporarily unavailable, and if it is then simply retry configuration after some minutes. The configure error message will indicate if this is the case.
+> [!IMPORTANT] La clave API y los sitios asociados se comprobarán al guardar la configuración inicial. Es posible que esta comprobación inicial falle si la API de Solcast no está disponible temporalmente. En ese caso, simplemente vuelva a intentar la configuración después de unos minutos. El mensaje de error de configuración lo indicará.
 
 ### Actualización de previsiones
 
@@ -246,7 +246,7 @@ Por ejemplo, para actualizar justo después de medianoche y aprovechar la actual
 
 El uso de la actualización forzada no incrementará el contador de uso de la API, lo cual es así por diseño.
 
-> [!NOTE] *Transitioning to auto-update from using an automation:*
+> [!NOTE] *Transición a la actualización automática desde el uso de una automatización:*
 >
 > Si actualmente utiliza la automatización recomendada, que distribuye las actualizaciones de forma bastante uniforme entre el amanecer y el anochecer, activar la actualización automática entre el amanecer y el anochecer no debería causar fallos inesperados en la obtención del pronóstico debido al agotamiento del límite de la API. La automatización recomendada no es idéntica a la actualización automática, pero su sincronización es bastante similar.
 >
@@ -381,8 +381,7 @@ Edita un elemento `Solar production` `Solar Panels` que hayas creado previamente
 
 Solo puede haber una única configuración del pronóstico total de PV de Solcast en el panel de energía que cubra todos los sitios (conjuntos) en su cuenta de Solcast, no es posible dividir el pronóstico en el panel de energía para diferentes conjuntos solares/sitios de Solcast.
 
-> [!IMPORTANT]
->  If you do not have a solar generation sensor in your system then this integration will not work in the Energy dashboard. The graph and adding the forecast integration rely on there being a solar generation sensor set up.
+> [!IMPORTANT]<br> Si no tiene un sensor de generación solar en su sistema, esta integración no funcionará en el panel de Energía. El gráfico y la integración del pronóstico dependen de la configuración del sensor de generación solar.
 
 [](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolarPanels.png)<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolarPanels.png" width="500">
 
@@ -2165,3 +2164,5 @@ Modificado de las grandes obras de
 - dannerph/homeassistant-solcast
 - cjtapper/solcast-py
 - home-assistant-libs/forecast_solar
+
+
