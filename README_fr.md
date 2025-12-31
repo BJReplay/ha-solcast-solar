@@ -381,8 +381,7 @@ Modifiez un élément `Solar production` `Solar Panels` ) que vous avez déjà c
 
 Il ne peut y avoir qu'une seule configuration de la prévision totale Solcast PV dans le tableau de bord Énergie couvrant tous les sites (réseaux) de votre compte Solcast ; il n'est pas possible de diviser la prévision sur le tableau de bord Énergie pour différents champs solaires/sites Solcast.
 
-> [!IMPORTANT]
->  Si votre système ne comporte pas de capteur de production solaire, cette intégration ne fonctionnera pas dans le tableau de bord Énergie. Le graphique et l'ajout de l'intégration des prévisions nécessitent la présence d'un capteur de production solaire.
+> [!IMPORTANT] Si votre système ne comporte pas de capteur de production solaire, cette intégration ne fonctionnera pas dans le tableau de bord Énergie. Le graphique et l'ajout de l'intégration des prévisions nécessitent la présence d'un capteur de production solaire.
 
 [](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolarPanels.png)<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SolarPanels.png" width="500">
 
@@ -883,8 +882,8 @@ Exemple d'atténuation par demi-heure pour tous les sites :
   "all": [1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0]
 }
 ```
-</details>
 
+</details>
 
 
 
@@ -1252,8 +1251,8 @@ Cela dit, des défauts de code peuvent survenir, mais ils ne doivent pas être l
 ### Dernier mot
 
 Si vous rencontrez un comportement très étrange, avec de nombreuses exceptions, une solution rapide peut consister à sauvegarder tous les fichiers `/homeassistant/solcast*.json` , à les supprimer, puis à redémarrer l'intégration.
-</details>
 
+</details>
 
 
 
@@ -1268,6 +1267,14 @@ Les fichiers cache se trouvent dans le dossier de configuration Solcast Solar de
 Le code lui-même se trouve dans `/config/custom_components/solcast_solar` , et la suppression de ce dossier entier entraînera la suppression totale de l'intégration.
 
 ## Changements
+
+v4.4.11
+
+- Correction de la validation des options avancées pour `not_set_if` par @autoSteve
+- Ajout des traductions manquantes (ES, FR, PL, SK, UR) par @GitLocalize
+- Espacement cohérent des chaînes de caractères dans les fichiers par @autoSteve
+
+Journal des modifications complet : https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.10...v4.4.11
 
 v4.4.10
 
@@ -1851,8 +1858,7 @@ v4.0.17
 
 v4.0.16
 
-- L'idée de @Zachoz d'ajouter une option permettant de sélectionner la valeur du champ d'estimation Solcast pour les calculs de prévision (estimate, estimate10 ou estimate90) a été ajoutée. ESTIMATE : prévisions par défaut. ESTIMATE10 : prévisions à 10 jours (scénario plus nuageux que prévu).
-     ESTIMATE90 = Prévisions 90 - scénario moins nuageux que prévu
+- L'idée de @Zachoz d'ajouter une option permettant de sélectionner la valeur du champ d'estimation Solcast pour les calculs de prévision (estimate, estimate10 ou estimate90) a été ajoutée. ESTIMATE : prévisions par défaut. ESTIMATE10 : prévisions à 10 jours (scénario plus nuageux que prévu). ESTIMATE90 = Prévisions 90 - scénario moins nuageux que prévu
 
 v4.0.15
 
