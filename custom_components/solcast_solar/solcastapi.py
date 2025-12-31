@@ -1856,7 +1856,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                     # if using adaptive dampening config loaad the data
                     if self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
-                        await self.load_dampening_history()                          
+                        await self.load_dampening_history()  
+                        await self.determine_best_dampening_settings()                        
                     
                     # If configured to get generation but there is no cached data, then get it.
                     if self.options.auto_dampen and self.options.generation_entities and len(self._data_generation[GENERATION]) == 0:
@@ -3239,40 +3240,49 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         _LOGGER.debug ("Determining best automated dampening settings")
         start_time = time.time()
         
-        # build actuals data for past 14 days
+        # Build actuals as: { day_start: [48 floats] }
 
-        actuals: OrderedDict[dt, float] = OrderedDict()
-        dampened_actuals: OrderedDict[dt, float] = OrderedDict()
-        
+        actuals: dict[dt, list[float]] = {}
+        dampened_actuals: dict[dt, list[float]] = {}
+
         for site in self.sites:
             if site[RESOURCE_ID] in self.options.exclude_sites:
                 _LOGGER.debug("Dampening history actuals suppressed site %s", site[RESOURCE_ID])
                 continue
+
             start, end = self.__get_list_slice(
                 self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS],
-                self.get_day_start_utc() - timedelta(days=14),
+                self.get_day_start_utc() - timedelta(days=self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS]),
                 self.get_day_start_utc(),
                 search_past=True,
             )
-            site_actuals = {
-                actual[PERIOD_START]: actual for actual in self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS][start:end]
-            }
-            for period_start, actual in site_actuals.items():
-                extant: float | None = actuals.get(period_start)
-                if extant is not None:
-                    actuals[period_start] += actual[ESTIMATE] * 0.5
-                else:
-                    actuals[period_start] = actual[ESTIMATE] * 0.5
 
-        generation_dampening, generation_dampening_day = await self.prepare_generation_data(self.get_day_start_utc() - timedelta(days=14)) 
+            for actual in self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS][start:end]:
+                ts: datetime = actual[PERIOD_START]
+                day_start = ts.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
 
-        best_ape = float('inf')
+                if day_start not in actuals:
+                    actuals[day_start] = [0.0] * 48
+
+                interval = self.adjusted_interval_dt(ts)
+                actuals[day_start][interval] += actual[ESTIMATE] * 0.5     
+
+        generation_dampening, generation_dampening_day = await self.prepare_generation_data(
+            self.get_day_start_utc() - timedelta(days=self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS])
+        )
+
+        best_ape = float("inf")
         best_model = -1
         best_delta = -1
 
-        for model in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1):
-            for delta in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM],
-                            ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1):
+        for model in range(
+            ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM],
+            ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1
+        ):
+            for delta in range(
+                ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM],
+                ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1
+            ):
 
                 _LOGGER.debug("Evaluating model %d and delta %d", model, delta)
 
@@ -3283,41 +3293,44 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     period_start = model_entry["period_start"]
                     factors = model_entry["factors"]
 
-                    # Match actuals to this period_start
-                    for actual_period_start, actual_value in actuals.items():
-                        # Only process actuals that fall within this period (same day)
-                        if actual_period_start.strftime("%Y-%m-%d") == period_start.strftime("%Y-%m-%d"):
-                            adjusted_interval = self.adjusted_interval_dt(actual_period_start)
-                            factor = factors[adjusted_interval]
-                            dampened_value = actual_value * factor
-                            
-                            extant: float | None = dampened_actuals.get(actual_period_start)
-                            if extant is not None:
-                                dampened_actuals[actual_period_start] += dampened_value
-                            else:
-                                dampened_actuals[actual_period_start] = dampened_value
-                    
-                if len(dampened_actuals) != len(actuals):  
-                    valid=False
-                    _LOGGER.debug("Model %d and delta %d produced mismatched actuals count (%d dampened vs %d actuals)", model, delta, len(dampened_actuals), len(actuals))    
-                
-                if valid:
-                    # calculate APE 
+                    day_start = period_start.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)    
 
-                    inf_d = False
+                    # If we have no actuals for this day, model is invalid
+                    if day_start not in actuals:
+                        _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for day %s", model, delta, day_start.strftime("%Y-%m-%d"))
+                        valid = False
+                        break
 
-                    values = tuple(
-                        {
-                            PERIOD_START: ts,
-                            ESTIMATE: value
-                        }
-                        for ts, value in dampened_actuals.items()
+                    if day_start not in dampened_actuals:
+                        dampened_actuals[day_start] = [0.0] * 48
+
+                    # Apply factors interval-by-interval
+                    for interval in range(48):
+                        dampened_actuals[day_start][interval] += actuals[day_start][interval] * factors[interval]
+
+                # Validate counts
+                actual_count = sum(len(v) for v in actuals.values())
+                dampened_count = sum(len(v) for v in dampened_actuals.values())
+
+                if dampened_count != actual_count:
+                    valid = False
+                    _LOGGER.debug(
+                        "Model %d and delta %d produced mismatched actuals count (%d dampened vs %d actuals)",
+                        model, delta, dampened_count, actual_count
                     )
+
+                if valid:
+                    # Convert to timestamp/value tuples
+                    values = []
+                    for day_start, arr in dampened_actuals.items():
+                        for interval, value in enumerate(arr):
+                            ts = day_start + timedelta(minutes=30 * interval)
+                            values.append({PERIOD_START: ts, ESTIMATE: value})
 
                     inf_d, error_dampened, error_dampened_percentiles = await self.calculate_error(
                         generation_dampening_day,
                         generation_dampening,
-                        values,
+                        tuple(values),
                     )
                     
                     if inf_d:
@@ -3357,6 +3370,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         _LOGGER.debug("Loading dampening history from file: %s", self._filename_dampening_history)
         
         valid = True
+        issue_count = 0
+        loaded_count = 0
         
         if Path(self._filename_dampening_history).is_file():
             async with aiofiles.open(self._filename_dampening_history) as file:
@@ -3377,17 +3392,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 # Validate model key
                 if not isinstance(model_str, str) or not model_str.isdigit():
                     valid = False
+                    issue_count += 1
                     _LOGGER.debug("Invalid model key in dampening history: %s", model_str)  
                     continue
 
                 model = int(model_str)
                 if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM] <= model <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM]):
                     _LOGGER.debug("Model value out of range in dampening history: %d", model)
+                    valid = False
+                    issue_count += 1
                     continue
 
                 # Validate deltas
                 if not isinstance(deltas, dict):
                     valid = False
+                    issue_count += 1
                     _LOGGER.debug("Invalid deltas structure in dampening history")
                     continue
 
@@ -3396,18 +3415,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # Validate delta key
                     if not isinstance(delta_str, str) or not delta_str.isdigit():
                         valid = False
+                        issue_count += 1
                         _LOGGER.debug("Invalid delta key in dampening history: %s", delta_str)
                         continue
 
                     delta = int(delta_str)
                     if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM] <= delta <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]):
                         valid = False
+                        issue_count += 1
                         _LOGGER.debug("Delta value out of range in dampening history: %d", delta)
                         continue
 
                     # Validate entries list
                     if not isinstance(entries, list):
                         valid = False
+                        issue_count += 1
                         _LOGGER.debug("Invalid entries structure in dampening history for model %d and delta %d", model, delta)
                         continue
 
@@ -3416,12 +3438,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         # Validate entry structure
                         if not isinstance(entry, dict):
                             valid = False
+                            issue_count += 1
                             _LOGGER.debug("Invalid entry structure in dampening history for model %d and delta %d", model, delta)
                             continue
 
                         if "period_start" not in entry or "factors" not in entry:
                             _LOGGER.debug("Missing keys in dampening history entry for model %d and delta %d", model, delta)
                             valid = False
+                            issue_count += 1
                             continue
 
                         period_start = entry["period_start"]
@@ -3430,20 +3454,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         # Validate period_start is ISO datetime
                         if not isinstance(period_start, dt):
                             valid = False
+                            issue_count += 1
                             _LOGGER.debug("Invalid period_start in dampening history: %s for model %d and delta %d, got type %s", period_start, model, delta, type(period_start).__name__)
                             continue
-
-                        period_start = period_start
 
                         # Validate factors
                         if not (isinstance(factors, list) and len(factors) == 48):
                             _LOGGER.debug("Invalid factors list in dampening history for model %d and delta %d", model, delta)
                             valid = False
+                            issue_count += 1
                             continue
 
                         if not all(isinstance(x, (int, float)) for x in factors):
                             _LOGGER.debug("Non-numeric factor found in dampening history for model %d and delta %d", model, delta)
                             valid = False
+                            issue_count += 1
                             continue
 
                         await self.add_dampening_history(
@@ -3452,13 +3477,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             delta=delta,
                             factors=factors
                         )
+                        loaded_count += 1
                         
             if not valid:
-                _LOGGER.warning("Dampening history validation failed - history not loaded")
+                _LOGGER.warning("Load dampening history found %d issues, %d records loaded.  Adaptive model configuration may be affected", issue_count, loaded_count)
 
-            _LOGGER.debug("Task load_dampening_history took %.3f seconds",  time.time() - start_time)
+        _LOGGER.debug("Task load_dampening_history took %.3f seconds",  time.time() - start_time)
 
-            return valid
+        return valid
                       
     async def update_dampening_history(self) -> None:
         """Generate history of dampening factors for all models."""
@@ -3494,8 +3520,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                         dampening_model, 
                                                         False)
                 
-
-                
                 for delta_adjustment in range (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM],
                                             ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]+1):
                     adjusted_dampening = copy.deepcopy(dampening)
@@ -3517,7 +3541,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             # Trim, sort and serialise.
 
-            cutoff = self.get_day_start_utc(future=-14)
+            cutoff = self.get_day_start_utc(future=1-self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS])
 
             serializable = {}
 
