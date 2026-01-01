@@ -68,6 +68,7 @@ from .const import (
     ADVANCED_TYPE,
     ALIASES,
     ALL,
+    AMENDABLE,
     API_KEY,
     AUTO_DAMPEN,
     AUTO_UPDATE,
@@ -301,6 +302,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.sites_status: SitesStatus = SitesStatus.UNKNOWN
         self.status: SolcastApiStatus = SolcastApiStatus.UNKNOWN
         self.status_message: str = ""
+        self.suppress_advanced_watchdog_reload: bool = False
         self.tasks: dict[str, Any] = {}
         self.usage_status: UsageStatus = UsageStatus.UNKNOWN
 
@@ -804,7 +806,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         return f"{self._config_dir}/solcast-sites{'' if not self.__is_multi_key() else '-' + api_key}.json"
 
     async def serialise_data(self, data: dict[str, Any], filename: str) -> bool:
-        """Serialize data to file.
+        """Serialise data to file.
 
         Arguments:
             data (dict): The data to serialise.
@@ -1854,10 +1856,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if generation_data:
                         self._data_generation = generation_data
 
-                    # if using adaptive dampening config loaad the data
+                    # if using adaptive dampening config load the data
                     if self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
                         await self.load_dampening_history()                      
-                    
+
                     # If configured to get generation but there is no cached data, then get it.
                     if self.options.auto_dampen and self.options.generation_entities and len(self._data_generation[GENERATION]) == 0:
                         await self.get_pv_generation()
@@ -3270,7 +3272,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             self.get_day_start_utc() - timedelta(days=self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS])
         )
 
-        best_ape = float("inf")
+        best_ape = math.inf
         best_model = -1
         best_delta = -1
 
@@ -3289,6 +3291,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 dampened_actuals.clear()
 
                 for model_entry in self._data_dampening_history[model][delta]:
+                    await asyncio.sleep(0) # Be nice to HA 
                     period_start = model_entry["period_start"]
                     factors = model_entry["factors"]
 
@@ -3296,7 +3299,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                     # If we have no actuals for this day, model is invalid
                     if day_start not in actuals:
-                        _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for day %s", model, delta, day_start.strftime("%Y-%m-%d"))
+                        _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for day %s", model, delta, day_start.strftime(DT_DATE_ONLY_FORMAT))
                         valid = False
                         break
 
@@ -3351,16 +3354,72 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.info("Selected best automated dampening settings: model %d and delta %d with mean APE of %.3f%%", best_model, best_delta, best_ape)
             
             #################### REMOVE COMMENTS ONCE BETTER TESTED ############################
-            #self.advanced_options.update({
-            #    ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model,
-            #    ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: best_delta
-            #})
-            #await self.serialise_advanced_options()
+            self.advanced_options.update({
+                ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model,
+                ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: best_delta
+            })
+            await self.serialise_advanced_options()
             
         else:
             _LOGGER.info("Could not determine best automated dampening settings - values unmodified")
 
         _LOGGER.debug("Task determine_best_dampening_settings took %.3f seconds", time.time() - start_time)
+
+    async def serialise_advanced_options(self) -> None:
+        """Serialise advanced options to JSON."""
+        start_time = time.time()
+        _LOGGER.debug("Serialising advanced options to file: %s", self._filename_advanced)
+
+        valid = True
+
+        if Path(self._filename_advanced).is_file():
+            async with aiofiles.open(self._filename_advanced) as file:
+                try:
+                    data = json.loads(await file.read(), cls=JSONDecoder)
+                except json.decoder.JSONDecodeError:
+                    _LOGGER.warning("Advanced options file is corrupt - could not decode JSON. Recreating from memory")
+                    valid = False
+        else:
+            valid = False
+            _LOGGER.warning("No advanced options file found. Recreating from memory")
+
+        if not valid: # Issue with file so recreate with non-default advanced options
+ 
+            data = {}
+
+            for option, cfg in ADVANCED_OPTIONS.items():
+                default = cfg.get(DEFAULT)
+                current = self.advanced_options.get(option)
+
+                # Only include options where current != default
+                if current is not None and current != default:
+                    data[option] = current
+
+        else: # File exists so write existing data back with AMENDABLE options updated
+        
+            # Update amendable options
+            for option in list(data.keys()):
+                adv_cfg = ADVANCED_OPTIONS.get(option)
+
+                if adv_cfg and adv_cfg.get(AMENDABLE, False):
+                    if option in self.advanced_options:
+                        data[option] = self.advanced_options[option]
+                        _LOGGER.debug("Advanced option '%s' updated to: %s", option, data[option])
+                    else:
+                        _LOGGER.warning(
+                            "Option '%s' marked amendable but missing in self.advanced_options",
+                            option
+                        )
+
+        _LOGGER.debug("Advanced options to be written: %s", data)                
+
+        payload = json.dumps(data, ensure_ascii=False, cls=DateTimeEncoder)
+        self.suppress_advanced_watchdog_reload = True # Turn off watchdog for this change
+
+        async with self._serialise_lock, aiofiles.open(self._filename_advanced, "w") as file:
+            await file.write(payload)                
+
+        _LOGGER.debug("Task serialise_advanced_options took %.3f seconds", time.time() - start_time)
 
     async def load_dampening_history(self) -> bool:
         """Load dampening history from JSON, validate, and repopulate."""
@@ -3493,7 +3552,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             msg = f"Load dampening history loaded {loaded_count} of {expected_records} expected records" + (f", found {issue_count} issues." if issue_count > 0 else ".")
             
             if (not valid) or (loaded_count != expected_records):
-                _LOGGER.warning(msg+" Adaptive model configuration may be compromised.")
+                _LOGGER.warning(msg+" Adaptive dampening model configuration may be compromised.")
             else:
                 _LOGGER.debug(msg)
 
@@ -3558,10 +3617,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             cutoff = self.get_day_start_utc(future=1-self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS])
 
-            serializable = {}
+            serialisable = {}
 
             for model, deltas in self._data_dampening_history.items():
-                serializable[model] = {}
+                serialisable[model] = {}
 
                 for delta, entries in deltas.items():
 
@@ -3578,8 +3637,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # Update in-memory structure
                     self._data_dampening_history[model][delta] = recent_entries
 
-                    # Build serializable version
-                    serializable[model][delta] = [
+                    # Build serialisable version
+                    serialisable[model][delta] = [
                         {
                             "period_start": entry["period_start"].isoformat(),
                             "factors": entry["factors"]
@@ -3587,7 +3646,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         for entry in recent_entries
                     ]
 
-            payload = json.dumps(serializable, ensure_ascii=False, cls=DateTimeEncoder)
+            payload = json.dumps(serialisable, ensure_ascii=False, cls=DateTimeEncoder)
             async with self._serialise_lock, aiofiles.open(self._filename_dampening_history, "w") as file:
                 await file.write(payload)
                 
