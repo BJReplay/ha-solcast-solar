@@ -52,6 +52,7 @@ AFFIRMATION_REAUTH_SUCCESSFUL: Final[str] = "reauth_successful"
 AFFIRMATION_RECONFIGURED: Final[str] = "reconfigured"
 ALIASES: Final[str] = "aliases"
 ALL: Final[str] = "all"
+AMENDABLE: Final[str] = "amendable"
 API_KEY: Final[str] = "api_key"
 API_QUOTA: Final[str] = "api_quota"
 ATTR_ENTRY_TYPE: Final[str] = "entry_type"
@@ -337,6 +338,7 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         MINIMUM: 0,
         MAXIMUM: 1,
         DEFAULT: DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL,
+        AMENDABLE: True,
     },
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
@@ -377,6 +379,7 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         MINIMUM: 0,
         MAXIMUM: 3,
         DEFAULT: DEFAULT_DAMPENING_MODEL,
+        AMENDABLE: True,
     },
     ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
