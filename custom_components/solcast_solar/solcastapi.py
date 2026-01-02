@@ -100,8 +100,11 @@ from .const import (
     DISMISSAL,
     DOMAIN,
     DT_DATE_FORMAT,
+    DT_DATE_FORMAT_SHORT,
     DT_DATE_MONTH_DAY,
     DT_DATE_ONLY_FORMAT,
+    DT_TIME_FORMAT_SHORT,
+    DT_DAYNAME,
     ENTRY_ID,
     ENTRY_OPTIONS,
     ERROR_CODE,
@@ -335,6 +338,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         }
         self._data_undampened: dict[str, Any] = copy.deepcopy(FRESH_DATA)
         self._dismissal: dict[str, bool] = {}
+        self._extant_advanced_options: dict[str, Any] = {}
         self._extant_sites: defaultdict[str, list[dict[str, Any]]] = defaultdict(list[dict[str, Any]])
         self._extant_usage: defaultdict[str, dict[str, Any]] = defaultdict(dict[str, Any])
         self._filename = f"{file_path}"
@@ -495,6 +499,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def read_advanced_options(self) -> bool:  # noqa: C901
         """Read advanced JSON file options, validate and set them."""
 
+        if self.suppress_advanced_watchdog_reload:
+            self.suppress_advanced_watchdog_reload = False  # File has just been written so reset flag but do not reload
+            return False       
+        
         advanced_options_proposal: dict[str, Any] = copy.deepcopy(self.advanced_options)
         change = False
         if Path(self._filename_advanced).exists():
@@ -545,6 +553,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 add_problem_later("Advanced options file invalid format, expected JSON `dict`: %s", self._filename_advanced)
                             )
                             return change
+                        self._extant_advanced_options = copy.deepcopy(response_json)
                         options_present = self._advanced_with_aliases(response_json)
                         for option, new_value in response_json.items():
                             if advanced_options_with_aliases.get(option) is None:
@@ -1858,8 +1867,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                     # if using adaptive dampening config load the data
                     if self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
-                        await self.load_dampening_history()                      
-
+                        await self.load_dampening_history()  
+                        
                     # If configured to get generation but there is no cached data, then get it.
                     if self.options.auto_dampen and self.options.generation_entities and len(self._data_generation[GENERATION]) == 0:
                         await self.get_pv_generation()
@@ -2280,7 +2289,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     hourly_tuples[site[RESOURCE_ID]] = build_hourly(tuples[site[RESOURCE_ID]])
 
         result: dict[str, Any] = {
-            DAY_NAME: start_utc.astimezone(self._tz).strftime("%A"),
+            DAY_NAME: start_utc.astimezone(self._tz).strftime(DT_DAYNAME),
             DATA_CORRECT: no_data_error,
         }
         if self.options.attr_brk_halfhourly:
@@ -2995,10 +3004,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                         "Ignoring excessive PV generation jump of %.3f kWh, time delta %d seconds, at %s from entity: %s; Invalidating intervals %s and %s",
                                         kWh,
                                         time_delta,
-                                        report_time.astimezone(self._tz).strftime("%Y-%m-%d %H:%M:%S"),
+                                        report_time.astimezone(self._tz).strftime(DT_DATE_FORMAT),
                                         entity,
-                                        (interval - timedelta(minutes=30)).astimezone(self._tz).strftime("%H:%M"),
-                                        interval.astimezone(self._tz).strftime("%H:%M"),
+                                        (interval - timedelta(minutes=30)).astimezone(self._tz).strftime(DT_TIME_FORMAT_SHORT),
+                                        interval.astimezone(self._tz).strftime(DT_TIME_FORMAT_SHORT),
                                     )
                             else:
                                 generation_intervals[interval] += kWh
@@ -3066,18 +3075,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                     entity_state.pop(interval + timedelta(minutes=30))
                             _LOGGER.debug(
                                 "Interval %s state change %s at %s",
-                                interval.astimezone(self._tz).strftime("%Y-%m-%d %H:%M"),
+                                interval.astimezone(self._tz).strftime(DT_DATE_FORMAT_SHORT),
                                 entity_state[interval],
-                                e.last_updated.astimezone(self._tz).strftime("%Y-%m-%d %H:%M"),
+                                e.last_updated.astimezone(self._tz).strftime(DT_DATE_FORMAT_SHORT),
                             )
                         elif state:
                             state = False
                             entity_state[interval + timedelta(minutes=30)] = False
                             _LOGGER.debug(
                                 "Interval %s state change %s at %s",
-                                (interval + timedelta(minutes=30)).astimezone(self._tz).strftime("%Y-%m-%d %H:%M"),
+                                (interval + timedelta(minutes=30)).astimezone(self._tz).strftime(DT_DATE_FORMAT_SHORT),
                                 entity_state[interval + timedelta(minutes=30)],
-                                e.last_updated.astimezone(self._tz).strftime("%Y-%m-%d %H:%M"),
+                                e.last_updated.astimezone(self._tz).strftime(DT_DATE_FORMAT_SHORT),
                             )
                     state = False
                     for interval in export_limiting:
@@ -3086,7 +3095,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         export_limiting[interval] = state
                         if state:
                             _LOGGER.debug(
-                                "Auto-dampen suppressed for interval %s", interval.astimezone(self._tz).strftime("%Y-%m-%d %H:%M")
+                                "Auto-dampen suppressed for interval %s", interval.astimezone(self._tz).strftime(DT_DATE_FORMAT_SHORT)
                             )
 
             # Detect site export limiting
@@ -3370,48 +3379,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         start_time = time.time()
         _LOGGER.debug("Serialising advanced options to file: %s", self._filename_advanced)
 
-        valid = True
+        data = {}
 
-        if Path(self._filename_advanced).is_file():
-            async with aiofiles.open(self._filename_advanced) as file:
-                try:
-                    data = json.loads(await file.read(), cls=JSONDecoder)
-                except json.decoder.JSONDecodeError:
-                    _LOGGER.warning("Advanced options file is corrupt - could not decode JSON. Recreating from memory")
-                    valid = False
-        else:
-            valid = False
-            _LOGGER.warning("No advanced options file found. Recreating from memory")
-
-        if not valid: # Issue with file so recreate with non-default advanced options
- 
-            data = {}
-
-            for option, cfg in ADVANCED_OPTIONS.items():
-                default = cfg.get(DEFAULT)
-                current = self.advanced_options.get(option)
-
-                # Only include options where current != default
-                if current is not None and current != default:
-                    data[option] = current
-
-        else: # File exists so write existing data back with AMENDABLE options updated
-        
-            # Update amendable options
-            for option in list(data.keys()):
-                adv_cfg = ADVANCED_OPTIONS.get(option)
-
-                if adv_cfg and adv_cfg.get(AMENDABLE, False):
-                    if option in self.advanced_options:
-                        data[option] = self.advanced_options[option]
-                        _LOGGER.debug("Advanced option '%s' updated to: %s", option, data[option])
-                    else:
-                        _LOGGER.warning(
-                            "Option '%s' marked amendable but missing in self.advanced_options",
-                            option
-                        )
-
-        _LOGGER.debug("Advanced options to be written: %s", data)                
+        for option in self.advanced_options:
+            adv_cfg = ADVANCED_OPTIONS.get(option)
+            
+            if adv_cfg and adv_cfg.get(AMENDABLE, False):  # Always update amendable options from memory
+                data[option] = self.advanced_options[option]
+                _LOGGER.debug("Advanced option '%s' set to: %s", option, data[option]) 
+            elif option in self._extant_advanced_options:
+                data[option] = self._extant_advanced_options[option] #write back non-amendable options unchanged
 
         payload = json.dumps(data, ensure_ascii=False, cls=DateTimeEncoder)
         self.suppress_advanced_watchdog_reload = True # Turn off watchdog for this change
@@ -4429,7 +4406,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug(
                 "Polling API for site %s, last day %s, %d hours",
                 site,
-                last_day.strftime("%Y-%m-%d"),
+                last_day.strftime(DT_DATE_ONLY_FORMAT),
                 hours,
             )
 
@@ -5329,8 +5306,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if contiguous > 1:
             _LOGGER.debug(
                 "Forecast data from %s to %s contains all intervals",
-                contiguous_start_date.strftime("%Y-%m-%d"),
-                contiguous_end_date.strftime("%Y-%m-%d"),
+                contiguous_start_date.strftime(DT_DATE_ONLY_FORMAT),
+                contiguous_end_date.strftime(DT_DATE_ONLY_FORMAT),
             )
         else:
             contiguous_end_date = None
@@ -5342,12 +5319,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     case True:
                         _LOGGER.debug(
                             "Forecast data for %s contains all intervals",
-                            day.strftime("%Y-%m-%d"),
+                            day.strftime(DT_DATE_ONLY_FORMAT),
                         )
                     case _:
                         (_LOGGER.debug if contiguous == self.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS] - 1 else _LOGGER.warning)(
                             "Forecast data for %s contains %d of %d intervals%s",
-                            day.strftime("%Y-%m-%d"),
+                            day.strftime(DT_DATE_ONLY_FORMAT),
                             assessment[INTERVALS],
                             assessment[EXPECTED_INTERVALS],
                             ", which may be expected"
