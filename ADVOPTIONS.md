@@ -37,6 +37,16 @@ You are free to raise an issue should a code exception occur after setting an ad
 
 ## Automated dampening
 
+**Key: "automated_dampening_adaptive_model_configuration"**
+
+Possible values: boolean `true`/`false` (default `false`)
+
+Setting this option to `true` will (in time) choose the combination of dampening model and delta adjustment that resulted in the lowest error between generation and Solcast's dampened estimated actuals over the last `ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS` days.  Just before midnight the integration will calculate dampening factors for all possible dampening model and delta adjustment combinations and log the results to `solcast-dampening-history.json`.  A full `ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS` days of history is required before dampening models and delta adjustment options can be compared and any changes made.
+
+After the previous day's estimated actuals are loaded the mean average percentage error between generation and dampened estimated actuals is calculated for every combination of dampening model and delta adjustment.  The dampening model and delta adjustent option that result in the lowest error will then be applied to today's forecast and will be written back to `solcast-advanced.json`.  No other values in `solcast-advanced.json` will be affected, and entries for the dampening model and delta adjustment will be added if they are not defined in this file.
+
+This option cannot be set to `true` if "automated_dampening_no_delta_adjustment" is also `true`.
+
 **Key: "automated_dampening_delta_adjustment_model"**
 
 Possible values: integer `0`,`1` (default `0`)
