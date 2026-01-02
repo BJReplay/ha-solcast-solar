@@ -58,6 +58,7 @@ from .const import (
     DT_DATE_FORMAT,
     DT_DATE_ONLY_FORMAT,
     DT_TIME_FORMAT,
+    DT_TIME_FORMAT_SHORT,
     ENTITY_API_COUNTER,
     ENTITY_API_LIMIT,
     ENTITY_DAMPEN,
@@ -400,10 +401,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     if self.watchdog[task][EVENT] == FileEvent.UPDATE:
                         self.watchdog[task][EVENT] = FileEvent.NO_EVENT
                         change = await self.solcast.read_advanced_options()
-                        if change and self.solcast.advanced_options.get(ADVANCED_RELOAD_ON_ADVANCED_CHANGE, False) and not self.solcast.suppress_advanced_watchdog_reload:
+                        if change and self.solcast.advanced_options.get(ADVANCED_RELOAD_ON_ADVANCED_CHANGE, False):
                             _LOGGER.debug("Advanced options changed, restarting")
-                            async_call_later(self.hass, 1, self.__restart)
-                        self.solcast.suppress_advanced_watchdog_reload = False    
+                            async_call_later(self.hass, 1, self.__restart)   
                 if self.watchdog[task][EVENT] == FileEvent.DELETE:
                     _LOGGER.debug("Advanced options file deleted, no longer monitoring %s for changes", self._file_advanced)
                     self.solcast.set_default_advanced_options()
@@ -753,8 +753,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._sunrise_tomorrow, self._sunset_tomorrow = sun_rise_set(self.solcast.get_day_start_utc(future=1))
         _LOGGER.debug(
             "Sun rise / set today at %s / %s",
-            self._sunrise.astimezone(self.solcast.options.tz).strftime("%H:%M:%S"),
-            self._sunset.astimezone(self.solcast.options.tz).strftime("%H:%M:%S"),
+            self._sunrise.astimezone(self.solcast.options.tz).strftime(DT_TIME_FORMAT),
+            self._sunset.astimezone(self.solcast.options.tz).strftime(DT_TIME_FORMAT),
         )
 
     def __calculate_forecast_updates(self, init: bool = False) -> None:
@@ -797,16 +797,16 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     if self.interval_just_passed in intervals_yesterday:
                         just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(DT_DATE_FORMAT)
                     else:
-                        just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
+                        just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(DT_TIME_FORMAT)
                     _LOGGER.debug("Previous auto update UTC %s", self.interval_just_passed.isoformat())
                 _LOGGER.debug("Previous auto update would have been at %s", just_passed)
             return intervals
 
         def format_intervals(intervals: list[dt]) -> list[str]:
             return [
-                i.astimezone(self.solcast.options.tz).strftime("%H:%M")
+                i.astimezone(self.solcast.options.tz).strftime(DT_TIME_FORMAT_SHORT)
                 if len(intervals) > 10
-                else i.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
+                else i.astimezone(self.solcast.options.tz).strftime(DT_TIME_FORMAT)
                 for i in intervals
             ]
 
