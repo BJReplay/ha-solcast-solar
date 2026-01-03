@@ -19,6 +19,8 @@ ADVANCED_OPTION.STR = "str"
 ADVANCED_OPTION.TIME = "time"
 ADVANCED_TYPE: Final[str] = "type"
 ADVANCED_API_RAISE_ISSUES: Final[str] = "api_raise_issues"
+ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: Final[str] = "automated_dampening_adaptive_model_configuration"
+ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[str] = "automated_dampening_adaptive_model_minimum_history_days"
 ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[str] = "automated_dampening_delta_adjustment_model"
 ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: Final[str] = "automated_dampening_generation_fetch_delay"
 ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS: Final[str] = "automated_dampening_generation_history_load_days"
@@ -51,6 +53,7 @@ AFFIRMATION_REAUTH_SUCCESSFUL: Final[str] = "reauth_successful"
 AFFIRMATION_RECONFIGURED: Final[str] = "reconfigured"
 ALIASES: Final[str] = "aliases"
 ALL: Final[str] = "all"
+AMENDABLE: Final[str] = "amendable"
 API_KEY: Final[str] = "api_key"
 API_QUOTA: Final[str] = "api_quota"
 ATTR_ENTRY_TYPE: Final[str] = "entry_type"
@@ -88,6 +91,7 @@ DATA_SET_FORECAST: Final[str] = "forecast"
 DATA_SET_FORECAST_UNDAMPENED: Final[str] = "undampened forecast"
 DAY_NAME: Final[str] = "dayname"
 DEFAULT: Final[str] = "default"
+DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[int] = 3  # Minimum number of days of history for adaptive dampening model
 DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[int] = 0  # Logarithmic adjustment is default model
 DEFAULT_DAMPENING_INSIGNIFICANT: Final[float] = 0.95  # Dampening factors considered insignificant for automated dampening
 DEFAULT_DAMPENING_INSIGNIFICANT_ADJ: Final[float] = 0.95  # Adjusted dampening factors considered insignificant for automated dampening
@@ -117,9 +121,12 @@ DISMISSAL: Final[str] = "dismissal"
 DOMAIN: Final[str] = "solcast_solar"
 DT_DATE_FORMAT: Final[str] = "%Y-%m-%d %H:%M:%S"
 DT_DATE_FORMAT_UTC: Final[str] = "%Y-%m-%d %H:%M:%S UTC"
+DT_DATE_FORMAT_SHORT: Final[str] = "%Y-%m-%d %H:%M"
 DT_DATE_MONTH_DAY: Final[str] = "%m-%d"
 DT_DATE_ONLY_FORMAT: Final[str] = "%Y-%m-%d"
+DT_DAYNAME: Final[str] = "%A"
 DT_TIME_FORMAT: Final[str] = "%H:%M:%S"
+DT_TIME_FORMAT_SHORT: Final[str] = "%H:%M"
 ENABLED_BY_DEFAULT: Final[str] = "enabled_by_default"
 ENERGY_HISTORY: Final[str] = "energy_history"
 ENTITY_API_COUNTER: Final[str] = "api_counter"
@@ -304,6 +311,7 @@ TASK_LISTENERS: Final[str] = "listeners"
 TASK_MIDNIGHT_UPDATE: Final[str] = "midnight_update"
 TASK_NEW_DAY_ACTUALS: Final[str] = "new_day_actuals"
 TASK_NEW_DAY_GENERATION: Final[str] = "new_day_generation"
+TASK_UPDATE_DAMPENING_HISTORY: Final[str] = "update_dampening_history"
 TASK_WATCHDOG_ADVANCED: Final[str] = "watchdog_advanced"
 TASK_WATCHDOG_ADVANCED_FILE_CHANGE: Final[str] = "watchdog_advanced_file_change"
 TASK_WATCHDOG_DAMPENING: Final[str] = "watchdog_dampening"
@@ -330,11 +338,19 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         DEFAULT: DEFAULT_GENERATION_FETCH_DELAY,
         OPTION_LESS_THAN_OR_EQUAL: [ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY],
     },
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: {
+        ADVANCED_TYPE: ADVANCED_OPTION.INT,
+        MINIMUM: 1,
+        MAXIMUM: 21,
+        DEFAULT: DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
+        OPTION_LESS_THAN_OR_EQUAL: [ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS],
+    },
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
         MINIMUM: 0,
         MAXIMUM: 1,
         DEFAULT: DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL,
+        AMENDABLE: True,
     },
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
@@ -375,6 +391,7 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         MINIMUM: 0,
         MAXIMUM: 3,
         DEFAULT: DEFAULT_DAMPENING_MODEL,
+        AMENDABLE: True,
     },
     ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
@@ -394,6 +411,11 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
         DEFAULT: False,
+    },
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: {
+        ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
+        DEFAULT: False,
+        OPTION_NOT_SET_IF: [ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT],
     },
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: {
         ADVANCED_TYPE: ADVANCED_OPTION.FLOAT,
