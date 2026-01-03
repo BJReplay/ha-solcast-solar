@@ -42,6 +42,7 @@ from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
 from .const import (
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS,
@@ -3249,8 +3250,67 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def determine_best_dampening_settings(self) -> None:
         _LOGGER.debug ("Determining best automated dampening settings")
         start_time = time.time()
+
+        # Find earliest data where continuous dampening history is available for all models and deltas
         
-        # Build actuals as: { day_start: [48 floats] }
+        period_lists = []
+        valid_history = True
+        earliest_common: dt | None = None
+
+        # --- Collect period lists for each required model/delta ---
+        for model in range(
+            ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM],
+            ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1
+        ):          
+            for delta in range(
+                ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM],
+                ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1
+            ):
+                if model not in self._data_dampening_history or delta not in self._data_dampening_history[model]:
+                    valid_history = False
+                    break
+
+                entries = self._data_dampening_history[model][delta]
+                if not entries:
+                    valid_history = False
+                    break
+
+                periods = sorted(entry["period_start"] for entry in entries)
+                period_lists.append(periods)
+            if valid_history is False:
+                break
+
+        if valid_history:
+            # --- Compute intersection of all period_start values ---
+            common_periods = set(period_lists[0])
+            for plist in period_lists[1:]:
+                common_periods &= set(plist)
+
+            if common_periods:
+                earliest_common = min(common_periods)
+
+                # --- Validate daily continuity from earliest_common forward ---
+                for periods in period_lists:
+                    filtered = [p for p in periods if p >= earliest_common]
+                    filtered.sort()
+
+                    for prev, curr in zip(filtered, filtered[1:]):
+                        if curr != prev + timedelta(days=1):
+                            earliest_common = None
+                            break
+
+                    if earliest_common is None:
+                        break
+            else:
+                earliest_common = None
+
+        if (not valid_history) or (earliest_common is None) or (earliest_common > self.get_day_start_utc() - timedelta(days=self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS])):
+            _LOGGER.info("Insufficient continuous dampening history to determine best automated dampening settings")
+            return       
+
+        _LOGGER.debug("Earliest date with complete dampening history is %s, delta is %d days", earliest_common.astimezone(self._tz).strftime(DT_DATE_ONLY_FORMAT), (self.get_day_start_utc() - earliest_common).days)
+
+        # Build actuals as: { day_start: [48 floats] } starting from earliest_common
 
         actuals: dict[dt, list[float]] = {}
         dampened_actuals: dict[dt, list[float]] = {}
@@ -3262,24 +3322,22 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             start, end = self.__get_list_slice(
                 self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS],
-                self.get_day_start_utc() - timedelta(days=self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS]),
+                earliest_common,
                 self.get_day_start_utc(),
                 search_past=True,
             )
 
             for actual in self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS][start:end]:
                 ts: datetime = actual[PERIOD_START]
-                day_start = ts.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
+                day_start = ts.astimezone(self._tz).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
 
                 if day_start not in actuals:
                     actuals[day_start] = [0.0] * 48
 
                 interval = self.adjusted_interval_dt(ts)
-                actuals[day_start][interval] += actual[ESTIMATE] * 0.5     
+                actuals[day_start][interval] += actual[ESTIMATE] # * 0.5 Do not adjust here as they are also adjusted in calculate_error()
 
-        generation_dampening, generation_dampening_day = await self.prepare_generation_data(
-            self.get_day_start_utc() - timedelta(days=self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS])
-        )
+        generation_dampening, generation_dampening_day = await self.prepare_generation_data(earliest_common)
 
         best_ape = math.inf
         best_model = -1
@@ -3304,20 +3362,29 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     period_start = model_entry["period_start"]
                     factors = model_entry["factors"]
 
-                    day_start = period_start.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)    
+                    day_start = period_start.astimezone(self._tz).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)  
 
-                    # If we have no actuals for this day, model is invalid
-                    if day_start not in actuals:
-                        _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for day %s", model, delta, day_start.strftime(DT_DATE_ONLY_FORMAT))
-                        valid = False
-                        break
+                    if period_start >= earliest_common:  
 
-                    if day_start not in dampened_actuals:
-                        dampened_actuals[day_start] = [0.0] * 48
+                        # If we have no actuals for this day, model is invalid
+                        if day_start not in actuals:
+                            _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for day %s", model, delta, day_start.astimezone(self._tz).strftime(DT_DATE_ONLY_FORMAT))
+                            valid = False
+                            break
 
-                    # Apply factors interval-by-interval
-                    for interval in range(48):
-                        dampened_actuals[day_start][interval] += actuals[day_start][interval] * factors[interval]
+                        # If we have no actuals for this day, model is invalid
+                        if day_start in actuals:
+                            if day_start not in dampened_actuals:
+                                dampened_actuals[day_start] = [0.0] * 48
+
+                            # Apply factors interval-by-interval
+                            for interval in range(48):
+                                dampened_actuals[day_start][interval] += actuals[day_start][interval] * factors[interval]
+                        else:
+                            if day_start != self.get_day_start_utc():
+                                _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for day %s", model, delta, day_start.astimezone(self._tz).strftime(DT_DATE_ONLY_FORMAT))
+                                valid = False
+                                break
 
                 # Validate counts
                 actual_count = sum(len(v) for v in actuals.values())
@@ -3362,7 +3429,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if best_model != -1 and best_delta != -1:              
             _LOGGER.info("Selected best automated dampening settings: model %d and delta %d with mean APE of %.3f%%", best_model, best_delta, best_ape)
             
-            #################### REMOVE COMMENTS ONCE BETTER TESTED ############################
             self.advanced_options.update({
                 ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model,
                 ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: best_delta
@@ -3526,10 +3592,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         )
                         loaded_count += 1
 
-            msg = f"Load dampening history loaded {loaded_count} of {expected_records} expected records" + (f", found {issue_count} issues." if issue_count > 0 else ".")
+            msg = f"Load dampening history loaded {loaded_count} of a maximum of {expected_records} records" + (f", found {issue_count} issues." if issue_count > 0 else ".")
             
             if (not valid) or (loaded_count != expected_records):
-                _LOGGER.warning(msg+" Adaptive dampening model configuration may be compromised.")
+                _LOGGER.warning(msg+" Adaptive dampening model configuration may be sub-optimal until full history is loaded.")
             else:
                 _LOGGER.debug(msg)
 
