@@ -3315,6 +3315,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         actuals: dict[dt, list[float]] = {}
         dampened_actuals: dict[dt, list[float]] = {}
 
+        _LOGGER.debug("Getting undampened actuals from %s to %s", earliest_common.astimezone(self._tz).strftime(DT_DATE_FORMAT), self.get_day_start_utc().astimezone(self._tz).strftime(DT_DATE_FORMAT))
+
         for site in self.sites:
             if site[RESOURCE_ID] in self.options.exclude_sites:
                 _LOGGER.debug("Dampening history actuals suppressed site %s", site[RESOURCE_ID])
@@ -3615,13 +3617,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             
             actuals, ignored_intervals, generation, matching_intervals = await self.prepare_dampening_data()
 
+            # Build undampened pv50 estimates for the previous day
+
             undampened_interval_pv50: dict[dt, float] = {}
             for site in self.sites:
                 if site[RESOURCE_ID] in self.options.exclude_sites:
                     continue
                 for forecast in self._data_undampened[SITE_INFO][site[RESOURCE_ID]][FORECASTS]:
                     period_start = forecast[PERIOD_START]
-                    if period_start >= self.get_day_start_utc() and period_start < self.get_day_start_utc(future=1):
+                    if period_start >= self.get_day_start_utc(future=-1) and period_start < self.get_day_start_utc():
                         if period_start not in undampened_interval_pv50:
                             undampened_interval_pv50[period_start] = forecast[ESTIMATE] * 0.5
                         else:
@@ -3643,17 +3647,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     for period_start in undampened_interval_pv50:
                         interval = self.adjusted_interval_dt(period_start)
                         if self._peak_intervals[interval] > 0 and undampened_interval_pv50[period_start] > 0 and dampening[interval] < 1.0:
-                            adjusted_dampening[interval] = self.apply_dampening_adjustment(undampened_interval_pv50[period_start], dampening[interval], interval, delta_adjustment)
+                            adjusted_dampening[interval] = self.apply_dampening_adjustment(actuals[period_start], dampening[interval], interval, delta_adjustment)  # Adjust based on actual vs peak rather than forecast vs peak
                             if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR] <= adjusted_dampening[interval] < 1.0:
                                 adjusted_dampening[interval] = 1.0
 
                     await self.add_dampening_history(
-                        period_start=self.get_day_start_utc(),
+                        period_start=self.get_day_start_utc(future =-1),  # Adding history for the previous day
                         model=dampening_model,
                         delta=delta_adjustment,
                         factors=adjusted_dampening
                     )
-                            
                     _LOGGER.debug("Dampening factors for model %d and delta adjustment %d: %s", dampening_model, delta_adjustment, ",".join(f"{factor:.3f}" for factor in adjusted_dampening))
 
             # Trim, sort and serialise.
