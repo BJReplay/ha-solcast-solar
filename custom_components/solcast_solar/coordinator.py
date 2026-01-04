@@ -99,7 +99,6 @@ from .const import (
     TASK_MIDNIGHT_UPDATE,
     TASK_NEW_DAY_ACTUALS,
     TASK_NEW_DAY_GENERATION,
-    TASK_UPDATE_DAMPENING_HISTORY,
     TASK_WATCHDOG_ADVANCED,
     TASK_WATCHDOG_ADVANCED_FILE_CHANGE,
     TASK_WATCHDOG_DAMPENING,
@@ -232,9 +231,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self.tasks[TASK_MIDNIGHT_UPDATE] = async_track_utc_time_change(
             self.hass, self.__update_utc_midnight_usage_sensor_data, hour=0, minute=0, second=0
         )
-        self.tasks[TASK_UPDATE_DAMPENING_HISTORY] = async_track_utc_time_change(
-            self.hass, self.__update_dampening_history,  hour=23, minute=56, second=0, local = True
-        )   
         self.tasks[TASK_WATCHDOG_ADVANCED_FILE_CHANGE] = (
             asyncio.create_task(self.watch_for_file(TASK_WATCHDOG_ADVANCED, self._file_advanced, self.watch_advanced_file))
         ).cancel
@@ -676,10 +672,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 if len(pop_expired) > 0:
                     _LOGGER.debug("Removing expired auto update intervals")
                     self._intervals = [interval for i, interval in enumerate(self._intervals) if i not in pop_expired]
-                    self.set_next_update()
-
-    async def __update_dampening_history (self, _: dt | None = None) -> None:
-        await self.solcast.update_dampening_history()                   
+                    self.set_next_update()                  
 
     async def __update_utc_midnight_usage_sensor_data(self, _: dt | None = None) -> None:
         """Reset tracked API usage at midnight UTC."""
@@ -713,6 +706,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             self.tasks.pop(task, None)
 
         if self.solcast.options.auto_dampen and self.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
+            await self.solcast.update_dampening_history()
             await self.solcast.determine_best_dampening_settings()    
 
         await self.solcast.model_automated_dampening()
