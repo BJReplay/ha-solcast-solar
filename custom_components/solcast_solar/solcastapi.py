@@ -102,6 +102,7 @@ from .const import (
     DOMAIN,
     DT_DATE_FORMAT,
     DT_DATE_FORMAT_SHORT,
+    DT_DATE_FORMAT_UTC,
     DT_DATE_MONTH_DAY,
     DT_DATE_ONLY_FORMAT,
     DT_TIME_FORMAT_SHORT,
@@ -214,6 +215,7 @@ from .util import (
     redact_lat_lon,
     redact_lat_lon_simple,
     redact_msg_api_key,
+    clear_cache,
 )
 
 GRANULAR_DAMPENING_OFF: Final[bool] = False
@@ -699,6 +701,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             _LOGGER.debug("Advanced option default set %s: %s", option, default)
                             change = True
                     self.advanced_options.update(advanced_options_proposal)
+                    await clear_cache(self._filename_dampening_history, not self.advanced_options.get(ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION, False)) # remove dampening history if necessary
             finally:
                 await raise_or_clear_advanced_problems(problems, self.hass)
                 await raise_or_clear_advanced_deprecated(
@@ -1869,6 +1872,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # if using adaptive dampening config load the data
                     if self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
                         await self.load_dampening_history()  
+                        await self.update_dampening_history()##############
+                        await self.determine_best_dampening_settings()##############
                         
                     # If configured to get generation but there is no cached data, then get it.
                     if self.options.auto_dampen and self.options.generation_entities and len(self._data_generation[GENERATION]) == 0:
@@ -1993,10 +1998,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         _LOGGER.debug("Action to delete old solcast json files")
         for filename in [self._filename, self._filename_undampened, self._filename_actuals, self._filename_actuals_dampened]:
-            if Path(filename).is_file():
-                Path(filename).unlink()
-            else:
-                _LOGGER.warning("There is no %s to delete", filename.split("/")[-1])
+            await clear_cache(filename, True)            
         self._loaded_data = False
         await self.load_saved_data()
 
@@ -3315,7 +3317,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         actuals: dict[dt, list[float]] = {}
         dampened_actuals: dict[dt, list[float]] = {}
 
-        _LOGGER.debug("Getting undampened actuals from %s to %s", earliest_common.astimezone(self._tz).strftime(DT_DATE_FORMAT), self.get_day_start_utc().astimezone(self._tz).strftime(DT_DATE_FORMAT))
+        _LOGGER.debug("Getting undampened actuals from %s to %s", earliest_common.strftime(DT_DATE_FORMAT_UTC), self.get_day_start_utc().strftime(DT_DATE_FORMAT_UTC))
 
         for site in self.sites:
             if site[RESOURCE_ID] in self.options.exclude_sites:
@@ -3334,6 +3336,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 day_start = ts.astimezone(self._tz).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
 
                 if day_start not in actuals:
+                    _LOGGER.debug ("Adding actuals entry for %s", day_start.strftime(DT_DATE_FORMAT_UTC)) ###########
                     actuals[day_start] = [0.0] * 48
 
                 interval = self.adjusted_interval_dt(ts)
@@ -3370,7 +3373,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                         # If we have no actuals for this day, model is invalid
                         if day_start not in actuals:
-                            _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for day %s", model, delta, day_start.astimezone(self._tz).strftime(DT_DATE_ONLY_FORMAT))
+                            _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for dampening history entry %s", model, delta, day_start.strftime(DT_DATE_FORMAT_UTC))
                             valid = False
                             break
 
@@ -3458,7 +3461,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             elif option in self._extant_advanced_options:
                 data[option] = self._extant_advanced_options[option] #write back non-amendable options unchanged
 
-        payload = json.dumps(data, ensure_ascii=False, cls=DateTimeEncoder)
+        payload = json.dumps(data, ensure_ascii=False, cls=NoIndentEncoder, indent=2) 
         self.suppress_advanced_watchdog_reload = True # Turn off watchdog for this change
 
         async with self._serialise_lock, aiofiles.open(self._filename_advanced, "w") as file:
@@ -3657,7 +3660,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         delta=delta_adjustment,
                         factors=adjusted_dampening
                     )
-                    _LOGGER.debug("Dampening factors for model %d and delta adjustment %d: %s", dampening_model, delta_adjustment, ",".join(f"{factor:.3f}" for factor in adjusted_dampening))
+                    _LOGGER.debug("Dampening factors on %s for model %d and delta adjustment %d: %s", self.get_day_start_utc(future=-1).strftime(DT_DATE_FORMAT_UTC), dampening_model, delta_adjustment, ",".join(f"{factor:.3f}" for factor in adjusted_dampening))
 
             # Trim, sort and serialise.
 
@@ -3692,7 +3695,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         for entry in recent_entries
                     ]
 
-            payload = json.dumps(serialisable, ensure_ascii=False, cls=DateTimeEncoder)
+            payload = json.dumps(serialisable, ensure_ascii=False, indent=2, cls=NoIndentEncoder, above_level=4)
             async with self._serialise_lock, aiofiles.open(self._filename_dampening_history, "w") as file:
                 await file.write(payload)
                 
