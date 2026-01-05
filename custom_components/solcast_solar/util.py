@@ -6,6 +6,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime as dt
 from enum import Enum
+from pathlib import Path
 import json
 import logging
 import math
@@ -139,27 +140,37 @@ class DateTimeEncoder(json.JSONEncoder):
         return o.isoformat() if isinstance(o, dt) else super().default(o)
 
 
-class NoIndentEncoder(json.JSONEncoder):
+class NoIndentEncoder(DateTimeEncoder):
     """Helper to output semi-indented json."""
+
+    def __init__(self, *args, above_level=0, **kwargs) -> None:
+        """Initialise the encoder."""
+        super().__init__(*args, **kwargs)
+        self.above_level = above_level
 
     def iterencode(self, o: Any, _one_shot: bool = False):
         """Recursive encoder to indent only top level keys."""
         list_lvl = 0
+        up = ('[', '{')
+        down = (']', '}')
         raw: Iterator[str] = super().iterencode(o, _one_shot=_one_shot)
         output = ""
         for s in list(raw)[0].splitlines():
-            if "[" in s:
+            level_down = any(c in s for c in down)
+            if any(c in s for c in up):
                 list_lvl += 1
-            elif list_lvl > 0:
+                if list_lvl <= self.above_level:
+                    s += "\n"
+            elif list_lvl > self.above_level:
                 s = s.replace(" ", "").rstrip()
-                if "]" in s:
-                    list_lvl -= 1
+                if level_down:
                     s += "\n"
             else:
                 s += "\n"
+            if level_down:
+                list_lvl -= 1
             output += s
         yield output
-
 
 class JSONDecoder(json.JSONDecoder):
     """Helper to convert ISO format dict values to datetime."""
@@ -329,6 +340,15 @@ async def raise_or_clear_advanced_deprecated(
             _LOGGER.debug("Removing advanced deprecation issue")
             ir.async_delete_issue(hass, DOMAIN, ISSUE_ADVANCED_DEPRECATED)
 
+async def clear_cache (filename: str, remove: bool):
+    if Path(filename).is_file() and remove:
+        try:
+            Path(filename).unlink()
+            _LOGGER.debug("Deleted cache file %s", filename)
+        except Exception as ex:
+            _LOGGER.warning("Failed to delete cache file %s: %s", filename, ex)
+    else:
+        _LOGGER.debug("Cache file %s does not exist or removal not requested", filename)
 
 def percentile(data: list[Any], _percentile: float) -> float | int:
     """Find the given percentile in a sorted list of values."""
