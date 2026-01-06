@@ -41,6 +41,7 @@ from homeassistant.exceptions import (
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
 from .const import (
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_LIST,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
@@ -604,10 +605,29 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                 valid = False
                                                 continue
                                             seen_members.append(member)
+                                    case ADVANCED_OPTION.LIST_DICT:
+                                        # Must be a list
+                                        if not isinstance(new_value, list):
+                                            add_problem("Invalid value for advanced option %s: expected list, got %s", option, type(new_value).__name__)
+                                            valid = False
+                                            break
+                                        # Each entry must be a dict
+                                        for idx, item in enumerate(new_value):
+                                            if not isinstance(item, dict):
+                                                add_problem("Invalid entry in %s at index %s: expected dict, got %s", option, idx, type(item).__name__)
+                                                valid = False
+                                                continue
+                                            required_keys = {"model", "delta"} if option == ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_LIST else {}
+                                            if not required_keys.issubset(item):
+                                                add_problem("Missing keys in %s entry at index %s: expected %s", option, idx, required_keys)
+                                                valid = False
+                                                continue
                                     case _:
                                         pass
                                 if option == ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT and new_value and not self.options.get_actuals:
                                     _LOGGER.warning("Granular dampening delta adjustment requires estimated actuals to be fetched")
+                                elif option == ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_LIST and len(new_value) == 1: 
+                                    _LOGGER.warning("Only one model/delta combination specified in adaptive model configuration list")
                             else:
                                 add_problem("Type mismatch for advanced option %s: should be %s", option, type(value).__name__)
                                 valid = False
@@ -1872,8 +1892,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # if using adaptive dampening config load the data
                     if self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
                         await self.load_dampening_history()  
-                        await self.update_dampening_history()##############
-                        await self.determine_best_dampening_settings()##############
                         
                     # If configured to get generation but there is no cached data, then get it.
                     if self.options.auto_dampen and self.options.generation_entities and len(self._data_generation[GENERATION]) == 0:
@@ -3268,6 +3286,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM],
                 ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1
             ):
+                if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_LIST] and not any(
+                    entry["model"] == model and entry["delta"] == delta
+                    for entry in self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_LIST]
+                    ):
+                    _LOGGER.debug("Ignored dampening history for model %d and delta %d as not in %s", model, delta, ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_LIST)
+                    continue
+
                 if model not in self._data_dampening_history or delta not in self._data_dampening_history[model]:
                     valid_history = False
                     break
@@ -3336,7 +3361,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 day_start = ts.astimezone(self._tz).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
 
                 if day_start not in actuals:
-                    _LOGGER.debug ("Adding actuals entry for %s", day_start.strftime(DT_DATE_FORMAT_UTC)) ###########
+                    _LOGGER.debug ("Adding actuals entry for %s", day_start.strftime(DT_DATE_FORMAT_UTC)) 
                     actuals[day_start] = [0.0] * 48
 
                 interval = self.adjusted_interval_dt(ts)
@@ -3356,6 +3381,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM],
                 ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1
             ):
+
+                if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_LIST] and not any(
+                    entry["model"] == model and entry["delta"] == delta
+                    for entry in self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_LIST]
+                ):
+                    _LOGGER.debug("Skipping model %d and delta %d as not in %s", model, delta, ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_LIST)
+                    continue
 
                 _LOGGER.debug("Evaluating model %d and delta %d", model, delta)
 
@@ -3461,7 +3493,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             elif option in self._extant_advanced_options:
                 data[option] = self._extant_advanced_options[option] #write back non-amendable options unchanged
 
-        payload = json.dumps(data, ensure_ascii=False, cls=NoIndentEncoder, indent=2) 
+        payload = json.dumps(data, ensure_ascii=False, cls=NoIndentEncoder, indent=2, above_level=2) 
         self.suppress_advanced_watchdog_reload = True # Turn off watchdog for this change
 
         async with self._serialise_lock, aiofiles.open(self._filename_advanced, "w") as file:
@@ -3689,7 +3721,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # Build serialisable version
                     serialisable[model][delta] = [
                         {
-                            "period_start": entry["period_start"].isoformat(),
+                            "period_start": entry["period_start"],
                             "factors": entry["factors"]
                         }
                         for entry in recent_entries
