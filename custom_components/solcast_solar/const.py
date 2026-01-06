@@ -8,7 +8,6 @@ SENSOR_UPDATE_LOGGING: Final[bool] = False
 
 # Integration constants
 ACTION: Final[str] = "action"
-ADVANCED: Final[str] = "advanced"
 ADVANCED_INVALID_JSON_TASK: Final[str] = "advanced_invalid_json"
 ADVANCED_OPTION = types.SimpleNamespace()
 ADVANCED_OPTION.BOOL = "bool"
@@ -16,10 +15,12 @@ ADVANCED_OPTION.INT = "int"
 ADVANCED_OPTION.FLOAT = "float"
 ADVANCED_OPTION.LIST_INT = "list_int"
 ADVANCED_OPTION.LIST_TIME = "list_time"
+ADVANCED_OPTION.LIST_DICT = "list_dict"###########
 ADVANCED_OPTION.STR = "str"
 ADVANCED_OPTION.TIME = "time"
 ADVANCED_TYPE: Final[str] = "type"
 ADVANCED_API_RAISE_ISSUES: Final[str] = "api_raise_issues"
+ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_LIST: Final[str] = "automated_dampening_adaptive_configuration_list"
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: Final[str] = "automated_dampening_adaptive_model_configuration"
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[str] = "automated_dampening_adaptive_model_minimum_history_days"
 ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[str] = "automated_dampening_delta_adjustment_model"
@@ -331,6 +332,10 @@ WINTER_TIME: Final[list[str]] = ["Europe/Dublin"]  # Zones that use "Winter time
 
 ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
     ADVANCED_API_RAISE_ISSUES: {ADVANCED_TYPE: ADVANCED_OPTION.BOOL, DEFAULT: True},
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_LIST: {#########
+        ADVANCED_TYPE: ADVANCED_OPTION.LIST_DICT,##############
+        DEFAULT: []###########
+    },############
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
         MINIMUM: 0,
