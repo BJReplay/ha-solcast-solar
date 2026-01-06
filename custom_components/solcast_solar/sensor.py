@@ -25,6 +25,8 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import (
+    ADVANCED_OPTIONS,
+    AMENDABLE,
     API_KEY,
     ATTRIBUTION,
     AUTO_UPDATE_DIVISIONS,
@@ -479,6 +481,9 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
         elif self.entity_description.key == "dampen":
             exclude = [FACTORS]
+            for option in ADVANCED_OPTIONS:
+                if "dampening" in option and not ADVANCED_OPTIONS[option].get(AMENDABLE, False):
+                    exclude.append(option)
             self._state_info[UNRECORDED_ATTRIBUTES] = self._state_info[UNRECORDED_ATTRIBUTES] | frozenset(exclude)
 
     @property
