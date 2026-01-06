@@ -40,7 +40,6 @@ from homeassistant.helpers.sun import get_astral_event_next
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
-    ADVANCED,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
     ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS,
@@ -91,7 +90,6 @@ from .const import (
     LAST_UPDATED,
     METHOD,
     NEED_HISTORY_HOURS,
-    OPTION,
     SITE_DAMP,
     TASK_ACTUALS_FETCH,
     TASK_CHECK_FETCH,
@@ -1088,14 +1086,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     for i, f in self.solcast.options.dampening.items()
                 ]
             # Add advanced options
-            ret[ADVANCED] = [ 
-                {
-                    OPTION: key,
-                    VALUE: value
-                }
-                for key, value in self.solcast.advanced_options.items()
-                if "dampening" in key
-            ]
+            for key, value in self.solcast.advanced_options.items():
+                if "dampening" in key:
+                    ret[key] = value
 
         if key in (ENTITY_LAST_UPDATED, ENTITY_LAST_UPDATED_OLD):
             ret.update(self._get_auto_update_details())
