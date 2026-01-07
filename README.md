@@ -1280,6 +1280,9 @@ v4.4.11
 * Fix advanced option validation for `not_set_if` by @autoSteve
 * Add missing translation, ES, FR, PL, SK, UR by @GitLocalize
 * Consistent strings file spacing by @autoSteve
+* Add advanced option automated_dampening_adaptive_model_configuration by @Nilogax
+* Add advanced option automated_dampening_adaptive_model_minimum_history_days by @Nilogax
+* Add advanced option automated_dampening_adaptive_configuration_exclude_list by @Nilogax
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.10...v4.4.11
 
