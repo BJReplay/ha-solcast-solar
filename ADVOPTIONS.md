@@ -37,13 +37,29 @@ You are free to raise an issue should a code exception occur after setting an ad
 
 ## Automated dampening
 
+
+**Key: "automated_dampening_adaptive_configuration_exclude_list"**
+
+Possible values: list of {`model`, `delta`} (default `[]`)
+
+Setting this option allows the user to specify combinations of dampening model (`model`) and delta adjustment model (`delta`) that will be excluded from the adaptive model configuration process.  Dampening history will still be recorded for these combinations so they can be reinstated at any time.  An example of configuration syntax in `solcast-advanced.json` is:
+
+```json
+"automated_dampening_adaptive_configuration_list": [
+    { "model": 0, "delta": 0 },
+    { "model": 1, "delta": 1 }
+    ]
+```
+
+Can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
+
 **Key: "automated_dampening_adaptive_model_configuration"**
 
 Possible values: boolean `true`/`false` (default `false`)
 
 Setting this option to `true` will (in time) choose the combination of dampening model and delta adjustment that resulted in the lowest error between generation and dampened estimated actuals over previous days.  The minimum number of days history required is defined by the setting `automated_dampening_adaptive_model_minimum_history_days` and the maximum number of days is defined by `automated_dampening_model_days`.  
 
-At the end of each day the integration will calculate dampening factors for all possible dampening model and delta adjustment combinations and record the results to `solcast-dampening-history.json`.  After updated estimated actuals are retrieved from Solcast the Mean Actual Percentage Error (MAPE) between generation and dampened estimated actuals is calculated for every combination of dampening model and delta adjustment.  
+At the end of each day the integration will calculate dampening factors for all possible dampening model and delta adjustment combinations and record the results to `solcast-dampening-history.json`.  After updated estimated actuals are retrieved from Solcast the Mean Actual Percentage Error (MAPE) between generation and dampened estimated actuals is calculated for every allowed combination of dampening model and delta adjustment. 
 
 The dampening model and delta adjustent option that result in the lowest MAPE will then be applied to today's forecast and the settings for `automated_dampening_model` and `automated_dampening_delta_adjustment_model` will be updated in `solcast-advanced.json`.  No other values in `solcast-advanced.json` will be affected, and entries for `automated_dampening_model` and `automated_dampening_delta_adjustment_model` will be added if they are not already defined in this file.
 
@@ -55,7 +71,7 @@ Possible values: integer `1`,,`21` (default `3`)
 
 Defines the minimum number of days of dampening history required before adaptive model configuration will set values for `automated_dampening_model` and `automated_dampening_delta_adjustment_model`.  
 
-Must not be greater than `automated_dampening_model_days`, and will have no effect if `automated_dampening_adaptive_model_configuration` is `false`.
+Must not be greater than `automated_dampening_model_days`, and can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
 
 **Key: "automated_dampening_delta_adjustment_model"**
 
