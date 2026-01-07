@@ -611,6 +611,7 @@ If dampening is active then the Dampening sensor also features these attributes:
 * `integration_automated`: Boolean. Whether automated dampening is enabled.
 * `last_updated`: Datetime. The date and time that the dampening factors were last set.
 * `factors`: Dict. The `interval` start hour:minute, and `factor` as a floating point number.
+* Attributes for each advanced option related to dampening.  See the documentation at [Advanced options](https://github.com/BJReplay/ha-solcast-solar/blob/main/ADVOPTIONS.md).
 
 Example dampening sensor attributes:
 
@@ -625,6 +626,25 @@ factors:
 - interval: '01:00'
   factor: 1
 ...
+automated_dampening_generation_fetch_delay: 0
+automated_dampening_adaptive_model_minimum_history_days: 3
+automated_dampening_delta_adjustment_model: 1
+automated_dampening_generation_history_load_days: 7
+automated_dampening_ignore_intervals: []
+automated_dampening_insignificant_factor: 0.95
+automated_dampening_insignificant_factor_adjusted: 0.95
+automated_dampening_minimum_matching_generation: 2
+automated_dampening_minimum_matching_intervals: 2
+automated_dampening_model: 2
+automated_dampening_model_days: 14
+automated_dampening_no_delta_adjustment: false
+automated_dampening_no_limiting_consistency: false
+automated_dampening_preserve_unmatched_factors: true
+automated_dampening_adaptive_model_configuration: true
+automated_dampening_similar_peak: 0.9
+automated_dampening_suppression_entity: solcast_suppress_auto_dampening
+granular_dampening_delta_adjustment: false
+automated_dampening_no_delta_corrections: false
 ```
 
 `Rooftop site name` attributes include:
