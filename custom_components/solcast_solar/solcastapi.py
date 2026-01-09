@@ -41,6 +41,8 @@ from homeassistant.exceptions import (
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
 from .const import (
+    ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES, ###
+    ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN, ###
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_EXCLUDE_LIST,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
@@ -1905,6 +1907,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # if using adaptive dampening config load the data
                     if self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
                         await self.load_dampening_history()  
+                        await self.determine_best_dampening_settings() ###
                         
                     # If configured to get generation but there is no cached data, then get it.
                     if self.options.auto_dampen and self.options.generation_entities and len(self._data_generation[GENERATION]) == 0:
@@ -3378,7 +3381,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     actuals[day_start] = [0.0] * 48
 
                 interval = self.adjusted_interval_dt(ts)
-                actuals[day_start][interval] += actual[ESTIMATE] # * 0.5 Do not adjust here as they are also adjusted in calculate_error()
+                offset_interval = interval + (
+                    2 if self.dst(ts) else 0
+                )
+                actuals[day_start][offset_interval] += actual[ESTIMATE] # * 0.5 Do not adjust here as they are also adjusted in calculate_error()
+
+        ###for day_start, values in actuals.items(): 
+        ###    _LOGGER.debug("Undampened actuals for adaptive calcs %s: %s", day_start.strftime(DT_DATE_FORMAT_UTC), ", ".join(f"{v:.3f}" for v in values)) 
 
         generation_dampening, generation_dampening_day = await self.prepare_generation_data(earliest_common)
 
@@ -3412,7 +3421,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     period_start = model_entry["period_start"]
                     factors = model_entry["factors"]
 
-                    day_start = period_start.astimezone(self._tz).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)  
+                    day_start = period_start.astimezone(self._tz).replace(hour=0, minute=0, second=0, microsecond=0)
+
+                    ### _LOGGER.debug("Factors for day %s model %d delta %d : %s", day_start.strftime(DT_DATE_FORMAT_UTC), model, delta, ", ".join(f"{fact:.3f}" for fact in factors))
 
                     if period_start >= earliest_common:  
 
@@ -3435,6 +3446,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for day %s", model, delta, day_start.astimezone(self._tz).strftime(DT_DATE_ONLY_FORMAT))
                                 valid = False
                                 break
+                                
+                ### for day_start, values in dampened_actuals.items(): 
+                ###     _LOGGER.debug("Dampened actuals model %d delta %d day %s: %s", model, delta, day_start.strftime(DT_DATE_FORMAT_UTC), ", ".join(f"{v:.3f}" for v in values)) 
 
                 # Validate counts
                 actual_count = sum(len(v) for v in actuals.values())
@@ -3453,13 +3467,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     for day_start, arr in dampened_actuals.items():
                         for interval, value in enumerate(arr):
                             ts = day_start + timedelta(minutes=30 * interval)
-                            values.append({PERIOD_START: ts, ESTIMATE: value})
+                            values.append({PERIOD_START: ts.astimezone(self._tz), ESTIMATE: value})
 
                     inf_d, error_dampened, error_dampened_percentiles = await self.calculate_error(
                         generation_dampening_day,
                         generation_dampening,
                         tuple(values),
-                    )
+                        tuple(self.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES]),###
+                        self.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN]) ###
                     
                     if inf_d:
                         _LOGGER.debug("Ignored %s values for model %d and delta %d", math.inf, model, delta)
@@ -3478,13 +3493,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     
         if best_model != -1 and best_delta != -1:              
             _LOGGER.info("Selected best automated dampening settings: model %d and delta %d with mean APE of %.3f%%", best_model, best_delta, best_ape)
-            
-            self.advanced_options.update({
-                ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model,
-                ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: best_delta
-            })
-            await self.serialise_advanced_options()
-            
+            if best_model != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL] or best_delta != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL]:
+                self.advanced_options.update({
+                    ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model,
+                    ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: best_delta
+                })
+                await self.serialise_advanced_options()
+            else:
+                _LOGGER.debug ("Adaptive dampening configuration unchanged")
         else:
             _LOGGER.info("Could not determine best automated dampening settings - values unmodified")
 
@@ -3659,6 +3675,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if (self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]):
         
             start_time = time.time()
+            _LOGGER.debug("Start of task update_dampening_history")
 
             if await self.check_deal_breaker_automated_dampening():
                 return
@@ -3841,13 +3858,27 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         value_day: defaultdict[dt, float] = defaultdict(float)
         error: defaultdict[dt, float] = defaultdict(float)
         last_day: dt | None = None
+        value_items: dict[datetime, list[tuple[datetime, float]]] = {} ###
+
         for interval in values:
             i = interval[PERIOD_START].astimezone(self.options.tz).replace(hour=0, minute=0, second=0, microsecond=0)
             if i != last_day:
                 value_day[i] = 0.0
+                value_items[i] = [] ###       
                 last_day = i
             if generation.get(interval[PERIOD_START]) is not None and not generation[interval[PERIOD_START]][EXPORT_LIMITING]:
                 value_day[i] += interval[ESTIMATE] / 2  # 30 minute intervals
+                value_items[i].append((interval[PERIOD_START], interval[ESTIMATE] / 2)) ###
+
+        for day, items in value_items.items():   ###  
+            parts = [f"{ts.isoformat()}={amount:.3f}" for ts, amount in items]
+            _LOGGER.debug(
+                "Value items for %s: %s | total=%.3f",
+                day.isoformat(),
+                ", ".join(parts),
+                value_day[day],
+            )   ###
+        
         for day, value in value_day.items():
             error[day] = abs(generation_day[day] - value) / generation_day[day] * 100.0 if generation_day[day] > 0 else math.inf
             if log_breakdown:
