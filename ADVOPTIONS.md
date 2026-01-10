@@ -40,12 +40,12 @@ You are free to raise an issue should a code exception occur after setting an ad
 
 **Key: "automated_dampening_adaptive_configuration_exclude_list"**
 
-Possible values: list of {`model`, `delta`} (default `[]`)
+Possible values: list of dictionaries {`model`, `delta`} (default `[]`)
 
 Setting this option allows the user to specify combinations of dampening model (`model`) and delta adjustment model (`delta`) that will be excluded from the adaptive model configuration process.  Dampening history will still be recorded for these combinations so they can be reinstated at any time.  An example of configuration syntax in `solcast-advanced.json` is:
 
 ```json
-"automated_dampening_adaptive_configuration_list": [
+"automated_dampening_adaptive_configuration_exclude_list": [
     { "model": 0, "delta": 0 },
     { "model": 1, "delta": 1 }
     ]
@@ -177,7 +177,7 @@ The maximum number of days of past estimated actuals and generation to use for m
 
 Possible values: boolean `true`/`false` (default `false`)
 
-If delta logarithmic adjustment of dampening factors is not desired then this option may be set to `true`.
+If delta adjustment of dampening factors is not desired then this option may be set to `true`.
 
 **Key: "automated_dampening_no_limiting_consistency"**
 
