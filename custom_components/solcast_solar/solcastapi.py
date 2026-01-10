@@ -3670,7 +3670,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if (self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]):
         
             start_time = time.time()
-            _LOGGER.debug("Updating automated dampening history")
+            _LOGGER.debug("Updating automated dampening adaptation history")
 
             if await self.check_deal_breaker_automated_dampening():
                 return
