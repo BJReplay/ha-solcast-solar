@@ -3373,18 +3373,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             )
 
             for actual in self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS][start:end]:
-                ts: datetime = actual[PERIOD_START]
-                day_start = ts.astimezone(self._tz).replace(hour=0, minute=0, second=0, microsecond=0).astimezone(datetime.UTC)
+                ts: dt = actual[PERIOD_START].astimezone(self._tz)
+                day_start = ts.replace(hour=0, minute=0, second=0, microsecond=0)
 
                 if day_start not in actuals:
                     _LOGGER.debug ("Adding actuals entry for %s", day_start.strftime(DT_DATE_FORMAT_UTC)) 
                     actuals[day_start] = [0.0] * 48
 
-                interval = self.adjusted_interval_dt(ts)
-                offset_interval = interval + (
-                    2 if self.dst(ts) else 0
-                )
-                actuals[day_start][offset_interval] += actual[ESTIMATE] # * 0.5 Do not adjust here as they are also adjusted in calculate_error()
+                interval = ts.hour * 2 + ts.minute // 30
+                actuals[day_start][interval] += actual[ESTIMATE] # * 0.5 Do not adjust here as they are also adjusted in calculate_error()
 
         ###for day_start, values in actuals.items(): 
         ###    _LOGGER.debug("Undampened actuals for adaptive calcs %s: %s", day_start.strftime(DT_DATE_FORMAT_UTC), ", ".join(f"{v:.3f}" for v in values)) 
@@ -3433,12 +3430,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             valid = False
                             break
 
-                        # If we have no actuals for this day, model is invalid
                         if day_start in actuals:
                             if day_start not in dampened_actuals:
                                 dampened_actuals[day_start] = [0.0] * 48
 
-                            # Apply factors interval-by-interval
                             for interval in range(48):
                                 dampened_actuals[day_start][interval] += actuals[day_start][interval] * factors[interval]
                         else:
@@ -3661,7 +3656,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             msg = f"Load dampening history loaded {loaded_count} of a maximum of {expected_records} records" + (f", found {issue_count} issues." if issue_count > 0 else ".")
             
             if (not valid) or (loaded_count != expected_records):
-                _LOGGER.warning(msg+" Adaptive dampening model configuration may be sub-optimal until full history is loaded.")
+                _LOGGER.warning(msg+f" Automated dampening adaptive model configuration may be sub-optimal until maximum history of {self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS]} days is loaded.")
             else:
                 _LOGGER.debug(msg)
 
@@ -3675,7 +3670,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if (self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]):
         
             start_time = time.time()
-            _LOGGER.debug("Start of task update_dampening_history")
+            _LOGGER.debug("Updating automated dampening history")
 
             if await self.check_deal_breaker_automated_dampening():
                 return
@@ -3726,7 +3721,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             # Trim, sort and serialise.
 
-            cutoff = self.get_day_start_utc(future=1-self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS])
+            cutoff = self.get_day_start_utc(future=-self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS])
 
             serialisable = {}
 
@@ -3905,7 +3900,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def prepare_dampening_data(self):
         actuals: OrderedDict[dt, float] = OrderedDict()
         if (self.options.auto_dampen or self.advanced_options[ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT]) and self.options.get_actuals:
-            _LOGGER.debug("Determining peak estimated actual intervals")
             for site in self.sites:
                 if site[RESOURCE_ID] in self.options.exclude_sites:
                     _LOGGER.debug("Auto-dampening suppressed: Excluded site for %s", site[RESOURCE_ID])
