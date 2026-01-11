@@ -20,7 +20,7 @@ ADVANCED_OPTION.STR = "str"
 ADVANCED_OPTION.TIME = "time"
 ADVANCED_TYPE: Final[str] = "type"
 ADVANCED_API_RAISE_ISSUES: Final[str] = "api_raise_issues"
-ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_EXCLUDE_LIST: Final[str] = "automated_dampening_adaptive_configuration_exclude_list"
+ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_DELTA_EXCLUDE: Final[str] = "automated_dampening_adaptive_model_delta_exclude"
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: Final[str] = "automated_dampening_adaptive_model_configuration"
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[str] = "automated_dampening_adaptive_model_minimum_history_days"
 ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[str] = "automated_dampening_delta_adjustment_model"
@@ -251,6 +251,7 @@ MAXIMUM: Final[str] = "max"
 MESSAGE: Final[str] = "message"
 METHOD: Final[str] = "method"
 MINIMUM: Final[str] = "min"
+MINIMUM_EXTENDED: Final[str] ="min_extended"
 NEED_HISTORY_HOURS: Final[str] = "need_history_hours"
 OLD_API_KEY: Final[str] = "old_api_key"
 OLD_HARD_LIMIT: Final[str] = "old_hard_limit"
@@ -327,13 +328,14 @@ UNRECORDED_ATTRIBUTES: Final[str] = "unrecorded_attributes"
 UPGRADE_FUNCTION: Final[str] = "upgrade_function"
 USE_ACTUALS: Final[str] = "use_actuals"
 VALUE: Final[str] = "value"
+VALUE_ADAPTIVE_DAMPENING_NO_DELTA: Final[int] = -1
 VERSION: Final[str] = "version"
 WINTER_TIME: Final[list[str]] = ["Europe/Dublin"]  # Zones that use "Winter time" rather than "Daylight time"
 
 
 ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
     ADVANCED_API_RAISE_ISSUES: {ADVANCED_TYPE: ADVANCED_OPTION.BOOL, DEFAULT: True},
-    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_EXCLUDE_LIST: {
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_DELTA_EXCLUDE: {
         ADVANCED_TYPE: ADVANCED_OPTION.LIST_DICT,
         DEFAULT: [],
         OPTION_REQUIRES: [ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]
@@ -356,6 +358,7 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
         MINIMUM: 0,
+        MINIMUM_EXTENDED: VALUE_ADAPTIVE_DAMPENING_NO_DELTA,
         MAXIMUM: 1,
         DEFAULT: DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL,
         AMENDABLE: True,
@@ -423,7 +426,6 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
         DEFAULT: False,
-        OPTION_NOT_SET_IF: [ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT],
     },
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: {
         ADVANCED_TYPE: ADVANCED_OPTION.FLOAT,
