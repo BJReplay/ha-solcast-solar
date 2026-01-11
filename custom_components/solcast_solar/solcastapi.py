@@ -43,7 +43,7 @@ from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from .const import (
     ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES, ###
     ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN, ###
-    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_EXCLUDE_LIST,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_DELTA_EXCLUDE,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
@@ -157,6 +157,7 @@ from .const import (
     MAXIMUM,
     MESSAGE,
     MINIMUM,
+    MINIMUM_EXTENDED,
     NAME,
     OLD_API_KEY,
     OPTION_GREATER_THAN_OR_EQUAL,
@@ -193,6 +194,7 @@ from .const import (
     TOTAL_RECORDS,
     UNKNOWN,
     USE_ACTUALS,
+    VALUE_ADAPTIVE_DAMPENING_NO_DELTA,
     VERSION,
     WINTER_TIME,
 )
@@ -620,7 +622,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                 add_problem("Invalid entry in %s at index %s: expected dict, got %s", option, idx, type(item).__name__)
                                                 valid = False
                                                 continue
-                                            required_keys = {"model", "delta"} if option == ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_EXCLUDE_LIST else {}
+                                            required_keys = {"model", "delta"} if option == ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_DELTA_EXCLUDE else {}
                                             if not required_keys.issubset(item):
                                                 add_problem("Missing keys in %s entry at index %s: expected %s", option, idx, required_keys)
                                                 valid = False
@@ -1906,8 +1908,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                     # if using adaptive dampening config load the data
                     if self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
-                        await self.load_dampening_history()  
-                        await self.determine_best_dampening_settings() ###
+                        await self.load_dampening_history() 
                         
                     # If configured to get generation but there is no cached data, then get it.
                     if self.options.auto_dampen and self.options.generation_entities and len(self._data_generation[GENERATION]) == 0:
@@ -3292,6 +3293,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         period_lists = []
         valid_history = True
         earliest_common: dt | None = None
+        CONFIG_UNCHANGED: Final(int) = -99
 
         # --- Collect period lists for each required model/delta ---
         for model in range(
@@ -3299,14 +3301,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1
         ):          
             for delta in range(
-                ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM],
+                ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED],
                 ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1
             ):
-                if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_EXCLUDE_LIST] and any(
+                if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_DELTA_EXCLUDE] and any(
                     entry["model"] == model and entry["delta"] == delta
-                    for entry in self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_EXCLUDE_LIST]
+                    for entry in self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_DELTA_EXCLUDE]
                     ):
-                    _LOGGER.debug("Ignored dampening history for model %d and delta %d as in %s", model, delta, ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_EXCLUDE_LIST)
+                    _LOGGER.debug("Ignored dampening history for model %d and delta %d as in %s", model, delta, ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_DELTA_EXCLUDE)
                     continue
 
                 if model not in self._data_dampening_history or delta not in self._data_dampening_history[model]:
@@ -3317,6 +3319,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if not entries:
                     valid_history = False
                     break
+                elif len(entries) < self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS]:
+                    _LOGGER.debug("Ignored dampening history for model %d and delta %d as history of %d days is less than minumum %d days", model, delta, len(entries), self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS])
+                    continue
 
                 periods = sorted(entry["period_start"] for entry in entries)
                 period_lists.append(periods)
@@ -3388,24 +3393,31 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         generation_dampening, generation_dampening_day = await self.prepare_generation_data(earliest_common)
 
-        best_ape = math.inf
-        best_model = -1
-        best_delta = -1
+        best_ape_adjusted = math.inf
+        best_ape_no_delta = math.inf
+        best_model_adjusted = CONFIG_UNCHANGED
+        best_model_no_delta = CONFIG_UNCHANGED
+        best_delta_adjusted = CONFIG_UNCHANGED
 
         for model in range(
             ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM],
             ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1
         ):
             for delta in range(
-                ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM],
+                ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED],
                 ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1
             ):
 
-                if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_EXCLUDE_LIST] and any(
+                model_entries = self._data_dampening_history[model][delta]
+                
+                if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_DELTA_EXCLUDE] and any(  
                     entry["model"] == model and entry["delta"] == delta
-                    for entry in self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_EXCLUDE_LIST]
+                    for entry in self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_DELTA_EXCLUDE]
                 ):
-                    _LOGGER.debug("Skipping model %d and delta %d as in %s", model, delta, ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_CONFIGURATION_EXCLUDE_LIST)
+                    _LOGGER.debug("Skipping model %d and delta %d as in %s", model, delta, ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_DELTA_EXCLUDE)
+                    continue
+                elif len(model_entries) < self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS]:
+                    _LOGGER.debug("Skipping model %d and delta %d as history of %d days is less than minumum %d days", model, delta, len(model_entries),self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS] )
                     continue
 
                 _LOGGER.debug("Evaluating model %d and delta %d", model, delta)
@@ -3413,7 +3425,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 valid = True
                 dampened_actuals.clear()
 
-                for model_entry in self._data_dampening_history[model][delta]:
+                for model_entry in model_entries:
                     await asyncio.sleep(0) # Be nice to HA 
                     period_start = model_entry["period_start"]
                     factors = model_entry["factors"]
@@ -3452,7 +3464,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if dampened_count != actual_count:
                     valid = False
                     _LOGGER.debug(
-                        "Model %d and delta %d produced mismatched actuals count (%d dampened vs %d actuals)",
+                        "Model %d and delta %d produced mismatched actuals count (%d dampened vs %d actuals)",  
                         model, delta, dampened_count, actual_count
                     )
 
@@ -3477,27 +3489,51 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if error_dampened != -1:
                         _LOGGER.debug("Model %d and delta %d achieved mean APE of %.3f%%", model, delta, error_dampened)
                     
-                        if error_dampened < best_ape:
-                            best_ape = error_dampened
-                            best_model = model
-                            best_delta = delta
+                        if delta == VALUE_ADAPTIVE_DAMPENING_NO_DELTA and error_dampened < best_ape_no_delta:
+                            best_ape_no_delta = error_dampened
+                            best_model_no_delta = model
+                        
+                        if delta != VALUE_ADAPTIVE_DAMPENING_NO_DELTA and error_dampened < best_ape_adjusted:
+                            best_ape_adjusted = error_dampened
+                            best_delta_adjusted = delta
+                            best_model_adjusted = model
+
                     else:
                         _LOGGER.debug("Skipping APE calculation for model %d and delta %d due to APE calculation issue", model, delta)        
                 else:
                     _LOGGER.debug("Skipping APE calculation for model %d and delta %d", model, delta)        
-                    
-        if best_model != -1 and best_delta != -1:              
-            _LOGGER.info("Selected best automated dampening settings: model %d and delta %d with mean APE of %.3f%%", best_model, best_delta, best_ape)
-            if best_model != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL] or best_delta != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL]:
-                self.advanced_options.update({
-                    ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model,
-                    ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: best_delta
-                })
-                await self.serialise_advanced_options()
+
+        if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT]:
+            if best_model_no_delta != CONFIG_UNCHANGED:
+                _LOGGER.info("Selected best automated dampening settings: model %d with mean APE of %.3f%%", best_model_no_delta, best_ape_no_delta)
+                if best_model_no_delta != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]:
+                    self.advanced_options.update({
+                        ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model_no_delta
+                    })
+                    await self.serialise_advanced_options()
+                else:
+                    _LOGGER.debug ("Adaptive dampening configuration unchanged")
             else:
-                _LOGGER.debug ("Adaptive dampening configuration unchanged")
+                _LOGGER.info("Could not determine best automated dampening settings - values unmodified")
+
+            if best_model_adjusted != CONFIG_UNCHANGED and best_ape_adjusted < best_ape_no_delta:
+                _LOGGER.warning ("%s is set true but adpative dampening found that model %d and delta %d had a lower mean APE of %.3f%% vs the selected %.3f%%", ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT, best_model_adjusted, best_delta_adjusted, best_ape_adjusted, best_ape_no_delta)      
         else:
-            _LOGGER.info("Could not determine best automated dampening settings - values unmodified")
+            if best_model_adjusted != CONFIG_UNCHANGED and best_delta_adjusted != CONFIG_UNCHANGED:         
+                _LOGGER.info("Selected best automated dampening settings: model %d and delta %d with mean APE of %.3f%%", best_model_adjusted, best_delta_adjusted, best_ape_adjusted)
+                if best_model_adjusted != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL] or best_delta_adjusted != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL]:
+                    self.advanced_options.update({
+                        ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model_adjusted,
+                        ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: best_delta_adjusted
+                    })
+                    await self.serialise_advanced_options()
+                else:
+                    _LOGGER.debug ("Adaptive dampening configuration unchanged")
+            else:
+               _LOGGER.info("Could not determine best automated dampening settings - values unmodified")
+
+            if best_model_no_delta != CONFIG_UNCHANGED and best_ape_no_delta < best_ape_adjusted:
+                _LOGGER.warning ("%s is set false but adpative dampening found that model %d with no delta adjustment had a lower mean APE of %.3f%% vs the selected %.3f%%", ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT, best_model_no_delta, best_ape_no_delta, best_ape_adjusted)
 
         _LOGGER.debug("Task determine_best_dampening_settings took %.3f seconds", time.time() - start_time)
 
@@ -3535,14 +3571,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         issue_count = 0
         loaded_count = 0
 
-        expected_records = (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1) * (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1) * self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS]
+        expected_records = (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 2) * (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1) * self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS]
 
         # --- Initialise structure if needed ---
         if not self._data_dampening_history:
             self._data_dampening_history = {
                 m: {
                     d: []
-                    for d in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1)
+                    for d in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1)
                 }
                 for m in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1)
             }
@@ -3587,14 +3623,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 for delta_str, entries in deltas.items():
 
                     # Validate delta key
-                    if not isinstance(delta_str, str) or not delta_str.isdigit():
+                    if not isinstance(delta_str, str) or not delta_str[-1].isdigit():
                         valid = False
                         issue_count += 1
                         _LOGGER.debug("Invalid delta key in dampening history: %s", delta_str)
                         continue
 
                     delta = int(delta_str)
-                    if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM] <= delta <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]):
+                    if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED] <= delta <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]):
                         valid = False
                         issue_count += 1
                         _LOGGER.debug("Delta value out of range in dampening history: %d", delta)
@@ -3701,6 +3737,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                                         dampening_model, 
                                                         False)
                 
+                await self.add_dampening_history( # Add entry for no delta adjustment 
+                        period_start=self.get_day_start_utc(future =-1),  
+                        model=dampening_model,
+                        delta=VALUE_ADAPTIVE_DAMPENING_NO_DELTA,
+                        factors=dampening
+                    )
+                
                 for delta_adjustment in range (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM],
                                             ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]+1):
                     adjusted_dampening = copy.deepcopy(dampening)
@@ -3765,7 +3808,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             self._data_dampening_history = {
                 m: {
                     d: []
-                    for d in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1)
+                    for d in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1)
                 }
                 for m in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1)
             }
@@ -3777,7 +3820,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.debug(f"Add dampening passed invalid model {model}")
             valid = False
 
-        if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM] <= delta <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]):
+        if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED] <= delta <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]):
             _LOGGER.debug(f"Add dampening passed invalid delta {delta}")
             valid = False
 
@@ -3853,26 +3896,26 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         value_day: defaultdict[dt, float] = defaultdict(float)
         error: defaultdict[dt, float] = defaultdict(float)
         last_day: dt | None = None
-        value_items: dict[datetime, list[tuple[datetime, float]]] = {} ###
+        #value_items: dict[datetime, list[tuple[datetime, float]]] = {} ###
 
         for interval in values:
             i = interval[PERIOD_START].astimezone(self.options.tz).replace(hour=0, minute=0, second=0, microsecond=0)
             if i != last_day:
                 value_day[i] = 0.0
-                value_items[i] = [] ###       
+                #value_items[i] = [] ###       
                 last_day = i
             if generation.get(interval[PERIOD_START]) is not None and not generation[interval[PERIOD_START]][EXPORT_LIMITING]:
                 value_day[i] += interval[ESTIMATE] / 2  # 30 minute intervals
-                value_items[i].append((interval[PERIOD_START], interval[ESTIMATE] / 2)) ###
+                #value_items[i].append((interval[PERIOD_START], interval[ESTIMATE] / 2)) ###
 
-        for day, items in value_items.items():   ###  
-            parts = [f"{ts.isoformat()}={amount:.3f}" for ts, amount in items]
-            _LOGGER.debug(
-                "Value items for %s: %s | total=%.3f",
-                day.isoformat(),
-                ", ".join(parts),
-                value_day[day],
-            )   ###
+        #for day, items in value_items.items():   ###  
+        #    parts = [f"{ts.isoformat()}={amount:.3f}" for ts, amount in items]
+        #    _LOGGER.debug(
+        #        "Value items for %s: %s | total=%.3f",
+        #        day.isoformat(),
+        #        ", ".join(parts),
+        #        value_day[day],
+        #    )   ###
         
         for day, value in value_day.items():
             error[day] = abs(generation_day[day] - value) / generation_day[day] * 100.0 if generation_day[day] > 0 else math.inf
@@ -4415,7 +4458,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             min(1.0, factor + ((1.0 - factor) * (math.log(self._peak_intervals[interval]) - math.log(interval_pv50)))),
                         )
                 
-        return factor
+        return round(factor, 3)
 
     def __get_dampening_factor(self, site: str | None, period_start: dt, interval_pv50: float, record_adjustment: bool = False) -> float:
         """Retrieve either a traditional or granular dampening factor."""
