@@ -1282,7 +1282,8 @@ v4.4.11
 * Consistent strings file spacing by @autoSteve
 * Add advanced option automated_dampening_adaptive_model_configuration by @Nilogax
 * Add advanced option automated_dampening_adaptive_model_minimum_history_days by @Nilogax
-* Add advanced option automated_dampening_adaptive_configuration_exclude_list by @Nilogax
+* Add advanced option automated_dampening_adaptive_model_delta_exclude by @Nilogax
+* Expose advanced dampening settings as attributes of dampening sensor by @Nilogax
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.10...v4.4.11
 
