@@ -98,6 +98,7 @@ from .const import (
     DATA_SET_FORECAST_UNDAMPENED,
     DAY_NAME,
     DEFAULT,
+    DELTA_STATUS,
     DEPRECATED,
     DETAILED_FORECAST,
     DETAILED_HOURLY,
@@ -134,6 +135,7 @@ from .const import (
     GET_ACTUALS,
     HARD_LIMIT_API,
     HOURS,
+    ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE,
     ISSUE_API_UNAVAILABLE,
     ISSUE_CORRUPT_FILE,
     ISSUE_RECORDS_MISSING,
@@ -151,6 +153,7 @@ from .const import (
     LAST_ATTEMPT,
     LAST_UPDATED,
     LEARN_MORE,
+    LEARN_MORE_ADVANCED,
     LEARN_MORE_CORRUPT_FILE,
     LEARN_MORE_MISSING_FORECAST_DATA,
     LEARN_MORE_UNUSUAL_AZIMUTH,
@@ -160,6 +163,7 @@ from .const import (
     MINIMUM_EXTENDED,
     NAME,
     OLD_API_KEY,
+    OPTION, 
     OPTION_GREATER_THAN_OR_EQUAL,
     OPTION_LESS_THAN_OR_EQUAL,
     OPTION_NOT_SET_IF,
@@ -3385,8 +3389,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _LOGGER.debug ("Adding actuals entry for %s", day_start.strftime(DT_DATE_FORMAT_UTC)) 
                     actuals[day_start] = [0.0] * 48
 
-                interval = ts.hour * 2 + ts.minute // 30
-                actuals[day_start][interval] += actual[ESTIMATE] # * 0.5 Do not adjust here as they are also adjusted in calculate_error()
+                interval = self.adjusted_interval_dt(ts)
+                offset_interval = interval + (2 if self.dst(ts) else 0)
+                actuals[day_start][offset_interval] += actual[ESTIMATE] # * 0.5 Do not adjust here as they are also adjusted in calculate_error()
 
         ###for day_start, values in actuals.items(): 
         ###    _LOGGER.debug("Undampened actuals for adaptive calcs %s: %s", day_start.strftime(DT_DATE_FORMAT_UTC), ", ".join(f"{v:.3f}" for v in values)) 
@@ -3501,7 +3506,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     else:
                         _LOGGER.debug("Skipping APE calculation for model %d and delta %d due to APE calculation issue", model, delta)        
                 else:
-                    _LOGGER.debug("Skipping APE calculation for model %d and delta %d", model, delta)        
+                    _LOGGER.debug("Skipping APE calculation for model %d and delta %d", model, delta)  
+
+        raise_issue: bool = False
 
         if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT]:
             if best_model_no_delta != CONFIG_UNCHANGED:
@@ -3517,7 +3524,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 _LOGGER.info("Could not determine best automated dampening settings - values unmodified")
 
             if best_model_adjusted != CONFIG_UNCHANGED and best_ape_adjusted < best_ape_no_delta:
-                _LOGGER.warning ("%s is set true but adpative dampening found that model %d and delta %d had a lower mean APE of %.3f%% vs the selected %.3f%%", ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT, best_model_adjusted, best_delta_adjusted, best_ape_adjusted, best_ape_no_delta)      
+                _LOGGER.warning ("%s is set true but adpative dampening found that model %d and delta %d had a lower mean APE of %.3f%% vs the selected %.3f%%", ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT, best_model_adjusted, best_delta_adjusted, best_ape_adjusted, best_ape_no_delta)
+                raise_issue = True
+                delta_status = "enabled"      
         else:
             if best_model_adjusted != CONFIG_UNCHANGED and best_delta_adjusted != CONFIG_UNCHANGED:         
                 _LOGGER.info("Selected best automated dampening settings: model %d and delta %d with mean APE of %.3f%%", best_model_adjusted, best_delta_adjusted, best_ape_adjusted)
@@ -3534,7 +3543,24 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             if best_model_no_delta != CONFIG_UNCHANGED and best_ape_no_delta < best_ape_adjusted:
                 _LOGGER.warning ("%s is set false but adpative dampening found that model %d with no delta adjustment had a lower mean APE of %.3f%% vs the selected %.3f%%", ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT, best_model_no_delta, best_ape_no_delta, best_ape_adjusted)
+                raise_issue = True
+                delta_status ="disabled"
 
+        if raise_issue:
+            _LOGGER.debug("Raising issue to suggest setting %s to %s", ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT, delta_status)
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                raise_issue,
+                is_fixable=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key= ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE,
+                translation_placeholders={
+                    DELTA_STATUS: delta_status,
+                    OPTION: ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT
+                },
+                learn_more_url=LEARN_MORE_ADVANCED,
+            )        
         _LOGGER.debug("Task determine_best_dampening_settings took %.3f seconds", time.time() - start_time)
 
     async def serialise_advanced_options(self) -> None:
