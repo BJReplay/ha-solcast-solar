@@ -1,481 +1,481 @@
 {
-    "config": {
-        "abort": {
-            "internal_error": "Si è verificato un errore interno",
-            "reauth_successful": "Nuova chiave API applicata con successo",
-            "reconfigured": "Nuova configurazione applicata con successo",
-            "single_instance_allowed": "È consentita una sola istanza di Solcast"
-        },
-        "error": {
-            "api_duplicate": "Chiave API duplicata specificata",
-            "api_looks_like_site": "La chiave API sembra un ID sito",
-            "limit_not_number": "Il limite API non è un numero",
-            "limit_one_or_greater": "Il limite API deve essere uno o superiore",
-            "limit_too_many": "Sono stati inseriti più conteggi dei limiti API rispetto alle chiavi"
-        },
-        "step": {
-            "reauth_confirm": {
-                "data": {
-                    "api_key": "Chiave API (opzionale: valori multipli separati da virgole)"
-                },
-                "description": "Chiave API dell'account Solcast"
-            },
-            "reconfigure_confirm": {
-                "data": {
-                    "api_key": "Chiave API (opzionale: valori multipli separati da virgole)",
-                    "api_quota": "Limite API (opzionale: valori multipli separati da virgola per ciascuna chiave)",
-                    "auto_update": "Aggiornamento automatico"
-                },
-                "description": "Dettagli dell'account Solcast\n\n(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)"
-            },
-            "user": {
-                "data": {
-                    "api_key": "Chiave API (opzionale: valori multipli separati da virgole)",
-                    "api_quota": "Limite API (opzionale: valori multipli separati da virgola per ciascuna chiave)",
-                    "auto_update": "Aggiornamento automatico"
-                },
-                "description": "Dettagli dell'account Solcast\n\n(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)"
-            }
-        }
+  "config": {
+    "abort": {
+      "internal_error": "Si è verificato un errore interno",
+      "reauth_successful": "Nuova chiave API applicata con successo",
+      "reconfigured": "Nuova configurazione applicata con successo",
+      "single_instance_allowed": "È consentita una sola istanza di Solcast"
     },
-    "entity": {
-        "select": {
-            "estimate_mode": {
-                "name": "Usa il campo Previsione"
-            }
-        },
-        "sensor": {
-            "api_counter": {
-                "name": "API utilizzate"
-            },
-            "api_limit": {
-                "name": "Limite API"
-            },
-            "dampen": {
-                "name": "Smorzamento"
-            },
-            "forecast_custom_hours": {
-                "name": "Previsione per le prossime X ore"
-            },
-            "forecast_next_hour": {
-                "name": "Previsione per la prossima ora"
-            },
-            "forecast_remaining_today": {
-                "name": "Previsione rimanente per oggi"
-            },
-            "forecast_this_hour": {
-                "name": "Previsione per quest'ora"
-            },
-            "hard_limit": {
-                "name": "Limite rigido impostato"
-            },
-            "hard_limit_api": {
-                "name": "Limite rigido impostato {api_key}"
-            },
-            "last_updated": {
-                "name": "Ultimo polling API"
-            },
-            "peak_w_time_today": {
-                "name": "Orario del picco per oggi"
-            },
-            "peak_w_time_tomorrow": {
-                "name": "Orario del picco per domani"
-            },
-            "peak_w_today": {
-                "name": "Picco di previsione per oggi"
-            },
-            "peak_w_tomorrow": {
-                "name": "Picco di previsione per domani"
-            },
-            "power_now": {
-                "name": "Potenza attuale"
-            },
-            "power_now_1hr": {
-                "name": "Potenza tra 1 ora"
-            },
-            "power_now_30m": {
-                "name": "Potenza tra 30 minuti"
-            },
-            "total_kwh_forecast_d10": {
-                "name": "Previsione per il giorno 10"
-            },
-            "total_kwh_forecast_d11": {
-                "name": "Previsione per il giorno 11"
-            },
-            "total_kwh_forecast_d12": {
-                "name": "Previsione per il giorno 12"
-            },
-            "total_kwh_forecast_d13": {
-                "name": "Previsione per il giorno 13"
-            },
-            "total_kwh_forecast_d3": {
-                "name": "Previsione per il giorno 3"
-            },
-            "total_kwh_forecast_d4": {
-                "name": "Previsione per il giorno 4"
-            },
-            "total_kwh_forecast_d5": {
-                "name": "Previsione per il giorno 5"
-            },
-            "total_kwh_forecast_d6": {
-                "name": "Previsione per il giorno 6"
-            },
-            "total_kwh_forecast_d7": {
-                "name": "Previsione per il giorno 7"
-            },
-            "total_kwh_forecast_d8": {
-                "name": "Previsione per il giorno 8"
-            },
-            "total_kwh_forecast_d9": {
-                "name": "Previsione per il giorno 9"
-            },
-            "total_kwh_forecast_today": {
-                "name": "Previsione per oggi"
-            },
-            "total_kwh_forecast_tomorrow": {
-                "name": "Previsione per domani"
-            }
-        }
+    "error": {
+      "api_duplicate": "Chiave API duplicata specificata",
+      "api_looks_like_site": "La chiave API sembra un ID sito",
+      "limit_not_number": "Il limite API non è un numero",
+      "limit_one_or_greater": "Il limite API deve essere uno o superiore",
+      "limit_too_many": "Sono stati inseriti più conteggi dei limiti API rispetto alle chiavi"
     },
-    "exceptions": {
-        "actuals_not_enabled": {
-            "message": "L'acquisizione dei dati effettivi stimati non è abilitata."
+    "step": {
+      "reauth_confirm": {
+        "data": {
+          "api_key": "Chiave API (opzionale: valori multipli separati da virgole)"
         },
-        "auto_use_force": {
-            "message": "L'aggiornamento automatico è abilitato, ignorando l'evento di servizio per l'aggiornamento delle previsioni, utilizzare invece Aggiornamento forzato."
+        "description": "Chiave API dell'account Solcast"
+      },
+      "reconfigure_confirm": {
+        "data": {
+          "api_key": "Chiave API (opzionale: valori multipli separati da virgole)",
+          "api_quota": "Limite API (opzionale: valori multipli separati da virgola per ciascuna chiave)",
+          "auto_update": "Aggiornamento automatico"
         },
-        "auto_use_normal": {
-            "message": "L'aggiornamento automatico non è abilitato, ignorando l'evento di servizio per l'aggiornamento forzato delle previsioni, utilizzare invece Aggiornamento."
+        "description": "Dettagli dell'account Solcast\n\n(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)"
+      },
+      "user": {
+        "data": {
+          "api_key": "Chiave API (opzionale: valori multipli separati da virgole)",
+          "api_quota": "Limite API (opzionale: valori multipli separati da virgola per ciascuna chiave)",
+          "auto_update": "Aggiornamento automatico"
         },
-        "build_failed_actuals": {
-            "message": "Impossibile creare i dati effettivi stimati (config/solcast-actuals.json danneggiato?)"
-        },
-        "build_failed_forecasts": {
-            "message": "Impossibile creare i dati di previsione (config/solcast.json danneggiato?)"
-        },
-        "damp_auto_enabled": {
-            "message": "È abilitato lo smorzamento automatico, senza impostare manualmente i fattori di smorzamento."
-        },
-        "damp_count_not_correct": {
-            "message": "Non ci sono 24 o 48 numeri separati da virgola tra 0.0 e 1.0."
-        },
-        "damp_error_parsing": {
-            "message": "Errore durante l'analisi dei numeri di fattori di smorzamento separati da virgola."
-        },
-        "damp_no_all_24": {
-            "message": "La specifica di un sito 'all' non è consentita con 24 fattori, rimuovere il sito dalla richiesta."
-        },
-        "damp_no_factors": {
-            "message": "Nessun fattore di smorzamento, deve essere un elenco di numeri separati da virgola tra 0.0 e 1.0."
-        },
-        "damp_not_for_site": {
-            "message": "Lo smorzamento del sito non è impostato per {site}."
-        },
-        "damp_not_site": {
-            "message": "Sito non configurato."
-        },
-        "damp_outside_range": {
-            "message": "Valore del fattore di smorzamento presente che non è compreso tra 0.0 e 1.0."
-        },
-        "damp_use_all": {
-            "message": "Lo smorzamento del sito non è impostato per {site}, 'all' è l'unico parametro del sito disponibile per la chiamata al servizio."
-        },
-        "hard_empty": {
-            "message": "Valore del limite rigido vuoto."
-        },
-        "hard_not_positive_number": {
-            "message": "Il valore del limite rigido non è un numero positivo."
-        },
-        "hard_too_many": {
-            "message": "Sono specificati più limiti rigidi di quante siano le chiavi API."
-        },
-        "init_cannot_get_sites": {
-            "message": "Impossibile recuperare i dati dei siti."
-        },
-        "init_cannot_get_sites_cache_invalid": {
-            "message": "Impossibile recuperare i dati dei siti e la cache non è valida."
-        },
-        "init_corrupt": {
-            "message": "I dati memorizzati nella cache in {file} sono corrotti, si consiglia di eliminarli o ripararli."
-        },
-        "init_incompatible": {
-            "message": "I dati memorizzati nella cache in `{file}` non sono compatibili, si consiglia di eliminarli."
-        },
-        "init_key_invalid": {
-            "message": "La chiave API non è valida."
-        },
-        "init_no_sites": {
-            "message": "Nessun sito trovato per la chiave API."
-        },
-        "init_unknown": {
-            "message": "Eccezione durante il caricamento dei dati dei siti."
-        },
-        "init_usage_corrupt": {
-            "message": "I dati di utilizzo sono corrotti, controllare o eliminare `config/solcast_solar/solcast-usage.json`."
-        },
-        "integration_not_loaded": {
-            "message": "Integrazione non caricata, nessuna azione eseguita."
-        },
-        "integration_prior_crash": {
-            "message": "L'integrazione non è riuscita a caricarsi in precedenza, si riprova dopo un ritardo."
-        },
-        "remove_cache_failed": {
-            "message": "Eliminazione di tutti i dati Solcast non riuscita."
-        }
-    },
-    "issues": {
-        "advanced_deprecated": {
-            "description": "L'opzione di configurazione avanzata `{option}` è stata modificata in `{new_option}`. Aggiorna le opzioni di configurazione avanzate per utilizzare il nuovo nome dell'opzione.{stops_working}",
-            "title": "Opzione avanzata deprecata"
-        },
-        "advanced_problem": {
-            "description": "Il file di configurazione avanzata contiene errori.\n{problems}\n\nCorreggili, facendo riferimento alla documentazione dell'integrazione al link 'Per saperne di più'.",
-            "title": "Problema con l'opzione avanzata"
-        },
-        "api_unavailable": {
-            "description": "L'API Solcast ha segnalato ripetutamente lo stato `429 / Riprova più tardi` durante un aggiornamento.\n\n* Non tentare di risolvere questa situazione.\n* Non modificare la chiave API.\n* Evita di riavviare l'integrazione\n* Non è un problema di integrazione e si risolverà da solo. Non cambiare nulla.\n\n(Per sopprimere questo problema, crea un'opzione di configurazione avanzata api_raise_issue e impostala su false.)",
-            "title": "API Solcast temporaneamente non disponibile"
-        },
-        "corrupt_file": {
-            "description": "Il/i file di dati memorizzati nella cache `{files}` è/sono danneggiato/i. L'integrazione tenterà di recuperare eliminando il/i file e recuperando nuovamente i dati da Solcast. Prevedere un aumento dell'utilizzo dell'API e potenziali errori dell'API e la perdita della cronologia delle previsioni a causa di questa situazione. È possibile recuperare i file dal backup, ma prevedere comunque errori nelle chiamate API.",
-            "title": "Dati memorizzati nella cache danneggiati"
-        },
-        "records_missing": {
-            "description": "I dati delle previsioni future mancano, il che è inaspettato perché l'aggiornamento automatico è attivato. Indaga sulla causa esaminando il registro di Home Assistant. Leggi le FAQ sulla risoluzione dei problemi prima di segnalare un problema di integrazione.",
-            "title": "Previsioni future mancanti"
-        },
-        "records_missing_fixable": {
-            "fix_flow": {
-                "abort": {
-                    "reconfigured": "Nuova configurazione applicata con successo"
-                },
-                "step": {
-                    "offer_auto": {
-                        "data": {
-                            "auto_update": "Aggiornamento automatico"
-                        },
-                        "description": "Un'automazione di aggiornamento delle previsioni non è stata eseguita. Vuoi abilitare l'aggiornamento automatico? (Ulteriori informazioni: {learn_more})",
-                        "title": "Previsioni future mancanti"
-                    }
-                }
-            },
-            "title": "Previsioni future mancanti"
-        },
-        "records_missing_initial": {
-            "description": "I dati delle previsioni e/o i dati effettivi stimati mancano, probabilmente perché non si è verificato l'aggiornamento iniziale delle previsioni. Probabilmente ciò è dovuto al raggiungimento del limite di chiamate API. Avrai problemi con le entità dei sensori e il dashboard Energia probabilmente avrà dati mancanti. Questo si risolverà da solo.",
-            "title": "Previsioni mancanti"
-        },
-        "records_missing_unfixable": {
-            "description": "I dati delle previsioni future sono mancanti, il che è inaspettato. Controllare i registri.",
-            "title": "Previsioni future mancanti"
-        },
-        "unusual_azimuth_northern": {
-            "description": "L'azimut del sito {site} è insolito per la latitudine di questo tetto dell'emisfero settentrionale. Dovrebbe essere {proposal} invece di {extant}? (Ignorate il problema se il sito è rivolto verso nord.)",
-            "title": "Azimut insolito"
-        },
-        "unusual_azimuth_southern": {
-            "description": "L'azimut del sito {site} è insolito per la latitudine di questo tetto dell'emisfero australe. Dovrebbe essere {proposal} invece di {extant}? (Ignorate il problema se il sito è esposto a sud.)",
-            "title": "Azimut insolito"
-        }
-    },
-    "options": {
-        "abort": {
-            "internal_error": "Si è verificato un errore interno",
-            "reconfigured": "Nuova configurazione applicata con successo"
-        },
-        "error": {
-            "actuals_not_enabled": "L'acquisizione dei dati effettivi stimati non è abilitata",
-            "actuals_without_get": "I valori effettivi stimati non possono essere utilizzati senza ottenerli",
-            "api_duplicate": "Chiave API duplicata specificata",
-            "api_looks_like_site": "La chiave API sembra un ID sito",
-            "custom_invalid": "Sensore personalizzato non compreso tra 1 e 144",
-            "dampen_without_actuals": "Per utilizzare l'auto-smorzamento è necessario selezionare i valori effettivi stimati",
-            "dampen_without_generation": "È necessario specificare almeno un sensore Wh/kWh/MWh di generazione fotovoltaica per utilizzare l'auto-smorzamento",
-            "export_multiple_entities": "Il sito di esportazione deve essere una sola entità, non più entità",
-            "export_no_entity": "Il sito di esportazione deve essere specificato se è impostato un limite di esportazione del sito",
-            "hard_not_number": "Il limite massimo non è un numero positivo",
-            "hard_too_many": "Sono stati inseriti più limiti rigidi che chiavi",
-            "limit_not_number": "Il limite API non è un numero",
-            "limit_one_or_greater": "Il limite API deve essere uno o superiore",
-            "limit_too_many": "Sono stati inseriti più conteggi dei limiti API rispetto alle chiavi"
-        },
-        "step": {
-            "dampen": {
-                "data": {
-                    "damp00": "00:00",
-                    "damp01": "01:00",
-                    "damp02": "02:00",
-                    "damp03": "03:00",
-                    "damp04": "04:00",
-                    "damp05": "05:00",
-                    "damp06": "06:00",
-                    "damp07": "07:00",
-                    "damp08": "08:00",
-                    "damp09": "09:00",
-                    "damp10": "10:00",
-                    "damp11": "11:00",
-                    "damp12": "12:00",
-                    "damp13": "13:00",
-                    "damp14": "14:00",
-                    "damp15": "15:00",
-                    "damp16": "16:00",
-                    "damp17": "17:00",
-                    "damp18": "18:00",
-                    "damp19": "19:00",
-                    "damp20": "20:00",
-                    "damp21": "21:00",
-                    "damp22": "22:00",
-                    "damp23": "23:00"
-                },
-                "description": "Modifica il fattore di smorzamento orario"
-            },
-            "init": {
-                "data": {
-                    "api_key": "Chiave API (valori multipli separati da virgola)",
-                    "api_quota": "Limite API (opzionalmente valori multipli separati da virgola per ciascuna chiave)",
-                    "attr_brk_detailed": "Abilita la suddivisione del sito per gli attributi di dettaglio semiorari/orari (questi non verranno salvati negli attributi di stato del database)",
-                    "attr_brk_estimate": "Abilita gli attributi del sensore di stima 50",
-                    "attr_brk_estimate10": "Abilita gli attributi del sensore di stima 10",
-                    "attr_brk_estimate90": "Abilita gli attributi del sensore di stima 90",
-                    "attr_brk_halfhourly": "Abilita gli attributi di dettaglio semiorari delle previsioni",
-                    "attr_brk_hourly": "Abilita gli attributi di dettaglio orari delle previsioni",
-                    "attr_brk_site": "Abilita gli attributi del sensore di suddivisione del sito",
-                    "auto_dampen": "Auto-dampen (richiede valori reali stimati e entità di generazione fotovoltaica, vedere la documentazione dell'integrazione)",
-                    "auto_update": "Aggiornamento automatico (se non è presente l'aggiornamento automatico, è necessario utilizzare un'automazione)",
-                    "config_damp": "Modifica i fattori di smorzamento orari (dopo aver cliccato su invia)",
-                    "customhoursensor": "Sensore personalizzato per le prossime X ore (min=1, max=144)",
-                    "exclude_sites": "Sito/i da escludere dal dashboard Energia e dai totali dei sensori",
-                    "generation_entities": "Entità/entità di generazione fotovoltaica per smorzamento automatico (Wh/kWh/MWh, aumento totale)",
-                    "get_actuals": "Valori reali stimati aggiornati a mezzanotte (vedere la documentazione dell'integrazione, utilizza una chiamata API per sito al giorno, quindi è necessario un limite API ridotto con questa opzione abilitata)",
-                    "hard_limit_api": "Limite rigido dell'inverter in kW (vedere la documentazione dell'integrazione)",
-                    "key_estimate": "Probabilità di previsione preferita da utilizzare per i sensori",
-                    "site_damp": "Lo smorzamento granulare è impostato: Cancella per ripristinare lo smorzamento orario generale",
-                    "site_export_entity": "Entità di esportazione del sito opzionale per smorzamento automatico (Wh/kWh/MWh, aumento totale)",
-                    "site_export_limit": "Limite di esportazione del sito se l'esportazione del sito è specificata (kW)",
-                    "use_actuals": "Storia delle previsioni da mostrare sul dashboard Energia"
-                },
-                "description": "Opzioni di configurazione di Solcast"
-            }
-        }
-    },
-    "selector": {
-        "auto_update": {
-            "options": {
-                "0": "Nessun aggiornamento automatico delle previsioni",
-                "1": "Aggiornamento automatico delle previsioni dall'alba al tramonto",
-                "2": "Aggiornamento automatico delle previsioni per 24 ore"
-            }
-        },
-        "energy_history": {
-            "options": {
-                "0": "Previsioni",
-                "1": "Reali stimati",
-                "2": "Reali stimati attenuati"
-            }
-        },
-        "key_estimate": {
-            "options": {
-                "estimate": "Generazione prevista mediana (stima)",
-                "estimate10": "Generazione prevista del 10° percentile (estremità inferiore dei possibili risultati, stima10)",
-                "estimate90": "Generazione prevista del 90° percentile (estremità superiore dei possibili risultati, stima90)"
-            }
-        }
-    },
-    "services": {
-        "clear_all_solcast_data": {
-            "description": "Elimina il file solcast.json per rimuovere tutti i dati del sito Solcast correnti.",
-            "name": "Cancella tutti i dati Solcast salvati"
-        },
-        "force_update_estimates": {
-            "description": "Forza il recupero dei più recenti dati reali stimati da Solcast.",
-            "name": "Forza l'aggiornamento dei valori effettivi stimati"
-        },
-        "force_update_forecasts": {
-            "description": "Recupera forzatamente gli ultimi dati delle previsioni da Solcast.",
-            "name": "Aggiornamento forzato"
-        },
-        "get_dampening": {
-            "description": "Ottieni i fattori di smorzamento delle previsioni.",
-            "fields": {
-                "site": {
-                    "description": "Sito opzionale per ottenere lo smorzamento. (Nota: non funzionerà se lo smorzamento granulare non è abilitato.)",
-                    "name": "ID sito"
-                }
-            },
-            "name": "Ottieni smorzamento delle previsioni"
-        },
-        "query_estimate_data": {
-            "description": "Restituisce un set di dati per una determinata query.",
-            "fields": {
-                "end_date_time": {
-                    "description": "Interroga gli eventi di dati reali stimati fino all'ora della data.",
-                    "name": "Ora della data di fine"
-                },
-                "start_date_time": {
-                    "description": "Interroga gli eventi di dati reali stimati a partire dalla data e dall'ora.",
-                    "name": "Ora della data di inizio"
-                }
-            },
-            "name": "Interroga i dati reali stimati"
-        },
-        "query_forecast_data": {
-            "description": "Restituisce un set di dati per una determinata query.",
-            "fields": {
-                "end_date_time": {
-                    "description": "Interroga gli eventi dei dati di previsione fino all'ora della data.",
-                    "name": "Ora della data di fine"
-                },
-                "site": {
-                    "description": "Sito opzionale per recuperare la previsione di un sito",
-                    "name": "ID sito"
-                },
-                "start_date_time": {
-                    "description": "Interroga gli eventi dei dati di previsione dall'ora della data.",
-                    "name": "Ora della data di inizio"
-                },
-                "undampened": {
-                    "description": "Booleano opzionale per recuperare la previsione non smorzata",
-                    "name": "Non smorzato"
-                }
-            },
-            "name": "Interroga i dati delle previsioni"
-        },
-        "remove_hard_limit": {
-            "description": "Rimuovi il limite impostato.",
-            "name": "Rimuovi il limite rigido delle previsioni dell'inverter"
-        },
-        "set_dampening": {
-            "description": "Imposta i fattori di smorzamento delle previsioni.",
-            "fields": {
-                "damp_factor": {
-                    "description": "Stringa di valori del fattore di smorzamento separati da virgola (24 o 48 valori).",
-                    "name": "Stringa di smorzamento"
-                },
-                "site": {
-                    "description": "Sito opzionale per impostare lo smorzamento per sito. (Nota: l'omissione del sito cancella lo smorzamento per sito a meno che non siano presenti 48 valori.)",
-                    "name": "ID sito"
-                }
-            },
-            "name": "Imposta lo smorzamento delle previsioni"
-        },
-        "set_hard_limit": {
-            "description": "Impedisci che i valori di previsione siano superiori a quelli che l'inverter può produrre.",
-            "fields": {
-                "hard_limit": {
-                    "description": "Imposta il valore massimo in Watt che l'inverter può produrre.",
-                    "name": "Valore limite in Watt"
-                }
-            },
-            "name": "Imposta il limite rigido delle previsioni dell'inverter"
-        },
-        "update_forecasts": {
-            "description": "Recupera gli ultimi dati delle previsioni da Solcast.",
-            "name": "Aggiorna"
-        }
-    },
-    "system_health": {
-        "info": {
-            "can_reach_server": "Connessione al server Solcast"
-        }
+        "description": "Dettagli dell'account Solcast\n\n(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)"
+      }
     }
+  },
+  "entity": {
+    "select": {
+      "estimate_mode": {
+        "name": "Usa il campo Previsione"
+      }
+    },
+    "sensor": {
+      "api_counter": {
+        "name": "API utilizzate"
+      },
+      "api_limit": {
+        "name": "Limite API"
+      },
+      "dampen": {
+        "name": "Smorzamento"
+      },
+      "forecast_custom_hours": {
+        "name": "Previsione per le prossime X ore"
+      },
+      "forecast_next_hour": {
+        "name": "Previsione per la prossima ora"
+      },
+      "forecast_remaining_today": {
+        "name": "Previsione rimanente per oggi"
+      },
+      "forecast_this_hour": {
+        "name": "Previsione per quest'ora"
+      },
+      "hard_limit": {
+        "name": "Limite rigido impostato"
+      },
+      "hard_limit_api": {
+        "name": "Limite rigido impostato {api_key}"
+      },
+      "last_updated": {
+        "name": "Ultimo polling API"
+      },
+      "peak_w_time_today": {
+        "name": "Orario del picco per oggi"
+      },
+      "peak_w_time_tomorrow": {
+        "name": "Orario del picco per domani"
+      },
+      "peak_w_today": {
+        "name": "Picco di previsione per oggi"
+      },
+      "peak_w_tomorrow": {
+        "name": "Picco di previsione per domani"
+      },
+      "power_now": {
+        "name": "Potenza attuale"
+      },
+      "power_now_1hr": {
+        "name": "Potenza tra 1 ora"
+      },
+      "power_now_30m": {
+        "name": "Potenza tra 30 minuti"
+      },
+      "total_kwh_forecast_d10": {
+        "name": "Previsione per il giorno 10"
+      },
+      "total_kwh_forecast_d11": {
+        "name": "Previsione per il giorno 11"
+      },
+      "total_kwh_forecast_d12": {
+        "name": "Previsione per il giorno 12"
+      },
+      "total_kwh_forecast_d13": {
+        "name": "Previsione per il giorno 13"
+      },
+      "total_kwh_forecast_d3": {
+        "name": "Previsione per il giorno 3"
+      },
+      "total_kwh_forecast_d4": {
+        "name": "Previsione per il giorno 4"
+      },
+      "total_kwh_forecast_d5": {
+        "name": "Previsione per il giorno 5"
+      },
+      "total_kwh_forecast_d6": {
+        "name": "Previsione per il giorno 6"
+      },
+      "total_kwh_forecast_d7": {
+        "name": "Previsione per il giorno 7"
+      },
+      "total_kwh_forecast_d8": {
+        "name": "Previsione per il giorno 8"
+      },
+      "total_kwh_forecast_d9": {
+        "name": "Previsione per il giorno 9"
+      },
+      "total_kwh_forecast_today": {
+        "name": "Previsione per oggi"
+      },
+      "total_kwh_forecast_tomorrow": {
+        "name": "Previsione per domani"
+      }
+    }
+  },
+  "exceptions": {
+    "actuals_not_enabled": {
+      "message": "L'acquisizione dei dati effettivi stimati non è abilitata."
+    },
+    "auto_use_force": {
+      "message": "L'aggiornamento automatico è abilitato, ignorando l'evento di servizio per l'aggiornamento delle previsioni, utilizzare invece Aggiornamento forzato."
+    },
+    "auto_use_normal": {
+      "message": "L'aggiornamento automatico non è abilitato, ignorando l'evento di servizio per l'aggiornamento forzato delle previsioni, utilizzare invece Aggiornamento."
+    },
+    "build_failed_actuals": {
+      "message": "Impossibile creare i dati effettivi stimati (config/solcast-actuals.json danneggiato?)"
+    },
+    "build_failed_forecasts": {
+      "message": "Impossibile creare i dati di previsione (config/solcast.json danneggiato?)"
+    },
+    "damp_auto_enabled": {
+      "message": "È abilitato lo smorzamento automatico, senza impostare manualmente i fattori di smorzamento."
+    },
+    "damp_count_not_correct": {
+      "message": "Non ci sono 24 o 48 numeri separati da virgola tra 0.0 e 1.0."
+    },
+    "damp_error_parsing": {
+      "message": "Errore durante l'analisi dei numeri di fattori di smorzamento separati da virgola."
+    },
+    "damp_no_all_24": {
+      "message": "La specifica di un sito 'all' non è consentita con 24 fattori, rimuovere il sito dalla richiesta."
+    },
+    "damp_no_factors": {
+      "message": "Nessun fattore di smorzamento, deve essere un elenco di numeri separati da virgola tra 0.0 e 1.0."
+    },
+    "damp_not_for_site": {
+      "message": "Lo smorzamento del sito non è impostato per {site}."
+    },
+    "damp_not_site": {
+      "message": "Sito non configurato."
+    },
+    "damp_outside_range": {
+      "message": "Valore del fattore di smorzamento presente che non è compreso tra 0.0 e 1.0."
+    },
+    "damp_use_all": {
+      "message": "Lo smorzamento del sito non è impostato per {site}, 'all' è l'unico parametro del sito disponibile per la chiamata al servizio."
+    },
+    "hard_empty": {
+      "message": "Valore del limite rigido vuoto."
+    },
+    "hard_not_positive_number": {
+      "message": "Il valore del limite rigido non è un numero positivo."
+    },
+    "hard_too_many": {
+      "message": "Sono specificati più limiti rigidi di quante siano le chiavi API."
+    },
+    "init_cannot_get_sites": {
+      "message": "Impossibile recuperare i dati dei siti."
+    },
+    "init_cannot_get_sites_cache_invalid": {
+      "message": "Impossibile recuperare i dati dei siti e la cache non è valida."
+    },
+    "init_corrupt": {
+      "message": "I dati memorizzati nella cache in {file} sono corrotti, si consiglia di eliminarli o ripararli."
+    },
+    "init_incompatible": {
+      "message": "I dati memorizzati nella cache in `{file}` non sono compatibili, si consiglia di eliminarli."
+    },
+    "init_key_invalid": {
+      "message": "La chiave API non è valida."
+    },
+    "init_no_sites": {
+      "message": "Nessun sito trovato per la chiave API."
+    },
+    "init_unknown": {
+      "message": "Eccezione durante il caricamento dei dati dei siti."
+    },
+    "init_usage_corrupt": {
+      "message": "I dati di utilizzo sono corrotti, controllare o eliminare `config/solcast_solar/solcast-usage.json`."
+    },
+    "integration_not_loaded": {
+      "message": "Integrazione non caricata, nessuna azione eseguita."
+    },
+    "integration_prior_crash": {
+      "message": "L'integrazione non è riuscita a caricarsi in precedenza, si riprova dopo un ritardo."
+    },
+    "remove_cache_failed": {
+      "message": "Eliminazione di tutti i dati Solcast non riuscita."
+    }
+  },
+  "issues": {
+    "advanced_deprecated": {
+      "description": "L'opzione di configurazione avanzata `{option}` è stata modificata in `{new_option}`. Aggiorna le opzioni di configurazione avanzate per utilizzare il nuovo nome dell'opzione.{stops_working}",
+      "title": "Opzione avanzata deprecata"
+    },
+    "advanced_problem": {
+      "description": "Il file di configurazione avanzata contiene errori.\n{problems}\n\nCorreggili, facendo riferimento alla documentazione dell'integrazione al link 'Per saperne di più'.",
+      "title": "Problema con l'opzione avanzata"
+    },
+    "api_unavailable": {
+      "description": "L'API Solcast ha segnalato ripetutamente lo stato `429 / Riprova più tardi` durante un aggiornamento.\n\n* Non tentare di risolvere questa situazione.\n* Non modificare la chiave API.\n* Evita di riavviare l'integrazione\n* Non è un problema di integrazione e si risolverà da solo. Non cambiare nulla.\n\n(Per sopprimere questo problema, crea un'opzione di configurazione avanzata api_raise_issue e impostala su false.)",
+      "title": "API Solcast temporaneamente non disponibile"
+    },
+    "corrupt_file": {
+      "description": "Il/i file di dati memorizzati nella cache `{files}` è/sono danneggiato/i. L'integrazione tenterà di recuperare eliminando il/i file e recuperando nuovamente i dati da Solcast. Prevedere un aumento dell'utilizzo dell'API e potenziali errori dell'API e la perdita della cronologia delle previsioni a causa di questa situazione. È possibile recuperare i file dal backup, ma prevedere comunque errori nelle chiamate API.",
+      "title": "Dati memorizzati nella cache danneggiati"
+    },
+    "records_missing": {
+      "description": "I dati delle previsioni future mancano, il che è inaspettato perché l'aggiornamento automatico è attivato. Indaga sulla causa esaminando il registro di Home Assistant. Leggi le FAQ sulla risoluzione dei problemi prima di segnalare un problema di integrazione.",
+      "title": "Previsioni future mancanti"
+    },
+    "records_missing_fixable": {
+      "fix_flow": {
+        "abort": {
+          "reconfigured": "Nuova configurazione applicata con successo"
+        },
+        "step": {
+          "offer_auto": {
+            "data": {
+              "auto_update": "Aggiornamento automatico"
+            },
+            "description": "Un'automazione di aggiornamento delle previsioni non è stata eseguita. Vuoi abilitare l'aggiornamento automatico? (Ulteriori informazioni: {learn_more})",
+            "title": "Previsioni future mancanti"
+          }
+        }
+      },
+      "title": "Previsioni future mancanti"
+    },
+    "records_missing_initial": {
+      "description": "I dati delle previsioni e/o i dati effettivi stimati mancano, probabilmente perché non si è verificato l'aggiornamento iniziale delle previsioni. Probabilmente ciò è dovuto al raggiungimento del limite di chiamate API. Avrai problemi con le entità dei sensori e il dashboard Energia probabilmente avrà dati mancanti. Questo si risolverà da solo.",
+      "title": "Previsioni mancanti"
+    },
+    "records_missing_unfixable": {
+      "description": "I dati delle previsioni future sono mancanti, il che è inaspettato. Controllare i registri.",
+      "title": "Previsioni future mancanti"
+    },
+    "unusual_azimuth_northern": {
+      "description": "L'azimut del sito {site} è insolito per la latitudine di questo tetto dell'emisfero settentrionale. Dovrebbe essere {proposal} invece di {extant}? (Ignorate il problema se il sito è rivolto verso nord.)",
+      "title": "Azimut insolito"
+    },
+    "unusual_azimuth_southern": {
+      "description": "L'azimut del sito {site} è insolito per la latitudine di questo tetto dell'emisfero australe. Dovrebbe essere {proposal} invece di {extant}? (Ignorate il problema se il sito è esposto a sud.)",
+      "title": "Azimut insolito"
+    }
+  },
+  "options": {
+    "abort": {
+      "internal_error": "Si è verificato un errore interno",
+      "reconfigured": "Nuova configurazione applicata con successo"
+    },
+    "error": {
+      "actuals_not_enabled": "L'acquisizione dei dati effettivi stimati non è abilitata",
+      "actuals_without_get": "I valori effettivi stimati non possono essere utilizzati senza ottenerli",
+      "api_duplicate": "Chiave API duplicata specificata",
+      "api_looks_like_site": "La chiave API sembra un ID sito",
+      "custom_invalid": "Sensore personalizzato non compreso tra 1 e 144",
+      "dampen_without_actuals": "Per utilizzare l'auto-smorzamento è necessario selezionare i valori effettivi stimati",
+      "dampen_without_generation": "È necessario specificare almeno un sensore Wh/kWh/MWh di generazione fotovoltaica per utilizzare l'auto-smorzamento",
+      "export_multiple_entities": "Il sito di esportazione deve essere una sola entità, non più entità",
+      "export_no_entity": "Il sito di esportazione deve essere specificato se è impostato un limite di esportazione del sito",
+      "hard_not_number": "Il limite massimo non è un numero positivo",
+      "hard_too_many": "Sono stati inseriti più limiti rigidi che chiavi",
+      "limit_not_number": "Il limite API non è un numero",
+      "limit_one_or_greater": "Il limite API deve essere uno o superiore",
+      "limit_too_many": "Sono stati inseriti più conteggi dei limiti API rispetto alle chiavi"
+    },
+    "step": {
+      "dampen": {
+        "data": {
+          "damp00": "00:00",
+          "damp01": "01:00",
+          "damp02": "02:00",
+          "damp03": "03:00",
+          "damp04": "04:00",
+          "damp05": "05:00",
+          "damp06": "06:00",
+          "damp07": "07:00",
+          "damp08": "08:00",
+          "damp09": "09:00",
+          "damp10": "10:00",
+          "damp11": "11:00",
+          "damp12": "12:00",
+          "damp13": "13:00",
+          "damp14": "14:00",
+          "damp15": "15:00",
+          "damp16": "16:00",
+          "damp17": "17:00",
+          "damp18": "18:00",
+          "damp19": "19:00",
+          "damp20": "20:00",
+          "damp21": "21:00",
+          "damp22": "22:00",
+          "damp23": "23:00"
+        },
+        "description": "Modifica il fattore di smorzamento orario"
+      },
+      "init": {
+        "data": {
+          "api_key": "Chiave API (valori multipli separati da virgola)",
+          "api_quota": "Limite API (opzionalmente valori multipli separati da virgola per ciascuna chiave)",
+          "attr_brk_detailed": "Abilita la suddivisione del sito per gli attributi di dettaglio semiorari/orari (questi non verranno salvati negli attributi di stato del database)",
+          "attr_brk_estimate": "Abilita gli attributi del sensore di stima 50",
+          "attr_brk_estimate10": "Abilita gli attributi del sensore di stima 10",
+          "attr_brk_estimate90": "Abilita gli attributi del sensore di stima 90",
+          "attr_brk_halfhourly": "Abilita gli attributi di dettaglio semiorari delle previsioni",
+          "attr_brk_hourly": "Abilita gli attributi di dettaglio orari delle previsioni",
+          "attr_brk_site": "Abilita gli attributi del sensore di suddivisione del sito",
+          "auto_dampen": "Auto-dampen (richiede valori reali stimati e entità di generazione fotovoltaica, vedere la documentazione dell'integrazione)",
+          "auto_update": "Aggiornamento automatico (se non è presente l'aggiornamento automatico, è necessario utilizzare un'automazione)",
+          "config_damp": "Modifica i fattori di smorzamento orari (dopo aver cliccato su invia)",
+          "customhoursensor": "Sensore personalizzato per le prossime X ore (min=1, max=144)",
+          "exclude_sites": "Sito/i da escludere dal dashboard Energia e dai totali dei sensori",
+          "generation_entities": "Entità/entità di generazione fotovoltaica per smorzamento automatico (Wh/kWh/MWh, aumento totale)",
+          "get_actuals": "Valori reali stimati aggiornati a mezzanotte (vedere la documentazione dell'integrazione, utilizza una chiamata API per sito al giorno, quindi è necessario un limite API ridotto con questa opzione abilitata)",
+          "hard_limit_api": "Limite rigido dell'inverter in kW (vedere la documentazione dell'integrazione)",
+          "key_estimate": "Probabilità di previsione preferita da utilizzare per i sensori",
+          "site_damp": "Lo smorzamento granulare è impostato: Cancella per ripristinare lo smorzamento orario generale",
+          "site_export_entity": "Entità di esportazione del sito opzionale per smorzamento automatico (Wh/kWh/MWh, aumento totale)",
+          "site_export_limit": "Limite di esportazione del sito se l'esportazione del sito è specificata (kW)",
+          "use_actuals": "Storia delle previsioni da mostrare sul dashboard Energia"
+        },
+        "description": "Opzioni di configurazione di Solcast"
+      }
+    }
+  },
+  "selector": {
+    "auto_update": {
+      "options": {
+        "0": "Nessun aggiornamento automatico delle previsioni",
+        "1": "Aggiornamento automatico delle previsioni dall'alba al tramonto",
+        "2": "Aggiornamento automatico delle previsioni per 24 ore"
+      }
+    },
+    "energy_history": {
+      "options": {
+        "0": "Previsioni",
+        "1": "Reali stimati",
+        "2": "Reali stimati attenuati"
+      }
+    },
+    "key_estimate": {
+      "options": {
+        "estimate": "Generazione prevista mediana (stima)",
+        "estimate10": "Generazione prevista del 10° percentile (estremità inferiore dei possibili risultati, stima10)",
+        "estimate90": "Generazione prevista del 90° percentile (estremità superiore dei possibili risultati, stima90)"
+      }
+    }
+  },
+  "services": {
+    "clear_all_solcast_data": {
+      "description": "Elimina il file solcast.json per rimuovere tutti i dati del sito Solcast correnti.",
+      "name": "Cancella tutti i dati Solcast salvati"
+    },
+    "force_update_estimates": {
+      "description": "Forza il recupero dei più recenti dati reali stimati da Solcast.",
+      "name": "Forza l'aggiornamento dei valori effettivi stimati"
+    },
+    "force_update_forecasts": {
+      "description": "Recupera forzatamente gli ultimi dati delle previsioni da Solcast.",
+      "name": "Aggiornamento forzato"
+    },
+    "get_dampening": {
+      "description": "Ottieni i fattori di smorzamento delle previsioni.",
+      "fields": {
+        "site": {
+          "description": "Sito opzionale per ottenere lo smorzamento. (Nota: non funzionerà se lo smorzamento granulare non è abilitato.)",
+          "name": "ID sito"
+        }
+      },
+      "name": "Ottieni smorzamento delle previsioni"
+    },
+    "query_estimate_data": {
+      "description": "Restituisce un set di dati per una determinata query.",
+      "fields": {
+        "end_date_time": {
+          "description": "Interroga gli eventi di dati reali stimati fino all'ora della data.",
+          "name": "Ora della data di fine"
+        },
+        "start_date_time": {
+          "description": "Interroga gli eventi di dati reali stimati a partire dalla data e dall'ora.",
+          "name": "Ora della data di inizio"
+        }
+      },
+      "name": "Interroga i dati reali stimati"
+    },
+    "query_forecast_data": {
+      "description": "Restituisce un set di dati per una determinata query.",
+      "fields": {
+        "end_date_time": {
+          "description": "Interroga gli eventi dei dati di previsione fino all'ora della data.",
+          "name": "Ora della data di fine"
+        },
+        "site": {
+          "description": "Sito opzionale per recuperare la previsione di un sito",
+          "name": "ID sito"
+        },
+        "start_date_time": {
+          "description": "Interroga gli eventi dei dati di previsione dall'ora della data.",
+          "name": "Ora della data di inizio"
+        },
+        "undampened": {
+          "description": "Booleano opzionale per recuperare la previsione non smorzata",
+          "name": "Non smorzato"
+        }
+      },
+      "name": "Interroga i dati delle previsioni"
+    },
+    "remove_hard_limit": {
+      "description": "Rimuovi il limite impostato.",
+      "name": "Rimuovi il limite rigido delle previsioni dell'inverter"
+    },
+    "set_dampening": {
+      "description": "Imposta i fattori di smorzamento delle previsioni.",
+      "fields": {
+        "damp_factor": {
+          "description": "Stringa di valori del fattore di smorzamento separati da virgola (24 o 48 valori).",
+          "name": "Stringa di smorzamento"
+        },
+        "site": {
+          "description": "Sito opzionale per impostare lo smorzamento per sito. (Nota: l'omissione del sito cancella lo smorzamento per sito a meno che non siano presenti 48 valori.)",
+          "name": "ID sito"
+        }
+      },
+      "name": "Imposta lo smorzamento delle previsioni"
+    },
+    "set_hard_limit": {
+      "description": "Impedisci che i valori di previsione siano superiori a quelli che l'inverter può produrre.",
+      "fields": {
+        "hard_limit": {
+          "description": "Imposta il valore massimo in Watt che l'inverter può produrre.",
+          "name": "Valore limite in Watt"
+        }
+      },
+      "name": "Imposta il limite rigido delle previsioni dell'inverter"
+    },
+    "update_forecasts": {
+      "description": "Recupera gli ultimi dati delle previsioni da Solcast.",
+      "name": "Aggiorna"
+    }
+  },
+  "system_health": {
+    "info": {
+      "can_reach_server": "Connessione al server Solcast"
+    }
+  }
 }

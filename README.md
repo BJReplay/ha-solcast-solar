@@ -6,7 +6,9 @@
 [![hacs_downloads](https://img.shields.io/github/downloads/BJReplay/ha-solcast-solar/latest/total?style=for-the-badge)](https://github.com/BJReplay/ha-solcast-solar/releases/latest)
 ![GitHub License](https://img.shields.io/github/license/BJReplay/ha-solcast-solar?style=for-the-badge)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/y/BJReplay/ha-solcast-solar?style=for-the-badge)
-![Maintenance](https://img.shields.io/maintenance/yes/2025?style=for-the-badge)
+![Maintenance](https://img.shields.io/maintenance/yes/2026?style=for-the-badge)
+
+**Languages:** [🇦🇺 English](https://github.com/BJReplay/ha-solcast-solar/blob/main/README.md) | [🇩🇪 Deutsch](https://github.com/BJReplay/ha-solcast-solar/blob/main/README_de.md) | [🇫🇷 Français](https://github.com/BJReplay/ha-solcast-solar/blob/main/README_fr.md)
 
 ## Preamble
 
@@ -1292,6 +1294,18 @@ The caches reside in the Home Assistant Solcast Solar configuration folder (usua
 The code itself resides at `/config/custom_components/solcast_solar`, and removing this entire folder will complete the total removal of the integration.
 
 ## Changes
+
+v4.4.11
+
+* Fix advanced option validation for `not_set_if` by @autoSteve
+* Add missing translation, ES, FR, PL, SK, UR by @GitLocalize
+* Consistent strings file spacing by @autoSteve
+* Add advanced option automated_dampening_adaptive_model_configuration by @Nilogax
+* Add advanced option automated_dampening_adaptive_model_minimum_history_days by @Nilogax
+* Add advanced option automated_dampening_adaptive_model_delta_exclude by @Nilogax
+* Expose advanced dampening settings as attributes of dampening sensor by @Nilogax
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.10...v4.4.11
 
 v4.4.10
 
