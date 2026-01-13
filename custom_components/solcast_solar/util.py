@@ -340,16 +340,14 @@ async def raise_or_clear_advanced_deprecated(
             _LOGGER.debug("Removing advanced deprecation issue")
             ir.async_delete_issue(hass, DOMAIN, ISSUE_ADVANCED_DEPRECATED)
 
-async def clear_cache (filename: str, remove: bool):
-    if Path(filename).is_file() and remove:
+async def clear_cache (filename: str):
+    if Path(filename).is_file():
         try:
             Path(filename).unlink()
             _LOGGER.debug("Deleted cache file %s", filename)
         except Exception as ex:
             _LOGGER.warning("Failed to delete cache file %s: %s", filename, ex)
-    else:
-        _LOGGER.debug("Cache file %s does not exist or removal not requested", filename)
-
+    
 def percentile(data: list[Any], _percentile: float) -> float | int:
     """Find the given percentile in a sorted list of values."""
 
