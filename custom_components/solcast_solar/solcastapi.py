@@ -335,6 +335,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self._api_used: dict[str, int] = {}
         self._api_used_reset: dict[str, dt | None] = {}
         self._auto_dampening_factors: dict[dt, float] = {}
+        self._better_mape_issue_raised: bool = False
         self._data: dict[str, Any] = copy.deepcopy(FRESH_DATA)
         self._data_actuals: dict[str, Any] = copy.deepcopy(FRESH_DATA)
         self._data_actuals_dampened: dict[str, Any] = copy.deepcopy(FRESH_DATA)
@@ -742,7 +743,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             _LOGGER.debug("Advanced option default set %s: %s", option, default)
                             change = True
                     self.advanced_options.update(advanced_options_proposal)
-                    await clear_cache(self._filename_dampening_history, not self.advanced_options.get(ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION, False)) # remove dampening history if necessary
+                    if not(self.advanced_options.get(ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION, False)):
+                        await clear_cache(self._filename_dampening_history) # remove dampening history if necessary
             finally:
                 await raise_or_clear_advanced_problems(problems, self.hass)
                 await raise_or_clear_advanced_deprecated(
@@ -1913,7 +1915,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     # if using adaptive dampening config load the data
                     if self.options.auto_dampen and self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
                         await self.load_dampening_history() 
-                        
+                       
                     # If configured to get generation but there is no cached data, then get it.
                     if self.options.auto_dampen and self.options.generation_entities and len(self._data_generation[GENERATION]) == 0:
                         await self.get_pv_generation()
@@ -2037,7 +2039,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         _LOGGER.debug("Action to delete old solcast json files")
         for filename in [self._filename, self._filename_undampened, self._filename_actuals, self._filename_actuals_dampened]:
-            await clear_cache(filename, True)            
+            await clear_cache(filename)            
         self._loaded_data = False
         await self.load_saved_data()
 
@@ -3332,7 +3334,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if valid_history is False:
                 break
 
-        if valid_history:
+        if valid_history and len(period_lists) > 0:
             # --- Compute intersection of all period_start values ---
             common_periods = set(period_lists[0])
             for plist in period_lists[1:]:
@@ -3507,7 +3509,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         _LOGGER.debug("Skipping APE calculation for model %d and delta %d due to APE calculation issue", model, delta)        
                 else:
                     _LOGGER.debug("Skipping APE calculation for model %d and delta %d", model, delta)  
-
+        
         raise_issue: bool = False
 
         if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT]:
@@ -3525,8 +3527,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             if best_model_adjusted != CONFIG_UNCHANGED and best_ape_adjusted < best_ape_no_delta:
                 _LOGGER.warning ("%s is set true but adpative dampening found that model %d and delta %d had a lower mean APE of %.3f%% vs the selected %.3f%%", ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT, best_model_adjusted, best_delta_adjusted, best_ape_adjusted, best_ape_no_delta)
-                raise_issue = True
-                delta_status = "enabled"      
+                delta_status = "disabled" 
+                raise_issue = True 
+
         else:
             if best_model_adjusted != CONFIG_UNCHANGED and best_delta_adjusted != CONFIG_UNCHANGED:         
                 _LOGGER.info("Selected best automated dampening settings: model %d and delta %d with mean APE of %.3f%%", best_model_adjusted, best_delta_adjusted, best_ape_adjusted)
@@ -3543,24 +3546,31 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             if best_model_no_delta != CONFIG_UNCHANGED and best_ape_no_delta < best_ape_adjusted:
                 _LOGGER.warning ("%s is set false but adpative dampening found that model %d with no delta adjustment had a lower mean APE of %.3f%% vs the selected %.3f%%", ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT, best_model_no_delta, best_ape_no_delta, best_ape_adjusted)
+                delta_status ="enabled"
                 raise_issue = True
-                delta_status ="disabled"
 
-        if raise_issue:
-            _LOGGER.debug("Raising issue to suggest setting %s to %s", ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT, delta_status)
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                raise_issue,
-                is_fixable=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key= ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE,
-                translation_placeholders={
-                    DELTA_STATUS: delta_status,
-                    OPTION: ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT
-                },
-                learn_more_url=LEARN_MORE_ADVANCED,
-            )        
+        if (raise_issue and not self._better_mape_issue_raised) or (self._better_mape_issue_raised and not raise_issue):
+            # Clear any raised issue if this is a fresh occurrence or previously raised issue has cleared
+            issue_registry = ir.async_get(self.hass)
+            if issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE) is not None:
+                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE)         
+            # Raise new issue if required
+            if raise_issue:
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE,
+                    is_fixable=False,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key= ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE,
+                    translation_placeholders={
+                        DELTA_STATUS: delta_status,
+                        OPTION: ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT
+                    },
+                    learn_more_url=LEARN_MORE_ADVANCED,
+                ) 
+            self._better_mape_issue_raised = raise_issue
+
         _LOGGER.debug("Task determine_best_dampening_settings took %.3f seconds", time.time() - start_time)
 
     async def serialise_advanced_options(self) -> None:
@@ -3769,6 +3779,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         delta=VALUE_ADAPTIVE_DAMPENING_NO_DELTA,
                         factors=dampening
                     )
+
+                _LOGGER.debug("Dampening factors on %s for model %d and delta adjustment %d: %s", self.get_day_start_utc(future=-1).strftime(DT_DATE_FORMAT_UTC), dampening_model, VALUE_ADAPTIVE_DAMPENING_NO_DELTA, ",".join(f"{factor:.3f}" for factor in adjusted_dampening))
+    
                 
                 for delta_adjustment in range (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM],
                                             ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]+1):
