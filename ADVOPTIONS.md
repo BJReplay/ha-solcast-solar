@@ -49,14 +49,14 @@ When `automated_dampening_no_delta_adjustment` is true, the algorithm selects th
 
 A warning will be logged and an ignorable issue raised whenever the `automated_dampening_no_delta_adjustment` setting disagrees with the overall best MAPE results. This happens if `automated_dampening_no_delta_adjustment` is `true` but a delta adjusted model performs better, or if it is `false` but a model without delta adjustment achieves a lower MAPE.
 
-**Key: "automated_dampening_adaptive_model_delta_exclude"**
+**Key: "automated_dampening_adaptive_model_exclude"**
 
 Possible values: list of dictionaries {`model`, `delta`} (default `[]`)
 
 Setting this option allows the user to specify combinations of dampening model (`model`) and delta adjustment model (`delta`) that will be excluded from the adaptive model configuration process.  Dampening history will still be recorded for these combinations so they can be reinstated at any time.  An example of configuration syntax in `solcast-advanced.json` is:
 
 ```json
-"automated_dampening_adaptive_model_delta_exclude": [
+"automated_dampening_adaptive_model_exclude": [
     { "model": 0, "delta": 0 },
     { "model": 1, "delta": 1 }
     ]
