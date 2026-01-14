@@ -227,7 +227,7 @@
     "advanced_adaptive_better_MAPE": {
       "description": "Adaptive model configuration found a better solution which you could access if you {delta_status} the {option} advanced option.  Consider changing your advanced settings.",
       "title": "Adaptive model sub-optimal"
-    },    
+    },
     "advanced_deprecated": {
       "description": "Advanced configuration option(s) `{option}` changed to `{new_option}`. Please update your advanced configuration options to use the new option name.{stops_working}",
       "title": "Advanced option deprecated"
