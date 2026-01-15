@@ -847,6 +847,9 @@ async def test_advanced_options(
         _LOGGER.debug("Testing advanced options 1")
         data_file_1: dict[str, Any] = {
             "api_raise_issues": True,
+            "automated_dampening_adaptive_model_configuration": False,
+            "automated_dampening_adaptive_model_exclude": [],
+            "automated_dampening_adaptive_model_minimum_history_days": 3,
             "automated_dampening_minimum_matching_intervals": 2,
             "automated_dampening_ignore_intervals": ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30"],
             "automated_dampening_insignificant_factor": 0.95,
@@ -890,6 +893,9 @@ async def test_advanced_options(
         _LOGGER.debug("Testing advanced options 2")
         data_file_2: dict[str, Any] = {
             "api_raise_issues": False,
+            "automated_dampening_adaptive_model_configuration": 0,
+            "automated_dampening_adaptive_model_exclude": ["wrong", "wrong", "so wrong"],
+            "automated_dampening_adaptive_model_minimum_history_days": 0,
             "automated_dampening_minimum_matching_generation": 0,
             "automated_dampening_minimum_matching_intervals": 0,
             "automated_dampening_ignore_intervals": ["24:00", "12:20", "13:00", "13:00", "14:00", "14:30", "15:00", "15:30"],
@@ -948,6 +954,8 @@ async def test_advanced_options(
         assert "Invalid int in advanced option estimated_actuals_log_ape_percentiles: wrong_type" in caplog.text
         assert "Invalid int in advanced option estimated_actuals_log_ape_percentiles: 0.5" in caplog.text
         assert "Duplicate int in advanced option estimated_actuals_log_ape_percentiles: 10" in caplog.text
+        for i in range(3):
+            assert f"Invalid entry in automated_dampening_adaptive_model_exclude at index {i}: expected dict, got str" in caplog.text
 
         assert "Advanced options changed, restarting" in caplog.text
         assert "Start is not stale" in caplog.text
@@ -972,6 +980,14 @@ async def test_advanced_options(
 
         _LOGGER.debug("Testing advanced options 3")
         data_file_3: dict[str, Any] = {
+            "automated_dampening_adaptive_model_exclude": [
+                {"model": 3, "delta": 1},
+                {"model": 3, "delta": "hairy_one"},
+                {"model": 3, "delta": {"see": "this_one_coming?"}},
+                {"modell": 1, "delta": 1},
+                {"model": 1, "delta": 1, "gift_with_purchase": True},
+                {"bullshit": "value", "delta": "value", "so wrong": "value"},
+            ],
             "automated_dampening_generation_fetch_delay": 40,
             "estimated_actuals_fetch_delay": 30,
             "forecast_future_days": 8,
@@ -982,6 +998,8 @@ async def test_advanced_options(
         }
         data_file.write_text(json.dumps(data_file_3), encoding="utf-8")
         await wait()
+        assert "Missing keys in automated_dampening_adaptive_model_exclude entry at index 3" in caplog.text
+        assert "Missing keys in automated_dampening_adaptive_model_exclude entry at index 5" in caplog.text
         assert "Advanced option automated_dampening_generation_fetch_delay: 40 must be less than or equal" in caplog.text
         assert "Advanced option estimated_actuals_fetch_delay: 30 must be greater than or equal" in caplog.text
         assert "Advanced option forecast_day_entities: 10 must be less than or equal" in caplog.text
