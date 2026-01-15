@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict
 import contextlib
-import copy
 from datetime import datetime as dt, timedelta
 from enum import Enum
 import logging
@@ -106,8 +104,8 @@ from .const import (
     TASK_WATCHDOG_DAMPENING_LEGACY,
     VALUE,
 )
-from .solcastapi import ADVANCED_OPTIONS, SolcastApi
-from .util import AutoUpdate, percentile
+from .solcastapi import SolcastApi
+from .util import AutoUpdate
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -399,7 +397,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         change = await self.solcast.read_advanced_options()
                         if change and self.solcast.advanced_options.get(ADVANCED_RELOAD_ON_ADVANCED_CHANGE, False):
                             _LOGGER.debug("Advanced options changed, restarting")
-                            async_call_later(self.hass, 1, self.__restart)   
+                            async_call_later(self.hass, 1, self.__restart)
                 if self.watchdog[task][EVENT] == FileEvent.DELETE:
                     _LOGGER.debug("Advanced options file deleted, no longer monitoring %s for changes", self._file_advanced)
                     self.solcast.set_default_advanced_options()
@@ -672,7 +670,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 if len(pop_expired) > 0:
                     _LOGGER.debug("Removing expired auto update intervals")
                     self._intervals = [interval for i, interval in enumerate(self._intervals) if i not in pop_expired]
-                    self.set_next_update()                  
+                    self.set_next_update()
 
     async def __update_utc_midnight_usage_sensor_data(self, _: dt | None = None) -> None:
         """Reset tracked API usage at midnight UTC."""
@@ -707,7 +705,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         if self.solcast.options.auto_dampen and self.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
             await self.solcast.update_dampening_history()
-            await self.solcast.determine_best_dampening_settings()    
+            await self.solcast.determine_best_dampening_settings()
 
         await self.solcast.model_automated_dampening()
         if self.solcast.options.auto_dampen:
