@@ -276,6 +276,7 @@ PRIOR_CRASH_TIME: Final[str] = "prior_crash_time"
 PRIOR_CRASH_TRANSLATION_KEY: Final[str] = "prior_crash_translation_key"
 PROBLEMS: Final[str] = "problems"
 PROPOSAL: Final[str] = "proposal"
+REQUIRED_KEYS: Final[str] = "required_keys"
 RESET: Final[str] = "reset"
 RESET_OLD_KEY: Final[str] = "reset_old_key"
 RESOURCE_ID: Final[str] = "resource_id"
@@ -346,7 +347,8 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: {
         ADVANCED_TYPE: ADVANCED_OPTION.LIST_DICT,
         DEFAULT: [],
-        OPTION_REQUIRES: [ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]
+        OPTION_REQUIRES: [ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION],
+        REQUIRED_KEYS: {MODEL, DELTA}
     },
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
