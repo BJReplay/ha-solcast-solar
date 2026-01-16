@@ -886,6 +886,7 @@ Beispiel für eine halbstündliche Dämpfung für alle Standorte:
 
 
 
+
 #### Lesen von Prognosewerten in einer Automatisierung
 
 Die Aktion `solcast_solar.query_forecast_data` kann sowohl gedämpfte als auch ungedämpfte Vorhersagen zurückgeben (`include `undampened: true` ). Der Standort kann ebenfalls in den Aktionsparametern angegeben werden, falls eine detailliertere Aufschlüsselung gewünscht ist. (Der optionale Standort kann mit Bindestrichen oder Unterstrichen angegeben werden.)
@@ -1006,7 +1007,6 @@ Die Standortaufschlüsselung muss in den Integrationsoptionen aktiviert sein (di
 **Code enthüllen**
 
 <details><summary><i>klicken Sie hier</i></summary>
-
 ```yaml
 template:
   - sensor:
@@ -1216,7 +1216,7 @@ logger:
     custom_components.solcast_solar: debug
 ```
 
-Das Überprüfen von Protokollen ist recht einfach, Debug-Protokolle können jedoch nicht über die Benutzeroberfläche eingesehen werden. Die Datei `/homeassistant/home-assistant.log` home-assistant.log` muss manuell angezeigt werden. Verwenden Sie dazu in einer SSH-Sitzung den Befehl `less /homeassistant/home-assistant.log` . Je nach installierten Add-ons stehen Ihnen möglicherweise weitere Möglichkeiten zum Anzeigen dieser Datei zur Verfügung.
+Das Überprüfen von Protokollen ist recht einfach, Debug-Protokolle können jedoch nicht über die Benutzeroberfläche eingesehen werden. Die Datei `/homeassistant/home-assistant.log` muss manuell angezeigt werden. Verwenden Sie dazu in einer SSH-Sitzung den Befehl `less /homeassistant/home-assistant.log`. Je nach installierten Add-ons stehen Ihnen möglicherweise weitere Möglichkeiten zum Anzeigen dieser Datei zur Verfügung.
 
 ### API-Schlüsselprobleme
 
@@ -1265,6 +1265,14 @@ Die Cache-Dateien befinden sich im Konfigurationsordner von Home Assistant Solca
 Der Code selbst befindet sich unter `/config/custom_components/solcast_solar` . Durch das Entfernen dieses gesamten Ordners wird die Integration vollständig entfernt.
 
 ## Änderungen
+
+Version 4.4.11
+
+- Behebung der erweiterten Optionsvalidierung für `not_set_if` durch @autoSteve
+- Fehlende Übersetzungen (ES, FR, PL, SK, UR) von @GitLocalize hinzufügen
+- Einheitliche Zeichenkettendateiabstände von @autoSteve
+
+Vollständiges Änderungsprotokoll: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.10...v4.4.11
 
 Version 4.4.10
 
@@ -1848,8 +1856,7 @@ Version 4.0.17
 
 Version 4.0.16
 
-- Die Idee von @Zachoz, eine Einstellung zur Auswahl des Solcast-Schätzfeldwerts für die Vorhersageberechnungen hinzuzufügen (Schätzung, Schätzung10 oder Schätzung90), wurde hinzugefügt. ESTIMATE – Standardvorhersagen; ESTIMATE10 = Vorhersage 10 – Szenario: stärker bewölkt als erwartet
-     ESTIMATE90 = Prognose 90 – weniger bewölkt als erwartet
+- Die Idee von @Zachoz, eine Einstellung zur Auswahl des Solcast-Schätzfeldwerts für die Vorhersageberechnungen hinzuzufügen (Schätzung, Schätzung10 oder Schätzung90), wurde hinzugefügt. ESTIMATE – Standardvorhersagen; ESTIMATE10 = Vorhersage 10 – Szenario: stärker bewölkt als erwartet ESTIMATE90 = Prognose 90 – weniger bewölkt als erwartet
 
 Version 4.0.15
 
@@ -2113,7 +2120,7 @@ Version 3.0.9
 
 - **Benutzer, die von Version 3.0.5 oder älter aktualisieren, müssen die Datei „solcast.json“ im Verzeichnis HA&gt;config löschen, um Fehler zu vermeiden.**
 - Sensoren wurden mit dem Präfix „solcast_“ umbenannt, um die Benennung zu vereinfachen.
-- **Aufgrund der Namensänderung werden Sensoren in der Integration doppelt angezeigt. Diese werden in der Liste ausgegraut oder mit Werten wie „Unbekannt“ oder „Nicht verfügbar“ usw. angezeigt. Löschen Sie diese alten Sensoren einfach einzeln aus der Integration.**
+- **Aufgrund der Namensänderung werden Sensoren in der Integration doppelt angezeigt. Diese werden in der Liste ausgegraut oder mit Werten wie „Unbekannt“ oder „Nicht verfügbar“ usw. angezeigt. Löschen Sie diese alten Sensoren einfach nacheinander aus der Integration.**
 
 Version 3.0.6
 
