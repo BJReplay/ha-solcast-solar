@@ -42,8 +42,6 @@ from homeassistant.exceptions import (
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
 from .const import (
-    ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES, ###
-    ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN, ###
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
@@ -559,7 +557,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if content.replace("\n", "").replace("\r", "").strip() != "":  # i.e. not empty
                         response_json = ""
                         value: int | float | str | list[str] | None
-                        new_value: int | float | str | list[str]
+                        new_value: int | float | str | list[str] | dict[str, Any]
                         if self.tasks.get(ADVANCED_INVALID_JSON_TASK) is not None:
                             self.tasks[ADVANCED_INVALID_JSON_TASK].cancel()
                             self.tasks.pop(ADVANCED_INVALID_JSON_TASK)
@@ -620,7 +618,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             seen_members.append(member)
                                     case ADVANCED_OPTION.LIST_DICT:
                                         # Each entry must be a dict
-                                        for idx, item in enumerate(new_value):
+                                        for idx, item in enumerate(new_value): # pyright: ignore[reportArgumentType]
                                             if not isinstance(item, dict):
                                                 add_problem("Invalid entry in %s at index %s: expected dict, got %s", option, idx, type(item).__name__)
                                                 valid = False
@@ -3257,9 +3255,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """
         deal_breaker = ""
         deal_breaker_site = ""
-        if not self.options.get_actuals:
-            deal_breaker = "Estimated actuals retrieval is not enabled"
-        elif len(self._data_generation[GENERATION]) == 0:
+        if len(self._data_generation[GENERATION]) == 0:
             deal_breaker = "No generation yet"
         else:
             for site in self.sites:
@@ -3415,10 +3411,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 interval = self.adjusted_interval_dt(ts)
                 offset_interval = interval + (2 if self.dst(ts) else 0)
-                actuals[day_start][offset_interval] += actual[ESTIMATE] # * 0.5 Do not adjust here as they are also adjusted in calculate_error()
-
-        ###for day_start, values in actuals.items():
-        ###    _LOGGER.debug("Undampened actuals for adaptive calcs %s: %s", day_start.strftime(DT_DATE_FORMAT_UTC), ", ".join(f"{v:.3f}" for v in values))
+                actuals[day_start][offset_interval] += actual[ESTIMATE]
 
         generation_dampening, generation_dampening_day = await self.prepare_generation_data(earliest_common)
 
@@ -3461,8 +3454,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                     day_start = period_start.astimezone(self._tz).replace(hour=0, minute=0, second=0, microsecond=0)
 
-                    ### _LOGGER.debug("Factors for day %s model %d delta %d : %s", day_start.strftime(DT_DATE_FORMAT_UTC), model, delta, ", ".join(f"{fact:.3f}" for fact in factors))
-
                     if period_start >= earliest_common:
 
                         # If we have no actuals for this day, model is invalid
@@ -3481,9 +3472,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for day %s", model, delta, day_start.astimezone(self._tz).strftime(DT_DATE_ONLY_FORMAT))
                             valid = False
                             break
-
-                ### for day_start, values in dampened_actuals.items():
-                ###     _LOGGER.debug("Dampened actuals model %d delta %d day %s: %s", model, delta, day_start.strftime(DT_DATE_FORMAT_UTC), ", ".join(f"{v:.3f}" for v in values))
 
                 # Validate counts
                 actual_count = sum(len(v) for v in actuals.values())
@@ -3507,9 +3495,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     inf_d, error_dampened, _ = await self.calculate_error(
                         generation_dampening_day,
                         generation_dampening,
-                        tuple(values),
-                        tuple(self.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES]),###
-                        self.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN]) ###
+                        tuple(values)
+                        )
 
                     if inf_d:
                         _LOGGER.debug("Ignored %s values for model %d and delta %d", math.inf, model, delta)
@@ -3632,7 +3619,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         _LOGGER.debug("Loading dampening history from file: %s", self._filename_dampening_history)
 
         valid = True
-        issue_count = 0
         loaded_count = 0
 
         expected_records = (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 2) * (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1) * self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS]
@@ -3659,101 +3645,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.warning("No dampening history file found - adaptive model configuration failed")
 
         if valid:
-
-            # --- Parse and validate ---
+            # --- Parse and add history ---
             for model_str, deltas in raw.items():
-
-                # Validate model key
-                if not isinstance(model_str, str) or not model_str.isdigit():
-                    valid = False
-                    issue_count += 1
-                    _LOGGER.debug("Invalid model key in dampening history: %s", model_str)
-                    continue
-
                 model = int(model_str)
-                if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM] <= model <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM]):
-                    _LOGGER.debug("Model value out of range in dampening history: %d", model)
-                    valid = False
-                    issue_count += 1
-                    continue
-
-                # Validate deltas
-                if not isinstance(deltas, dict):
-                    valid = False
-                    issue_count += 1
-                    _LOGGER.debug("Invalid deltas structure in dampening history")
-                    continue
-
                 for delta_str, entries in deltas.items():
-
-                    # Validate delta key
-                    if not isinstance(delta_str, str) or not delta_str[-1].isdigit():
-                        valid = False
-                        issue_count += 1
-                        _LOGGER.debug("Invalid delta key in dampening history: %s", delta_str)
-                        continue
-
                     delta = int(delta_str)
-                    if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED] <= delta <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]):
-                        valid = False
-                        issue_count += 1
-                        _LOGGER.debug("Delta value out of range in dampening history: %d", delta)
-                        continue
-
-                    # Validate entries list
-                    if not isinstance(entries, list):
-                        valid = False
-                        issue_count += 1
-                        _LOGGER.debug("Invalid entries structure in dampening history for model %d and delta %d", model, delta)
-                        continue
-
                     for entry in entries:
-
-                        # Validate entry structure
-                        if not isinstance(entry, dict):
-                            valid = False
-                            issue_count += 1
-                            _LOGGER.debug("Invalid entry structure in dampening history for model %d and delta %d", model, delta)
-                            continue
-
-                        if "period_start" not in entry or "factors" not in entry:
-                            _LOGGER.debug("Missing period_start or factors key in dampening history entry for model %d and delta %d", model, delta)
-                            valid = False
-                            issue_count += 1
-                            continue
-
-                        period_start = entry["period_start"]
-                        factors = entry["factors"]
-
-                        # Validate period_start is ISO datetime
-                        if not isinstance(period_start, dt):
-                            valid = False
-                            issue_count += 1
-                            _LOGGER.debug("Invalid period_start in dampening history: %s for model %d and delta %d, got type %s", period_start, model, delta, type(period_start).__name__)
-                            continue
-
-                        # Validate factors
-                        if not (isinstance(factors, list) and len(factors) == 48):
-                            _LOGGER.debug("Invalid factors list in dampening history for model %d and delta %d", model, delta)
-                            valid = False
-                            issue_count += 1
-                            continue
-
-                        if not all(isinstance(x, (int, float)) for x in factors):
-                            _LOGGER.debug("Non-numeric factor found in dampening history for model %d and delta %d", model, delta)
-                            valid = False
-                            issue_count += 1
-                            continue
-
                         await self.add_dampening_history(
-                            period_start=period_start,
+                            period_start=entry["period_start"],
                             model=model,
                             delta=delta,
-                            factors=factors
+                            factors=entry["factors"]
                         )
                         loaded_count += 1
 
-            msg = f"Load dampening history loaded {loaded_count} of a maximum of {expected_records} records" + (f", found {issue_count} issues." if issue_count > 0 else ".")
+            msg = f"Load dampening history loaded {loaded_count} of a maximum of {expected_records} records"
 
             if (not valid) or (loaded_count != expected_records):
                 _LOGGER.warning(
@@ -3968,26 +3874,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         value_day: defaultdict[dt, float] = defaultdict(float)
         error: defaultdict[dt, float] = defaultdict(float)
         last_day: dt | None = None
-        #value_items: dict[datetime, list[tuple[datetime, float]]] = {} ###
 
         for interval in values:
             i = interval[PERIOD_START].astimezone(self.options.tz).replace(hour=0, minute=0, second=0, microsecond=0)
             if i != last_day:
                 value_day[i] = 0.0
-                #value_items[i] = [] ###
                 last_day = i
             if generation.get(interval[PERIOD_START]) is not None and not generation[interval[PERIOD_START]][EXPORT_LIMITING]:
                 value_day[i] += interval[ESTIMATE] / 2  # 30 minute intervals
-                #value_items[i].append((interval[PERIOD_START], interval[ESTIMATE] / 2)) ###
-
-        #for day, items in value_items.items():   ###
-        #    parts = [f"{ts.isoformat()}={amount:.3f}" for ts, amount in items]
-        #    _LOGGER.debug(
-        #        "Value items for %s: %s | total=%.3f",
-        #        day.isoformat(),
-        #        ", ".join(parts),
-        #        value_day[day],
-        #    )   ###
 
         for day, value in value_day.items():
             error[day] = abs(generation_day[day] - value) / generation_day[day] * 100.0 if generation_day[day] > 0 else math.inf
@@ -4016,7 +3910,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         """Builds data required for dampening calculations."""
         actuals: OrderedDict[dt, float] = OrderedDict()
 
-        _LOGGER.debug("Determining peak estimated actual intervals"+" and dampening data" if not only_peaks else "")
+        _LOGGER.debug("Determining peak estimated actual intervals%s", " and dampening data" if not only_peaks else "")
         if (self.options.auto_dampen or self.advanced_options[ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT]) and self.options.get_actuals:
             for site in self.sites:
                 if site[RESOURCE_ID] in self.options.exclude_sites:
