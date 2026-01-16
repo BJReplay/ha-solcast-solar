@@ -813,7 +813,7 @@ async def test_advanced_options(
         advanced_options_with_aliases, _ = solcast._advanced_options_with_aliases()
 
         async def wait():
-            for _ in range(1000):
+            for _ in range(2000):
                 freezer.tick(0.1)
                 await hass.async_block_till_done()
 
@@ -998,8 +998,15 @@ async def test_advanced_options(
         }
         data_file.write_text(json.dumps(data_file_3), encoding="utf-8")
         await wait()
-        assert "Missing keys in automated_dampening_adaptive_model_exclude entry at index 3" in caplog.text
-        assert "Missing keys in automated_dampening_adaptive_model_exclude entry at index 5" in caplog.text
+        assert "index 0:" not in caplog.text
+        for i in (1, 2):
+            assert (
+                f"Invalid value type in automated_dampening_adaptive_model_exclude entry at index {i}: key 'delta' must be an integer"
+                in caplog.text
+            )
+        for i in (3, 5):
+            assert f"Missing keys in automated_dampening_adaptive_model_exclude entry at index {i}" in caplog.text
+        assert "Incorrect number of keys in automated_dampening_adaptive_model_exclude entry at index 4: found 3, expected 2" in caplog.text
         assert "Advanced option automated_dampening_generation_fetch_delay: 40 must be less than or equal" in caplog.text
         assert "Advanced option estimated_actuals_fetch_delay: 30 must be greater than or equal" in caplog.text
         assert "Advanced option forecast_day_entities: 10 must be less than or equal" in caplog.text
@@ -1014,8 +1021,10 @@ async def test_advanced_options(
         # )
         caplog.clear()
 
+        _LOGGER.debug("Testing advanced options configuration file removal")
         data_file = data_file.rename(f"{config_dir}/solcast-advanced.bak")
         await wait()
+        assert "Advanced option default set" in caplog.text
         assert "Advanced options file deleted, no longer monitoring" in caplog.text
         caplog.clear()
         data_file = data_file.rename(f"{config_dir}/solcast-advanced.json")
@@ -1024,6 +1033,25 @@ async def test_advanced_options(
 
         caplog.clear()
 
+        _LOGGER.debug("Testing advanced options 4")
+        requires = {
+            "automated_dampening_adaptive_model_configuration": [
+                {"option": "automated_dampening_adaptive_model_minimum_history_days", "value": 7},
+                {"option": "automated_dampening_adaptive_model_exclude", "value": [{"model": 1, "delta": 2}]},
+            ]
+        }
+        data_file_4: dict[str, Any] = {
+            "automated_dampening_adaptive_model_configuration": False,
+            **{option["option"]: option["value"] for options in requires.values() for option in options},
+        }
+        data_file.write_text(json.dumps(data_file_4), encoding="utf-8")
+        await wait()
+        for require, options in requires.items():
+            for option in options:
+                assert f"{option['option']} requires {require} to be set" in caplog.text
+        caplog.clear()
+
+        _LOGGER.debug("Testing advanced options invalid configuration")
         data_file.write_text('{"option_1": "one", "option_2": "two",}', encoding="utf-8")  # trailing comma
         await wait()
         assert "Advanced options file invalid format, expected JSON `dict`" in caplog.text
