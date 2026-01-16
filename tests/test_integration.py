@@ -787,7 +787,7 @@ async def test_integration(  # noqa: C901
             await _wait_for(caplog, "Advanced option set granular_dampening_delta_adjustment: True")
 
             await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates", wait=True)
-            # assert "Determining peak estimated actual intervals" in caplog.text
+            ##### assert "Determining peak estimated actual intervals" in caplog.text
             assert "Automated dampening is not enabled" in caplog.text
 
             if options == DEFAULT_INPUT1:

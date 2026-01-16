@@ -50,6 +50,7 @@ from . import (
     ExtraSensors,
     async_cleanup_integration_tests,
     async_init_integration,
+    entity_history,
     session_clear,
     session_set,
 )
@@ -144,6 +145,8 @@ async def test_auto_dampen(
     freezer: FrozenDateTimeFactory,
 ) -> None:
     """Test automated dampening."""
+
+    assert await async_cleanup_integration_tests(hass)
 
     try:
         config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
@@ -486,3 +489,143 @@ async def test_percentile() -> None:
 
     data = []
     assert percentile(data, 50) == 0.0
+
+
+async def test_adaptive_auto_dampen(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+    freezer: FrozenDateTimeFactory,
+) -> None:
+    """Test dampening adaptations."""
+
+    entity_history["days_generation"] = 6
+    entity_history["days_suppression"] = 6
+    entity_history["offset"] = 2
+
+    try:
+        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+        if CONFIG_FOLDER_DISCRETE:
+            Path(config_dir).mkdir(parents=False, exist_ok=True)
+
+        Path(f"{config_dir}/solcast-advanced.json").write_text(
+            json.dumps(
+                {
+                    "automated_dampening_adaptive_model_configuration": True,
+                    "automated_dampening_adaptive_model_exclude": [{"model": 3, "delta": 0}],
+                    "automated_dampening_ignore_intervals": ["17:00"],
+                    "automated_dampening_no_limiting_consistency": True,
+                    "automated_dampening_generation_fetch_delay": 5,
+                    "automated_dampening_insignificant_factor": 0.988,
+                    "automated_dampening_insignificant_factor_adjusted": 0.989,
+                    "estimated_actuals_fetch_delay": 5,
+                    "estimated_actuals_log_mape_breakdown": True,
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        options = copy.deepcopy(DEFAULT_INPUT2)
+        options[AUTO_UPDATE] = 0
+        options[GET_ACTUALS] = True
+        options[USE_ACTUALS] = 1
+        options[AUTO_DAMPEN] = True
+        options[EXCLUDE_SITES] = ["3333-3333-3333-3333"]
+        options[GENERATION_ENTITIES] = [
+            "sensor.solar_export_sensor_1111_1111_1111_1111",
+            "sensor.solar_export_sensor_2222_2222_2222_2222",
+        ]
+        options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
+        options[SITE_EXPORT_LIMIT] = 5.0
+        entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.YES)
+
+        # Fiddle with undampened data cache
+        undampened = json.loads(Path(f"{config_dir}/solcast-undampened.json").read_text(encoding="utf-8"), cls=JSONDecoder)
+        for site in undampened["siteinfo"].values():
+            for forecast in site["forecasts"]:
+                forecast["pv_estimate"] *= 0.85
+        Path(f"{config_dir}/solcast-undampened.json").write_text(json.dumps(undampened, cls=DateTimeEncoder), encoding="utf-8")
+
+        # Fiddle with estimated actual data cache
+        actuals = json.loads(Path(f"{config_dir}/solcast-actuals.json").read_text(encoding="utf-8"), cls=JSONDecoder)
+        for site in actuals["siteinfo"].values():
+            for forecast in site["forecasts"]:
+                if (
+                    forecast["period_start"].astimezone(ZoneInfo(ZONE_RAW)).hour == 10
+                    and forecast["period_start"].astimezone(ZoneInfo(ZONE_RAW)).minute == 30
+                ):
+                    forecast["pv_estimate"] *= 0.91
+        Path(f"{config_dir}/solcast-actuals.json").write_text(json.dumps(actuals, cls=DateTimeEncoder), encoding="utf-8")
+
+        # Reload to load saved data and prime initial generation
+        caplog.clear()
+        coordinator, solcast = await _reload(hass, entry)
+        if coordinator is None or solcast is None:
+            pytest.fail("Reload failed")
+
+        # Assert good start, that actuals and generation are enabled, and that the caches are saved
+        _LOGGER.debug("Testing good start happened")
+        for _ in range(30):  # Extra time needed for reload to complete
+            await hass.async_block_till_done()
+            freezer.tick(0.1)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+        _no_exception(caplog)
+
+        assert "Auto-dampening suppressed: Excluded site for 3333-3333-3333-3333" in caplog.text
+        assert "Interval 08:30 has peak estimated actual 0.936" in caplog.text
+        assert "Interval 08:30 max generation: 0.755" in caplog.text
+        assert "Auto-dampen factor for 08:30 is 0.807" in caplog.text
+
+        # Roll over to tomorrow three times.
+        roll_to = [
+            {"days": 0, "hours": 12},
+            {"days": 1, "hours": 0},
+            {"days": 1, "hours": 0},
+        ]
+        for count, roll in enumerate(roll_to):
+            _LOGGER.debug("Rolling over to tomorrow")
+            caplog.clear()
+            removed = -5
+            value_removed = solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"].pop(removed)  # pyright: ignore[reportPrivateUsage]
+            freezer.move_to((dt.now(solcast._tz) + timedelta(**roll)).replace(minute=0, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
+            await hass.async_block_till_done()
+            solcast.suppress_advanced_watchdog_reload = True
+            await solcast.read_advanced_options()
+            await _wait_for_it(hass, caplog, freezer, "Update generation data", long_time=True)
+            await _wait_for_it(hass, caplog, freezer, "Estimated actual mean APE", long_time=True)
+            _no_exception(caplog)
+            assert "Updating automated dampening adaptation history" in caplog.text
+            assert "Task update_dampening_history took" in caplog.text
+            if count == len(roll_to) - 1:
+                # _wait_for_it(hass, caplog, freezer, "Determining best automated dampening settings")
+                assert "Determining best automated dampening settings" in caplog.text
+                assert "Dampening history actuals suppressed site 3333-3333-3333-3333" in caplog.text
+                assert "Advanced option 'automated_dampening_delta_adjustment_model' set to: 0" in caplog.text
+                assert "Advanced option 'automated_dampening_model' set to: 1" in caplog.text
+                assert "Task serialise_advanced_options took" in caplog.text
+                assert re.search(r"Advanced options file .+ exists", caplog.text) is None
+            elif count == len(roll_to) - 2:
+                assert "Insufficient continuous dampening history" in caplog.text
+                # Knobble the history for some combos
+                solcast._data_dampening_history[2][0] = solcast._data_dampening_history[3][0][:-1]  # pyright: ignore[reportPrivateUsage]
+                solcast._data_dampening_history[2][1] = []  # pyright: ignore[reportPrivateUsage]
+            else:
+                assert "Insufficient continuous dampening history" in caplog.text
+
+        # Reload to load dampening factor history
+        caplog.clear()
+        coordinator, solcast = await _reload(hass, entry)
+        if coordinator is None or solcast is None:
+            pytest.fail("Reload failed")
+
+        for _ in range(300):  # Extra time needed for reload to complete
+            freezer.tick(0.1)
+            await hass.async_block_till_done()
+        # assert False
+
+    finally:
+        entity_history["days_generation"] = 3
+        entity_history["days_suppression"] = 3
+        entity_history["offset"] = -1
+        session_clear(MOCK_CORRUPT_ACTUALS)
+        assert await async_cleanup_integration_tests(hass)
