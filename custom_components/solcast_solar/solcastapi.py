@@ -3802,7 +3802,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 else updated + [{"period_start": period_start, "factors": factors}]
             )
         else:
-            _LOGGER.warning("Add dampening factors passed invalid data: model %d, delta %d, factors %s". model, delta, factors)
+            _LOGGER.warning("Add dampening factors passed invalid data: model %d, delta %d, factors %s", model, delta, factors)
 
 
     async def prepare_generation_data(self, earliest_start: dt) -> tuple[defaultdict[dt, dict[str, Any]], defaultdict[dt, float]]:
