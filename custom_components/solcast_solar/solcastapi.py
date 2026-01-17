@@ -3335,22 +3335,22 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _LOGGER.debug("Ignored dampening history for model %d and delta %d as in %s", model, delta, ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE)
                     continue
 
-                if model not in self._data_dampening_history or delta not in self._data_dampening_history[model]:
-                    valid_history = False
-                    break
+#!                if model not in self._data_dampening_history or delta not in self._data_dampening_history[model]:
+#!                    valid_history = False
+#!                    break
 
                 entries = self._data_dampening_history[model][delta]
-                if not entries:
-                    valid_history = False
-                    break
+#!                if not entries:
+#!                    valid_history = False
+#!                    break
                 if len(entries) < self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS]:
                     _LOGGER.debug("Ignored dampening history for model %d and delta %d as history of %d days is less than minimum %d days", model, delta, len(entries), self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS])
                     continue
 
                 periods = sorted(entry["period_start"] for entry in entries)
                 period_lists.append(periods)
-            if valid_history is False:
-                break
+#!            if valid_history is False:
+#!                break
 
         if valid_history and len(period_lists) > 0:
             # --- Compute intersection of all period_start values ---
@@ -3781,41 +3781,29 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def add_dampening_history(self, period_start: dt, model: int, delta: int, factors: list[float]) -> None:
         """Adds a dampening history record to self._data_dampening_history."""
 
-        # --- Initialise structure if needed ---
-        if not self._data_dampening_history:
-            self._data_dampening_history = {
-                m: {
-                    d: []
-                    for d in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM] + 1)
-                }
-                for m in range(ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1)
-            }
-
         valid = True
 
-        # --- Validate model/delta ranges ---
-        if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM] <= model <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM]):
-            _LOGGER.debug("Add dampening passed invalid model %d", model)
-            valid = False
+        valid = False if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM] <= model <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM]) else True
 
-        if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED] <= delta <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]):
-            _LOGGER.debug("Add dampening passed invalid delta %d",delta)
-            valid = False
+        valid = False if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED] <= delta <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]) else valid
 
-        # --- Validate factors ---
-        if not (isinstance(factors, list) and len(factors) == 48):
-            _LOGGER.debug("Add dampening factors list contains %d elements, expected 48", len(factors))
-            valid = False
+        valid = False if not (isinstance(factors, list) and len(factors) == 48) else valid
 
         if valid:
-            for entry in self._data_dampening_history[model][delta]:
-                if entry["period_start"] == period_start:
-                    entry["factors"] = factors
-                    return
-            self._data_dampening_history[model][delta].append({
-                "period_start": period_start,
-                "factors": factors
-            })
+            entries = self._data_dampening_history[model][delta]
+            matches = [e["period_start"] == period_start for e in entries]
+            updated = [
+                {"period_start": period_start, "factors": factors} if m else e
+                for m, e in zip(matches, entries)
+            ]
+            self._data_dampening_history[model][delta] = (
+                updated
+                if any(matches)
+                else updated + [{"period_start": period_start, "factors": factors}]
+            )
+        else:
+            _LOGGER.warning("Add dampening factors passed invalid data: model %d, delta %d, factors %s". model, delta, factors)
+
 
     async def prepare_generation_data(self, earliest_start: dt) -> tuple[defaultdict[dt, dict[str, Any]], defaultdict[dt, float]]:
         """Prepare generation data for accuracy metrics calculation."""
