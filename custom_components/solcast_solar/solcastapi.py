@@ -3202,7 +3202,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                         for i, export in export_intervals.items():
                             export_interval = i.replace(minute=i.minute // 30 * 30)
-                            if export >= self.options.site_export_limit and generation_intervals[export_interval] > 0:
+                            if export >= self.options.site_export_limit: ### and generation_intervals[export_interval] > 0:
                                 export_limiting[export_interval] = True
                     else:
                         _LOGGER.debug("No site export history found for %s", entity)
