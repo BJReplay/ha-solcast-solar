@@ -44,6 +44,7 @@ from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from .const import (
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_UNDAMPENED_ACTUAL, ###
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS,
@@ -59,6 +60,7 @@ from .const import (
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
     ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK,
     ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY,
+    ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN,
     ADVANCED_FORECAST_FUTURE_DAYS,
     ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT,
     ADVANCED_HISTORY_MAX_DAYS,
@@ -3386,6 +3388,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         actuals: dict[dt, list[float]] = {}
         dampened_actuals: dict[dt, list[float]] = {}
+        ignored_days: dict[dt, bool] = {} ###
 
         _LOGGER.debug("Getting undampened actuals from %s to %s", earliest_common.strftime(DT_DATE_FORMAT_UTC), self.get_day_start_utc().strftime(DT_DATE_FORMAT_UTC))
 
@@ -3412,6 +3415,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 interval = self.adjusted_interval_dt(ts)
                 offset_interval = interval + (2 if self.dst(ts) else 0)
                 actuals[day_start][offset_interval] += actual[ESTIMATE]
+
+        for day_start, values in actuals.items(): ### added ignored_days block
+            day_total = sum(values)/2
+            ignored_days[day_start] = False
+            if day_total < self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_UNDAMPENED_ACTUAL]:
+                ignored_days[day_start] = True
+                _LOGGER.debug("Undampened actuals for %s were %.3f which is below minimum threshold of %.3f, day ignored", day_start.strftime(DT_DATE_ONLY_FORMAT), day_total, self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_UNDAMPENED_ACTUAL])
 
         generation_dampening, generation_dampening_day = await self.prepare_generation_data(earliest_common)
 
@@ -3490,12 +3500,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     for day_start, arr in dampened_actuals.items():
                         for interval, value in enumerate(arr):
                             ts = day_start + timedelta(minutes=30 * interval)
+                            ts = ts - timedelta(minutes = 60 if self.dst(ts) else 0)
                             values.append({PERIOD_START: ts.astimezone(self._tz), ESTIMATE: value})
 
                     inf_d, error_dampened, _ = await self.calculate_error(
                         generation_dampening_day,
                         generation_dampening,
-                        tuple(values)
+                        tuple(values),
+                        log_breakdown=self.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN],
+                        ignored_days = ignored_days ###
                         )
 
                     if inf_d:
@@ -3805,10 +3818,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             _LOGGER.warning("Add dampening factors passed invalid data: model %d, delta %d, factors %s", model, delta, factors)
 
 
-    async def prepare_generation_data(self, earliest_start: dt) -> tuple[defaultdict[dt, dict[str, Any]], defaultdict[dt, float]]:
-        """Prepare generation data for accuracy metrics calculation."""
+    async def prepare_generation_data(self, earliest_start: dt) -> tuple[defaultdict[dt, dict[str, Any]], defaultdict[dt, float]]: ### added ignore_unmatched
+        """Prepare generation data for accuracy metrics calculation.
 
+        ignore_unmatched excludes intervals below minimum peak in
+        determine_best_dampening_settings.
+        """ ### Extended
+        day_start: dt ###
         ignored_intervals: list[int] = []  # Intervals to ignore in local time zone
+
         for time_string in self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS]:
             hour, minute = map(int, time_string.split(":"))
             interval = hour * 2 + minute // 30
@@ -3857,6 +3875,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         values: tuple[dict[str, Any], ...],
         percentiles: tuple[int, ...] = (50,),
         log_breakdown: bool = False,
+        ignored_days: dict[dt, bool] = {}, ###
         ) -> tuple[bool, float, list[float]]:
         """Calculate mean and percentile absolute percentage error."""
         value_day: defaultdict[dt, float] = defaultdict(float)
@@ -3872,7 +3891,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 value_day[i] += interval[ESTIMATE] / 2  # 30 minute intervals
 
         for day, value in value_day.items():
-            error[day] = abs(generation_day[day] - value) / generation_day[day] * 100.0 if generation_day[day] > 0 else math.inf
+            error[day] = (  ###
+                math.inf
+                if ignored_days.get(day, False) or generation_day[day] <= 0 ###
+                else abs(generation_day[day] - value) / generation_day[day] * 100.0
+            )
             if log_breakdown:
                 _LOGGER.debug(
                     "APE calculation for day %s, Actual %.2f kWh, Estimate %.2f kWh, Error %.2f%s",
