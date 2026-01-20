@@ -64,6 +64,22 @@ Setting this option allows the user to specify combinations of dampening model (
 
 Can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
 
+**Key: "automated_dampening_adaptive_model_minimum_mape_improvement"**
+
+Possible values: float `0.0`,,`10.0` (default `0.0`)
+
+Defines a minimum improvement in MAPE that is required before adaptive model configuration is changed.  For example if the current settings return a MAPE of 5.35% and this threshold is set to 1.0 a configuration would need to return a MAPE below 4.35% to change settings to the new model and/or delta adjustment.  
+
+Can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
+
+**Key: "automated_dampening_adaptive_model_minimum_undampened_actual"**
+
+Possible values: float `0.0`,,`10.0` (default `0.0`)
+
+While Solcast's estimated actual figures are usually very reliable they can sometimes struggle when a site has very poor generation due to a bad weather day.  Including these bad days in the adpative model configuration process can lead to unexpected results.  This option defines a minumum undampened daily total (kWh) and can be used to exclude these bad days from the adaptive modelling process.  
+ 
+Can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
+
 **Key: "automated_dampening_adaptive_model_minimum_history_days"**
 
 Possible values: integer `1`,,`21` (default `3`)
