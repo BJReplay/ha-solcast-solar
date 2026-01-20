@@ -44,6 +44,7 @@ from homeassistant.helpers import entity_registry as er, issue_registry as ir
 from .const import (
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_MAPE_IMPROVEMENT, ###
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_UNDAMPENED_ACTUAL, ###
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
@@ -3400,7 +3401,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             start, end = self.__get_list_slice(
                 self._data_actuals[SITE_INFO][site[RESOURCE_ID]][FORECASTS],
                 earliest_common,
-                self.get_day_start_utc(),
+                self.get_day_start_utc() - timedelta(minutes=30), ##### Just prior to day start today
                 search_past=True,
             )
 
@@ -3409,12 +3410,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 day_start = ts.replace(hour=0, minute=0, second=0, microsecond=0)
 
                 if day_start not in actuals:
-                    _LOGGER.debug("Adding actuals entry for %s", day_start.strftime(DT_DATE_FORMAT_UTC))
+                    _LOGGER.debug("Adding actuals entry for %s", day_start.strftime(DT_DATE_FORMAT)) ##### `DT_DATE_FORMAT_UTC`, yeah nah. The datetime is in local.
                     actuals[day_start] = [0.0] * 48
 
-                interval = self.adjusted_interval_dt(ts)
-                offset_interval = interval + (2 if self.dst(ts) else 0)
-                actuals[day_start][offset_interval] += actual[ESTIMATE]
+                interval = self.adjusted_interval_dt(ts) ##### Gets an interval as standard time
+                ##### offset_interval = interval + (2 if self.dst(ts) else 0) ##### This was undoing the standard time shift
+                actuals[day_start][interval] += actual[ESTIMATE] #####
 
         for day_start, values in actuals.items(): ### added ignored_days block
             day_total = sum(values)/2
@@ -3430,6 +3431,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         best_model_adjusted = CONFIG_UNCHANGED
         best_model_no_delta = CONFIG_UNCHANGED
         best_delta_adjusted = CONFIG_UNCHANGED
+        extant_ape = math.inf
 
         for model in range(
             ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM],
@@ -3462,13 +3464,13 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     period_start = model_entry["period_start"]
                     factors = model_entry["factors"]
 
-                    day_start = period_start.astimezone(self._tz).replace(hour=0, minute=0, second=0, microsecond=0)
+                    day_start = period_start.astimezone(self._tz) ##### Already midnight.  .replace(hour=0, minute=0, second=0, microsecond=0)
 
                     if period_start >= earliest_common:
 
                         # If we have no actuals for this day, model is invalid
                         if day_start not in actuals:
-                            _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for dampening history entry %s", model, delta, day_start.strftime(DT_DATE_FORMAT_UTC))
+                            _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for dampening history entry %s", model, delta, day_start.strftime(DT_DATE_FORMAT)) ##### `DT_DATE_FORMAT_UTC`, yeah, nah.
                             valid = False
                             break
 
@@ -3477,9 +3479,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 dampened_actuals[day_start] = [0.0] * 48
 
                             for interval in range(48):
-                                dampened_actuals[day_start][interval] += actuals[day_start][interval] * factors[interval]
+                                dampened_actuals[day_start][interval] = actuals[day_start][interval] * factors[interval]
                         elif day_start != self.get_day_start_utc():
-                            _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for day %s", model, delta, day_start.astimezone(self._tz).strftime(DT_DATE_ONLY_FORMAT))
+                            _LOGGER.debug("Model %d and delta %d skipped due to missing actuals for day %s", model, delta, day_start.strftime(DT_DATE_ONLY_FORMAT)) ##### `.astimezone(self._tz)` already localised.
                             valid = False
                             break
 
@@ -3496,12 +3498,30 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 if valid:
                     # Convert to timestamp/value tuples
+                    '''
                     values = []
                     for day_start, arr in dampened_actuals.items():
                         for interval, value in enumerate(arr):
-                            ts = day_start + timedelta(minutes=30 * interval)
-                            ts = ts - timedelta(minutes = 60 if self.dst(ts) else 0)
-                            values.append({PERIOD_START: ts.astimezone(self._tz), ESTIMATE: value})
+                            ts = day_start + timedelta(minutes=30 * interval) ##### Already timezone aware
+                            ##### ts = ts + timedelta(minutes = 60 if self.dst(ts) else 0)
+                            values.append({PERIOD_START: ts, ESTIMATE: value}) ##### Removed redundant .astimezone(self._tz) because already aware of this zone
+                    ''' ##### List comprehension replacing a nested loop is generally faster and neater, often obtuse, well Pythonic, and you'll get the hang of it...
+                    ##### The `lambda` function probably breaks your head, and nearly did mine in.
+                    ##### This messes with the interval time in local when in DST. This is because standard time actual intervals.
+                    ##### The `lambda` handles transition days as well.
+                    ##### It is almost the same as before, but because un-shifted actually works.
+                    ##### But still gets model 3/delta 1. 😥
+                    ##### It's close, though, so maybe some threshold to switch modelling is in order.
+                    values = [
+                        {
+                            PERIOD_START: (lambda t: t + timedelta(hours=1) if self.dst(t) else t)(
+                                day_start + timedelta(minutes=30 * interval)
+                            ),
+                            ESTIMATE: value,
+                        }
+                        for day_start, arr in dampened_actuals.items()
+                        for interval, value in enumerate(arr)
+                    ]
 
                     inf_d, error_dampened, _ = await self.calculate_error(
                         generation_dampening_day,
@@ -3510,6 +3530,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         log_breakdown=self.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN],
                         ignored_days = ignored_days ###
                         )
+
+                    extant_ape = error_dampened if (model == self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL] and delta == self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL]) else extant_ape
 
                     if inf_d:
                         _LOGGER.debug("Ignored %s values for model %d and delta %d", math.inf, model, delta)
@@ -3537,13 +3559,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT]:
             if best_model_no_delta != CONFIG_UNCHANGED:
                 _LOGGER.info("Selected best automated dampening settings: model %d with mean APE of %.3f%%", best_model_no_delta, best_ape_no_delta)
-                if best_model_no_delta != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]:
+                if best_model_no_delta != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL] and best_ape_no_delta <= extant_ape - self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_MAPE_IMPROVEMENT]:
                     self.advanced_options.update({
                         ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model_no_delta
                     })
                     await self.serialise_advanced_options()
+                elif best_model_no_delta != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]:
+                    _LOGGER.info("Insufficient improvement over current model mean APE %.3f%%, adaptive", extant_ape)
                 else:
-                    _LOGGER.debug("Adaptive dampening configuration unchanged")
+                    _LOGGER.info("%sAdaptive dampening configuration unchanged",
+                                  f"Insufficient improvement over current model mean APE of {extant_ape:.3f}%. " if best_model_no_delta != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL] else "")
             else:
                 _LOGGER.info("Could not determine best automated dampening settings - values unmodified")
 
@@ -3561,14 +3586,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL],
                         self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL],
                     }
-                ):
+                ) and best_ape_adjusted <= extant_ape - self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_MAPE_IMPROVEMENT]:
                     self.advanced_options.update({
                         ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model_adjusted,
                         ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: best_delta_adjusted
                     })
                     await self.serialise_advanced_options()
                 else:
-                    _LOGGER.debug("Adaptive dampening configuration unchanged")
+                    _LOGGER.info("%sAdaptive dampening configuration unchanged",
+                                  f"Insufficient improvement over current model/delta mean APE of {extant_ape:.3f}%. " if {best_model_adjusted, best_delta_adjusted} != {self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL], self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL]} else "")
             else:
                 _LOGGER.info("Could not determine best automated dampening settings - values unmodified")
 
@@ -3825,14 +3851,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         determine_best_dampening_settings.
         """ ### Extended
         day_start: dt ###
-        ignored_intervals: list[int] = []  # Intervals to ignore in local time zone
+        ignored_intervals: list[int] = []  # Intervals to ignore in standard time #####
 
         for time_string in self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS]:
             hour, minute = map(int, time_string.split(":"))
             interval = hour * 2 + minute // 30
             ignored_intervals.append(interval)
 
-        export_limited_intervals = dict.fromkeys(range(50), False)
+        export_limited_intervals = dict.fromkeys(range(48), False) #####
         if not self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY]:
             for gen in self.get_data_generation()[GENERATION][
                 -1 * self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] * 48 :
@@ -3850,10 +3876,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 continue
 
             interval = self.adjusted_interval_dt(record[PERIOD_START])
-            offset_interval = interval + (
-                2 if self.dst(record[PERIOD_START]) else 0
-            )
-            if offset_interval in ignored_intervals or export_limited_intervals[interval]:
+            ##### offset_interval = interval + (
+            #####    2 if self.dst(record[PERIOD_START]) else 0
+            #####)
+            if interval in ignored_intervals or export_limited_intervals[interval]: #####
                 record[EXPORT_LIMITING] = True
                 continue
 
@@ -4002,7 +4028,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 1 if self.dst(dt.now(self._tz).replace(hour=interval // 2, minute=30 * (interval % 2), second=0, microsecond=0)) else 0
             )
             interval_time = f"{interval // 2 + (dst_offset):02}:{30 * (interval % 2):02}"
-            if interval + dst_offset * 2 in ignored_intervals:
+            if interval in ignored_intervals: ##### Was `if interval + dst_offset * 2 in ignored_intervals:`
                 if verbose_log:
                     _LOGGER.debug("Interval %s is intentionally ignored, skipping", interval_time)
                 continue
