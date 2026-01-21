@@ -3498,29 +3498,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                 if valid:
                     # Convert to timestamp/value tuples
-                    '''
-                    values = []
-                    for day_start, arr in dampened_actuals.items():
-                        for interval, value in enumerate(arr):
-                            ts = day_start + timedelta(minutes=30 * interval) ##### Already timezone aware
-                            ##### ts = ts + timedelta(minutes = 60 if self.dst(ts) else 0)
-                            values.append({PERIOD_START: ts, ESTIMATE: value}) ##### Removed redundant .astimezone(self._tz) because already aware of this zone
-                    ''' ##### List comprehension replacing a nested loop is generally faster and neater, often obtuse, well Pythonic, and you'll get the hang of it...
-                    ##### The `lambda` function probably breaks your head, and nearly did mine in.
-                    ##### This messes with the interval time in local when in DST. This is because standard time actual intervals.
-                    ##### The `lambda` handles transition days as well.
-                    ##### It is almost the same as before, but because un-shifted actually works.
-                    ##### But still gets model 3/delta 1. 😥
-                    ##### It's close, though, so maybe some threshold to switch modelling is in order.
+                    ##### List comprehension replacing a nested loop is generally faster and neater, often obtuse, well Pythonic, and you'll get the hang of it...
                     values = [
                         {
-                            PERIOD_START: (lambda t: t + timedelta(hours=1) if self.dst(t) else t)(
-                                day_start + timedelta(minutes=30 * interval)
+                            PERIOD_START: (
+                                t + timedelta(hours=1) if self.dst(t) else t
                             ),
                             ESTIMATE: value,
                         }
                         for day_start, arr in dampened_actuals.items()
-                        for interval, value in enumerate(arr)
+                        for interval, value in enumerate(
+                            arr, start=0
+                        )
+                        if (t := day_start + timedelta(minutes=30 * interval))
                     ]
 
                     inf_d, error_dampened, _ = await self.calculate_error(
@@ -3702,7 +3692,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             if (not valid) or (loaded_count != expected_records):
                 _LOGGER.warning(
-                    "%s Automated dampening adaptive model configuration may be sub-optimal until maximum history of %d days is loaded.",
+                    "%s Automated dampening adaptive model configuration may be sub-optimal until maximum history of %d days is built",
                     msg,
                     self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS],
                 )
@@ -3820,28 +3810,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
     async def add_dampening_history(self, period_start: dt, model: int, delta: int, factors: list[float]) -> None:
         """Adds a dampening history record to self._data_dampening_history."""
 
-        valid = True
+        # Update or add the entry
+        entries = self._data_dampening_history[model][delta]
+        new_entry = {"period_start": period_start, "factors": factors}
 
-        valid = False if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM] <= model <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM]) else True
+        # Try to update existing entry
+        for i, entry in enumerate(entries):
+            if entry["period_start"] == period_start:
+                entries[i] = new_entry
+                return
 
-        valid = False if not (ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED] <= delta <= ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]) else valid
-
-        valid = False if not (isinstance(factors, list) and len(factors) == 48) else valid
-
-        if valid:
-            entries = self._data_dampening_history[model][delta]
-            matches = [e["period_start"] == period_start for e in entries]
-            updated = [
-                {"period_start": period_start, "factors": factors} if m else e
-                for m, e in zip(matches, entries)
-            ]
-            self._data_dampening_history[model][delta] = (
-                updated
-                if any(matches)
-                else updated + [{"period_start": period_start, "factors": factors}]
-            )
-        else:
-            _LOGGER.warning("Add dampening factors passed invalid data: model %d, delta %d, factors %s", model, delta, factors)
+        # Add new entry if not found
+        entries.append(new_entry)
 
 
     async def prepare_generation_data(self, earliest_start: dt) -> tuple[defaultdict[dt, dict[str, Any]], defaultdict[dt, float]]: ### added ignore_unmatched
@@ -3901,7 +3881,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         values: tuple[dict[str, Any], ...],
         percentiles: tuple[int, ...] = (50,),
         log_breakdown: bool = False,
-        ignored_days: dict[dt, bool] = {}, ###
+        ignored_days: dict[dt, bool] | None = None, ###
         ) -> tuple[bool, float, list[float]]:
         """Calculate mean and percentile absolute percentage error."""
         value_day: defaultdict[dt, float] = defaultdict(float)
@@ -3919,7 +3899,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         for day, value in value_day.items():
             error[day] = (  ###
                 math.inf
-                if ignored_days.get(day, False) or generation_day[day] <= 0 ###
+                if (ignored_days is not None and ignored_days.get(day, False)) or generation_day[day] <= 0 ###
                 else abs(generation_day[day] - value) / generation_day[day] * 100.0
             )
             if log_breakdown:
@@ -4007,13 +3987,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 matching_intervals[interval].append(period_start)
         return actuals,ignored_intervals,generation,matching_intervals
 
-    async def calculate_dampening(self,
-                                  matching_intervals: dict[int, list[dt]],
-                                  generation: dict[dt, float],
-                                  actuals: dict[dt, float],
-                                  ignored_intervals: list[int],
-                                  dampening_model: int,
-                                  verbose_log: bool = True) -> list[float]: #noqa: C901
+    async def calculate_dampening( #noqa: C901
+        self,
+        matching_intervals: dict[int, list[dt]],
+        generation: dict[dt, float],
+        actuals: dict[dt, float],
+        ignored_intervals: list[int],
+        dampening_model: int,
+        verbose_log: bool = True) -> list[float]:
         """Applies selected dampening_model to passed data to calculate list of dampening factors."""
 
         dampening = [1.0] * 48  # Initialize dampening factors
