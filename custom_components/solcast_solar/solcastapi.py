@@ -46,8 +46,8 @@ from .const import (
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SHIT,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
-    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_MAPE_IMPROVEMENT,
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS,
@@ -138,7 +138,7 @@ from .const import (
     GET_ACTUALS,
     HARD_LIMIT_API,
     HOURS,
-    ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE,
+    ISSUE_ADVANCED_ADAPTIVE_BETTER_ERROR,
     ISSUE_API_UNAVAILABLE,
     ISSUE_CORRUPT_FILE,
     ISSUE_RECORDS_MISSING,
@@ -3660,7 +3660,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 if (
                     best_model_no_delta != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]
                     and best_ape_no_delta
-                    <= extant_ape - self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_MAPE_IMPROVEMENT]
+                    <= extant_ape - self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA]
                 ):
                     self.advanced_options.update({ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model_no_delta})
                     await self.serialise_advanced_options()
@@ -3710,7 +3710,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL],
                     }
                 ) and best_ape_adjusted <= extant_ape - self.advanced_options[
-                    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_MAPE_IMPROVEMENT
+                    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA
                 ]:
                     self.advanced_options.update(
                         {
@@ -3749,17 +3749,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if (raise_issue and not self._better_mape_issue_raised) or (self._better_mape_issue_raised and not raise_issue):
             # Clear any raised issue if this is a fresh occurrence or previously raised issue has cleared
             issue_registry = ir.async_get(self.hass)
-            if issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE) is not None:
-                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE)
+            if issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_ADAPTIVE_BETTER_ERROR) is not None:
+                ir.async_delete_issue(self.hass, DOMAIN, ISSUE_ADVANCED_ADAPTIVE_BETTER_ERROR)
             # Raise new issue if required
             if raise_issue:
                 ir.async_create_issue(
                     self.hass,
                     DOMAIN,
-                    ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE,
+                    ISSUE_ADVANCED_ADAPTIVE_BETTER_ERROR,
                     is_fixable=False,
                     severity=ir.IssueSeverity.WARNING,
-                    translation_key=ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE,
+                    translation_key=ISSUE_ADVANCED_ADAPTIVE_BETTER_ERROR,
                     translation_placeholders={DELTA_STATUS: delta_status, OPTION: ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT},
                     learn_more_url=LEARN_MORE_ADVANCED,
                 )

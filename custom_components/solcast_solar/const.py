@@ -24,10 +24,8 @@ ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SELECTION: Final[str] = "automat
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SHIT: Final[str] = "automated_dampening_adaptive_model_ape_shit"
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: Final[str] = "automated_dampening_adaptive_model_configuration"
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: Final[str] = "automated_dampening_adaptive_model_exclude"
+ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA: Final[str] = "automated_dampening_adaptive_model_minimum_error_delta"
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[str] = "automated_dampening_adaptive_model_minimum_history_days"
-ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_MAPE_IMPROVEMENT: Final[str] = (
-    "automated_dampening_adaptive_model_minimum_mape_improvement"
-)
 ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[str] = "automated_dampening_delta_adjustment_model"
 ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: Final[str] = "automated_dampening_generation_fetch_delay"
 ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS: Final[str] = "automated_dampening_generation_history_load_days"
@@ -99,8 +97,8 @@ DATA_SET_FORECAST_UNDAMPENED: Final[str] = "undampened forecast"
 DAY_NAME: Final[str] = "dayname"
 DEFAULT: Final[str] = "default"
 DEFAULT_DAMPENING_ADAPTIVE_MODEL_APE_SELECTION: Final[int] = 10  # Default APE percentile to use for adaptive dampening model selection
+DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA: Final[float] = 0.0  # Minimum adaptive model switch for error improvement
 DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[int] = 3  # Minimum number of days of history for adaptive dampening model
-DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_MAPE_IMPROVEMENT: Final[float] = 0.0  # Minimum adaptive model switch for MAPE improvement
 DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_UNDAMPENED_ACTUAL: Final[float] = 0.0  # Default to accepting all days
 DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[int] = 0  # Logarithmic adjustment is default model
 DEFAULT_DAMPENING_INSIGNIFICANT: Final[float] = 0.95  # Dampening factors considered insignificant for automated dampening
@@ -231,7 +229,7 @@ IGNORE_AUTO_ENABLED: Final[str] = "ignore_auto_enabled"
 INTEGRATION: Final[str] = "Solcast PV Forecast"
 INTEGRATION_AUTOMATED: Final[str] = "integration_automated"
 INTERVAL: Final[str] = "interval"
-ISSUE_ADVANCED_ADAPTIVE_BETTER_MAPE: Final[str] = "advanced_adaptive_better_MAPE"
+ISSUE_ADVANCED_ADAPTIVE_BETTER_ERROR: Final[str] = "advanced_adaptive_better_error"
 ISSUE_API_UNAVAILABLE: Final[str] = "api_unavailable"
 ISSUE_ADVANCED_DEPRECATED: Final[str] = "advanced_deprecated"
 ISSUE_ADVANCED_PROBLEM: Final[str] = "advanced_problem"
@@ -378,11 +376,11 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         OPTION_LESS_THAN_OR_EQUAL: [ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS],
         OPTION_REQUIRES: [ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION],
     },
-    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_MAPE_IMPROVEMENT: {
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA: {
         ADVANCED_TYPE: ADVANCED_OPTION.FLOAT,
         MINIMUM: 0.0,
         MAXIMUM: 10.0,
-        DEFAULT: DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_MAPE_IMPROVEMENT,
+        DEFAULT: DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA,
         OPTION_REQUIRES: [ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION],
     },
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: {
