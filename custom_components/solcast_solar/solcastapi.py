@@ -3659,8 +3659,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 )
                 if (
                     best_model_no_delta != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]
-                    and best_ape_no_delta
-                    <= extant_ape - self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA]
+                    and abs(extant_ape - best_ape_no_delta)
+                    > self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA] / 100
                 ):
                     self.advanced_options.update({ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model_no_delta})
                     await self.serialise_advanced_options()
@@ -3709,9 +3709,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL],
                         self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL],
                     }
-                ) and best_ape_adjusted <= extant_ape - self.advanced_options[
-                    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA
-                ]:
+                ) and best_ape_adjusted > max(
+                    abs(extant_ape - best_ape_adjusted),
+                    self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA] / 100,
+                ):
                     self.advanced_options.update(
                         {
                             ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model_adjusted,
