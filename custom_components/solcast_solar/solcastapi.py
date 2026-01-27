@@ -42,11 +42,12 @@ from homeassistant.exceptions import (
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
 from .const import (
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SELECTION,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SHIT,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_MAPE_IMPROVEMENT,
-    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_UNDAMPENED_ACTUAL,
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS,
@@ -3330,7 +3331,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         start_time = time.time()
 
         # Error selection method for adaptive dampening error rate (a percentile, or -1 for MAPE)
-        USE_ERROR: Final[int] = -1
+        if not self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SHIT]:
+            USE_ERROR = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SELECTION]
+        else:
+            USE_ERROR = random.randint(-1, 100)
+            _LOGGER.debug("Adaptive dampening selection going ape shit with USE_ERROR=%d", USE_ERROR)
 
         # Find earliest data where continuous dampening history is available for all models and deltas
 
@@ -3445,25 +3450,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 day_start = ts.replace(hour=0, minute=0, second=0, microsecond=0)
 
                 if day_start not in actuals:
-                    _LOGGER.debug(
-                        "Adding actuals entry for %s", day_start.strftime(DT_DATE_FORMAT)
-                    )
+                    _LOGGER.debug("Adding actuals entry for %s", day_start.strftime(DT_DATE_FORMAT))
                     actuals[day_start] = [0.0] * 48
 
                 interval = self.adjusted_interval_dt(ts)
                 actuals[day_start][interval] += actual[ESTIMATE]
-
-        for day_start, values in actuals.items():
-            day_total = sum(values) / 2
-            ignored_days[day_start] = False
-            if day_total < self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_UNDAMPENED_ACTUAL]:
-                ignored_days[day_start] = True
-                _LOGGER.debug(
-                    "Undampened actuals for %s were %.3f which is below minimum threshold of %.3f, day ignored",
-                    day_start.strftime(DT_DATE_ONLY_FORMAT),
-                    day_total,
-                    self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_UNDAMPENED_ACTUAL],
-                )
 
         generation_dampening, _ = await self.prepare_generation_data(earliest_common)
 
@@ -3478,7 +3469,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         # dampening, ie where the base factor for any model in that interval on that day is not 1.0
         included_intervals: dict[dt, list[bool]] = {}
 
-        for model, deltas in self._data_dampening_history.items():
+        for deltas in self._data_dampening_history.values():
             for entry in deltas[-1]:
                 period_start = entry["period_start"]
                 factors = entry["factors"]
@@ -3489,7 +3480,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 for interval in range(48):
                     if factors[interval] != 1.0 and not included_intervals[day_start][interval]:
                         included_intervals[day_start][interval] = True
-
 
         for model in range(
             ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1
@@ -3529,9 +3519,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     period_start = model_entry["period_start"]
                     factors = model_entry["factors"]
 
-                    day_start = period_start.astimezone(
-                        self._tz
-                    )
+                    day_start = period_start.astimezone(self._tz)
 
                     if period_start >= earliest_common:
                         # If we have no actuals for this day, model is invalid
@@ -3999,9 +3987,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         # Add new entry if not found
         entries.append(new_entry)
 
-    async def prepare_generation_data(
-        self, earliest_start: dt
-    ) -> tuple[defaultdict[dt, dict[str, Any]], defaultdict[dt, float]]:
+    async def prepare_generation_data(self, earliest_start: dt) -> tuple[defaultdict[dt, dict[str, Any]], defaultdict[dt, float]]:
         """Prepare generation data for accuracy metrics calculation.
 
         ignore_unmatched excludes intervals below minimum peak in
