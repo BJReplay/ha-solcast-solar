@@ -511,7 +511,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     False,  # Undampened = False
                 ),
                 percentiles_to_calculate,
-                self.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN]
+                self.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN],
             )
         else:
             error_dampened = -1.0  # Not applicable
@@ -547,8 +547,6 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 error_undampened_percentiles[i],
                 f", ({error_dampened_percentiles[i]:.2f}% dampened)" if error_dampened_percentiles[i] != -1.0 else "",
             )
-
-
 
     def __get_minute_of_day(self, time_point: dt) -> int:
         """Get the minute of the day for a given time point."""
@@ -1028,23 +1026,23 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             return None
         ret: dict[str, Any] = {}
         for fetch in self.__get_value[key] if key not in NO_ATTRIBUTES else []:
-            to_return = (
+            ret |= (
                 self.solcast.get_forecast_attributes(fetch[METHOD], fetch.get(VALUE, 0))
                 if fetch[METHOD] != self.solcast.get_forecast_day
                 else fetch[METHOD](fetch[VALUE])
             )
-            if to_return is not None:
-                ret.update(to_return)
 
         if key == "dampen":
             if self.solcast.entry_options.get(SITE_DAMP):
                 # Granular dampening
-                ret[INTEGRATION_AUTOMATED] = self.solcast.options.auto_dampen
-                ret[LAST_UPDATED] = (
-                    dt.fromtimestamp(self.solcast.granular_dampening_mtime).replace(microsecond=0).astimezone(self.solcast.options.tz)
-                    if self.solcast.granular_dampening_mtime
-                    else None
-                )
+                ret |= {
+                    INTEGRATION_AUTOMATED: self.solcast.options.auto_dampen,
+                    LAST_UPDATED: (
+                        dt.fromtimestamp(self.solcast.granular_dampening_mtime).replace(microsecond=0).astimezone(self.solcast.options.tz)
+                        if self.solcast.granular_dampening_mtime
+                        else None
+                    ),
+                }
                 if self.solcast.options.auto_dampen:
                     factors: dict[str, dict[str, Any]] = {}
                     dst = False
@@ -1074,25 +1072,25 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         for i, f in enumerate(self.solcast.granular_dampening.get(ALL, []))
                     ]
             else:
-                ret[INTEGRATION_AUTOMATED] = False
-                ret[LAST_UPDATED] = None
-                ret[FACTORS] = [
-                    {
-                        INTERVAL: i,
-                        FACTOR: f,
-                    }
-                    for i, f in self.solcast.options.dampening.items()
-                ]
+                ret |= {
+                    INTEGRATION_AUTOMATED: False,
+                    LAST_UPDATED: None,
+                    FACTORS: [
+                        {
+                            INTERVAL: i,
+                            FACTOR: f,
+                        }
+                        for i, f in self.solcast.options.dampening.items()
+                    ],
+                }
             # Add advanced options
-            for key, value in self.solcast.advanced_options.items():
-                if "dampening" in key:
-                    ret[key] = value
+            ret |= {k: v for k, v in self.solcast.advanced_options.items() if "dampening" in k}
 
         if key in (ENTITY_LAST_UPDATED, ENTITY_LAST_UPDATED_OLD):
-            ret.update(self._get_auto_update_details())
+            ret |= self._get_auto_update_details()
 
         if key == ENTITY_FORECAST_CUSTOM_HOURS:
-            ret.update({CUSTOM_HOURS: self.solcast.options.custom_hour_sensor})
+            ret |= {CUSTOM_HOURS: self.solcast.options.custom_hour_sensor}
 
         return ret
 
