@@ -565,10 +565,7 @@ async def test_adaptive_auto_dampen(
 
         # Assert good start, that actuals and generation are enabled, and that the caches are saved
         _LOGGER.debug("Testing good start happened")
-        for _ in range(30):  # Extra time needed for reload to complete
-            await hass.async_block_till_done()
-            freezer.tick(0.1)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+        await _wait_for_it(hass, caplog, freezer, "Clear presumed dead flag", long_time=False)
         _no_exception(caplog)
 
         assert "Auto-dampening suppressed: Excluded site for 3333-3333-3333-3333" in caplog.text
@@ -597,7 +594,7 @@ async def test_adaptive_auto_dampen(
             assert "Updating automated dampening adaptation history" in caplog.text
             assert "Task update_dampening_history took" in caplog.text
             if count == len(roll_to) - 1:
-                # _wait_for_it(hass, caplog, freezer, "Determining best automated dampening settings")
+                # await _wait_for_it(hass, caplog, freezer, "Determining best automated dampening settings")
                 assert "Determining best automated dampening settings" in caplog.text
                 assert "Dampening history actuals suppressed site 3333-3333-3333-3333" in caplog.text
                 assert "Advanced option 'automated_dampening_delta_adjustment_model' set to: 0" in caplog.text
@@ -617,10 +614,8 @@ async def test_adaptive_auto_dampen(
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
+        await _wait_for_it(hass, caplog, freezer, "Completed task stale_update", long_time=True)
 
-        for _ in range(300):  # Extra time needed for reload to complete
-            freezer.tick(0.1)
-            await hass.async_block_till_done()
         # assert False
 
     finally:

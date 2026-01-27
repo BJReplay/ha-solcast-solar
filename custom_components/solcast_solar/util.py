@@ -6,10 +6,10 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import datetime as dt
 from enum import Enum
-from pathlib import Path
 import json
 import logging
 import math
+from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -151,8 +151,8 @@ class NoIndentEncoder(DateTimeEncoder):
     def iterencode(self, o: Any, _one_shot: bool = False):
         """Recursive encoder to indent only top level keys."""
         list_lvl = 0
-        up = ('[', '{')
-        down = (']', '}')
+        up = ("[", "{")
+        down = ("]", "}")
         raw: Iterator[str] = super().iterencode(o, _one_shot=_one_shot)
         output = ""
         for s in list(raw)[0].splitlines():
@@ -171,6 +171,7 @@ class NoIndentEncoder(DateTimeEncoder):
                 list_lvl -= 1
             output += s
         yield output
+
 
 class JSONDecoder(json.JSONDecoder):
     """Helper to convert ISO format dict values to datetime."""
@@ -340,16 +341,15 @@ async def raise_or_clear_advanced_deprecated(
             _LOGGER.debug("Removing advanced deprecation issue")
             ir.async_delete_issue(hass, DOMAIN, ISSUE_ADVANCED_DEPRECATED)
 
-async def clear_cache (filename: str, warn: bool = True):
+
+async def clear_cache(filename: str, warn: bool = True):
     """Deletes filename if it exists."""
     if Path(filename).is_file():
-        try:
-            Path(filename).unlink()
-            _LOGGER.debug("Deleted cache file %s", filename.split("/")[-1])
-        except Exception as ex:
-            _LOGGER.warning("Failed to delete cache file %s: %s", filename.split("/")[-1], ex)
+        Path(filename).unlink()
+        _LOGGER.debug("Deleted cache file %s", filename.split("/")[-1])
     elif warn:
-        _LOGGER.warning("There is no %s to delete", filename.split("/")[-1] )
+        _LOGGER.warning("There is no %s to delete", filename.split("/")[-1])
+
 
 def percentile(data: list[Any], _percentile: float) -> float | int:
     """Find the given percentile in a sorted list of values."""
