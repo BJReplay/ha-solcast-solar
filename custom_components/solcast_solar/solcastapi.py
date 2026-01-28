@@ -3517,7 +3517,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     day_start = self._get_day_start(period_start)
 
                     ##### This validation check appears to be redundant - it can never fail if the earlier continuity validation passed.
-                    ##### The counts will always match unless there's a logic error elsewhere.
+                    ##### The day_start will always be in actuals unless there's a logic error elsewhere.
                     ##### I think... Double-check me.
                     """
                     # Validate actuals exist for this day
