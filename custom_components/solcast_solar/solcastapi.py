@@ -101,6 +101,7 @@ from .const import (
     DATA_SET_FORECAST_UNDAMPENED,
     DAY_NAME,
     DEFAULT,
+    DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL,
     DELTA_STATUS,
     DEPRECATED,
     DETAILED_FORECAST,
@@ -3649,103 +3650,91 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         raise_issue: bool = False
         delta_status: str = "UNKNOWN"
 
-        if self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT]:
-            if best_model_no_delta != CONFIG_UNCHANGED:
-                _LOGGER.info(
-                    "Selected best automated dampening settings: model %d with %s of %.3f%%",
-                    best_model_no_delta,
-                    "MAPE" if USE_ERROR == -1 else f"{USE_ERROR}th percentile APE",
-                    best_ape_no_delta,
-                )
-                if (
-                    best_model_no_delta != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]
-                    and abs(extant_ape - best_ape_no_delta)
-                    > self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA] / 100
-                ):
-                    self.advanced_options.update({ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model_no_delta})
-                    await self.serialise_advanced_options()
-                elif best_model_no_delta != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]:
-                    _LOGGER.info(
-                        "Insufficient improvement over current model %s %.3f%%, adaptive",
-                        "MAPE" if USE_ERROR == -1 else f"{USE_ERROR}th percentile APE",
-                        extant_ape,
-                    )
-                else:
-                    metric_desc = "MAPE" if USE_ERROR == -1 else f"{USE_ERROR}th percentile APE"
-                    _LOGGER.info(
-                        "%sAdaptive dampening configuration unchanged",
-                        f"Insufficient improvement over current model {metric_desc} of {extant_ape:.3f}%. "
-                        if best_model_no_delta != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]
-                        else "",
-                    )
-            else:
-                _LOGGER.info("Could not determine best automated dampening settings - values unmodified")
+        metric_desc = "MAPE" if USE_ERROR == -1 else f"{USE_ERROR}th percentile APE"
+        min_error_delta = self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA]
 
-            if best_model_adjusted != CONFIG_UNCHANGED and best_ape_adjusted < best_ape_no_delta:
-                _LOGGER.warning(
-                    "%s is set true but adaptive dampening found that model %d and delta %d had a lower %s of %.3f%% vs the selected %.3f%%",
-                    ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT,
-                    best_model_adjusted,
-                    best_delta_adjusted,
-                    "MAPE" if USE_ERROR == -1 else f"{USE_ERROR}th percentile APE",
-                    best_ape_adjusted,
-                    best_ape_no_delta,
-                )
-                delta_status = "disabled"
-                raise_issue = True
+        # Determine mode-specific values
+        use_delta_mode = not self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT]
 
+        if use_delta_mode:
+            selected_model = best_model_adjusted
+            selected_delta = best_delta_adjusted
+            selected_error = best_ape_adjusted
+            current_valid = {selected_model, selected_delta} != {CONFIG_UNCHANGED}
+            is_different = {selected_model, selected_delta} != {
+                self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL],
+                self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL],
+            }
+            alternative_model = best_model_no_delta
+            alternative_error = best_ape_no_delta
         else:
-            if {best_model_adjusted, best_delta_adjusted} != {CONFIG_UNCHANGED}:
-                _LOGGER.info(
-                    "Selected best automated dampening settings: model %d and delta %d with %s of %.3f%%",
-                    best_model_adjusted,
-                    best_delta_adjusted,
-                    "MAPE" if USE_ERROR == -1 else f"{USE_ERROR}th percentile APE",
-                    best_ape_adjusted,
-                )
-                if (
-                    {best_model_adjusted, best_delta_adjusted}
-                    != {
-                        self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL],
-                        self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL],
-                    }
-                ) and best_ape_adjusted > max(
-                    abs(extant_ape - best_ape_adjusted),
-                    self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA] / 100,
-                ):
-                    self.advanced_options.update(
-                        {
-                            ADVANCED_AUTOMATED_DAMPENING_MODEL: best_model_adjusted,
-                            ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: best_delta_adjusted,
-                        }
-                    )
-                    await self.serialise_advanced_options()
-                else:
-                    metric_desc = "MAPE" if USE_ERROR == -1 else f"{USE_ERROR}th percentile APE"
-                    _LOGGER.info(
-                        "%sAdaptive dampening configuration unchanged",
-                        f"Insufficient improvement over current model/delta {metric_desc} of {extant_ape:.3f}%. "
-                        if {best_model_adjusted, best_delta_adjusted}
-                        != {
-                            self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL],
-                            self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL],
-                        }
-                        else "",
-                    )
-            else:
-                _LOGGER.info("Could not determine best automated dampening settings - values unmodified")
+            selected_model = best_model_no_delta
+            selected_delta = None
+            selected_error = best_ape_no_delta
+            current_valid = selected_model != CONFIG_UNCHANGED
+            is_different = selected_model != self.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL]
+            alternative_model = best_model_adjusted
+            alternative_error = best_ape_adjusted
 
-            if best_model_no_delta != CONFIG_UNCHANGED and best_ape_no_delta < best_ape_adjusted:
+        # Process selected configuration
+        if current_valid:
+            _LOGGER.info(
+                "Selected best automated dampening settings: model %d%s with %s of %.3f%%",
+                selected_model,
+                f" and delta {selected_delta}" if use_delta_mode else "",
+                metric_desc,
+                selected_error,
+            )
+
+            improvement = extant_ape - selected_error
+
+            if is_different and improvement > min_error_delta:
+                self.advanced_options.update(
+                    {
+                        ADVANCED_AUTOMATED_DAMPENING_MODEL: selected_model,
+                        ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: selected_delta
+                        if use_delta_mode
+                        else DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL,
+                    }
+                )
+                await self.serialise_advanced_options()
+            elif is_different:
+                _LOGGER.info(
+                    "Insufficient improvement of %.3f%% over current %s %s of %.3f%%",
+                    improvement,
+                    "model/delta" if use_delta_mode else "model",
+                    metric_desc,
+                    extant_ape,
+                )
+            else:
+                _LOGGER.info("Adaptive dampening configuration unchanged")
+        else:
+            _LOGGER.info("Could not determine best automated dampening settings - values unmodified")
+
+        # Warn if alternative mode would have performed better
+        if alternative_model != CONFIG_UNCHANGED and alternative_error < selected_error:
+            if use_delta_mode:
                 _LOGGER.warning(
                     "%s is set false but adaptive dampening found that model %d with no delta adjustment had a lower %s of %.3f%% vs the selected %.3f%%",
                     ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT,
-                    best_model_no_delta,
-                    "MAPE" if USE_ERROR == -1 else f"{USE_ERROR}th percentile APE",
-                    best_ape_no_delta,
-                    best_ape_adjusted,
+                    alternative_model,
+                    metric_desc,
+                    alternative_error,
+                    selected_error,
                 )
                 delta_status = "enabled"
-                raise_issue = True
+            else:
+                _LOGGER.warning(
+                    "%s is set true but adaptive dampening found that model %d and delta %d had a lower %s of %.3f%% vs the selected %.3f%%",
+                    ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT,
+                    alternative_model,
+                    best_delta_adjusted,
+                    metric_desc,
+                    alternative_error,
+                    selected_error,
+                )
+                delta_status = "disabled"
+            raise_issue = True
 
         if (raise_issue and not self._better_mape_issue_raised) or (self._better_mape_issue_raised and not raise_issue):
             # Clear any raised issue if this is a fresh occurrence or previously raised issue has cleared
