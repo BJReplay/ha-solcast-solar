@@ -15,10 +15,17 @@ ADVANCED_OPTION.INT = "int"
 ADVANCED_OPTION.FLOAT = "float"
 ADVANCED_OPTION.LIST_INT = "list_int"
 ADVANCED_OPTION.LIST_TIME = "list_time"
+ADVANCED_OPTION.LIST_DICT = "list_dict"
 ADVANCED_OPTION.STR = "str"
 ADVANCED_OPTION.TIME = "time"
 ADVANCED_TYPE: Final[str] = "type"
 ADVANCED_API_RAISE_ISSUES: Final[str] = "api_raise_issues"
+ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SELECTION: Final[str] = "automated_dampening_adaptive_model_ape_selection"
+ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SHIT: Final[str] = "automated_dampening_adaptive_model_ape_shit"
+ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: Final[str] = "automated_dampening_adaptive_model_configuration"
+ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: Final[str] = "automated_dampening_adaptive_model_exclude"
+ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA: Final[str] = "automated_dampening_adaptive_model_minimum_error_delta"
+ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[str] = "automated_dampening_adaptive_model_minimum_history_days"
 ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[str] = "automated_dampening_delta_adjustment_model"
 ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: Final[str] = "automated_dampening_generation_fetch_delay"
 ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS: Final[str] = "automated_dampening_generation_history_load_days"
@@ -51,6 +58,7 @@ AFFIRMATION_REAUTH_SUCCESSFUL: Final[str] = "reauth_successful"
 AFFIRMATION_RECONFIGURED: Final[str] = "reconfigured"
 ALIASES: Final[str] = "aliases"
 ALL: Final[str] = "all"
+AMENDABLE: Final[str] = "amendable"
 API_KEY: Final[str] = "api_key"
 API_QUOTA: Final[str] = "api_quota"
 ATTR_ENTRY_TYPE: Final[str] = "entry_type"
@@ -88,6 +96,10 @@ DATA_SET_FORECAST: Final[str] = "forecast"
 DATA_SET_FORECAST_UNDAMPENED: Final[str] = "undampened forecast"
 DAY_NAME: Final[str] = "dayname"
 DEFAULT: Final[str] = "default"
+DEFAULT_DAMPENING_ADAPTIVE_MODEL_APE_SELECTION: Final[int] = 10  # Default APE percentile to use for adaptive dampening model selection
+DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA: Final[float] = 0.0  # Minimum adaptive model switch for error improvement
+DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[int] = 3  # Minimum number of days of history for adaptive dampening model
+DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_UNDAMPENED_ACTUAL: Final[float] = 0.0  # Default to accepting all days
 DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[int] = 0  # Logarithmic adjustment is default model
 DEFAULT_DAMPENING_INSIGNIFICANT: Final[float] = 0.95  # Dampening factors considered insignificant for automated dampening
 DEFAULT_DAMPENING_INSIGNIFICANT_ADJ: Final[float] = 0.95  # Adjusted dampening factors considered insignificant for automated dampening
@@ -108,6 +120,8 @@ DEFAULT_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: Final[bool] = False  # Whether to u
 DEFAULT_HISTORY_MAX: Final[int] = 730  # Maximum number of history days to keep
 DEFAULT_SOLCAST_HTTPS_URL: Final[str] = "https://api.solcast.com.au"
 DELAYED_RESTART_ON_CRASH: Final[int] = 15  # Minutes to delay restart after crash
+DELTA: Final[str] = "delta"
+DELTA_STATUS: Final[str] = "delta_status"
 DEPRECATED: Final[str] = "deprecated"
 DESCRIPTION: Final[str] = "description"
 DETAILED_FORECAST: Final[str] = "detailedForecast"
@@ -117,9 +131,12 @@ DISMISSAL: Final[str] = "dismissal"
 DOMAIN: Final[str] = "solcast_solar"
 DT_DATE_FORMAT: Final[str] = "%Y-%m-%d %H:%M:%S"
 DT_DATE_FORMAT_UTC: Final[str] = "%Y-%m-%d %H:%M:%S UTC"
+DT_DATE_FORMAT_SHORT: Final[str] = "%Y-%m-%d %H:%M"
 DT_DATE_MONTH_DAY: Final[str] = "%m-%d"
 DT_DATE_ONLY_FORMAT: Final[str] = "%Y-%m-%d"
+DT_DAYNAME: Final[str] = "%A"
 DT_TIME_FORMAT: Final[str] = "%H:%M:%S"
+DT_TIME_FORMAT_SHORT: Final[str] = "%H:%M"
 ENABLED_BY_DEFAULT: Final[str] = "enabled_by_default"
 ENERGY_HISTORY: Final[str] = "energy_history"
 ENTITY_API_COUNTER: Final[str] = "api_counter"
@@ -212,6 +229,7 @@ IGNORE_AUTO_ENABLED: Final[str] = "ignore_auto_enabled"
 INTEGRATION: Final[str] = "Solcast PV Forecast"
 INTEGRATION_AUTOMATED: Final[str] = "integration_automated"
 INTERVAL: Final[str] = "interval"
+ISSUE_ADVANCED_ADAPTIVE_BETTER_ERROR: Final[str] = "advanced_adaptive_better_error"
 ISSUE_API_UNAVAILABLE: Final[str] = "api_unavailable"
 ISSUE_ADVANCED_DEPRECATED: Final[str] = "advanced_deprecated"
 ISSUE_ADVANCED_PROBLEM: Final[str] = "advanced_problem"
@@ -242,6 +260,8 @@ MAXIMUM: Final[str] = "max"
 MESSAGE: Final[str] = "message"
 METHOD: Final[str] = "method"
 MINIMUM: Final[str] = "min"
+MINIMUM_EXTENDED: Final[str] = "min_extended"
+MODEL: Final[str] = "model"
 NEED_HISTORY_HOURS: Final[str] = "need_history_hours"
 OLD_API_KEY: Final[str] = "old_api_key"
 OLD_HARD_LIMIT: Final[str] = "old_hard_limit"
@@ -249,6 +269,7 @@ OPTION: Final[str] = "option"
 OPTION_GREATER_THAN_OR_EQUAL: Final[str] = "greater_than_or_equal"
 OPTION_LESS_THAN_OR_EQUAL: Final[str] = "less_than_or_equal"
 OPTION_NOT_SET_IF: Final[str] = "not_set_if"
+OPTION_REQUIRES: Final[str] = "requires"
 PERIOD_END: Final[str] = "period_end"
 PERIOD_START: Final[str] = "period_start"
 PLATFORM_BINARY_SENSOR: Final[str] = "binary_sensor"
@@ -261,6 +282,7 @@ PRIOR_CRASH_TIME: Final[str] = "prior_crash_time"
 PRIOR_CRASH_TRANSLATION_KEY: Final[str] = "prior_crash_translation_key"
 PROBLEMS: Final[str] = "problems"
 PROPOSAL: Final[str] = "proposal"
+REQUIRED_KEYS: Final[str] = "required_keys"
 RESET: Final[str] = "reset"
 RESET_OLD_KEY: Final[str] = "reset_old_key"
 RESOURCE_ID: Final[str] = "resource_id"
@@ -317,24 +339,64 @@ UNRECORDED_ATTRIBUTES: Final[str] = "unrecorded_attributes"
 UPGRADE_FUNCTION: Final[str] = "upgrade_function"
 USE_ACTUALS: Final[str] = "use_actuals"
 VALUE: Final[str] = "value"
+VALUE_ADAPTIVE_DAMPENING_NO_DELTA: Final[int] = -1
 VERSION: Final[str] = "version"
 WINTER_TIME: Final[list[str]] = ["Europe/Dublin"]  # Zones that use "Winter time" rather than "Daylight time"
 
 
 ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
     ADVANCED_API_RAISE_ISSUES: {ADVANCED_TYPE: ADVANCED_OPTION.BOOL, DEFAULT: True},
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SELECTION: {
+        ADVANCED_TYPE: ADVANCED_OPTION.INT,
+        MINIMUM: -1,
+        MAXIMUM: 100,
+        DEFAULT: DEFAULT_DAMPENING_ADAPTIVE_MODEL_APE_SELECTION,
+        OPTION_REQUIRES: [ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION],
+    },
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SHIT: {
+        ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
+        DEFAULT: False,
+        OPTION_REQUIRES: [ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION],
+    },
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: {
+        ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
+        DEFAULT: False,
+    },
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: {
+        ADVANCED_TYPE: ADVANCED_OPTION.LIST_DICT,
+        DEFAULT: [],
+        OPTION_REQUIRES: [ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION],
+        REQUIRED_KEYS: {MODEL, DELTA},
+    },
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: {
+        ADVANCED_TYPE: ADVANCED_OPTION.INT,
+        MINIMUM: 1,
+        MAXIMUM: 21,
+        DEFAULT: DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
+        OPTION_LESS_THAN_OR_EQUAL: [ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS],
+        OPTION_REQUIRES: [ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION],
+    },
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA: {
+        ADVANCED_TYPE: ADVANCED_OPTION.FLOAT,
+        MINIMUM: 0.0,
+        MAXIMUM: 10.0,
+        DEFAULT: DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_ERROR_DELTA,
+        OPTION_REQUIRES: [ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION],
+    },
+    ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: {
+        ADVANCED_TYPE: ADVANCED_OPTION.INT,
+        MINIMUM: 0,
+        MINIMUM_EXTENDED: VALUE_ADAPTIVE_DAMPENING_NO_DELTA,
+        MAXIMUM: 1,
+        DEFAULT: DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL,
+        AMENDABLE: True,
+    },
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
         MINIMUM: 0,
         MAXIMUM: 120,
         DEFAULT: DEFAULT_GENERATION_FETCH_DELAY,
         OPTION_LESS_THAN_OR_EQUAL: [ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY],
-    },
-    ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: {
-        ADVANCED_TYPE: ADVANCED_OPTION.INT,
-        MINIMUM: 0,
-        MAXIMUM: 1,
-        DEFAULT: DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL,
     },
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
@@ -375,6 +437,7 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         MINIMUM: 0,
         MAXIMUM: 3,
         DEFAULT: DEFAULT_DAMPENING_MODEL,
+        AMENDABLE: True,
     },
     ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,

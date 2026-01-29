@@ -3,9 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from collections import defaultdict
 import contextlib
-import copy
 from datetime import datetime as dt, timedelta
 from enum import Enum
 import logging
@@ -40,10 +38,9 @@ from homeassistant.helpers.sun import get_astral_event_next
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
-    ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS,
     ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS,
-    ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY,
     ADVANCED_ENTITY_LOGGING,
     ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY,
     ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES,
@@ -59,6 +56,7 @@ from .const import (
     DT_DATE_FORMAT,
     DT_DATE_ONLY_FORMAT,
     DT_TIME_FORMAT,
+    DT_TIME_FORMAT_SHORT,
     ENTITY_API_COUNTER,
     ENTITY_API_LIMIT,
     ENTITY_DAMPEN,
@@ -78,22 +76,18 @@ from .const import (
     ENTITY_POWER_NOW_30M,
     ENTITY_TOTAL_KWH_FORECAST_TODAY,
     ENTITY_TOTAL_KWH_FORECAST_TOMORROW,
-    ESTIMATE,
     EVENT,
     EXCEPTION_AUTO_USE_FORCE,
     EXCEPTION_AUTO_USE_NORMAL,
     EXCEPTION_INIT_KEY_INVALID,
-    EXPORT_LIMITING,
     FACTOR,
     FACTORS,
-    GENERATION,
     GET_ACTUALS,
     INTEGRATION_AUTOMATED,
     INTERVAL,
     LAST_UPDATED,
     METHOD,
     NEED_HISTORY_HOURS,
-    PERIOD_START,
     SITE_DAMP,
     TASK_ACTUALS_FETCH,
     TASK_CHECK_FETCH,
@@ -111,7 +105,7 @@ from .const import (
     VALUE,
 )
 from .solcastapi import SolcastApi
-from .util import AutoUpdate, percentile
+from .util import AutoUpdate
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -494,84 +488,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 self.solcast.get_day_start_utc() - timedelta(days=self.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS])
             )
 
-        ignored_intervals: list[int] = []  # Intervals to ignore in local time zone
-        for time_string in self.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS]:
-            hour, minute = map(int, time_string.split(":"))
-            interval = hour * 2 + minute // 30
-            ignored_intervals.append(interval)
-
-        export_limited_intervals = dict.fromkeys(range(50), False)
-        if not self.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY]:
-            for gen in self.solcast.get_data_generation()[GENERATION][
-                -1 * self.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] * 48 :
-            ]:
-                if gen[EXPORT_LIMITING]:
-                    export_limited_intervals[self.solcast.adjusted_interval(gen)] = True
-
-        data_generation = copy.deepcopy(self.solcast.get_data_generation())  # Must be a copy as values are modified below
-        generation_dampening: defaultdict[dt, dict[str, Any]] = defaultdict(dict[str, Any])
-        generation_dampening_day: defaultdict[dt, float] = defaultdict(float)
-        for record in data_generation.get(GENERATION, [])[
-            -1 * self.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] * 48 :
-        ]:
-            if record[PERIOD_START] < earliest_undampened_start:
-                continue
-
-            interval = self.solcast.adjusted_interval_dt(record[PERIOD_START])
-            offset_interval = interval + (  # Explicitly ignored intervals are in local time
-                2 if self.solcast.dst(record[PERIOD_START]) else 0
-            )
-            if offset_interval in ignored_intervals or export_limited_intervals[interval]:
-                record[EXPORT_LIMITING] = True
-                continue
-
-            generation_dampening[record[PERIOD_START]] = {
-                GENERATION: record[GENERATION],
-                EXPORT_LIMITING: record[EXPORT_LIMITING],
-            }
-            if not record[EXPORT_LIMITING]:
-                generation_dampening_day[
-                    record[PERIOD_START].astimezone(self.solcast.options.tz).replace(hour=0, minute=0, second=0, microsecond=0)
-                ] += record[GENERATION]
-
-        async def calculate_error(
-            generation_day: defaultdict[dt, float],
-            generation: defaultdict[dt, dict[str, Any]],
-            values: tuple[dict[str, Any], ...],
-            percentiles: tuple[int, ...] = (50,),
-        ) -> tuple[bool, float, list[float]]:
-            """Calculate mean and percentile absolute percentage error."""
-            value_day: defaultdict[dt, float] = defaultdict(float)
-            error: defaultdict[dt, float] = defaultdict(float)
-            last_day: dt | None = None
-            for interval in values:
-                i = interval[PERIOD_START].astimezone(self.solcast.options.tz).replace(hour=0, minute=0, second=0, microsecond=0)
-                if i != last_day:
-                    value_day[i] = 0.0
-                    last_day = i
-                if generation.get(interval[PERIOD_START]) is not None and not generation[interval[PERIOD_START]][EXPORT_LIMITING]:
-                    value_day[i] += interval[ESTIMATE] / 2  # 30 minute intervals
-            for day, value in value_day.items():
-                error[day] = abs(generation_day[day] - value) / generation_day[day] * 100.0 if generation_day[day] > 0 else math.inf
-                if self.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN]:
-                    _LOGGER.debug(
-                        "APE calculation for day %s, Actual %.2f kWh, Estimate %.2f kWh, Error %.2f%s",
-                        day.strftime(DT_DATE_ONLY_FORMAT),
-                        generation_day[day],
-                        value,
-                        error[day],
-                        "%" if error[day] != math.inf else "",
-                    )
-            non_inf_error: dict[dt, float] = {k: v for k, v in error.items() if v != math.inf}
-            return (
-                (
-                    (len(error) != len(non_inf_error)),
-                    sum(non_inf_error.values()) / len(non_inf_error),
-                    [percentile(sorted(error.values()), p) for p in percentiles],
-                )
-                if len(non_inf_error) > 0
-                else (False, 0.0, [0.0] * len(percentiles))
-            )
+        generation_dampening, generation_dampening_day = await self.solcast.prepare_generation_data(earliest_undampened_start)
 
         inf_u = False
         inf_d = False
@@ -584,7 +501,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     .astimezone(self.solcast.options.tz)
                     .strftime(DT_DATE_ONLY_FORMAT),
                 )
-            inf_d, error_dampened, error_dampened_percentiles = await calculate_error(
+
+            inf_d, error_dampened, error_dampened_percentiles = await self.solcast.calculate_error(
                 generation_dampening_day,
                 generation_dampening,
                 await self.solcast.get_estimate_list(
@@ -593,6 +511,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     False,  # Undampened = False
                 ),
                 percentiles_to_calculate,
+                self.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN],
             )
         else:
             error_dampened = -1.0  # Not applicable
@@ -605,7 +524,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 .astimezone(self.solcast.options.tz)
                 .strftime(DT_DATE_ONLY_FORMAT),
             )
-        inf_u, error_undampened, error_undampened_percentiles = await calculate_error(
+        inf_u, error_undampened, error_undampened_percentiles = await self.solcast.calculate_error(
             generation_dampening_day,
             generation_dampening,
             await self.solcast.get_estimate_list(
@@ -614,6 +533,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 True,  # Undampened = True
             ),
             percentiles_to_calculate,
+            self.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN],
         )
         if inf_u or inf_d:
             _LOGGER.debug("Excluding %s values", math.inf)
@@ -781,6 +701,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         if task in self.tasks:
             self.tasks.pop(task, None)
 
+        if self.solcast.options.auto_dampen and self.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]:
+            await self.solcast.update_dampening_history()
+            await self.solcast.determine_best_dampening_settings()
+
         await self.solcast.model_automated_dampening()
         if self.solcast.options.auto_dampen:
             await self.solcast.apply_forward_dampening()
@@ -819,8 +743,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._sunrise_tomorrow, self._sunset_tomorrow = sun_rise_set(self.solcast.get_day_start_utc(future=1))
         _LOGGER.debug(
             "Sun rise / set today at %s / %s",
-            self._sunrise.astimezone(self.solcast.options.tz).strftime("%H:%M:%S"),
-            self._sunset.astimezone(self.solcast.options.tz).strftime("%H:%M:%S"),
+            self._sunrise.astimezone(self.solcast.options.tz).strftime(DT_TIME_FORMAT),
+            self._sunset.astimezone(self.solcast.options.tz).strftime(DT_TIME_FORMAT),
         )
 
     def __calculate_forecast_updates(self, init: bool = False) -> None:
@@ -863,16 +787,16 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     if self.interval_just_passed in intervals_yesterday:
                         just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(DT_DATE_FORMAT)
                     else:
-                        just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
+                        just_passed = self.interval_just_passed.astimezone(self.solcast.options.tz).strftime(DT_TIME_FORMAT)
                     _LOGGER.debug("Previous auto update UTC %s", self.interval_just_passed.isoformat())
                 _LOGGER.debug("Previous auto update would have been at %s", just_passed)
             return intervals
 
         def format_intervals(intervals: list[dt]) -> list[str]:
             return [
-                i.astimezone(self.solcast.options.tz).strftime("%H:%M")
+                i.astimezone(self.solcast.options.tz).strftime(DT_TIME_FORMAT_SHORT)
                 if len(intervals) > 10
-                else i.astimezone(self.solcast.options.tz).strftime("%H:%M:%S")
+                else i.astimezone(self.solcast.options.tz).strftime(DT_TIME_FORMAT)
                 for i in intervals
             ]
 
@@ -1102,23 +1026,23 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             return None
         ret: dict[str, Any] = {}
         for fetch in self.__get_value[key] if key not in NO_ATTRIBUTES else []:
-            to_return = (
+            ret |= (
                 self.solcast.get_forecast_attributes(fetch[METHOD], fetch.get(VALUE, 0))
                 if fetch[METHOD] != self.solcast.get_forecast_day
                 else fetch[METHOD](fetch[VALUE])
             )
-            if to_return is not None:
-                ret.update(to_return)
 
         if key == "dampen":
             if self.solcast.entry_options.get(SITE_DAMP):
                 # Granular dampening
-                ret[INTEGRATION_AUTOMATED] = self.solcast.options.auto_dampen
-                ret[LAST_UPDATED] = (
-                    dt.fromtimestamp(self.solcast.granular_dampening_mtime).replace(microsecond=0).astimezone(self.solcast.options.tz)
-                    if self.solcast.granular_dampening_mtime
-                    else None
-                )
+                ret |= {
+                    INTEGRATION_AUTOMATED: self.solcast.options.auto_dampen,
+                    LAST_UPDATED: (
+                        dt.fromtimestamp(self.solcast.granular_dampening_mtime).replace(microsecond=0).astimezone(self.solcast.options.tz)
+                        if self.solcast.granular_dampening_mtime
+                        else None
+                    ),
+                }
                 if self.solcast.options.auto_dampen:
                     factors: dict[str, dict[str, Any]] = {}
                     dst = False
@@ -1148,21 +1072,25 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                         for i, f in enumerate(self.solcast.granular_dampening.get(ALL, []))
                     ]
             else:
-                ret[INTEGRATION_AUTOMATED] = False
-                ret[LAST_UPDATED] = None
-                ret[FACTORS] = [
-                    {
-                        INTERVAL: i,
-                        FACTOR: f,
-                    }
-                    for i, f in self.solcast.options.dampening.items()
-                ]
+                ret |= {
+                    INTEGRATION_AUTOMATED: False,
+                    LAST_UPDATED: None,
+                    FACTORS: [
+                        {
+                            INTERVAL: i,
+                            FACTOR: f,
+                        }
+                        for i, f in self.solcast.options.dampening.items()
+                    ],
+                }
+            # Add advanced options
+            ret |= {k: v for k, v in self.solcast.advanced_options.items() if "dampening" in k}
 
         if key in (ENTITY_LAST_UPDATED, ENTITY_LAST_UPDATED_OLD):
-            ret.update(self._get_auto_update_details())
+            ret |= self._get_auto_update_details()
 
         if key == ENTITY_FORECAST_CUSTOM_HOURS:
-            ret.update({CUSTOM_HOURS: self.solcast.options.custom_hour_sensor})
+            ret |= {CUSTOM_HOURS: self.solcast.options.custom_hour_sensor}
 
         return ret
 

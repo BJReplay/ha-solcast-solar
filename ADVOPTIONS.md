@@ -37,6 +37,65 @@ You are free to raise an issue should a code exception occur after setting an ad
 
 ## Automated dampening
 
+**Key: "automated_dampening_adaptive_model_configuration"**
+
+Possible values: boolean `true`/`false` (default `false`)
+
+Setting this option to `true` will (in time) choose the combination of dampening model and delta adjustment that resulted in the lowest error between generation and dampened estimated actuals over previous days.  The minimum number of days history required is defined by the setting `automated_dampening_adaptive_model_minimum_history_days` and the maximum number of days is defined by `automated_dampening_model_days`.  
+
+At the end of each day the integration will calculate dampening factors for all possible dampening model and delta adjustment combinations and record the results to `solcast-dampening-history.json`.  After updated estimated actuals are retrieved from Solcast the error between generation and dampened estimated actuals is calculated for every allowed combination of dampening model and delta adjustment, as well as for each model with no delta adjustment applied. 
+
+When `automated_dampening_no_delta_adjustment` is true, the algorithm selects the dampening model with the lowest error from the configurations that do not use delta adjustment.  When it is false, the algorithm selects the combination of dampening model and delta adjustment option that produces the lowest error. The selected option(s) will then be applied to today's forecast and the settings for `automated_dampening_model` and `automated_dampening_delta_adjustment_model` will be updated in `solcast-advanced.json`.  No other values in `solcast-advanced.json` will be affected, and entries for `automated_dampening_model` and `automated_dampening_delta_adjustment_model` will be added if they are not already defined in this file.
+
+A warning will be logged and an ignorable issue raised whenever the `automated_dampening_no_delta_adjustment` setting disagrees with the overall best error results. This happens if `automated_dampening_no_delta_adjustment` is `true` but a delta adjusted model performs better, or if it is `false` but a model without delta adjustment achieves a lower error.
+
+**Key: "automated_dampening_adaptive_model_ape_selection"**
+
+Possible values: `-1`..`100` (default 10)
+
+When adaptive modelling determines the "best" intervals to use it selects either a "percentile" absolute percentage error value, or the mean absolute percentage error.
+
+By default, a 10th percentile is selected, but any percentile or a mean absolute percentage error (MAPE, `-1`) may be utilised.
+
+**Key: "automated_dampening_adaptive_model_exclude"**
+
+Possible values: list of dictionaries {`model`, `delta`} (default `[]`)
+
+Setting this option allows the user to specify combinations of dampening model (`model`) and delta adjustment model (`delta`) that will be excluded from the adaptive model configuration process.  Dampening history will still be recorded for these combinations so they can be reinstated at any time.  An example of configuration syntax in `solcast-advanced.json` is:
+
+```json
+"automated_dampening_adaptive_model_exclude": [
+    { "model": 3, "delta": 0 },
+    { "model": 3, "delta": 1 }
+    ]
+```
+
+Can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
+
+**Key: "automated_dampening_adaptive_model_minimum_error_delta"**
+
+Possible values: float `0.0`,,`10.0` (default `0.0`)
+
+Defines a minimum change in error that is required before adaptive model configuration is changed.  For example if the current settings return a error of 5.35% and this threshold is set to 1.0 a configuration would need to return a error below 4.35% to change settings to the new model and/or delta adjustment.  
+
+Can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
+
+**Key: "automated_dampening_adaptive_model_minimum_undampened_actual"**
+
+Possible values: float `0.0`,,`10.0` (default `0.0`)
+
+While Solcast's estimated actual figures are usually very reliable they can sometimes struggle when a site has very poor generation due to a bad weather day.  Including these bad days in the adaptive model configuration process can lead to unexpected results.  This option defines a minimum undampened daily total (kWh) and can be used to exclude these bad days from the adaptive modelling process.  
+ 
+Can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
+
+**Key: "automated_dampening_adaptive_model_minimum_history_days"**
+
+Possible values: integer `1`,,`21` (default `3`)
+
+Defines the minimum number of days of dampening history required before adaptive model configuration will set values for `automated_dampening_model` and `automated_dampening_delta_adjustment_model`.  
+
+Must not be greater than `automated_dampening_model_days`, and can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
+
 **Key: "automated_dampening_delta_adjustment_model"**
 
 Possible values: integer `0`,`1` (default `0`)
@@ -141,7 +200,7 @@ The maximum number of days of past estimated actuals and generation to use for m
 
 Possible values: boolean `true`/`false` (default `false`)
 
-If delta logarithmic adjustment of dampening factors is not desired then this option may be set to `true`.
+If delta adjustment of dampening factors is not desired then this option may be set to `true`.
 
 **Key: "automated_dampening_no_limiting_consistency"**
 

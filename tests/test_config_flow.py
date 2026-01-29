@@ -21,6 +21,7 @@ from homeassistant.components.solcast_solar.config_flow import (
     SolcastSolarOptionFlowHandler,
 )
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_INVALID_JSON_TASK,
     ADVANCED_OPTION,
     API_QUOTA,
     AUTO_DAMPEN,
@@ -813,7 +814,7 @@ async def test_advanced_options(
         advanced_options_with_aliases, _ = solcast._advanced_options_with_aliases()
 
         async def wait():
-            for _ in range(1000):
+            for _ in range(2000):
                 freezer.tick(0.1)
                 await hass.async_block_till_done()
 
@@ -847,6 +848,9 @@ async def test_advanced_options(
         _LOGGER.debug("Testing advanced options 1")
         data_file_1: dict[str, Any] = {
             "api_raise_issues": True,
+            "automated_dampening_adaptive_model_configuration": False,
+            "automated_dampening_adaptive_model_exclude": [],
+            "automated_dampening_adaptive_model_minimum_history_days": 3,
             "automated_dampening_minimum_matching_intervals": 2,
             "automated_dampening_ignore_intervals": ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30"],
             "automated_dampening_insignificant_factor": 0.95,
@@ -890,6 +894,9 @@ async def test_advanced_options(
         _LOGGER.debug("Testing advanced options 2")
         data_file_2: dict[str, Any] = {
             "api_raise_issues": False,
+            "automated_dampening_adaptive_model_configuration": 0,
+            "automated_dampening_adaptive_model_exclude": ["wrong", "wrong", "so wrong"],
+            "automated_dampening_adaptive_model_minimum_history_days": 0,
             "automated_dampening_minimum_matching_generation": 0,
             "automated_dampening_minimum_matching_intervals": 0,
             "automated_dampening_ignore_intervals": ["24:00", "12:20", "13:00", "13:00", "14:00", "14:30", "15:00", "15:30"],
@@ -948,6 +955,8 @@ async def test_advanced_options(
         assert "Invalid int in advanced option estimated_actuals_log_ape_percentiles: wrong_type" in caplog.text
         assert "Invalid int in advanced option estimated_actuals_log_ape_percentiles: 0.5" in caplog.text
         assert "Duplicate int in advanced option estimated_actuals_log_ape_percentiles: 10" in caplog.text
+        for i in range(3):
+            assert f"Invalid entry in automated_dampening_adaptive_model_exclude at index {i}: expected dict, got str" in caplog.text
 
         assert "Advanced options changed, restarting" in caplog.text
         assert "Start is not stale" in caplog.text
@@ -972,6 +981,14 @@ async def test_advanced_options(
 
         _LOGGER.debug("Testing advanced options 3")
         data_file_3: dict[str, Any] = {
+            "automated_dampening_adaptive_model_exclude": [
+                {"model": 3, "delta": 1},
+                {"model": 3, "delta": "hairy_one"},
+                {"model": 3, "delta": {"see": "this_one_coming?"}},
+                {"modell": 1, "delta": 1},
+                {"model": 1, "delta": 1, "gift_with_purchase": True},
+                {"bullshit": "value", "delta": "value", "so wrong": "value"},
+            ],
             "automated_dampening_generation_fetch_delay": 40,
             "estimated_actuals_fetch_delay": 30,
             "forecast_future_days": 8,
@@ -982,6 +999,15 @@ async def test_advanced_options(
         }
         data_file.write_text(json.dumps(data_file_3), encoding="utf-8")
         await wait()
+        assert "index 0:" not in caplog.text
+        for i in (1, 2):
+            assert (
+                f"Invalid value type in automated_dampening_adaptive_model_exclude entry at index {i}: key 'delta' must be an integer"
+                in caplog.text
+            )
+        for i in (3, 5):
+            assert f"Missing keys in automated_dampening_adaptive_model_exclude entry at index {i}" in caplog.text
+        assert "Incorrect number of keys in automated_dampening_adaptive_model_exclude entry at index 4: found 3, expected 2" in caplog.text
         assert "Advanced option automated_dampening_generation_fetch_delay: 40 must be less than or equal" in caplog.text
         assert "Advanced option estimated_actuals_fetch_delay: 30 must be greater than or equal" in caplog.text
         assert "Advanced option forecast_day_entities: 10 must be less than or equal" in caplog.text
@@ -996,8 +1022,10 @@ async def test_advanced_options(
         # )
         caplog.clear()
 
+        _LOGGER.debug("Testing advanced options configuration file removal")
         data_file = data_file.rename(f"{config_dir}/solcast-advanced.bak")
         await wait()
+        assert "Advanced option default set" in caplog.text
         assert "Advanced options file deleted, no longer monitoring" in caplog.text
         caplog.clear()
         data_file = data_file.rename(f"{config_dir}/solcast-advanced.json")
@@ -1006,14 +1034,36 @@ async def test_advanced_options(
 
         caplog.clear()
 
-        data_file.write_text('{"option_1": "one", "option_2": "two",}', encoding="utf-8")  # trailing comma
+        _LOGGER.debug("Testing advanced options 4")
+        requires = {
+            "automated_dampening_adaptive_model_configuration": [
+                {"option": "automated_dampening_adaptive_model_minimum_history_days", "value": 7},
+                {"option": "automated_dampening_adaptive_model_exclude", "value": [{"model": 1, "delta": 2}]},
+            ]
+        }
+        data_file_4: dict[str, Any] = {
+            "automated_dampening_adaptive_model_configuration": False,
+            **{option["option"]: option["value"] for options in requires.values() for option in options},
+        }
+        data_file.write_text(json.dumps(data_file_4), encoding="utf-8")
         await wait()
+        for require, options in requires.items():
+            for option in options:
+                assert f"{option['option']} requires {require} to be set" in caplog.text
+        caplog.clear()
+
+        _LOGGER.debug("Testing advanced options invalid configuration")
+        data_file.write_text('{"option_1": "one", "option_2": "two",}', encoding="utf-8")  # trailing comma
+        await wait_for("Raise issue in 60 seconds")
         assert "Advanced options file invalid format, expected JSON `dict`" in caplog.text
+        assert "Raise issue in 60 seconds" in caplog.text
 
         data_file_1["reload_on_advanced_change"] = True
         data_file_1["forecast_day_entities"] = 14
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
         await wait()
+        assert ADVANCED_INVALID_JSON_TASK not in solcast.tasks
+
         caplog.clear()
         entity = "sensor.solcast_pv_forecast_forecast_day_13"
         er.async_get(hass).async_update_entity(entity, disabled_by=None)
