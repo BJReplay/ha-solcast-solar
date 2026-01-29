@@ -15,6 +15,10 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SHIT,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
+    ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS,
+    ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT,
     AUTO_DAMPEN,
     AUTO_UPDATE,
     CONFIG_DISCRETE_NAME,
@@ -34,6 +38,7 @@ from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.components.solcast_solar.util import (
     DateTimeEncoder,
     JSONDecoder,
+    NoIndentEncoder,
     SolcastApiStatus,
     percentile,
 )
@@ -583,8 +588,8 @@ async def test_adaptive_auto_dampen(
             _LOGGER.debug("Rolling over to tomorrow")
             caplog.clear()
             removed = -5
-            value_removed = solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"].pop(removed)  # pyright: ignore[reportPrivateUsage]
-            freezer.move_to((dt.now(solcast._tz) + timedelta(**roll)).replace(minute=0, second=0, microsecond=0))  # pyright: ignore[reportPrivateUsage]
+            solcast._data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"].pop(removed)
+            freezer.move_to((dt.now(solcast._tz) + timedelta(**roll)).replace(minute=0, second=0, microsecond=0))
             await hass.async_block_till_done()
             solcast.suppress_advanced_watchdog_reload = True
             await solcast.read_advanced_options()
@@ -601,11 +606,26 @@ async def test_adaptive_auto_dampen(
                 assert "Advanced option 'automated_dampening_model' set to: 1" in caplog.text
                 assert "Task serialise_advanced_options took" in caplog.text
                 assert re.search(r"Advanced options file .+ exists", caplog.text) is None
+
+                solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SHIT] = True
+                solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE] = [{"model": 2, "delta": -1}]
+                await solcast.determine_best_dampening_settings()
+                assert "Adaptive dampening selection going ape shit" in caplog.text
+                assert "Skipping model 2 and delta -1 as in automated_dampening_adaptive_model_exclude" in caplog.text
+                solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_APE_SHIT] = False
+                solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE] = []
+
+                solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT] = True
+                await solcast.determine_best_dampening_settings()
+                solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT] = False
+
             elif count == len(roll_to) - 2:
                 assert "Insufficient continuous dampening history" in caplog.text
                 # Knobble the history for some combos
-                solcast._data_dampening_history[2][0] = solcast._data_dampening_history[3][0][:-1]  # pyright: ignore[reportPrivateUsage]
-                solcast._data_dampening_history[2][1] = []  # pyright: ignore[reportPrivateUsage]
+                now_missing_2_1 = copy.deepcopy(solcast._data_dampening_history[2][1])
+                now_missing_2_0_1 = copy.deepcopy(solcast._data_dampening_history[2][0][1])
+                solcast._data_dampening_history[2][0] = solcast._data_dampening_history[3][0][:-1]
+                solcast._data_dampening_history[2][1] = []
             else:
                 assert "Insufficient continuous dampening history" in caplog.text
 
@@ -615,7 +635,31 @@ async def test_adaptive_auto_dampen(
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
         await _wait_for_it(hass, caplog, freezer, "Completed task stale_update", long_time=True)
+        await _wait_for_it(hass, caplog, freezer, "Task load_dampening_history took")
 
+        # Re-add dampening history for today
+        caplog.clear()
+        _LOGGER.debug("Re-adding dampening history for today")
+        await solcast.update_dampening_history()
+
+        # Test valid and full history
+        solcast._data_dampening_history[2][1] = solcast._data_dampening_history[2][1] + list(now_missing_2_1)
+        solcast._data_dampening_history[2][0].append(now_missing_2_0_1)
+        Path(f"{config_dir}/solcast-dampening-history.json").write_text(
+            json.dumps(solcast._data_dampening_history, ensure_ascii=False, indent=2, cls=NoIndentEncoder, above_level=4), encoding="utf-8"
+        )
+        caplog.clear()
+        solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] = 3
+        await solcast.load_dampening_history()
+        assert "Automated dampening adaptive model configuration may be sub-optimal" not in caplog.text
+        solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] = 14
+
+        # Corrupt the history and reload it
+        caplog.clear()
+        _LOGGER.debug("Corrupting dampening history and reloading it")
+        Path(f"{config_dir}/solcast-dampening-history.json").write_text("having a bad day", encoding="utf-8")
+        await solcast.load_dampening_history()
+        assert "Dampening history file is corrupt" in caplog.text
         # assert False
 
     finally:

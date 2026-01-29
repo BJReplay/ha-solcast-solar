@@ -3413,7 +3413,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         return actuals
 
-    async def determine_best_dampening_settings(self) -> None:  # noqa: C901
+    async def determine_best_dampening_settings(self) -> None:
         """Determine which dampening settings result in the lowest error rate.
 
         Finds earliest common history start date for all models with > minimum dampening history.
@@ -3500,6 +3500,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     _LOGGER.debug("Skipping model %d and delta %d as %s", model, delta, reason)
                     continue
 
+                await asyncio.sleep(0)  # Be nice to HA
                 _LOGGER.debug("Evaluating model %d and delta %d", model, delta)
 
                 valid = True
@@ -3507,7 +3508,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 dampened_intervals: dict[dt, set[int]] = {}  # Track which intervals were dampened per day
 
                 for model_entry in model_entries:
-                    await asyncio.sleep(0)  # Be nice to HA
                     period_start = model_entry["period_start"]
                     factors = model_entry["factors"]
 
@@ -3532,9 +3532,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         break
                     """
 
+                    ##### Pretty sure this is unreachable code. Double-check me.
+                    ##### day_start is built from period_start which is built from model_entry which is built from
+                    ##### self._data_dampening_history which will not include period_starts in the "future".
+                    """
                     # Skip today's incomplete data
                     if day_start == self.get_day_start_utc():
                         continue
+                    """
 
                     # Apply dampening factors to actuals
                     if day_start not in dampened_intervals:
@@ -3706,27 +3711,17 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         # Warn if alternative mode would have performed better
         if alternative_model != CONFIG_UNCHANGED and alternative_error < selected_error:
-            if use_delta_mode:
-                _LOGGER.warning(
-                    "%s is set false but adaptive dampening found that model %d with no delta adjustment had a lower %s of %.3f%% vs the selected %.3f%%",
-                    ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT,
-                    alternative_model,
-                    metric_desc,
-                    alternative_error,
-                    selected_error,
-                )
-                delta_status = "enabled"
-            else:
-                _LOGGER.warning(
-                    "%s is set true but adaptive dampening found that model %d and delta %d had a lower %s of %.3f%% vs the selected %.3f%%",
-                    ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT,
-                    alternative_model,
-                    best_delta_adjusted,
-                    metric_desc,
-                    alternative_error,
-                    selected_error,
-                )
-                delta_status = "disabled"
+            delta_status = "enabled" if use_delta_mode else "disabled"
+            _LOGGER.warning(
+                "%s is set %s but adaptive dampening found that model %d%s had a lower %s of %.3f%% vs the selected %.3f%%",
+                ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT,
+                "false" if use_delta_mode else "true",
+                alternative_model,
+                " with no delta adjustment" if use_delta_mode else f" and delta {best_delta_adjusted}",
+                metric_desc,
+                alternative_error,
+                selected_error,
+            )
             raise_issue = True
 
         if (raise_issue and not self._better_mape_issue_raised) or (self._better_mape_issue_raised and not raise_issue):
@@ -3830,7 +3825,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
             msg = f"Load dampening history loaded {loaded_count} of a maximum of {expected_records} records"
 
-            if (not valid) or (loaded_count != expected_records):
+            if loaded_count != expected_records:
                 _LOGGER.warning(
                     "%s Automated dampening adaptive model configuration may be sub-optimal until maximum history of %d days is built",
                     msg,

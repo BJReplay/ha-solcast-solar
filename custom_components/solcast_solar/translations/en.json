@@ -224,7 +224,7 @@
     }
   },
   "issues": {
-    "advanced_adaptive_better_MAPE": {
+    "advanced_adaptive_better_error": {
       "description": "Adaptive model configuration found a better solution which you could access if you {delta_status} the {option} advanced option.  Consider changing your advanced settings.",
       "title": "Adaptive model sub-optimal"
     },

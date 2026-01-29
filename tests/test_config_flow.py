@@ -21,6 +21,7 @@ from homeassistant.components.solcast_solar.config_flow import (
     SolcastSolarOptionFlowHandler,
 )
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_INVALID_JSON_TASK,
     ADVANCED_OPTION,
     API_QUOTA,
     AUTO_DAMPEN,
@@ -1053,13 +1054,16 @@ async def test_advanced_options(
 
         _LOGGER.debug("Testing advanced options invalid configuration")
         data_file.write_text('{"option_1": "one", "option_2": "two",}', encoding="utf-8")  # trailing comma
-        await wait()
+        await wait_for("Raise issue in 60 seconds")
         assert "Advanced options file invalid format, expected JSON `dict`" in caplog.text
+        assert "Raise issue in 60 seconds" in caplog.text
 
         data_file_1["reload_on_advanced_change"] = True
         data_file_1["forecast_day_entities"] = 14
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
         await wait()
+        assert ADVANCED_INVALID_JSON_TASK not in solcast.tasks
+
         caplog.clear()
         entity = "sensor.solcast_pv_forecast_forecast_day_13"
         er.async_get(hass).async_update_entity(entity, disabled_by=None)
