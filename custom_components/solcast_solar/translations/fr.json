@@ -219,6 +219,12 @@
     "integration_prior_crash": {
       "message": "L'intégration n'a pas pu être chargée précédemment, réessaye après un délai."
     },
+    "invalid_custom_hours_format": {
+      "message": "La valeur en heures doit être un nombre entier."
+    },
+    "invalid_custom_hours_range": {
+      "message": "La valeur des heures doit être comprise entre 1 et 144."
+    },
     "remove_cache_failed": {
       "message": "Échec de l'effacement de toutes les données Solcast."
     }
@@ -290,7 +296,8 @@
       "api_looks_like_site": "La clé API ressemble à un identifiant de site",
       "custom_invalid": "Capteur personnalisé non compris entre 1 et 144",
       "dampen_without_actuals": "Les valeurs réelles estimées doivent être sélectionnées pour utiliser l'amortissement automatique",
-      "dampen_without_generation": "Au moins un capteur de génération PV Wh/kWh/MWh doit être spécifié pour utiliser l'amortissement automatique",
+      "dampen_without_generation": "Au moins un capteur de production photovoltaïque doit être spécifié pour utiliser l'amortissement automatique (énergie ou puissance).",
+      "generation_mixed_types": "Les unités de production photovoltaïque doivent toutes être du même type (toute énergie ou toute puissance, pas un mélange).",
       "export_multiple_entities": "Le site d'exportation doit être une seule entité, pas plusieurs entités",
       "export_no_entity": "Le site d'exportation doit être spécifié si la limite d'exportation du site est définie",
       "hard_not_number": "La limite dure n'est pas un nombre positif",
@@ -345,7 +352,7 @@
           "config_damp": "Modifier les facteurs d'amortissement horaires (après avoir cliqué sur soumettre)",
           "customhoursensor": "Capteur personnalisé des X prochaines heures (min=1, max=144)",
           "exclude_sites": "Site(s) à exclure du tableau de bord Énergie et des totaux des capteurs",
-          "generation_entities": "Entité(s) de production PV pour amortissement automatisé (Wh/kWh/MWh, augmentation totale)",
+          "generation_entities": "Entité(s) de production PV pour l'amortissement automatisé (énergie : Wh/kWh/MWh total croissant, ou puissance : W/kW/MW instantanée)",
           "get_actuals": "Valeurs réelles estimées mises à jour à minuit (voir la documentation d'intégration, utilise un appel API par site et par jour, donc un quota API réduit est nécessaire avec cette option activée)",
           "hard_limit_api": "Limite stricte de l'onduleur en kW (voir la documentation d'intégration)",
           "key_estimate": "Probabilité de prévision préférée à utiliser pour les capteurs",
@@ -443,6 +450,16 @@
     "remove_hard_limit": {
       "description": "Supprimer la limite définie.",
       "name": "Supprimer la limite stricte de prévision de l'onduleur"
+    },
+    "set_custom_hours": {
+      "description": "Définissez le nombre d'heures personnalisé du capteur X.",
+      "fields": {
+        "hours": {
+          "description": "Nombre d'heures à régler (1-144).",
+          "name": "Heures"
+        }
+      },
+      "name": "Configurer le capteur d'heures personnalisé"
     },
     "set_dampening": {
       "description": "Définissez les facteurs d’amortissement des prévisions.",
