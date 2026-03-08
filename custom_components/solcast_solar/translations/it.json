@@ -219,6 +219,12 @@
     "integration_prior_crash": {
       "message": "L'integrazione non è riuscita a caricarsi in precedenza, si riprova dopo un ritardo."
     },
+    "invalid_custom_hours_format": {
+      "message": "Il valore delle ore deve essere un numero intero."
+    },
+    "invalid_custom_hours_range": {
+      "message": "Il valore delle ore deve essere compreso tra 1 e 144."
+    },
     "remove_cache_failed": {
       "message": "Eliminazione di tutti i dati Solcast non riuscita."
     }
@@ -290,7 +296,8 @@
       "api_looks_like_site": "La chiave API sembra un ID sito",
       "custom_invalid": "Sensore personalizzato non compreso tra 1 e 144",
       "dampen_without_actuals": "Per utilizzare l'auto-smorzamento è necessario selezionare i valori effettivi stimati",
-      "dampen_without_generation": "È necessario specificare almeno un sensore Wh/kWh/MWh di generazione fotovoltaica per utilizzare l'auto-smorzamento",
+      "dampen_without_generation": "È necessario specificare almeno un sensore di generazione fotovoltaica per utilizzare l'auto-smorzamento (energia o potenza)",
+      "generation_mixed_types": "Le entità di generazione fotovoltaica devono essere tutte dello stesso tipo (tutta energia o tutta potenza, non un mix)",
       "export_multiple_entities": "Il sito di esportazione deve essere una sola entità, non più entità",
       "export_no_entity": "Il sito di esportazione deve essere specificato se è impostato un limite di esportazione del sito",
       "hard_not_number": "Il limite massimo non è un numero positivo",
@@ -345,7 +352,7 @@
           "config_damp": "Modifica i fattori di smorzamento orari (dopo aver cliccato su invia)",
           "customhoursensor": "Sensore personalizzato per le prossime X ore (min=1, max=144)",
           "exclude_sites": "Sito/i da escludere dal dashboard Energia e dai totali dei sensori",
-          "generation_entities": "Entità/entità di generazione fotovoltaica per smorzamento automatico (Wh/kWh/MWh, aumento totale)",
+          "generation_entities": "Entità di generazione fotovoltaica per smorzamento automatizzato (energia: Wh/kWh/MWh totale crescente, o potenza: W/kW/MW istantaneo)",
           "get_actuals": "Valori reali stimati aggiornati a mezzanotte (vedere la documentazione dell'integrazione, utilizza una chiamata API per sito al giorno, quindi è necessario un limite API ridotto con questa opzione abilitata)",
           "hard_limit_api": "Limite rigido dell'inverter in kW (vedere la documentazione dell'integrazione)",
           "key_estimate": "Probabilità di previsione preferita da utilizzare per i sensori",
@@ -443,6 +450,16 @@
     "remove_hard_limit": {
       "description": "Rimuovi il limite impostato.",
       "name": "Rimuovi il limite rigido delle previsioni dell'inverter"
+    },
+    "set_custom_hours": {
+      "description": "Imposta il numero di ore personalizzato del sensore X.",
+      "fields": {
+        "hours": {
+          "description": "Numero di ore da impostare (1-144).",
+          "name": "Ore"
+        }
+      },
+      "name": "Imposta il sensore orario personalizzato"
     },
     "set_dampening": {
       "description": "Imposta i fattori di smorzamento delle previsioni.",
