@@ -211,7 +211,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
         (Path(self.config_dir).mkdir(parents=False, exist_ok=True)) if CONFIG_FOLDER_DISCRETE else None
         _LOGGER.debug("Configuration directory is %s", self.config_dir)
-        self.migrate_config_files()
 
         file_path = Path(self.config_dir) / Path(options.file_path).name
         self.advanced_opt = AdvancedOptions(self)
@@ -232,7 +231,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.query = ForecastQuery(self)
         self.sites_cache = SitesCache(self)
 
-    def migrate_config_files(self) -> None:
+    def _migrate_config_files(self) -> list[str]:
         """Migrate config files to discrete folder if required."""
 
         source_path = Path(self.config_dir) / ".." if CONFIG_FOLDER_DISCRETE else Path(self.config_dir) / "solcast_solar"
@@ -250,6 +249,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 unlinked.append(str(file.name))
             else:
                 _LOGGER.debug("File %s has length %d", file.resolve(), file.stat().st_size)
+
+        with contextlib.suppress(OSError):
+            ((Path(self.config_dir) / "solcast_solar").rmdir()) if not CONFIG_FOLDER_DISCRETE else None
+
+        return unlinked
+
+    async def async_migrate_config_files(self) -> None:
+        """Migrate config files to discrete folder if required."""
+        unlinked = await self.hass.async_add_executor_job(self._migrate_config_files)
+
         if unlinked:
             _LOGGER.debug("Raise issue `%s` for files %s", ISSUE_CORRUPT_FILE, str(unlinked))
             ir.async_create_issue(
@@ -265,8 +274,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 },
                 learn_more_url=LEARN_MORE_CORRUPT_FILE,
             )
-        with contextlib.suppress(OSError):
-            ((Path(self.config_dir) / "solcast_solar").rmdir()) if not CONFIG_FOLDER_DISCRETE else None
 
     async def tasks_cancel(self):
         """Cancel all tasks."""
