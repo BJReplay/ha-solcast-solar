@@ -219,6 +219,12 @@
     "integration_prior_crash": {
       "message": "Integracja nie mogła się wcześniej załadować, ponawianie próby po opóźnieniu."
     },
+    "invalid_custom_hours_format": {
+      "message": "Wartość godzin musi być liczbą całkowitą."
+    },
+    "invalid_custom_hours_range": {
+      "message": "Wartość godzin musi zawierać się w przedziale od 1 do 144."
+    },
     "remove_cache_failed": {
       "message": "Wyczyść wszystkie dane Solcast nie powiodło się."
     }
@@ -290,7 +296,8 @@
       "api_looks_like_site": "Klucz API wygląda jak identyfikator witryny",
       "custom_invalid": "Niestandardowy czujnik nie znajduje się pomiędzy 1 a 144",
       "dampen_without_actuals": "Aby użyć automatycznego tłumienia, należy wybrać szacowane wartości rzeczywiste",
-      "dampen_without_generation": "Aby korzystać z automatycznego tłumienia, należy określić co najmniej jeden czujnik Wh/kWh/MWh generacji fotowoltaicznej",
+      "dampen_without_generation": "Należy określić co najmniej jeden czujnik generacji fotowoltaicznej, który będzie korzystał z automatycznego tłumienia (energii lub mocy)",
+      "generation_mixed_types": "Wszystkie jednostki generujące energię fotowoltaiczną muszą być tego samego typu (cała energia lub cała moc, a nie mieszanka)",
       "export_multiple_entities": "Jednostka eksportu witryny musi być pojedynczą jednostką, a nie wieloma jednostkami",
       "export_no_entity": "Jednostka eksportu witryny musi być określona, jeśli jest ustawiony limit eksportu witryny",
       "hard_not_number": "Twardy limit nie jest liczbą dodatnią",
@@ -345,7 +352,7 @@
           "config_damp": "Zmodyfikuj godzinowe współczynniki tłumienia (po kliknięciu przycisku „ZATWIERDŹ”)",
           "customhoursensor": "Niestandardowy czujnik następnej godziny X (min.=1, maks.=144)",
           "exclude_sites": "Miejsca, które należy wykluczyć z pulpitu nawigacyjnego Energy i sum czujników",
-          "generation_entities": "Jednostka/jednostki generacji fotowoltaicznej do automatycznego tłumienia (Wh/kWh/MWh, łącznie wzrasta)",
+          "generation_entities": "Jednostka/jednostki generacji fotowoltaicznej do automatycznego tłumienia (energia: Wh/kWh/MWh łącznie wzrasta lub moc: W/kW/MW chwilowo)",
           "get_actuals": "Szacowane wartości rzeczywiste aktualizowane o północy (patrz dokumentacja integracji, używa jednego wywołania API na stronę dziennie, więc zredukowany limit API jest potrzebny z tą opcją włączoną)",
           "hard_limit_api": "Sztywny limit falownika w kW (patrz dokumentacja integracji, wiele wartości należy oddzielić przecinkiem dla każdego klucza)",
           "key_estimate": "Preferowane prawdopodobieństwo zastosowania prognozy w przypadku czujników",
@@ -443,6 +450,16 @@
     "remove_hard_limit": {
       "description": "Usuń ustawiony limit.",
       "name": "Usuń twardy limit prognoz inwertera"
+    },
+    "set_custom_hours": {
+      "description": "Ustaw niestandardową liczbę godzin czujnika X godzin.",
+      "fields": {
+        "hours": {
+          "description": "Liczba godzin do ustawienia (1-144).",
+          "name": "Godziny"
+        }
+      },
+      "name": "Ustaw niestandardowy czujnik godzin"
     },
     "set_dampening": {
       "description": "Ustaw prognozowane współczynniki tłumienia.",
