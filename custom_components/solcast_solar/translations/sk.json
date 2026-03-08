@@ -219,6 +219,12 @@
     "integration_prior_crash": {
       "message": "Integrácia sa predtým nepodarilo načítať, skúša sa to znova po oneskorení."
     },
+    "invalid_custom_hours_format": {
+      "message": "Hodnota hodín musí byť celé číslo."
+    },
+    "invalid_custom_hours_range": {
+      "message": "Hodnota hodín musí byť medzi 1 a 144."
+    },
     "remove_cache_failed": {
       "message": "Vymazanie všetkých údajov Solcast zlyhalo."
     }
@@ -290,7 +296,8 @@
       "api_looks_like_site": "Kľúč API vyzerá ako ID lokality",
       "custom_invalid": "Vlastný snímač nie medzi 1 a 144",
       "dampen_without_actuals": "Na použitie automatického tlmenia je potrebné vybrať odhadované skutočné hodnoty",
-      "dampen_without_generation": "Pre použitie automatického tlmenia musí byť špecifikovaný aspoň jeden snímač Wh/kWh/MWh pre výrobu FV energie",
+      "dampen_without_generation": "Na použitie automatického tlmenia (energia alebo výkon) musí byť špecifikovaný aspoň jeden snímač výroby FV energie.",
+      "generation_mixed_types": "Všetky jednotky na výrobu fotovoltaiky musia byť rovnakého typu (iba energia alebo iba výkon, nie zmiešané)",
       "export_multiple_entities": "Export lokality musí byť jedna entita, nie viacero entít",
       "export_no_entity": "Export lokality musí byť špecifikovaný, ak je nastavený limit exportu lokality",
       "hard_not_number": "Pevný limit nie je kladné číslo",
@@ -345,7 +352,7 @@
           "config_damp": "Upravte hodinové faktory tlmenia (po kliknutí na odoslať)",
           "customhoursensor": "Vlastný senzor ďalších X hodín (min=1, max=144)",
           "exclude_sites": "Lokality, ktoré sa majú vylúčiť zo súčtu energie a senzorov",
-          "generation_entities": "Entita/entity výroby FV energie pre automatické tlmenie (Wh/kWh/MWh, celkový nárast)",
+          "generation_entities": "Entita/entity FV výroby pre automatické tlmenie (energia: Wh/kWh/MWh celková nárast alebo výkon: W/kW/MW okamžitý)",
           "get_actuals": "Odhadované skutočné hodnoty sa aktualizujú o polnoci (pozri dokumentáciu k integrácii, používa jednu API volanie na lokalitu za deň, takže je potrebné znížiť limit API s touto možnosťou povolenou)",
           "hard_limit_api": "Pevný limit meniča vo kilowattov (pozri integračnú dokumentáciu)",
           "key_estimate": "Preferovaná pravdepodobnosť použitia pre senzory",
@@ -443,6 +450,16 @@
     "remove_hard_limit": {
       "description": "Odstráňte nastavený limit.",
       "name": "Odstráňte pevný limit predpovede meniča"
+    },
+    "set_custom_hours": {
+      "description": "Nastavte vlastný počet hodín senzora X hodín.",
+      "fields": {
+        "hours": {
+          "description": "Počet hodín, ktoré sa majú nastaviť (1 – 144).",
+          "name": "Hodiny"
+        }
+      },
+      "name": "Nastaviť vlastný senzor hodín"
     },
     "set_dampening": {
       "description": "Nastavte faktory tlmenia prognózy.",
