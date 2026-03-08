@@ -220,8 +220,10 @@
       "message": "Die Integration konnte zuvor nicht geladen werden und wird nach einer Verzögerung erneut versucht."
     },
     "invalid_custom_hours_format": {
+      "message": "Der Stundenwert muss eine ganze Zahl sein."
     },
     "invalid_custom_hours_range": {
+      "message": "Der Stundenwert muss zwischen 1 und 144 liegen."
     },
     "remove_cache_failed": {
       "message": "Das Löschen aller Solcast-Daten ist fehlgeschlagen."
@@ -294,6 +296,7 @@
       "api_looks_like_site": "Der API-Schlüssel sieht aus wie eine Site-ID",
       "custom_invalid": "Benutzerdefinierter Sensor nicht zwischen 1 und 144",
       "dampen_without_actuals": "Um die automatische Dämpfung zu verwenden, müssen geschätzte Istwerte ausgewählt werden.",
+      "dampen_without_generation": "Um die automatische Dämpfung zu nutzen, muss mindestens ein Wh/kWh/MWh-Sensor für die PV-Erzeugung angegeben werden.",
       "export_multiple_entities": "Die Site-Export-Entität muss eine einzelne Entität sein, nicht mehrere Entitäten.",
       "export_no_entity": "Die Site-Export-Entität muss angegeben werden, wenn das Site-Export-Limit festgelegt ist.",
       "hard_not_number": "Der fester Grenzwert ist keine positive Zahl",
@@ -348,6 +351,7 @@
           "config_damp": "Ändern Sie die stündlichen Dämpfungsfaktoren (nachdem Sie auf „Senden“ geklickt haben)",
           "customhoursensor": "Nächster X-Stunden-Sensor (min=1, max=144)",
           "exclude_sites": "Vom Energie-Dashboard und den Sensorgesamtwerten auszuschließende Site(s)",
+          "generation_entities": "PV-Erzeugungseinheit(en) für automatisierte Dämpfung (Wh/kWh/MWh, Gesamterhöhung)",
           "get_actuals": "Geschätzte Istwerte werden um Mitternacht aktualisiert (siehe Integrationsdokumentation, verwendet einen API-Aufruf pro Standort und Tag, daher ist ein reduzierter API-Limit erforderlich, wenn diese Option aktiviert ist)",
           "hard_limit_api": "Fester Grenzwert des Wechselrichters in kW (siehe Integrationsdokumentation)",
           "key_estimate": "Bevorzugte Prognosewahrscheinlichkeit für Sensoren",
@@ -447,10 +451,14 @@
       "name": "Entfernen Sie die fester Grenze der Wechselrichterprognose"
     },
     "set_custom_hours": {
+      "description": "Legen Sie die benutzerdefinierte Anzahl der Stunden für den X-Stunden-Sensor fest.",
       "fields": {
         "hours": {
+          "description": "Anzahl der einzustellenden Stunden (1-144).",
+          "name": "Std"
         }
-      }
+      },
+      "name": "Set custom hours sensor"
     },
     "set_dampening": {
       "description": "Legen Sie prognostizierte Dämpfungsfaktoren fest.",
