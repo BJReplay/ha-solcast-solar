@@ -8,8 +8,6 @@
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/y/BJReplay/ha-solcast-solar?style=for-the-badge)
 ![Maintenance](https://img.shields.io/maintenance/yes/2026?style=for-the-badge)
 
-**Languages:** [🇦🇺 English](https://github.com/BJReplay/ha-solcast-solar/blob/main/README.md) | [🇩🇪 Deutsch](https://github.com/BJReplay/ha-solcast-solar/blob/main/README_de.md) | [🇫🇷 Français](https://github.com/BJReplay/ha-solcast-solar/blob/main/README_fr.md)
-
 ## Preamble
 
 This custom component integrates the Solcast PV Forecast for hobbyists into Home Assistant (https://www.home-assistant.io).
@@ -27,7 +25,7 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
 > Do not post "me too" comments on existing issues (but feel free to thumbs up or subscribe to notifications on issues where you have the same issue) or assume that if you have a similar error, that it is the same.   Unless the error is identical, it is probably not the same error.
 > 
 > Always consider whether you should raise an issue for a bug in the integration or if you need help setting things up or configuring your integration.
-> If you require support, please check if there is an existing discussion that has an answer for your question, or ask a question in the disscussion section.
+> If you require support, please check if there is an existing discussion that has an answer for your question, or ask a question in the discussion section.
 >
 > If you believe you have found an issue that is a bug, please make sure you follow the instructions in the issue template when raising your issue.
 
@@ -1306,6 +1304,8 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 ## Changes
 
+Latest minor/patch releases.
+
 v4.5.0
 
 * Add adaptive automated dampening as advanced options by @Nilogax and @autoSteve
@@ -1319,6 +1319,9 @@ v4.5.0
 * Fix advanced option validation for `not_set_if` (#435) by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.4.10...v4.5.0
+
+### Prior changes
+<details><summary><i>Click here for changes back to v3.0</i></summary>
 
 v4.4.10
 
@@ -1442,9 +1445,6 @@ v4.4.0
 * Minimum HA version 2024.11
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.3.5...v4.4.0
-
-### Prior changes
-<details><summary><i>Click here for changes back to v3.0</i></summary>
 
 v4.3.5
 * Fix API key change detection on 429 when using multi-key by @autoSteve
