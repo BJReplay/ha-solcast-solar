@@ -49,6 +49,14 @@ A clear and concise description of what you expected to happen.
 
 If applicable, add screenshots to help explain your problem.
 
+## AI
+
+I confirm:
+
+- [ ] I have **not used AI** and this issue is **not** a result of AI developed HA components / use of this integration
+- [ ] I **have used AI** but have **read the documentation before raising this issue** and can confirm I have a genuine issue
+- [ ] I have included **debug** logs for any AI related issues.
+
 ## Logs
 
 I confirm:
@@ -76,13 +84,22 @@ If you are using docker, it sometimes can be easier to gather logs using `docker
 
 - Integration Version [e.g. 4.0.29]
 
-## Desktop (please complete the following information)
+## Home Assistant Environment
+
+- Home Assistant Version [e.g. 2026.0]
+- Installation method [e.g. Home Assistant OS / Docker / HA Green]
+- Home Assistant Core Version [e.g. 2026.3.1]
+- Home Assistant Supervisor Version [e.g. 2026.02.3]
+- Operating System [e.g. HAOS 17.1 / Linux Ubuntu 24.03]
+- Home Assistant Frontend Version [e.g. 20260304.0]
+
+### Desktop (please complete the following information if you encounter the error on your desktop / PC)
 
 - OS: [e.g. iOS]
 - Browser [e.g. chrome, safari]
 - Version [e.g. 22]
 
-## Smartphone (please complete the following information)
+### Smartphone (please complete the following information if you encounter the error on your phone)
 
 - Device: [e.g. iPhone6]
 - OS: [e.g. iOS8.1]
