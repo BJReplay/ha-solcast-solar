@@ -53,8 +53,8 @@ If applicable, add screenshots to help explain your problem.
 
 I confirm:
 
-- [ ] I have **not used AI** and this issue is **not** a result of AI developed HA components / use of this integration
-- [ ] I **have used AI** but have **read the documentation before raising this issue** and can confirm I have a genuine issue
+- [ ] I have **not used AI** to generate any Home Assistant configuration, automations, or custom components related to this issue, and I believe this is a bug in the Solcast integration itself
+- [ ] I **have used AI** but have **read the documentation before raising this issue** and can confirm that the problem is not caused by AI‑generated Home Assistant configuration, automations, or custom components
 - [ ] I have included **debug** logs for any AI related issues.
 
 ## Logs
