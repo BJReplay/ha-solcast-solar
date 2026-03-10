@@ -95,9 +95,10 @@ If you are using docker, it sometimes can be easier to gather logs using `docker
 
 ### Desktop (please complete the following information if you encounter the error on your desktop / PC)
 
-- OS: [e.g. iOS]
+- OS: [e.g. Windows / MacOS / Linux]
 - Browser [e.g. chrome, safari]
-- Version [e.g. 22]
+- OS Version [e.g. 11 / 15 / 22]
+- Browser Version
 
 ### Smartphone (please complete the following information if you encounter the error on your phone)
 
