@@ -79,154 +79,154 @@
         "name": "Piektijd vandaag"
       },
       "peak_w_time_tomorrow": {
-        "name": "Peak Time Tomorrow"
+        "name": "Piektijd morgen"
       },
       "peak_w_today": {
-        "name": "Peak Forecast Today"
+        "name": "Voospelling piek vandaag"
       },
       "peak_w_tomorrow": {
-        "name": "Peak Forecast Tomorrow"
+        "name": "Voorspelling piek morgen"
       },
       "power_now": {
-        "name": "Power Now"
+        "name": "Huidig vermogen"
       },
       "power_now_1hr": {
-        "name": "Power in 1 Hour"
+        "name": "Vermogen in 1 Uur"
       },
       "power_now_30m": {
-        "name": "Power in 30 Minutes"
+        "name": "Vermogen in 30 Minuten"
       },
       "total_kwh_forecast_d10": {
-        "name": "Forecast Day 10"
+        "name": "Voorspelling Dag 10"
       },
       "total_kwh_forecast_d11": {
-        "name": "Forecast Day 11"
+        "name": "Voorspelling Dag 11"
       },
       "total_kwh_forecast_d12": {
-        "name": "Forecast Day 12"
+        "name": "Voorspelling Dag 12"
       },
       "total_kwh_forecast_d13": {
-        "name": "Forecast Day 13"
+        "name": "Voorspelling Dag 13"
       },
       "total_kwh_forecast_d3": {
-        "name": "Forecast Day 3"
+        "name": "Voorspelling Dag 3"
       },
       "total_kwh_forecast_d4": {
-        "name": "Forecast Day 4"
+        "name": "Voorspelling Dag 4"
       },
       "total_kwh_forecast_d5": {
-        "name": "Forecast Day 5"
+        "name": "Voorspelling Dag 5"
       },
       "total_kwh_forecast_d6": {
-        "name": "Forecast Day 6"
+        "name": "Voorspelling Dag 6"
       },
       "total_kwh_forecast_d7": {
-        "name": "Forecast Day 7"
+        "name": "Voorspelling Dag 7"
       },
       "total_kwh_forecast_d8": {
-        "name": "Forecast Day 8"
+        "name": "Voorspelling Dag 8"
       },
       "total_kwh_forecast_d9": {
-        "name": "Forecast Day 9"
+        "name": "Voorspelling Dag 9"
       },
       "total_kwh_forecast_today": {
-        "name": "Forecast Today"
+        "name": "Voorspelling Vandaag"
       },
       "total_kwh_forecast_tomorrow": {
-        "name": "Forecast Tomorrow"
+        "name": "Voorspelling Morgen"
       }
     }
   },
   "exceptions": {
     "actuals_not_enabled": {
-      "message": "Estimated actuals acquisition is not enabled."
+      "message": "Geschatte werkelijke acquisitie is niet ingeschakeld."
     },
     "auto_use_force": {
-      "message": "Auto-update is enabled, ignoring service event for forecast update, use Force Update instead."
+      "message": "Automatische update is ingeschakeld, negeer service-evenement voor prognose-update, gebruik in plaats daarvan Force Update."
     },
     "auto_use_normal": {
-      "message": "Auto-update is not enabled, ignoring service event for force forecast update, use Update instead."
+      "message": "Automatische update is niet ingeschakeld, negeer service-gebeurtenis voor gedwongen update van prognose, gebruik in plaats daarvan Update."
     },
     "build_failed_actuals": {
-      "message": "Failed to build estimated actual data (corrupt config/solcast-actuals.json?)"
+      "message": "Kan geschatte actuele gegevens niet samenstellen (corrupte config/solcast-actuals.json?)"
     },
     "build_failed_forecasts": {
-      "message": "Failed to build forecast data (corrupt config/solcast.json?)"
+      "message": "Kan geen voorspelling samenstellen (corrupte config/solcast.json?)"
     },
     "damp_auto_enabled": {
-      "message": "Automated dampening is enabled, not setting manual dampening factors."
+      "message": "Automatische demping is ingeschakeld, handmatige dempingsfactoren zijn niet ingesteld."
     },
     "damp_count_not_correct": {
-      "message": "There are not 24 or 48 comma separated numbers between 0.0 and 1.0."
+      "message": "Er zijn geen 24 of 48 door komma's gescheiden getallen tussen 0.0 en 1.0."
     },
     "damp_error_parsing": {
-      "message": "Error parsing dampening factor comma separated numbers."
+      "message": "Fout bij het ontleden van door komma's gescheiden getallen voor dempingsfactor."
     },
     "damp_no_all_24": {
-      "message": "Specifying a site of 'all' is not allowed with 24 factors, remove site from the request."
+      "message": "Het specificeren van een locatie ‘all’ is niet toegestaan met 24 factoren. Verwijder de locatie uit het verzoek."
     },
     "damp_no_factors": {
-      "message": "No dampening factors, must be a comma separated list of numbers between 0.0 and 1.0."
+      "message": "Geen dempingsfactoren opgegeven, moet een door komma's gescheiden lijst van getallen tussen 0,0 en 1,0 zijn."
     },
     "damp_not_for_site": {
-      "message": "Site dampening is not set for {site}."
+      "message": "Sitedemping is niet ingesteld voor {site}."
     },
     "damp_not_site": {
-      "message": "Not a configured site."
+      "message": "Geen geconfigureerde site."
     },
     "damp_outside_range": {
-      "message": "Dampening factor value present that is not between 0.0 and 1.0."
+      "message": "Dempingsfactorwaarde aanwezig die niet tussen 0.0 en 1.0 ligt."
     },
     "damp_use_all": {
-      "message": "Site dampening is not set for {site}, 'all' is the only available site parameter for the service call."
+      "message": "Site-demping is niet ingesteld voor {site}, ‘all’ is de enige beschikbare siteparameter voor de serviceaanroep."
     },
     "hard_empty": {
-      "message": "Empty hard limit value."
+      "message": "Lege harde grenswaarde."
     },
     "hard_not_positive_number": {
-      "message": "Hard limit value is not a positive number."
+      "message": "Harde grenswaarde is geen positief getal."
     },
     "hard_too_many": {
-      "message": "More hard limits are specified than there are API keys."
+      "message": "Er zijn meer harde grenswaarden gespecificeerd dan er API-sleutels zijn."
     },
     "init_cannot_get_sites": {
-      "message": "Sites data could not be retrieved."
+      "message": "De gegevens van de sites konden niet worden opgehaald."
     },
     "init_cannot_get_sites_cache_invalid": {
-      "message": "Sites data could not be retrieved and cache is invalid."
+      "message": "De gegevens van de sites konden niet worden opgehaald en de cache is ongeldig."
     },
     "init_corrupt": {
-      "message": "The cached data in {file} is corrupted, suggest deleting or repairing it."
+      "message": "De cachegegevens in {file} zijn beschadigd. Wij raden u aan deze te verwijderen of te herstellen."
     },
     "init_incompatible": {
-      "message": "The cached data in `{file}` is incompatible, suggest deleting it."
+      "message": "De gegevens in de cache in `{file}` zijn niet compatibel. Wij raden aan deze te verwijderen."
     },
     "init_key_invalid": {
-      "message": "API key is invalid."
+      "message": "API-sleutel is ongeldig."
     },
     "init_no_sites": {
-      "message": "No sites found for API key."
+      "message": "Geen sites gevonden voor API-sleutel."
     },
     "init_unknown": {
-      "message": "Exception loading sites data."
+      "message": "Uitzondering bij het laden van sitegegevens."
     },
     "init_usage_corrupt": {
-      "message": "Usage data is corrupt, check or delete `config/solcast_solar/solcast-usage.json`."
+      "message": "Gebruiksgegevens zijn beschadigd, controleer of verwijder `config/solcast_solar/solcast-usage.json`."
     },
     "integration_not_loaded": {
-      "message": "Integration not loaded, not performing action."
+      "message": "Integratie niet geladen, geen actie uitgevoerd."
     },
     "integration_prior_crash": {
-      "message": "Integration failed to load previously, trying again after a delay."
+      "message": "Integratie kon eerder niet worden geladen, we proberen straks opnieuw."
     },
     "invalid_custom_hours_format": {
-      "message": "The hours value must be a whole number."
+      "message": "De waarde voor het aantal uren moet een geheel getal zijn."
     },
     "invalid_custom_hours_range": {
-      "message": "The hours value must be between 1 and 144."
+      "message": "De waarde voor het aantal uren moet tussen 1 en 144 liggen."
     },
     "remove_cache_failed": {
-      "message": "Clear all Solcast data failed."
+      "message": "Alle Solcast gegevens wissen mislukt."
     }
   },
   "issues": {
