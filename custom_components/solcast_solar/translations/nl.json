@@ -231,12 +231,12 @@
   },
   "issues": {
     "advanced_deprecated": {
-      "description": "Advanced configuration option(s) `{option}` changed to `{new_option}`. Please update your advanced configuration options to use the new option name.{stops_working}",
-      "title": "Advanced option deprecated"
+      "description": "Geavanceerde configuratieoptie(s) `{option}` gewijzigd in `{new_option}`. Werk uw geavanceerde configuratieopties bij om de nieuwe optienaam te gebruiken.{stops_working}",
+      "title": "Geavanceerde optie verouderd"
     },
     "advanced_problem": {
-      "description": "The advanced configuration file contains errors.\n{problems}\n\nPlease fix these, referring to the integration documentation at the 'Learn more' link.",
-      "title": "Advanced option problem"
+      "description": "Het geavanceerde configuratiebestand bevat fouten.\n{problems}\n\nLos deze op aan de hand van de integratiedocumentatie via de link ‘Meer informatie’.",
+      "title": "Probleem met geavanceerde optie"
     },
     "api_unavailable": {
       "description": "The Solcast API has reported `429 / Try again later` status repeatedly during an update.\n\n* Do not attempt to fix this situation.\n* Do not change your API key.\n* Avoid restarting the integration\n* This is not an integration issue and will resolve itself. Change nothing.\n\n(To suppress this issue, create an advanced configuration option api_raise_issue and set it to false.)",
