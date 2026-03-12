@@ -239,26 +239,26 @@
       "title": "Probleem met geavanceerde optie"
     },
     "api_unavailable": {
-      "description": "The Solcast API has reported `429 / Try again later` status repeatedly during an update.\n\n* Do not attempt to fix this situation.\n* Do not change your API key.\n* Avoid restarting the integration\n* This is not an integration issue and will resolve itself. Change nothing.\n\n(To suppress this issue, create an advanced configuration option api_raise_issue and set it to false.)",
-      "title": "Solcast API temporarily unavailable"
+      "description": "De Solcast API heeft tijdens een update herhaaldelijk de status `429 / Probeer het later opnieuw` gemeld.\n\n* Probeer deze situatie niet op te lossen.\n* Wijzig uw API-sleutel niet.\n* Start de integratie niet opnieuw op\n* Dit is geen integratieprobleem en lost zichzelf op. Wijzig niets.\n\n(Om dit probleem te onderdrukken, maakt u een geavanceerde configuratieoptie api_raise_issue aan en stelt u deze in op false.)",
+      "title": "Solcast API tijdelijk niet beschikbaar"
     },
     "corrupt_file": {
-      "description": "The cached data file(s) `{files}` is corrupted. The integration will attempt to recover by deleting the file(s) and re-fetching data from Solcast. Expect increased API usage and potential API failures, and loss of forecast history due to this situation. Possibly recover the files from backup, but still expect API call failures.",
-      "title": "Corrupted cached data"
+      "description": "Het/de cachegegevensbestand(en) `{files}` is/zijn beschadigd. De integratie zal proberen te herstellen door het/de bestand(en) te verwijderen en de gegevens opnieuw op te halen uit Solcast. Houd rekening met een verhoogd API-gebruik en mogelijke API-storingen, en verlies van voorspellingsgeschiedenis als gevolg van deze situatie. Mogelijk kunnen de bestanden worden hersteld vanuit de back-up, maar houd toch rekening met API-storingen.",
+      "title": "Beschadigde cachegegevens"
     },
     "records_missing": {
-      "description": "Future forecast data is missing, which is unexpected because auto-update is enabled. Investigate the cause by examining the Home Assistant log. Read the troubleshooting FAQ before raising an integration issue.",
-      "title": "Future forecasts missing"
+      "description": "Er ontbreken toekomstige prognosegegevens, wat onverwacht is omdat automatische updates zijn ingeschakeld. Onderzoek de oorzaak door het logboek van Home Assistant te bekijken. Lees de veelgestelde vragen over probleemoplossing voordat u een integratieprobleem meldt.",
+      "title": "Toekomstprognoses ontbreken"
     },
     "records_missing_fixable": {
       "fix_flow": {
         "abort": {
-          "reconfigured": "New configuration applied successfully"
+          "reconfigured": "Nieuwe configuratie succesvol toegepast"
         },
         "step": {
           "offer_auto": {
             "data": {
-              "auto_update": "Auto-update"
+              "auto_update": "Automatische update"
             },
             "description": "A forecast update automation has not been running. Would you like to enable auto-update? (Learn more: {learn_more})",
             "title": "Future forecasts missing"
@@ -268,43 +268,43 @@
       "title": "Future forecasts missing"
     },
     "records_missing_initial": {
-      "description": "Forecast and/or estimated actual data is missing, likely because the initial forecast update did not occur. This is likely because the API call limit has been reached. You _will_ have sensor entity issues, and the Energy dashboard will likely have missing data. This will resolve itself.",
-      "title": "Forecasts missing"
+      "description": "De voorspelde en/of geschatte werkelijke gegevens ontbreken, waarschijnlijk omdat de eerste voorspellingsupdate niet heeft plaatsgevonden. Dit komt waarschijnlijk doordat de limiet voor API-aanroepen is bereikt. U zult problemen met sensoren krijgen en het energiedashboard zal waarschijnlijk onvolledige gegevens bevatten. Dit lost zichzelf op.",
+      "title": "Toekomstvoorspellingen ontbreken"
     },
     "records_missing_unfixable": {
-      "description": "Future forecast data is missing, which is unexpected. Check the logs.",
-      "title": "Future forecasts missing"
+      "description": "De toekomstvoorspellingen ontbreken, wat onverwacht is. Controleer de logboeken.",
+      "title": "Toekomstvoorspellingen ontbreken"
     },
     "unusual_azimuth_northern": {
-      "description": "The azimuth for site {site} is unusual for the latitude of this northern hemisphere rooftop. Should this be {proposal} instead of {extant}? (Ignore the issue if the site is facing towards North.)",
-      "title": "Unusual azimuth"
+      "description": "De azimut voor locatie {site} is ongebruikelijk voor de breedtegraad van dit dak op het noordelijk halfrond. Moet dit {proposal} zijn in plaats van {extant}? (Negeer dit probleem als de locatie naar het noorden is gericht.)",
+      "title": "Ongebruikelijke azimut"
     },
     "unusual_azimuth_southern": {
-      "description": "The azimuth for site {site} is unusual for the latitude of this southern hemisphere rooftop. Should this be {proposal} instead of {extant}? (Ignore the issue if the site is facing towards South.)",
-      "title": "Unusual azimuth"
+      "description": "De azimut voor locatie {site} is ongebruikelijk voor de breedtegraad van dit dak op het zuidelijk halfrond. Moet dit {proposal} zijn in plaats van {extant}? (Negeer dit probleem als de locatie naar het zuiden is gericht.)",
+      "title": "Ongebruikelijke azimut"
     }
   },
   "options": {
     "abort": {
-      "internal_error": "Internal error occurred",
-      "reconfigured": "New configuration applied successfully"
+      "internal_error": "Interne fout opgetreden",
+      "reconfigured": "Nieuwe configuratie succesvol toegepast"
     },
     "error": {
-      "actuals_not_enabled": "Estimated actuals acquisition is not enabled",
-      "actuals_without_get": "Estimated actuals cannot be used without getting them",
-      "api_duplicate": "Duplicate API key specified",
-      "api_looks_like_site": "API key looks like a site ID",
-      "custom_invalid": "Custom sensor not between 1 and 144",
-      "dampen_without_actuals": "Estimated actuals must be selected to use auto-dampening",
-      "dampen_without_generation": "At least one PV generation sensor must be specified to use auto-dampening (energy or power)",
-      "export_multiple_entities": "Site export entity must be a single entity, not multiple entities",
-      "export_no_entity": "Site export entity must be specified if site export limit is set",
-      "generation_mixed_types": "PV generation entities must all be the same type (all energy or all power, not a mix)",
-      "hard_not_number": "Hard limit is not a positive number",
-      "hard_too_many": "There are more hard limits entered than keys",
-      "limit_not_number": "API limit is not a number",
-      "limit_one_or_greater": "API limit must be one or greater",
-      "limit_too_many": "There are more API limit counts entered than keys"
+      "actuals_not_enabled": "Geschatte werkelijke acquisitie is niet ingeschakeld",
+      "actuals_without_get": "Geschatte werkelijke cijfers kunnen niet worden gebruikt zonder ze te verkrijgen",
+      "api_duplicate": "Meerdere keer dezelfde API-sleutel opgegeven",
+      "api_looks_like_site": "De API-sleutel lijkt op een site-ID",
+      "custom_invalid": "Aangepaste sensor niet tussen 1 en 144",
+      "dampen_without_actuals": "Geschatte werkelijke waarden moeten worden geselecteerd om automatische demping te gebruiken",
+      "dampen_without_generation": "Er moet ten minste één PV opwekkingssensor (energie of vermogen) worden opgegeven om automatische demping te kunnen gebruiken",
+      "export_multiple_entities": "De entiteit voor site-export moet één enkele entiteit zijn, niet meerdere entiteiten",
+      "export_no_entity": "De site exportentiteit moet worden opgegeven als er een site exportlimiet is ingesteld",
+      "generation_mixed_types": "PV-opwekkingsentiteiten moeten allemaal van hetzelfde type zijn (allemaal energie of allemaal vermogen, geen mix)",
+      "hard_not_number": "Hard limit is geen positief getal",
+      "hard_too_many": "Er zijn meer harde limieten ingevoerd dan API-sleutels",
+      "limit_not_number": "API limiet is geen getal",
+      "limit_one_or_greater": "API limiet moet één of meer zijn",
+      "limit_too_many": "Er zijn meer API limietwaarden ingevoerd dan API-sleutels"
     },
     "step": {
       "dampen": {
@@ -334,19 +334,19 @@
           "damp22": "22:00",
           "damp23": "23:00"
         },
-        "description": "Modify the hourly dampening factor"
+        "description": "De dempingsfactor per uur wijzigen"
       },
       "init": {
         "data": {
-          "api_key": "API key (comma separate multiple values)",
-          "api_quota": "API limit (optionally comma separate multiple values for each key)",
-          "attr_brk_detailed": "Enable site breakdown for half-hourly/hourly detail attributes (these will not be saved to database state attributes)",
-          "attr_brk_estimate": "Enable estimate 50 sensor attributes",
-          "attr_brk_estimate10": "Enable estimate 10 sensor attributes",
-          "attr_brk_estimate90": "Enable estimate 90 sensor attributes",
-          "attr_brk_halfhourly": "Enable forecast half-hourly detail attributes",
-          "attr_brk_hourly": "Enable forecast hourly detail attributes",
-          "attr_brk_site": "Enable site breakdown sensor attributes",
+          "api_key": "API-sleutel (meerdere waarden gescheiden door komma's)",
+          "api_quota": "API limiet (optioneel meerdere waarden per sleutel gescheiden door komma's)",
+          "attr_brk_detailed": "Schakel siteuitsplitsing in voor attributen met details per half uur/uur (deze worden niet opgeslagen in database statusattributen)",
+          "attr_brk_estimate": "Activeer voospelling 50 sensor attributen",
+          "attr_brk_estimate10": "Activeer voospelling 10 sensor attributen",
+          "attr_brk_estimate90": "Activeer voospelling 90 sensor attributen",
+          "attr_brk_halfhourly": "Activeer gedetailleerde attributen voor halfuurlijkse voorspellingen",
+          "attr_brk_hourly": "Activeer gedetailleerde attributen uurlijkse voorspellingen",
+          "attr_brk_site": "Activeer site breakdown sensor attributen",
           "auto_dampen": "Auto-dampen (requires estimated actuals and PV generation entity, see integration documentation)",
           "auto_update": "Auto-update (if no auto-update then an automation must be used instead)",
           "config_damp": "Modify the hourly dampening factors (after clicking submit)",
