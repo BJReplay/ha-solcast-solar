@@ -19,13 +19,13 @@ import aiofiles
 from aiohttp import ClientConnectionError, ClientResponseError
 from aiohttp.client_reqrep import ClientResponse
 
-from homeassistant.const import CONF_API_KEY
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
 
 from .const import (
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_SOLCAST_URL,
+    API_KEY,
     AUTO_UPDATED,
     DAILY_LIMIT,
     DAILY_LIMIT_CONSUMED,
@@ -284,12 +284,10 @@ class SitesCache:
                     api_key = api_key.strip()
                     cache_filename = self._get_sites_cache_filename(api_key)
                     for site in self.api.sites:
-                        if site.get(CONF_API_KEY) == api_key:
+                        if site.get(API_KEY) == api_key:
                             break
                     _LOGGER.debug("Re-serialising sites cache for %s", redact_api_key(api_key))
-                    payload = json.dumps(
-                        {SITES: [site for site in self.api.sites if site.get(CONF_API_KEY) == api_key]}, ensure_ascii=False
-                    )
+                    payload = json.dumps({SITES: [site for site in self.api.sites if site.get(API_KEY) == api_key]}, ensure_ascii=False)
                     async with self.api.serialise_lock, aiofiles.open(cache_filename, "w") as file:
                         await file.write(payload)
 
@@ -299,7 +297,7 @@ class SitesCache:
             single_usage = f"{self.api.config_dir}/solcast-usage.json"
             if Path(single_sites).is_file():
                 async with aiofiles.open(single_sites) as file:
-                    single_api_key = json.loads(await file.read(), cls=JSONDecoder)[SITES][0].get(CONF_API_KEY, api_keys[0])
+                    single_api_key = json.loads(await file.read(), cls=JSONDecoder)[SITES][0].get(API_KEY, api_keys[0])
                 multi_sites = f"{self.api.config_dir}/solcast-sites-{single_api_key}.json"
                 if not Path(multi_sites).is_file() and Path(single_sites).is_file():
                     multi_usage = f"{self.api.config_dir}/solcast-usage-{single_api_key}.json"
@@ -347,10 +345,10 @@ class SitesCache:
                         _LOGGER.error("JSONDecodeError, sites ignored: %s", site)
                         continue
                     for _site in response_json.get(SITES, []):
-                        if _site.get(CONF_API_KEY):
-                            extant_sites[_site[CONF_API_KEY]].append(_site)
+                        if _site.get(API_KEY):
+                            extant_sites[_site[API_KEY]].append(_site)
                             if not self.multi_key:
-                                single_key = _site[CONF_API_KEY]
+                                single_key = _site[API_KEY]
                         elif not self.multi_key:  # The key is unknown because old schema version
                             extant_sites[UNKNOWN].append(_site)
             for usage in usages:
@@ -477,12 +475,10 @@ class SitesCache:
                     new_sites: dict[str, str] = {}
                     cache_sites = list(self.api.data[SITE_INFO].keys())
                     old_api_keys = (
-                        self.api.hass.data[DOMAIN]
-                        .get(OLD_API_KEY, self.api.hass.data[DOMAIN][ENTRY_OPTIONS].get(CONF_API_KEY, ""))
-                        .split(",")
+                        self.api.hass.data[DOMAIN].get(OLD_API_KEY, self.api.hass.data[DOMAIN][ENTRY_OPTIONS].get(API_KEY, "")).split(",")
                     )
                     for site in self.api.sites:
-                        api_key = site[CONF_API_KEY]
+                        api_key = site[API_KEY]
                         site = site[RESOURCE_ID]
                         if site not in cache_sites or len(self.api.data[SITE_INFO][site].get(FORECASTS, [])) == 0:
                             new_sites[site] = api_key
@@ -770,7 +766,7 @@ class SitesCache:
                 redact_msg_api_key(redact_lat_lon(str(sites_data)), api_key),
             )
             for site in sites_data[SITES]:
-                site[CONF_API_KEY] = api_key
+                site[API_KEY] = api_key
                 site.pop(SITE_ATTRIBUTE_LONGITUDE, None)
                 self._site_latitude[site[RESOURCE_ID]][SITE_ATTRIBUTE_LATITUDE] = site.pop(SITE_ATTRIBUTE_LATITUDE, None)
                 self._site_latitude[site[RESOURCE_ID]][SITE_ATTRIBUTE_AZIMUTH] = site[SITE_ATTRIBUTE_AZIMUTH]
@@ -797,7 +793,7 @@ class SitesCache:
                         _LOGGER.info("API key %s has changed", redact_api_key(api_key))
                         self._rekey[api_key] = key
                         for site in response_json[SITES]:
-                            site[CONF_API_KEY] = api_key
+                            site[API_KEY] = api_key
                     cache_status = True
             return cache_status
 
@@ -823,7 +819,7 @@ class SitesCache:
 
                 if not prior_crash:
                     url = f"{self.api.advanced_options[ADVANCED_SOLCAST_URL]}/rooftop_sites"
-                    params = {FORMAT: JSON, CONF_API_KEY: api_key}
+                    params = {FORMAT: JSON, API_KEY: api_key}
                     _LOGGER.debug("Connecting to %s?format=json&api_key=%s", url, redact_api_key(api_key))
                     response: ClientResponse = await self.api.aiohttp_session.get(
                         url=url, params=params, headers=self.api.headers, ssl=False
@@ -847,7 +843,7 @@ class SitesCache:
 
                 if status == 200:
                     for site in response_json.get(SITES, []):
-                        site[CONF_API_KEY] = api_key
+                        site[API_KEY] = api_key
                         site[DISMISSAL] = self._dismissal.get(site[RESOURCE_ID], False)
                     if response_json.get(TOTAL_RECORDS, 0) > 0:
                         set_sites(response_json, api_key)

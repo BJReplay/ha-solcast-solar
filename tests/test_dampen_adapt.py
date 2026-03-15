@@ -958,3 +958,55 @@ async def test_determine_best_settings_alternative_issue(
         assert "but adaptive dampening found that model" not in caplog.text
     finally:
         assert await async_cleanup_integration_tests(hass)
+
+
+async def test_dampening_adaptations_development_flag(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test __init__.py lines 409-410: DAMPENING_ADAPTATIONS_DEVELOPMENT branch.
+
+    Verifies that when the flag is True and auto_dampen with adaptive model
+    configuration are both enabled, update_history and determine_best_settings
+    are called during async_setup_entry.
+    """
+    import homeassistant.components.solcast_solar as solcast_module  # noqa: PLC0415
+    from homeassistant.components.solcast_solar.dampen_adapt import (  # noqa: PLC0415
+        DampeningAdaptive,
+    )
+
+    monkeypatch.setattr(solcast_module, "DAMPENING_ADAPTATIONS_DEVELOPMENT", True)
+
+    called = {"update_history": False, "determine_best_settings": False}
+
+    async def _fake_update_history(self) -> None:
+        called["update_history"] = True
+
+    async def _fake_determine_best_settings(self) -> None:
+        called["determine_best_settings"] = True
+
+    monkeypatch.setattr(DampeningAdaptive, "update_history", _fake_update_history)
+    monkeypatch.setattr(DampeningAdaptive, "determine_best_settings", _fake_determine_best_settings)
+
+    config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+    if CONFIG_FOLDER_DISCRETE:
+        Path(config_dir).mkdir(parents=False, exist_ok=True)
+
+    Path(f"{config_dir}/solcast-advanced.json").write_text(
+        json.dumps({"automated_dampening_adaptive_model_configuration": True}),
+        encoding="utf-8",
+    )
+
+    options = copy.deepcopy(DEFAULT_INPUT2)
+    options[AUTO_DAMPEN] = True
+
+    try:
+        from homeassistant.config_entries import ConfigEntryState  # noqa: PLC0415
+
+        entry = await async_init_integration(hass, options)
+        assert entry.state is ConfigEntryState.LOADED
+        assert called["update_history"], "update_history was not called"
+        assert called["determine_best_settings"], "determine_best_settings was not called"
+    finally:
+        assert await async_cleanup_integration_tests(hass)

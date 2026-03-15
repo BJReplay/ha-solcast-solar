@@ -1,14 +1,11 @@
 """Unit tests for upgrade_cache_schema in util.py and config entry schema migration."""
 
 import copy
-from unittest.mock import patch
 
 import pytest
 
-import homeassistant.components.solcast_solar as solcast_module
 from homeassistant.components.solcast_solar.const import (
     AUTO_UPDATED,
-    CONFIG_VERSION,
     FAILURE,
     FORECASTS,
     INTEGRATION_VERSION,
@@ -25,9 +22,6 @@ from homeassistant.components.solcast_solar.util import (
     SchemaIncompatibleError,
     upgrade_cache_schema,
 )
-from homeassistant.core import HomeAssistant
-
-from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
 
 SITE_ID = "3333-3333-3333-3333"
 SAMPLE_FORECASTS: list = [{"period_start": "2025-01-01T00:00:00", "pv_estimate": 1.0}]
@@ -126,25 +120,3 @@ def test_incompatible_forecasts_not_a_list() -> None:
 
     with pytest.raises(SchemaIncompatibleError, match="Top-level forecasts is not a list"):
         upgrade_cache_schema(data, 1, SITE_ID, auto_update_enabled=True)
-
-
-@pytest.mark.usefixtures("recorder_mock")
-async def test_entry_options_development_flag(
-    hass: HomeAssistant,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Test that ENTRY_OPTIONS_DEVELOPMENT causes re-upgrade of options on every startup.
-
-    An entry already at CONFIG_VERSION would normally skip migration entirely.
-    With the flag set, the log should show the current version being recognised
-    and then an upgrade message confirming the latest version step re-ran.
-    """
-
-    try:
-        with patch.object(solcast_module, "ENTRY_OPTIONS_DEVELOPMENT", True):
-            await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT1), version=CONFIG_VERSION)
-            assert f"Options version {CONFIG_VERSION}" in caplog.text
-            assert f"Upgraded to options version {CONFIG_VERSION}" in caplog.text
-
-    finally:
-        assert await async_cleanup_integration_tests(hass)

@@ -18,7 +18,6 @@ from typing import TYPE_CHECKING, Any
 from aiohttp import ClientConnectionError, ClientResponseError
 from aiohttp.client_reqrep import ClientResponse
 
-from homeassistant.const import CONF_API_KEY
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
 
@@ -28,6 +27,7 @@ from .const import (
     ADVANCED_SOLCAST_URL,
     ADVANCED_TRIGGER_ON_API_AVAILABLE,
     ADVANCED_TRIGGER_ON_API_UNAVAILABLE,
+    API_KEY,
     AUTO_UPDATED,
     DOMAIN,
     DT_DATE_ONLY_FORMAT,
@@ -138,7 +138,7 @@ class Fetcher:
 
         for site in self.api.sites:
             _LOGGER.info("Getting estimated actuals update for site %s", site[RESOURCE_ID])
-            api_key = site[CONF_API_KEY]
+            api_key = site[API_KEY]
 
             new_data: list[dict[str, Any]] = []
 
@@ -256,7 +256,7 @@ class Fetcher:
             )
             result, reason = await self.http_data_call(
                 site=site[RESOURCE_ID],
-                api_key=site[CONF_API_KEY],
+                api_key=site[API_KEY],
                 do_past_hours=do_past_hours,
                 force=force,
             )
@@ -569,7 +569,7 @@ class Fetcher:
 
                     if self.api.api_used[api_key] < self.api.api_limits[api_key] or force:
                         url = f"{self.api.advanced_options[ADVANCED_SOLCAST_URL]}/rooftop_sites/{site}/{path}"
-                        params: dict[str, str | int] = {FORMAT: JSON, CONF_API_KEY: api_key, HOURS: hours}
+                        params: dict[str, str | int] = {FORMAT: JSON, API_KEY: api_key, HOURS: hours}
 
                         tries = UPDATE_TRIES
                         counter = 0

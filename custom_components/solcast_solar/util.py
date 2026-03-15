@@ -23,6 +23,7 @@ from .const import (
     API_LIMIT,
     AUTO_UPDATE,
     AUTO_UPDATED,
+    CUSTOM_HOURS,
     DOMAIN,
     DT_DATE_ONLY_FORMAT,
     ESTIMATE,
@@ -228,6 +229,19 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
             "suggested_value": suggested_value,
         },
     )
+
+
+def sync_legacy_keys(data: dict[str, Any]) -> None:
+    """Keep legacy option key names in sync with their renamed counterparts.
+
+    Maintains "api_quota" and "customhoursensor" alongside the current
+    API_LIMIT and CUSTOM_HOURS keys so that a downgrade to a version
+    predating their rename can still read the stored values.
+    """
+    if "api_quota" in data:
+        data["api_quota"] = data[API_LIMIT]
+    if "customhoursensor" in data:
+        data["customhoursensor"] = data[CUSTOM_HOURS]
 
 
 class DateTimeHelper:

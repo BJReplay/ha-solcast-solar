@@ -27,6 +27,7 @@ from homeassistant.util import dt as dt_util
 
 from .actions import ServiceActions, register_stub_actions, unregister_actions
 from .const import (
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_USER_AGENT,
     API_LIMIT,
     AUTO_DAMPEN,
@@ -406,8 +407,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     ServiceActions(hass, entry, coordinator, solcast)
 
     if DAMPENING_ADAPTATIONS_DEVELOPMENT:
-        await coordinator.solcast.dampening.adaptive.update_history()
-        await coordinator.solcast.dampening.adaptive.determine_best_settings()
+        if (
+            coordinator.solcast.options.auto_dampen
+            and coordinator.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]
+        ):
+            await coordinator.solcast.dampening.adaptive.update_history()
+            await coordinator.solcast.dampening.adaptive.determine_best_settings()
 
     return True
 
@@ -721,7 +726,6 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # Old keys are kept for backward compatibility, but no longer maintained.
         if "api_quota" in new_options:
             new_options[API_LIMIT] = new_options["api_quota"]
-        # Rename , keeping the old key for backward compatibility.
         if "customhoursensor" in new_options:
             new_options[CUSTOM_HOURS] = new_options["customhoursensor"]
 

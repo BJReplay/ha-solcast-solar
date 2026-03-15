@@ -553,7 +553,7 @@ This is the complete list of settable items for `set_options`:
 | Option | Description | Value |
 | --- | --- | --- |
 | api_key | API key(s), comma separated for multiple. | String | 
-| api_quota | API quota(s), comma separated for multiple keys. | String of integers |
+| api_limit | API limits(s), comma separated for multiple keys. | String of integers |
 | auto_update | Auto update mode: 0=none, 1=sunrise to sunset, 2=all day.	| Integer |
 | key_estimate | Preferred forecast estimate: estimate, estimate10, or estimate90. | String |
 | custom_hours | Number of hours for the custom hours sensor (1-144).	| Integer |
@@ -1040,7 +1040,7 @@ The scenario requiring use of this limit is straightforward but note that hardly
 
 Consider a scenario where you have a single 6kW string inverter, and attached are two strings each of 5.5kW potential generation pointing in separate directions. This is considered "over-sized" from an inverter point of view. It is not possible to set an AC generation limit for Solcast that suits this scenario when configured as two sites, as in the mid-morning or afternoon in Summer a string may be generating 5.5kW DC, with 5kW AC resulting, and the other string will probably be generating as well. So setting an AC limit in Solcast for each string to 3kW (half the inverter) does not make sense. Setting it to 6kW for each string also does not make sense, as Solcast will almost certainly over-state potential generation.
 
-The hard limit may be set in the integration configuration or set by using the service action `solcast_solar.set_hard_limit` in `Developer Tools`. To disable the hard limit enter a value of zero or 100 in the configuration dialogue. To disable using a service action call use `solcast_solar.remove_hard_limit`. (Zero cannot be specified when performing the set action.)
+The hard limit may be set in the integration configuration or set by using the service action `solcast_solar.set_options`. To disable the hard limit enter a value of zero or 100 in the configuration dialogue.
 
 ### Excluded sites configuration
 

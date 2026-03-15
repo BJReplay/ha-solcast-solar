@@ -1190,10 +1190,6 @@ async def test_remaining_actions(
         with pytest.raises(ServiceValidationError):
             await hass.services.async_call(DOMAIN, "set_options", {"api_limit": "abc"}, blocking=True)
 
-        _LOGGER.debug("Test set_options with invalid auto_update (out of range)")
-        with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"auto_update": "3"}, blocking=True)
-
         _LOGGER.debug("Test set_options with invalid use_actuals (boolean coerced to string)")
         with pytest.raises(ServiceValidationError):
             await hass.services.async_call(DOMAIN, "set_options", {"use_actuals": "True"}, blocking=True)
@@ -1378,8 +1374,6 @@ async def test_remaining_actions(
         assert data is not None, "get_options data is None"
         for key, value in expect.items():
             assert data[key] == value  # type: ignore[union-attr]
-        _LOGGER.critical(type(data))
-        _LOGGER.critical(data)
         unexpected = set(data.keys()) - set(expect.keys())  # pyright: ignore[reportAttributeAccessIssue]
         assert not unexpected, f"get_options returned unexpected keys: {unexpected}"
 

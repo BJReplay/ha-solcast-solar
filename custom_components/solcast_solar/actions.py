@@ -79,6 +79,7 @@ from .const import (
 )
 from .coordinator import SolcastUpdateCoordinator
 from .solcastapi import SolcastApi
+from .util import sync_legacy_keys
 from .validators import (
     validate_api_key_value,
     validate_api_limit_value,
@@ -673,7 +674,18 @@ class ServiceActions:
         if opt.get(SITE_EXPORT_LIMIT, 0) > 0.0 and not opt.get(SITE_EXPORT_ENTITY, ""):
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_EXPORT_NO_ENTITY)
 
-        self._hass.config_entries.async_update_entry(self._entry, options=opt)
+        # Sync legacy keys before updating the entry, to keep downgrade compatibility.
+        all_config_data: dict[str, Any] = {
+            **self._entry.data,
+            **self._entry.options,
+            **opt,
+        }
+        sync_legacy_keys(all_config_data)
+        self._hass.config_entries.async_update_entry(
+            self._entry,
+            data=all_config_data,
+            options=opt,
+        )
 
     def _raise_deprecation_issue(self, issue_id: str, action_name: str) -> None:
         """Raise an ignorable repair issue for a deprecated action.

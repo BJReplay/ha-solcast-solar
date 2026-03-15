@@ -7,12 +7,14 @@ import logging
 from pathlib import Path
 import re
 from typing import Any
+from unittest.mock import patch
 
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
 from homeassistant import config_entries
 from homeassistant.components.recorder import Recorder
+import homeassistant.components.solcast_solar as solcast_module
 
 # As a core component, these imports would be homeassistant.components.solcast_solar and not config.custom_components.solcast_solar
 from homeassistant.components.solcast_solar.config_flow import (
@@ -35,6 +37,7 @@ from homeassistant.components.solcast_solar.const import (
     BRK_SITE_DETAILED,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
+    CONFIG_VERSION,
     CUSTOM_HOURS,
     DOMAIN,
     EXCLUDE_SITES,
@@ -1081,6 +1084,28 @@ async def test_advanced_options(
         await hass.config_entries.async_unload(entry.entry_id)
         await wait()
         assert f"Cancelling coordinator task {TASK_WATCHDOG_ADVANCED_FILE_CHANGE}" in caplog.text
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+@pytest.mark.usefixtures("recorder_mock")
+async def test_entry_options_development_flag(
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that ENTRY_OPTIONS_DEVELOPMENT causes re-upgrade of options on every startup.
+
+    An entry already at CONFIG_VERSION would normally skip migration entirely.
+    With the flag set, the log should show the current version being recognised
+    and then an upgrade message confirming the latest version step re-ran.
+    """
+
+    try:
+        with patch.object(solcast_module, "ENTRY_OPTIONS_DEVELOPMENT", True):
+            await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT1), version=CONFIG_VERSION)
+            assert f"Options version {CONFIG_VERSION}" in caplog.text
+            assert f"Upgraded to options version {CONFIG_VERSION}" in caplog.text
 
     finally:
         assert await async_cleanup_integration_tests(hass)
