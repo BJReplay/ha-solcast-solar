@@ -448,6 +448,10 @@
       "description": "Usuwa plik solcast.json, aby usunąć wszystkie aktualne dane witryny Solcast.",
       "name": "Wyczyść wszystkie zapisane dane Solcast"
     },
+    "diagnostic_self_test": {
+      "description": "Uruchamia diagnostyczny autotest w celu sprawdzenia łączności z API, integralności plików pamięci podręcznej, dostępności encji generacji oraz ogólnego stanu konfiguracji.",
+      "name": "Autotest diagnostyczny"
+    },
     "force_update_estimates": {
       "description": "Force pobiera najnowsze szacunkowe dane rzeczywiste z Solcast.",
       "name": "Wymuś aktualizację szacunkowych wartości rzeczywistych"

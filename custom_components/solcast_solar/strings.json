@@ -448,6 +448,10 @@
       "description": "Deletes the solcast.json file to remove all current solcast site data.",
       "name": "Clear all saved Solcast data"
     },
+    "diagnostic_self_test": {
+      "description": "Run a diagnostic self-test to validate API connectivity, cache file integrity, generation entity accessibility, and overall configuration health.",
+      "name": "Diagnostic self-test"
+    },
     "force_update_estimates": {
       "description": "Force fetches the latest estimated actual data from Solcast.",
       "name": "Force Update Estimated Actuals"

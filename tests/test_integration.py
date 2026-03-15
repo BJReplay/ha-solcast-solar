@@ -12,6 +12,7 @@ import os
 from pathlib import Path
 import re
 from typing import Any
+import unittest.mock
 from zoneinfo import ZoneInfo
 
 import aiohttp
@@ -73,6 +74,7 @@ from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, SupportsResponse
 from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
+from homeassistant.helpers.entity_registry import RegistryEntryDisabler
 from homeassistant.util import dt as dt_util
 
 from . import (
@@ -105,6 +107,7 @@ _LOGGER = logging.getLogger(__name__)
 
 ACTIONS = [
     "clear_all_solcast_data",
+    "diagnostic_self_test",
     "force_update_estimates",
     "force_update_forecasts",
     "get_dampening",
@@ -2195,6 +2198,7 @@ async def test_service_supports_response(
         await async_init_integration(hass, DEFAULT_INPUT1)
 
         response_actions = {
+            "diagnostic_self_test",
             "get_dampening",
             "get_options",
             "query_estimate_data",
@@ -2252,5 +2256,508 @@ async def test_config_folder_migration(
             r"INFO.+Migrating config directory file.+config/solcast-test.json to .+config/solcast_solar/solcast-test.json", caplog.text
         )
         no_error_or_exception(caplog)
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test the diagnostic self-test action returns a structured health report."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        # Run the self-test action.
+        result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        assert result is not None
+        data = result["data"]
+
+        # Verify overall structure.
+        assert "overall_status" in data  # pyright: ignore[reportOperatorIssue]
+        assert "issues" in data  # pyright: ignore[reportOperatorIssue]
+        assert "api" in data  # pyright: ignore[reportOperatorIssue]
+        assert "sites" in data  # pyright: ignore[reportOperatorIssue]
+        assert "cache_files" in data  # pyright: ignore[reportOperatorIssue]
+        assert "configuration" in data  # pyright: ignore[reportOperatorIssue]
+        assert "dampening" in data  # pyright: ignore[reportOperatorIssue]
+        assert "generation_entities" in data  # pyright: ignore[reportOperatorIssue]
+        assert "export_entity" in data  # pyright: ignore[reportOperatorIssue]
+        assert "recorder_available" in data  # pyright: ignore[reportOperatorIssue]
+
+        # Verify API section.
+        api = data["api"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportCallIssue, reportArgumentType]
+        assert api["api_keys_configured"] == 1  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert isinstance(api["api_used"], int)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert isinstance(api["api_limit"], int)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert isinstance(api["api_remaining"], int)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert "status" in api  # pyright: ignore[reportOperatorIssue]
+        assert "sites_status" in api  # pyright: ignore[reportOperatorIssue]
+
+        # Verify sites section.
+        assert len(data["sites"]) > 0  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        for site in data["sites"]:  # type: ignore # pyright: ignorereportOptionalIterable, [reportArgumentType, reportCallIssue]  # noqa: PGH003
+            assert "resource_id" in site
+
+        # Verify cache files section.
+        assert isinstance(data["cache_files"]["forecast"], bool)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert isinstance(data["cache_files"]["advanced"], bool)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        # Verify configuration section.
+        config = data["configuration"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert config["auto_update"] in ("DAYLIGHT", "1")  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert config["key_estimate"] == "estimate"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert config["get_actuals"] is True  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert config["auto_dampen"] is False  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        # Verify dampening section.
+        dampening = data["dampening"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert isinstance(dampening["enabled"], bool)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert dampening["auto_dampening"] is False  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        # Verify recorder availability.
+        assert data["recorder_available"] is True  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        # Generation entities and export entity should be empty (not configured in DEFAULT_INPUT1).
+        assert data["generation_entities"] == []  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["export_entity"] == {}  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test_with_issues(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that diagnostic self-test reports issues for invalid generation entities."""
+
+    try:
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[AUTO_DAMPEN] = True
+        options[GENERATION_ENTITIES] = ["sensor.nonexistent_entity"]
+        entry = await async_init_integration(hass, options)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        assert result is not None
+        data = result["data"]
+
+        # Should report issues because the generation entity doesn't exist.
+        assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert len(data["issues"]) > 0  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("sensor.nonexistent_entity" in issue for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        # Verify the generation entity check details.
+        assert len(data["generation_entities"]) == 1  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["generation_entities"][0]["entity_id"] == "sensor.nonexistent_entity"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["generation_entities"][0]["status"] == "not_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test_disabled_entity(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that diagnostic self-test detects disabled generation entities."""
+
+    try:
+        entity_id = "sensor.test_generation_disabled"
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[AUTO_DAMPEN] = True
+        options[GENERATION_ENTITIES] = [entity_id]
+        entry = await async_init_integration(hass, options)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        # Create the entity in registry, then disable it.
+        entity_registry = er.async_get(hass)
+        entity_registry.async_get_or_create(
+            "sensor",
+            "pytest",
+            "test_generation_disabled",
+            config_entry=entry,
+            suggested_object_id="test_generation_disabled",
+        )
+        entity_registry.async_update_entity(entity_id, disabled_by=RegistryEntryDisabler.USER)
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("disabled" in issue for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["generation_entities"][0]["entity_id"] == entity_id  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["generation_entities"][0]["status"] == "disabled"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test_unavailable_entity(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that diagnostic self-test detects unavailable generation entities."""
+
+    try:
+        entity_id = "sensor.test_generation_unavailable"
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[AUTO_DAMPEN] = True
+        options[GENERATION_ENTITIES] = [entity_id]
+        entry = await async_init_integration(hass, options)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        # Create entity in registry (enabled) but set its state to unavailable.
+        entity_registry = er.async_get(hass)
+        entity_registry.async_get_or_create(
+            "sensor",
+            "pytest",
+            "test_generation_unavailable",
+            config_entry=entry,
+            suggested_object_id="test_generation_unavailable",
+        )
+        hass.states.async_set(entity_id, "unavailable")
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("unavailable" in issue for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["generation_entities"][0]["entity_id"] == entity_id  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["generation_entities"][0]["status"] == "unavailable"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test_auto_dampen_no_entities(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that self-test reports auto-dampening without generation entities."""
+
+    try:
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[AUTO_DAMPEN] = True
+        options[GENERATION_ENTITIES] = []
+        entry = await async_init_integration(hass, options)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("no generation entities" in issue.lower() for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test_export_entity_not_found(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that self-test reports missing export entity."""
+
+    try:
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[SITE_EXPORT_ENTITY] = "sensor.nonexistent_export"
+        entry = await async_init_integration(hass, options)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["export_entity"]["entity_id"] == "sensor.nonexistent_export"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["export_entity"]["status"] == "not_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("Export entity" in issue for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test_export_entity_disabled(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that self-test reports disabled export entity."""
+
+    try:
+        entity_id = "sensor.test_export_disabled"
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[SITE_EXPORT_ENTITY] = entity_id
+        entry = await async_init_integration(hass, options)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        entity_registry = er.async_get(hass)
+        entity_registry.async_get_or_create(
+            "sensor",
+            "pytest",
+            "test_export_disabled",
+            config_entry=entry,
+            suggested_object_id="test_export_disabled",
+        )
+        entity_registry.async_update_entity(entity_id, disabled_by=RegistryEntryDisabler.USER)
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["export_entity"]["entity_id"] == entity_id  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["export_entity"]["status"] == "disabled"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test_export_entity_unavailable(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that self-test reports unavailable export entity."""
+
+    try:
+        entity_id = "sensor.test_export_unavailable"
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[SITE_EXPORT_ENTITY] = entity_id
+        entry = await async_init_integration(hass, options)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        entity_registry = er.async_get(hass)
+        entity_registry.async_get_or_create(
+            "sensor",
+            "pytest",
+            "test_export_unavailable",
+            config_entry=entry,
+            suggested_object_id="test_export_unavailable",
+        )
+        hass.states.async_set(entity_id, "unavailable")
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["export_entity"]["entity_id"] == entity_id  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["export_entity"]["status"] == "unavailable"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test_api_and_cache_issues(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that self-test detects API quota exhaustion, failures, and missing cache."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        # Simulate API quota exhausted and failures.
+        original_used = solcast.api_used.copy()
+        original_failure = solcast.data["failure"]["last_24h"]
+        original_filename = solcast.filename
+        for key in solcast.api_used:
+            solcast.api_used[key] = solcast.api_limit
+        solcast.data["failure"]["last_24h"] = 3
+        solcast.filename = "/nonexistent/path/forecast.json"
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("quota exhausted" in issue.lower() for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("failure" in issue.lower() for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("cache file missing" in issue.lower() for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["api"]["api_remaining"] == 0  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        # Restore.
+        solcast.api_used = original_used
+        solcast.data["failure"]["last_24h"] = original_failure
+        solcast.filename = original_filename
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test_no_sites(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that self-test detects no sites configured."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        original_sites = solcast.sites
+        solcast.sites = []
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("no sites" in issue.lower() for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["sites"] == []  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        solcast.sites = original_sites
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test_generation_entity_ok(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that self-test reports OK for a valid generation entity."""
+
+    try:
+        entity_id = "sensor.test_generation_ok"
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[AUTO_DAMPEN] = True
+        options[GENERATION_ENTITIES] = [entity_id]
+        entry = await async_init_integration(hass, options)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        entity_registry = er.async_get(hass)
+        entity_registry.async_get_or_create(
+            "sensor",
+            "pytest",
+            "test_generation_ok",
+            config_entry=entry,
+            suggested_object_id="test_generation_ok",
+        )
+        hass.states.async_set(entity_id, "1.5")
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        assert data["generation_entities"][0]["entity_id"] == entity_id  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["generation_entities"][0]["status"] == "ok"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test_export_entity_ok(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that self-test reports OK for a valid export entity."""
+
+    try:
+        entity_id = "sensor.test_export_ok"
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[SITE_EXPORT_ENTITY] = entity_id
+        entry = await async_init_integration(hass, options)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        entity_registry = er.async_get(hass)
+        entity_registry.async_get_or_create(
+            "sensor",
+            "pytest",
+            "test_export_ok",
+            config_entry=entry,
+            suggested_object_id="test_export_ok",
+        )
+        hass.states.async_set(entity_id, "42.5")
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        assert data["export_entity"]["entity_id"] == entity_id  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["export_entity"]["status"] == "ok"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_diagnostic_self_test_recorder_unavailable(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that self-test detects recorder unavailable with auto-dampening."""
+
+    try:
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[AUTO_DAMPEN] = True
+        options[GENERATION_ENTITIES] = []
+        entry = await async_init_integration(hass, options)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        # Mock the component check to simulate recorder being unavailable.
+        original_contains = hass.config.components.__contains__
+
+        def mock_contains(item: str) -> bool:
+            if item == "recorder":
+                return False
+            return original_contains(item)
+
+        with unittest.mock.patch.object(type(hass.config.components), "__contains__", side_effect=mock_contains):
+            result = await hass.services.async_call(DOMAIN, "diagnostic_self_test", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["recorder_available"] is False  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("recorder" in issue.lower() for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
     finally:
         assert await async_cleanup_integration_tests(hass)

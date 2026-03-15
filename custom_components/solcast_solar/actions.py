@@ -1,7 +1,9 @@
 """Solcast PV forecast, service actions."""
 
 from datetime import timedelta
+from enum import Enum
 import logging
+from pathlib import Path
 from typing import Any, Final
 
 import voluptuous as vol
@@ -10,7 +12,11 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers import config_validation as cv, issue_registry as ir
+from homeassistant.helpers import (
+    config_validation as cv,
+    entity_registry as er,
+    issue_registry as ir,
+)
 from homeassistant.util import dt as dt_util
 
 from .const import (
@@ -57,6 +63,7 @@ from .const import (
     RESOURCE_ID,
     SCHEMA,
     SERVICE_CLEAR_DATA,
+    SERVICE_DIAGNOSTIC_SELF_TEST,
     SERVICE_FORCE_UPDATE_ESTIMATES,
     SERVICE_FORCE_UPDATE_FORECASTS,
     SERVICE_GET_DAMPENING,
@@ -155,6 +162,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _ALL_ACTIONS: Final = [
     SERVICE_CLEAR_DATA,
+    SERVICE_DIAGNOSTIC_SELF_TEST,
     SERVICE_FORCE_UPDATE_ESTIMATES,
     SERVICE_FORCE_UPDATE_FORECASTS,
     SERVICE_GET_DAMPENING,
@@ -242,6 +250,11 @@ class ServiceActions:
         """
         return {
             SERVICE_CLEAR_DATA: {ACTION: self.async_clear_solcast_data},
+            SERVICE_DIAGNOSTIC_SELF_TEST: {
+                ACTION: self.async_diagnostic_self_test,
+                SCHEMA: None,
+                SUPPORTS_RESPONSE_KEY: SupportsResponse.ONLY,
+            },
             SERVICE_FORCE_UPDATE_ESTIMATES: {ACTION: self.async_force_update_estimates},
             SERVICE_FORCE_UPDATE_FORECASTS: {ACTION: self.async_force_update_forecast},
             SERVICE_GET_DAMPENING: {
@@ -482,6 +495,164 @@ class ServiceActions:
                 EXCLUDE_SITES: ",".join(opt.get(EXCLUDE_SITES, [])),
                 SITE_EXPORT_ENTITY: opt.get(SITE_EXPORT_ENTITY, ""),
                 SITE_EXPORT_LIMIT: opt.get(SITE_EXPORT_LIMIT, 0.0),
+            }
+        }
+
+    async def async_diagnostic_self_test(self, call: ServiceCall) -> dict[str, Any]:
+        """Handle diagnostic self-test action.
+
+        Arguments:
+            call: Not used.
+
+        Returns:
+            A structured health report covering API, sites, data cache,
+            configuration, dampening, generation entities, and export entity.
+
+        """
+        _LOGGER.info("Action: Diagnostic self-test")
+
+        solcast = self._solcast
+        issues: list[str] = []
+
+        # API status.
+        api_keys_count = len(solcast.options.api_key.split(","))
+        api_used = solcast.api_used_count
+        api_limit_val = solcast.api_limit
+        api_remaining = max(api_limit_val - api_used, 0)
+        if api_remaining == 0:
+            issues.append("API quota exhausted for today")
+
+        last_updated = solcast.last_updated
+        last_attempt = solcast.last_attempt
+
+        api_status = {
+            "api_keys_configured": api_keys_count,
+            "api_used": api_used,
+            "api_limit": api_limit_val,
+            "api_remaining": api_remaining,
+            "last_updated": str(last_updated) if last_updated else "never",
+            "last_attempt": str(last_attempt) if last_attempt else "never",
+            "failures_last_24h": solcast.failures_last_24h,
+            "failures_last_7d": solcast.failures_last_7d,
+            "status": solcast.status.name,
+            "sites_status": solcast.sites_status.name,
+        }
+
+        if solcast.failures_last_24h > 0:
+            issues.append(f"{solcast.failures_last_24h} API failure(s) in the last 24 hours")
+
+        # Sites.
+        sites_info: list[dict[str, Any]] = []
+        for site in solcast.sites:
+            sites_info.append(  # noqa: PERF401
+                {
+                    "resource_id": site.get(RESOURCE_ID, "unknown"),
+                    "name": site.get("name", ""),
+                }
+            )
+        if not solcast.sites:
+            issues.append("No sites configured")
+
+        # Data cache files.
+        cache_files: dict[str, bool] = {}
+        for label, filepath in (
+            ("forecast", solcast.filename),
+            ("undampened", solcast.filename_undampened),
+            ("actuals", solcast.filename_actuals),
+            ("actuals_dampened", solcast.filename_actuals_dampened),
+            ("dampening", solcast.filename_dampening),
+            ("dampening_history", solcast.filename_dampening_history),
+            ("generation", solcast.filename_generation),
+            ("advanced", solcast.filename_advanced),
+        ):
+            cache_files[label] = Path(filepath).exists()
+
+        if not cache_files.get("forecast", False):
+            issues.append("Forecast cache file missing")
+
+        # Configuration summary.
+        opts = solcast.options
+        config_summary = {
+            "auto_update": opts.auto_update.name if isinstance(opts.auto_update, Enum) else str(opts.auto_update),
+            "key_estimate": opts.key_estimate,
+            "get_actuals": opts.get_actuals,
+            "use_actuals": opts.use_actuals.name if isinstance(opts.use_actuals, Enum) else str(opts.use_actuals),
+            "auto_dampen": opts.auto_dampen,
+            "hard_limit": opts.hard_limit,
+            "excluded_sites": list(opts.exclude_sites),
+        }
+
+        # Dampening status.
+        dampening_status: dict[str, Any] = {
+            "enabled": solcast.dampening_enabled,
+            "auto_dampening": opts.auto_dampen,
+            "has_granular_factors": bool(solcast.dampening.factors),
+            "dampening_file_exists": cache_files.get("dampening", False),
+        }
+
+        # Generation entities validation (if auto-dampening is enabled).
+        generation_entity_checks: list[dict[str, Any]] = []
+        if opts.auto_dampen and opts.generation_entities:
+            entity_registry = er.async_get(self._hass)
+            for entity_id in opts.generation_entities:
+                check: dict[str, Any] = {"entity_id": entity_id}
+                r_entity = entity_registry.async_get(entity_id)
+                if r_entity is None:
+                    check["status"] = "not_found"
+                    issues.append(f"Generation entity {entity_id} not found in registry")
+                elif r_entity.disabled_by is not None:
+                    check["status"] = "disabled"
+                    issues.append(f"Generation entity {entity_id} is disabled")
+                else:
+                    state = self._hass.states.get(entity_id)
+                    if state is None or state.state in ("unavailable", "unknown"):
+                        check["status"] = "unavailable"
+                        issues.append(f"Generation entity {entity_id} is unavailable")
+                    else:
+                        check["status"] = "ok"
+                generation_entity_checks.append(check)
+        elif opts.auto_dampen and not opts.generation_entities:
+            issues.append("Auto-dampening enabled but no generation entities configured")
+
+        # Export entity validation (if configured).
+        export_entity_check: dict[str, Any] = {}
+        if opts.site_export_entity:
+            entity_id = opts.site_export_entity
+            export_entity_check["entity_id"] = entity_id
+            entity_registry = er.async_get(self._hass)
+            r_entity = entity_registry.async_get(entity_id)
+            if r_entity is None:
+                export_entity_check["status"] = "not_found"
+                issues.append(f"Export entity {entity_id} not found in registry")
+            elif r_entity.disabled_by is not None:
+                export_entity_check["status"] = "disabled"
+                issues.append(f"Export entity {entity_id} is disabled")
+            else:
+                state = self._hass.states.get(entity_id)
+                if state is None or state.state in ("unavailable", "unknown"):
+                    export_entity_check["status"] = "unavailable"
+                    issues.append(f"Export entity {entity_id} is unavailable")
+                else:
+                    export_entity_check["status"] = "ok"
+
+        # Recorder availability.
+        recorder_available = "recorder" in self._hass.config.components
+
+        if not recorder_available and opts.auto_dampen:
+            issues.append("Recorder not available but required for auto-dampening")
+
+        return {
+            "data": {
+                "overall_status": "ok" if not issues else "issues_found",
+                "issues": issues,
+                "api": api_status,
+                "sites": sites_info,
+                "cache_files": cache_files,
+                "configuration": config_summary,
+                "dampening": dampening_status,
+                "generation_entities": generation_entity_checks,
+                "export_entity": export_entity_check,
+                "recorder_available": recorder_available,
             }
         }
 

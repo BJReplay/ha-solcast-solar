@@ -448,6 +448,10 @@
       "description": "Elimina o ficheiro solcast.json para remover todos os dados atuais do site Solcast.",
       "name": "Limpar todos os dados Solcast guardados"
     },
+    "diagnostic_self_test": {
+      "description": "Executa um autoteste de diagnóstico para validar a conectividade da API, a integridade dos ficheiros de cache, a acessibilidade das entidades de geração e o estado geral da configuração.",
+      "name": "Autoteste de diagnóstico"
+    },
     "force_update_estimates": {
       "description": "O Force busca os últimos dados reais estimados do Solcast.",
       "name": "Forçar Atualização de Dados Reais Estimados"

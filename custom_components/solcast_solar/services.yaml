@@ -15,6 +15,10 @@ clear_all_solcast_data:
   name: Clear saved Solcast site data
   description: Deletes the solcast.json file to remove all current solcast site data
 
+diagnostic_self_test:
+  name: Diagnostic self-test
+  description: Run a diagnostic self-test to validate configuration health
+
 query_forecast_data:
   name: Query forecasts
   description: List of forecasts between start date/time and end date/time
