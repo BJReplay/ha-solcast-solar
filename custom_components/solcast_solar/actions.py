@@ -680,6 +680,7 @@ class ServiceActions:
             **self._entry.options,
             **opt,
         }
+        sync_legacy_keys(opt)
         sync_legacy_keys(all_config_data)
         self._hass.config_entries.async_update_entry(
             self._entry,

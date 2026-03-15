@@ -650,7 +650,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         def upgraded() -> None:
             _LOGGER.info("Upgraded to options version %s", entry.version)
 
-        if upgrade_function is not None:
+        if upgrade_function is not None and (
+            (entry.version < upgrade[VERSION]) or (ENTRY_OPTIONS_DEVELOPMENT and upgrade[VERSION] == CONFIG_VERSION)
+        ):
             new_options = {**entry.options}
             await upgrade_function(hass, new_options)
             hass.config_entries.async_update_entry(entry, options=new_options, version=version)
@@ -743,7 +745,6 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         {VERSION: 19, UPGRADE_FUNCTION: __v19},
     ]
     for upgrade in upgrades:
-        if (entry.version < upgrade[VERSION]) or (ENTRY_OPTIONS_DEVELOPMENT and upgrade[VERSION] == CONFIG_VERSION):
-            await upgrade_to(upgrade[VERSION], entry, upgrade[UPGRADE_FUNCTION])
+        await upgrade_to(upgrade[VERSION], entry, upgrade[UPGRADE_FUNCTION])
 
     return True
