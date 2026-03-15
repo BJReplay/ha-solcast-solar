@@ -19,7 +19,6 @@ import aiofiles
 from aiohttp import ClientConnectionError, ClientResponseError
 from aiohttp.client_reqrep import ClientResponse
 
-from homeassistant.const import CONF_API_KEY
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
 
@@ -41,6 +40,7 @@ from .const import (
     FORECASTS,
     FORMAT,
     GENERATION,
+    INTEGRATION_VERSION,
     ISSUE_UNUSUAL_AZIMUTH_NORTHERN,
     ISSUE_UNUSUAL_AZIMUTH_SOUTHERN,
     JSON,
@@ -53,6 +53,7 @@ from .const import (
     LEARN_MORE,
     LEARN_MORE_UNUSUAL_AZIMUTH,
     OLD_API_KEY,
+    PERIOD_START,
     PROPOSAL,
     RESET,
     RESOURCE_ID,
@@ -94,6 +95,7 @@ FRESH_DATA: Final[dict[str, Any]] = {
     LAST_ATTEMPT: dt.fromtimestamp(0, UTC),
     AUTO_UPDATED: 0,
     FAILURE: {LAST_24H: 0, LAST_7D: [0] * 7, LAST_14D: [0] * 14},
+    INTEGRATION_VERSION: "",
     VERSION: JSON_VERSION,
 }
 
@@ -415,6 +417,18 @@ class SitesCache:
                                 filename,
                                 type(json_data),
                             )
+                            for site_id, site_data in json_data.get(SITE_INFO, {}).items():
+                                bad = [f for f in site_data.get(FORECASTS, []) if PERIOD_START in f and not isinstance(f[PERIOD_START], dt)]
+                                if bad:
+                                    _LOGGER.warning(
+                                        "Dropping %d entry(s) with non-datetime period_start for site %s in %s",
+                                        len(bad),
+                                        site_id,
+                                        filename,
+                                    )
+                                    site_data[FORECASTS] = [
+                                        f for f in site_data[FORECASTS] if not (PERIOD_START in f and not isinstance(f[PERIOD_START], dt))
+                                    ]
                             data = json_data
                             if set_loaded:
                                 self.api.loaded_data = True
@@ -461,9 +475,7 @@ class SitesCache:
                     new_sites: dict[str, str] = {}
                     cache_sites = list(self.api.data[SITE_INFO].keys())
                     old_api_keys = (
-                        self.api.hass.data[DOMAIN]
-                        .get(OLD_API_KEY, self.api.hass.data[DOMAIN][ENTRY_OPTIONS].get(CONF_API_KEY, ""))
-                        .split(",")
+                        self.api.hass.data[DOMAIN].get(OLD_API_KEY, self.api.hass.data[DOMAIN][ENTRY_OPTIONS].get(API_KEY, "")).split(",")
                     )
                     for site in self.api.sites:
                         api_key = site[API_KEY]
@@ -632,6 +644,7 @@ class SitesCache:
             bool: Success or failure.
         """
         if self.api.loaded_data and data[LAST_UPDATED] != dt.fromtimestamp(0, UTC):
+            data[INTEGRATION_VERSION] = self.api.integration_version
             payload = json.dumps(data, ensure_ascii=False, cls=DateTimeEncoder)
             async with self.api.serialise_lock, aiofiles.open(filename, "w") as file:
                 await file.write(payload)
@@ -979,11 +992,11 @@ class SitesCache:
 
             self.api.usage_status = UsageStatus.OK
             api_keys = self.api.options.api_key.split(",")
-            api_quota = self.api.options.api_quota.split(",")
-            for index in range(len(api_keys)):  # If only one quota value is present, yet there are multiple sites then use the same quota.
-                if len(api_quota) < index + 1:
-                    api_quota.append(api_quota[index - 1])
-            quota = {api_keys[index].strip(): int(api_quota[index].strip()) for index in range(len(api_quota))}
+            api_limit_values = self.api.options.api_limit.split(",")
+            for index in range(len(api_keys)):  # If only one limit value is present, yet there are multiple sites then use the same limit.
+                if len(api_limit_values) < index + 1:
+                    api_limit_values.append(api_limit_values[index - 1])
+            quota = {api_keys[index].strip(): int(api_limit_values[index].strip()) for index in range(len(api_limit_values))}
 
             for api_key in api_keys:
                 api_key = api_key.strip()

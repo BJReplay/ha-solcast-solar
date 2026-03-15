@@ -17,7 +17,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory, UnitOfEnergy, UnitOfPower
+from homeassistant.const import CONF_API_KEY, EntityCategory, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
@@ -27,7 +27,6 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (
     ADVANCED_OPTIONS,
     AMENDABLE,
-    API_KEY,
     ATTRIBUTION,
     AUTO_UPDATE_DIVISIONS,
     AUTO_UPDATE_NEXT,
@@ -366,7 +365,7 @@ async def async_setup_entry(
                     key="hard_limit_" + api_key_last_six(api_key),
                     translation_key=HARD_LIMIT_API,
                     translation_placeholders={
-                        API_KEY: redact_api_key(api_key),
+                        CONF_API_KEY: redact_api_key(api_key),
                     },
                     entity_category=EntityCategory.DIAGNOSTIC,
                 )

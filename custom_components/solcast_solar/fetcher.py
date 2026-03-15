@@ -59,6 +59,8 @@ from .const import (
     SITE_INFO,
     TASK_ACTUALS_FETCH,
     TASK_FORECASTS_FETCH,
+    UPDATE_BACKOFF,
+    UPDATE_TRIES,
 )
 from .util import (
     AutoUpdate,
@@ -569,9 +571,9 @@ class Fetcher:
                         url = f"{self.api.advanced_options[ADVANCED_SOLCAST_URL]}/rooftop_sites/{site}/{path}"
                         params: dict[str, str | int] = {FORMAT: JSON, API_KEY: api_key, HOURS: hours}
 
-                        tries = 10
+                        tries = UPDATE_TRIES
                         counter = 0
-                        backoff = 15  # On every retry the back-off increases by (at least) fifteen seconds more than the previous back-off.
+                        backoff = UPDATE_BACKOFF  # On every retry the back-off increases by (at least) UPDATE_BACKOFF seconds more than the previous back-off.
                         while True:
                             _LOGGER.debug("Fetching path %s", path)
                             counter += 1
@@ -680,13 +682,14 @@ class Fetcher:
                             )
                             _LOGGER.debug("HTTP session status %s", http_status_translate(status))
 
-                            if received_429 == tries and issue_registry.async_get_issue(DOMAIN, ISSUE_API_UNAVAILABLE) is None:
+                            if received_429 == tries:
                                 _LOGGER.debug("Raise issue for %s", ISSUE_API_UNAVAILABLE)
                                 ir.async_create_issue(
                                     self.api.hass,
                                     DOMAIN,
                                     ISSUE_API_UNAVAILABLE,
                                     is_fixable=False,
+                                    is_persistent=True,
                                     severity=ir.IssueSeverity.WARNING,
                                     translation_key=ISSUE_API_UNAVAILABLE,
                                     learn_more_url=LEARN_MORE_MISSING_FORECAST_DATA,

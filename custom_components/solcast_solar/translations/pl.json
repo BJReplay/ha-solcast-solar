@@ -8,6 +8,7 @@
     },
     "error": {
       "api_duplicate": "Określono duplikat klucza API",
+      "api_key_empty": "Klucz API nie może być pusty",
       "api_looks_like_site": "Klucz API wygląda jak identyfikator witryny",
       "limit_not_number": "Limit API nie jest liczbą",
       "limit_one_or_greater": "Limit API musi wynosić jeden lub więcej",
@@ -23,7 +24,7 @@
       "reconfigure_confirm": {
         "data": {
           "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
-          "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
+          "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
           "auto_update": "Automatyczna aktualizacja"
         },
         "description": "Dane konta Solcast\n\n(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)"
@@ -31,10 +32,10 @@
       "user": {
         "data": {
           "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
-          "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
+          "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
           "auto_update": "Automatyczna aktualizacja"
         },
-        "description": "Dane konta Solcast\n\n(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)"
+        "description": "Dane konta Solcast\n\n(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)\n\nAPI Solcast musi być dostępne, aby wstępnie skonfigurować tę integrację. Jeśli otrzymasz komunikat o stanie '429 / Try again later', API jest niedostępne i konfiguracja nie może zostać ukończona. Musisz poczekać. Należy pamiętać, że strona stanu API pod adresem status.solcast.com prawie na pewno nie pokaże żadnych problemów z API. Przyczyną jest najprawdopodobniej pojedynczy nieodpowiedzialny użytkownik API, który wpływa na dostępność dla wszystkich hobbystów."
       }
     }
   },
@@ -141,6 +142,18 @@
     "actuals_not_enabled": {
       "message": "Pozyskiwanie szacunkowych wartości rzeczywistych nie jest włączone."
     },
+    "actuals_without_get": {
+      "message": "Nie można używać szacowanych wartości rzeczywistych bez ich uzyskania."
+    },
+    "api_duplicate": {
+      "message": "Określono duplikat klucza API."
+    },
+    "api_key_empty": {
+      "message": "Klucz API nie może być pusty."
+    },
+    "api_looks_like_site": {
+      "message": "Klucz API wygląda jak identyfikator witryny."
+    },
     "auto_use_force": {
       "message": "Automatyczna aktualizacja jest włączona. Zdarzenie serwisowe jest ignorowane przy aktualizacji prognozy. Zamiast tego użyj opcji Wymuś aktualizację."
     },
@@ -179,6 +192,15 @@
     },
     "damp_use_all": {
       "message": "Tłumienie witryny nie jest ustawione dla {site}, „all” jest jedynym dostępnym parametrem witryny dla zgłoszenia serwisowego."
+    },
+    "dampen_without_actuals": {
+      "message": "Aby korzystać z automatycznego tłumienia, należy wybrać szacowane wartości rzeczywiste."
+    },
+    "dampen_without_generation": {
+      "message": "Należy określić co najmniej jeden czujnik generacji fotowoltaicznej, aby korzystać z automatycznego tłumienia."
+    },
+    "export_no_entity": {
+      "message": "Jednostka eksportu witryny musi być określona, jeśli jest ustawiony limit eksportu witryny."
     },
     "hard_empty": {
       "message": "Pusta wartość twardego limitu."
@@ -219,17 +241,45 @@
     "integration_prior_crash": {
       "message": "Integracja nie mogła się wcześniej załadować, ponawianie próby po opóźnieniu."
     },
+    "invalid_auto_update": {
+      "message": "Wartość automatycznej aktualizacji musi wynosić 0, 1 lub 2."
+    },
     "invalid_custom_hours_format": {
       "message": "Wartość godzin musi być liczbą całkowitą."
     },
     "invalid_custom_hours_range": {
       "message": "Wartość godzin musi zawierać się w przedziale od 1 do 144."
     },
+    "invalid_export_limit": {
+      "message": "Limit eksportu musi być liczbą z zakresu od 0,0 do 100,0."
+    },
+    "invalid_key_estimate": {
+      "message": "Klucz szacowania musi być 'estimate', 'estimate10' lub 'estimate90'."
+    },
+    "invalid_use_actuals": {
+      "message": "Wartość 'użyj wartości rzeczywistych' musi wynosić 0, 1 lub 2."
+    },
+    "limit_not_number": {
+      "message": "Limit API nie jest liczbą."
+    },
+    "limit_one_or_greater": {
+      "message": "Limit API musi wynosić jeden lub więcej."
+    },
+    "limit_too_many": {
+      "message": "Wprowadzono więcej limitów API niż kluczy."
+    },
     "remove_cache_failed": {
       "message": "Wyczyść wszystkie dane Solcast nie powiodło się."
+    },
+    "set_options_empty": {
+      "message": "Należy określić co najmniej jedną opcję."
     }
   },
   "issues": {
+    "action_deprecated": {
+      "description": "Akcja `{deprecated_action}` jest przestarzała i zostanie usunięta w przyszłej wersji. Zamiast tego użyj akcji `{new_action}`.",
+      "title": "Przestarzała akcja"
+    },
     "advanced_deprecated": {
       "description": "Zaawansowana opcja konfiguracyjna `{option}` została zmieniona na `{new_option}`. Zaktualizuj swoje zaawansowane opcje konfiguracyjne, aby używać nowej nazwy opcji.{stops_working}",
       "title": "Zaawansowana opcja przestarzała"
@@ -239,8 +289,12 @@
       "title": "Problem z zaawansowaną opcją"
     },
     "api_unavailable": {
-      "description": "Podczas aktualizacji Solcast API wielokrotnie zgłaszało status `429 / Spróbuj ponownie później`.\n\n* Nie próbuj rozwiązać tej sytuacji.\n* Nie zmieniaj klucza API.\n* Unikaj ponownego uruchamiania integracji\n* To nie jest problem z integracją i rozwiąże się samoczynnie. Nic nie zmieniaj.\n\n(Aby wyciszyć ten problem, utwórz zaawansowana opcja konfiguracji api_raise_issue i ustaw ją na false.)",
+      "description": "Podczas aktualizacji Solcast API wielokrotnie zgłaszało status `429 / Try again later`. Oznacza to, że Solcast API jest zajęte i aktywnie blokuje żądania kont hobbystów.\n\n* Witryna solcast.com nie jest dotknięta problemem, ale API jest tymczasowo niedostępne dla ciebie.\n* Strona stanu API pod adresem status.solcast.com prawie na pewno nie wskaże żadnego problemu.\n* Nie próbuj rozwiązać tej sytuacji.\n* Nie zmieniaj klucza API.\n* Nie próbuj aktualizować integracji.\n* Unikaj ponownego uruchamiania integracji.\n* Integracja będzie nadal dostarczać ostatnią prognozę słoneczną pobraną z Solcast.\n* To nie jest problem z integracją i rozwiąże się samoczynnie. Nic nie zmieniaj.\n\n(Aby wyciszyć ten problem, utwórz zaawansowana opcja konfiguracji api_raise_issue i ustaw ją na false.)",
       "title": "Solcast API tymczasowo niedostępne"
+    },
+    "actuals_api_limit": {
+      "description": "Automatyczna aktualizacja i szacowane wartości rzeczywiste są włączone, podczas gdy limit API jest skonfigurowany na maksymalną wartość dla hobbystów (`{configured_value}`). Szacowane wartości rzeczywiste są zbierane tuż po północy i wykorzystują jedno wywołanie API na każdą instalację dachową dla każdego skonfigurowanego klucza API. Zmniejsz limit API do `{suggested_value}`, aby zarezerwować wywołania dla szacowanych wartości rzeczywistych.",
+      "title": "Dostosuj limit API dla szacowanych wartości rzeczywistych"
     },
     "corrupt_file": {
       "description": "Plik(i) danych w pamięci podręcznej `{files}` jest(są) uszkodzony(e). Integracja spróbuje się odzyskać, usuwając plik(i) i ponownie pobierając dane z Solcast. Spodziewaj się zwiększonego wykorzystania API i potencjalnych awarii API oraz utraty historii prognoz z powodu tej sytuacji. Możliwe jest odzyskanie plików z kopii zapasowej, ale nadal spodziewaj się awarii wywołań API.",
@@ -293,14 +347,15 @@
       "actuals_not_enabled": "Pozyskiwanie szacunkowych wartości rzeczywistych nie jest włączone",
       "actuals_without_get": "Nie można używać szacunkowych wartości rzeczywistych bez ich uzyskania",
       "api_duplicate": "Określono duplikat klucza API",
+      "api_key_empty": "Klucz API nie może być pusty",
       "api_looks_like_site": "Klucz API wygląda jak identyfikator witryny",
       "custom_invalid": "Niestandardowy czujnik nie znajduje się pomiędzy 1 a 144",
       "dampen_without_actuals": "Aby użyć automatycznego tłumienia, należy wybrać szacowane wartości rzeczywiste",
       "dampen_without_generation": "Należy określić co najmniej jeden czujnik generacji fotowoltaicznej, który będzie korzystał z automatycznego tłumienia (energii lub mocy)",
-      "generation_mixed_types": "Wszystkie jednostki generujące energię fotowoltaiczną muszą być tego samego typu (cała energia lub cała moc, a nie mieszanka)",
       "export_multiple_entities": "Jednostka eksportu witryny musi być pojedynczą jednostką, a nie wieloma jednostkami",
       "export_no_entity": "Jednostka eksportu witryny musi być określona, jeśli jest ustawiony limit eksportu witryny",
-      "hard_not_number": "Twardy limit nie jest liczbą dodatnią",
+      "generation_mixed_types": "Wszystkie jednostki generujące energię fotowoltaiczną muszą być tego samego typu (cała energia lub cała moc, a nie mieszanka)",
+      "hard_not_positive_number": "Twardy limit nie jest liczbą dodatnią",
       "hard_too_many": "Wprowadzono więcej sztywnych limitów niż kluczy",
       "limit_not_number": "Limit API nie jest liczbą",
       "limit_one_or_greater": "Limit API musi wynosić jeden lub więcej",
@@ -339,7 +394,7 @@
       "init": {
         "data": {
           "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
-          "api_quota": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
+          "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
           "attr_brk_detailed": "Włącz podział witryny dla atrybutów szczegółów półgodzinnych/godzinnych (nie zostaną one zapisane w atrybutach stanu bazy danych)",
           "attr_brk_estimate": "Włącz oszacowanie 50 atrybutów czujnika",
           "attr_brk_estimate10": "Włącz oszacowanie 10 atrybutów czujnika",
@@ -350,7 +405,7 @@
           "auto_dampen": "Automatyczne tłumienie (wymaga szacowanych wartości rzeczywistych i jednostki generacji fotowoltaicznej, patrz dokumentacja integracji)",
           "auto_update": "Automatyczna aktualizacja (jeśli nie ma automatycznej aktualizacji, zamiast tego należy zastosować automatyzację)",
           "config_damp": "Zmodyfikuj godzinowe współczynniki tłumienia (po kliknięciu przycisku „ZATWIERDŹ”)",
-          "customhoursensor": "Niestandardowy czujnik następnej godziny X (min.=1, maks.=144)",
+          "custom_hours": "Niestandardowy czujnik następnej godziny X (min.=1, maks.=144)",
           "exclude_sites": "Miejsca, które należy wykluczyć z pulpitu nawigacyjnego Energy i sum czujników",
           "generation_entities": "Jednostka/jednostki generacji fotowoltaicznej do automatycznego tłumienia (energia: Wh/kWh/MWh łącznie wzrasta lub moc: W/kW/MW chwilowo)",
           "get_actuals": "Szacowane wartości rzeczywiste aktualizowane o północy (patrz dokumentacja integracji, używa jednego wywołania API na stronę dziennie, więc zredukowany limit API jest potrzebny z tą opcją włączoną)",
@@ -393,6 +448,10 @@
       "description": "Usuwa plik solcast.json, aby usunąć wszystkie aktualne dane witryny Solcast.",
       "name": "Wyczyść wszystkie zapisane dane Solcast"
     },
+    "diagnostic_self_test": {
+      "description": "Uruchamia diagnostyczny autotest w celu sprawdzenia łączności z API, integralności plików pamięci podręcznej, dostępności encji generacji oraz ogólnego stanu konfiguracji.",
+      "name": "Autotest diagnostyczny"
+    },
     "force_update_estimates": {
       "description": "Force pobiera najnowsze szacunkowe dane rzeczywiste z Solcast.",
       "name": "Wymuś aktualizację szacunkowych wartości rzeczywistych"
@@ -410,6 +469,10 @@
         }
       },
       "name": "Uzyskaj prognozy tłumienia"
+    },
+    "get_options": {
+      "description": "Pobierz aktualne opcje konfiguracji integracji.",
+      "name": "Pobierz opcje"
     },
     "query_estimate_data": {
       "description": "Zwraca zestaw danych lub wartość dla podanego zapytania.",
@@ -479,11 +542,97 @@
       "description": "Zabrania wartości prognoz przekraczających maksymalną moc inwertera.",
       "fields": {
         "hard_limit": {
-          "description": "Ustaw maksymalną wartość w watach, jaką może wyprodukować inwerter.",
+          "description": "Ustaw maksymalną wartość w watach, jaką może wyprodukować inwerter. Użyj 0, aby wyłączyć limit.",
           "name": "Wartość limitu w watach"
         }
       },
       "name": "Ustaw twardy limit prognoz inwertera"
+    },
+    "set_options": {
+      "description": "Ustawia jedną lub więcej opcji konfiguracji integracji.",
+      "fields": {
+        "api_key": {
+          "description": "Klucz(e) API, oddzielone przecinkami dla wielu wartości.",
+          "name": "Klucz API"
+        },
+        "api_limit": {
+          "description": "Limit(y) API, oddzielone przecinkami dla wielu kluczy.",
+          "name": "Limit API"
+        },
+        "attr_brk_detailed": {
+          "description": "Włącz podział witryny dla atrybutów szczegółów półgodzinnych i godzinowych.",
+          "name": "Szczegółowy podział witryny"
+        },
+        "attr_brk_estimate": {
+          "description": "Włącz atrybuty czujnika szacowania 50.",
+          "name": "Podział szacowania"
+        },
+        "attr_brk_estimate10": {
+          "description": "Włącz atrybuty czujnika szacowania 10.",
+          "name": "Podział szacowania 10"
+        },
+        "attr_brk_estimate90": {
+          "description": "Włącz atrybuty czujnika szacowania 90.",
+          "name": "Podział szacowania 90"
+        },
+        "attr_brk_halfhourly": {
+          "description": "Włącz atrybuty szczegółów prognozy półgodzinnej.",
+          "name": "Podział półgodzinny"
+        },
+        "attr_brk_hourly": {
+          "description": "Włącz atrybuty szczegółów prognozy godzinowej.",
+          "name": "Podział godzinowy"
+        },
+        "attr_brk_site": {
+          "description": "Włącz atrybuty czujnika podziału witryny.",
+          "name": "Podział witryny"
+        },
+        "auto_dampen": {
+          "description": "Włącz automatyczne tłumienie.",
+          "name": "Automatyczne tłumienie"
+        },
+        "auto_update": {
+          "description": "Tryb automatycznej aktualizacji: 0=brak, 1=od wschodu do zachodu słońca, 2=cały dzień.",
+          "name": "Automatyczna aktualizacja"
+        },
+        "custom_hours": {
+          "description": "Liczba godzin dla niestandardowego czujnika godzin (1-144).",
+          "name": "Niestandardowe godziny"
+        },
+        "exclude_sites": {
+          "description": "Witryna/witryny do wykluczenia, identyfikatory witryn oddzielone przecinkami.",
+          "name": "Wyklucz witryny"
+        },
+        "generation_entities": {
+          "description": "Jednostka/jednostki generacji fotowoltaicznej, oddzielone przecinkami.",
+          "name": "Jednostki generacji"
+        },
+        "get_actuals": {
+          "description": "Włącz pozyskiwanie szacowanych wartości rzeczywistych.",
+          "name": "Pobierz wartości rzeczywiste"
+        },
+        "hard_limit": {
+          "description": "Twardy limit falownika w Watach, lub 0 lub 100 aby wyłączyć. Oddzielone przecinkami dla wielu kluczy.",
+          "name": "Twardy limit"
+        },
+        "key_estimate": {
+          "description": "Preferowane szacowanie prognozy: estimate, estimate10 lub estimate90.",
+          "name": "Preferowane szacowanie"
+        },
+        "site_export_entity": {
+          "description": "Opcjonalna jednostka eksportu witryny do automatycznego tłumienia.",
+          "name": "Jednostka eksportu witryny"
+        },
+        "site_export_limit": {
+          "description": "Limit eksportu witryny w kW (0,0-100,0).",
+          "name": "Limit eksportu witryny"
+        },
+        "use_actuals": {
+          "description": "Historia prognoz dla panelu energetycznego: 0=prognozy, 1=wartości rzeczywiste, 2=wytłumione wartości rzeczywiste.",
+          "name": "Użyj wartości rzeczywistych"
+        }
+      },
+      "name": "Ustaw opcje"
     },
     "update_forecasts": {
       "description": "Pobierz najnowsze dane prognoz Solcast.",

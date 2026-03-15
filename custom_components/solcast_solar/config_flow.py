@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from datetime import timezone
 import logging
 from pathlib import Path
-import re
 import traceback
 from types import MappingProxyType
 from typing import Any
@@ -38,7 +37,7 @@ from . import get_session_headers, get_version
 from .const import (
     AFFIRMATION_REAUTH_SUCCESSFUL,
     AFFIRMATION_RECONFIGURED,
-    API_QUOTA,
+    API_LIMIT,
     AUTO_DAMPEN,
     AUTO_UPDATE,
     BASE,
@@ -51,26 +50,20 @@ from .const import (
     BRK_SITE_DETAILED,
     CONFIG_DAMP,
     CONFIG_VERSION,
-    CUSTOM_HOUR_SENSOR,
+    CUSTOM_HOURS,
     DEFAULT_SOLCAST_HTTPS_URL,
     DEVICE_NAME,
     DOMAIN,
     ENERGY_HISTORY,
     ENTRY_ID,
     EXCEPTION_ACTUALS_WITHOUT_GET,
-    EXCEPTION_API_DUPLICATE,
-    EXCEPTION_API_LOOKS_LIKE_SITE,
     EXCEPTION_CUSTOM_INVALID,
     EXCEPTION_DAMPEN_WITHOUT_ACTUALS,
     EXCEPTION_DAMPEN_WITHOUT_GENERATION,
     EXCEPTION_EXPORT_MULTIPLE_ENTITIES,
     EXCEPTION_EXPORT_NO_ENTITY,
     EXCEPTION_GENERATION_MIXED_TYPES,
-    EXCEPTION_HARD_NOT_NUMBER,
-    EXCEPTION_HARD_TOO_MANY,
     EXCEPTION_INTERNAL_ERROR,
-    EXCEPTION_LIMIT_NOT_NUMBER,
-    EXCEPTION_LIMIT_ONE_OR_GREATER,
     EXCEPTION_SINGLE_INSTANCE_ALLOWED,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
@@ -91,7 +84,13 @@ from .const import (
     USE_ACTUALS,
 )
 from .solcastapi import ConnectionOptions, SolcastApi
-from .util import HistoryType, SitesStatus
+from .util import HistoryType, SitesStatus, sync_legacy_keys
+from .validators import (
+    validate_api_key,
+    validate_api_limit,
+    validate_custom_hours_value,
+    validate_hard_limit_value,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -100,54 +99,6 @@ AUTO_UPDATE_OPTIONS: list[SelectOptionDict] = [
     SelectOptionDict(label="sunrise_sunset", value="1"),
     SelectOptionDict(label="all_day", value="2"),
 ]
-LIKE_SITE_ID = r"^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$"
-
-
-def validate_api_key(user_input: dict[str, Any]) -> tuple[str, int, str | None]:
-    """Validate the API key.
-
-    Arguments:
-        user_input (dict[str, Any]): The user input.
-
-    Returns:
-        tuple[str, int, str | None]: The API key, API count, and abort result.
-
-    """
-    api_key = user_input[CONF_API_KEY].replace(" ", "")
-    api_key = [s for s in api_key.split(",") if s]
-    for index, key in enumerate(api_key):
-        if re.match(LIKE_SITE_ID, key):
-            return "", 0, EXCEPTION_API_LOOKS_LIKE_SITE
-        for i, k in enumerate(api_key):
-            if index != i and key == k:
-                return "", 0, EXCEPTION_API_DUPLICATE
-    api_count = len(api_key)
-    api_key = ",".join(api_key)
-    return api_key, api_count, None
-
-
-def validate_api_limit(user_input: dict[str, Any], api_count: int) -> tuple[str, str | None]:
-    """Validate the API limit.
-
-    Arguments:
-        user_input (dict[str, Any]): The user input.
-        api_count (int): The number of API keys.
-
-    Returns:
-        tuple[str, str | None]: The API limit, and abort result.
-
-    """
-    api_quota = user_input[API_QUOTA].replace(" ", "")
-    api_quota = [s for s in api_quota.split(",") if s]
-    for q in api_quota:
-        if not q.isnumeric():
-            return "", EXCEPTION_LIMIT_NOT_NUMBER
-        if int(q) < 1:
-            return "", EXCEPTION_LIMIT_ONE_OR_GREATER
-    if len(api_quota) > api_count:
-        return "", "limit_too_many"
-    api_quota = ",".join(api_quota)
-    return api_quota, None
 
 
 async def _get_time_zone(hass: HomeAssistant) -> ZoneInfo | timezone:
@@ -169,13 +120,13 @@ async def validate_sites(hass: HomeAssistant, user_input: dict[str, Any]) -> tup
     session = async_get_clientsession(hass)
     options = ConnectionOptions(
         user_input[CONF_API_KEY],
-        user_input[API_QUOTA],
+        user_input[API_LIMIT],
         DEFAULT_SOLCAST_HTTPS_URL,
         hass.config.path(f"{hass.config.config_dir}/solcast.json"),
         await _get_time_zone(hass),
         user_input[AUTO_UPDATE],
         {str(a): 1.0 for a in range(24)},
-        user_input[CUSTOM_HOUR_SENSOR],
+        user_input[CUSTOM_HOURS],
         user_input[KEY_ESTIMATE],
         user_input[HARD_LIMIT_API],
         user_input[BRK_ESTIMATE],
@@ -256,6 +207,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 result = self.async_abort(reason=EXCEPTION_INTERNAL_ERROR)
                 if self.entry is not None:
                     data = {**self.entry.data, **all_config_data}
+                    sync_legacy_keys(data)
                     self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
                     if self.hass.data[DOMAIN].get(PRESUMED_DEAD, True):
                         _LOGGER.debug("Loading presumed dead integration")
@@ -288,16 +240,16 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             api_key, api_count, abort = validate_api_key(user_input)
-            api_quota = "10"
+            api_limit = "10"
             if abort is not None:
                 errors[BASE] = abort
             if not errors:
-                api_quota, abort = validate_api_limit(user_input, api_count)
+                api_limit, abort = validate_api_limit(user_input, api_count)
                 if abort is not None:
                     errors[BASE] = abort
             if not errors:
                 all_config_data[CONF_API_KEY] = api_key
-                all_config_data[API_QUOTA] = api_quota
+                all_config_data[API_LIMIT] = api_limit
                 all_config_data[AUTO_UPDATE] = int(user_input[AUTO_UPDATE])
 
                 status, message = await validate_sites(self.hass, all_config_data)
@@ -308,6 +260,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 result = self.async_abort(reason=EXCEPTION_INTERNAL_ERROR)
                 if self.entry is not None:
                     data = {**self.entry.data, **all_config_data}
+                    sync_legacy_keys(data)
                     self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
                     if self.hass.data[DOMAIN].get(PRESUMED_DEAD, True):
                         _LOGGER.debug("Loading presumed dead integration")
@@ -321,7 +274,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_API_KEY, default=all_config_data[CONF_API_KEY]): str,
-                    vol.Required(API_QUOTA, default=all_config_data[API_QUOTA]): str,
+                    vol.Required(API_LIMIT, default=all_config_data[API_LIMIT]): str,
                     vol.Required(AUTO_UPDATE, default=str(all_config_data[AUTO_UPDATE])): SelectSelector(
                         SelectSelectorConfig(options=AUTO_UPDATE_OPTIONS, mode=SelectSelectorMode.DROPDOWN, translation_key=AUTO_UPDATE)
                     ),
@@ -348,20 +301,20 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
         if user_input is not None:
             api_key, api_count, abort = validate_api_key(user_input)
-            api_quota = "10"
+            api_limit = "10"
             if abort is not None:
                 errors[BASE] = abort
             if not errors:
-                api_quota, abort = validate_api_limit(user_input, api_count)
+                api_limit, abort = validate_api_limit(user_input, api_count)
                 if abort is not None:
                     errors[BASE] = abort
             if not errors:
                 options: dict[str, Any] = {
                     CONF_API_KEY: api_key,
-                    API_QUOTA: api_quota,
+                    API_LIMIT: api_limit,
                     AUTO_UPDATE: int(user_input[AUTO_UPDATE]),
                     # Remaining options set to default
-                    CUSTOM_HOUR_SENSOR: 1,
+                    CUSTOM_HOURS: 1,
                     HARD_LIMIT_API: "100.0",
                     KEY_ESTIMATE: "estimate",
                     BRK_ESTIMATE: True,
@@ -379,13 +332,14 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     SITE_EXPORT_LIMIT: 0.0,
                     AUTO_DAMPEN: False,
                 }
-                damp = {f"damp{factor:02d}": 1.0 for factor in range(24)}
 
                 status, message = await validate_sites(self.hass, options)
                 if status != 200:
                     errors[BASE] = message
                 else:
-                    return self.async_create_entry(title=TITLE, data={}, options=options | damp)
+                    return self.async_create_entry(
+                        title=TITLE, data={}, options=options | {f"damp{factor:02d}": 1.0 for factor in range(24)}
+                    )
 
         solcast_json_exists = Path(f"{self.hass.config.config_dir}/solcast.json").is_file()
         _LOGGER.debug(
@@ -398,7 +352,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_API_KEY, default=""): str,
-                    vol.Required(API_QUOTA, default="10"): str,
+                    vol.Required(API_LIMIT, default="10"): str,
                     vol.Required(AUTO_UPDATE, default=str(int(not solcast_json_exists))): SelectSelector(
                         SelectSelectorConfig(options=AUTO_UPDATE_OPTIONS, mode=SelectSelectorMode.DROPDOWN, translation_key=AUTO_UPDATE)
                     ),
@@ -507,41 +461,28 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     _LOGGER.debug("Options validation failed: %s", abort)
 
                 if not errors:
-                    all_config_data[API_QUOTA], abort = validate_api_limit(user_input, api_count)
+                    all_config_data[API_LIMIT], abort = validate_api_limit(user_input, api_count)
                     if abort is not None:
                         errors[BASE] = abort
                         _LOGGER.debug("Options validation failed: %s", abort)
 
                 if not errors:
                     # Validate the custom hours sensor.
-                    custom_hour_sensor = user_input[CUSTOM_HOUR_SENSOR]
-                    if custom_hour_sensor < 1 or custom_hour_sensor > 144:
+                    custom_hour_sensor, abort = validate_custom_hours_value(str(user_input[CUSTOM_HOURS]))
+                    if abort is not None:
                         errors[BASE] = EXCEPTION_CUSTOM_INVALID
                         _LOGGER.debug("Options validation failed: %s", errors[BASE])
                     else:
-                        all_config_data[CUSTOM_HOUR_SENSOR] = custom_hour_sensor
+                        all_config_data[CUSTOM_HOURS] = custom_hour_sensor
 
                 if not errors:
                     # Validate the hard limit.
-                    hard_limit = user_input[HARD_LIMIT_API]
-                    if hard_limit == "0":  # Hard limit can be disabled by setting to zero or 100
-                        hard_limit = "100.0"
-                    to_set: list[str] = []
-                    for h in hard_limit.split(","):
-                        h = h.strip()
-                        if not h.replace(".", "", 1).isdigit():
-                            errors[BASE] = EXCEPTION_HARD_NOT_NUMBER
-                            _LOGGER.debug("Options validation failed: %s", errors[BASE])
-                            break
-                        val = float(h)
-                        to_set.append(f"{val:.1f}")
-                    if not errors:
-                        if len(to_set) > api_count:
-                            errors[BASE] = EXCEPTION_HARD_TOO_MANY
-                            _LOGGER.debug("Options validation failed: %s", errors[BASE])
-                        else:
-                            hard_limit = ",".join(to_set)
-                            all_config_data[HARD_LIMIT_API] = hard_limit
+                    hard_limit, abort = validate_hard_limit_value(user_input[HARD_LIMIT_API], api_count)
+                    if abort is not None:
+                        errors[BASE] = abort
+                        _LOGGER.debug("Options validation failed: %s", errors[BASE])
+                    else:
+                        all_config_data[HARD_LIMIT_API] = hard_limit
 
                 # Validate estimated actuals and auto-dampen.
                 all_config_data[GET_ACTUALS] = user_input.get(GET_ACTUALS, False)
@@ -614,6 +555,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     if user_input.get(CONFIG_DAMP) and not user_input.get(AUTO_DAMPEN, False):
                         return await self.async_step_dampen()
 
+                    sync_legacy_keys(all_config_data)
                     self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
                     await self.check_dead()
                     return self.async_abort(reason=AFFIRMATION_RECONFIGURED)
@@ -665,14 +607,14 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_API_KEY, default=self._options.get(CONF_API_KEY)): str,
-                    vol.Required(API_QUOTA, default=self._options[API_QUOTA]): str,
+                    vol.Required(API_LIMIT, default=self._options[API_LIMIT]): str,
                     vol.Required(AUTO_UPDATE, default=str(int(self._options[AUTO_UPDATE]))): SelectSelector(
                         SelectSelectorConfig(options=update, mode=SelectSelectorMode.DROPDOWN, translation_key=AUTO_UPDATE)
                     ),
                     vol.Required(KEY_ESTIMATE, default=self._options.get(KEY_ESTIMATE, "estimate")): SelectSelector(
                         SelectSelectorConfig(options=forecasts, mode=SelectSelectorMode.DROPDOWN, translation_key=KEY_ESTIMATE)
                     ),
-                    vol.Required(CUSTOM_HOUR_SENSOR, default=self._options[CUSTOM_HOUR_SENSOR]): int,
+                    vol.Required(CUSTOM_HOURS, default=self._options[CUSTOM_HOURS]): int,
                     vol.Required(HARD_LIMIT_API, default=self._options.get(HARD_LIMIT_API)): str,
                     vol.Optional(BRK_ESTIMATE10, default=self._options[BRK_ESTIMATE10]): bool,
                     vol.Optional(BRK_ESTIMATE, default=self._options[BRK_ESTIMATE]): bool,
@@ -727,6 +669,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                 all_config_data[f"damp{factor:02d}"] = user_input[f"damp{factor:02d}"]
             all_config_data[SITE_DAMP] = False
 
+            sync_legacy_keys(all_config_data)
             self.hass.config_entries.async_update_entry(self._entry, title=TITLE, options=all_config_data)
             await self.check_dead()
             return self.async_abort(reason=AFFIRMATION_RECONFIGURED)

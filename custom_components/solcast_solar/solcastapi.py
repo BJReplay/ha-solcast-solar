@@ -22,6 +22,7 @@ from typing import Any
 from aiohttp import ClientSession
 
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 
@@ -30,7 +31,6 @@ from .const import (
     ADVANCED_FORECAST_FUTURE_DAYS,
     ADVANCED_HISTORY_MAX_DAYS,
     ALL,
-    API_KEY,
     AUTO_DAMPEN,
     AUTO_UPDATE,
     AUTO_UPDATED,
@@ -43,7 +43,7 @@ from .const import (
     BRK_SITE_DETAILED,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
-    CUSTOM_HOUR_SENSOR,
+    CUSTOM_HOURS,
     DAMPENING_FACTOR,
     DATA_SET_ACTUALS,
     DATA_SET_ACTUALS_UNDAMPENED,
@@ -110,7 +110,7 @@ class ConnectionOptions:
     """Solcast options for the integration."""
 
     api_key: str
-    api_quota: str
+    api_limit: str
     host: str
     file_path: str
     tz: tzinfo
@@ -181,6 +181,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.hard_limit: str = options.hard_limit
         self.hass: HomeAssistant = hass
         self.headers: dict[str, str] = {}
+        self.integration_version: str = ""
         self.latest_period: dt | None = None
         self.loaded_data = False
         self.options: ConnectionOptions = options
@@ -201,7 +202,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.use_forecast_confidence = f"pv_{options.key_estimate}"
 
         # Private attributes.
-        self._better_mape_issue_raised: bool = False
         self._sites_actual_hard_limit: defaultdict[str, Any] = defaultdict(dict)
         self._sites_actual_hard_limit_undampened: defaultdict[str, Any] = defaultdict(dict)
         self._sites_hard_limit: defaultdict[str, Any] = defaultdict(dict)
@@ -213,9 +213,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         _LOGGER.debug("Configuration directory is %s", self.config_dir)
 
         file_path = Path(self.config_dir) / Path(options.file_path).name
-        self.advanced_opt = AdvancedOptions(self)
-        self.advanced_opt.set_default_advanced_options()
-
         self.filename = f"{file_path}"
         self.filename_actuals = f"{file_path.parent / file_path.stem}-actuals{file_path.suffix}"
         self.filename_actuals_dampened = f"{file_path.parent / file_path.stem}-actuals-dampened{file_path.suffix}"
@@ -226,6 +223,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.filename_undampened = f"{file_path.parent / file_path.stem}-undampened{file_path.suffix}"
 
         # Child objects.
+        self.advanced_opt = AdvancedOptions(self)
         self.dampening = Dampening(self)
         self.fetcher = Fetcher(self)
         self.query = ForecastQuery(self)
@@ -292,14 +290,14 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.options = ConnectionOptions(
             # All these options require a reload, and can not be dynamically set, hence retrieval from self.options...
             self.options.api_key,
-            self.options.api_quota,
+            self.options.api_limit,
             self.options.host,
             self.options.file_path,
             self.options.tz,
             self.options.auto_update,
             # Options that can be dynamically set...
             self.damp,
-            options[CUSTOM_HOUR_SENSOR],
+            options[CUSTOM_HOURS],
             options.get(KEY_ESTIMATE, self.options.key_estimate),
             options.get(HARD_LIMIT_API, "100.0"),
             options[BRK_ESTIMATE],
@@ -427,7 +425,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         api_key: str | None = None
         for _site in self.sites:
             if _site[RESOURCE_ID] == site:
-                api_key = _site[API_KEY]
+                api_key = _site[CONF_API_KEY]
                 break
         return api_key
 
@@ -483,7 +481,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             for site in self.sites:
                 if data[SITE_INFO].get(site[RESOURCE_ID]) is None:
                     continue
-                api_key_sites[site[API_KEY] if multi_key else ALL][site[RESOURCE_ID]] = {
+                api_key_sites[site[CONF_API_KEY] if multi_key else ALL][site[RESOURCE_ID]] = {
                     EARLIEST_PERIOD: data[SITE_INFO][site[RESOURCE_ID]][FORECASTS][0][PERIOD_START],
                     LAST_PERIOD: data[SITE_INFO][site[RESOURCE_ID]][FORECASTS][-1][PERIOD_START],
                 }

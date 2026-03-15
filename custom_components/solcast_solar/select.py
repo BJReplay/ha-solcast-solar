@@ -102,7 +102,6 @@ class EstimateModeEntity(SelectEntity):
         self._attr_options = supported_options
         self._attr_current_option = current_option
         self._attr_entity_category = EntityCategory.CONFIG
-        self._attributes: dict[str, Any] = {}
         self._attr_extra_state_attributes: dict[str, Any] = {}
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},

@@ -15,6 +15,10 @@ clear_all_solcast_data:
   name: Clear saved Solcast site data
   description: Deletes the solcast.json file to remove all current solcast site data
 
+diagnostic_self_test:
+  name: Diagnostic self-test
+  description: Run a diagnostic self-test to validate configuration health
+
 query_forecast_data:
   name: Query forecasts
   description: List of forecasts between start date/time and end date/time
@@ -70,13 +74,63 @@ get_dampening:
     site:
       example: "1234-5678-9012-3456"
 
+get_options:
+  name: Get options
+  description: Get current integration configuration options
+
 set_hard_limit:
   name: Set inverter forecast hard limit in kW
   description: Prevent forecast values being higher than the inverter can produce
   fields:
     hard_limit:
+      description: Set the max value in Watts that the inverter can produce. Use 0 to disable the hard limit.
       example: "6.0"
 
 remove_hard_limit:
   name: Remove inverter forecast hard limit
   description: Remove set limit
+
+set_options:
+  name: Set options
+  description: Set one or more integration configuration options
+  fields:
+    api_key:
+      example: "your-api-key"
+    api_limit:
+      example: "10"
+    auto_update:
+      example: "1"
+    key_estimate:
+      example: "estimate"
+    custom_hours:
+      example: "6"
+    hard_limit:
+      example: "100"
+    attr_brk_estimate:
+      example: true
+    attr_brk_estimate10:
+      example: true
+    attr_brk_estimate90:
+      example: true
+    attr_brk_site:
+      example: true
+    attr_brk_halfhourly:
+      example: true
+    attr_brk_hourly:
+      example: true
+    attr_brk_detailed:
+      example: false
+    get_actuals:
+      example: false
+    use_actuals:
+      example: "0"
+    auto_dampen:
+      example: false
+    generation_entities:
+      example: "sensor.inverter_power"
+    exclude_sites:
+      example: "1234-5678-9012-3456"
+    site_export_entity:
+      example: "sensor.grid_export"
+    site_export_limit:
+      example: "5.0"

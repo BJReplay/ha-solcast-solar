@@ -8,6 +8,7 @@
     },
     "error": {
       "api_duplicate": "Duplicate API key specified",
+      "api_key_empty": "API key must not be empty",
       "api_looks_like_site": "API key looks like a site ID",
       "limit_not_number": "API limit is not a number",
       "limit_one_or_greater": "API limit must be one or greater",
@@ -23,7 +24,7 @@
       "reconfigure_confirm": {
         "data": {
           "api_key": "API key (comma separate multiple values)",
-          "api_quota": "API limit (optionally comma separate multiple values for each key)",
+          "api_limit": "API limit (optionally comma separate multiple values for each key)",
           "auto_update": "Auto-update"
         },
         "description": "Solcast Account Details\n\n(If not using auto-update then an automation is required - see the integration documentation)"
@@ -31,10 +32,10 @@
       "user": {
         "data": {
           "api_key": "API key (comma separate multiple values)",
-          "api_quota": "API limit (optionally comma separate multiple values for each key)",
+          "api_limit": "API limit (optionally comma separate multiple values for each key)",
           "auto_update": "Auto-update"
         },
-        "description": "Solcast Account Details\n\n(If not using auto-update then an automation is required - see the integration documentation)"
+        "description": "Solcast Account Details\n\n(If not using auto-update then an automation is required - see the integration documentation)\n\nThe Solcast API must be available to initially configure this integration. If you receive a status message '429 / Try again later' then the API is unavailable and configuration cannot be completed. You need to wait. Note that the API status page at status.solcast.com will almost certainly not show any API issues. The cause most likely lies with a single bad API user who is affecting availability for all hobbyists."
       }
     }
   },
@@ -141,6 +142,18 @@
     "actuals_not_enabled": {
       "message": "Estimated actuals acquisition is not enabled."
     },
+    "actuals_without_get": {
+      "message": "Estimated actuals cannot be used without getting them."
+    },
+    "api_duplicate": {
+      "message": "Duplicate API key specified."
+    },
+    "api_key_empty": {
+      "message": "API key must not be empty."
+    },
+    "api_looks_like_site": {
+      "message": "API key looks like a site ID."
+    },
     "auto_use_force": {
       "message": "Auto-update is enabled, ignoring service event for forecast update, use Force Update instead."
     },
@@ -179,6 +192,15 @@
     },
     "damp_use_all": {
       "message": "Site dampening is not set for {site}, 'all' is the only available site parameter for the service call."
+    },
+    "dampen_without_actuals": {
+      "message": "Estimated actuals must be selected to use auto-dampening."
+    },
+    "dampen_without_generation": {
+      "message": "At least one PV generation sensor must be specified to use auto-dampening."
+    },
+    "export_no_entity": {
+      "message": "A site export entity must be specified if the site export limit is set."
     },
     "hard_empty": {
       "message": "Empty hard limit value."
@@ -219,17 +241,49 @@
     "integration_prior_crash": {
       "message": "Integration failed to load previously, trying again after a delay."
     },
+    "invalid_auto_update": {
+      "message": "The auto update value must be 0, 1, or 2."
+    },
     "invalid_custom_hours_format": {
       "message": "The hours value must be a whole number."
     },
     "invalid_custom_hours_range": {
       "message": "The hours value must be between 1 and 144."
     },
+    "invalid_export_limit": {
+      "message": "The export limit must be a number between 0.0 and 100.0."
+    },
+    "invalid_key_estimate": {
+      "message": "The estimate key must be estimate, estimate10, or estimate90."
+    },
+    "invalid_use_actuals": {
+      "message": "The use actuals value must be 0, 1, or 2."
+    },
+    "limit_not_number": {
+      "message": "API limit is not a number."
+    },
+    "limit_one_or_greater": {
+      "message": "API limit must be one or greater."
+    },
+    "limit_too_many": {
+      "message": "There are more API limit counts entered than keys."
+    },
     "remove_cache_failed": {
       "message": "Clear all Solcast data failed."
+    },
+    "set_options_empty": {
+      "message": "At least one option must be specified."
     }
   },
   "issues": {
+    "action_deprecated": {
+      "description": "The `{deprecated_action}` action is deprecated and will be removed in a future release. Use the `{new_action}` action instead.",
+      "title": "Deprecated action"
+    },
+    "actuals_api_limit": {
+      "description": "Auto-update and estimated actuals are enabled while API limit is configured at hobbyist maximum value (`{configured_value}`). Estimated actuals are collected just after midnight and use one API call per rooftop site for each configured API key. Reduce your API limit to `{suggested_value}` to reserve calls for estimated actuals.",
+      "title": "Adjust API limit for estimated actuals"
+    },
     "advanced_deprecated": {
       "description": "Advanced configuration option(s) `{option}` changed to `{new_option}`. Please update your advanced configuration options to use the new option name.{stops_working}",
       "title": "Advanced option deprecated"
@@ -239,7 +293,7 @@
       "title": "Advanced option problem"
     },
     "api_unavailable": {
-      "description": "The Solcast API has reported `429 / Try again later` status repeatedly during an update.\n\n* Do not attempt to fix this situation.\n* Do not change your API key.\n* Avoid restarting the integration\n* This is not an integration issue and will resolve itself. Change nothing.\n\n(To suppress this issue, create an advanced configuration option api_raise_issue and set it to false.)",
+      "description": "The Solcast API has reported `429 / Try again later` status repeatedly during an update. This means that the Solcast API is busy and is actively blocking requests for hobbyist accounts.\n\n* The solcast.com website is unaffected, but the API is temporarily unavailable to you.\n* The API status page at status.solcast.com will almost certainly indicate no issue.\n* Do not attempt to fix this situation.\n* Do not change your API key.\n* Do not attempt an integration upgrade.\n* Avoid restarting the integration.\n* The integration will continue providing the last solar forecast it retrieved from Solcast.\n* This is not an integration issue and will resolve itself. Change nothing.\n\n(To suppress this issue, create an advanced configuration option api_raise_issue and set it to false.)",
       "title": "Solcast API temporarily unavailable"
     },
     "corrupt_file": {
@@ -293,6 +347,7 @@
       "actuals_not_enabled": "Estimated actuals acquisition is not enabled",
       "actuals_without_get": "Estimated actuals cannot be used without getting them",
       "api_duplicate": "Duplicate API key specified",
+      "api_key_empty": "API key must not be empty",
       "api_looks_like_site": "API key looks like a site ID",
       "custom_invalid": "Custom sensor not between 1 and 144",
       "dampen_without_actuals": "Estimated actuals must be selected to use auto-dampening",
@@ -300,7 +355,7 @@
       "export_multiple_entities": "Site export entity must be a single entity, not multiple entities",
       "export_no_entity": "Site export entity must be specified if site export limit is set",
       "generation_mixed_types": "PV generation entities must all be the same type (all energy or all power, not a mix)",
-      "hard_not_number": "Hard limit is not a positive number",
+      "hard_not_positive_number": "Hard limit is not a positive number",
       "hard_too_many": "There are more hard limits entered than keys",
       "limit_not_number": "API limit is not a number",
       "limit_one_or_greater": "API limit must be one or greater",
@@ -339,7 +394,7 @@
       "init": {
         "data": {
           "api_key": "API key (comma separate multiple values)",
-          "api_quota": "API limit (optionally comma separate multiple values for each key)",
+          "api_limit": "API limit (optionally comma separate multiple values for each key)",
           "attr_brk_detailed": "Enable site breakdown for half-hourly/hourly detail attributes (these will not be saved to database state attributes)",
           "attr_brk_estimate": "Enable estimate 50 sensor attributes",
           "attr_brk_estimate10": "Enable estimate 10 sensor attributes",
@@ -350,7 +405,7 @@
           "auto_dampen": "Auto-dampen (requires estimated actuals and PV generation entity, see integration documentation)",
           "auto_update": "Auto-update (if no auto-update then an automation must be used instead)",
           "config_damp": "Modify the hourly dampening factors (after clicking submit)",
-          "customhoursensor": "Custom next X hours sensor (min=1, max=144)",
+          "custom_hours": "Custom next X hours sensor (min=1, max=144)",
           "exclude_sites": "Site(s) to exclude from the Energy dashboard and sensor totals",
           "generation_entities": "PV generation entity/entities for automated dampening (energy: Wh/kWh/MWh total increasing, or power: W/kW/MW instantaneous)",
           "get_actuals": "Estimated actuals updated at midnight (see integration documentation, uses one API call per site per day, so a reduced API limit is needed with this option enabled)",
@@ -393,6 +448,10 @@
       "description": "Deletes the solcast.json file to remove all current solcast site data.",
       "name": "Clear all saved Solcast data"
     },
+    "diagnostic_self_test": {
+      "description": "Run a diagnostic self-test to validate API connectivity, cache file integrity, generation entity accessibility, and overall configuration health.",
+      "name": "Diagnostic self-test"
+    },
     "force_update_estimates": {
       "description": "Force fetches the latest estimated actual data from Solcast.",
       "name": "Force Update Estimated Actuals"
@@ -410,6 +469,10 @@
         }
       },
       "name": "Get forecasts dampening"
+    },
+    "get_options": {
+      "description": "Get current integration configuration options.",
+      "name": "Get options"
     },
     "query_estimate_data": {
       "description": "Return a data set for a given query.",
@@ -479,11 +542,97 @@
       "description": "Prevent forecast values being higher than the inverter can produce.",
       "fields": {
         "hard_limit": {
-          "description": "Set the max value in Watts that the inverter can produce.",
+          "description": "Set the max value in Watts that the inverter can produce. Use 0 to disable the hard limit.",
           "name": "Limit value in Watts"
         }
       },
       "name": "Set inverter forecast hard limit"
+    },
+    "set_options": {
+      "description": "Set one or more integration configuration options.",
+      "fields": {
+        "api_key": {
+          "description": "API key(s), comma separated for multiple.",
+          "name": "API key"
+        },
+        "api_limit": {
+          "description": "API limit(s), comma separated for multiple keys.",
+          "name": "API limit"
+        },
+        "attr_brk_detailed": {
+          "description": "Enable site breakdown for half-hourly and hourly detail attributes.",
+          "name": "Breakdown site detailed"
+        },
+        "attr_brk_estimate": {
+          "description": "Enable estimate 50 sensor attributes.",
+          "name": "Breakdown estimate"
+        },
+        "attr_brk_estimate10": {
+          "description": "Enable estimate 10 sensor attributes.",
+          "name": "Breakdown estimate 10"
+        },
+        "attr_brk_estimate90": {
+          "description": "Enable estimate 90 sensor attributes.",
+          "name": "Breakdown estimate 90"
+        },
+        "attr_brk_halfhourly": {
+          "description": "Enable forecast half-hourly detail attributes.",
+          "name": "Breakdown half-hourly"
+        },
+        "attr_brk_hourly": {
+          "description": "Enable forecast hourly detail attributes.",
+          "name": "Breakdown hourly"
+        },
+        "attr_brk_site": {
+          "description": "Enable site breakdown sensor attributes.",
+          "name": "Breakdown site"
+        },
+        "auto_dampen": {
+          "description": "Enable automated dampening.",
+          "name": "Auto dampen"
+        },
+        "auto_update": {
+          "description": "Auto update mode: 0=none, 1=sunrise to sunset, 2=all day.",
+          "name": "Auto update"
+        },
+        "custom_hours": {
+          "description": "Number of hours for the custom hours sensor (1-144).",
+          "name": "Custom hours"
+        },
+        "exclude_sites": {
+          "description": "Site(s) to exclude, comma separated site IDs.",
+          "name": "Exclude sites"
+        },
+        "generation_entities": {
+          "description": "PV generation entity/entities, comma separated.",
+          "name": "Generation entities"
+        },
+        "get_actuals": {
+          "description": "Enable estimated actuals acquisition.",
+          "name": "Get actuals"
+        },
+        "hard_limit": {
+          "description": "Inverter hard limit in Watts, or 0 or 100 to disable. Comma separated for multiple keys.",
+          "name": "Hard limit"
+        },
+        "key_estimate": {
+          "description": "Preferred forecast estimate: estimate, estimate10, or estimate90.",
+          "name": "Preferred estimate"
+        },
+        "site_export_entity": {
+          "description": "Optional site export entity for automated dampening.",
+          "name": "Site export entity"
+        },
+        "site_export_limit": {
+          "description": "Site export limit in kW (0.0-100.0).",
+          "name": "Site export limit"
+        },
+        "use_actuals": {
+          "description": "Forecast history for the Energy dashboard: 0=forecasts, 1=actuals, 2=dampened actuals.",
+          "name": "Use actuals"
+        }
+      },
+      "name": "Set options"
     },
     "update_forecasts": {
       "description": "Fetches the latest forecasts data from Solcast.",

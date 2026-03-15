@@ -190,7 +190,7 @@ This selected dampening configuration is then applied to the forecast and the se
 
 When `automated_dampening_no_delta_adjustment` is true, the algorithm selects the most consistently accurate dampening model from the configurations that do not use delta adjustment.  When it is false, the algorithm selects the combination of dampening model and delta adjustment option that are most consistently accurate. 
 
-An information message will be logged whenever the `automated_dampening_no_delta_adjustment` setting disagrees with the overall best error results. This happens if `automated_dampening_no_delta_adjustment` is `true` but a delta adjusted model performs better, or if it is `false` but a model without delta adjustment achieves a lower error.
+A debug message will be logged whenever the `automated_dampening_no_delta_adjustment` setting disagrees with the overall best error results. This happens if `automated_dampening_no_delta_adjustment` is `true` but a delta adjusted model performs better, or if it is `false` but a model without delta adjustment achieves a lower error.
 
 There are a number of other advanced options that can and should be used to tune the performance of adaptive dampening model configuration to suit your local conditions.  These are described below, please read these carefully and decide on appropriate settings for each before setting `automated_dampening_adaptive_model_configuration` to `true`.
 

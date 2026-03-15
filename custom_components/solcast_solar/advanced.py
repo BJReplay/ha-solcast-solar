@@ -62,6 +62,7 @@ class AdvancedOptions:
             api: The parent SolcastApi instance.
         """
         self.api = api
+        self.set_default_advanced_options()
 
     def advanced_options_with_aliases(self) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
         """Return advanced options including aliases."""
@@ -181,7 +182,7 @@ class AdvancedOptions:
                                     option,
                                     advanced_options_with_aliases[option][CURRENT_NAME],
                                 )
-                            value = self.api.advanced_options.get(option)
+                            value = self.api.advanced_options.get(advanced_options_with_aliases[option][CURRENT_NAME])
                             valid = True
                             if isinstance(new_value, type(value)):
                                 match advanced_options_with_aliases[option][ADVANCED_TYPE]:
@@ -429,6 +430,8 @@ class AdvancedOptions:
 
         advanced_options_with_aliases, _ = self.advanced_options_with_aliases()
         for key, value in advanced_options_with_aliases.items():
+            if key != value[CURRENT_NAME]:
+                continue  # Skip aliases, only log canonical names
             if key not in self.api.advanced_options or self.api.advanced_options.get(key) != value[DEFAULT]:
                 _LOGGER.debug("Advanced option set %s: %s", key, self.api.advanced_options.get(key))
 
@@ -438,6 +441,8 @@ class AdvancedOptions:
         advanced_options_with_aliases, _ = self.advanced_options_with_aliases()
         initial = not self.api.advanced_options
         for key, value in advanced_options_with_aliases.items():
+            if key != value[CURRENT_NAME]:
+                continue  # Skip aliases, only set defaults for canonical names
             if key not in self.api.advanced_options or self.api.advanced_options.get(key) != value[DEFAULT]:
                 self.api.advanced_options[key] = value[DEFAULT]
                 if not initial:

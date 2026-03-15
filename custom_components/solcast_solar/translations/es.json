@@ -8,6 +8,7 @@
     },
     "error": {
       "api_duplicate": "Se especificó una clave API duplicada",
+      "api_key_empty": "La clave API no debe estar vacía",
       "api_looks_like_site": "La clave API parece un ID de sitio",
       "limit_not_number": "El límite de API no es un número",
       "limit_one_or_greater": "El límite de API debe ser uno o mayor",
@@ -23,7 +24,7 @@
       "reconfigure_confirm": {
         "data": {
           "api_key": "Clave API (varios valores separados por comas)",
-          "api_quota": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
+          "api_limit": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
           "auto_update": "Actualización automática"
         },
         "description": "Detalles de la cuenta Solcast\n\n(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)"
@@ -31,10 +32,10 @@
       "user": {
         "data": {
           "api_key": "Clave API (varios valores separados por comas)",
-          "api_quota": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
+          "api_limit": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
           "auto_update": "Actualización automática"
         },
-        "description": "Detalles de la cuenta Solcast\n\n(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)"
+        "description": "Detalles de la cuenta Solcast\n\n(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)\n\nLa API de Solcast debe estar disponible para configurar esta integración por primera vez. Si recibe el mensaje de estado '429 / Try again later', significa que la API no está disponible y la configuración no puede completarse. Debe esperar. Tenga en cuenta que la página de estado de la API en status.solcast.com casi con certeza no mostrará ningún problema de API. La causa más probable es un único usuario problemático de la API que afecta la disponibilidad para todos los aficionados."
       }
     }
   },
@@ -141,6 +142,18 @@
     "actuals_not_enabled": {
       "message": "La adquisición de valores reales estimados no está habilitada."
     },
+    "actuals_without_get": {
+      "message": "Los valores reales estimados no se pueden utilizar sin obtenerlos."
+    },
+    "api_duplicate": {
+      "message": "Se especificó una clave API duplicada."
+    },
+    "api_key_empty": {
+      "message": "La clave API no debe estar vacía."
+    },
+    "api_looks_like_site": {
+      "message": "La clave API parece un ID de sitio."
+    },
     "auto_use_force": {
       "message": "La actualización automática está habilitada, ignorando el evento de servicio para la actualización del pronóstico, use Forzar actualización en su lugar."
     },
@@ -179,6 +192,15 @@
     },
     "damp_use_all": {
       "message": "La amortiguación del sitio no está configurada para {site}, 'all' es el único parámetro de sitio disponible para la llamada de servicio."
+    },
+    "dampen_without_actuals": {
+      "message": "Se deben seleccionar los valores reales estimados para usar la amortiguación automática."
+    },
+    "dampen_without_generation": {
+      "message": "Se debe especificar al menos un sensor de generación fotovoltaica para utilizar la amortiguación automática."
+    },
+    "export_no_entity": {
+      "message": "La entidad de exportación del sitio debe especificarse si se establece un límite de exportación del sitio."
     },
     "hard_empty": {
       "message": "Valor límite duro vacío."
@@ -219,17 +241,45 @@
     "integration_prior_crash": {
       "message": "La integración no se pudo cargar anteriormente; se intentará nuevamente después de un retraso."
     },
+    "invalid_auto_update": {
+      "message": "El valor de actualización automática debe ser 0, 1 o 2."
+    },
     "invalid_custom_hours_format": {
       "message": "El valor de las horas debe ser un número entero."
     },
     "invalid_custom_hours_range": {
       "message": "El valor de las horas debe estar entre 1 y 144."
     },
+    "invalid_export_limit": {
+      "message": "El límite de exportación debe ser un número entre 0,0 y 100,0."
+    },
+    "invalid_key_estimate": {
+      "message": "La clave de estimación debe ser 'estimate', 'estimate10' o 'estimate90'."
+    },
+    "invalid_use_actuals": {
+      "message": "El valor de 'usar valores reales' debe ser 0, 1 o 2."
+    },
+    "limit_not_number": {
+      "message": "El límite de API no es un número."
+    },
+    "limit_one_or_greater": {
+      "message": "El límite de API debe ser uno o mayor."
+    },
+    "limit_too_many": {
+      "message": "Se ingresaron más recuentos de límites de API que claves."
+    },
     "remove_cache_failed": {
       "message": "Error al borrar todos los datos de Solcast."
+    },
+    "set_options_empty": {
+      "message": "Se debe especificar al menos una opción."
     }
   },
   "issues": {
+    "action_deprecated": {
+      "description": "La acción `{deprecated_action}` está obsoleta y se eliminará en una versión futura. Use la acción `{new_action}` en su lugar.",
+      "title": "Acción obsoleta"
+    },
     "advanced_deprecated": {
       "description": "La(s) opción(es) de configuración avanzada `{option}` cambiaron a `{new_option}`. Actualice sus opciones de configuración avanzada para usar el nuevo nombre de opción.{stops_working}",
       "title": "Opción avanzada obsoleta"
@@ -239,8 +289,12 @@
       "title": "Problema con opción avanzada"
     },
     "api_unavailable": {
-      "description": "La API de Solcast ha informado repetidamente el estado `429 / Inténtelo de nuevo más tarde` durante una actualización.\n\n* No intente solucionar esta situación.\n* No cambie su clave API.\n* Evite reiniciar la integración\n* Esto no es un problema de integración y se resolverá por sí solo. No cambies nada.\n\n(Para suprimir este problema, cree una opción de configuración avanzada api_raise_issue y configúrela en false.)",
+      "description": "La API de Solcast ha informado repetidamente el estado `429 / Try again later` durante una actualización. Esto significa que la API de Solcast está ocupada y está bloqueando activamente las solicitudes de cuentas de aficionados.\n\n* El sitio web solcast.com no se ve afectado, pero la API no está disponible temporalmente para usted.\n* La página de estado de la API en status.solcast.com casi con certeza no indicará ningún problema.\n* No intente solucionar esta situación.\n* No cambie su clave API.\n* No intente actualizar la integración.\n* Evite reiniciar la integración.\n* La integración continuará proporcionando la última previsión solar que recuperó de Solcast.\n* Esto no es un problema de integración y se resolverá por sí solo. No cambies nada.\n\n(Para suprimir este problema, cree una opción de configuración avanzada api_raise_issue y configúrela en false.)",
       "title": "Solcast API temporalmente no disponible"
+    },
+    "actuals_api_limit": {
+      "description": "La actualización automática y los valores reales estimados están habilitados, mientras que el límite de API está configurado en el valor máximo para aficionados (`{configured_value}`). Los valores reales estimados se recopilan justo después de la medianoche y utilizan una llamada a la API por instalación en tejado para cada clave de API configurada. Reduzca su límite de API a `{suggested_value}` para reservar llamadas para los valores reales estimados.",
+      "title": "Ajustar el límite de API para valores reales estimados"
     },
     "corrupt_file": {
       "description": "El/los archivo(s) de datos en caché `{files}` está(n) corrupto(s). La integración intentará recuperarse eliminando el/los archivo(s) y volviendo a obtener los datos de Solcast. Espere un mayor uso de la API y posibles fallos de la API, y la pérdida del historial de pronósticos debido a esta situación. Posiblemente recupere los archivos desde una copia de seguridad, pero aún así espere fallos en las llamadas a la API.",
@@ -293,14 +347,15 @@
       "actuals_not_enabled": "La adquisición de valores reales estimados no está habilitada",
       "actuals_without_get": "Los valores reales estimados no se pueden utilizar sin obtenerlos",
       "api_duplicate": "Se especificó una clave API duplicada",
+      "api_key_empty": "La clave API no debe estar vacía",
       "api_looks_like_site": "La clave API parece un ID de sitio",
       "custom_invalid": "Sensor personalizado no entre 1 y 144",
       "dampen_without_actuals": "Se deben seleccionar los valores reales estimados para utilizar la amortiguación automática",
       "dampen_without_generation": "Se debe especificar al menos un sensor de generación fotovoltaica para utilizar la amortiguación automática (energía o potencia)",
-      "generation_mixed_types": "Las entidades de generación fotovoltaica deben ser todas del mismo tipo (toda la energía o toda la potencia, no una mezcla)",
       "export_multiple_entities": "La entidad de exportación del sitio debe ser una sola entidad, no varias entidades",
       "export_no_entity": "La entidad de exportación del sitio debe ser especificada si se establece un límite de exportación del sitio",
-      "hard_not_number": "El límite duro no es un número positivo",
+      "generation_mixed_types": "Las entidades de generación fotovoltaica deben ser todas del mismo tipo (toda la energía o toda la potencia, no una mezcla)",
+      "hard_not_positive_number": "El límite duro no es un número positivo",
       "hard_too_many": "Se introducen más límites duros que claves",
       "limit_not_number": "El límite de API no es un número",
       "limit_one_or_greater": "El límite de API debe ser uno o mayor",
@@ -339,7 +394,7 @@
       "init": {
         "data": {
           "api_key": "Clave API (varios valores separados por comas)",
-          "api_quota": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
+          "api_limit": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
           "attr_brk_detailed": "Habilitar el desglose del sitio para los atributos de detalle por media hora o por hora (estos no se guardarán en los atributos de estado de la base de datos)",
           "attr_brk_estimate": "Habilitar la estimación de 50 atributos de sensor",
           "attr_brk_estimate10": "Habilitar la estimación de 10 atributos de sensor",
@@ -350,7 +405,7 @@
           "auto_dampen": "Auto-dampen (requiere valores reales estimados y una entidad de generación PV, ver documentación de integración)",
           "auto_update": "Actualización automática (si no hay actualización automática, se debe utilizar una automatización en su lugar)",
           "config_damp": "Modificar los factores de amortiguación por hora (después de hacer clic en enviar)",
-          "customhoursensor": "Sensor personalizado para las próximas X horas (mín.=1, máx.=144)",
+          "custom_hours": "Sensor personalizado para las próximas X horas (mín.=1, máx.=144)",
           "exclude_sites": "Sitio(s) a excluir del panel de energía y de los totales de los sensores",
           "generation_entities": "Entidad/entidades de generación fotovoltaica para amortiguación automatizada (energía: Wh/kWh/MWh total creciente, o potencia: W/kW/MW instantánea)",
           "get_actuals": "Valores reales estimados actualizados a medianoche (ver documentación de integración, utiliza una llamada API por sitio por día, por lo que se necesita un límite API reducido con esta opción habilitada)",
@@ -393,6 +448,10 @@
       "description": "Elimina el archivo solcast.json para eliminar todos los datos actuales del sitio solcast.",
       "name": "Borrar todos los datos guardados de Solcast"
     },
+    "diagnostic_self_test": {
+      "description": "Ejecuta una prueba de autodiagnóstico para validar la conectividad API, la integridad de los archivos de caché, la accesibilidad de las entidades de generación y el estado general de la configuración.",
+      "name": "Autodiagnóstico"
+    },
     "force_update_estimates": {
       "description": "Force obtiene los últimos datos reales estimados de Solcast.",
       "name": "Forzar actualización de datos reales estimados"
@@ -410,6 +469,10 @@
         }
       },
       "name": "Obtener pronósticos de amortiguación"
+    },
+    "get_options": {
+      "description": "Obtener las opciones de configuración actuales de la integración.",
+      "name": "Obtener opciones"
     },
     "query_estimate_data": {
       "description": "Devuelve un conjunto de datos para una consulta determinada.",
@@ -479,11 +542,97 @@
       "description": "Evitar que los valores previstos sean superiores a los que el inversor puede producir.",
       "fields": {
         "hard_limit": {
-          "description": "Establezca el valor máximo en vatios que puede producir el inversor.",
+          "description": "Establezca el valor máximo en vatios que puede producir el inversor. Use 0 para desactivar el límite.",
           "name": "Valor límite en Watts"
         }
       },
       "name": "Establecer límite estricto de previsión del inversor"
+    },
+    "set_options": {
+      "description": "Establece una o más opciones de configuración de la integración.",
+      "fields": {
+        "api_key": {
+          "description": "Clave(s) API, separadas por comas para múltiples valores.",
+          "name": "Clave API"
+        },
+        "api_limit": {
+          "description": "Cuota(s) API, separadas por comas para múltiples claves.",
+          "name": "Cuota API"
+        },
+        "attr_brk_detailed": {
+          "description": "Habilitar desglose del sitio para atributos de detalle semihora y hora.",
+          "name": "Desglose sitio detallado"
+        },
+        "attr_brk_estimate": {
+          "description": "Habilitar atributos del sensor de estimación 50.",
+          "name": "Desglose estimación"
+        },
+        "attr_brk_estimate10": {
+          "description": "Habilitar atributos del sensor de estimación 10.",
+          "name": "Desglose estimación 10"
+        },
+        "attr_brk_estimate90": {
+          "description": "Habilitar atributos del sensor de estimación 90.",
+          "name": "Desglose estimación 90"
+        },
+        "attr_brk_halfhourly": {
+          "description": "Habilitar atributos de detalle de pronóstico cada media hora.",
+          "name": "Desglose cada media hora"
+        },
+        "attr_brk_hourly": {
+          "description": "Habilitar atributos de detalle de pronóstico por hora.",
+          "name": "Desglose por hora"
+        },
+        "attr_brk_site": {
+          "description": "Habilitar atributos del sensor de desglose por sitio.",
+          "name": "Desglose sitio"
+        },
+        "auto_dampen": {
+          "description": "Habilitar la amortiguación automática.",
+          "name": "Amortiguación automática"
+        },
+        "auto_update": {
+          "description": "Modo de actualización automática: 0=ninguno, 1=amanecer a atardecer, 2=todo el día.",
+          "name": "Actualización automática"
+        },
+        "custom_hours": {
+          "description": "Número de horas para el sensor de horas personalizadas (1-144).",
+          "name": "Horas personalizadas"
+        },
+        "exclude_sites": {
+          "description": "Sitio(s) a excluir, IDs de sitio separados por comas.",
+          "name": "Excluir sitios"
+        },
+        "generation_entities": {
+          "description": "Entidad/entidades de generación fotovoltaica, separadas por comas.",
+          "name": "Entidades de generación"
+        },
+        "get_actuals": {
+          "description": "Habilitar la adquisición de valores reales estimados.",
+          "name": "Obtener valores reales"
+        },
+        "hard_limit": {
+          "description": "Límite duro del inversor en Vatios, o 0 o 100 para desactivar. Separado por comas para múltiples claves.",
+          "name": "Límite duro"
+        },
+        "key_estimate": {
+          "description": "Estimación de pronóstico preferida: estimate, estimate10 o estimate90.",
+          "name": "Estimación preferida"
+        },
+        "site_export_entity": {
+          "description": "Entidad de exportación de sitio opcional para amortiguación automatizada.",
+          "name": "Entidad de exportación de sitio"
+        },
+        "site_export_limit": {
+          "description": "Límite de exportación de sitio en kW (0,0-100,0).",
+          "name": "Límite de exportación de sitio"
+        },
+        "use_actuals": {
+          "description": "Historial de pronósticos para el panel de energía: 0=pronósticos, 1=reales, 2=reales amortiguados.",
+          "name": "Usar valores reales"
+        }
+      },
+      "name": "Establecer opciones"
     },
     "update_forecasts": {
       "description": "Obtiene los últimos datos de pronósticos de Solcast.",

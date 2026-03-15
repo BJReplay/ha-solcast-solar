@@ -20,7 +20,7 @@ from yarl import URL
 
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.components.solcast_solar.const import (
-    API_QUOTA,
+    API_LIMIT,
     AUTO_DAMPEN,
     AUTO_UPDATE,
     BRK_ESTIMATE,
@@ -33,7 +33,7 @@ from homeassistant.components.solcast_solar.const import (
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
     CONFIG_VERSION,
-    CUSTOM_HOUR_SENSOR,
+    CUSTOM_HOURS,
     DOMAIN,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
@@ -60,12 +60,12 @@ from tests.common import MockConfigEntry
 KEY1 = "1"
 KEY2 = "2"
 KEY_NO_SITES = "no_sites"
-CUSTOM_HOURS = 2
+CUSTOM_HOURS_HOW_MANY_HOURS = 2
 DEFAULT_INPUT1_NO_DAMP: dict[str, Any] = {
     CONF_API_KEY: KEY1,
-    API_QUOTA: "20",
+    API_LIMIT: "20",
     AUTO_UPDATE: "1",
-    CUSTOM_HOUR_SENSOR: CUSTOM_HOURS,
+    CUSTOM_HOURS: CUSTOM_HOURS_HOW_MANY_HOURS,
     HARD_LIMIT_API: "100.0",
     KEY_ESTIMATE: "estimate",
     BRK_ESTIMATE: True,
@@ -88,7 +88,15 @@ BAD_INPUT = copy.deepcopy(DEFAULT_INPUT1_NO_DAMP)
 BAD_INPUT[CONF_API_KEY] = "badkey"
 
 SITE_DAMP_FACTORS: dict[str, float] = {f"damp{factor:02d}": 1.0 for factor in range(24)}
-DEFAULT_INPUT1 = DEFAULT_INPUT1_NO_DAMP | SITE_DAMP_FACTORS | {SITE_DAMP: False}
+DEFAULT_INPUT1 = (
+    DEFAULT_INPUT1_NO_DAMP
+    | SITE_DAMP_FACTORS
+    | {
+        SITE_DAMP: False,
+        "api_quota": DEFAULT_INPUT1_NO_DAMP[API_LIMIT],  # Legacy name, kept in sync with API_LIMIT
+        "customhoursensor": DEFAULT_INPUT1_NO_DAMP[CUSTOM_HOURS],  # Legacy name, kept in sync with CUSTOM_HOURS
+    }
+)
 ZONE_RAW = "Australia/Brisbane"  # Somewhere without daylight saving time by default
 
 DEFAULT_INPUT2 = copy.deepcopy(DEFAULT_INPUT1)
@@ -153,7 +161,7 @@ MOCK_OVER_LIMIT = "return_429_over"
 
 MOCK_SESSION_CONFIG: dict[str, Any] = {
     "aioresponses": None,
-    "api_limit": int(min(DEFAULT_INPUT2[API_QUOTA].split(","))),
+    "api_limit": int(min(DEFAULT_INPUT2[API_LIMIT].split(","))),
     "api_used": dict.fromkeys(DEFAULT_INPUT2[CONF_API_KEY].split(","), 0),
     MOCK_ALTER_HISTORY: False,
     MOCK_BAD_REQUEST: False,
@@ -206,6 +214,7 @@ def verify_data_schema(data: dict[str, Any]) -> None:
         "last_attempt": {"type": dt},
         "auto_updated": {"type": int},
         "failure": {"type": dict, "members": ["last_24h", "last_7d", "last_14d"]},
+        "integration_version": {"type": str},
     }
 
     fail = False

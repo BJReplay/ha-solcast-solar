@@ -203,7 +203,7 @@ async def test_adaptive_auto_dampen(  # noqa: C901
 
                 case 3:
                     assert "Determining best automated dampening settings" in caplog.text
-                    assert "Insufficient continuous dampening history to determine best automated dampening settings" in caplog.text
+                    assert "usable days (gaps tolerated)" in caplog.text
 
                     # Reinstate the 2nd day from all model/deltas
                     for model in solcast.dampening.auto_factors_history:
@@ -343,7 +343,7 @@ async def test_adaptive_auto_dampen(  # noqa: C901
             solcast.data_actuals[SITE_INFO][site_id][FORECASTS] = remaining_actuals
         await solcast.dampening.adaptive.determine_best_settings()
         assert "Determining best automated dampening settings" in caplog.text
-        assert "skipped due to missing actuals for dampening history entry" in caplog.text
+        assert "skipping missing actuals for dampening history entry" in caplog.text
 
         # Restore the actuals data
         for site_id, saved in saved_actuals.items():
@@ -608,15 +608,19 @@ async def test_select_comparison_interval_current_factors_fallback(
         assert await async_cleanup_integration_tests(hass)
 
 
-async def test_build_dampened_actuals_count_mismatch(
+async def test_build_dampened_actuals_gap_tolerance(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test that _build_dampened_actuals_for_model returns None on day count mismatch.
+    """Test _build_dampened_actuals_for_model tolerates missing actuals days.
 
-    Sets up actuals covering two days but model history only covering one, so the
-    post-loop check (len(dampened_actuals) != len(actuals)) fires and returns None.
+    Verifies:
+    - Partial match: history entry for one day, actuals for two days → non-None result
+      with only the matched day, and a debug skip message.
+    - Zero match: earliest_common after all history entries → None with log message.
+    - _find_earliest_common_history direct tests for non-uniform continuity failure
+      and empty intersection, both should return None.
     """
     assert await async_cleanup_integration_tests(hass)
 
@@ -630,19 +634,139 @@ async def test_build_dampened_actuals_count_mismatch(
         factors = [1.0] * 48
         factors[0] = 0.9
 
-        # Model history only has an entry for day1 — day2 exists in actuals but not history.
-        solcast.dampening.auto_factors_history = {0: {0: [{"period_start": day1, "factors": factors}]}}
+        # History has entries for day1 and day2; actuals only has day1 (day2 missing,
+        # simulating estimated actuals that were unavailable at that midnight).
+        # The function skips day2 and returns a partial result with only day1.
+        solcast.dampening.auto_factors_history = {
+            0: {
+                0: [
+                    {"period_start": day1, "factors": factors},
+                    {"period_start": day2, "factors": factors},
+                ]
+            }
+        }
 
-        # actuals covers two days; dampened_actuals will only build one day.
         actuals: defaultdict[dt, list[float]] = defaultdict(lambda: [0.0] * 48)
         actuals[day1] = [1.0] * 48
-        actuals[day2] = [1.0] * 48
+        # day2 intentionally absent — simulates a night where estimated actuals failed.
 
+        # Partial match: returns non-None result with only day1.
         caplog.clear()
         result = solcast.dampening.adaptive._build_dampened_actuals_for_model(0, 0, day1, actuals)
+        assert result is not None
+        assert day1 in result
+        assert day2 not in result
+        assert "skipping missing actuals" in caplog.text
 
+        # Zero match: earliest_common after all history entries → None.
+        caplog.clear()
+        result = solcast.dampening.adaptive._build_dampened_actuals_for_model(0, 0, day2 + timedelta(days=1), actuals)
         assert result is None
-        assert "mismatched actuals count" in caplog.text
+        assert "produced no dampened actuals" in caplog.text
+
+        # Direct _find_earliest_common_history tests — exercises non-uniform code paths.
+        min_days = solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS]
+        model_min = ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM]
+        model_max = ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM]
+        delta_min = ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED]
+        delta_max = ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MAXIMUM]
+        day0 = day1 - timedelta(days=5)
+
+        def _make_full_history(entries_by_model: dict[int, list[dict]]) -> dict:
+            """Build auto_factors_history with the same entries for every delta of each model."""
+            history = {}
+            for model in range(model_min, model_max + 1):
+                history[model] = {}
+                for delta in range(delta_min, delta_max + 1):
+                    history[model][delta] = copy.deepcopy(entries_by_model.get(model, []))
+            return history
+
+        # Non-uniform with continuity failure: model 0 has a gap, others are continuous.
+        # Intersection with models 1-3 is {day0, day0+1}, earliest=day0.
+        # Continuity check for model 0 trips on day0+1 → day0+3 (skips day0+2) → None.
+        gap_entries = [
+            {"period_start": day0, "factors": [1.0] * 48},
+            {"period_start": day0 + timedelta(days=1), "factors": [1.0] * 48},
+            {"period_start": day0 + timedelta(days=3), "factors": [1.0] * 48},
+        ]
+        continuous_entries = [
+            {"period_start": day0, "factors": [1.0] * 48},
+            {"period_start": day0 + timedelta(days=1), "factors": [1.0] * 48},
+            {"period_start": day0 + timedelta(days=2), "factors": [1.0] * 48},
+        ]
+        solcast.dampening.auto_factors_history = _make_full_history(
+            {model_min: gap_entries, **dict.fromkeys(range(model_min + 1, model_max + 1), continuous_entries)}
+        )
+        assert solcast.dampening.adaptive._find_earliest_common_history(min_days) is None
+
+        # Empty intersection: models 0-1 and models 2-3 have completely disjoint dates → None.
+        early_entries = [
+            {"period_start": day0, "factors": [1.0] * 48},
+            {"period_start": day0 + timedelta(days=1), "factors": [1.0] * 48},
+            {"period_start": day0 + timedelta(days=2), "factors": [1.0] * 48},
+        ]
+        late_entries = [
+            {"period_start": day0 + timedelta(days=10), "factors": [1.0] * 48},
+            {"period_start": day0 + timedelta(days=11), "factors": [1.0] * 48},
+            {"period_start": day0 + timedelta(days=12), "factors": [1.0] * 48},
+        ]
+        solcast.dampening.auto_factors_history = _make_full_history(
+            {model_min: early_entries, model_min + 1: early_entries, model_max - 1: late_entries, model_max: late_entries}
+        )
+        assert solcast.dampening.adaptive._find_earliest_common_history(min_days) is None
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_determine_best_settings_all_combos_skip(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test determine_best_settings when all model/delta evaluations produce no dampened actuals.
+
+    Covers:
+    - _evaluate_model_combinations: 'if dampened_actuals is None: continue'
+    - _log_model_rankings: 'if not model_rank_frequencies: return'
+    - _apply_best_settings: 'if not current_valid: return'
+    """
+    assert await async_cleanup_integration_tests(hass)
+
+    try:
+        entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
+        solcast = entry.runtime_data.coordinator.solcast
+
+        day_start = solcast.dt_helper.day_start_utc() - timedelta(days=1)
+
+        # Monkeypatch helpers so determine_best_settings reaches _evaluate_model_combinations.
+        monkeypatch.setattr(solcast.dampening.adaptive, "_find_earliest_common_history", lambda _days: day_start)
+        monkeypatch.setattr(solcast.dampening.adaptive, "_build_actuals_from_sites", lambda _start: {day_start: [1.0] * 48})
+        # Lower minimum to 1 so the recency guard doesn't short-circuit before evaluation.
+        solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS] = 1
+
+        async def _fake_prepare_generation_data(_earliest: dt):
+            generation_dampening = defaultdict(dict)
+            generation_dampening[day_start] = {GENERATION: 1.0, EXPORT_LIMITING: False}
+            generation_dampening_day = defaultdict(float)
+            generation_dampening_day[solcast.dt_helper.day_start(day_start)] = 1.0
+            return generation_dampening, generation_dampening_day
+
+        monkeypatch.setattr(solcast.dampening, "prepare_generation_data", _fake_prepare_generation_data)
+        monkeypatch.setattr(solcast.dampening.adaptive, "_should_skip_model_delta", lambda _m, _d, _n: (False, ""))
+
+        # Force every model/delta combination to produce no dampened actuals.
+        monkeypatch.setattr(solcast.dampening.adaptive, "_build_dampened_actuals_for_model", lambda *_args: None)
+
+        caplog.clear()
+        await solcast.dampening.adaptive.determine_best_settings()
+
+        # All combos skipped → "Skipping evaluation" logged for each.
+        assert "Skipping evaluation for model" in caplog.text
+        # Empty daily_ranks → _log_model_rankings short-circuits.
+        assert "No ranking data available" in caplog.text
+        # No winner selected → _apply_best_settings short-circuits.
+        assert "Could not determine best automated dampening settings" in caplog.text
     finally:
         assert await async_cleanup_integration_tests(hass)
 
@@ -832,5 +956,57 @@ async def test_determine_best_settings_alternative_issue(
         caplog.clear()
         await solcast.dampening.adaptive.determine_best_settings()
         assert "but adaptive dampening found that model" not in caplog.text
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_dampening_adaptations_development_flag(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Test __init__.py lines 409-410: DAMPENING_ADAPTATIONS_DEVELOPMENT branch.
+
+    Verifies that when the flag is True and auto_dampen with adaptive model
+    configuration are both enabled, update_history and determine_best_settings
+    are called during async_setup_entry.
+    """
+    import homeassistant.components.solcast_solar as solcast_module  # noqa: PLC0415
+    from homeassistant.components.solcast_solar.dampen_adapt import (  # noqa: PLC0415
+        DampeningAdaptive,
+    )
+
+    monkeypatch.setattr(solcast_module, "DAMPENING_ADAPTATIONS_DEVELOPMENT", True)
+
+    called = {"update_history": False, "determine_best_settings": False}
+
+    async def _fake_update_history(self) -> None:
+        called["update_history"] = True
+
+    async def _fake_determine_best_settings(self) -> None:
+        called["determine_best_settings"] = True
+
+    monkeypatch.setattr(DampeningAdaptive, "update_history", _fake_update_history)
+    monkeypatch.setattr(DampeningAdaptive, "determine_best_settings", _fake_determine_best_settings)
+
+    config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+    if CONFIG_FOLDER_DISCRETE:
+        Path(config_dir).mkdir(parents=False, exist_ok=True)
+
+    Path(f"{config_dir}/solcast-advanced.json").write_text(
+        json.dumps({"automated_dampening_adaptive_model_configuration": True}),
+        encoding="utf-8",
+    )
+
+    options = copy.deepcopy(DEFAULT_INPUT2)
+    options[AUTO_DAMPEN] = True
+
+    try:
+        from homeassistant.config_entries import ConfigEntryState  # noqa: PLC0415
+
+        entry = await async_init_integration(hass, options)
+        assert entry.state is ConfigEntryState.LOADED
+        assert called["update_history"], "update_history was not called"
+        assert called["determine_best_settings"], "determine_best_settings was not called"
     finally:
         assert await async_cleanup_integration_tests(hass)

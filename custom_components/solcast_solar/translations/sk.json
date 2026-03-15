@@ -8,6 +8,7 @@
     },
     "error": {
       "api_duplicate": "Bol zadaný duplicitný kľúč API",
+      "api_key_empty": "Kľúč API nesmie byť prázdny",
       "api_looks_like_site": "Kľúč API vyzerá ako ID lokality",
       "limit_not_number": "Limit API nie je číslo",
       "limit_one_or_greater": "Limit API musí byť jeden alebo väčší",
@@ -23,7 +24,7 @@
       "reconfigure_confirm": {
         "data": {
           "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
-          "api_quota": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",
+          "api_limit": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",
           "auto_update": "Automatická aktualizácia"
         },
         "description": "Podrobnosti o účte Solcast\n\n(Ak nie je automatická aktualizácia, potom je potrebná automatizácia – pozrite si integračnú dokumentáciu)"
@@ -31,10 +32,10 @@
       "user": {
         "data": {
           "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
-          "api_quota": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",
+          "api_limit": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",
           "auto_update": "Automatická aktualizácia"
         },
-        "description": "Podrobnosti o účte Solcast\n\n(Ak nie je automatická aktualizácia, potom je potrebná automatizácia – pozrite si integračnú dokumentáciu)"
+        "description": "Podrobnosti o účte Solcast\n\n(Ak nie je automatická aktualizácia, potom je potrebná automatizácia – pozrite si integračnú dokumentáciu)\n\nAPI Solcast musí byť dostupné na počiatočnú konfiguráciu tejto integrácie. Ak dostanete stavovú správu '429 / Try again later', API nie je dostupné a konfiguráciu nie je možné dokončiť. Musíte počkať. Všimnite si, že stránka stavu API na status.solcast.com takmer určite neukáže žiadne problémy s API. Príčina spočíva s najväčšou pravdepodobnosťou v jedinom problematickom používateľovi API, ktorý ovplyvňuje dostupnosť pre všetkých hobbistov."
       }
     }
   },
@@ -141,6 +142,18 @@
     "actuals_not_enabled": {
       "message": "Získanie odhadovaných skutočných hodnôt nie je povolené."
     },
+    "actuals_without_get": {
+      "message": "Odhadované skutočné hodnoty nie je možné použiť bez ich získania."
+    },
+    "api_duplicate": {
+      "message": "Bol zadaný duplicitný kľúč API."
+    },
+    "api_key_empty": {
+      "message": "Kľúč API nesmie byť prázdny."
+    },
+    "api_looks_like_site": {
+      "message": "Kľúč API vyzerá ako ID lokality."
+    },
     "auto_use_force": {
       "message": "Automatická aktualizácia je povolená, pri aktualizácii prognózy sa ignoruje udalosť služby, namiesto toho použite vynútenie aktualizácie."
     },
@@ -179,6 +192,15 @@
     },
     "damp_use_all": {
       "message": "Tlmenie stránky nie je nastavené pre {site}, 'all' je jediný dostupný parameter stránky pre servisné volanie."
+    },
+    "dampen_without_actuals": {
+      "message": "Na použitie automatického tlmenia je potrebné vybrať odhadované skutočné hodnoty."
+    },
+    "dampen_without_generation": {
+      "message": "Na použitie automatického tlmenia musí byť špecifikovaný aspoň jeden snímač výroby FV energie."
+    },
+    "export_no_entity": {
+      "message": "Entita exportu lokality musí byť špecifikovaná, ak je nastavený limit exportu lokality."
     },
     "hard_empty": {
       "message": "Prázdna hodnota pevného limitu."
@@ -219,17 +241,45 @@
     "integration_prior_crash": {
       "message": "Integrácia sa predtým nepodarilo načítať, skúša sa to znova po oneskorení."
     },
+    "invalid_auto_update": {
+      "message": "Hodnota automatickej aktualizácie musí byť 0, 1 alebo 2."
+    },
     "invalid_custom_hours_format": {
       "message": "Hodnota hodín musí byť celé číslo."
     },
     "invalid_custom_hours_range": {
       "message": "Hodnota hodín musí byť medzi 1 a 144."
     },
+    "invalid_export_limit": {
+      "message": "Limit exportu musí byť číslo medzi 0,0 a 100,0."
+    },
+    "invalid_key_estimate": {
+      "message": "Kľúč odhadu musí byť 'estimate', 'estimate10' alebo 'estimate90'."
+    },
+    "invalid_use_actuals": {
+      "message": "Hodnota 'používať skutočné hodnoty' musí byť 0, 1 alebo 2."
+    },
+    "limit_not_number": {
+      "message": "Limit API nie je číslo."
+    },
+    "limit_one_or_greater": {
+      "message": "Limit API musí byť jeden alebo väčší."
+    },
+    "limit_too_many": {
+      "message": "Je zadaných viac limitov API ako kľúčov."
+    },
     "remove_cache_failed": {
       "message": "Vymazanie všetkých údajov Solcast zlyhalo."
+    },
+    "set_options_empty": {
+      "message": "Musí byť špecifikovaná aspoň jedna možnosť."
     }
   },
   "issues": {
+    "action_deprecated": {
+      "description": "Akcia `{deprecated_action}` je zastaraná a bude odstránená v budúcej verzii. Namiesto toho použite akciu `{new_action}`.",
+      "title": "Zastaraná akcia"
+    },
     "advanced_deprecated": {
       "description": "Pokročilá konfiguračná možnosť(y) `{option}` sa zmenila na `{new_option}`. Aktualizujte svoje pokročilé konfiguračné možnosti, aby ste použili nový názov možnosti.{stops_working}",
       "title": "Pokročilá možnosť je zastaraná"
@@ -239,8 +289,12 @@
       "title": "Problém s pokročilou možnosťou"
     },
     "api_unavailable": {
-      "description": "Počas aktualizácie Solcast API opakovane hlásilo stav `429 / Skúste to znova neskôr`.\n\n* Nesnažte sa túto situáciu riešiť.\n* Nezmeňte svoj kľúč API.\n* Vyhnite sa reštartovaniu integrácie\n* Nie je to problém s integráciou a vyrieši sa to samo. Nič nemeňte.\n\n(Ak chcete tento problém potlačiť, vytvorte možnosť pokročilej konfigurácie api_raise_issue a nastavte ju na false.)",
+      "description": "Počas aktualizácie Solcast API opakovane hlásilo stav `429 / Try again later`. To znamená, že Solcast API je zaneprázdnené a aktívne blokuje požiadavky pre hobby účty.\n\n* Webová stránka solcast.com nie je ovplyvnená, ale API je dočasne nedostupné pre vás.\n* Stránka stavu API na status.solcast.com takmer určite neukáže žiadny problém.\n* Nesnažte sa túto situáciu riešiť.\n* Nezmeňte svoj kľúč API.\n* Nesnažte sa aktualizovať integráciu.\n* Vyhnite sa reštartovaniu integrácie.\n* Integrácia bude naďalej poskytovať poslednú predpoveď solárneho žiarenia získanú zo Solcastu.\n* Nie je to problém s integráciou a vyrieši sa to samo. Nič nemeňte.\n\n(Ak chcete tento problém potlačiť, vytvorte možnosť pokročilej konfigurácie api_raise_issue a nastavte ju na false.)",
       "title": "Solcast API dočasne nedostupné"
+    },
+    "actuals_api_limit": {
+      "description": "Automatická aktualizácia a odhadované skutočné hodnoty sú povolené, pričom limit API je nakonfigurovaný na maximálnu hodnotu pre hobby používateľov (`{configured_value}`). Odhadované skutočné hodnoty sú zbierané tesne po polnoci a využívajú jedno volanie API pre každú strešnú inštaláciu pre každý nakonfigurovaný kľúč API. Znížte limit API na `{suggested_value}`, aby ste rezervovali volania pre odhadované skutočné hodnoty.",
+      "title": "Upraviť limit API pre odhadované skutočné hodnoty"
     },
     "corrupt_file": {
       "description": "Súbor(y) s údajmi vo vyrovnávacej pamäti `{files}` je poškodený. ​​Integrácia sa pokúsi o obnovenie odstránením súboru(ov) a opätovným načítaním údajov zo Solcastu. V dôsledku tejto situácie očakávajte zvýšené využívanie rozhrania API a možné zlyhania rozhrania API a stratu histórie predpovedí. Súbory je možné obnoviť zo zálohy, ale stále očakávajte zlyhania volaní rozhrania API.",
@@ -293,14 +347,15 @@
       "actuals_not_enabled": "Získanie odhadovaných skutočných hodnôt nie je povolené",
       "actuals_without_get": "Odhadované skutočné hodnoty nie je možné použiť bez ich získania",
       "api_duplicate": "Bol zadaný duplicitný kľúč API",
+      "api_key_empty": "Kľúč API nesmie byť prázdny",
       "api_looks_like_site": "Kľúč API vyzerá ako ID lokality",
       "custom_invalid": "Vlastný snímač nie medzi 1 a 144",
       "dampen_without_actuals": "Na použitie automatického tlmenia je potrebné vybrať odhadované skutočné hodnoty",
       "dampen_without_generation": "Na použitie automatického tlmenia (energia alebo výkon) musí byť špecifikovaný aspoň jeden snímač výroby FV energie.",
-      "generation_mixed_types": "Všetky jednotky na výrobu fotovoltaiky musia byť rovnakého typu (iba energia alebo iba výkon, nie zmiešané)",
       "export_multiple_entities": "Export lokality musí byť jedna entita, nie viacero entít",
       "export_no_entity": "Export lokality musí byť špecifikovaný, ak je nastavený limit exportu lokality",
-      "hard_not_number": "Pevný limit nie je kladné číslo",
+      "generation_mixed_types": "Všetky jednotky na výrobu fotovoltaiky musia byť rovnakého typu (iba energia alebo iba výkon, nie zmiešané)",
+      "hard_not_positive_number": "Pevný limit nie je kladné číslo",
       "hard_too_many": "Je zadaných viac tvrdých limitov ako kľúčov",
       "limit_not_number": "Limit API nie je číslo",
       "limit_one_or_greater": "Limit API musí byť jeden alebo väčší",
@@ -339,7 +394,7 @@
       "init": {
         "data": {
           "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
-          "api_quota": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",
+          "api_limit": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",
           "attr_brk_detailed": "Povoliť rozdelenie stránok pre polhodinové/hodinové atribúty podrobností (tieto sa neuložia do atribútov stavu databázy)",
           "attr_brk_estimate": "Povoliť odhad 50 atribútov senzora",
           "attr_brk_estimate10": "Povoliť odhad 10 atribútov senzora",
@@ -350,7 +405,7 @@
           "auto_dampen": "Automatické tlmenie (vyžaduje odhadované skutočné hodnoty a entitu generovania FV, pozri dokumentáciu k integrácii)",
           "auto_update": "Automatická aktualizácia (ak nie je automatická aktualizácia, musíte namiesto nej použiť automatizáciu)",
           "config_damp": "Upravte hodinové faktory tlmenia (po kliknutí na odoslať)",
-          "customhoursensor": "Vlastný senzor ďalších X hodín (min=1, max=144)",
+          "custom_hours": "Vlastný senzor ďalších X hodín (min=1, max=144)",
           "exclude_sites": "Lokality, ktoré sa majú vylúčiť zo súčtu energie a senzorov",
           "generation_entities": "Entita/entity FV výroby pre automatické tlmenie (energia: Wh/kWh/MWh celková nárast alebo výkon: W/kW/MW okamžitý)",
           "get_actuals": "Odhadované skutočné hodnoty sa aktualizujú o polnoci (pozri dokumentáciu k integrácii, používa jednu API volanie na lokalitu za deň, takže je potrebné znížiť limit API s touto možnosťou povolenou)",
@@ -393,6 +448,10 @@
       "description": "Odstráni súbor solcast.json a odstráni všetky aktuálne údaje lokality solcast.",
       "name": "Vymažte všetky uložené údaje Solcast"
     },
+    "diagnostic_self_test": {
+      "description": "Spustí diagnostický autotest na overenie konektivity API, integrity súborov vyrovnávacej pamäte, dostupnosti entít výroby a celkového stavu konfigurácie.",
+      "name": "Diagnostický autotest"
+    },
     "force_update_estimates": {
       "description": "Vynúti načítanie najnovších odhadovaných skutočných údajov zo Solcastu.",
       "name": "Vynútiť aktualizáciu odhadovaných skutočností"
@@ -410,6 +469,10 @@
         }
       },
       "name": "Získajte tlmenie predpovedí"
+    },
+    "get_options": {
+      "description": "Získať aktuálne možnosti konfigurácie integrácie.",
+      "name": "Získať možnosti"
     },
     "query_estimate_data": {
       "description": "Vráti množinu údajov alebo hodnotu pre daný dotaz.",
@@ -479,11 +542,97 @@
       "description": "Zabráňte tomu, aby boli predpovedané hodnoty vyššie, ako dokáže menič produkovať.",
       "fields": {
         "hard_limit": {
-          "description": "Nastavte maximálnu hodnotu vo wattoch, ktorú môže menič produkovať.",
+          "description": "Nastavte maximálnu hodnotu vo wattoch, ktorú môže menič produkovať. Použite 0 na deaktiváciu limitu.",
           "name": "Limitná hodnota vo wattoch"
         }
       },
       "name": "Nastavte pevný limit predpovede meniča"
+    },
+    "set_options": {
+      "description": "Nastaví jednu alebo viac možností konfigurácie integrácie.",
+      "fields": {
+        "api_key": {
+          "description": "Kľúč(e) API, oddelené čiarkami pre viacero hodnôt.",
+          "name": "Kľúč API"
+        },
+        "api_limit": {
+          "description": "Kvóta/kvóty API, oddelené čiarkami pre viacero kľúčov.",
+          "name": "Kvóta API"
+        },
+        "attr_brk_detailed": {
+          "description": "Povoliť rozdelenie lokality pre atribúty polhodinových a hodinových podrobností.",
+          "name": "Podrobné rozdelenie lokality"
+        },
+        "attr_brk_estimate": {
+          "description": "Povoliť atribúty snímača odhadu 50.",
+          "name": "Rozdelenie odhadu"
+        },
+        "attr_brk_estimate10": {
+          "description": "Povoliť atribúty snímača odhadu 10.",
+          "name": "Rozdelenie odhadu 10"
+        },
+        "attr_brk_estimate90": {
+          "description": "Povoliť atribúty snímača odhadu 90.",
+          "name": "Rozdelenie odhadu 90"
+        },
+        "attr_brk_halfhourly": {
+          "description": "Povoliť atribúty polhodinových podrobností predpovede.",
+          "name": "Rozdelenie polhodinové"
+        },
+        "attr_brk_hourly": {
+          "description": "Povoliť atribúty hodinových podrobností predpovede.",
+          "name": "Rozdelenie hodinové"
+        },
+        "attr_brk_site": {
+          "description": "Povoliť atribúty snímača rozdelenia lokality.",
+          "name": "Rozdelenie lokality"
+        },
+        "auto_dampen": {
+          "description": "Povoliť automatické tlmenie.",
+          "name": "Automatické tlmenie"
+        },
+        "auto_update": {
+          "description": "Režim automatickej aktualizácie: 0=žiadny, 1=východ do západu slnka, 2=celý deň.",
+          "name": "Automatická aktualizácia"
+        },
+        "custom_hours": {
+          "description": "Počet hodín pre vlastný snímač hodín (1-144).",
+          "name": "Vlastné hodiny"
+        },
+        "exclude_sites": {
+          "description": "Lokality na vylúčenie, ID lokalít oddelené čiarkami.",
+          "name": "Vylúčiť lokality"
+        },
+        "generation_entities": {
+          "description": "Entita/entity FV výroby, oddelené čiarkami.",
+          "name": "Entity výroby"
+        },
+        "get_actuals": {
+          "description": "Povoliť získavanie odhadovaných skutočných hodnôt.",
+          "name": "Získať skutočné hodnoty"
+        },
+        "hard_limit": {
+          "description": "Pevný limit meniča vo Wattoch, alebo 0 alebo 100 na deaktiváciu. Oddelené čiarkami pre viacero kľúčov.",
+          "name": "Pevný limit"
+        },
+        "key_estimate": {
+          "description": "Preferovaný odhad predpovede: estimate, estimate10 alebo estimate90.",
+          "name": "Preferovaný odhad"
+        },
+        "site_export_entity": {
+          "description": "Voliteľná entita exportu lokality pre automatizované tlmenie.",
+          "name": "Entita exportu lokality"
+        },
+        "site_export_limit": {
+          "description": "Limit exportu lokality v kW (0,0-100,0).",
+          "name": "Limit exportu lokality"
+        },
+        "use_actuals": {
+          "description": "História predpovedí pre panel Energie: 0=predpovede, 1=skutočné hodnoty, 2=tlmené skutočné hodnoty.",
+          "name": "Použiť skutočné hodnoty"
+        }
+      },
+      "name": "Nastaviť možnosti"
     },
     "update_forecasts": {
       "description": "Načítava najnovšie predpovede zo Solcastu.",

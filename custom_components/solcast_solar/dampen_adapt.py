@@ -511,8 +511,9 @@ class DampeningAdaptive:
         """Build dampened actuals for a single model/delta combination.
 
         Applies the model's historical dampening factors to undampened actuals from the
-        common start date forward. Returns None if any required actuals are missing or
-        the resulting day count does not match the actuals input.
+        common start date forward.  Days where actuals are missing (e.g., estimated actuals
+        were unavailable that midnight) are skipped.
+        Returns None if no dampened days could be produced at all.
         """
         model_entries = self.dampening.auto_factors_history[model][delta]
         dampened_actuals: defaultdict[dt, list[float]] = defaultdict(lambda: [0.0] * 48)
@@ -524,23 +525,17 @@ class DampeningAdaptive:
             day_start = self.dampening.api.dt_helper.day_start(period_start)
             if day_start not in actuals:
                 _LOGGER.debug(
-                    "Model %d and delta %d skipped due to missing actuals for dampening history entry %s",
+                    "Model %d and delta %d skipping missing actuals for dampening history entry %s",
                     model,
                     delta,
                     day_start.strftime(DT_DATE_FORMAT),
                 )
-                return None
+                continue
             factors = model_entry["factors"]
             dampened_actuals[day_start] = [actuals[day_start][i] * factors[i] for i in range(48)]
 
-        if len(dampened_actuals) != len(actuals):
-            _LOGGER.debug(
-                "Model %d and delta %d produced mismatched actuals count (%d dampened vs %d actuals)",
-                model,
-                delta,
-                sum(len(v) for v in dampened_actuals.values()),
-                sum(len(v) for v in actuals.values()),
-            )
+        if not dampened_actuals:
+            _LOGGER.debug("Model %d and delta %d produced no dampened actuals", model, delta)
             return None
 
         return dampened_actuals
@@ -641,8 +636,13 @@ class DampeningAdaptive:
     def _find_earliest_common_history(self, min_days: int) -> dt | None:
         """Find earliest date where continuous dampening history is available for all models and deltas.
 
+        When all model/delta combinations share the same history dates (i.e., no new strategy was
+        added mid-way through), symmetric gaps caused by missed actuals are tolerated: the date
+        set is the intersection of all period lists and gaps are skipped rather than treated as
+        a continuity break (provided enough usable days still remain).
+
         Returns:
-            Earliest common date with continuous history, or None if insufficient history exists.
+            Earliest common date with sufficient usable history, or None if insufficient history exists.
         """
         period_lists = []
         for model in range(
@@ -660,17 +660,30 @@ class DampeningAdaptive:
         if len(period_lists) == 0:
             return None
 
-        # Find intersection of all period_start values
-        common_periods = set.intersection(*(set(period_list) for period_list in period_lists))
-        earliest_common = min(common_periods) if common_periods else None
-        if earliest_common is not None:
-            # Validate daily continuity from earliest_common forward
+        # Dates present in every model/delta combination.
+        common_periods = sorted(set.intersection(*(set(pl) for pl in period_lists)))
+        if not common_periods:
+            return None
+
+        # Determine whether all lists are uniform (same dates, no new strategy was introduced).
+        all_equal = all(pl == period_lists[0] for pl in period_lists)
+
+        if not all_equal:
+            # Non-uniform: require strict daily continuity from earliest_common forward.
+            earliest_common = common_periods[0]
             if not all(
                 all(curr == prev + timedelta(days=1) for prev, curr in pairwise(sorted(p for p in periods if p >= earliest_common)))
                 for periods in period_lists
             ):
                 earliest_common = None
+            return earliest_common
 
+        earliest_common = common_periods[0]
+        _LOGGER.debug(
+            "Earliest common dampening history is %s with %d usable days (gaps tolerated)",
+            earliest_common.strftime(DT_DATE_FORMAT_UTC),
+            len(common_periods),
+        )
         return earliest_common
 
     def _get_daily_ranks(self, daily_model_errors: dict[dt, dict[tuple[int, int], float]]) -> dict[dt, dict[tuple[int, int], int]]:
