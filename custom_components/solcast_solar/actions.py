@@ -548,6 +548,7 @@ class ServiceActions:
 
         opt = {**self._entry.options}
         opt[CUSTOM_HOURS] = hour_val
+        sync_legacy_keys(opt)
         self._hass.config_entries.async_update_entry(self._entry, options=opt)
 
     async def async_remove_hard_limit(self, call: ServiceCall) -> None:
@@ -675,18 +676,8 @@ class ServiceActions:
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_EXPORT_NO_ENTITY)
 
         # Sync legacy keys before updating the entry, to keep downgrade compatibility.
-        all_config_data: dict[str, Any] = {
-            **self._entry.data,
-            **self._entry.options,
-            **opt,
-        }
         sync_legacy_keys(opt)
-        sync_legacy_keys(all_config_data)
-        self._hass.config_entries.async_update_entry(
-            self._entry,
-            data=all_config_data,
-            options=opt,
-        )
+        self._hass.config_entries.async_update_entry(self._entry, options=opt)
 
     def _raise_deprecation_issue(self, issue_id: str, action_name: str) -> None:
         """Raise an ignorable repair issue for a deprecated action.
