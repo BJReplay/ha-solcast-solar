@@ -506,65 +506,6 @@ class ServiceActions:
         data = await self._solcast.dampening.get(site=site, site_underscores=site_underscores)
         return {"data": data}
 
-    async def async_set_hard_limit(self, call: ServiceCall) -> None:
-        """Handle set hard limit action (deprecated).
-
-        Arguments:
-            call: The data to act on: a hard limit.
-
-        Raises:
-            ServiceValidationError: Notify Home Assistant that an error has occurred, with translation.
-
-        """
-        _LOGGER.warning("Action: Set hard limit (deprecated, use set_options instead)")
-        self._raise_deprecation_issue(ISSUE_DEPRECATED_SET_HARD_LIMIT, SERVICE_SET_HARD_LIMIT)
-
-        hard_limit = call.data.get(HARD_LIMIT, "100.0")
-        validated, error = validate_hard_limit_value(hard_limit, len(self._entry.options[CONF_API_KEY].split(",")))
-        if error is not None:
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
-
-        opt = {**self._entry.options}
-        opt[HARD_LIMIT_API] = validated
-        self._hass.config_entries.async_update_entry(self._entry, options=opt)
-
-    async def async_set_custom_hours(self, call: ServiceCall) -> None:
-        """Handle set custom hours sensor action (deprecated).
-
-        Arguments:
-            call: The data to act on: a number of hours for the custom hour sensor.
-
-        Raises:
-            ServiceValidationError: Notify that a validation error has occurred.
-
-        """
-        _LOGGER.warning("Action: Set custom hours sensor (deprecated, use set_options instead)")
-        self._raise_deprecation_issue(ISSUE_DEPRECATED_SET_CUSTOM_HOURS, SERVICE_SET_CUSTOM_HOURS)
-
-        hours_str = call.data.get(HOURS, "")
-        hour_val, error = validate_custom_hours_value(hours_str)
-        if error is not None:
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
-
-        opt = {**self._entry.options}
-        opt[CUSTOM_HOURS] = hour_val
-        sync_legacy_keys(opt)
-        self._hass.config_entries.async_update_entry(self._entry, options=opt)
-
-    async def async_remove_hard_limit(self, call: ServiceCall) -> None:
-        """Handle remove hard limit action (deprecated).
-
-        Arguments:
-            call: Not used.
-
-        """
-        _LOGGER.warning("Action: Remove hard limit (deprecated, use set_options instead)")
-        self._raise_deprecation_issue(ISSUE_DEPRECATED_REMOVE_HARD_LIMIT, SERVICE_REMOVE_HARD_LIMIT)
-
-        opt = {**self._entry.options}
-        opt[HARD_LIMIT_API] = "100.0"
-        self._hass.config_entries.async_update_entry(self._entry, options=opt)
-
     async def async_set_options(self, call: ServiceCall) -> None:  # noqa: C901
         """Handle set options action.
 
@@ -677,6 +618,65 @@ class ServiceActions:
 
         # Sync legacy keys before updating the entry, to keep downgrade compatibility.
         sync_legacy_keys(opt)
+        self._hass.config_entries.async_update_entry(self._entry, options=opt)
+
+    async def async_set_hard_limit(self, call: ServiceCall) -> None:
+        """Handle set hard limit action (deprecated).
+
+        Arguments:
+            call: The data to act on: a hard limit.
+
+        Raises:
+            ServiceValidationError: Notify Home Assistant that an error has occurred, with translation.
+
+        """
+        _LOGGER.warning("Action: Set hard limit (deprecated, use set_options instead)")
+        self._raise_deprecation_issue(ISSUE_DEPRECATED_SET_HARD_LIMIT, SERVICE_SET_HARD_LIMIT)
+
+        hard_limit = call.data.get(HARD_LIMIT, "100.0")
+        validated, error = validate_hard_limit_value(hard_limit, len(self._entry.options[CONF_API_KEY].split(",")))
+        if error is not None:
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
+
+        opt = {**self._entry.options}
+        opt[HARD_LIMIT_API] = validated
+        self._hass.config_entries.async_update_entry(self._entry, options=opt)
+
+    async def async_set_custom_hours(self, call: ServiceCall) -> None:
+        """Handle set custom hours sensor action (deprecated).
+
+        Arguments:
+            call: The data to act on: a number of hours for the custom hour sensor.
+
+        Raises:
+            ServiceValidationError: Notify that a validation error has occurred.
+
+        """
+        _LOGGER.warning("Action: Set custom hours sensor (deprecated, use set_options instead)")
+        self._raise_deprecation_issue(ISSUE_DEPRECATED_SET_CUSTOM_HOURS, SERVICE_SET_CUSTOM_HOURS)
+
+        hours_str = call.data.get(HOURS, "")
+        hour_val, error = validate_custom_hours_value(hours_str)
+        if error is not None:
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
+
+        opt = {**self._entry.options}
+        opt[CUSTOM_HOURS] = hour_val
+        sync_legacy_keys(opt)
+        self._hass.config_entries.async_update_entry(self._entry, options=opt)
+
+    async def async_remove_hard_limit(self, call: ServiceCall) -> None:
+        """Handle remove hard limit action (deprecated).
+
+        Arguments:
+            call: Not used.
+
+        """
+        _LOGGER.warning("Action: Remove hard limit (deprecated, use set_options instead)")
+        self._raise_deprecation_issue(ISSUE_DEPRECATED_REMOVE_HARD_LIMIT, SERVICE_REMOVE_HARD_LIMIT)
+
+        opt = {**self._entry.options}
+        opt[HARD_LIMIT_API] = "100.0"
         self._hass.config_entries.async_update_entry(self._entry, options=opt)
 
     def _raise_deprecation_issue(self, issue_id: str, action_name: str) -> None:
