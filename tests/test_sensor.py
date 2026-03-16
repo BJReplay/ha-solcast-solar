@@ -526,6 +526,26 @@ async def test_sensor_states(  # noqa: C901
             assert isinstance(attribs.get("detailedForecast"), list)
             assert isinstance(attribs.get("detailedHourly"), list)
 
+        # Verify analysis attribute on forecast day sensors.
+        for sensor_name in ("forecast_today", "forecast_tomorrow"):
+            state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor_name}")
+            assert state is not None
+            ci = state.attributes.get("analysis")
+            assert ci is not None, f"analysis missing from {sensor_name}"
+            assert isinstance(ci, dict)
+            assert ci.get("confidence") == 0.75
+            expected_spread = 11.82 if key == "2" else 16.2525
+            assert ci.get("spread_kwh") == expected_spread
+            expected_estimate10 = 35.46 if key == "2" else 48.7575
+            expected_estimate90 = 47.28 if key == "2" else 65.01
+            assert ci.get("estimate10_kwh") == expected_estimate10
+            assert ci.get("estimate90_kwh") == expected_estimate90
+            assert isinstance(ci.get("intervals"), list)
+            assert len(ci["intervals"]) > 0
+            interval_entry = ci["intervals"][0]
+            assert "period_start" in interval_entry
+            assert "spread_kwh" in interval_entry
+
         # Test last sensor update time.
         freezer.move_to(now.replace(hour=2, minute=30, second=0, microsecond=0))
         async_fire_time_changed(hass)

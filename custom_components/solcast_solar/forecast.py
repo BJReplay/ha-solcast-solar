@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any
 from .const import (
     ADVANCED_HISTORY_MAX_DAYS,
     ALL,
+    ANALYSIS,
     DATA_CORRECT,
     DAY_NAME,
     DETAILED_FORECAST,
@@ -83,9 +84,7 @@ class ForecastQuery:
         if args[2] == ALL:
             data_forecasts = self.api.data_forecasts if not args[3] else self.api.data_forecasts_undampened
         else:
-            data_forecasts = (
-                self.api.site_data_forecasts[args[2]] if not args[3] else self.api.site_data_forecasts_undampened[args[2]]
-            )
+            data_forecasts = self.api.site_data_forecasts[args[2]] if not args[3] else self.api.site_data_forecasts_undampened[args[2]]
         start_index, end_index = self.get_list_slice(data_forecasts, args[0], args[1], search_past=True)
         if start_index == 0 and end_index == 0:
             # Range could not be found
@@ -221,9 +220,37 @@ class ForecastQuery:
                 for site in self.api.sites:
                     hourly_tuples[site[RESOURCE_ID]] = build_hourly(tuples[site[RESOURCE_ID]])
 
+        estimate10_kwh = 0.0
+        estimate90_kwh = 0.0
+        spread_kwh = 0.0
+        confidence = 1.0
+        confidence_intervals = []
+        if _tuple:
+            estimate10_kwh = round(0.5 * sum(p[ESTIMATE10] for p in _tuple), 4)
+            estimate90_kwh = round(0.5 * sum(p[ESTIMATE90] for p in _tuple), 4)
+            spread_kwh = round(estimate90_kwh - estimate10_kwh, 4)
+            confidence = round(1.0 - spread_kwh / estimate90_kwh, 4) if estimate90_kwh > 0 else 1.0
+            confidence_intervals = [
+                {
+                    PERIOD_START: p[PERIOD_START],
+                    "spread_kwh": round(0.5 * (p[ESTIMATE90] - p[ESTIMATE10]), 4),
+                    "confidence": round(1.0 - 0.5 * (p[ESTIMATE90] - p[ESTIMATE10]) / (0.5 * p[ESTIMATE90]), 4)
+                    if p[ESTIMATE90] > 0
+                    else 1.0,
+                }
+                for p in _tuple
+            ]
+
         result: dict[str, Any] = {
             DAY_NAME: start_utc.astimezone(self.api.tz).strftime(DT_DAYNAME),
             DATA_CORRECT: no_data_error,
+            ANALYSIS: {
+                "estimate10_kwh": estimate10_kwh,
+                "estimate90_kwh": estimate90_kwh,
+                "spread_kwh": spread_kwh,
+                "confidence": confidence,
+                "intervals": confidence_intervals,
+            },
         }
         if self.api.options.attr_brk_halfhourly:
             result[DETAILED_FORECAST] = _tuple

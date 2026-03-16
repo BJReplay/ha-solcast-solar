@@ -27,6 +27,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import (
     ADVANCED_OPTIONS,
     AMENDABLE,
+    ANALYSIS,
     ATTRIBUTION,
     AUTO_UPDATE_DIVISIONS,
     AUTO_UPDATE_NEXT,
@@ -486,7 +487,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             self._state_info[UNRECORDED_ATTRIBUTES] = frozenset([AUTO_UPDATE_NEXT, AUTO_UPDATE_DIVISIONS, AUTO_UPDATE_QUEUE])
 
         elif str(self.entity_description.key).startswith(ENTITY_TOTAL_KWH_FORECAST):
-            exclude = [DETAILED_FORECAST, DETAILED_HOURLY]
+            exclude = [ANALYSIS, DETAILED_FORECAST, DETAILED_HOURLY]
             if self._coordinator.solcast.options.attr_brk_site_detailed:
                 for s in self._coordinator.solcast.sites:
                     exclude.append(f"{DETAILED_FORECAST}_" + s[RESOURCE_ID].replace("-", "_"))

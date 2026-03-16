@@ -491,6 +491,7 @@ For the `Forecast Next X Hours` sensor only:
 
 For daily forecast sensors only:
 
+* `analysis`: Forecast confidence analysis derived from the spread between `estimate10` and `estimate90` (dict), contains the day totals for `estimate10_kwh` and `estimate90_kwh`, the `spread_kwh` between them, a `confidence` score (0–1, where 1 = quite certain, 0.1 not so much), and an `intervals` list with per-half-hour `period_start`, `spread_kwh` and `confidence` values.
 * `detailedForecast`: A half-hourly breakdown of expected average power generation for each interval (list of dicts, units in kW, not kWh), and if automated dampening is active then the factor determined for each interval is also included
 * `detailedHourly`: An hourly breakdown of expected average power generation for each interval (list of dicts, units in kW)
 * `detailedForecast_1234_5678_9012_3456`: A half-hourly site-specific breakdown of expected average power generation for each interval (list of dicts, units in kW)
@@ -1410,6 +1411,7 @@ v4.5.1
 * Add raised issue when actuals enabled and API limit at maximum by @autoSteve
 * Add diagnostic forecast accuracy sensor by @autoSteve
 * Add diagnostic self-test action by @autoSteve
+* Add `analysis` attribute to forecast day entities indicating confidence by @autoSteve
 * Add Dutch translation by @BDVGitHub
 * Tolerate missing dampening factor history for adaptation by @autoSteve
 * Refine `429` storm raised issue by @autoSteve
