@@ -390,109 +390,109 @@
   },
   "services": {
     "clear_all_solcast_data": {
-      "description": "Deletes the solcast.json file to remove all current solcast site data.",
-      "name": "Clear all saved Solcast data"
+      "description": "Verwijdert het bestand solcast.json om alle huidige Solcast-sitegegevens te verwijderen.",
+      "name": "Wis alle opgeslagen Solcast gegevens"
     },
     "force_update_estimates": {
-      "description": "Force fetches the latest estimated actual data from Solcast.",
-      "name": "Force Update Estimated Actuals"
+      "description": "Met ‘Force update geschatte waarden’ worden de meest recente geschatte actuele gegevens opgehaald van Solcast.",
+      "name": "Force update geschatte waarden"
     },
     "force_update_forecasts": {
-      "description": "Force fetches the latest forecasts data from Solcast.",
+      "description": "Met ‘Force update’ worden de meest recente weersvoorspellingen van Solcast opgehaald.",
       "name": "Force Update"
     },
     "get_dampening": {
-      "description": "Get the forecast dampening factors.",
+      "description": "Haal de voorspelde dempingsfactoren op.",
       "fields": {
         "site": {
-          "description": "Optional site to get dampening. (Note: Will not work if granular dampening is not enabled.)",
+          "description": "Optionele locatie voor demping. (Opmerking: werkt niet als granulaire demping niet is ingeschakeld.)",
           "name": "Site ID"
         }
       },
       "name": "Get forecasts dampening"
     },
     "query_estimate_data": {
-      "description": "Return a data set for a given query.",
+      "description": "Geef een dataset terug voor een bepaalde zoekopdracht.",
       "fields": {
         "end_date_time": {
-          "description": "Query estimated actual data events up to date time.",
-          "name": "End date time"
+          "description": "Vraagt de geschatte en werkelijke gegevens op tot en met het huidige tijdstip op.",
+          "name": "Einddatum en -tijd"
         },
         "start_date_time": {
-          "description": "Query estimated actual data events from date time.",
-          "name": "Start date time"
+          "description": "Vraagt de geschatte en werkelijke gegevens op basis van datum en tijd.",
+          "name": "Startdatum en -tijd"
         }
       },
-      "name": "Query estimated actual data"
+      "name": "Geschatte en werkelijke gegevens opvragen"
     },
     "query_forecast_data": {
-      "description": "Return a data set for a given query.",
+      "description": "Geeft een dataset terug voor een bepaalde zoekopdracht.",
       "fields": {
         "end_date_time": {
-          "description": "Query forecast data events up to date time.",
-          "name": "End date time"
+          "description": "Zoek naar gebeurtenissen in de prognosegegevens tot en met het huidige tijdstip.",
+          "name": "Einddatum en -tijd"
         },
         "site": {
-          "description": "Optional site to retrieve one site forecast",
+          "description": "Optioneel site om de voorspelling voor één locatie op te halen",
           "name": "Site ID"
         },
         "start_date_time": {
-          "description": "Query forecast data events from date time.",
-          "name": "Start date time"
+          "description": "Zoek naar gebeurtenissen in de prognosegegevens vanaf een bepaalde datum en tijd.",
+          "name": "Startdatum en -tijd"
         },
         "undampened": {
-          "description": "Optional boolean to retrieve un-dampened forecast",
+          "description": "Optionele booleaanse waarde om de niet-gedempte voorspelling op te halen",
           "name": "Undampened"
         }
       },
-      "name": "Query forecast data"
+      "name": "Prognosegegevens opvragen"
     },
     "remove_hard_limit": {
-      "description": "Remove set limit.",
-      "name": "Remove inverter forecast hard limit"
+      "description": "Verwijder de ingestelde limiet.",
+      "name": "Verwijder omvormerprognose harde limiet"
     },
     "set_custom_hours": {
-      "description": "Set the custom X hours sensor number of hours.",
+      "description": "Stel het aantal uren voor de aangepaste X-uursensor in.",
       "fields": {
         "hours": {
-          "description": "Number of hours to set (1-144).",
-          "name": "Hours"
+          "description": "Aantal in te stellen uren (1-144).",
+          "name": "Uren"
         }
       },
-      "name": "Set custom hours sensor"
+      "name": "Sensor voor aangepaste uren instellen"
     },
     "set_dampening": {
-      "description": "Set forecast dampening factors.",
+      "description": "Stel dempingsfactoren voor voorspellingen in.",
       "fields": {
         "damp_factor": {
-          "description": "String of dampening factor values comma separated (24 or 48 values).",
-          "name": "Dampening string"
+          "description": "Reeks waarden voor dempingsfactoren, gescheiden door komma's (24 of 48 waarden).",
+          "name": "Dempingsreeks"
         },
         "site": {
-          "description": "Optional site to set per-site dampening. (Note: Omitting site clears per-site dampening unless 48 values.)",
+          "description": "Optionele site om demping per site in te stellen. (Opmerking: als de site wordt weggelaten, wordt de demping per site gewist, tenzij er 48 waarden zijn.)",
           "name": "Site ID"
         }
       },
       "name": "Set forecasts dampening"
     },
     "set_hard_limit": {
-      "description": "Prevent forecast values being higher than the inverter can produce.",
+      "description": "Voorkom dat de voorspelde waarden hoger zijn dan de omvormer kan produceren.",
       "fields": {
         "hard_limit": {
-          "description": "Set the max value in Watts that the inverter can produce.",
-          "name": "Limit value in Watts"
+          "description": "Stel de maximale waarde in Watt in die de omvormer kan produceren.",
+          "name": "Grenswaarde in Watt"
         }
       },
-      "name": "Set inverter forecast hard limit"
+      "name": "“Harde limiet voor omvormerprognose instellen"
     },
     "update_forecasts": {
-      "description": "Fetches the latest forecasts data from Solcast.",
+      "description": "Haal de meest recente voorspellingen op van Solcast.",
       "name": "Update"
     }
   },
   "system_health": {
     "info": {
-      "can_reach_server": "Solcast server connection"
+      "can_reach_server": "Verbinding met Solcast server"
     }
   }
 }
