@@ -2761,3 +2761,135 @@ async def test_diagnostic_self_test_recorder_unavailable(
 
     finally:
         assert await async_cleanup_integration_tests(hass)
+
+
+async def test_forecast_accuracy_sensor_with_actuals(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that the forecast accuracy sensor exposes accuracy data via the coordinator."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+
+        # Inject mock accuracy data into the updater.
+        coordinator._updater.accuracy_data = {  # pyright: ignore[reportPrivateUsage]
+            "dampened_mape": 5.25,
+            "undampened_mape": 8.75,
+            "model_period_days": 14,
+            "infinity_excluded": True,
+            "dampened_daily": {"2026-03-01": 4.1, "2026-03-02": 6.3},
+            "undampened_daily": {"2026-03-01": 7.8, "2026-03-02": 9.7},
+            "dampened_percentiles": {50: 4.5, 90: 9.1},
+            "undampened_percentiles": {50: 7.2, 90: 14.3},
+        }
+
+        # Sensor value should be the dampened MAPE.
+        value = coordinator.get_sensor_value("accuracy")
+        assert value == 5.25
+
+        # Sensor attributes should include the full breakdown.
+        attrs = coordinator.get_sensor_extra_attributes("accuracy")
+        assert attrs is not None
+        assert attrs["undampened_mape"] == 8.75
+        assert attrs["model_period_days"] == 14
+        assert attrs["infinity_excluded"] is True
+        assert attrs["dampened_ape_breakdown"] == [
+            {"period_start": "2026-03-01", "ape": 4.1},
+            {"period_start": "2026-03-02", "ape": 6.3},
+        ]
+        assert attrs["undampened_ape_breakdown"] == [
+            {"period_start": "2026-03-01", "ape": 7.8},
+            {"period_start": "2026-03-02", "ape": 9.7},
+        ]
+        assert attrs["dampened_p50_ape"] == 4.5
+        assert attrs["dampened_p90_ape"] == 9.1
+        assert attrs["undampened_p50_ape"] == 7.2
+        assert attrs["undampened_p90_ape"] == 14.3
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_forecast_accuracy_sensor_no_dampening(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test accuracy sensor when auto_dampen is off (dampened MAPE is None)."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+
+        # Simulate no dampening: dampened_mape is None, undampened is available.
+        coordinator._updater.accuracy_data = {  # pyright: ignore[reportPrivateUsage]
+            "dampened_mape": None,
+            "undampened_mape": 12.5,
+            "model_period_days": 14,
+            "infinity_excluded": False,
+            "dampened_daily": {},
+            "undampened_daily": {"2026-03-01": 11.0},
+            "dampened_percentiles": {},
+            "undampened_percentiles": {50: 11.0},
+        }
+
+        # Value is None when dampened MAPE is not available.
+        value = coordinator.get_sensor_value("accuracy")
+        assert value is None
+
+        # Attributes should still contain the undampened breakdown.
+        attrs = coordinator.get_sensor_extra_attributes("accuracy")
+        assert attrs is not None
+        assert attrs["undampened_mape"] == 12.5
+        assert attrs["model_period_days"] == 14
+        assert attrs["infinity_excluded"] is False
+        assert attrs["undampened_ape_breakdown"] == [{"period_start": "2026-03-01", "ape": 11.0}]
+        assert attrs["dampened_ape_breakdown"] == []
+        assert attrs["undampened_p50_ape"] == 11.0
+        assert "dampened_p50_ape" not in attrs
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_forecast_accuracy_sensor_no_data(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test accuracy sensor when no accuracy data is available."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+
+        # With no accuracy data, the sensor should return None.
+        coordinator._updater.accuracy_data = {}  # pyright: ignore[reportPrivateUsage]
+        value = coordinator.get_sensor_value("accuracy")
+        assert value is None
+
+        # Attributes should be empty when no data.
+        attrs = coordinator.get_sensor_extra_attributes("accuracy")
+        assert attrs is not None
+        assert attrs == {}
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)

@@ -55,6 +55,9 @@
       "dampen": {
         "name": "Tłumienie"
       },
+      "forecast_accuracy": {
+        "name": "Dokładność"
+      },
       "forecast_custom_hours": {
         "name": "Prognoza na następne X godzin"
       },

@@ -55,6 +55,9 @@
       "dampen": {
         "name": "Dämpfung"
       },
+      "forecast_accuracy": {
+        "name": "Genauigkeit"
+      },
       "forecast_custom_hours": {
         "name": "Prognostizieren Sie die nächsten X Stunden"
       },

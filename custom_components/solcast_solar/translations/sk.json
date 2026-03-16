@@ -55,6 +55,9 @@
       "dampen": {
         "name": "Tlmenie"
       },
+      "forecast_accuracy": {
+        "name": "Presnosť"
+      },
       "forecast_custom_hours": {
         "name": "Predpoveď najbližších X hodín"
       },

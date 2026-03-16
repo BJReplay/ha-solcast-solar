@@ -55,6 +55,9 @@
       "dampen": {
         "name": "گیلا کرنا"
       },
+      "forecast_accuracy": {
+        "name": "درستگی"
+      },
       "forecast_custom_hours": {
         "name": "اگلے X گھنٹے کی پیشن گوئی"
       },

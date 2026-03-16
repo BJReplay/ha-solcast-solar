@@ -795,7 +795,7 @@ class Dampening:
         values: tuple[dict[str, Any], ...],
         percentiles: tuple[int, ...] = (50,),
         log_breakdown: bool = False,
-    ) -> tuple[bool, float, list[float]]:
+    ) -> tuple[bool, float, list[float], dict[str, float]]:
         """Calculate mean and percentile absolute percentage error."""
         value_day: defaultdict[dt, float] = defaultdict(float)
         error: defaultdict[dt, float] = defaultdict(float)
@@ -823,14 +823,16 @@ class Dampening:
                 )
 
         non_inf_error: dict[dt, float] = {k: v for k, v in error.items() if v != math.inf}
+        daily: dict[str, float] = {k.strftime(DT_DATE_ONLY_FORMAT): round(v, 2) for k, v in non_inf_error.items()}
         return (
             (
                 (len(error) != len(non_inf_error)),
                 sum(non_inf_error.values()) / len(non_inf_error),
                 [percentile(sorted(error.values()), p) for p in percentiles],
+                daily,
             )
             if len(non_inf_error) > 0
-            else (False, math.inf, [math.inf] * len(percentiles))
+            else (False, math.inf, [math.inf] * len(percentiles), {})
         )
 
     async def check_deal_breaker_automated(self) -> bool:

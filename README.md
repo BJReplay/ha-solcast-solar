@@ -666,6 +666,7 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 | `API Limit` | number | N | `integer` | Total times the API can been called in a 24 hour period[^1]. |
 | `API Used` | number | N | `integer` | Total times the API has been called today (API counter resets to zero at midnight UTC)[^1]. |
 | `Dampening` | boolean | Y | `bool` | Whether dampening is enabled (disabled by default). |
+| `Accuracy` | number | Y | `%` | Mean Absolute Percentage Error (MAPE) of Solcast forecast vs. actual generation over the configured model period. Requires automated dampening to be enabled for a non-null state. Disabled by default. |
 | `Hard Limit Set` | number | N | `float` or `bool` | `False` if not set, else value in `kilowatts`. |
 | `Hard Limit Set ******AaBbCc` | number | N | `float` | Individual account hard limit. Value in `kilowatts`. |
 | `Rooftop site name` | number | Y | `kWh` | Total forecast for rooftop today (attributes contain the site setup)[^2]. |
@@ -721,6 +722,36 @@ automated_dampening_similar_peak: 0.9
 automated_dampening_suppression_entity: solcast_suppress_auto_dampening
 granular_dampening_delta_adjustment: false
 automated_dampening_no_delta_corrections: false
+```
+
+`Accuracy` attributes include a breakdown of the MAPE calculation over the model period:
+
+* `undampened_mape`: The MAPE calculated using the raw (undampened) Solcast forecast.
+* `model_period_days`: The number of days used in the accuracy model.
+* `infinity_excluded`: Whether any days were excluded from the MAPE due to zero actual generation (which would produce an infinite relative error).
+* `dampened_ape_breakdown` / `undampened_ape_breakdown`: A list of dicts giving the daily Absolute Percentage Error for each day in the model period.
+* `dampened_p{N}_ape` / `undampened_p{N}_ape`: Distribution percentiles of the daily APE values over the model period. The percentiles reported are configured via the advanced option `estimated_actuals_log_ape_percentiles` (default: 50th percentile, i.e. median). For example, `dampened_p50_ape` is the median daily APE.
+
+Example Accuracy sensor attributes:
+
+``` yaml
+undampened_mape: 8.34
+model_period_days: 14
+infinity_excluded: false
+dampened_ape_breakdown:
+- period_start: '2026-03-01'
+  ape: 5.10
+- period_start: '2026-03-02'
+  ape: 5.40
+undampened_ape_breakdown:
+- period_start: '2026-03-01'
+  ape: 8.20
+- period_start: '2026-03-02'
+  ape: 8.48
+dampened_p50_ape: 5.25
+dampened_p90_ape: 11.40
+undampened_p50_ape: 8.34
+undampened_p90_ape: 14.72
 ```
 
 `Rooftop site name` attributes include:
@@ -1377,6 +1408,7 @@ v4.5.1
 
 * Add `set_options`/`get_options` actions and deprecate single-purpose actions by @autoSteve
 * Add raised issue when actuals enabled and API limit at maximum by @autoSteve
+* Add diagnostic forecast accuracy sensor by @autoSteve
 * Add diagnostic self-test action by @autoSteve
 * Add Dutch translation by @BDVGitHub
 * Tolerate missing dampening factor history for adaptation by @autoSteve

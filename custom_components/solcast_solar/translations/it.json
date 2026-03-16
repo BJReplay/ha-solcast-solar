@@ -55,6 +55,9 @@
       "dampen": {
         "name": "Smorzamento"
       },
+      "forecast_accuracy": {
+        "name": "Precisione"
+      },
       "forecast_custom_hours": {
         "name": "Previsione per le prossime X ore"
       },

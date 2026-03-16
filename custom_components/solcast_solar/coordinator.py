@@ -20,10 +20,15 @@ from .const import (
     ALL,
     COMPLETION,
     CUSTOM_HOURS,
+    DAMPENED_APE_BREAKDOWN,
+    DAMPENED_DAILY,
+    DAMPENED_MAPE,
+    DAMPENED_PERCENTILES,
     DOMAIN,
     ENTITY_API_COUNTER,
     ENTITY_API_LIMIT,
     ENTITY_DAMPEN,
+    ENTITY_FORECAST_ACCURACY,
     ENTITY_FORECAST_CUSTOM_HOURS,
     ENTITY_FORECAST_NEXT_HOUR,
     ENTITY_FORECAST_REMAINING_TODAY,
@@ -46,17 +51,24 @@ from .const import (
     FACTOR,
     FACTORS,
     GET_ACTUALS,
+    INFINITY_EXCLUDED,
     INTEGRATION_AUTOMATED,
     INTERVAL,
     LAST_UPDATED,
     METHOD,
+    MODEL_PERIOD_DAYS,
     NEED_HISTORY_HOURS,
+    PERIOD_START,
     SITE_DAMP,
     TASK_ACTUALS_FETCH,
     TASK_FORECASTS_FETCH,
     TASK_FORECASTS_FETCH_IMMEDIATE,
     TASK_LISTENERS,
     TASK_MIDNIGHT_UPDATE,
+    UNDAMPENED_APE_BREAKDOWN,
+    UNDAMPENED_DAILY,
+    UNDAMPENED_MAPE,
+    UNDAMPENED_PERCENTILES,
     VALUE,
 )
 from .solcastapi import SolcastApi
@@ -66,7 +78,7 @@ from .watch import FileWatcher
 
 _LOGGER = logging.getLogger(__name__)
 
-NO_ATTRIBUTES = [ENTITY_API_COUNTER, ENTITY_API_LIMIT, ENTITY_DAMPEN, ENTITY_LAST_UPDATED_OLD]
+NO_ATTRIBUTES = [ENTITY_API_COUNTER, ENTITY_API_LIMIT, ENTITY_DAMPEN, ENTITY_FORECAST_ACCURACY, ENTITY_LAST_UPDATED_OLD]
 
 
 class SolcastUpdateCoordinator(DataUpdateCoordinator):
@@ -119,6 +131,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             ENTITY_LAST_UPDATED: [{METHOD: lambda: self.solcast.last_updated}],
             ENTITY_LAST_UPDATED_OLD: [{METHOD: lambda: self.solcast.last_updated}],
             ENTITY_DAMPEN: [{METHOD: lambda: self.solcast.dampening_enabled}],
+            ENTITY_FORECAST_ACCURACY: [{METHOD: lambda: self._updater.accuracy_data.get(DAMPENED_MAPE)}],
         }
         days = [ENTITY_TOTAL_KWH_FORECAST_TODAY, ENTITY_TOTAL_KWH_FORECAST_TOMORROW] + [
             f"total_kwh_forecast_d{r}" for r in range(3, self.advanced_day_entities)
@@ -463,6 +476,19 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         if key == ENTITY_FORECAST_CUSTOM_HOURS:
             ret |= {CUSTOM_HOURS: self.solcast.options.custom_hour_sensor}
+
+        if key == ENTITY_FORECAST_ACCURACY:
+            data = self._updater.accuracy_data
+            if data:
+                ret |= {
+                    UNDAMPENED_MAPE: data.get(UNDAMPENED_MAPE),
+                    MODEL_PERIOD_DAYS: data.get(MODEL_PERIOD_DAYS),
+                    INFINITY_EXCLUDED: data.get(INFINITY_EXCLUDED),
+                    DAMPENED_APE_BREAKDOWN: [{PERIOD_START: date, "ape": v} for date, v in data.get(DAMPENED_DAILY, {}).items()],
+                    UNDAMPENED_APE_BREAKDOWN: [{PERIOD_START: date, "ape": v} for date, v in data.get(UNDAMPENED_DAILY, {}).items()],
+                    **{f"dampened_p{p}_ape": v for p, v in data.get(DAMPENED_PERCENTILES, {}).items()},
+                    **{f"undampened_p{p}_ape": v for p, v in data.get(UNDAMPENED_PERCENTILES, {}).items()},
+                }
 
         return ret
 

@@ -55,6 +55,9 @@
       "dampen": {
         "name": "Amortissement"
       },
+      "forecast_accuracy": {
+        "name": "Précision"
+      },
       "forecast_custom_hours": {
         "name": "Prévisions pour les X prochaines heures"
       },
