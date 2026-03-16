@@ -46,6 +46,9 @@
       }
     },
     "sensor": {
+      "accuracy": {
+        "name": "Precisión"
+      },
       "api_counter": {
         "name": "API utilizada"
       },
@@ -54,9 +57,6 @@
       },
       "dampen": {
         "name": "Factores de amortiguación"
-      },
-      "forecast_accuracy": {
-        "name": "Precisión"
       },
       "forecast_custom_hours": {
         "name": "Pronóstico próximas X horas"
