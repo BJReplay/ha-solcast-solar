@@ -24,6 +24,7 @@ from homeassistant.components.solcast_solar.const import (
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
     DOMAIN,
+    ENTITY_ACCURACY,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
     GET_ACTUALS,
@@ -111,6 +112,7 @@ async def test_auto_dampen(
         ]
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
+        er.async_get(hass).async_get_or_create("sensor", DOMAIN, ENTITY_ACCURACY)
         entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.YES_WATT_HOUR)
 
         # Fiddle with undampened data cache
@@ -326,6 +328,7 @@ async def test_auto_dampen_issues(
             options[GENERATION_ENTITIES][0] = "sensor.not_valid"
         if extra_sensors == ExtraSensors.DODGY:
             options[SITE_EXPORT_ENTITY] = "sensor.not_valid"
+        er.async_get(hass).async_get_or_create("sensor", DOMAIN, ENTITY_ACCURACY)
         entry = await async_init_integration(hass, options, extra_sensors=extra_sensors)
 
         # An orphaned forecast day sensor is created along with the extra sensors

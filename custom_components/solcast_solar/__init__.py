@@ -723,7 +723,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     async def __v19(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
         # Rename "api_quota" to "api_limit", and "customhoursensor" to "custom_hours".
-        # Old keys are kept for backward compatibility, but no longer maintained.
+        # Old keys are kept for backward compatibility.
         if "api_quota" in new_options:
             new_options[API_LIMIT] = new_options["api_quota"]
         if "customhoursensor" in new_options:
@@ -743,6 +743,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         {VERSION: 19, UPGRADE_FUNCTION: __v19},
     ]
     for upgrade in upgrades:
-        await upgrade_to(upgrade[VERSION], entry, upgrade[UPGRADE_FUNCTION])
+        if (entry.version < upgrade[VERSION]) or (ENTRY_OPTIONS_DEVELOPMENT and upgrade[VERSION] == CONFIG_VERSION):
+            await upgrade_to(upgrade[VERSION], entry, upgrade[UPGRADE_FUNCTION])
 
     return True

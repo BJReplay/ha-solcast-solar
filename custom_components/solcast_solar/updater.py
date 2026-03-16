@@ -9,6 +9,7 @@ import math
 from random import randint
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import (
     async_track_point_in_utc_time,
     async_track_utc_time_change,
@@ -22,10 +23,13 @@ from .const import (
     ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY,
     ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES,
     ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN,
+    DOMAIN,
     DT_DATE_FORMAT,
     DT_DATE_ONLY_FORMAT,
     DT_TIME_FORMAT,
     DT_TIME_FORMAT_SHORT,
+    ENTITY_ACCURACY,
+    SENSOR,
     TASK_ACTUALS_FETCH,
     TASK_CHECK_FETCH,
     TASK_FORECASTS_FETCH_IMMEDIATE,
@@ -383,7 +387,12 @@ class Updater:
             await self._coordinator.solcast.build_forecast_data()
 
         if self._coordinator.solcast.options.get_actuals:
-            await self.calculate_accuracy_metrics()
+            entity_registry = er.async_get(self._coordinator.hass)
+            entity_id = entity_registry.async_get_entity_id(SENSOR, DOMAIN, ENTITY_ACCURACY)
+            if entity_id is not None:
+                entity = entity_registry.async_get(entity_id)
+                if entity is not None and not entity.disabled_by:
+                    await self.calculate_accuracy_metrics()
 
     async def calculate_accuracy_metrics(self) -> None:
         """Calculate accuracy metrics for generation vs. undampened/dampened actuals."""

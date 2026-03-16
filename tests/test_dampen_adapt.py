@@ -27,6 +27,8 @@ from homeassistant.components.solcast_solar.const import (
     AUTO_UPDATE,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
+    DOMAIN,
+    ENTITY_ACCURACY,
     EXCLUDE_SITES,
     EXPORT_LIMITING,
     FORECASTS,
@@ -50,6 +52,7 @@ from homeassistant.components.solcast_solar.util import (
     NoIndentEncoder,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 from . import (
     DEFAULT_INPUT2,
@@ -116,6 +119,7 @@ async def test_adaptive_auto_dampen(  # noqa: C901
         ]
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
+        er.async_get(hass).async_get_or_create("sensor", DOMAIN, ENTITY_ACCURACY)
         entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.YES)
 
         # Fiddle with undampened data cache
