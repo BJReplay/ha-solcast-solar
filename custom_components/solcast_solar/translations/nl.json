@@ -1,9 +1,9 @@
 {
   "config": {
     "abort": {
-      "internal_error": "Interne foutmelding opgetreden",
-      "reauth_successful": "Nieuwe API-sleutel succesvol toegevoegd",
-      "reconfigured": "Nieuwe configuratie is toegepast",
+      "internal_error": "Interne fout opgetreden",
+      "reauth_successful": "Nieuwe API-sleutel succesvol toegepast",
+      "reconfigured": "Nieuwe configuratie succesvol toegepast",
       "single_instance_allowed": "Er is slechts 1 Solcast instantie toegestaan"
     },
     "error": {
@@ -302,9 +302,9 @@
       "generation_mixed_types": "PV-opwekkingsentiteiten moeten allemaal van hetzelfde type zijn (allemaal energie of allemaal vermogen, geen mix)",
       "hard_not_number": "Hard limit is geen positief getal",
       "hard_too_many": "Er zijn meer harde limieten ingevoerd dan API-sleutels",
-      "limit_not_number": "API limiet is geen getal",
-      "limit_one_or_greater": "API limiet moet één of meer zijn",
-      "limit_too_many": "Er zijn meer API limietwaarden ingevoerd dan API-sleutels"
+      "limit_not_number": "API-limiet is geen getal",
+      "limit_one_or_greater": "API-limiet moet één of meer zijn",
+      "limit_too_many": "Er zijn meer API-limietwaarden ingevoerd dan API-sleutels"
     },
     "step": {
       "dampen": {
