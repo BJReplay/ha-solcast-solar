@@ -483,7 +483,7 @@
           "name": "Grenswaarde in Watt"
         }
       },
-      "name": "“Harde limiet voor omvormerprognose instellen"
+      "name": "Harde limiet voor omvormerprognose instellen"
     },
     "update_forecasts": {
       "description": "Haal de meest recente voorspellingen op van Solcast.",
