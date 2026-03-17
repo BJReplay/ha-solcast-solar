@@ -204,6 +204,7 @@ class Fetcher:
                 site[RESOURCE_ID], self.api.data_actuals, self.api.advanced_options[ADVANCED_HISTORY_MAX_DAYS], actuals
             )
             _LOGGER.debug("Estimated actuals dictionary for site %s length %s", site[RESOURCE_ID], len(actuals))
+            self.increment_success_count(force=True, api_key=api_key)
 
         if status == DataCallStatus.SUCCESS and dampen_yesterday:
             # Apply dampening to yesterday actuals, but only if the new factors for the day have not been modelled.
@@ -218,6 +219,7 @@ class Fetcher:
             self.api.data_actuals_dampened[LAST_UPDATED] = dt.now(UTC).replace(microsecond=0)
             self.api.data_actuals_dampened[LAST_ATTEMPT] = dt.now(UTC).replace(microsecond=0)
             await self.api.sites_cache.serialise_data(self.api.data_actuals_dampened, self.api.filename_actuals_dampened)
+            await self.api.sites_cache.serialise_data(self.api.data, self.api.filename)
 
         _LOGGER.debug("Task update_estimated_actuals took %.3f seconds", time.time() - start_time)
 
@@ -544,9 +546,11 @@ class Fetcher:
         if force:
             forced = self.api.data[SUCCESS][SUCCESS_FORCED]
             forced[key] = forced.get(key, 0) + 1
+            _LOGGER.debug("Incremented forced success count for API key ending %s, now %d", redact_api_key(api_key), forced[key])
         else:
             tracked = self.api.data[SUCCESS][SUCCESS_TRACKED]
             tracked[key] = tracked.get(key, 0) + 1
+            _LOGGER.debug("Incremented tracked success count for API key ending %s, now %d", redact_api_key(api_key), tracked[key])
 
     async def fetch_data(  # noqa: C901
         self,
