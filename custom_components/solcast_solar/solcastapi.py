@@ -81,6 +81,9 @@ from .const import (
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
     SITE_INFO,
+    SUCCESS,
+    SUCCESS_FORCED,
+    SUCCESS_TRACKED,
     UNKNOWN,
     USE_ACTUALS,
     WINTER_TIME,
@@ -359,6 +362,30 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             bool: True if updated today, False otherwise.
         """
         return self.data_actuals[LAST_UPDATED].astimezone(self.tz).date() == dt.now(self.tz).date()
+
+    @property
+    def successes_tracked_24h(self) -> int:
+        """Number of successful quota-tracked API calls today.
+
+        Uses the maximum across all API keys, mirroring how api_used_count is reported.
+
+        Returns:
+            int: The maximum per-key count of successful quota-tracked site API calls since midnight.
+        """
+        tracked = self.data[SUCCESS][SUCCESS_TRACKED]
+        return max(tracked.values()) if tracked else 0
+
+    @property
+    def successes_forced_24h(self) -> int:
+        """Number of successful forced updates today.
+
+        Uses the maximum across all API keys, mirroring how api_used_count is reported.
+
+        Returns:
+            int: The maximum per-key count of successful forced site API calls since midnight.
+        """
+        forced = self.data[SUCCESS][SUCCESS_FORCED]
+        return max(forced.values()) if forced else 0
 
     @property
     def failures_last_24h(self) -> int:

@@ -53,6 +53,9 @@ from .const import (
     PROBLEMS,
     SITE_INFO,
     STOPS_WORKING,
+    SUCCESS,
+    SUCCESS_FORCED,
+    SUCCESS_TRACKED,
     VERSION,
     WINTER_TIME,
 )
@@ -505,12 +508,19 @@ def upgrade_cache_schema(
         data[FAILURE][LAST_14D] = data[FAILURE][LAST_7D] + [0] * 7
         json_version = 8
 
-    # Add integration version, introduced v4.x.x.
+    # Add integration version, introduced v4.5.1.
     if json_version < 9:
         _LOGGER.debug("Upgrading to v9 cache structure")
         data[VERSION] = 9
         data[INTEGRATION_VERSION] = "unknown"
         json_version = 9
+
+    # Add success statistics, introduced v4.5.1.
+    if json_version < 10:
+        _LOGGER.debug("Upgrading to v10 cache structure")
+        data[VERSION] = 10
+        data[SUCCESS] = {SUCCESS_TRACKED: {}, SUCCESS_FORCED: {}}
+        json_version = 10
 
     return json_version
 

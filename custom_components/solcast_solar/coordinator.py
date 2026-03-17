@@ -243,13 +243,13 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
     async def _update_utc_midnight_usage_sensor_data(self, _: dt | None = None) -> None:
         """Reset tracked API usage at midnight UTC."""
         await self.solcast.sites_cache.reset_api_usage()
+        await self.solcast.fetcher.reset_failure_stats()
         self._data_updated = True
         await self.update_integration_listeners()
         self._data_updated = False
 
     async def _update_midnight_spline_recalculate(self) -> None:
         """Re-calculates splines at midnight local time."""
-        await self.solcast.fetcher.reset_failure_stats()
         await self.solcast.check_data_records()
         await self.solcast.query.recalculate_splines()
 

@@ -63,6 +63,9 @@ from .const import (
     SITE_ATTRIBUTE_LONGITUDE,
     SITE_INFO,
     SITES,
+    SUCCESS,
+    SUCCESS_FORCED,
+    SUCCESS_TRACKED,
     TOTAL_RECORDS,
     UNKNOWN,
     VERSION,
@@ -95,6 +98,7 @@ FRESH_DATA: Final[dict[str, Any]] = {
     LAST_ATTEMPT: dt.fromtimestamp(0, UTC),
     AUTO_UPDATED: 0,
     FAILURE: {LAST_24H: 0, LAST_7D: [0] * 7, LAST_14D: [0] * 14},
+    SUCCESS: {SUCCESS_TRACKED: {}, SUCCESS_FORCED: {}},
     INTEGRATION_VERSION: "",
     VERSION: JSON_VERSION,
 }

@@ -7,6 +7,7 @@ from __future__ import annotations
 import asyncio
 import copy
 from datetime import UTC, datetime as dt, timedelta
+from hashlib import md5
 import json
 import logging
 import math
@@ -57,6 +58,9 @@ from .const import (
     RESOURCE_ID,
     RESPONSE_STATUS,
     SITE_INFO,
+    SUCCESS,
+    SUCCESS_FORCED,
+    SUCCESS_TRACKED,
     TASK_ACTUALS_FETCH,
     TASK_FORECASTS_FETCH,
     UPDATE_BACKOFF,
@@ -120,12 +124,14 @@ class Fetcher:
         return success
 
     async def reset_failure_stats(self) -> None:
-        """Reset the failure statistics."""
+        """Reset the failure statistics and the success counters."""
 
         _LOGGER.debug("Resetting failure statistics")
         self.api.data[FAILURE][LAST_24H] = 0
         self.api.data[FAILURE][LAST_7D] = [0, *self.api.data[FAILURE][LAST_7D][:-1]]
         self.api.data[FAILURE][LAST_14D] = [0, *self.api.data[FAILURE][LAST_14D][:-1]]
+        self.api.data[SUCCESS][SUCCESS_TRACKED] = {}
+        self.api.data[SUCCESS][SUCCESS_FORCED] = {}
         await self.api.sites_cache.serialise_data(self.api.data, self.api.filename)
 
     async def update_estimated_actuals(self, dampen_yesterday: bool = False) -> None:
@@ -275,6 +281,7 @@ class Fetcher:
                 return ""
             if result == DataCallStatus.SUCCESS:
                 sites_succeeded += 1
+                self.increment_success_count(force, site[API_KEY])
 
         if sites_attempted > 0 and not failure:
             await self.api.dampening.apply_forward(do_past_hours=do_past_hours)
@@ -525,6 +532,21 @@ class Fetcher:
         self.api.data[FAILURE][LAST_24H] += 1
         self.api.data[FAILURE][LAST_7D][0] = self.api.data[FAILURE][LAST_24H]
         self.api.data[FAILURE][LAST_14D][0] = self.api.data[FAILURE][LAST_24H]
+
+    def increment_success_count(self, force: bool, api_key: str) -> None:
+        """Increment the appropriate success counter once per successful site API call.
+
+        Arguments:
+            force (bool): True if the update was a forced update (quota not consumed).
+            api_key (str): The API key used for the site fetch.
+        """
+        key = md5(api_key[-6:].encode()).hexdigest()
+        if force:
+            forced = self.api.data[SUCCESS][SUCCESS_FORCED]
+            forced[key] = forced.get(key, 0) + 1
+        else:
+            tracked = self.api.data[SUCCESS][SUCCESS_TRACKED]
+            tracked[key] = tracked.get(key, 0) + 1
 
     async def fetch_data(  # noqa: C901
         self,

@@ -214,6 +214,7 @@ def verify_data_schema(data: dict[str, Any]) -> None:
         "last_attempt": {"type": dt},
         "auto_updated": {"type": int},
         "failure": {"type": dict, "members": ["last_24h", "last_7d", "last_14d"]},
+        "success": {"type": dict, "members": ["tracked", "forced"]},
         "integration_version": {"type": str},
     }
 

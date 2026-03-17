@@ -632,7 +632,7 @@ The response contains a `data` object with the following fields:
 | --- | --- | --- |
 | `overall_status` | string | `"ok"` when no issues are found, otherwise `"issues_found"` |
 | `issues` | list | Description of every problem detected. Empty when status is `"ok"` |
-| `api` | object | API quota, failure counts, last update/attempt timestamps, and status names |
+| `api` | object | API limit and use, failure counts, success counts for tracked and forced updates, last update/attempt timestamps, and status names |
 | `sites` | list | One entry per configured rooftop site (`resource_id`, `name`) |
 | `cache_files` | object | Whether each data cache file exists on disk (`forecast`, `undampened`, `actuals`, `actuals_dampened`, `dampening`, `dampening_history`, `generation`, `advanced`) |
 | `configuration` | object | Active configuration summary (`auto_update`, `key_estimate`, `get_actuals`, `use_actuals`, `auto_dampen`, `hard_limit`, `excluded_sites`) |
@@ -642,8 +642,8 @@ The response contains a `data` object with the following fields:
 | `recorder_available` | boolean | Whether the Home Assistant recorder component is loaded |
 
 The `issues` list will include messages such as:
-- `"API quota exhausted for today"`
-- `"N API failure(s) in the last 24 hours"`
+- `"API quota exhausted for today"` (may not indicate a failure situation, just that no further un-forced updates can occur)
+- `"N API failure(s) in the last 24 hours"` (since UTC midnight)
 - `"No sites configured"`
 - `"Forecast cache file missing"`
 - `"Auto-dampening enabled but no generation entities configured"`

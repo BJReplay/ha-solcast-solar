@@ -63,7 +63,7 @@ from .const import (
     RESOURCE_ID,
     SCHEMA,
     SERVICE_CLEAR_DATA,
-    SERVICE_DIAGNOSTIC_SELF_TEST,
+    SERVICE_DIAGNOSTIC,
     SERVICE_FORCE_UPDATE_ESTIMATES,
     SERVICE_FORCE_UPDATE_FORECASTS,
     SERVICE_GET_DAMPENING,
@@ -162,7 +162,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _ALL_ACTIONS: Final = [
     SERVICE_CLEAR_DATA,
-    SERVICE_DIAGNOSTIC_SELF_TEST,
+    SERVICE_DIAGNOSTIC,
     SERVICE_FORCE_UPDATE_ESTIMATES,
     SERVICE_FORCE_UPDATE_FORECASTS,
     SERVICE_GET_DAMPENING,
@@ -250,8 +250,8 @@ class ServiceActions:
         """
         return {
             SERVICE_CLEAR_DATA: {ACTION: self.async_clear_solcast_data},
-            SERVICE_DIAGNOSTIC_SELF_TEST: {
-                ACTION: self.async_diagnostic_self_test,
+            SERVICE_DIAGNOSTIC: {
+                ACTION: self.async_diagnostic,
                 SCHEMA: None,
                 SUPPORTS_RESPONSE_KEY: SupportsResponse.ONLY,
             },
@@ -498,8 +498,8 @@ class ServiceActions:
             }
         }
 
-    async def async_diagnostic_self_test(self, call: ServiceCall) -> dict[str, Any]:
-        """Handle diagnostic self-test action.
+    async def async_diagnostic(self, call: ServiceCall) -> dict[str, Any]:
+        """Handle diagnostic action.
 
         Arguments:
             call: Not used.
@@ -509,7 +509,7 @@ class ServiceActions:
             configuration, dampening, generation entities, and export entity.
 
         """
-        _LOGGER.info("Action: Diagnostic self-test")
+        _LOGGER.info("Action: Diagnostic")
 
         solcast = self._solcast
         issues: list[str] = []
@@ -530,10 +530,12 @@ class ServiceActions:
             "api_used": api_used,
             "api_limit": api_limit_val,
             "api_remaining": api_remaining,
-            "last_updated": str(last_updated) if last_updated else "never",
-            "last_attempt": str(last_attempt) if last_attempt else "never",
+            "last_updated": str(last_updated.astimezone(self._solcast.tz)) if last_updated else "never",
+            "last_attempt": str(last_attempt.astimezone(self._solcast.tz)) if last_attempt else "never",
             "failures_last_24h": solcast.failures_last_24h,
             "failures_last_7d": solcast.failures_last_7d,
+            "successes_tracked_today": solcast.successes_tracked_24h,
+            "successes_forced_today": solcast.successes_forced_24h,
             "status": solcast.status.name,
             "sites_status": solcast.sites_status.name,
         }
