@@ -537,7 +537,7 @@ YAML:
 | `solcast_solar.get_dampening` | Get the currently set dampening factors. |
 | `solcast_solar.set_options` | Set any or all configuration options for the integration (may cause a re-load depending on options set). |
 | `solcast_solar.get_options` | Get all configuration options for the integration. |
-| `solcast_solar.diagnostic_self_test` | Run a health check of the full integration configuration and return a structured report. |
+| `solcast_solar.diagnostic` | Run a health check of the integration and return a structured report. |
 | `solcast_solar.set_custom_hours` | (deprecated, use `set_options`) Set the custom X hours sensor number of hours. |
 | `solcast_solar.set_hard_limit` | (deprecated, use `set_options`) Set inverter forecast hard limit. |
 | `solcast_solar.remove_hard_limit` | (deprecated, use `set_options`) Remove inverter forecast hard limit. |
@@ -620,11 +620,11 @@ data:
 ```
 
 ```yaml
-action: solcast_solar.diagnostic_self_test
+action: solcast_solar.diagnostic
 response_variable: result
 ```
 
-The `diagnostic_self_test` action returns a structured health report. Use it in a script with `response_variable` to inspect the result, or call it from **Developer tools** | **Actions** with **Perform action** to see the output directly.
+The `diagnostic` action returns a structured health report. Use it in a script with `response_variable` to inspect the result, or call it from **Developer tools** | **Actions** with **Perform action** to see the output directly.
 
 The response contains a `data` object with the following fields:
 
@@ -632,7 +632,7 @@ The response contains a `data` object with the following fields:
 | --- | --- | --- |
 | `overall_status` | string | `"ok"` when no issues are found, otherwise `"issues_found"` |
 | `issues` | list | Description of every problem detected. Empty when status is `"ok"` |
-| `api` | object | API limit and use, failure counts, success counts for tracked and forced updates, last update/attempt timestamps, and status names |
+| `api` | object | API limit and use, failure counts, forced update use, last update/attempt timestamps, and status names |
 | `sites` | list | One entry per configured rooftop site (`resource_id`, `name`) |
 | `cache_files` | object | Whether each data cache file exists on disk (`forecast`, `undampened`, `actuals`, `actuals_dampened`, `dampening`, `dampening_history`, `generation`, `advanced`) |
 | `configuration` | object | Active configuration summary (`auto_update`, `key_estimate`, `get_actuals`, `use_actuals`, `auto_dampen`, `hard_limit`, `excluded_sites`) |
@@ -674,7 +674,7 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 
 `API Used` attributes include the following:
 
-* `additionally_forced`: The count of successful forced API calls today (those that bypassed the API quota limit), per-API-key maximum.
+* `api_force_used`: The count of successful forced API calls today (those that bypassed the API limit tracked).
 
 `API Last Polled` attributes include the following:
 
@@ -1415,8 +1415,8 @@ v4.5.1
 * Add raised issue when actuals enabled and API limit at maximum by @autoSteve
 * Add `analysis` attribute to forecast day entities indicating confidence by @autoSteve
 * Add diagnostic forecast accuracy sensor by @autoSteve
-* Add diagnostic self-test action by @autoSteve
-* Add `additionally_forced` attribute to `API Used` sensor by @autoSteve
+* Add diagnostic action by @autoSteve
+* Add `api_force_used` attribute to `API Used` sensor by @autoSteve
 * Add Dutch translation by @BDVGitHub
 * Tolerate missing dampening factor history for adaptation by @autoSteve
 * Refine `429` storm raised issue by @autoSteve

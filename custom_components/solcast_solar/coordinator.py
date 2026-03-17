@@ -19,6 +19,7 @@ from .const import (
     ADVANCED_ENTITY_LOGGING,
     ADVANCED_FORECAST_DAY_ENTITIES,
     ALL,
+    API_FORCE_USED,
     COMPLETION,
     CUSTOM_HOURS,
     DAMPENED_APE_BREAKDOWN,
@@ -499,7 +500,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 }
 
         if key == ENTITY_API_COUNTER:
-            ret["additionally_forced"] = self.solcast.successes_forced_24h
+            ret[API_FORCE_USED] = self.solcast.successes_forced_24h
 
         return ret
 

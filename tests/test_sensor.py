@@ -409,7 +409,7 @@ async def test_sensor_states(  # noqa: C901
         assert state
         assert state.state != STATE_UNAVAILABLE
         assert state.state == sensors["api_used"]["state"][key]
-        assert state.attributes.get("additionally_forced") == 0
+        assert state.attributes.get("api_force_used") == 0
 
         freezer.move_to((dt.now(solcast.tz) + timedelta(hours=24)).replace(minute=27, second=27))
         await hass.async_block_till_done()

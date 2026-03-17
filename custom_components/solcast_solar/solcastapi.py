@@ -364,22 +364,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         return self.data_actuals[LAST_UPDATED].astimezone(self.tz).date() == dt.now(self.tz).date()
 
     @property
-    def successes_tracked_24h(self) -> int:
-        """Number of successful quota-tracked API calls today.
-
-        Uses the maximum across all API keys, mirroring how api_used_count is reported.
-
-        Returns:
-            int: The maximum per-key count of successful quota-tracked site API calls since midnight.
-        """
-        tracked = self.data[SUCCESS][SUCCESS_TRACKED]
-        return max(tracked.values()) if tracked else 0
-
-    @property
     def successes_forced_24h(self) -> int:
         """Number of successful forced updates today.
 
-        Uses the maximum across all API keys, mirroring how api_used_count is reported.
+        Uses the maximum across all API keys.
 
         Returns:
             int: The maximum per-key count of successful forced site API calls since midnight.
