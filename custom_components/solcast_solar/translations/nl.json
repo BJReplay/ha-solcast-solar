@@ -2,9 +2,9 @@
   "config": {
     "abort": {
       "internal_error": "Interne foutmelding opgetreden",
-      "reauth_successful": "Nieuwe API-sleutel succesvol toegvoegd",
+      "reauth_successful": "Nieuwe API-sleutel succesvol toegevoegd",
       "reconfigured": "Nieuwe configuratie is toegepast",
-      "single_instance_allowed": "Er is slechts 1 Solcast instanctie toegestaan"
+      "single_instance_allowed": "Er is slechts 1 Solcast instantie toegestaan"
     },
     "error": {
       "api_duplicate": "Dubbele API-sleutel opgegeven",
@@ -55,7 +55,7 @@
         "name": "Demping"
       },
       "forecast_custom_hours": {
-        "name": "Voospelling Volgende X Uren"
+        "name": "Voorspelling Volgende X Uren"
       },
       "forecast_next_hour": {
         "name": "Voorspelling Volgend Uur"
@@ -82,7 +82,7 @@
         "name": "Piektijd morgen"
       },
       "peak_w_today": {
-        "name": "Voospelling piek vandaag"
+        "name": "Voorspelling piek vandaag"
       },
       "peak_w_tomorrow": {
         "name": "Voorspelling piek morgen"
