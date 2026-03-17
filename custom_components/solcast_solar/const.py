@@ -8,6 +8,8 @@ SENSOR_UPDATE_LOGGING: Final[bool] = False
 
 # Integration constants
 ACTION: Final[str] = "action"
+ACTUALS_ATTEMPT: Final[str] = "actuals_attempt"
+ACTUALS_UPDATED: Final[str] = "actuals_updated"
 ADVANCED_INVALID_JSON_TASK: Final[str] = "advanced_invalid_json"
 ADVANCED_OPTION = types.SimpleNamespace()
 ADVANCED_OPTION.BOOL = "bool"

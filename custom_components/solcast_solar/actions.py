@@ -21,6 +21,8 @@ from homeassistant.util import dt as dt_util
 
 from .const import (
     ACTION,
+    ACTUALS_ATTEMPT,
+    ACTUALS_UPDATED,
     API_FORCE_USED,
     API_LIMIT,
     API_REMAINING,
@@ -533,6 +535,8 @@ class ServiceActions:
 
         last_updated = solcast.last_updated
         last_attempt = solcast.last_attempt
+        actuals_updated = solcast.data_actuals.get(LAST_UPDATED)
+        actuals_attempt = solcast.data_actuals.get(LAST_ATTEMPT)
 
         api_status = {
             "api_keys_configured": api_keys_count,
@@ -542,6 +546,8 @@ class ServiceActions:
             API_FORCE_USED: solcast.successes_forced_24h,
             LAST_UPDATED: str(last_updated.astimezone(self._solcast.tz)) if last_updated else "never",
             LAST_ATTEMPT: str(last_attempt.astimezone(self._solcast.tz)) if last_attempt else "never",
+            ACTUALS_UPDATED: str(actuals_updated.astimezone(self._solcast.tz)) if actuals_updated else "never",
+            ACTUALS_ATTEMPT: str(actuals_attempt.astimezone(self._solcast.tz)) if actuals_attempt else "never",
             FAILURES_LAST_24H: solcast.failures_last_24h,
             FAILURES_LAST_7D: solcast.failures_last_7d,
             STATUS: solcast.status.name,
