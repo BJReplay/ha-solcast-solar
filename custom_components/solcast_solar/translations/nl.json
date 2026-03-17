@@ -73,7 +73,7 @@
         "name": "Harde Limiet Ingesteld {api_key}"
       },
       "last_updated": {
-        "name": "API Last Polled"
+        "name": "API laatst geraadpleegd"
       },
       "peak_w_time_today": {
         "name": "Piektijd vandaag"
@@ -247,7 +247,7 @@
       "title": "Beschadigde cachegegevens"
     },
     "records_missing": {
-      "description": "Er ontbreken toekomstige prognosegegevens, wat onverwacht is omdat automatische updates zijn ingeschakeld. Onderzoek de oorzaak door het logboek van Home Assistant te bekijken. Lees de veelgestelde vragen over probleemoplossing voordat u een integratieprobleem meldt.",
+      "description": "Er ontbreken toekomstige voorspelling gegevens, wat onverwacht is omdat automatische updates zijn ingeschakeld. Onderzoek de oorzaak door het logboek van Home Assistant te bekijken. Lees de veelgestelde vragen over probleemoplossing voordat u een integratieprobleem meldt.",
       "title": "Toekomstprognoses ontbreken"
     },
     "records_missing_fixable": {
@@ -260,12 +260,12 @@
             "data": {
               "auto_update": "Automatische update"
             },
-            "description": "A forecast update automation has not been running. Would you like to enable auto-update? (Learn more: {learn_more})",
-            "title": "Future forecasts missing"
+            "description": "De automatische update van de gegevens is niet actief. Wilt u automatische updates inschakelen? (Meer informatie: {learn_more})",
+            "title": "Toekomstprognoses ontbreken"
           }
         }
       },
-      "title": "Future forecasts missing"
+      "title": "Toekomstprognoses ontbreken"
     },
     "records_missing_initial": {
       "description": "De voorspelde en/of geschatte werkelijke gegevens ontbreken, waarschijnlijk omdat de eerste voorspellingsupdate niet heeft plaatsgevonden. Dit komt waarschijnlijk doordat de limiet voor API-aanroepen is bereikt. U zult problemen met sensoren krijgen en het energiedashboard zal waarschijnlijk onvolledige gegevens bevatten. Dit lost zichzelf op.",
@@ -442,7 +442,7 @@
         },
         "undampened": {
           "description": "Optionele booleaanse waarde om de niet-gedempte voorspelling op te halen",
-          "name": "Undampened"
+          "name": "Niet gedempt"
         }
       },
       "name": "Prognosegegevens opvragen"
