@@ -61,7 +61,7 @@
         "name": "Voorspelling Volgend Uur"
       },
       "forecast_remaining_today": {
-        "name": "Voorspelling Resterende Vandaag"
+        "name": "Resterende voorspelling vandaag"
       },
       "forecast_this_hour": {
         "name": "Voorspelling Dit Uur"
