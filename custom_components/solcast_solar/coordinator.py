@@ -498,6 +498,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     **{f"undampened_p{p}_ape": v for p, v in data.get(UNDAMPENED_PERCENTILES, {}).items()},
                 }
 
+        if key == ENTITY_API_COUNTER:
+            ret["additionally_forced"] = self.solcast.successes_forced_24h
+
         return ret
 
     def get_site_sensor_value(self, roof_id: str, key: str) -> float | None:
