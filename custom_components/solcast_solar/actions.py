@@ -120,16 +120,6 @@ SERVICE_DAMP_GET_SCHEMA: Final = vol.All(
         vol.Optional(SITE): cv.string,
     }
 )
-SERVICE_HARD_LIMIT_SCHEMA: Final = vol.All(
-    {
-        vol.Required(HARD_LIMIT): cv.string,
-    }
-)
-SERVICE_CUSTOM_HOURS_SCHEMA: Final = vol.All(
-    {
-        vol.Required(HOURS): cv.string,
-    }
-)
 SERVICE_QUERY_SCHEMA: Final = vol.All(
     {
         vol.Required(EVENT_START_DATETIME): cv.datetime,
@@ -169,6 +159,19 @@ SERVICE_SET_OPTIONS_SCHEMA: Final = vol.All(
     }
 )
 
+# Deprecated
+SERVICE_HARD_LIMIT_SCHEMA: Final = vol.All(
+    {
+        vol.Required(HARD_LIMIT): cv.string,
+    }
+)
+SERVICE_CUSTOM_HOURS_SCHEMA: Final = vol.All(
+    {
+        vol.Required(HOURS): cv.string,
+    }
+)
+
+
 _LOGGER = logging.getLogger(__name__)
 
 _ALL_ACTIONS: Final = [
@@ -180,12 +183,13 @@ _ALL_ACTIONS: Final = [
     SERVICE_GET_OPTIONS,
     SERVICE_QUERY_ESTIMATE_DATA,
     SERVICE_QUERY_FORECAST_DATA,
-    SERVICE_REMOVE_HARD_LIMIT,
     SERVICE_SET_DAMPENING,
-    SERVICE_SET_CUSTOM_HOURS,
-    SERVICE_SET_HARD_LIMIT,
     SERVICE_SET_OPTIONS,
     SERVICE_UPDATE,
+    # Deprecated...
+    SERVICE_REMOVE_HARD_LIMIT,
+    SERVICE_SET_CUSTOM_HOURS,
+    SERVICE_SET_HARD_LIMIT,
 ]
 
 
@@ -288,19 +292,20 @@ class ServiceActions:
                 SCHEMA: SERVICE_QUERY_SCHEMA,
                 SUPPORTS_RESPONSE_KEY: SupportsResponse.ONLY,
             },
-            SERVICE_REMOVE_HARD_LIMIT: {ACTION: self.async_remove_hard_limit},
             SERVICE_SET_DAMPENING: {ACTION: self.async_set_dampening, SCHEMA: SERVICE_DAMP_SCHEMA},
-            SERVICE_SET_CUSTOM_HOURS: {ACTION: self.async_set_custom_hours, SCHEMA: SERVICE_CUSTOM_HOURS_SCHEMA},
-            SERVICE_SET_HARD_LIMIT: {ACTION: self.async_set_hard_limit, SCHEMA: SERVICE_HARD_LIMIT_SCHEMA},
             SERVICE_SET_OPTIONS: {ACTION: self.async_set_options, SCHEMA: SERVICE_SET_OPTIONS_SCHEMA},
             SERVICE_UPDATE: {ACTION: self.async_update_forecast},
+            # Deprecated...
+            SERVICE_REMOVE_HARD_LIMIT: {ACTION: self.async_remove_hard_limit},
+            SERVICE_SET_CUSTOM_HOURS: {ACTION: self.async_set_custom_hours, SCHEMA: SERVICE_CUSTOM_HOURS_SCHEMA},
+            SERVICE_SET_HARD_LIMIT: {ACTION: self.async_set_hard_limit, SCHEMA: SERVICE_HARD_LIMIT_SCHEMA},
         }
 
     def _register(self) -> None:
         """Register all service actions with Home Assistant."""
         for action, call in self._get_service_actions().items():
             _LOGGER.debug("Register action %s.%s", DOMAIN, action)
-            self._hass.services.async_remove(DOMAIN, action)  # Remove the error action
+            self._hass.services.async_remove(DOMAIN, action)  # Remove the stub action
             if call.get(SUPPORTS_RESPONSE_KEY):
                 self._hass.services.async_register(DOMAIN, action, call[ACTION], call[SCHEMA], call[SUPPORTS_RESPONSE_KEY])
                 continue
