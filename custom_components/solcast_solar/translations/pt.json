@@ -451,7 +451,7 @@
       "description": "Elimina o ficheiro solcast.json para remover todos os dados atuais do site Solcast.",
       "name": "Limpar todos os dados Solcast guardados"
     },
-    "diagnostic_self_test": {
+    "diagnostic": {
       "description": "Executa um autoteste de diagnóstico para validar a conectividade da API, a integridade dos ficheiros de cache, a acessibilidade das entidades de geração e o estado geral da configuração.",
       "name": "Autoteste de diagnóstico"
     },

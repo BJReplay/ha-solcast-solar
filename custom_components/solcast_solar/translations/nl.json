@@ -8,6 +8,7 @@
     },
     "error": {
       "api_duplicate": "Dubbele API-sleutel opgegeven",
+      "api_key_empty": "API-sleutel mag niet leeg zijn",
       "api_looks_like_site": "De API-sleutel lijkt op een site-ID",
       "limit_not_number": "API-limiet is geen getal",
       "limit_one_or_greater": "De API-limiet moet één of hoger zijn",
@@ -23,7 +24,7 @@
       "reconfigure_confirm": {
         "data": {
           "api_key": "API-sleutel (komma scheid meerdere waarden)",
-          "api_quota": "API-limiet (optioneel zijn meerdere waarden gescheiden door een komma voor elke sleutel)",
+          "api_limit": "API-limiet (optioneel zijn meerdere waarden gescheiden door een komma voor elke sleutel)",
           "auto_update": "Auto-update"
         },
         "description": "Solcast accountgegevens\n\n(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)"
@@ -31,10 +32,10 @@
       "user": {
         "data": {
           "api_key": "API-sleutel (komma scheid meerdere waarden)",
-          "api_quota": "API-limiet (optioneel zijn meerdere waarden gescheiden door een komma voor elke sleutel)",
+          "api_limit": "API-limiet (optioneel zijn meerdere waarden gescheiden door een komma voor elke sleutel)",
           "auto_update": "Auto-update"
         },
-        "description": "Solcast accountgegevens\n\n(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)"
+        "description": "Solcast accountgegevens\n\n(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)\n\nDe Solcast API moet beschikbaar zijn om deze integratie in eerste instantie te configureren. Als u de statusmelding '429 / Probeer het later opnieuw' ontvangt, is de API niet beschikbaar en kan de configuratie niet worden voltooid. U moet wachten. Houd er rekening mee dat de API-statuspagina op status.solcast.com vrijwel zeker geen API-problemen zal tonen. De meest waarschijnlijke oorzaak is een slechte API-gebruiker die de beschikbaarheid voor alle hobbyisten beïnvloedt."
       }
     }
   },
@@ -45,6 +46,9 @@
       }
     },
     "sensor": {
+      "accuracy": {
+        "name": "Nauwkeurigheid"
+      },
       "api_counter": {
         "name": "API Gebruik"
       },
@@ -141,6 +145,18 @@
     "actuals_not_enabled": {
       "message": "Geschatte werkelijke acquisitie is niet ingeschakeld."
     },
+    "actuals_without_get": {
+      "message": "Geschatte werkelijke waarden kunnen niet worden gebruikt zonder ze op te halen."
+    },
+    "api_duplicate": {
+      "message": "Dubbele API-sleutel opgegeven."
+    },
+    "api_key_empty": {
+      "message": "API-sleutel mag niet leeg zijn."
+    },
+    "api_looks_like_site": {
+      "message": "De API-sleutel lijkt op een site-ID."
+    },
     "auto_use_force": {
       "message": "Automatische update is ingeschakeld, negeer service-evenement voor prognose-update, gebruik in plaats daarvan Force Update."
     },
@@ -179,8 +195,15 @@
     },
     "damp_use_all": {
       "message": "Site-demping is niet ingesteld voor {site}, ‘all’ is de enige beschikbare siteparameter voor de serviceaanroep."
+    },    "dampen_without_actuals": {
+      "message": "Geschatte werkelijke waarden moeten worden geselecteerd om automatische demping te gebruiken."
     },
-    "hard_empty": {
+    "dampen_without_generation": {
+      "message": "Er moet minimaal één PV-opwekkingssensor worden opgegeven om automatische demping te gebruiken."
+    },
+    "export_no_entity": {
+      "message": "Er moet een site-exportentiteit worden opgegeven als de site-exportlimiet is ingesteld."
+    },    "hard_empty": {
       "message": "Lege harde grenswaarde."
     },
     "hard_not_positive_number": {
@@ -219,17 +242,49 @@
     "integration_prior_crash": {
       "message": "Integratie kon eerder niet worden geladen, we proberen straks opnieuw."
     },
+    "invalid_auto_update": {
+      "message": "De waarde voor automatische update moet 0, 1 of 2 zijn."
+    },
     "invalid_custom_hours_format": {
       "message": "De waarde voor het aantal uren moet een geheel getal zijn."
     },
     "invalid_custom_hours_range": {
       "message": "De waarde voor het aantal uren moet tussen 1 en 144 liggen."
     },
+    "invalid_export_limit": {
+      "message": "De exportlimiet moet een getal zijn tussen 0,0 en 100,0."
+    },
+    "invalid_key_estimate": {
+      "message": "De schattingssleutel moet estimate, estimate10 of estimate90 zijn."
+    },
+    "invalid_use_actuals": {
+      "message": "De waarde voor gebruik van werkelijke waarden moet 0, 1 of 2 zijn."
+    },
+    "limit_not_number": {
+      "message": "API-limiet is geen getal."
+    },
+    "limit_one_or_greater": {
+      "message": "API-limiet moet één of meer zijn."
+    },
+    "limit_too_many": {
+      "message": "Er zijn meer API-limietaantallen opgegeven dan sleutels."
+    },
     "remove_cache_failed": {
       "message": "Alle Solcast gegevens wissen mislukt."
+    },
+    "set_options_empty": {
+      "message": "Er moet minimaal één optie worden opgegeven."
     }
   },
   "issues": {
+    "action_deprecated": {
+      "description": "De actie `{deprecated_action}` is verouderd en wordt verwijderd in een toekomstige versie. Gebruik in plaats daarvan de actie `{new_action}`.",
+      "title": "Verouderde actie"
+    },
+    "actuals_api_limit": {
+      "description": "Automatische update en geschatte werkelijke waarden zijn ingeschakeld terwijl de API-limiet is ingesteld op de maximale hobbyistwaarde (`{configured_value}`). Geschatte werkelijke waarden worden verzameld direct na middernacht en verbruiken één API-aanroep per daklocatie voor elke geconfigureerde API-sleutel. Verlaag uw API-limiet naar `{suggested_value}` om aanroepen te reserveren voor geschatte werkelijke waarden.",
+      "title": "Pas de API-limiet aan voor geschatte werkelijke waarden"
+    },
     "advanced_deprecated": {
       "description": "Geavanceerde configuratieoptie(s) `{option}` gewijzigd in `{new_option}`. Werk uw geavanceerde configuratieopties bij om de nieuwe optienaam te gebruiken.{stops_working}",
       "title": "Geavanceerde optie verouderd"
@@ -293,6 +348,7 @@
       "actuals_not_enabled": "Geschatte werkelijke acquisitie is niet ingeschakeld",
       "actuals_without_get": "Geschatte werkelijke cijfers kunnen niet worden gebruikt zonder ze te verkrijgen",
       "api_duplicate": "Meerdere keer dezelfde API-sleutel opgegeven",
+      "api_key_empty": "API-sleutel mag niet leeg zijn",
       "api_looks_like_site": "De API-sleutel lijkt op een site-ID",
       "custom_invalid": "Aangepaste sensor niet tussen 1 en 144",
       "dampen_without_actuals": "Geschatte werkelijke waarden moeten worden geselecteerd om automatische demping te gebruiken",
@@ -300,7 +356,7 @@
       "export_multiple_entities": "De entiteit voor site-export moet één enkele entiteit zijn, niet meerdere entiteiten",
       "export_no_entity": "De site exportentiteit moet worden opgegeven als er een site exportlimiet is ingesteld",
       "generation_mixed_types": "PV-opwekkingsentiteiten moeten allemaal van hetzelfde type zijn (allemaal energie of allemaal vermogen, geen mix)",
-      "hard_not_number": "Hard limit is geen positief getal",
+      "hard_not_positive_number": "Hard limit is geen positief getal",
       "hard_too_many": "Er zijn meer harde limieten ingevoerd dan API-sleutels",
       "limit_not_number": "API-limiet is geen getal",
       "limit_one_or_greater": "API-limiet moet één of meer zijn",
@@ -339,7 +395,7 @@
       "init": {
         "data": {
           "api_key": "API-sleutel (meerdere waarden gescheiden door komma's)",
-          "api_quota": "API limiet (optioneel meerdere waarden per sleutel gescheiden door komma's)",
+          "api_limit": "API limiet (optioneel meerdere waarden per sleutel gescheiden door komma's)",
           "attr_brk_detailed": "Schakel siteuitsplitsing in voor attributen met details per half uur/uur (deze worden niet opgeslagen in database statusattributen)",
           "attr_brk_estimate": "Activeer voospelling 50 sensor attributen",
           "attr_brk_estimate10": "Activeer voospelling 10 sensor attributen",
@@ -350,7 +406,7 @@
           "auto_dampen": "Automatische demping (hiervoor zijn geschatte werkelijke waarden en een PV-productie-entiteit vereist, zie de integratiedocumentatie)",
           "auto_update": "Automatische update (als er geen automatische update is, moet in plaats daarvan een automatisering worden gebruikt)",
           "config_damp": "Pas de dempingsfactoren per uur aan (na het klikken op ‘Verzenden’)",
-          "customhoursensor": "Aangepaste sensor voor de komende X uur (min. = 1, max. = 144)",
+          "custom_hours": "Aangepaste sensor voor de komende X uur (min. = 1, max. = 144)",
           "exclude_sites": "Locatie(s) die moeten worden uitgesloten van het energiedashboard en de sensortotalen",
           "generation_entities": "PV opwekking entiteit(en) voor automatische demping (energie: Wh/kWh/MWh totaal stijgend, of vermogen: W/kW/MW momentaan)",
           "get_actuals": "Geschatte werkelijke cijfers worden om middernacht bijgewerkt (zie de integratiedocumentatie; er wordt één API-aanroep per site per dag gebruikt, dus als deze optie is ingeschakeld, is een lagere API-limiet nodig)",
@@ -393,6 +449,10 @@
       "description": "Verwijdert het bestand solcast.json om alle huidige Solcast-sitegegevens te verwijderen.",
       "name": "Wis alle opgeslagen Solcast gegevens"
     },
+    "diagnostic": {
+      "description": "Voer een diagnostische zelftest uit om API-connectiviteit, integriteit van cachebestanden, toegankelijkheid van generatie-entiteiten en algehele configuratiestatus te valideren.",
+      "name": "Diagnostische zelftest"
+    },
     "force_update_estimates": {
       "description": "Met ‘Force update geschatte waarden’ worden de meest recente geschatte actuele gegevens opgehaald van Solcast.",
       "name": "Force update geschatte waarden"
@@ -410,6 +470,10 @@
         }
       },
       "name": "Get forecasts dampening"
+    },
+    "get_options": {
+      "description": "Haal de huidige configuratieopties van de integratie op.",
+      "name": "Opties ophalen"
     },
     "query_estimate_data": {
       "description": "Geef een dataset terug voor een bepaalde zoekopdracht.",
@@ -484,6 +548,92 @@
         }
       },
       "name": "Harde limiet voor omvormerprognose instellen"
+    },
+    "set_options": {
+      "description": "Stel een of meer configuratieopties van de integratie in.",
+      "fields": {
+        "api_key": {
+          "description": "API-sleutel(s), meerdere waarden gescheiden door komma's.",
+          "name": "API-sleutel"
+        },
+        "api_limit": {
+          "description": "API-limiet(en), meerdere voor meerdere sleutels gescheiden door komma's.",
+          "name": "API-limiet"
+        },
+        "attr_brk_detailed": {
+          "description": "Schakel siteuitsplitsing in voor gedetailleerde attributen per half uur en per uur.",
+          "name": "Uitsplitsing site gedetailleerd"
+        },
+        "attr_brk_estimate": {
+          "description": "Schakel schatting 50 sensorattributen in.",
+          "name": "Uitsplitsing schatting"
+        },
+        "attr_brk_estimate10": {
+          "description": "Schakel schatting 10 sensorattributen in.",
+          "name": "Uitsplitsing schatting 10"
+        },
+        "attr_brk_estimate90": {
+          "description": "Schakel schatting 90 sensorattributen in.",
+          "name": "Uitsplitsing schatting 90"
+        },
+        "attr_brk_halfhourly": {
+          "description": "Schakel gedetailleerde halfuurlijkse voorspellingsattributen in.",
+          "name": "Uitsplitsing halfuurlijks"
+        },
+        "attr_brk_hourly": {
+          "description": "Schakel gedetailleerde uurlijkse voorspellingsattributen in.",
+          "name": "Uitsplitsing uurlijks"
+        },
+        "attr_brk_site": {
+          "description": "Schakel siteuitsplitsing sensorattributen in.",
+          "name": "Uitsplitsing site"
+        },
+        "auto_dampen": {
+          "description": "Schakel automatische demping in.",
+          "name": "Automatische demping"
+        },
+        "auto_update": {
+          "description": "Automatische updatemodus: 0=geen, 1=zonsopgang tot zonsondergang, 2=hele dag.",
+          "name": "Automatische update"
+        },
+        "custom_hours": {
+          "description": "Aantal uren voor de sensor voor aangepaste uren (1-144).",
+          "name": "Aangepaste uren"
+        },
+        "exclude_sites": {
+          "description": "Te excluderen locatie(s), site-ID's gescheiden door komma's.",
+          "name": "Locaties uitsluiten"
+        },
+        "generation_entities": {
+          "description": "PV-opwekkingsentiteit(en), gescheiden door komma's.",
+          "name": "Opwekkingsentiteiten"
+        },
+        "get_actuals": {
+          "description": "Schakel ophaling van geschatte werkelijke waarden in.",
+          "name": "Werkelijke waarden ophalen"
+        },
+        "hard_limit": {
+          "description": "Harde limiet omvormer in Watt, of 0 of 100 om uit te schakelen. Meerdere sleutels gescheiden door komma's.",
+          "name": "Harde limiet"
+        },
+        "key_estimate": {
+          "description": "Voorkeursprognose: estimate, estimate10 of estimate90.",
+          "name": "Voorkeursprognose"
+        },
+        "site_export_entity": {
+          "description": "Optionele site-exportentiteit voor automatische demping.",
+          "name": "Site-exportentiteit"
+        },
+        "site_export_limit": {
+          "description": "Site-exportlimiet in kW (0,0-100,0).",
+          "name": "Site-exportlimiet"
+        },
+        "use_actuals": {
+          "description": "Voorspellingsgeschiedenis voor het energiedashboard: 0=prognoses, 1=werkelijk, 2=gedempte werkelijke waarden.",
+          "name": "Werkelijke waarden gebruiken"
+        }
+      },
+      "name": "Opties instellen"
     },
     "update_forecasts": {
       "description": "Haal de meest recente voorspellingen op van Solcast.",

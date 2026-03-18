@@ -451,7 +451,7 @@
       "description": "Odstráni súbor solcast.json a odstráni všetky aktuálne údaje lokality solcast.",
       "name": "Vymažte všetky uložené údaje Solcast"
     },
-    "diagnostic_self_test": {
+    "diagnostic": {
       "description": "Spustí diagnostický autotest na overenie konektivity API, integrity súborov vyrovnávacej pamäte, dostupnosti entít výroby a celkového stavu konfigurácie.",
       "name": "Diagnostický autotest"
     },

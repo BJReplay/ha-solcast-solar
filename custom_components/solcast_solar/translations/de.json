@@ -451,7 +451,7 @@
       "description": "Alle gespeicherten Solcast-Daten werden  entfernt. Die Datei solcast.json wird dadurch gelöscht.",
       "name": "Solcast-Daten zurücksetzen"
     },
-    "diagnostic_self_test": {
+    "diagnostic": {
       "description": "Führt einen diagnostischen Selbsttest durch, um API-Konnektivität, Cache-Dateiintegrität, Zugang zu Erzeugungsentitäten und den allgemeinen Konfigurationszustand zu überprüfen.",
       "name": "Diagnostischer Selbsttest"
     },
