@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections import OrderedDict, defaultdict
 import copy
 from datetime import UTC, datetime as dt, timedelta
@@ -166,13 +167,15 @@ class Dampening:
                         self.api.dt_helper.day_start_utc()
                         if self.api.data[SITE_INFO].get(site[RESOURCE_ID])
                         else self.api.dt_helper.day_start_utc() - timedelta(hours=do_past_hours)
-                    )  # Was >= dt.now(UTC)
+                    )
                 ]
                 forecasts = (
                     {forecast[PERIOD_START]: forecast for forecast in self.api.data[SITE_INFO][site[RESOURCE_ID]][FORECASTS]}
                     if self.api.data[SITE_INFO].get(site[RESOURCE_ID])
                     else {}
                 )
+
+                await asyncio.sleep(0)  # Yield to event loop to avoid blocking
 
                 if site[RESOURCE_ID] not in self.api.options.exclude_sites and (
                     (site[RESOURCE_ID] in applicable_sites) if applicable_sites else True
