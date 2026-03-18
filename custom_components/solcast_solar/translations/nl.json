@@ -1,0 +1,498 @@
+{
+  "config": {
+    "abort": {
+      "internal_error": "Interne fout opgetreden",
+      "reauth_successful": "Nieuwe API-sleutel succesvol toegepast",
+      "reconfigured": "Nieuwe configuratie succesvol toegepast",
+      "single_instance_allowed": "Er is slechts 1 Solcast instantie toegestaan"
+    },
+    "error": {
+      "api_duplicate": "Dubbele API-sleutel opgegeven",
+      "api_looks_like_site": "De API-sleutel lijkt op een site-ID",
+      "limit_not_number": "API-limiet is geen getal",
+      "limit_one_or_greater": "De API-limiet moet één of hoger zijn",
+      "limit_too_many": "Er zijn meer API-limietwaarden ingevoerd dan sleutels"
+    },
+    "step": {
+      "reauth_confirm": {
+        "data": {
+          "api_key": "API-sleutel (komma scheid meerdere waarden)"
+        },
+        "description": "Solcast-account API-sleutel"
+      },
+      "reconfigure_confirm": {
+        "data": {
+          "api_key": "API-sleutel (komma scheid meerdere waarden)",
+          "api_quota": "API-limiet (optioneel zijn meerdere waarden gescheiden door een komma voor elke sleutel)",
+          "auto_update": "Auto-update"
+        },
+        "description": "Solcast accountgegevens\n\n(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)"
+      },
+      "user": {
+        "data": {
+          "api_key": "API-sleutel (komma scheid meerdere waarden)",
+          "api_quota": "API-limiet (optioneel zijn meerdere waarden gescheiden door een komma voor elke sleutel)",
+          "auto_update": "Auto-update"
+        },
+        "description": "Solcast accountgegevens\n\n(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)"
+      }
+    }
+  },
+  "entity": {
+    "select": {
+      "estimate_mode": {
+        "name": "Gebruik Forecast Veld"
+      }
+    },
+    "sensor": {
+      "api_counter": {
+        "name": "API Gebruik"
+      },
+      "api_limit": {
+        "name": "API Limiet"
+      },
+      "dampen": {
+        "name": "Demping"
+      },
+      "forecast_custom_hours": {
+        "name": "Voorspelling Volgende X Uren"
+      },
+      "forecast_next_hour": {
+        "name": "Voorspelling Volgend Uur"
+      },
+      "forecast_remaining_today": {
+        "name": "Resterende voorspelling vandaag"
+      },
+      "forecast_this_hour": {
+        "name": "Voorspelling Dit Uur"
+      },
+      "hard_limit": {
+        "name": "Harde Limiet Ingesteld"
+      },
+      "hard_limit_api": {
+        "name": "Harde Limiet Ingesteld {api_key}"
+      },
+      "last_updated": {
+        "name": "API laatst geraadpleegd"
+      },
+      "peak_w_time_today": {
+        "name": "Piektijd vandaag"
+      },
+      "peak_w_time_tomorrow": {
+        "name": "Piektijd morgen"
+      },
+      "peak_w_today": {
+        "name": "Voorspelling piek vandaag"
+      },
+      "peak_w_tomorrow": {
+        "name": "Voorspelling piek morgen"
+      },
+      "power_now": {
+        "name": "Huidig vermogen"
+      },
+      "power_now_1hr": {
+        "name": "Vermogen in 1 Uur"
+      },
+      "power_now_30m": {
+        "name": "Vermogen in 30 Minuten"
+      },
+      "total_kwh_forecast_d10": {
+        "name": "Voorspelling Dag 10"
+      },
+      "total_kwh_forecast_d11": {
+        "name": "Voorspelling Dag 11"
+      },
+      "total_kwh_forecast_d12": {
+        "name": "Voorspelling Dag 12"
+      },
+      "total_kwh_forecast_d13": {
+        "name": "Voorspelling Dag 13"
+      },
+      "total_kwh_forecast_d3": {
+        "name": "Voorspelling Dag 3"
+      },
+      "total_kwh_forecast_d4": {
+        "name": "Voorspelling Dag 4"
+      },
+      "total_kwh_forecast_d5": {
+        "name": "Voorspelling Dag 5"
+      },
+      "total_kwh_forecast_d6": {
+        "name": "Voorspelling Dag 6"
+      },
+      "total_kwh_forecast_d7": {
+        "name": "Voorspelling Dag 7"
+      },
+      "total_kwh_forecast_d8": {
+        "name": "Voorspelling Dag 8"
+      },
+      "total_kwh_forecast_d9": {
+        "name": "Voorspelling Dag 9"
+      },
+      "total_kwh_forecast_today": {
+        "name": "Voorspelling Vandaag"
+      },
+      "total_kwh_forecast_tomorrow": {
+        "name": "Voorspelling Morgen"
+      }
+    }
+  },
+  "exceptions": {
+    "actuals_not_enabled": {
+      "message": "Geschatte werkelijke acquisitie is niet ingeschakeld."
+    },
+    "auto_use_force": {
+      "message": "Automatische update is ingeschakeld, negeer service-evenement voor prognose-update, gebruik in plaats daarvan Force Update."
+    },
+    "auto_use_normal": {
+      "message": "Automatische update is niet ingeschakeld, negeer service-gebeurtenis voor gedwongen update van prognose, gebruik in plaats daarvan Update."
+    },
+    "build_failed_actuals": {
+      "message": "Kan geschatte actuele gegevens niet samenstellen (corrupte config/solcast-actuals.json?)"
+    },
+    "build_failed_forecasts": {
+      "message": "Kan geen voorspelling samenstellen (corrupte config/solcast.json?)"
+    },
+    "damp_auto_enabled": {
+      "message": "Automatische demping is ingeschakeld, handmatige dempingsfactoren zijn niet ingesteld."
+    },
+    "damp_count_not_correct": {
+      "message": "Er zijn geen 24 of 48 door komma's gescheiden getallen tussen 0.0 en 1.0."
+    },
+    "damp_error_parsing": {
+      "message": "Fout bij het ontleden van door komma's gescheiden getallen voor dempingsfactor."
+    },
+    "damp_no_all_24": {
+      "message": "Het specificeren van een locatie ‘all’ is niet toegestaan met 24 factoren. Verwijder de locatie uit het verzoek."
+    },
+    "damp_no_factors": {
+      "message": "Geen dempingsfactoren opgegeven, moet een door komma's gescheiden lijst van getallen tussen 0,0 en 1,0 zijn."
+    },
+    "damp_not_for_site": {
+      "message": "Sitedemping is niet ingesteld voor {site}."
+    },
+    "damp_not_site": {
+      "message": "Geen geconfigureerde site."
+    },
+    "damp_outside_range": {
+      "message": "Dempingsfactorwaarde aanwezig die niet tussen 0.0 en 1.0 ligt."
+    },
+    "damp_use_all": {
+      "message": "Site-demping is niet ingesteld voor {site}, ‘all’ is de enige beschikbare siteparameter voor de serviceaanroep."
+    },
+    "hard_empty": {
+      "message": "Lege harde grenswaarde."
+    },
+    "hard_not_positive_number": {
+      "message": "Harde grenswaarde is geen positief getal."
+    },
+    "hard_too_many": {
+      "message": "Er zijn meer harde grenswaarden gespecificeerd dan er API-sleutels zijn."
+    },
+    "init_cannot_get_sites": {
+      "message": "De gegevens van de sites konden niet worden opgehaald."
+    },
+    "init_cannot_get_sites_cache_invalid": {
+      "message": "De gegevens van de sites konden niet worden opgehaald en de cache is ongeldig."
+    },
+    "init_corrupt": {
+      "message": "De cachegegevens in {file} zijn beschadigd. Wij raden u aan deze te verwijderen of te herstellen."
+    },
+    "init_incompatible": {
+      "message": "De gegevens in de cache in `{file}` zijn niet compatibel. Wij raden aan deze te verwijderen."
+    },
+    "init_key_invalid": {
+      "message": "API-sleutel is ongeldig."
+    },
+    "init_no_sites": {
+      "message": "Geen sites gevonden voor API-sleutel."
+    },
+    "init_unknown": {
+      "message": "Uitzondering bij het laden van sitegegevens."
+    },
+    "init_usage_corrupt": {
+      "message": "Gebruiksgegevens zijn beschadigd, controleer of verwijder `config/solcast_solar/solcast-usage.json`."
+    },
+    "integration_not_loaded": {
+      "message": "Integratie niet geladen, geen actie uitgevoerd."
+    },
+    "integration_prior_crash": {
+      "message": "Integratie kon eerder niet worden geladen, we proberen straks opnieuw."
+    },
+    "invalid_custom_hours_format": {
+      "message": "De waarde voor het aantal uren moet een geheel getal zijn."
+    },
+    "invalid_custom_hours_range": {
+      "message": "De waarde voor het aantal uren moet tussen 1 en 144 liggen."
+    },
+    "remove_cache_failed": {
+      "message": "Alle Solcast gegevens wissen mislukt."
+    }
+  },
+  "issues": {
+    "advanced_deprecated": {
+      "description": "Geavanceerde configuratieoptie(s) `{option}` gewijzigd in `{new_option}`. Werk uw geavanceerde configuratieopties bij om de nieuwe optienaam te gebruiken.{stops_working}",
+      "title": "Geavanceerde optie verouderd"
+    },
+    "advanced_problem": {
+      "description": "Het geavanceerde configuratiebestand bevat fouten.\n{problems}\n\nLos deze op aan de hand van de integratiedocumentatie via de link ‘Meer informatie’.",
+      "title": "Probleem met geavanceerde optie"
+    },
+    "api_unavailable": {
+      "description": "De Solcast API heeft tijdens een update herhaaldelijk de status `429 / Probeer het later opnieuw` gemeld.\n\n* Probeer deze situatie niet op te lossen.\n* Wijzig uw API-sleutel niet.\n* Start de integratie niet opnieuw op\n* Dit is geen integratieprobleem en lost zichzelf op. Wijzig niets.\n\n(Om dit probleem te onderdrukken, maakt u een geavanceerde configuratieoptie api_raise_issue aan en stelt u deze in op false.)",
+      "title": "Solcast API tijdelijk niet beschikbaar"
+    },
+    "corrupt_file": {
+      "description": "Het/de cachegegevensbestand(en) `{files}` is/zijn beschadigd. De integratie zal proberen te herstellen door het/de bestand(en) te verwijderen en de gegevens opnieuw op te halen uit Solcast. Houd rekening met een verhoogd API-gebruik en mogelijke API-storingen, en verlies van voorspellingsgeschiedenis als gevolg van deze situatie. Mogelijk kunnen de bestanden worden hersteld vanuit de back-up, maar houd toch rekening met API-storingen.",
+      "title": "Beschadigde cachegegevens"
+    },
+    "records_missing": {
+      "description": "Er ontbreken toekomstige voorspelling gegevens, wat onverwacht is omdat automatische updates zijn ingeschakeld. Onderzoek de oorzaak door het logboek van Home Assistant te bekijken. Lees de veelgestelde vragen over probleemoplossing voordat u een integratieprobleem meldt.",
+      "title": "Toekomstprognoses ontbreken"
+    },
+    "records_missing_fixable": {
+      "fix_flow": {
+        "abort": {
+          "reconfigured": "Nieuwe configuratie succesvol toegepast"
+        },
+        "step": {
+          "offer_auto": {
+            "data": {
+              "auto_update": "Automatische update"
+            },
+            "description": "De automatische update van de gegevens is niet actief. Wilt u automatische updates inschakelen? (Meer informatie: {learn_more})",
+            "title": "Toekomstprognoses ontbreken"
+          }
+        }
+      },
+      "title": "Toekomstprognoses ontbreken"
+    },
+    "records_missing_initial": {
+      "description": "De voorspelde en/of geschatte werkelijke gegevens ontbreken, waarschijnlijk omdat de eerste voorspellingsupdate niet heeft plaatsgevonden. Dit komt waarschijnlijk doordat de limiet voor API-aanroepen is bereikt. U zult problemen met sensoren krijgen en het energiedashboard zal waarschijnlijk onvolledige gegevens bevatten. Dit lost zichzelf op.",
+      "title": "Toekomstvoorspellingen ontbreken"
+    },
+    "records_missing_unfixable": {
+      "description": "De toekomstvoorspellingen ontbreken, wat onverwacht is. Controleer de logboeken.",
+      "title": "Toekomstvoorspellingen ontbreken"
+    },
+    "unusual_azimuth_northern": {
+      "description": "De azimut voor locatie {site} is ongebruikelijk voor de breedtegraad van dit dak op het noordelijk halfrond. Moet dit {proposal} zijn in plaats van {extant}? (Negeer dit probleem als de locatie naar het noorden is gericht.)",
+      "title": "Ongebruikelijke azimut"
+    },
+    "unusual_azimuth_southern": {
+      "description": "De azimut voor locatie {site} is ongebruikelijk voor de breedtegraad van dit dak op het zuidelijk halfrond. Moet dit {proposal} zijn in plaats van {extant}? (Negeer dit probleem als de locatie naar het zuiden is gericht.)",
+      "title": "Ongebruikelijke azimut"
+    }
+  },
+  "options": {
+    "abort": {
+      "internal_error": "Interne fout opgetreden",
+      "reconfigured": "Nieuwe configuratie succesvol toegepast"
+    },
+    "error": {
+      "actuals_not_enabled": "Geschatte werkelijke acquisitie is niet ingeschakeld",
+      "actuals_without_get": "Geschatte werkelijke cijfers kunnen niet worden gebruikt zonder ze te verkrijgen",
+      "api_duplicate": "Meerdere keer dezelfde API-sleutel opgegeven",
+      "api_looks_like_site": "De API-sleutel lijkt op een site-ID",
+      "custom_invalid": "Aangepaste sensor niet tussen 1 en 144",
+      "dampen_without_actuals": "Geschatte werkelijke waarden moeten worden geselecteerd om automatische demping te gebruiken",
+      "dampen_without_generation": "Er moet ten minste één PV opwekkingssensor (energie of vermogen) worden opgegeven om automatische demping te kunnen gebruiken",
+      "export_multiple_entities": "De entiteit voor site-export moet één enkele entiteit zijn, niet meerdere entiteiten",
+      "export_no_entity": "De site exportentiteit moet worden opgegeven als er een site exportlimiet is ingesteld",
+      "generation_mixed_types": "PV-opwekkingsentiteiten moeten allemaal van hetzelfde type zijn (allemaal energie of allemaal vermogen, geen mix)",
+      "hard_not_number": "Hard limit is geen positief getal",
+      "hard_too_many": "Er zijn meer harde limieten ingevoerd dan API-sleutels",
+      "limit_not_number": "API-limiet is geen getal",
+      "limit_one_or_greater": "API-limiet moet één of meer zijn",
+      "limit_too_many": "Er zijn meer API-limietwaarden ingevoerd dan API-sleutels"
+    },
+    "step": {
+      "dampen": {
+        "data": {
+          "damp00": "00:00",
+          "damp01": "01:00",
+          "damp02": "02:00",
+          "damp03": "03:00",
+          "damp04": "04:00",
+          "damp05": "05:00",
+          "damp06": "06:00",
+          "damp07": "07:00",
+          "damp08": "08:00",
+          "damp09": "09:00",
+          "damp10": "10:00",
+          "damp11": "11:00",
+          "damp12": "12:00",
+          "damp13": "13:00",
+          "damp14": "14:00",
+          "damp15": "15:00",
+          "damp16": "16:00",
+          "damp17": "17:00",
+          "damp18": "18:00",
+          "damp19": "19:00",
+          "damp20": "20:00",
+          "damp21": "21:00",
+          "damp22": "22:00",
+          "damp23": "23:00"
+        },
+        "description": "De dempingsfactor per uur wijzigen"
+      },
+      "init": {
+        "data": {
+          "api_key": "API-sleutel (meerdere waarden gescheiden door komma's)",
+          "api_quota": "API limiet (optioneel meerdere waarden per sleutel gescheiden door komma's)",
+          "attr_brk_detailed": "Schakel siteuitsplitsing in voor attributen met details per half uur/uur (deze worden niet opgeslagen in database statusattributen)",
+          "attr_brk_estimate": "Activeer voospelling 50 sensor attributen",
+          "attr_brk_estimate10": "Activeer voospelling 10 sensor attributen",
+          "attr_brk_estimate90": "Activeer voospelling 90 sensor attributen",
+          "attr_brk_halfhourly": "Activeer gedetailleerde attributen voor halfuurlijkse voorspellingen",
+          "attr_brk_hourly": "Activeer gedetailleerde attributen uurlijkse voorspellingen",
+          "attr_brk_site": "Activeer site breakdown sensor attributen",
+          "auto_dampen": "Automatische demping (hiervoor zijn geschatte werkelijke waarden en een PV-productie-entiteit vereist, zie de integratiedocumentatie)",
+          "auto_update": "Automatische update (als er geen automatische update is, moet in plaats daarvan een automatisering worden gebruikt)",
+          "config_damp": "Pas de dempingsfactoren per uur aan (na het klikken op ‘Verzenden’)",
+          "customhoursensor": "Aangepaste sensor voor de komende X uur (min. = 1, max. = 144)",
+          "exclude_sites": "Locatie(s) die moeten worden uitgesloten van het energiedashboard en de sensortotalen",
+          "generation_entities": "PV opwekking entiteit(en) voor automatische demping (energie: Wh/kWh/MWh totaal stijgend, of vermogen: W/kW/MW momentaan)",
+          "get_actuals": "Geschatte werkelijke cijfers worden om middernacht bijgewerkt (zie de integratiedocumentatie; er wordt één API-aanroep per site per dag gebruikt, dus als deze optie is ingeschakeld, is een lagere API-limiet nodig)",
+          "hard_limit_api": "Maximale vermogenslimiet van de omvormer in kW (zie de documentatie bij de integratie; scheid meerdere waarden voor elke API-sleutel met een komma)",
+          "key_estimate": "De voorkeurswaarschijnlijkheid voor voorspellingen die voor sensoren moet worden gebruikt",
+          "site_damp": "De gedetailleerde demping is ingesteld: Verwijder om terug te keren naar de algemene demping per uur",
+          "site_export_entity": "Optionele entiteit voor het exporteren van gegevens ter automatische afvlakking (Wh/kWh/MWh, totaal stijgend)",
+          "site_export_limit": "Limiet voor site export indien site export is opgegeven (kW)",
+          "use_actuals": "Voospellings historiek om te tonen in het energiedashboard"
+        },
+        "description": "Configuratieopties voor Solcast"
+      }
+    }
+  },
+  "selector": {
+    "auto_update": {
+      "options": {
+        "0": "Geen automatische update van de voorspelling",
+        "1": "Automatische bijwerking van de voorspellingen van zonsopgang tot zonsondergang",
+        "2": "Automatische bijwerking van de voorspellingen gedurende 24 uur"
+      }
+    },
+    "energy_history": {
+      "options": {
+        "0": "Voorspellingen",
+        "1": "Geschatte werkelijke cijfers",
+        "2": "Gedempte geschatte cijfers"
+      }
+    },
+    "key_estimate": {
+      "options": {
+        "estimate": "Verwachte mediane opbrengst (schatting)",
+        "estimate10": "10% van de verwachte opbrengst (ondergrens van de mogelijke uitkomsten, schatting10)",
+        "estimate90": "90% van de verwachte opbrengst (bovenste grens van mogelijke uitkomsten, schatting90)"
+      }
+    }
+  },
+  "services": {
+    "clear_all_solcast_data": {
+      "description": "Verwijdert het bestand solcast.json om alle huidige Solcast-sitegegevens te verwijderen.",
+      "name": "Wis alle opgeslagen Solcast gegevens"
+    },
+    "force_update_estimates": {
+      "description": "Met ‘Force update geschatte waarden’ worden de meest recente geschatte actuele gegevens opgehaald van Solcast.",
+      "name": "Force update geschatte waarden"
+    },
+    "force_update_forecasts": {
+      "description": "Met ‘Force update’ worden de meest recente weersvoorspellingen van Solcast opgehaald.",
+      "name": "Force Update"
+    },
+    "get_dampening": {
+      "description": "Haal de voorspelde dempingsfactoren op.",
+      "fields": {
+        "site": {
+          "description": "Optionele locatie voor demping. (Opmerking: werkt niet als granulaire demping niet is ingeschakeld.)",
+          "name": "Site ID"
+        }
+      },
+      "name": "Get forecasts dampening"
+    },
+    "query_estimate_data": {
+      "description": "Geef een dataset terug voor een bepaalde zoekopdracht.",
+      "fields": {
+        "end_date_time": {
+          "description": "Vraagt de geschatte en werkelijke gegevens op tot en met het huidige tijdstip op.",
+          "name": "Einddatum en -tijd"
+        },
+        "start_date_time": {
+          "description": "Vraagt de geschatte en werkelijke gegevens op basis van datum en tijd.",
+          "name": "Startdatum en -tijd"
+        }
+      },
+      "name": "Geschatte en werkelijke gegevens opvragen"
+    },
+    "query_forecast_data": {
+      "description": "Geeft een dataset terug voor een bepaalde zoekopdracht.",
+      "fields": {
+        "end_date_time": {
+          "description": "Zoek naar gebeurtenissen in de prognosegegevens tot en met het huidige tijdstip.",
+          "name": "Einddatum en -tijd"
+        },
+        "site": {
+          "description": "Optioneel site om de voorspelling voor één locatie op te halen",
+          "name": "Site ID"
+        },
+        "start_date_time": {
+          "description": "Zoek naar gebeurtenissen in de prognosegegevens vanaf een bepaalde datum en tijd.",
+          "name": "Startdatum en -tijd"
+        },
+        "undampened": {
+          "description": "Optionele booleaanse waarde om de niet-gedempte voorspelling op te halen",
+          "name": "Niet gedempt"
+        }
+      },
+      "name": "Prognosegegevens opvragen"
+    },
+    "remove_hard_limit": {
+      "description": "Verwijder de ingestelde limiet.",
+      "name": "Verwijder omvormerprognose harde limiet"
+    },
+    "set_custom_hours": {
+      "description": "Stel het aantal uren voor de aangepaste X-uursensor in.",
+      "fields": {
+        "hours": {
+          "description": "Aantal in te stellen uren (1-144).",
+          "name": "Uren"
+        }
+      },
+      "name": "Sensor voor aangepaste uren instellen"
+    },
+    "set_dampening": {
+      "description": "Stel dempingsfactoren voor voorspellingen in.",
+      "fields": {
+        "damp_factor": {
+          "description": "Reeks waarden voor dempingsfactoren, gescheiden door komma's (24 of 48 waarden).",
+          "name": "Dempingsreeks"
+        },
+        "site": {
+          "description": "Optionele site om demping per site in te stellen. (Opmerking: als de site wordt weggelaten, wordt de demping per site gewist, tenzij er 48 waarden zijn.)",
+          "name": "Site ID"
+        }
+      },
+      "name": "Set forecasts dampening"
+    },
+    "set_hard_limit": {
+      "description": "Voorkom dat de voorspelde waarden hoger zijn dan de omvormer kan produceren.",
+      "fields": {
+        "hard_limit": {
+          "description": "Stel de maximale waarde in Watt in die de omvormer kan produceren.",
+          "name": "Grenswaarde in Watt"
+        }
+      },
+      "name": "Harde limiet voor omvormerprognose instellen"
+    },
+    "update_forecasts": {
+      "description": "Haal de meest recente voorspellingen op van Solcast.",
+      "name": "Update"
+    }
+  },
+  "system_health": {
+    "info": {
+      "can_reach_server": "Verbinding met Solcast server"
+    }
+  }
+}
