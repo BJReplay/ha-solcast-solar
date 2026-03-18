@@ -195,7 +195,8 @@
     },
     "damp_use_all": {
       "message": "Site-demping is niet ingesteld voor {site}, ‘all’ is de enige beschikbare siteparameter voor de serviceaanroep."
-    },    "dampen_without_actuals": {
+    },
+    "dampen_without_actuals": {
       "message": "Geschatte werkelijke waarden moeten worden geselecteerd om automatische demping te gebruiken."
     },
     "dampen_without_generation": {
@@ -203,7 +204,8 @@
     },
     "export_no_entity": {
       "message": "Er moet een site-exportentiteit worden opgegeven als de site-exportlimiet is ingesteld."
-    },    "hard_empty": {
+    },
+    "hard_empty": {
       "message": "Lege harde grenswaarde."
     },
     "hard_not_positive_number": {
