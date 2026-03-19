@@ -317,7 +317,12 @@ class DampeningAdaptive:
                     adjusted_dampening = copy.deepcopy(dampening)
                     for period_start, period_value in undampened_interval_pv50.items():
                         interval = self.dampening.adjusted_interval_dt(period_start)
-                        if self.dampening.api.peak_intervals[interval] > 0 and period_value > 0 and dampening[interval] < 1.0:
+                        if (
+                            self.dampening.api.peak_intervals[interval] > 0
+                            and period_value > 0
+                            and dampening[interval] < 1.0
+                            and period_start in actuals
+                        ):
                             adjusted_dampening[interval] = self.dampening.apply_adjustment(
                                 actuals[period_start], dampening[interval], interval, delta_adjustment
                             )  # Adjust based on actual vs peak rather than forecast vs peak

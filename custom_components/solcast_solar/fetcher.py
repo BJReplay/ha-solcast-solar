@@ -709,19 +709,20 @@ class Fetcher:
                             _LOGGER.debug("HTTP session status %s", http_status_translate(status))
 
                             if received_429 == tries:
-                                _LOGGER.debug("Raise issue for %s", ISSUE_API_UNAVAILABLE)
-                                ir.async_create_issue(
-                                    self.api.hass,
-                                    DOMAIN,
-                                    ISSUE_API_UNAVAILABLE,
-                                    is_fixable=False,
-                                    is_persistent=True,
-                                    severity=ir.IssueSeverity.WARNING,
-                                    translation_key=ISSUE_API_UNAVAILABLE,
-                                    learn_more_url=LEARN_MORE_MISSING_FORECAST_DATA,
-                                )
-                                if (trigger := self.api.advanced_options[ADVANCED_TRIGGER_ON_API_UNAVAILABLE]) and trigger:
-                                    await async_trigger_automation_by_name(self.api.hass, trigger)
+                                if issue_registry.async_get_issue(DOMAIN, ISSUE_API_UNAVAILABLE) is None:
+                                    _LOGGER.debug("Raise issue for %s", ISSUE_API_UNAVAILABLE)
+                                    ir.async_create_issue(
+                                        self.api.hass,
+                                        DOMAIN,
+                                        ISSUE_API_UNAVAILABLE,
+                                        is_fixable=False,
+                                        is_persistent=True,
+                                        severity=ir.IssueSeverity.WARNING,
+                                        translation_key=ISSUE_API_UNAVAILABLE,
+                                        learn_more_url=LEARN_MORE_MISSING_FORECAST_DATA,
+                                    )
+                                    if (trigger := self.api.advanced_options[ADVANCED_TRIGGER_ON_API_UNAVAILABLE]) and trigger:
+                                        await async_trigger_automation_by_name(self.api.hass, trigger)
 
                     else:
                         _LOGGER.warning(

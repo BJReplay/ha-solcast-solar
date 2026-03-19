@@ -83,7 +83,6 @@ from .const import (
     SITE_INFO,
     SUCCESS,
     SUCCESS_FORCED,
-    SUCCESS_TRACKED,
     UNKNOWN,
     USE_ACTUALS,
     WINTER_TIME,
