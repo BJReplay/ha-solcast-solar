@@ -244,7 +244,7 @@ class DampeningAdaptive:
 
             if loaded_count != expected_records:
                 _LOGGER.warning(
-                    "%s Automated dampening adaptive model configuration may be sub-optimal until maximum history of %d days is built",
+                    "%s. Automated dampening adaptive model configuration may be sub-optimal until maximum history of %d days is built",
                     msg,
                     self.dampening.api.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS],
                 )
