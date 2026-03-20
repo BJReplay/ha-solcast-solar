@@ -243,11 +243,29 @@ class DampeningAdaptive:
             msg = f"Load dampening history loaded {loaded_count} of a maximum of {expected_records} records"
 
             if loaded_count != expected_records:
-                _LOGGER.warning(
-                    "%s. Automated dampening adaptive model configuration may be sub-optimal until maximum history of %d days is built",
-                    msg,
-                    self.dampening.api.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS],
-                )
+                # Distinguish between gaps in history (benign, caused by missed actuals
+                # fetches) and genuinely insufficient contiguous history (sub-optimal).
+                model_days = self.dampening.api.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS]
+                records_per_day = expected_records // model_days
+                first_model = ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM]
+                first_delta = ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED]
+                dates = sorted(e["period_start"] for e in self.dampening.auto_factors_history[first_model][first_delta])
+                contiguous_days = len(dates)
+                for i in range(len(dates) - 1, 0, -1):
+                    if (dates[i] - dates[i - 1]).days != 1:
+                        contiguous_days = len(dates) - i
+                        break
+                if contiguous_days * records_per_day >= expected_records:
+                    _LOGGER.debug(
+                        "%s: Gaps in older adaptive model history records tolerated as sometimes expected due to missing actuals fetches",
+                        msg,
+                    )
+                else:
+                    _LOGGER.warning(
+                        "%s: Automated dampening adaptive model configuration may be sub-optimal until maximum history of %d days is built",
+                        msg,
+                        model_days,
+                    )
             else:
                 _LOGGER.debug(msg)
 

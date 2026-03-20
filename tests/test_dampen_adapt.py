@@ -263,6 +263,40 @@ async def test_adaptive_auto_dampen(  # noqa: C901
         assert "Automated dampening adaptive model configuration may be sub-optimal" not in caplog.text
         solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] = 14
 
+        # Test load_history() with an interior date gap where the contiguous tail satisfies expected_records.
+        # This exercises:
+        #   line 256 – contiguous_days = len(dates) - i  (gap detected in loop)
+        #   line 257 – break
+        #   line 259 – if contiguous_days * records_per_day >= expected_records  (True → debug "Gaps tolerated")
+        #
+        # Setup: remove the 2nd-oldest day from every model/delta combo so the dates stored in the
+        # file are [day0, day2, day3] – a gap of two days between day0 and day2.
+        # With model_days=2: expected_records=24, loaded_count=36 (3 days × 12 combos) → 36≠24 triggers
+        # the gap-detection block. Contiguous tail = {day2, day3} → contiguous_days=2; 2×12=24 ≥ 24 → debug.
+        full_history = copy.deepcopy(solcast.dampening.auto_factors_history)
+        gaped_history = {
+            model_key: {delta_key: [e for idx, e in enumerate(entries) if idx != 1] for delta_key, entries in deltas.items()}
+            for model_key, deltas in full_history.items()
+        }
+        Path(f"{config_dir}/solcast-dampening-history.json").write_text(
+            json.dumps(gaped_history, ensure_ascii=False, indent=2, cls=NoIndentEncoder, above_level=4),
+            encoding="utf-8",
+        )
+        caplog.clear()
+        solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] = 2
+        # Clear in-memory history so load_history() starts fresh and reflects only the gaped file content
+        solcast.dampening.auto_factors_history = {}
+        await solcast.dampening.adaptive.load_history()
+        assert "Gaps in older adaptive model history records tolerated" in caplog.text
+        assert "Automated dampening adaptive model configuration may be sub-optimal" not in caplog.text
+        # Restore original full history and disk file for subsequent tests
+        solcast.dampening.auto_factors_history = copy.deepcopy(full_history)
+        Path(f"{config_dir}/solcast-dampening-history.json").write_text(
+            json.dumps(full_history, ensure_ascii=False, indent=2, cls=NoIndentEncoder, above_level=4),
+            encoding="utf-8",
+        )
+        solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] = 14
+
         # Test staggered history start dates (exercises if period_start < earliest_common)
         # Model 0 will have entries from all 4 days (days 0-3)
         # Model 1 will have entries from 3 days (days 1-3, missing day 0)
