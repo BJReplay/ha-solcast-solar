@@ -1409,6 +1409,14 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 Latest minor/patch releases.
 
+v4.5.2
+
+* Fix documentation error for advanced option api_raise_issues by @autoSteve
+* Raise issue only once during 429 storms by @autoSteve
+* Skip missing dampening factor history for dampening adaptation by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.5.1...v4.5.2
+
 v4.5.1
 
 * Add `set_options`/`get_options` actions and deprecate single-purpose actions by @autoSteve
