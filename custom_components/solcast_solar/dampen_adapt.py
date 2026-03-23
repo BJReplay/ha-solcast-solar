@@ -669,7 +669,8 @@ class DampeningAdaptive:
         """
         period_lists = []
         for model in range(
-            ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM], ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1
+            ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM],
+            ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1,
         ):
             for delta in range(
                 ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL][MINIMUM_EXTENDED],
@@ -692,14 +693,18 @@ class DampeningAdaptive:
         all_equal = all(pl == period_lists[0] for pl in period_lists)
 
         if not all_equal:
-            # Non-uniform: require strict daily continuity from earliest_common forward.
-            earliest_common = common_periods[0]
-            if not all(
-                all(curr == prev + timedelta(days=1) for prev, curr in pairwise(sorted(p for p in periods if p >= earliest_common)))
-                for periods in period_lists
-            ):
-                earliest_common = None
-            return earliest_common
+            # Non-uniform: search for the earliest common date from which all lists are strictly continuous.
+            for candidate in common_periods:
+                if all(
+                    all(curr == prev + timedelta(days=1) for prev, curr in pairwise(sorted(p for p in periods if p >= candidate)))
+                    for periods in period_lists
+                ):
+                    _LOGGER.debug(
+                        "Earliest common dampening history (non-uniform) is %s",
+                        candidate.strftime(DT_DATE_FORMAT_UTC),
+                    )
+                    return candidate
+            return None
 
         earliest_common = common_periods[0]
         _LOGGER.debug(
