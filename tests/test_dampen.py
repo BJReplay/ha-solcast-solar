@@ -8,6 +8,8 @@ import json
 import logging
 from pathlib import Path
 import re
+from types import SimpleNamespace
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from freezegun.api import FrozenDateTimeFactory
@@ -25,15 +27,21 @@ from homeassistant.components.solcast_solar.const import (
     CONFIG_FOLDER_DISCRETE,
     DOMAIN,
     ENTITY_ACCURACY,
+    ESTIMATE,
     EXCLUDE_SITES,
+    FORECASTS,
     GENERATION_ENTITIES,
     GET_ACTUALS,
+    PERIOD_START,
     PRESUMED_DEAD,
+    RESOURCE_ID,
     SERVICE_SET_DAMPENING,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
+    SITE_INFO,
     USE_ACTUALS,
 )
+from homeassistant.components.solcast_solar.dampen import Dampening
 from homeassistant.components.solcast_solar.util import (
     DateTimeEncoder,
     JSONDecoder,
@@ -427,6 +435,90 @@ async def test_percentile() -> None:
 
     data = []
     assert percentile(data, 50) == 0.0
+
+
+async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.LogCaptureFixture) -> None:
+    """Test recovered historical actuals are dampened with delta-adjusted factors."""
+
+    period_start = dt(2026, 3, 21, 22, 30, tzinfo=datetime.UTC)
+    site_id = "1111-1111-1111-1111"
+
+    async def sort_and_prune(site: str | None, data: dict[str, Any], _past_days: int, forecasts: dict[object, Any]) -> None:
+        data[SITE_INFO][site] = {FORECASTS: list(forecasts.values())}
+
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        sites=[{RESOURCE_ID: site_id}],
+        options=SimpleNamespace(exclude_sites=[]),
+        tz=ZoneInfo(ZONE_RAW),
+        data_actuals={SITE_INFO: {site_id: {FORECASTS: [{PERIOD_START: period_start, ESTIMATE: 2.0}]}}},
+        data_actuals_dampened={SITE_INFO: {site_id: {FORECASTS: []}}},
+        advanced_options={"history_max_days": 30},
+        fetcher=SimpleNamespace(sort_and_prune=sort_and_prune),
+    )
+    dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.6 if _interval_pv50 == 1.0 else 0.8  # pyright: ignore[reportAttributeAccessIssue]
+
+    caplog.clear()
+    await dampening.apply_recovered_history({site_id: {period_start.timestamp()}})
+
+    assert "Apply dampening to recovered historical estimated actuals" in caplog.text
+    assert dampening.api.data_actuals_dampened[SITE_INFO][site_id][FORECASTS] == [{PERIOD_START: period_start, ESTIMATE: 1.2}]
+
+
+async def test_apply_recovered_history_no_actuals_match() -> None:
+    """Test that apply_recovered_history skips a site when no actuals match the recovered timestamps."""
+
+    site_id = "1111-1111-1111-1111"
+    actual_period = dt(2026, 3, 21, 22, 30, tzinfo=datetime.UTC)
+    recovered_period = dt(2026, 3, 20, 10, 0, tzinfo=datetime.UTC)  # Different timestamp — no match.
+
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        sites=[{RESOURCE_ID: site_id}],
+        options=SimpleNamespace(exclude_sites=[]),
+        tz=ZoneInfo(ZONE_RAW),
+        data_actuals={SITE_INFO: {site_id: {FORECASTS: [{PERIOD_START: actual_period, ESTIMATE: 2.0}]}}},
+        data_actuals_dampened={SITE_INFO: {}},
+        advanced_options={"history_max_days": 30},
+        fetcher=SimpleNamespace(sort_and_prune=None),  # Must not be called.
+    )
+    dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.8  # pyright: ignore[reportAttributeAccessIssue]
+
+    # Recovered timestamp doesn't match any actual in data_actuals → actuals_undampened is empty → continue.
+    await dampening.apply_recovered_history({site_id: {recovered_period.timestamp()}})
+
+    assert dampening.api.data_actuals_dampened[SITE_INFO] == {}
+
+
+async def test_apply_actuals_range_early_return_and_no_actuals() -> None:
+    """Test _apply_actuals_range early return when start >= end, and continue when no actuals fall in range."""
+
+    site_id = "1111-1111-1111-1111"
+    base = dt(2026, 3, 21, 0, 0, tzinfo=datetime.UTC)
+
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        sites=[{RESOURCE_ID: site_id}],
+        options=SimpleNamespace(exclude_sites=[]),
+        tz=ZoneInfo(ZONE_RAW),
+        data_actuals={SITE_INFO: {site_id: {FORECASTS: [{PERIOD_START: base, ESTIMATE: 1.0}]}}},
+        data_actuals_dampened={SITE_INFO: {}},
+        advanced_options={"history_max_days": 30},
+        fetcher=SimpleNamespace(sort_and_prune=None),  # Must not be called.
+    )
+    dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.8  # pyright: ignore[reportAttributeAccessIssue]
+
+    # start == end → early return.
+    await dampening._apply_actuals_range(base, base)
+
+    # start > end → early return.
+    await dampening._apply_actuals_range(base + timedelta(hours=1), base)
+
+    # start < end but the only actual (at base) falls outside [base+1h, base+2h) → continue.
+    await dampening._apply_actuals_range(base + timedelta(hours=1), base + timedelta(hours=2))
+
+    # sort_and_prune was None and never called — confirms no dampening was written.
+    assert dampening.api.data_actuals_dampened[SITE_INFO] == {}
 
 
 # --- Unit tests for compute_power_intervals and compute_energy_intervals ---

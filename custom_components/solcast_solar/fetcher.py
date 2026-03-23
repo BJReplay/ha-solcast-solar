@@ -139,6 +139,8 @@ class Fetcher:
 
         status: DataCallStatus = DataCallStatus.SUCCESS
         reason: str = ""
+        recovered_periods_by_site: dict[str, set[float]] = {}
+        yesterday_start = self.api.dt_helper.day_start_utc(future=-1)
 
         start_time = time.time()
 
@@ -172,6 +174,11 @@ class Fetcher:
                 break
 
             estimate_actuals: list[dict[str, Any]] = act_response.get(ESTIMATED_ACTUALS, [])
+            dampened_periods = (
+                {actual[PERIOD_START].timestamp() for actual in self.api.data_actuals_dampened[SITE_INFO][site[RESOURCE_ID]][FORECASTS]}
+                if self.api.data_actuals_dampened[SITE_INFO].get(site[RESOURCE_ID])
+                else set()
+            )
 
             oldest = (dt.now(self.api.tz).replace(hour=0, minute=0, second=0, microsecond=0) - timedelta(days=7)).astimezone(UTC)
 
@@ -199,6 +206,9 @@ class Fetcher:
                     actual[PERIOD_START],
                     round(actual[ESTIMATE], 4),
                 )
+                period_start_key = actual[PERIOD_START].timestamp()
+                if actual[PERIOD_START] < yesterday_start and period_start_key not in dampened_periods:
+                    recovered_periods_by_site.setdefault(site[RESOURCE_ID], set()).add(period_start_key)
 
             await self.sort_and_prune(
                 site[RESOURCE_ID], self.api.data_actuals, self.api.advanced_options[ADVANCED_HISTORY_MAX_DAYS], actuals
@@ -207,7 +217,9 @@ class Fetcher:
             self.increment_success_count(force=True, api_key=api_key)
 
         if status == DataCallStatus.SUCCESS and dampen_yesterday:
-            # Apply dampening to yesterday actuals, but only if the new factors for the day have not been modelled.
+            # Backfill recovered historical actuals with the latest dampening factors if needed, then
+            # apply normal yesterday dampening.
+            await self.api.dampening.apply_recovered_history(recovered_periods_by_site)
             await self.api.dampening.apply_yesterday()
 
         if status != DataCallStatus.SUCCESS:

@@ -1414,6 +1414,7 @@ v4.5.2
 * Fix documentation error for advanced option api_raise_issues by @autoSteve
 * Raise issue only once during 429 storms by @autoSteve
 * Avoid exception raised when estimated actual data missing by @autoSteve
+* Apply present dampening to missed historical estimated actuals by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.5.1...v4.5.2
 
