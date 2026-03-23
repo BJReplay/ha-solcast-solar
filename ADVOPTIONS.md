@@ -290,7 +290,7 @@ The adjustment will only apply to `ALL` factors, and not individual per-site dam
 
 ## General
 
-**Key: "api_raise_issue"**
+**Key: "api_raise_issues"**
 
 Possible values: boolean `true`/`false` (default `true`)
 
