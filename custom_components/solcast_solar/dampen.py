@@ -244,9 +244,9 @@ class Dampening:
                 continue
 
             _LOGGER.debug(
-                "Apply dampening to recovered historical estimated actuals for %s (%d samples)",
+                "Apply dampening to recovered historical estimated actuals for %s: %s",
                 site[RESOURCE_ID],
-                len(periods),
+                self._format_recovered_periods(periods),
             )
 
             actuals_undampened = [
@@ -282,6 +282,36 @@ class Dampening:
                 self.api.advanced_options[ADVANCED_HISTORY_MAX_DAYS],
                 extant_actuals,
             )
+
+    def _format_recovered_periods(self, periods: set[float]) -> str:
+        """Return local date spans for recovered periods."""
+        days = sorted({dt.fromtimestamp(period_start, UTC).astimezone(self.api.tz).date() for period_start in periods})
+        if not days:
+            return ""
+
+        spans: list[str] = []
+        span_start = days[0]
+        span_end = days[0]
+
+        for day in days[1:]:
+            if day == span_end + timedelta(days=1):
+                span_end = day
+                continue
+
+            spans.append(
+                span_start.strftime(DT_DATE_ONLY_FORMAT)
+                if span_start == span_end
+                else f"{span_start.strftime(DT_DATE_ONLY_FORMAT)} to {span_end.strftime(DT_DATE_ONLY_FORMAT)}"
+            )
+            span_start = day
+            span_end = day
+
+        spans.append(
+            span_start.strftime(DT_DATE_ONLY_FORMAT)
+            if span_start == span_end
+            else f"{span_start.strftime(DT_DATE_ONLY_FORMAT)} to {span_end.strftime(DT_DATE_ONLY_FORMAT)}"
+        )
+        return ", ".join(spans)
 
     def _build_actuals_interval_pv50(self, applicable_periods: set[dt]) -> dict[dt, float]:
         """Build combined pv50 values for estimated actual timestamps."""

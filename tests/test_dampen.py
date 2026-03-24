@@ -441,6 +441,7 @@ async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.
     """Test recovered historical actuals are dampened with delta-adjusted factors."""
 
     period_start = dt(2026, 3, 21, 22, 30, tzinfo=datetime.UTC)
+    next_period_start = dt(2026, 3, 22, 22, 30, tzinfo=datetime.UTC)
     site_id = "1111-1111-1111-1111"
 
     async def sort_and_prune(site: str | None, data: dict[str, Any], _past_days: int, forecasts: dict[object, Any]) -> None:
@@ -451,7 +452,16 @@ async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.
         sites=[{RESOURCE_ID: site_id}],
         options=SimpleNamespace(exclude_sites=[]),
         tz=ZoneInfo(ZONE_RAW),
-        data_actuals={SITE_INFO: {site_id: {FORECASTS: [{PERIOD_START: period_start, ESTIMATE: 2.0}]}}},
+        data_actuals={
+            SITE_INFO: {
+                site_id: {
+                    FORECASTS: [
+                        {PERIOD_START: period_start, ESTIMATE: 2.0},
+                        {PERIOD_START: next_period_start, ESTIMATE: 2.0},
+                    ]
+                }
+            }
+        },
         data_actuals_dampened={SITE_INFO: {site_id: {FORECASTS: []}}},
         advanced_options={"history_max_days": 30},
         fetcher=SimpleNamespace(sort_and_prune=sort_and_prune),
@@ -459,10 +469,56 @@ async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.
     dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.6 if _interval_pv50 == 1.0 else 0.8  # pyright: ignore[reportAttributeAccessIssue]
 
     caplog.clear()
-    await dampening.apply_recovered_history({site_id: {period_start.timestamp()}})
+    await dampening.apply_recovered_history({site_id: {period_start.timestamp(), next_period_start.timestamp()}})
 
-    assert "Apply dampening to recovered historical estimated actuals" in caplog.text
-    assert dampening.api.data_actuals_dampened[SITE_INFO][site_id][FORECASTS] == [{PERIOD_START: period_start, ESTIMATE: 1.2}]
+    assert (
+        "Apply dampening to recovered historical estimated actuals for 1111-1111-1111-1111: 2026-03-22 to 2026-03-23"
+        in caplog.text
+    )
+    assert dampening.api.data_actuals_dampened[SITE_INFO][site_id][FORECASTS] == [
+        {PERIOD_START: period_start, ESTIMATE: 1.2},
+        {PERIOD_START: next_period_start, ESTIMATE: 1.2},
+    ]
+
+
+async def test_apply_recovered_history_logs_nonconsecutive_date_spans(caplog: pytest.LogCaptureFixture) -> None:
+    """Test recovered history logging preserves gaps between local dates."""
+
+    site_id = "1111-1111-1111-1111"
+    period_start = dt(2026, 3, 21, 22, 30, tzinfo=datetime.UTC)
+    gap_period_start = dt(2026, 3, 24, 22, 30, tzinfo=datetime.UTC)
+
+    async def sort_and_prune(site: str | None, data: dict[str, Any], _past_days: int, forecasts: dict[object, Any]) -> None:
+        data[SITE_INFO][site] = {FORECASTS: list(forecasts.values())}
+
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        sites=[{RESOURCE_ID: site_id}],
+        options=SimpleNamespace(exclude_sites=[]),
+        tz=ZoneInfo(ZONE_RAW),
+        data_actuals={
+            SITE_INFO: {
+                site_id: {
+                    FORECASTS: [
+                        {PERIOD_START: period_start, ESTIMATE: 2.0},
+                        {PERIOD_START: gap_period_start, ESTIMATE: 2.0},
+                    ]
+                }
+            }
+        },
+        data_actuals_dampened={SITE_INFO: {site_id: {FORECASTS: []}}},
+        advanced_options={"history_max_days": 30},
+        fetcher=SimpleNamespace(sort_and_prune=sort_and_prune),
+    )
+    dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.6 if _interval_pv50 == 1.0 else 0.8  # pyright: ignore[reportAttributeAccessIssue]
+
+    caplog.clear()
+    await dampening.apply_recovered_history({site_id: {period_start.timestamp(), gap_period_start.timestamp()}})
+
+    assert (
+        "Apply dampening to recovered historical estimated actuals for 1111-1111-1111-1111: 2026-03-22, 2026-03-25"
+        in caplog.text
+    )
 
 
 async def test_apply_recovered_history_no_actuals_match() -> None:
