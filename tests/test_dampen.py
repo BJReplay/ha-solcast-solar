@@ -471,10 +471,7 @@ async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.
     caplog.clear()
     await dampening.apply_recovered_history({site_id: {period_start.timestamp(), next_period_start.timestamp()}})
 
-    assert (
-        "Apply dampening to recovered historical estimated actuals for 1111-1111-1111-1111: 2026-03-22 to 2026-03-23"
-        in caplog.text
-    )
+    assert "Apply dampening to recovered historical estimated actuals for 1111-1111-1111-1111: 2026-03-22 to 2026-03-23" in caplog.text
     assert dampening.api.data_actuals_dampened[SITE_INFO][site_id][FORECASTS] == [
         {PERIOD_START: period_start, ESTIMATE: 1.2},
         {PERIOD_START: next_period_start, ESTIMATE: 1.2},
@@ -515,10 +512,14 @@ async def test_apply_recovered_history_logs_nonconsecutive_date_spans(caplog: py
     caplog.clear()
     await dampening.apply_recovered_history({site_id: {period_start.timestamp(), gap_period_start.timestamp()}})
 
-    assert (
-        "Apply dampening to recovered historical estimated actuals for 1111-1111-1111-1111: 2026-03-22, 2026-03-25"
-        in caplog.text
-    )
+    assert "Apply dampening to recovered historical estimated actuals for 1111-1111-1111-1111: 2026-03-22, 2026-03-25" in caplog.text
+
+
+def test_format_recovered_periods_empty_set_returns_empty_string() -> None:
+    """Test that _format_recovered_periods returns an empty string for an empty set."""
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(tz=ZoneInfo(ZONE_RAW))  # pyright: ignore[reportAttributeAccessIssue]
+    assert dampening._format_recovered_periods(set()) == ""
 
 
 async def test_apply_recovered_history_no_actuals_match() -> None:

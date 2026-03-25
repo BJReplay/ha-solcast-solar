@@ -805,12 +805,16 @@ class DampeningAdaptive:
         interval_counts = [0] * 48
         interval_dampen_sum = [0.0] * 48
         interval_dampen_count = [0] * 48
+        interval_has_zero_generation = [False] * 48
 
         for ts, gen_data in generation_dampening.items():
-            if gen_data[GENERATION] > 0 and not gen_data.get(EXPORT_LIMITING, False):
+            if not gen_data.get(EXPORT_LIMITING, False):
                 interval = self.dampening.adjusted_interval_dt(ts)
-                interval_totals[interval] += gen_data[GENERATION]
-                interval_counts[interval] += 1
+                if gen_data[GENERATION] > 0:
+                    interval_totals[interval] += gen_data[GENERATION]
+                    interval_counts[interval] += 1
+                else:
+                    interval_has_zero_generation[interval] = True
 
         # Analyse dampening factors using only the no-delta (raw) history entries.
         # Delta-adjusted entries (delta 0, 1, 2 …) have been pushed toward 1.0 by the
@@ -861,7 +865,7 @@ class DampeningAdaptive:
         min_gen_fraction = 0.10
         dampening_impact = [
             (1.0 - avg_dampen_factor[i]) * (dampen_variance[i] ** 0.5) * dampening_breadth[i]
-            if normalised_generation[i] >= min_gen_fraction
+            if normalised_generation[i] >= min_gen_fraction and not interval_has_zero_generation[i]
             else 0.0
             for i in range(48)
         ]
@@ -870,7 +874,9 @@ class DampeningAdaptive:
         if not dampening_impact or max(dampening_impact) == 0.0:
             # First fallback: drop the variance term — (1 - dampening) × breadth, still generation-gated
             dampening_impact = [
-                (1.0 - avg_dampen_factor[i]) * dampening_breadth[i] if normalised_generation[i] >= min_gen_fraction else 0.0
+                (1.0 - avg_dampen_factor[i]) * dampening_breadth[i]
+                if normalised_generation[i] >= min_gen_fraction and not interval_has_zero_generation[i]
+                else 0.0
                 for i in range(48)
             ]
         if max(dampening_impact) == 0.0:
@@ -881,12 +887,14 @@ class DampeningAdaptive:
             if current_all_factors and any(f < 1.0 for f in current_all_factors):
                 min_gen_fraction = 0.10  # Require at least 10% of peak to exclude pre-dawn/dusk
                 dampening_impact = [
-                    (1.0 - current_all_factors[i]) if normalised_generation[i] >= min_gen_fraction else 0.0 for i in range(48)
+                    (1.0 - current_all_factors[i])
+                    if normalised_generation[i] >= min_gen_fraction and not interval_has_zero_generation[i]
+                    else 0.0
+                    for i in range(48)
                 ]
         if max(dampening_impact) == 0.0:
             # Final fallback: pure generation — ensures a daytime interval is always chosen
             dampening_impact = list(normalised_generation)
-
         # Select interval with highest weighted score
         selected_interval = dampening_impact.index(max(dampening_impact)) if dampening_impact else 0
 
