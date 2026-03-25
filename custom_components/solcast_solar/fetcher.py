@@ -168,7 +168,7 @@ class Fetcher:
                 )
             if not isinstance(act_response, dict):
                 _LOGGER.error("No valid data was returned for estimated_actuals so this may cause issues")
-                _LOGGER.error("API did not return a json object, returned `%s`", act_response)
+                _LOGGER.debug("API did not return a json object, returned `%s`", act_response)
                 status = DataCallStatus.FAIL
                 reason = "No valid json returned"
                 break
@@ -282,7 +282,7 @@ class Fetcher:
             )
             if result == DataCallStatus.FAIL:
                 failure = True
-                _LOGGER.warning(
+                (_LOGGER.warning if len(self.api.sites) > 1 and sites_succeeded and not force else _LOGGER.debug)(
                     "Forecast update for site %s failed%s%s",
                     site[RESOURCE_ID],
                     " so not getting remaining sites" if sites_attempted < len(self.api.sites) else "",
@@ -406,7 +406,7 @@ class Fetcher:
                     _LOGGER.error(
                         "No valid data was returned for estimated_actuals so this will cause issues (API limit may be exhausted, or Solcast might have a problem)"
                     )
-                    _LOGGER.error("API did not return a json object, returned `%s`", act_response)
+                    _LOGGER.debug("API did not return a json object, returned `%s`", act_response)
                     return DataCallStatus.FAIL, "No valid json returned"
 
                 estimate_actuals: list[dict[str, Any]] = act_response.get(ESTIMATED_ACTUALS, [])
@@ -463,12 +463,10 @@ class Fetcher:
                 response = (
                     self.api.tasks.pop(TASK_FORECASTS_FETCH).result() if self.api.tasks.get(TASK_FORECASTS_FETCH) is not None else None
                 )
-            if response is None:
-                _LOGGER.error("No data was returned for forecasts")
 
             if not isinstance(response, dict):
                 failure = True
-                _LOGGER.error("API did not return a json object. Returned %s", response)
+                _LOGGER.debug("API did not return a json object. Returned %s", response)
                 return DataCallStatus.FAIL, "No valid json returned"
 
             latest_forecasts = response.get(FORECASTS, [])
@@ -668,7 +666,7 @@ class Fetcher:
                             # Integration fetch is in a possibly recoverable state, so delay (15 seconds * counter),
                             # plus a random number of seconds between zero and 15.
                             delay: int = (counter * backoff) + random.randrange(0, 15)
-                            _LOGGER.warning(
+                            _LOGGER.debug(
                                 "Call status %s, pausing %d seconds before retry",
                                 http_status_translate(status),
                                 delay,
