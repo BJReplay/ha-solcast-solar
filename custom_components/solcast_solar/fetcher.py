@@ -666,7 +666,7 @@ class Fetcher:
                             # Integration fetch is in a possibly recoverable state, so delay (15 seconds * counter),
                             # plus a random number of seconds between zero and 15.
                             delay: int = (counter * backoff) + random.randrange(0, 15)
-                            _LOGGER.debug(
+                            _LOGGER.warning(
                                 "Call status %s, pausing %d seconds before retry",
                                 http_status_translate(status),
                                 delay,

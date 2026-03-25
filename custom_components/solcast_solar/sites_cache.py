@@ -830,8 +830,9 @@ class SitesCache:
                     )
                     status = response.status
                     (_LOGGER.debug if status == 200 else _LOGGER.warning)(
-                        "HTTP session returned status %s%s",
+                        "HTTP session returned status %s for API key %s%s",
                         http_status_translate(status),
+                        redact_api_key(api_key),
                         ", trying cache" if status not in (200, 403) and cache_exists and use_cache else "",
                     )
                     text_response = ""

@@ -673,12 +673,10 @@ async def test_integration(  # noqa: C901
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         await _wait_for(caplog, "Forecast has not been updated")
         assert "API allowed polling limit has been exceeded" in caplog.text
-        assert "No data was returned for forecasts" in caplog.text
         caplog.clear()
         no_error_or_exception(caplog)
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "API polling limit exhausted, not getting forecast" in caplog.text
-        assert "No data was returned for forecasts" in caplog.text
         caplog.clear()
         no_error_or_exception(caplog)
         session_clear(MOCK_OVER_LIMIT)

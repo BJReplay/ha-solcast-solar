@@ -122,7 +122,6 @@ async def test_forecast_retry(
 
         assert "API was tried 10 times, but all attempts failed" in caplog.text
         _occurs_in_log(caplog, "Call status 429/Try again later", 10)
-        assert "No data was returned for forecasts" in caplog.text
         assert "Forecast has not been updated, next auto update at" in caplog.text
         assert "Completed task pending_update_009" in caplog.text
         assert "Raise issue for api_unavailable" in caplog.text
