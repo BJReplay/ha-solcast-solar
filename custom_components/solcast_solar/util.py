@@ -57,7 +57,6 @@ from .const import (
     SUCCESS_FORCED,
     SUCCESS_TRACKED,
     VERSION,
-    WINTER_TIME,
 )
 
 if TYPE_CHECKING:
@@ -277,10 +276,10 @@ class DateTimeHelper:
         return for_when.replace(hour=0, minute=0, second=0, microsecond=0).astimezone(UTC)
 
     def dst(self, dt_obj: dt | None = None) -> bool:
-        """Return whether a given date is daylight savings time, or for zones using Winter time whether standard time."""
+        """Return whether a given date is daylight savings time, or for zones using winter time whether summer time."""
         result = False
         if dt_obj is not None:
-            delta = timedelta(hours=1) if str(self._tz) not in WINTER_TIME else timedelta(hours=0)
+            delta = timedelta(hours=1) if not self.is_dublin else timedelta(hours=0)
             result = dt_obj.astimezone(self._tz).dst() == delta
         return result
 
@@ -288,8 +287,13 @@ class DateTimeHelper:
         """Return the UTC datetime representing the start of the current hour."""
         return dt.now(self._tz).replace(minute=0, second=0, microsecond=0).astimezone(UTC)
 
+    @property
+    def is_dublin(self) -> bool:
+        """Return whether the timezone is Dublin, which has unique DST."""
+        return str(self._tz) in ("Europe/Dublin", "Dublin")
+
     def is_interval_dst(self, interval: dict[str, Any]) -> bool:
-        """Return whether an interval is daylight savings time, or for zones using Winter time whether standard time."""
+        """Return whether an interval is daylight savings time, or for zones using winter time whether summer time."""
         return self.dst(interval[PERIOD_START].astimezone(self._tz))
 
     def now_utc(self) -> dt:

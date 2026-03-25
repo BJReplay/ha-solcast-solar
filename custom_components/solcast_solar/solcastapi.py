@@ -85,7 +85,6 @@ from .const import (
     SUCCESS_FORCED,
     UNKNOWN,
     USE_ACTUALS,
-    WINTER_TIME,
 )
 from .dampen import Dampening
 from .fetcher import Fetcher
@@ -816,6 +815,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         contiguous_end_date: Any = None
         all_records_good = True
         time_transitioning = False
+        transition_from_dst: bool | None = None
         interval_assessment: dict[date, Any] = {}
 
         # The latest period is used to determine whether any history should be updated on stale start.
@@ -834,6 +834,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 is_daylight = self.dt_helper.is_interval_dst(self.data_forecasts[interval])
                 if is_daylight != _is_dst:
                     time_transitioning = True
+                    transition_from_dst = _is_dst
                     expected_intervals = 50 if _is_dst else 46
                     break
             intervals = end_index - start_index
@@ -861,7 +862,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             if future_day == 0 and interval_assessment[forecasts_date][CORRECT]:
                 contiguous_start_date = forecasts_date
         if time_transitioning:
-            _LOGGER.debug("Transitioning between %s time", "standard/Summer" if str(self.tz) not in WINTER_TIME else "standard/Winter")
+            if transition_from_dst:
+                transition = "summer to winter" if self.dt_helper.is_dublin else "summer to standard"
+            else:
+                transition = "winter to summer" if self.dt_helper.is_dublin else "standard to summer"
+            _LOGGER.debug("Transitioning from %s time", transition)
         if contiguous > 1:
             _LOGGER.debug(
                 "Forecast data from %s to %s contains all intervals",
