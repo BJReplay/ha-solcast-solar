@@ -21,8 +21,10 @@ from homeassistant.components.solcast_solar.config_flow import (
     CONFIG_DAMP,
     SolcastSolarFlowHandler,
     SolcastSolarOptionFlowHandler,
+    _async_is_allow_exceed_api_limit,
 )
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     ADVANCED_INVALID_JSON_TASK,
     ADVANCED_OPTION,
     API_LIMIT,
@@ -151,6 +153,7 @@ TEST_KEY_CHANGES: list[tuple[Any, Any, str | None, list[str]]] = [
 TEST_API_LIMIT: list[tuple[dict[Any, Any], dict[Any, Any], str | None]] = [
     (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "invalid", AUTO_UPDATE: "1"}, "limit_not_number"),
     (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "0", AUTO_UPDATE: "1"}, "limit_one_or_greater"),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "51", AUTO_UPDATE: "1"}, "limit_exceeds_maximum"),
     (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "10,10", AUTO_UPDATE: "1"}, "limit_too_many"),
     (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "10", AUTO_UPDATE: "1"}, None),
     (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_LIMIT: "10,10", AUTO_UPDATE: "1"}, None),
@@ -545,6 +548,30 @@ async def test_options_api_quota(hass: HomeAssistant, options: dict[str, Any], u
     result = await flow.async_step_init({**options, **user_input})
     if reason is not None:
         assert result["errors"]["base"] == reason  # type: ignore[index]
+
+
+async def test_allow_exceed_api_limit_advanced_option_enabled(hass: HomeAssistant) -> None:
+    """Test advanced option enables exceeding API limit maximum."""
+
+    config_dir = Path(hass.config.config_dir)
+    advanced_dir = config_dir / CONFIG_DISCRETE_NAME if CONFIG_FOLDER_DISCRETE else config_dir
+    advanced_dir.mkdir(parents=True, exist_ok=True)
+    advanced_file = advanced_dir / "solcast-advanced.json"
+    advanced_file.write_text(json.dumps({ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM: True}), encoding="utf-8")
+
+    assert await _async_is_allow_exceed_api_limit(hass)
+
+
+async def test_allow_exceed_api_limit_advanced_option_invalid_json(hass: HomeAssistant) -> None:
+    """Test invalid advanced options JSON defaults to not allowing exceed."""
+
+    config_dir = Path(hass.config.config_dir)
+    advanced_dir = config_dir / CONFIG_DISCRETE_NAME if CONFIG_FOLDER_DISCRETE else config_dir
+    advanced_dir.mkdir(parents=True, exist_ok=True)
+    advanced_file = advanced_dir / "solcast-advanced.json"
+    advanced_file.write_text('{"bad_json":', encoding="utf-8")
+
+    assert not await _async_is_allow_exceed_api_limit(hass)
 
 
 @pytest.mark.parametrize(

@@ -12,7 +12,8 @@
       "api_looks_like_site": "Kľúč API vyzerá ako ID lokality",
       "limit_not_number": "Limit API nie je číslo",
       "limit_one_or_greater": "Limit API musí byť jeden alebo väčší",
-      "limit_too_many": "Je zadaných viac limitov API ako kľúčov"
+      "limit_too_many": "Je zadaných viac limitov API ako kľúčov",
+      "limit_exceeds_maximum": "Limit API nemôže prekročiť 50."
     },
     "step": {
       "reauth_confirm": {
@@ -276,6 +277,9 @@
     },
     "set_options_empty": {
       "message": "Musí byť špecifikovaná aspoň jedna možnosť."
+    },
+    "limit_exceeds_maximum": {
+      "message": "Limit API nemôže prekročiť 50."
     }
   },
   "issues": {
@@ -362,7 +366,8 @@
       "hard_too_many": "Je zadaných viac tvrdých limitov ako kľúčov",
       "limit_not_number": "Limit API nie je číslo",
       "limit_one_or_greater": "Limit API musí byť jeden alebo väčší",
-      "limit_too_many": "Je zadaných viac limitov API ako kľúčov"
+      "limit_too_many": "Je zadaných viac limitov API ako kľúčov",
+      "limit_exceeds_maximum": "Limit API nemôže prekročiť 50."
     },
     "step": {
       "dampen": {

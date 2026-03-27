@@ -20,6 +20,7 @@ from .const import (
     EXCEPTION_INVALID_EXPORT_LIMIT,
     EXCEPTION_INVALID_KEY_ESTIMATE,
     EXCEPTION_INVALID_USE_ACTUALS,
+    EXCEPTION_LIMIT_EXCEEDS_MAXIMUM,
     EXCEPTION_LIMIT_NOT_NUMBER,
     EXCEPTION_LIMIT_ONE_OR_GREATER,
     EXCEPTION_LIMIT_TOO_MANY,
@@ -64,12 +65,13 @@ def validate_api_key(user_input: dict[str, Any]) -> tuple[str, int, str | None]:
     return validate_api_key_value(user_input[CONF_API_KEY])
 
 
-def validate_api_limit_value(api_limit: str, api_count: int) -> tuple[str, str | None]:
+def validate_api_limit_value(api_limit: str, api_count: int, allow_exceed: bool = False) -> tuple[str, str | None]:
     """Validate the API limit string.
 
     Arguments:
         api_limit: The API limit string (comma separated for multiple keys).
         api_count: The number of API keys.
+        allow_exceed: Whether to allow exceeding the maximum.
 
     Returns:
         tuple[str, str | None]: The validated API limit string, and error key or None.
@@ -82,23 +84,26 @@ def validate_api_limit_value(api_limit: str, api_count: int) -> tuple[str, str |
             return "", EXCEPTION_LIMIT_NOT_NUMBER
         if int(q) < 1:
             return "", EXCEPTION_LIMIT_ONE_OR_GREATER
+        if not allow_exceed and int(q) > 50:
+            return "", EXCEPTION_LIMIT_EXCEEDS_MAXIMUM
     if len(quotas) > api_count:
         return "", EXCEPTION_LIMIT_TOO_MANY
     return ",".join(quotas), None
 
 
-def validate_api_limit(user_input: dict[str, Any], api_count: int) -> tuple[str, str | None]:
+def validate_api_limit(user_input: dict[str, Any], api_count: int, allow_exceed: bool = False) -> tuple[str, str | None]:
     """Validate the API limit from user input dict.
 
     Arguments:
         user_input (dict[str, Any]): The user input.
         api_count (int): The number of API keys.
+        allow_exceed (bool): Whether to allow exceeding the maximum.
 
     Returns:
         tuple[str, str | None]: The API limit, and abort result.
 
     """
-    return validate_api_limit_value(user_input[API_LIMIT], api_count)
+    return validate_api_limit_value(user_input[API_LIMIT], api_count, allow_exceed)
 
 
 def validate_hard_limit_value(hard_limit: str, api_count: int) -> tuple[str, str | None]:

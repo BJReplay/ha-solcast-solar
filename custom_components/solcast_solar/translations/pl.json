@@ -12,7 +12,8 @@
       "api_looks_like_site": "Klucz API wygląda jak identyfikator witryny",
       "limit_not_number": "Limit API nie jest liczbą",
       "limit_one_or_greater": "Limit API musi wynosić jeden lub więcej",
-      "limit_too_many": "Wprowadzono więcej limitów API niż kluczy"
+      "limit_too_many": "Wprowadzono więcej limitów API niż kluczy",
+      "limit_exceeds_maximum": "Limit API nie może przekraczać 50."
     },
     "step": {
       "reauth_confirm": {
@@ -276,6 +277,9 @@
     },
     "set_options_empty": {
       "message": "Należy określić co najmniej jedną opcję."
+    },
+    "limit_exceeds_maximum": {
+      "message": "Limit API nie może przekraczać 50."
     }
   },
   "issues": {
@@ -362,7 +366,8 @@
       "hard_too_many": "Wprowadzono więcej sztywnych limitów niż kluczy",
       "limit_not_number": "Limit API nie jest liczbą",
       "limit_one_or_greater": "Limit API musi wynosić jeden lub więcej",
-      "limit_too_many": "Wprowadzono więcej limitów API niż kluczy"
+      "limit_too_many": "Wprowadzono więcej limitów API niż kluczy",
+      "limit_exceeds_maximum": "Limit API nie może przekraczać 50."
     },
     "step": {
       "dampen": {

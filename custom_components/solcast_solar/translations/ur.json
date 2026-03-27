@@ -12,7 +12,8 @@
       "api_looks_like_site": "API کلید سائٹ ID کی طرح نظر آتی ہے۔",
       "limit_not_number": "API کی حد نمبر نہیں ہے۔",
       "limit_one_or_greater": "API کی حد ایک یا اس سے زیادہ ہونی چاہیے۔",
-      "limit_too_many": "چابیاں سے زیادہ API کی حد کی تعداد درج کی گئی ہے۔"
+      "limit_too_many": "چابیاں سے زیادہ API کی حد کی تعداد درج کی گئی ہے۔",
+      "limit_exceeds_maximum": "API حد 50 سے زیادہ نہیں ہو سکتی۔"
     },
     "step": {
       "reauth_confirm": {
@@ -276,6 +277,9 @@
     },
     "set_options_empty": {
       "message": "کم از کم ایک آپشن بتانا ضروری ہے۔"
+    },
+    "limit_exceeds_maximum": {
+      "message": "API حد 50 سے زیادہ نہیں ہو سکتی۔"
     }
   },
   "issues": {
@@ -362,7 +366,8 @@
       "hard_too_many": "چابیاں سے زیادہ سخت حدود درج ہیں۔",
       "limit_not_number": "API کی حد نمبر نہیں ہے۔",
       "limit_one_or_greater": "API کی حد ایک یا اس سے زیادہ ہونی چاہیے۔",
-      "limit_too_many": "چابیاں سے زیادہ API کی حد کی تعداد درج کی گئی ہے۔"
+      "limit_too_many": "چابیاں سے زیادہ API کی حد کی تعداد درج کی گئی ہے۔",
+      "limit_exceeds_maximum": "API حد 50 سے زیادہ نہیں ہو سکتی۔"
     },
     "step": {
       "dampen": {

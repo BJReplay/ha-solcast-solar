@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import timezone
+import json
 import logging
 from pathlib import Path
 import traceback
@@ -35,6 +36,7 @@ from homeassistant.util import dt as dt_util
 
 from . import get_session_headers, get_version
 from .const import (
+    ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     AFFIRMATION_REAUTH_SUCCESSFUL,
     AFFIRMATION_RECONFIGURED,
     API_LIMIT,
@@ -49,6 +51,8 @@ from .const import (
     BRK_SITE,
     BRK_SITE_DETAILED,
     CONFIG_DAMP,
+    CONFIG_DISCRETE_NAME,
+    CONFIG_FOLDER_DISCRETE,
     CONFIG_VERSION,
     CUSTOM_HOURS,
     DEFAULT_SOLCAST_HTTPS_URL,
@@ -104,6 +108,32 @@ AUTO_UPDATE_OPTIONS: list[SelectOptionDict] = [
 async def _get_time_zone(hass: HomeAssistant) -> ZoneInfo | timezone:
     tz = await dt_util.async_get_time_zone(hass.config.time_zone)
     return tz if tz is not None else dt_util.UTC
+
+
+async def _async_is_allow_exceed_api_limit(hass: HomeAssistant) -> bool:
+    """Check if the allow exceed API limit advanced option is enabled.
+
+    Arguments:
+        hass: The Home Assistant instance.
+
+    Returns:
+        bool: True if the advanced option is enabled, False otherwise.
+
+    """
+    config_dir = Path(hass.config.config_dir)
+    advanced_dir = config_dir / CONFIG_DISCRETE_NAME if CONFIG_FOLDER_DISCRETE else config_dir
+    advanced_file = advanced_dir / "solcast-advanced.json"
+    if not advanced_file.exists():
+        return False
+    def _read_advanced_setting() -> bool:
+        with open(advanced_file, encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get(ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM, False)
+
+    try:
+        return await hass.async_add_executor_job(_read_advanced_setting)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return False
 
 
 async def validate_sites(hass: HomeAssistant, user_input: dict[str, Any]) -> tuple[int, str]:
@@ -244,7 +274,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             if abort is not None:
                 errors[BASE] = abort
             if not errors:
-                api_limit, abort = validate_api_limit(user_input, api_count)
+                api_limit, abort = validate_api_limit(user_input, api_count, allow_exceed=False)
                 if abort is not None:
                     errors[BASE] = abort
             if not errors:
@@ -305,7 +335,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             if abort is not None:
                 errors[BASE] = abort
             if not errors:
-                api_limit, abort = validate_api_limit(user_input, api_count)
+                api_limit, abort = validate_api_limit(user_input, api_count, allow_exceed=False)
                 if abort is not None:
                     errors[BASE] = abort
             if not errors:
@@ -461,7 +491,11 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     _LOGGER.debug("Options validation failed: %s", abort)
 
                 if not errors:
-                    all_config_data[API_LIMIT], abort = validate_api_limit(user_input, api_count)
+                    all_config_data[API_LIMIT], abort = validate_api_limit(
+                        user_input,
+                        api_count,
+                        allow_exceed=await _async_is_allow_exceed_api_limit(self.hass),
+                    )
                     if abort is not None:
                         errors[BASE] = abort
                         _LOGGER.debug("Options validation failed: %s", abort)

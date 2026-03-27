@@ -290,6 +290,14 @@ The adjustment will only apply to `ALL` factors, and not individual per-site dam
 
 ## General
 
+**Key: "allow_exceed_api_limit_maximum"**
+
+Possible values: boolean `true`/`false` (default `false`)
+
+The maximum configurable API limit is 50 by default. This value represents the maximum number of metered API calls that any Solcast hobbyist user has ever been able to make.
+
+Do not set this option unless you are a developer and want to utilise the Solcast API Simulator, where a much larger available limit is possible.
+
 **Key: "api_raise_issues"**
 
 Possible values: boolean `true`/`false` (default `true`)

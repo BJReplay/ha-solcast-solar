@@ -1415,6 +1415,7 @@ v4.5.2
 * Raise issue only once during 429 storms by @autoSteve
 * Avoid exception raised when estimated actual data missing by @autoSteve
 * Apply present dampening to missed historical estimated actuals by @autoSteve
+* Maximum configurable API limit of 50 (advanced to relax) by @autoSteve 
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.5.1...v4.5.2
 

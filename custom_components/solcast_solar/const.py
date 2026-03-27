@@ -21,6 +21,7 @@ ADVANCED_OPTION.LIST_DICT = "list_dict"
 ADVANCED_OPTION.STR = "str"
 ADVANCED_OPTION.TIME = "time"
 ADVANCED_TYPE: Final[str] = "type"
+ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM: Final[str] = "allow_exceed_api_limit_maximum"
 ADVANCED_API_RAISE_ISSUES: Final[str] = "api_raise_issues"
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: Final[str] = "automated_dampening_adaptive_model_configuration"
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: Final[str] = "automated_dampening_adaptive_model_exclude"
@@ -219,6 +220,7 @@ EXCEPTION_INTERNAL_ERROR: Final[str] = "internal_error"
 EXCEPTION_LIMIT_NOT_NUMBER: Final[str] = "limit_not_number"
 EXCEPTION_LIMIT_ONE_OR_GREATER: Final[str] = "limit_one_or_greater"
 EXCEPTION_LIMIT_TOO_MANY: Final[str] = "limit_too_many"
+EXCEPTION_LIMIT_EXCEEDS_MAXIMUM: Final[str] = "limit_exceeds_maximum"
 EXCEPTION_SET_OPTIONS_EMPTY: Final[str] = "set_options_empty"
 EXCEPTION_SINGLE_INSTANCE_ALLOWED: Final[str] = "single_instance_allowed"
 EXCLUDE_SITES: Final[str] = "exclude_sites"
@@ -384,6 +386,11 @@ VERSION: Final[str] = "version"
 
 
 ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
+    ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM: {
+        ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
+        DEFAULT: False,
+        ALIASES: [{NAME: "allow_exceed_api_limit", DEPRECATED: True}],
+    },
     ADVANCED_API_RAISE_ISSUES: {ADVANCED_TYPE: ADVANCED_OPTION.BOOL, DEFAULT: True},
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
