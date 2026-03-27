@@ -125,6 +125,7 @@ async def _async_is_allow_exceed_api_limit(hass: HomeAssistant) -> bool:
     advanced_file = advanced_dir / "solcast-advanced.json"
     if not advanced_file.exists():
         return False
+
     def _read_advanced_setting() -> bool:
         with open(advanced_file, encoding="utf-8") as f:
             data = json.load(f)
