@@ -10,7 +10,7 @@
       "api_duplicate": "Duplicate API key specified",
       "api_key_empty": "API key must not be empty",
       "api_looks_like_site": "API key looks like a site ID",
-      "limit_exceeds_maximum": "API limit cannot exceed 50.",
+      "limit_exceeds_maximum": "API limit cannot exceed 50 (and likely should be 10 or less).",
       "limit_not_number": "API limit is not a number",
       "limit_one_or_greater": "API limit must be one or greater",
       "limit_too_many": "There are more API limit counts entered than keys"
@@ -264,7 +264,7 @@
       "message": "The use actuals value must be 0, 1, or 2."
     },
     "limit_exceeds_maximum": {
-      "message": "API limit cannot exceed 50."
+      "message": "API limit cannot exceed 50 (and likely should be 10 or less)."
     },
     "limit_not_number": {
       "message": "API limit is not a number."
@@ -364,7 +364,7 @@
       "generation_mixed_types": "PV generation entities must all be the same type (all energy or all power, not a mix)",
       "hard_not_positive_number": "Hard limit is not a positive number",
       "hard_too_many": "There are more hard limits entered than keys",
-      "limit_exceeds_maximum": "API limit cannot exceed 50.",
+      "limit_exceeds_maximum": "API limit cannot exceed 50 (and likely should be 10 or less).",
       "limit_not_number": "API limit is not a number",
       "limit_one_or_greater": "API limit must be one or greater",
       "limit_too_many": "There are more API limit counts entered than keys"

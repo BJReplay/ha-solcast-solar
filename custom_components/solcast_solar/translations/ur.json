@@ -13,7 +13,7 @@
       "limit_not_number": "API کی حد نمبر نہیں ہے۔",
       "limit_one_or_greater": "API کی حد ایک یا اس سے زیادہ ہونی چاہیے۔",
       "limit_too_many": "چابیاں سے زیادہ API کی حد کی تعداد درج کی گئی ہے۔",
-      "limit_exceeds_maximum": "API حد 50 سے زیادہ نہیں ہو سکتی۔"
+      "limit_exceeds_maximum": "API حد 50 سے زیادہ نہیں ہو سکتی (اور غالباً 10 یا اس سے کم ہونی چاہیے)۔"
     },
     "step": {
       "reauth_confirm": {
@@ -279,7 +279,7 @@
       "message": "کم از کم ایک آپشن بتانا ضروری ہے۔"
     },
     "limit_exceeds_maximum": {
-      "message": "API حد 50 سے زیادہ نہیں ہو سکتی۔"
+      "message": "API حد 50 سے زیادہ نہیں ہو سکتی (اور غالباً 10 یا اس سے کم ہونی چاہیے)۔"
     }
   },
   "issues": {
@@ -367,7 +367,7 @@
       "limit_not_number": "API کی حد نمبر نہیں ہے۔",
       "limit_one_or_greater": "API کی حد ایک یا اس سے زیادہ ہونی چاہیے۔",
       "limit_too_many": "چابیاں سے زیادہ API کی حد کی تعداد درج کی گئی ہے۔",
-      "limit_exceeds_maximum": "API حد 50 سے زیادہ نہیں ہو سکتی۔"
+      "limit_exceeds_maximum": "API حد 50 سے زیادہ نہیں ہو سکتی (اور غالباً 10 یا اس سے کم ہونی چاہیے)۔"
     },
     "step": {
       "dampen": {

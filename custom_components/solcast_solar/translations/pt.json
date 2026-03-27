@@ -13,7 +13,7 @@
       "limit_not_number": "O limite da API não é um número",
       "limit_one_or_greater": "O limite da API deve ser um ou maior",
       "limit_too_many": "Há mais contagens de limite de API inseridas do que chaves",
-      "limit_exceeds_maximum": "O limite da API não pode exceder 50."
+      "limit_exceeds_maximum": "O limite da API não pode exceder 50 (e provavelmente deve ser 10 ou menos)."
     },
     "step": {
       "reauth_confirm": {
@@ -279,7 +279,7 @@
       "message": "Pelo menos uma opção deve ser especificada."
     },
     "limit_exceeds_maximum": {
-      "message": "O limite da API não pode exceder 50."
+      "message": "O limite da API não pode exceder 50 (e provavelmente deve ser 10 ou menos)."
     }
   },
   "issues": {
@@ -367,7 +367,7 @@
       "limit_not_number": "O limite da API não é um número",
       "limit_one_or_greater": "O limite da API deve ser um ou maior",
       "limit_too_many": "Há mais contagens de limite de API inseridas do que chaves",
-      "limit_exceeds_maximum": "O limite da API não pode exceder 50."
+      "limit_exceeds_maximum": "O limite da API não pode exceder 50 (e provavelmente deve ser 10 ou menos)."
     },
     "step": {
       "dampen": {

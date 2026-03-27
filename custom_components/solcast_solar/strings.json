@@ -13,7 +13,7 @@
       "limit_not_number": "API limit is not a number",
       "limit_one_or_greater": "API limit must be one or greater",
       "limit_too_many": "There are more API limit counts entered than keys",
-      "limit_exceeds_maximum": "API limit cannot exceed 50."
+      "limit_exceeds_maximum": "API limit cannot exceed 50 (and likely should be 10 or less)."
     },
     "step": {
       "reauth_confirm": {
@@ -273,7 +273,7 @@
       "message": "There are more API limit counts entered than keys."
     },
     "limit_exceeds_maximum": {
-      "message": "API limit cannot exceed 50."
+      "message": "API limit cannot exceed 50 (and likely should be 10 or less)."
     },
     "remove_cache_failed": {
       "message": "Clear all Solcast data failed."
@@ -367,7 +367,7 @@
       "limit_not_number": "API limit is not a number",
       "limit_one_or_greater": "API limit must be one or greater",
       "limit_too_many": "There are more API limit counts entered than keys",
-      "limit_exceeds_maximum": "API limit cannot exceed 50."
+      "limit_exceeds_maximum": "API limit cannot exceed 50 (and likely should be 10 or less)."
     },
     "step": {
       "dampen": {

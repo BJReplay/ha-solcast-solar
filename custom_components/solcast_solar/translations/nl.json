@@ -13,7 +13,7 @@
       "limit_not_number": "API-limiet is geen getal",
       "limit_one_or_greater": "De API-limiet moet één of hoger zijn",
       "limit_too_many": "Er zijn meer API-limietwaarden ingevoerd dan sleutels",
-      "limit_exceeds_maximum": "De API-limiet mag niet hoger zijn dan 50."
+      "limit_exceeds_maximum": "De API-limiet mag niet hoger zijn dan 50 (en zou waarschijnlijk 10 of minder moeten zijn)."
     },
     "step": {
       "reauth_confirm": {
@@ -279,7 +279,7 @@
       "message": "Er moet minimaal één optie worden opgegeven."
     },
     "limit_exceeds_maximum": {
-      "message": "De API-limiet mag niet hoger zijn dan 50."
+      "message": "De API-limiet mag niet hoger zijn dan 50 (en zou waarschijnlijk 10 of minder moeten zijn)."
     }
   },
   "issues": {
@@ -367,7 +367,7 @@
       "limit_not_number": "API-limiet is geen getal",
       "limit_one_or_greater": "API-limiet moet één of meer zijn",
       "limit_too_many": "Er zijn meer API-limietwaarden ingevoerd dan API-sleutels",
-      "limit_exceeds_maximum": "De API-limiet mag niet hoger zijn dan 50."
+      "limit_exceeds_maximum": "De API-limiet mag niet hoger zijn dan 50 (en zou waarschijnlijk 10 of minder moeten zijn)."
     },
     "step": {
       "dampen": {

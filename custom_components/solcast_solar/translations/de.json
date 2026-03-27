@@ -13,7 +13,7 @@
       "limit_not_number": "Das API-Limit ist keine Zahl",
       "limit_one_or_greater": "Das API-Limit muss eins oder größer sein",
       "limit_too_many": "Es wurden mehr API-Limit-Zähler als Schlüssel eingegeben",
-      "limit_exceeds_maximum": "Das API-Limit darf 50 nicht überschreiten."
+      "limit_exceeds_maximum": "Das API-Limit darf 50 nicht überschreiten (und sollte wahrscheinlich 10 oder weniger betragen)."
     },
     "step": {
       "reauth_confirm": {
@@ -279,7 +279,7 @@
       "message": "Mindestens eine Option muss angegeben werden."
     },
     "limit_exceeds_maximum": {
-      "message": "Das API-Limit darf 50 nicht überschreiten."
+      "message": "Das API-Limit darf 50 nicht überschreiten (und sollte wahrscheinlich 10 oder weniger betragen)."
     }
   },
   "issues": {
@@ -367,7 +367,7 @@
       "limit_not_number": "Das API-Limit ist keine Zahl",
       "limit_one_or_greater": "Das API-Limit muss eins oder größer sein",
       "limit_too_many": "Es wurden mehr API-Limit-Zähler als Schlüssel eingegeben",
-      "limit_exceeds_maximum": "Das API-Limit darf 50 nicht überschreiten."
+      "limit_exceeds_maximum": "Das API-Limit darf 50 nicht überschreiten (und sollte wahrscheinlich 10 oder weniger betragen)."
     },
     "step": {
       "dampen": {
