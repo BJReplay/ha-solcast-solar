@@ -49,6 +49,7 @@ ADVANCED_FORECAST_FUTURE_DAYS: Final[str] = "forecast_future_days"
 ADVANCED_FORECAST_DAY_ENTITIES: Final[str] = "forecast_day_entities"
 ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: Final[str] = "granular_dampening_delta_adjustment"
 ADVANCED_HISTORY_MAX_DAYS: Final[str] = "history_max_days"
+ADVANCED_LOG_UPDATE_FAILURE_ONLY: Final[str] = "log_update_failure_only"
 ADVANCED_RELOAD_ON_ADVANCED_CHANGE: Final[str] = "reload_on_advanced_change"
 ADVANCED_SOLCAST_URL: Final[str] = "solcast_url"
 ADVANCED_TRIGGER_ON_API_AVAILABLE: Final[str] = "trigger_on_api_available"
@@ -524,6 +525,7 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
             }
         ],
     },
+    ADVANCED_LOG_UPDATE_FAILURE_ONLY: {ADVANCED_TYPE: ADVANCED_OPTION.BOOL, DEFAULT: False},
     ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: {
         ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
         DEFAULT: DEFAULT_GRANULAR_DAMPENING_DELTA_ADJUSTMENT,

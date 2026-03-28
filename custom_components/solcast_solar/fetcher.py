@@ -25,6 +25,7 @@ from homeassistant.helpers import issue_registry as ir
 from .const import (
     ADVANCED_FORECAST_FUTURE_DAYS,
     ADVANCED_HISTORY_MAX_DAYS,
+    ADVANCED_LOG_UPDATE_FAILURE_ONLY,
     ADVANCED_SOLCAST_URL,
     ADVANCED_TRIGGER_ON_API_AVAILABLE,
     ADVANCED_TRIGGER_ON_API_UNAVAILABLE,
@@ -112,13 +113,17 @@ class Fetcher:
             if self.api.status == SolcastApiStatus.OK and not await self.api.build_forecast_data():
                 self.api.status = SolcastApiStatus.BUILD_FAILED_FORECASTS
                 success = False
-                _LOGGER.error("Failed to build forecast data")
+                (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(
+                    "Failed to build forecast data"
+                )
                 if raise_exc:
                     raise_and_record(self.api.hass, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_FORECASTS)
             if self.api.status == SolcastApiStatus.OK and self.api.options.get_actuals and not await self.api.build_actual_data():
                 self.api.status = SolcastApiStatus.BUILD_FAILED_ACTUALS
                 success = False
-                _LOGGER.error("Failed to build estimated actuals data")
+                (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(
+                    "Failed to build estimated actuals data"
+                )
                 if raise_exc:
                     raise_and_record(self.api.hass, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_ACTUALS)
         return success
@@ -223,7 +228,9 @@ class Fetcher:
             await self.api.dampening.apply_yesterday()
 
         if status != DataCallStatus.SUCCESS:
-            _LOGGER.error("Update estimated actuals failed: %s", reason)
+            (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(
+                "Update estimated actuals failed: %s", reason
+            )
         else:
             self.api.data_actuals[LAST_UPDATED] = dt.now(UTC).replace(microsecond=0)
             self.api.data_actuals[LAST_ATTEMPT] = dt.now(UTC).replace(microsecond=0)
@@ -556,11 +563,11 @@ class Fetcher:
         if force:
             forced = self.api.data[SUCCESS][SUCCESS_FORCED]
             forced[key] = forced.get(key, 0) + 1
-            _LOGGER.debug("Incremented forced success count for API key ending %s, now %d", redact_api_key(api_key), forced[key])
+            _LOGGER.debug("Forced API counter for %s incremented from %d to %d", redact_api_key(api_key), forced[key] - 1, forced[key])
         else:
             tracked = self.api.data[SUCCESS][SUCCESS_TRACKED]
             tracked[key] = tracked.get(key, 0) + 1
-            _LOGGER.debug("Incremented tracked success count for API key ending %s, now %d", redact_api_key(api_key), tracked[key])
+            # Tracked increments are already logged.
 
     async def fetch_data(  # noqa: C901
         self,
@@ -661,12 +668,14 @@ class Fetcher:
                                 else:
                                     received_429 += 1
                             if counter >= tries:
-                                _LOGGER.error("API was tried %d times, but all attempts failed", tries)
+                                (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(
+                                    "API was tried %d times, but all attempts failed", tries
+                                )
                                 break
                             # Integration fetch is in a possibly recoverable state, so delay (15 seconds * counter),
                             # plus a random number of seconds between zero and 15.
                             delay: int = (counter * backoff) + random.randrange(0, 15)
-                            _LOGGER.warning(
+                            (_LOGGER.debug if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.warning)(
                                 "Call status %s, pausing %d seconds before retry",
                                 http_status_translate(status),
                                 delay,
@@ -676,14 +685,14 @@ class Fetcher:
                         if status == 200:
                             if not force:
                                 _LOGGER.debug(
-                                    "API returned data, API counter incremented from %d to %d",
+                                    "API returned data, tracked API counter incremented from %d to %d",
                                     self.api.api_used[api_key],
                                     self.api.api_used[api_key] + 1,
                                 )
                                 self.api.api_used[api_key] += 1
                                 await self.api.sites_cache.serialise_usage(api_key)
                             else:
-                                _LOGGER.debug("API returned data, using force fetch so not incrementing API counter")
+                                _LOGGER.debug("API returned data")
                             response_json = response_text
                             response_json = json.loads(response_json)
                             if issue_registry.async_get_issue(DOMAIN, ISSUE_API_UNAVAILABLE) is not None:

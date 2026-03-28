@@ -1411,10 +1411,11 @@ Latest minor/patch releases.
 
 v4.5.2
 
+* Add advanced option log_update_failure_only by @autoSteve
+* Fix exception raised when estimated actual data missing by @autoSteve
 * Fix documentation error for advanced option api_raise_issues by @autoSteve
-* Raise issue only once during 429 storms by @autoSteve
-* Avoid exception raised when estimated actual data missing by @autoSteve
 * Apply present dampening to missed historical estimated actuals by @autoSteve
+* Raise issue only once during 429 storms by @autoSteve
 * Maximum configurable API limit of 50 (advanced to relax) by @autoSteve 
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.5.1...v4.5.2

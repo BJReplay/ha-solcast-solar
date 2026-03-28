@@ -314,6 +314,12 @@ By default the value set in entities is not logged. This option enables that at 
 
 An integration reload is required.
 
+**Key: “log_update_failure_only”**
+
+Possible values: boolean `true`/`false` (default `false`)
+
+By default logging of forecast and estimated actuals attempts produces `WARNING` level messages for retries, with a final `ERROR` message on complete failure. By setting this option to `true` the integration will not log intermediate `WARNING` level retry messages, and will conclude with a final `WARNING` that the update has not been successful.
+
 **Key: "reload_on_advanced_change"**
 
 Possible values: boolean `true`/`false` (default `false`)
