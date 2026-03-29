@@ -71,6 +71,8 @@ from .util import (
     AutoUpdate,
     DataCallStatus,
     SolcastApiStatus,
+    UpdateOutcome,
+    UpdateResult,
     async_trigger_automation_by_name,
     forecast_entry_update,
     http_status_translate,
@@ -242,7 +244,7 @@ class Fetcher:
 
         _LOGGER.debug("Task update_estimated_actuals took %.3f seconds", time.time() - start_time)
 
-    async def get_forecast_update(self, do_past_hours: int = 0, force: bool = False) -> str:
+    async def get_forecast_update(self, do_past_hours: int = 0, force: bool = False) -> UpdateResult:
         """Request forecast data for all sites.
 
         Arguments:
@@ -250,7 +252,7 @@ class Fetcher:
             force (bool): A forced update, which does not update the internal API use counter.
 
         Returns:
-            str: An error message, or an empty string for no error.
+            UpdateResult: A typed outcome and a message.
         """
         last_attempt = dt.now(UTC)
         status = ""
@@ -266,7 +268,7 @@ class Fetcher:
                 _LOGGER.warning(status)
                 if self._next_update is not None:
                     _LOGGER.info("Forecast update suppressed%s", next_update())
-                return status
+                return UpdateResult(UpdateOutcome.SKIPPED, status)
 
         await self.api.dampening.refresh_granular_data()
 
@@ -299,7 +301,7 @@ class Fetcher:
                 break
             if result == DataCallStatus.ABORT:
                 _LOGGER.info("Forecast update aborted%s", next_update())
-                return ""
+                return UpdateResult(UpdateOutcome.ABORTED, "Forecast update aborted")
             if result == DataCallStatus.SUCCESS:
                 sites_succeeded += 1
                 self.increment_success_count(force, site[API_KEY])
@@ -332,9 +334,9 @@ class Fetcher:
             if b_status and s_status:
                 _LOGGER.info("Forecast update completed successfully%s", next_update())
         else:
-            _LOGGER.warning("Forecast has not been updated%s", next_update())
+            _LOGGER.warning("Forecast has not been updated: %s%s", reason, next_update())
             status = f"At least one site forecast get failed: {reason}"
-        return status
+        return UpdateResult(UpdateOutcome.SUCCESS if status == "" else UpdateOutcome.FAILED, status)
 
     def set_next_update(self, next_update: str | None) -> None:
         """Set the next update time.
@@ -474,6 +476,8 @@ class Fetcher:
             if not isinstance(response, dict):
                 failure = True
                 _LOGGER.debug("API did not return a json object. Returned %s", response)
+                if isinstance(response, str) and response:
+                    return DataCallStatus.FAIL, response
                 return DataCallStatus.FAIL, "No valid json returned"
 
             latest_forecasts = response.get(FORECASTS, [])
@@ -591,6 +595,7 @@ class Fetcher:
         """
         response_text = ""
         received_429: int = 0
+        failure_reason: str | None = None
 
         try:
             if api_key is not None and site is not None:
@@ -668,9 +673,9 @@ class Fetcher:
                                 else:
                                     received_429 += 1
                             if counter >= tries:
-                                (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(
-                                    "API was tried %d times, but all attempts failed", tries
-                                )
+                                failure_reason = f"{http_status_translate(status)} after {tries} attempts"
+                                if not self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY]:
+                                    _LOGGER.error("API was tried %d times, but all attempts failed", tries)
                                 break
                             # Integration fetch is in a possibly recoverable state, so delay (15 seconds * counter),
                             # plus a random number of seconds between zero and 15.
@@ -719,7 +724,7 @@ class Fetcher:
                         elif status == 1000:  # Unexpected response.
                             _LOGGER.error("Unexpected response received")
                         else:  # Other, or unknown status.
-                            _LOGGER.error(
+                            (_LOGGER.debug if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(
                                 "Call status %s, API used is %d/%d",
                                 http_status_translate(status),
                                 self.api.api_used[api_key],
@@ -756,5 +761,8 @@ class Fetcher:
             _LOGGER.info("Fetch cancelled")
         except json.decoder.JSONDecodeError:
             return response_text
+
+        if failure_reason is not None:
+            return failure_reason
 
         return None

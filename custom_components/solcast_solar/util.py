@@ -119,6 +119,22 @@ class DataCallStatus(Enum):
     ABORT = 2
 
 
+class UpdateOutcome(Enum):
+    """The result of an update attempt."""
+
+    SUCCESS = 0
+    FAILED = 1
+    ABORTED = 2
+    SKIPPED = 3
+
+
+class UpdateResult(NamedTuple):
+    """Result payload for update attempts."""
+
+    outcome: UpdateOutcome
+    message: str
+
+
 class SitesStatus(Enum):
     """The state of load sites."""
 

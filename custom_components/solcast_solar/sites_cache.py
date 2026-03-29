@@ -77,6 +77,7 @@ from .util import (
     SchemaIncompatibleError,
     SitesStatus,
     SolcastApiStatus,
+    UpdateResult,
     UsageStatus,
     check_unusual_azimuth,
     clear_cache,
@@ -598,7 +599,8 @@ class SitesCache:
                     # No file to load.
                     _LOGGER.warning("There is no solcast.json to load, so fetching solar forecast, including past forecasts")
                     # Could be a brand new install of the integration, or the file has been removed. Get the forecast and past actuals.
-                    self.api.status_message = await self.api.fetcher.get_forecast_update(do_past_hours=168)
+                    result: UpdateResult = await self.api.fetcher.get_forecast_update(do_past_hours=168)
+                    self.api.status_message = result.message
                     if self.api.status_message != "":
                         return False
                     self.api.loaded_data = True

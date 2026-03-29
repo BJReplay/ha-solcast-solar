@@ -16,6 +16,7 @@ from homeassistant.components.solcast_solar.const import (
     DOMAIN,
     SERVICE_FORCE_UPDATE_FORECASTS,
 )
+from homeassistant.components.solcast_solar.util import UpdateOutcome, UpdateResult
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 
@@ -130,7 +131,7 @@ async def test_forecast_retry(
 
         assert "API was tried 10 times, but all attempts failed" in caplog.text
         _occurs_in_log(caplog, "Call status 429/Try again later", 10)
-        assert "Forecast has not been updated, next auto update at" in caplog.text
+        assert "Forecast has not been updated: 429/Try again later after 10 attempts, next auto update at" in caplog.text
         assert "Completed task pending_update_009" in caplog.text
         assert "Raise issue for api_unavailable" in caplog.text
         await solcast.tasks_cancel()
@@ -160,9 +161,8 @@ async def test_log_update_failure_only_enabled(
 ) -> None:
     """Test retry mechanism with log_update_failure_only enabled.
 
-    Retry messages must be at DEBUG level; the final failure summary must be
-    WARNING (not ERROR), and the 'Forecast has not been updated' message must
-    remain at WARNING level.
+    Retry messages must be at DEBUG level, and the only forecast-update
+    warning must be the final summary containing the failure reason.
     """
 
     try:
@@ -199,13 +199,52 @@ async def test_log_update_failure_only_enabled(
 
         # Retry-related messages must be logged at DEBUG (not WARNING).
         assert _log_level_for(caplog, "Call status 429/Try again later, pausing") == logging.DEBUG
-        # The final per-attempt exhaustion must be WARNING (not ERROR).
-        assert _log_level_for(caplog, "API was tried 10 times, but all attempts failed") == logging.WARNING
-        # The overall forecast-not-updated summary stays WARNING.
-        assert _log_level_for(caplog, "Forecast has not been updated, next auto update at") == logging.WARNING
+        # API usage status must not be logged as ERROR when enabled.
+        assert _log_level_for(caplog, "Call status 429/Try again later, API used is") == logging.DEBUG
+        # Retry exhaustion should not produce an extra log line when enabled.
+        assert "API was tried 10 times, but all attempts failed" not in caplog.text
+        # The overall forecast-not-updated summary stays WARNING and carries the reason.
+        assert (
+            _log_level_for(
+                caplog,
+                "Forecast has not been updated: 429/Try again later after 10 attempts, next auto update at",
+            )
+            == logging.WARNING
+        )
 
         await solcast.tasks_cancel()
         await coordinator.tasks_cancel()
+
+    finally:
+        await async_cleanup_integration_tests(hass)
+
+
+@pytest.mark.asyncio
+async def test_forecast_abort_does_not_build_actuals(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+) -> None:
+    """Ensure aborted forecast updates do not rebuild estimated actual data."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        coordinator = entry.runtime_data.coordinator
+
+        with (
+            mock.patch.object(
+                coordinator.solcast.fetcher,
+                "get_forecast_update",
+                new=mock.AsyncMock(return_value=UpdateResult(UpdateOutcome.ABORTED, "Forecast update aborted")),
+            ),
+            mock.patch.object(
+                coordinator.solcast,
+                "build_actual_data",
+                new=mock.AsyncMock(return_value=True),
+            ) as build_actual_data,
+        ):
+            await coordinator._updater.forecast_update(completion="Completed task update")
+
+        build_actual_data.assert_not_awaited()
 
     finally:
         await async_cleanup_integration_tests(hass)

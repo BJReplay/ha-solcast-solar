@@ -36,7 +36,7 @@ from .const import (
     TASK_NEW_DAY_ACTUALS,
     TASK_NEW_DAY_GENERATION,
 )
-from .util import AutoUpdate, ordinal
+from .util import AutoUpdate, UpdateOutcome, UpdateResult, ordinal
 
 if TYPE_CHECKING:
     from .coordinator import SolcastUpdateCoordinator
@@ -264,6 +264,7 @@ class Updater:
     async def forecast_update(self, force: bool = False, completion: str = "", need_history_hours: int = 0) -> None:
         """Get updated forecast data."""
 
+        status = UpdateResult(UpdateOutcome.SUCCESS, "")
         try:
             _LOGGER.debug("Started task %s", "update" if completion == "" else completion.replace("Completed task ", ""))
             _LOGGER.debug("Checking for stale usage cache")
@@ -272,7 +273,10 @@ class Updater:
                 await self._coordinator.solcast.sites_cache.reset_usage_cache()
                 await self._coordinator.restart_time_track_midnight_update()
 
-            await self._coordinator.solcast.fetcher.get_forecast_update(do_past_hours=need_history_hours, force=force)
+            status = await self._coordinator.solcast.fetcher.get_forecast_update(
+                do_past_hours=need_history_hours,
+                force=force,
+            )
 
             self._coordinator.set_data_updated(True)
             await self._coordinator.update_integration_listeners()
@@ -284,7 +288,8 @@ class Updater:
             with contextlib.suppress(Exception):
                 # Clean up a task created by a service call action
                 self._coordinator.tasks.pop(TASK_FORECASTS_FETCH_IMMEDIATE, None)
-                await self._coordinator.solcast.build_actual_data()
+                if status.outcome is not UpdateOutcome.ABORTED:
+                    await self._coordinator.solcast.build_actual_data()
 
     def _get_minute_of_day(self, time_point: dt) -> int:
         """Get the minute of the day for a given time point."""
