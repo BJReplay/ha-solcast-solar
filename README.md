@@ -1412,6 +1412,7 @@ Latest minor/patch releases.
 v4.5.2
 
 * Add advanced option log_update_failure_only by @autoSteve
+* Add Japanese translation by @autoSteve
 * Fix exception raised when estimated actual data missing by @autoSteve
 * Fix documentation error for advanced option api_raise_issues by @autoSteve
 * Apply present dampening to missed historical estimated actuals by @autoSteve

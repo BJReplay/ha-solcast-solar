@@ -1,0 +1,655 @@
+{
+  "config": {
+    "abort": {
+      "internal_error": "内部エラーが発生しました",
+      "reauth_successful": "新しいAPIキーが正常に適用されました",
+      "reconfigured": "新しい設定が正常に適用されました",
+      "single_instance_allowed": "Solcastインスタンスは1つだけ許可されています"
+    },
+    "error": {
+      "api_duplicate": "重複したAPIキーが指定されました",
+      "api_key_empty": "APIキーは空にすることはできません",
+      "api_looks_like_site": "APIキーがサイトIDのように見えます",
+      "limit_exceeds_maximum": "APIリミットは50を超えることはできません（10以下にすべきです）",
+      "limit_not_number": "APIリミットは数字ではありません",
+      "limit_one_or_greater": "APIリミットは1以上である必要があります",
+      "limit_too_many": "入力されたAPIリミットの数がキーの数より多いです"
+    },
+    "step": {
+      "reauth_confirm": {
+        "data": {
+          "api_key": "APIキー（複数の場合はコンマで区切る）"
+        },
+        "description": "SolcastアカウントのAPIキー"
+      },
+      "reconfigure_confirm": {
+        "data": {
+          "api_key": "APIキー（複数の場合はコンマで区切る）",
+          "api_limit": "APIリミット（オプションで複数のキーの場合コンマで区切る）",
+          "auto_update": "自動更新"
+        },
+        "description": "Solcastアカウントの詳細\n\n（自動更新を使用しない場合は、オートメーションが必要です。統合ドキュメントを参照してください）"
+      },
+      "user": {
+        "data": {
+          "api_key": "APIキー（複数の場合はコンマで区切る）",
+          "api_limit": "APIリミット（オプションで複数のキーの場合コンマで区切る）",
+          "auto_update": "自動更新"
+        },
+        "description": "Solcastアカウントの詳細\n\n（自動更新を使用しない場合は、オートメーションが必要です。統合ドキュメントを参照してください）\n\nこの統合を初期設定するには、Solcast APIが利用可能である必要があります。「429 / しばらく待ってください」というステータスメッセージが表示される場合、APIは利用できず、設定を完了できません。待つ必要があります。status.solcast.comのAPIステータスページではほぼ確実にAPIの問題がないことが表示されます。原因はおそらく、すべてのhobbyist に影響を与えている1人の悪いAPIユーザーにあります。"
+      }
+    }
+  },
+  "entity": {
+    "select": {
+      "estimate_mode": {
+        "name": "使用予報フィールド"
+      }
+    },
+    "sensor": {
+      "accuracy": {
+        "name": "精度"
+      },
+      "api_counter": {
+        "name": "API使用量"
+      },
+      "api_limit": {
+        "name": "APIリミット"
+      },
+      "dampen": {
+        "name": "ダンピング"
+      },
+      "forecast_custom_hours": {
+        "name": "次X時間の予報"
+      },
+      "forecast_next_hour": {
+        "name": "次の1時間の予報"
+      },
+      "forecast_remaining_today": {
+        "name": "今日の残り予報"
+      },
+      "forecast_this_hour": {
+        "name": "1時間の予報"
+      },
+      "hard_limit": {
+        "name": "ハードリミット設定"
+      },
+      "hard_limit_api": {
+        "name": "ハードリミット設定 {api_key}"
+      },
+      "last_updated": {
+        "name": "API最終ポーリング時刻"
+      },
+      "peak_w_time_today": {
+        "name": "今日のピーク時刻"
+      },
+      "peak_w_time_tomorrow": {
+        "name": "明日のピーク時刻"
+      },
+      "peak_w_today": {
+        "name": "今日のピーク予報"
+      },
+      "peak_w_tomorrow": {
+        "name": "明日のピーク予報"
+      },
+      "power_now": {
+        "name": "現在の電力"
+      },
+      "power_now_1hr": {
+        "name": "1時間後の電力"
+      },
+      "power_now_30m": {
+        "name": "30分後の電力"
+      },
+      "total_kwh_forecast_d10": {
+        "name": "予報 10日目"
+      },
+      "total_kwh_forecast_d11": {
+        "name": "予報 11日目"
+      },
+      "total_kwh_forecast_d12": {
+        "name": "予報 12日目"
+      },
+      "total_kwh_forecast_d13": {
+        "name": "予報 13日目"
+      },
+      "total_kwh_forecast_d3": {
+        "name": "予報 3日目"
+      },
+      "total_kwh_forecast_d4": {
+        "name": "予報 4日目"
+      },
+      "total_kwh_forecast_d5": {
+        "name": "予報 5日目"
+      },
+      "total_kwh_forecast_d6": {
+        "name": "予報 6日目"
+      },
+      "total_kwh_forecast_d7": {
+        "name": "予報 7日目"
+      },
+      "total_kwh_forecast_d8": {
+        "name": "予報 8日目"
+      },
+      "total_kwh_forecast_d9": {
+        "name": "予報 9日目"
+      },
+      "total_kwh_forecast_today": {
+        "name": "今日の予報"
+      },
+      "total_kwh_forecast_tomorrow": {
+        "name": "明日の予報"
+      }
+    }
+  },
+  "exceptions": {
+    "actuals_not_enabled": {
+      "message": "推定実績値の取得は有効化されていません。"
+    },
+    "actuals_without_get": {
+      "message": "推定実績値は取得なしでは使用できません。"
+    },
+    "api_duplicate": {
+      "message": "重複したAPIキーが指定されました。"
+    },
+    "api_key_empty": {
+      "message": "APIキーは空にすることはできません。"
+    },
+    "api_looks_like_site": {
+      "message": "APIキーがサイトIDのように見えます。"
+    },
+    "auto_use_force": {
+      "message": "自動更新が有効化されています。予報更新のサービスイベントを無視しています。代わりに強制更新を使用してください。"
+    },
+    "auto_use_normal": {
+      "message": "自動更新が有効化されていません。強制予報更新のサービスイベントを無視しています。代わりに更新を使用してください。"
+    },
+    "build_failed_actuals": {
+      "message": "推定実績値データの構築に失敗しました（config/solcast-actuals.json が破損していますか？）"
+    },
+    "build_failed_forecasts": {
+      "message": "予報データの構築に失敗しました（config/solcast.json が破損していますか？）"
+    },
+    "damp_auto_enabled": {
+      "message": "自動ダンピングが有効化されています。手動ダンピング係数を設定しません。"
+    },
+    "damp_count_not_correct": {
+      "message": "0.0と1.0の間に24または48のコンマ区切りの数値がありません。"
+    },
+    "damp_error_parsing": {
+      "message": "ダンピング係数のコンマ区切りの数値の解析エラーです。"
+    },
+    "damp_no_all_24": {
+      "message": "サイトとして「all」を指定することは、24個の係数では許可されていません。リクエストからサイトを削除してください。"
+    },
+    "damp_no_factors": {
+      "message": "ダンピング係数がありません。0.0から1.0の間の数値のコンマ区切りリストである必要があります。"
+    },
+    "damp_not_for_site": {
+      "message": "サイトダンピングは {site} に対して設定されていません。"
+    },
+    "damp_not_site": {
+      "message": "設定されたサイトではありません。"
+    },
+    "damp_outside_range": {
+      "message": "0.0から1.0の間にないダンピング係数の値があります。"
+    },
+    "damp_use_all": {
+      "message": "サイトダンピングは {site} に対して設定されていません。「all」がサービス呼び出しで利用可能な唯一のサイトパラメータです。"
+    },
+    "dampen_without_actuals": {
+      "message": "自動ダンピングを使用するには、推定実績値を選択する必要があります。"
+    },
+    "dampen_without_generation": {
+      "message": "自動ダンピングを使用するには、少なくとも1つのPV発電センサーを指定する必要があります。"
+    },
+    "export_no_entity": {
+      "message": "サイトエクスポートリミットが設定されている場合、サイトエクスポートエンティティを指定する必要があります。"
+    },
+    "hard_empty": {
+      "message": "ハードリミット値が空です。"
+    },
+    "hard_not_positive_number": {
+      "message": "ハードリミット値は正の数字ではありません。"
+    },
+    "hard_too_many": {
+      "message": "APIキーの数より多くのハードリミットが指定されています。"
+    },
+    "init_cannot_get_sites": {
+      "message": "サイトデータを取得できませんでした。"
+    },
+    "init_cannot_get_sites_cache_invalid": {
+      "message": "サイトデータを取得できず、キャッシュが無効です。"
+    },
+    "init_corrupt": {
+      "message": "{file} のキャッシュデータが破損しています。削除または修復することをお勧めします。"
+    },
+    "init_incompatible": {
+      "message": "`{file}` のキャッシュデータは互換性がありません。削除することをお勧めします。"
+    },
+    "init_key_invalid": {
+      "message": "APIキーが無効です。"
+    },
+    "init_no_sites": {
+      "message": "APIキーに対してサイトが見つかりません。"
+    },
+    "init_unknown": {
+      "message": "サイトデータの読み込み中に例外が発生しました。"
+    },
+    "init_usage_corrupt": {
+      "message": "使用データが破損しています。`config/solcast_solar/solcast-usage.json` を確認するか削除してください。"
+    },
+    "integration_not_loaded": {
+      "message": "統合が読み込まれていません。アクションを実行しません。"
+    },
+    "integration_prior_crash": {
+      "message": "統合は以前の読み込みに失敗しました。遅延後に再度試行しています。"
+    },
+    "invalid_auto_update": {
+      "message": "自動更新値は0、1、または2である必要があります。"
+    },
+    "invalid_custom_hours_format": {
+      "message": "時間値は整数である必要があります。"
+    },
+    "invalid_custom_hours_range": {
+      "message": "時間値は1から144の間である必要があります。"
+    },
+    "invalid_export_limit": {
+      "message": "エクスポート制限は0.0から100.0の間の数値である必要があります。"
+    },
+    "invalid_key_estimate": {
+      "message": "推定値キーは estimate、estimate10、または estimate90 である必要があります。"
+    },
+    "invalid_use_actuals": {
+      "message": "実績値の使用は0、1、または2である必要があります。"
+    },
+    "limit_exceeds_maximum": {
+      "message": "APIリミットは50を超えることはできません（10以下にすべきです）。"
+    },
+    "limit_not_number": {
+      "message": "APIリミットは数字ではありません。"
+    },
+    "limit_one_or_greater": {
+      "message": "APIリミットは1以上である必要があります。"
+    },
+    "limit_too_many": {
+      "message": "入力されたAPIリミットの数がキーの数より多いです。"
+    },
+    "remove_cache_failed": {
+      "message": "すべてのSolcastデータのクリアに失敗しました。"
+    },
+    "set_options_empty": {
+      "message": "少なくとも1つのオプションを指定する必要があります。"
+    }
+  },
+  "issues": {
+    "action_deprecated": {
+      "description": "`{deprecated_action}` アクションは非推奨となり、将来のリリースで削除されます。代わりに `{new_action}` アクションを使用してください。",
+      "title": "非推奨アクション"
+    },
+    "actuals_api_limit": {
+      "description": "自動更新と推定実績値が有効化されていますが、APIリミットはhobbyist の最大値（`{configured_value}`）に設定されています。推定実績値は真夜中直後に収集され、設定されたAPIキーごとにサイトあたり1つのAPI呼び出しを使用します。推定実績値のために呼び出しを予約するため、APIリミットを `{suggested_value}` に減らしてください。",
+      "title": "推定実績値のAPIリミットを調整"
+    },
+    "advanced_deprecated": {
+      "description": "高度な設定オプション `{option}` が `{new_option}` に変更されました。新しいオプション名を使用するために、高度な設定オプションを更新してください。{stops_working}",
+      "title": "高度なオプションが非推奨"
+    },
+    "advanced_problem": {
+      "description": "高度な設定ファイルにエラーが含まれています。\n{problems}\n\nこれらを修正してください。「詳細情報から学ぶ」リンクの統合ドキュメントを参照してください。",
+      "title": "高度なオプションの問題"
+    },
+    "api_unavailable": {
+      "description": "Solcast APIが更新中に繰り返し「429 / しばらく待ってください」ステータスを報告しました。これは、Solcast APIが忙しく、hobbyist アカウントのリクエストを積極的にブロックしていることを意味します。\n\n* solcast.com Webサイトは影響を受けませんが、APIはあなたに一時的に利用できません。\n* status.solcast.com のAPIステータスページはほぼ確実にAPIの問題を示しません。\n* この状況を修正しようとしないでください。\n* APIキーを変更しないでください。\n* 統合のアップグレードを試みないでください。\n* 統合の再起動を避けてください。\n* 統合は、Solcastから取得した最後の太陽予報を提供し続けます。\n* これは統合の問題ではなく、自分自身で解決します。何も変更しないでください。\n\n（この問題を抑制するには、高度な設定オプション api_raise_issue を作成し、false に設定します。）",
+      "title": "Solcast API は一時的に利用できません"
+    },
+    "corrupt_file": {
+      "description": "キャッシュされたデータファイル `{files}` が破損しています。統合はファイルを削除して Solcast からデータを再取得することで、復旧を試みます。APIの使用量が増加し、APIの失敗が発生する可能性があり、この状況により予報履歴が失われます。バックアップからファイルを復旧することは可能ですが、それでもAPIの呼び出し失敗が予想されます。",
+      "title": "キャッシュデータが破損"
+    },
+    "records_missing": {
+      "description": "将来の予報データが不足しています。これは自動更新が有効化されているため予期外です。Home Assistant ログを確認して原因を調査してください。統合の問題を提起する前に、トラブルシューティングFAQをお読みください。",
+      "title": "将来の予報が不足"
+    },
+    "records_missing_fixable": {
+      "fix_flow": {
+        "abort": {
+          "reconfigured": "新しい設定が正常に適用されました"
+        },
+        "step": {
+          "offer_auto": {
+            "data": {
+              "auto_update": "自動更新"
+            },
+            "description": "予報更新のオートメーションが実行されていません。自動更新を有効化しますか？（詳細情報：{learn_more}）",
+            "title": "将来の予報が不足"
+          }
+        }
+      },
+      "title": "将来の予報が不足"
+    },
+    "records_missing_initial": {
+      "description": "予報ユーザー実績値データが不足しています。初期予報更新が発生しなかった可能性があります。これはおそらくAPIコール制限に達しているためです。センサーエンティティの問題が生じ、エネルギーダッシュボードにデータが不足する可能性があります。これは自分自身で解決します。",
+      "title": "予報が不足"
+    },
+    "records_missing_unfixable": {
+      "description": "将来の予報データが不足しており、これは予期外です。ログを確認してください。",
+      "title": "将来の予報が不足"
+    },
+    "unusual_azimuth_northern": {
+      "description": "サイト {site} の方位角は、この北半球の屋根の緯度については珍しいです。{extant} の代わりに {proposal} にすべきですか？（サイトが北向きの場合は、問題を無視してください。）",
+      "title": "珍しい方位角"
+    },
+    "unusual_azimuth_southern": {
+      "description": "サイト {site} の方位角は、この南半球の屋根の緯度については珍しいです。{extant} の代わりに {proposal} にすべきですか？（サイトが南向きの場合は、問題を無視してください。）",
+      "title": "珍しい方位角"
+    }
+  },
+  "options": {
+    "abort": {
+      "internal_error": "内部エラーが発生しました",
+      "reconfigured": "新しい設定が正常に適用されました"
+    },
+    "error": {
+      "actuals_not_enabled": "推定実績値の取得は有効化されていません",
+      "actuals_without_get": "推定実績値は取得なしでは使用できません",
+      "api_duplicate": "重複したAPIキーが指定されました",
+      "api_key_empty": "APIキーは空にすることはできません",
+      "api_looks_like_site": "APIキーがサイトIDのように見えます",
+      "custom_invalid": "カスタムセンサーは1から144の間にありません",
+      "dampen_without_actuals": "自動ダンピングを使用するには、推定実績値を選択する必要があります",
+      "dampen_without_generation": "自動ダンピングを使用するには、少なくとも1つのPV発電センサーを指定する必要があります（エネルギーまたは電力）",
+      "export_multiple_entities": "サイトエクスポートエンティティは複数のエンティティではなく、単一のエンティティである必要があります",
+      "export_no_entity": "サイトエクスポートリミットが設定されている場合は、サイトエクスポートエンティティを指定する必要があります",
+      "generation_mixed_types": "PV発電エンティティはすべて同じ型（すべてエネルギーまたはすべて電力、混在なし）である必要があります",
+      "hard_not_positive_number": "ハードリミットは正の数字ではありません",
+      "hard_too_many": "入力されたハードリミットの数がキーの数より多いです",
+      "limit_exceeds_maximum": "APIリミットは50を超えることはできません（10以下にすべきです）",
+      "limit_not_number": "APIリミットは数字ではありません",
+      "limit_one_or_greater": "APIリミットは1以上である必要があります",
+      "limit_too_many": "入力されたAPIリミットの数がキーの数より多いです"
+    },
+    "step": {
+      "dampen": {
+        "data": {
+          "damp00": "00:00",
+          "damp01": "01:00",
+          "damp02": "02:00",
+          "damp03": "03:00",
+          "damp04": "04:00",
+          "damp05": "05:00",
+          "damp06": "06:00",
+          "damp07": "07:00",
+          "damp08": "08:00",
+          "damp09": "09:00",
+          "damp10": "10:00",
+          "damp11": "11:00",
+          "damp12": "12:00",
+          "damp13": "13:00",
+          "damp14": "14:00",
+          "damp15": "15:00",
+          "damp16": "16:00",
+          "damp17": "17:00",
+          "damp18": "18:00",
+          "damp19": "19:00",
+          "damp20": "20:00",
+          "damp21": "21:00",
+          "damp22": "22:00",
+          "damp23": "23:00"
+        },
+        "description": "時間別のダンピング係数を変更"
+      },
+      "init": {
+        "data": {
+          "api_key": "APIキー（複数の場合はコンマで区切る）",
+          "api_limit": "APIリミット（オプションで複数のキーの場合コンマで区切る）",
+          "attr_brk_detailed": "サイト分析を有効化して、半時間ごと/時間ごとの詳細属性を有効にします（これらはデータベース状態属性に保存されません）",
+          "attr_brk_estimate": "推定値50センサー属性を有効化",
+          "attr_brk_estimate10": "推定値10センサー属性を有効化",
+          "attr_brk_estimate90": "推定値90センサー属性を有効化",
+          "attr_brk_halfhourly": "予報の半時間ごとの詳細属性を有効化",
+          "attr_brk_hourly": "予報の時間ごとの詳細属性を有効化",
+          "attr_brk_site": "サイト分析センサー属性を有効化",
+          "auto_dampen": "自動ダンピング（推定実績値とPV発電エンティティが必要です。統合ドキュメントを参照してください）",
+          "auto_update": "自動更新（自動更新を使用しない場合は、代わりにオートメーションを使用する必要があります）",
+          "config_damp": "時間別のダンピング係数を変更（送信をクリック後）",
+          "custom_hours": "カスタム次々X時間センサー（最小=1、最大=144）",
+          "exclude_sites": "エネルギーダッシュボードとセンサーの合計から除外するサイト",
+          "generation_entities": "自動ダンピング用のPV発電エンティティ（エネルギー：Wh/kWh/MWh合計増加、または電力：W/kW/MW瞬時値）",
+          "get_actuals": "真夜中に更新された推定実績値（統合ドキュメントを参照。サイトあたり1日1つのAPI呼び出しを使用するため、このオプションを有効化した場合は削減されたAPIリミットが必要です）",
+          "hard_limit_api": "インバータの硬リミット（kW）（統合ドキュメントを参照。各キーの場合コンマで区切る）",
+          "key_estimate": "センサーに使用する推定値の可能性を優先",
+          "site_damp": "粒度別ダンピングが設定されています：全体の時間別ダンピングに戻します。",
+          "site_export_entity": "自動ダンピング用のオプションサイトエクスポートエンティティ（Wh/kWh/MWh、合計増加）",
+          "site_export_limit": "サイトエクスポートが指定されている場合のサイトエクスポート制限（kW）",
+          "use_actuals": "エネルギーダッシュボードに表示する予報履歴"
+        },
+        "description": "Solcast設定オプション"
+      }
+    }
+  },
+  "selector": {
+    "auto_update": {
+      "options": {
+        "0": "予報の自動更新なし",
+        "1": "日出から日没までの予報の自動更新",
+        "2": "24時間の予報の自動更新"
+      }
+    },
+    "energy_history": {
+      "options": {
+        "0": "予報",
+        "1": "推定実績値",
+        "2": "ダンピングされた推定実績値"
+      }
+    },
+    "key_estimate": {
+      "options": {
+        "estimate": "中央の予想大量生産（推定値）",
+        "estimate10": "10パーセンタイルの予想大量生産（可能性の低い結果、推定値10）",
+        "estimate90": "90パーセンタイルの予想大量生産（可能性の高い結果、推定値90）"
+      }
+    }
+  },
+  "services": {
+    "clear_all_solcast_data": {
+      "description": "solcast.jsonファイルを削除して、すべての現在のsolcastサイトデータを削除します。",
+      "name": "保存されたすべてのSolcastデータをクリア"
+    },
+    "diagnostic": {
+      "description": "診断自己テストを実行して、API接続、キャッシュファイルの整合性、発電エンティティのアクセス可能性、および全体的な設定の健全性を検証します。",
+      "name": "診断自己テスト"
+    },
+    "force_update_estimates": {
+      "description": "Solcastから最新の推定実績値データを強制的に取得します。",
+      "name": "推定実績値を強制更新"
+    },
+    "force_update_forecasts": {
+      "description": "Solcastから最新の予報データを強制的に取得します。",
+      "name": "強制更新"
+    },
+    "get_dampening": {
+      "description": "予報のダンピング係数を取得します。",
+      "fields": {
+        "site": {
+          "description": "ダンピングを取得するオプションサイト。（注：粒度別ダンピングが有効化されていない場合は機能しません。）",
+          "name": "サイトID"
+        }
+      },
+      "name": "予報ダンピングを取得"
+    },
+    "get_options": {
+      "description": "現在の統合設定オプションを取得します。",
+      "name": "オプションを取得"
+    },
+    "query_estimate_data": {
+      "description": "特定のクエリのデータセットを返します。",
+      "fields": {
+        "end_date_time": {
+          "description": "推定実績値データイベントをこの日時までクエリします。",
+          "name": "終了日時"
+        },
+        "start_date_time": {
+          "description": "推定実績値データイベントをこの日時からクエリします。",
+          "name": "開始日時"
+        }
+      },
+      "name": "推定実績値データをクエリ"
+    },
+    "query_forecast_data": {
+      "description": "特定のクエリのデータセットを返します。",
+      "fields": {
+        "end_date_time": {
+          "description": "予報データイベントをこの日時までクエリします。",
+          "name": "終了日時"
+        },
+        "site": {
+          "description": "1つのサイト予報を取得するオプションサイト",
+          "name": "サイトID"
+        },
+        "start_date_time": {
+          "description": "予報データイベントをこの日時からクエリします。",
+          "name": "開始日時"
+        },
+        "undampened": {
+          "description": "ダンピングされていない予報を取得するオプションブール値",
+          "name": "ダンピングなし"
+        }
+      },
+      "name": "予報データをクエリ"
+    },
+    "remove_hard_limit": {
+      "description": "設定されたリミットを削除します。",
+      "name": "インバータ予報ハードリミットを削除"
+    },
+    "set_custom_hours": {
+      "description": "カスタムX時間センサーの時間数を設定します。",
+      "fields": {
+        "hours": {
+          "description": "設定する時間数（1-144）。",
+          "name": "時間"
+        }
+      },
+      "name": "カスタム時間センサーを設定"
+    },
+    "set_dampening": {
+      "description": "予報のダンピング係数を設定します。",
+      "fields": {
+        "damp_factor": {
+          "description": "ダンピング係数値のコンマ区切り文字列（24または48の値）。",
+          "name": "ダンピング文字列"
+        },
+        "site": {
+          "description": "サイト別のダンピングを設定するオプションサイト。（注：サイトを削除すると、48の値がない限りサイト別のダンピングがクリアされます。）",
+          "name": "サイトID"
+        }
+      },
+      "name": "予報ダンピングを設定"
+    },
+    "set_hard_limit": {
+      "description": "予報値がインバータが生成できるより高くないようにします。",
+      "fields": {
+        "hard_limit": {
+          "description": "インバータが生成できる最大値をワットで設定します。ハードリミットを無効化するには0を使用してください。",
+          "name": "ワット単位のリミット値"
+        }
+      },
+      "name": "インバータ予報ハードリミットを設定"
+    },
+    "set_options": {
+      "description": "1つ以上の統合設定オプションを設定します。",
+      "fields": {
+        "api_key": {
+          "description": "APIキー、複数の場合はコンマで区切る。",
+          "name": "APIキー"
+        },
+        "api_limit": {
+          "description": "APIリミット、複数のキーの場合コンマで区切る。",
+          "name": "APIリミット"
+        },
+        "attr_brk_detailed": {
+          "description": "半時間ごと、時間ごとの詳細属性のサイト分析を有効化。",
+          "name": "分析サイト詳細"
+        },
+        "attr_brk_estimate": {
+          "description": "推定値50センサー属性を有効化。",
+          "name": "分析推定値"
+        },
+        "attr_brk_estimate10": {
+          "description": "推定値10センサー属性を有効化。",
+          "name": "分析推定値10"
+        },
+        "attr_brk_estimate90": {
+          "description": "推定値90センサー属性を有効化。",
+          "name": "分析推定値90"
+        },
+        "attr_brk_halfhourly": {
+          "description": "予報の半時間ごとの詳細属性を有効化。",
+          "name": "分析半時間"
+        },
+        "attr_brk_hourly": {
+          "description": "予報の時間ごとの詳細属性を有効化。",
+          "name": "分析時間"
+        },
+        "attr_brk_site": {
+          "description": "サイト分析センサー属性を有効化。",
+          "name": "分析サイト"
+        },
+        "auto_dampen": {
+          "description": "自動ダンピングを有効化。",
+          "name": "自動ダンピング"
+        },
+        "auto_update": {
+          "description": "自動更新モード：0=なし、1=日出から日没、2=全日。",
+          "name": "自動更新"
+        },
+        "custom_hours": {
+          "description": "カスタム時間センサーの時間数（1-144）。",
+          "name": "カスタム時間"
+        },
+        "exclude_sites": {
+          "description": "除外するサイト、コンマで区切られたサイトID。",
+          "name": "サイトを除外"
+        },
+        "generation_entities": {
+          "description": "PV発電エンティティ、コンマで区切る。",
+          "name": "発電エンティティ"
+        },
+        "get_actuals": {
+          "description": "推定実績値の取得を有効化。",
+          "name": "実績値を取得"
+        },
+        "hard_limit": {
+          "description": "インバータハードリミット（ワット）、または無効化する場合は0または100。複数のキーの場合コンマで区切る。",
+          "name": "ハードリミット"
+        },
+        "key_estimate": {
+          "description": "推定値の優先順位：estimate、estimate10、または estimate90。",
+          "name": "推奨推定値"
+        },
+        "site_export_entity": {
+          "description": "自動ダンピング用のオプションサイトエクスポートエンティティ。",
+          "name": "サイトエクスポートエンティティ"
+        },
+        "site_export_limit": {
+          "description": "サイトエクスポート制限（kW）（0.0-100.0）。",
+          "name": "サイトエクスポート制限"
+        },
+        "use_actuals": {
+          "description": "エネルギーダッシュボード用の予報履歴：0=予報、1=実績値、2=ダンピングされた実績値。",
+          "name": "使用実績値"
+        }
+      },
+      "name": "オプションを設定"
+    },
+    "update_forecasts": {
+      "description": "Solcastから最新の予報データを取得します。",
+      "name": "更新"
+    }
+  },
+  "system_health": {
+    "info": {
+      "can_reach_server": "Solcastサーバー接続"
+    }
+  }
+}
