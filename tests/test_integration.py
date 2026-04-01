@@ -23,6 +23,7 @@ from voluptuous.error import MultipleInvalid
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     API_LIMIT,
     AUTO_DAMPEN,
     AUTO_UPDATE,
@@ -1190,6 +1191,21 @@ async def test_remaining_actions(
         _LOGGER.debug("Test set_options with invalid api_limit")
         with pytest.raises(ServiceValidationError):
             await hass.services.async_call(DOMAIN, "set_options", {"api_limit": "abc"}, blocking=True)
+
+        _LOGGER.debug("Test set_options with api_limit exceeding default maximum")
+        with pytest.raises(ServiceValidationError):
+            await hass.services.async_call(DOMAIN, "set_options", {"api_limit": "51"}, blocking=True)
+
+        _LOGGER.debug("Test set_options with api_limit exceeding maximum when advanced override is enabled")
+        base_config_dir = Path(hass.config.config_dir)
+        advanced_dir = base_config_dir / CONFIG_DISCRETE_NAME if CONFIG_FOLDER_DISCRETE else base_config_dir
+        advanced_dir.mkdir(parents=True, exist_ok=True)
+        (advanced_dir / "solcast-advanced.json").write_text(
+            json.dumps({ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM: True}), encoding="utf-8"
+        )
+        await hass.services.async_call(DOMAIN, "set_options", {"api_limit": "51"}, blocking=True)
+        await hass.async_block_till_done()
+        assert entry.options[API_LIMIT] == "51"
 
         _LOGGER.debug("Test set_options with invalid use_actuals (boolean coerced to string)")
         with pytest.raises(ServiceValidationError):

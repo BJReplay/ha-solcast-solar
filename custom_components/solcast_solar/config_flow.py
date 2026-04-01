@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import timezone
-import json
 import logging
 from pathlib import Path
 import traceback
@@ -36,7 +35,6 @@ from homeassistant.util import dt as dt_util
 
 from . import get_session_headers, get_version
 from .const import (
-    ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     AFFIRMATION_REAUTH_SUCCESSFUL,
     AFFIRMATION_RECONFIGURED,
     API_LIMIT,
@@ -51,8 +49,6 @@ from .const import (
     BRK_SITE,
     BRK_SITE_DETAILED,
     CONFIG_DAMP,
-    CONFIG_DISCRETE_NAME,
-    CONFIG_FOLDER_DISCRETE,
     CONFIG_VERSION,
     CUSTOM_HOURS,
     DEFAULT_SOLCAST_HTTPS_URL,
@@ -88,7 +84,12 @@ from .const import (
     USE_ACTUALS,
 )
 from .solcastapi import ConnectionOptions, SolcastApi
-from .util import HistoryType, SitesStatus, sync_legacy_keys
+from .util import (
+    HistoryType,
+    SitesStatus,
+    async_is_allow_exceed_api_limit,
+    sync_legacy_keys,
+)
 from .validators import (
     validate_api_key,
     validate_api_limit,
@@ -111,30 +112,9 @@ async def _get_time_zone(hass: HomeAssistant) -> ZoneInfo | timezone:
 
 
 async def _async_is_allow_exceed_api_limit(hass: HomeAssistant) -> bool:
-    """Check if the allow exceed API limit advanced option is enabled.
+    """Check if the allow exceed API limit advanced option is enabled."""
 
-    Arguments:
-        hass: The Home Assistant instance.
-
-    Returns:
-        bool: True if the advanced option is enabled, False otherwise.
-
-    """
-    config_dir = Path(hass.config.config_dir)
-    advanced_dir = config_dir / CONFIG_DISCRETE_NAME if CONFIG_FOLDER_DISCRETE else config_dir
-    advanced_file = advanced_dir / "solcast-advanced.json"
-    if not advanced_file.exists():
-        return False
-
-    def _read_advanced_setting() -> bool:
-        with open(advanced_file, encoding="utf-8") as f:
-            data = json.load(f)
-            return data.get(ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM, False)
-
-    try:
-        return await hass.async_add_executor_job(_read_advanced_setting)
-    except (OSError, json.JSONDecodeError, ValueError):
-        return False
+    return await async_is_allow_exceed_api_limit(hass)
 
 
 async def validate_sites(hass: HomeAssistant, user_input: dict[str, Any]) -> tuple[int, str]:

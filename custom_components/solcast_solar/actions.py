@@ -97,7 +97,7 @@ from .const import (
 )
 from .coordinator import SolcastUpdateCoordinator
 from .solcastapi import SolcastApi
-from .util import sync_legacy_keys
+from .util import async_is_allow_exceed_api_limit, sync_legacy_keys
 from .validators import (
     validate_api_key_value,
     validate_api_limit_value,
@@ -726,7 +726,8 @@ class ServiceActions:
 
         # Validate and apply API limit.
         if (api_limit := call.data.get(API_LIMIT)) is not None:
-            validated_quota, error = validate_api_limit_value(api_limit, api_count)
+            allow_exceed = await async_is_allow_exceed_api_limit(self._hass)
+            validated_quota, error = validate_api_limit_value(api_limit, api_count, allow_exceed=allow_exceed)
             if error is not None:
                 raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
             opt[API_LIMIT] = validated_quota

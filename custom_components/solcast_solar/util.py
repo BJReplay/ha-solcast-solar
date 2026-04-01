@@ -20,9 +20,12 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
+    ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     API_LIMIT,
     AUTO_UPDATE,
     AUTO_UPDATED,
+    CONFIG_DISCRETE_NAME,
+    CONFIG_FOLDER_DISCRETE,
     CUSTOM_HOURS,
     DOMAIN,
     DT_DATE_ONLY_FORMAT,
@@ -87,6 +90,26 @@ STATUS_TRANSLATE: dict[int, str] = {
 }
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def async_is_allow_exceed_api_limit(hass: HomeAssistant) -> bool:
+    """Return whether the advanced API limit override is enabled."""
+
+    config_dir = Path(hass.config.config_dir)
+    advanced_dir = config_dir / CONFIG_DISCRETE_NAME if CONFIG_FOLDER_DISCRETE else config_dir
+    advanced_file = advanced_dir / "solcast-advanced.json"
+    if not advanced_file.exists():
+        return False
+
+    def _read_advanced_setting() -> bool:
+        with open(advanced_file, encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get(ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM, False)
+
+    try:
+        return await hass.async_add_executor_job(_read_advanced_setting)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return False
 
 
 @dataclass
