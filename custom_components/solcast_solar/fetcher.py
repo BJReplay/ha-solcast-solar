@@ -336,7 +336,8 @@ class Fetcher:
                 _LOGGER.info("Forecast update completed successfully%s", next_update())
         else:
             _LOGGER.warning("Forecast has not been updated: %s%s", reason, next_update())
-            status = f"At least one site forecast get failed: {reason}"
+            if not status:
+                status = f"Forecast get failed: {reason}"
         return UpdateResult(UpdateOutcome.SUCCESS if status == "" else UpdateOutcome.FAILED, status)
 
     def set_next_update(self, next_update: str | None) -> None:

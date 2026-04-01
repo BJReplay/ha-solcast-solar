@@ -104,6 +104,8 @@ async def async_is_allow_exceed_api_limit(hass: HomeAssistant) -> bool:
     def _read_advanced_setting() -> bool:
         with open(advanced_file, encoding="utf-8") as f:
             data = json.load(f)
+            if not isinstance(data, dict):
+                return False
             return data.get(ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM, False)
 
     try:

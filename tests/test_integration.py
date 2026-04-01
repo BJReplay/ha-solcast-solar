@@ -1200,9 +1200,7 @@ async def test_remaining_actions(
         base_config_dir = Path(hass.config.config_dir)
         advanced_dir = base_config_dir / CONFIG_DISCRETE_NAME if CONFIG_FOLDER_DISCRETE else base_config_dir
         advanced_dir.mkdir(parents=True, exist_ok=True)
-        (advanced_dir / "solcast-advanced.json").write_text(
-            json.dumps({ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM: True}), encoding="utf-8"
-        )
+        (advanced_dir / "solcast-advanced.json").write_text(json.dumps({ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM: True}), encoding="utf-8")
         await hass.services.async_call(DOMAIN, "set_options", {"api_limit": "51"}, blocking=True)
         await hass.async_block_till_done()
         assert entry.options[API_LIMIT] == "51"
@@ -2661,6 +2659,42 @@ async def test_diagnostic_no_sites(
         assert data["sites"] == []  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         solcast.sites = original_sites
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_forecast_update_no_sites(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that a forecast update with no sites logs the appropriate warning."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+
+        entity_registry = er.async_get(hass)
+        for entity_id in ("sensor.first_site", "sensor.second_site"):
+            if entity_registry.async_get(entity_id):
+                entity_registry.async_remove(entity_id)
+        await hass.async_block_till_done()
+
+        original_sites = solcast.sites
+        try:
+            solcast.sites = []
+            solcast.options.auto_update = AutoUpdate.NONE
+
+            await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20, wait=False)
+            await _wait_for(caplog, "Forecast has not been updated")
+            assert "Forecast has not been updated: Unknown" in caplog.text
+        finally:
+            solcast.sites = original_sites
+            await hass.async_block_till_done()
 
         no_error_or_exception(caplog)
 

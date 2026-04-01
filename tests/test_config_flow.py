@@ -574,6 +574,18 @@ async def test_allow_exceed_api_limit_advanced_option_invalid_json(hass: HomeAss
     assert not await _async_is_allow_exceed_api_limit(hass)
 
 
+async def test_allow_exceed_api_limit_advanced_option_not_dict(hass: HomeAssistant) -> None:
+    """Test that a non-dict advanced options JSON defaults to not allowing exceed."""
+
+    config_dir = Path(hass.config.config_dir)
+    advanced_dir = config_dir / CONFIG_DISCRETE_NAME if CONFIG_FOLDER_DISCRETE else config_dir
+    advanced_dir.mkdir(parents=True, exist_ok=True)
+    advanced_file = advanced_dir / "solcast-advanced.json"
+    advanced_file.write_text(json.dumps([True]), encoding="utf-8")
+
+    assert not await _async_is_allow_exceed_api_limit(hass)
+
+
 @pytest.mark.parametrize(
     ("options", "value", "reason"),
     [
