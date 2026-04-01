@@ -16,8 +16,15 @@ from aiohttp import ClientConnectionError
 from freezegun import freeze_time
 from freezegun.api import FrozenDateTimeFactory
 import pytest
+from sqlalchemy import insert
 from yarl import URL
 
+from homeassistant.components.recorder import get_instance
+from homeassistant.components.recorder.db_schema import (
+    StateAttributes,
+    States,
+    StatesMeta,
+)
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.components.solcast_solar.const import (
     API_LIMIT,
@@ -51,6 +58,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.json import JSON_DUMP
 
 from .aioresponses import CallbackResult, aioresponses
 from .simulator import API_KEY_SITES, GENERATION_FACTOR, SimulatedSolcast
@@ -390,8 +398,105 @@ async def async_setup_extra_sensors(  # noqa: C901
     """Set up extra sensors for testing."""
 
     FASTER = True  # True for fast tests, False for reliable ones.
-    BATCH_SIZE = 50  # Number of state changes before waiting for async processing when FASTER is True.
-    state_change_counter = 0
+    USE_BATCHED_HISTORY = FASTER and extra_sensors != ExtraSensors.DODGY
+    pending_history_rows: list[tuple[str, str, dict[str, Any] | None, float]] = []
+    pending_live_states: list[tuple[str, str, dict[str, Any] | None, float]] = []
+
+    def queue_history(entity_id: str, state: str, attributes: dict[str, Any] | None, timestamp: float) -> None:
+        """Queue history rows for direct recorder insertion plus one live final state."""
+
+        pending_history_rows.append((entity_id, state, attributes, timestamp))
+
+    def finalize_history(entity_id: str) -> None:
+        """Move the newest queued row for an entity to a live state-machine update."""
+
+        if not USE_BATCHED_HISTORY:
+            return
+
+        if pending_history_rows and pending_history_rows[-1][0] == entity_id:
+            pending_live_states.append(pending_history_rows.pop())
+            return
+
+        for index in range(len(pending_history_rows) - 1, -1, -1):
+            row = pending_history_rows[index]
+            if row[0] == entity_id:
+                pending_live_states.append(row)
+                pending_history_rows.pop(index)
+                return
+
+    def insert_history_rows(rows: list[tuple[str, str, dict[str, Any] | None, float]]) -> None:
+        """Insert queued history rows directly into the recorder in one transaction."""
+
+        recorder = get_instance(hass)
+        meta_ids: dict[str, int] = {}
+        attr_ids: dict[str, int] = {}
+
+        with recorder.get_session() as session:
+            states_to_add: list[dict[str, Any]] = []
+
+            for entity_id, state, attributes, timestamp in rows:
+                metadata_id = meta_ids.get(entity_id)
+                if metadata_id is None:
+                    states_meta = session.query(StatesMeta).filter(StatesMeta.entity_id == entity_id).one_or_none()
+                    if states_meta is None:
+                        states_meta = StatesMeta(entity_id=entity_id)
+                        session.add(states_meta)
+                        session.flush()
+                    metadata_id = states_meta.metadata_id
+                    meta_ids[entity_id] = metadata_id
+
+                attributes_id = None
+                if attributes is not None:
+                    shared_attrs = JSON_DUMP(attributes)
+                    attributes_id = attr_ids.get(shared_attrs)
+                    if attributes_id is None:
+                        shared_attrs_bytes = shared_attrs.encode("utf-8")
+                        shared_attrs_hash = StateAttributes.hash_shared_attrs_bytes(shared_attrs_bytes)
+                        state_attributes = (
+                            session.query(StateAttributes)
+                            .filter(
+                                StateAttributes.hash == shared_attrs_hash,
+                                StateAttributes.shared_attrs == shared_attrs,
+                            )
+                            .one_or_none()
+                        )
+                        if state_attributes is None:
+                            state_attributes = StateAttributes(hash=shared_attrs_hash, shared_attrs=shared_attrs)
+                            session.add(state_attributes)
+                            session.flush()
+                        attributes_id = state_attributes.attributes_id
+                        attr_ids[shared_attrs] = attributes_id
+
+                states_to_add.append(
+                    {
+                        "entity_id": entity_id,
+                        "state": state,
+                        "attributes_id": attributes_id,
+                        "last_changed_ts": timestamp,
+                        "last_updated_ts": timestamp,
+                        "metadata_id": metadata_id,
+                    }
+                )
+
+            if states_to_add:
+                session.execute(insert(States), states_to_add)
+            session.commit()
+
+    async def flush_history() -> None:
+        """Flush queued history rows and final live states."""
+
+        if USE_BATCHED_HISTORY and pending_history_rows:
+            await get_instance(hass).async_add_executor_job(insert_history_rows, list(pending_history_rows))
+            pending_history_rows.clear()
+
+        if USE_BATCHED_HISTORY and pending_live_states:
+            for entity_id, state, attributes, timestamp in pending_live_states:
+                hass.states.async_set(entity_id, state, attributes, timestamp=timestamp)
+            pending_live_states.clear()
+
+        if FASTER:
+            await hass.async_block_till_done()
+            await hass.async_block_till_done()
 
     match extra_sensors:
         case ExtraSensors.YES_WATT_HOUR:
@@ -415,48 +520,36 @@ async def async_setup_extra_sensors(  # noqa: C901
     increasing: float
 
     async def record_history(entity_id: str, new_now: dt, increasing: float, gap: bool) -> None:
-        nonlocal state_change_counter
         if not FASTER:
             frozen_time.move_to(new_now)
         if not gap:
+            attributes = None if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY else {"unit_of_measurement": _uom}
+            state = str(round(increasing / adjustment[_uom], 4))
+            timestamp = dt.timestamp(new_now)
             if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-                if FASTER:
-                    hass.states.async_set(
-                        entity_id,
-                        str(round(increasing / adjustment[_uom], 4)),
-                        None,
-                        timestamp=dt.timestamp(new_now),
-                    )
-                    state_change_counter += 1
-                    if state_change_counter >= BATCH_SIZE:
-                        await hass.async_block_till_done()
-                        state_change_counter = 0
+                if USE_BATCHED_HISTORY:
+                    queue_history(entity_id, state, attributes, timestamp)
+                elif FASTER:
+                    hass.states.async_set(entity_id, state, None, timestamp=timestamp)
                 else:
                     await hass.async_add_executor_job(
                         hass.states.set,
                         entity_id,
-                        str(round(increasing / adjustment[_uom], 4)),
+                        state,
                         None,
                         True,
                     )
             else:  # noqa: PLR5501
-                if FASTER:
-                    hass.states.async_set(
-                        entity_id,
-                        str(round(increasing / adjustment[_uom], 4)),
-                        {"unit_of_measurement": _uom},
-                        timestamp=dt.timestamp(new_now),
-                    )
-                    state_change_counter += 1
-                    if state_change_counter >= BATCH_SIZE:
-                        await hass.async_block_till_done()
-                        state_change_counter = 0
+                if USE_BATCHED_HISTORY:
+                    queue_history(entity_id, state, attributes, timestamp)
+                elif FASTER:
+                    hass.states.async_set(entity_id, state, attributes, timestamp=timestamp)
                 else:
                     await hass.async_add_executor_job(
                         hass.states.set,
                         entity_id,
-                        str(round(increasing / adjustment[_uom], 4)),
-                        {"unit_of_measurement": _uom},
+                        state,
+                        attributes,
                         True,
                     )
 
@@ -515,20 +608,53 @@ async def async_setup_extra_sensors(  # noqa: C901
             base = (dt.now(UTC) - timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
             non_numeric = ["unavailable", "unknown", "error", "none", "n/a"]
             for k, state_val in enumerate(non_numeric):
+                if USE_BATCHED_HISTORY:
+                    queue_history(
+                        entity_id,
+                        state_val,
+                        {"unit_of_measurement": _uom},
+                        dt.timestamp(base + timedelta(minutes=k * 5)),
+                    )
+                elif FASTER:
+                    hass.states.async_set(
+                        entity_id,
+                        state_val,
+                        {"unit_of_measurement": _uom},
+                        timestamp=dt.timestamp(base + timedelta(minutes=k * 5)),
+                    )
+                else:
+                    hass.states.async_set(
+                        entity_id,
+                        state_val,
+                        {"unit_of_measurement": _uom},
+                        timestamp=dt.timestamp(base + timedelta(minutes=k * 5)),
+                    )
+            if USE_BATCHED_HISTORY:
+                queue_history(
+                    entity_id,
+                    "1.0",
+                    {"unit_of_measurement": _uom},
+                    dt.timestamp(base + timedelta(minutes=25)),
+                )
+                finalize_history(entity_id)
+            elif FASTER:
                 hass.states.async_set(
                     entity_id,
-                    state_val,
+                    "1.0",
                     {"unit_of_measurement": _uom},
-                    timestamp=dt.timestamp(base + timedelta(minutes=k * 5)),
+                    timestamp=dt.timestamp(base + timedelta(minutes=25)),
                 )
-            hass.states.async_set(
-                entity_id,
-                "1.0",
-                {"unit_of_measurement": _uom},
-                timestamp=dt.timestamp(base + timedelta(minutes=25)),
-            )
-            await hass.async_block_till_done()
-            await hass.async_block_till_done()
+                await hass.async_block_till_done()
+                await hass.async_block_till_done()
+            else:
+                hass.states.async_set(
+                    entity_id,
+                    "1.0",
+                    {"unit_of_measurement": _uom},
+                    timestamp=dt.timestamp(base + timedelta(minutes=25)),
+                )
+                await hass.async_block_till_done()
+                await hass.async_block_till_done()
             continue
 
         gap = False
@@ -605,13 +731,8 @@ async def async_setup_extra_sensors(  # noqa: C901
                             + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                         )
                         await record_history(entity_id, new_now, increasing, gap)
-            # Flush any remaining state changes and ensure recorder has processed them
-            if FASTER:
-                if state_change_counter > 0:
-                    await hass.async_block_till_done()
-                # Give recorder extra time to commit all changes
-                await hass.async_block_till_done()
-                await hass.async_block_till_done()
+            if USE_BATCHED_HISTORY:
+                finalize_history(entity_id)
     if extra_sensors == ExtraSensors.YES_WITH_SUPPRESSION:
         entity = "solcast_suppress_auto_dampening"
         entity_registry.async_get_or_create(
@@ -643,14 +764,24 @@ async def async_setup_extra_sensors(  # noqa: C901
         ) as frozen_time:
             for day in range(entity_history["days_suppression"]):
                 for s in sequence:
-                    frozen_time.move_to(now + timedelta(days=day, hours=s["hours"], minutes=s["minutes"], seconds=s["seconds"]))
-                    await hass.async_add_executor_job(
-                        hass.states.set,
-                        entity_id,
-                        s["value"],
-                        None,
-                        True,
-                    )
+                    event_time = now + timedelta(days=day, hours=s["hours"], minutes=s["minutes"], seconds=s["seconds"])
+                    if USE_BATCHED_HISTORY:
+                        queue_history(entity_id, s["value"], None, dt.timestamp(event_time))
+                    elif FASTER:
+                        hass.states.async_set(entity_id, s["value"], None, timestamp=dt.timestamp(event_time))
+                    else:
+                        frozen_time.move_to(event_time)
+                        await hass.async_add_executor_job(
+                            hass.states.set,
+                            entity_id,
+                            s["value"],
+                            None,
+                            True,
+                        )
+        if USE_BATCHED_HISTORY:
+            finalize_history(entity_id)
+
+    await flush_history()
 
     # Surplus day energy sensor to be cleaned up.
     entity_registry.async_get_or_create(
