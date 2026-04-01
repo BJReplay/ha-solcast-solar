@@ -314,7 +314,7 @@ By default the value set in entities is not logged. This option enables that at 
 
 An integration reload is required.
 
-**Key: “log_update_failure_only”**
+**Key: "log_update_failure_only"**
 
 Possible values: boolean `true`/`false` (default `false`)
 

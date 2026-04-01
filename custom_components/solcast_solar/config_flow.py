@@ -275,7 +275,8 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             if abort is not None:
                 errors[BASE] = abort
             if not errors:
-                api_limit, abort = validate_api_limit(user_input, api_count, allow_exceed=False)
+                allow_exceed = await _async_is_allow_exceed_api_limit(self.hass)
+                api_limit, abort = validate_api_limit(user_input, api_count, allow_exceed=allow_exceed)
                 if abort is not None:
                     errors[BASE] = abort
             if not errors:
@@ -336,7 +337,8 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
             if abort is not None:
                 errors[BASE] = abort
             if not errors:
-                api_limit, abort = validate_api_limit(user_input, api_count, allow_exceed=False)
+                allow_exceed = await _async_is_allow_exceed_api_limit(self.hass)
+                api_limit, abort = validate_api_limit(user_input, api_count, allow_exceed=allow_exceed)
                 if abort is not None:
                     errors[BASE] = abort
             if not errors:
