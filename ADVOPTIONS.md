@@ -302,7 +302,7 @@ Do not set this option unless you are a developer and want to utilise the Solcas
 
 Possible values: boolean `true`/`false` (default `true`)
 
-When repeated `429 / Try again later` errors are received from Solcast the integration will raise an ignorable issue alerting a user to the fact.
+If repeated `429 / Try again later` errors are received from Solcast that exhaust ten consecutive retries then the integration will raise an ignorable issue to alert that there has been an update failure. (You may hear this situation referred to as a '429 storm', as subsequent updates will also likely fail until Solcast staff intervene.)
 
 This behaviour may be suppressed by setting this option to `false`.
 
@@ -318,7 +318,7 @@ An integration reload is required.
 
 Possible values: boolean `true`/`false` (default `false`)
 
-By default logging of forecast and estimated actuals attempts produces `WARNING` level messages for retries, with a final `ERROR` message on complete failure. By setting this option to `true` the integration will not log intermediate `WARNING` level retry messages, and will conclude with a final `WARNING` that the update has not been successful.
+By default logging of forecast and estimated actuals attempts produces `WARNING` level messages for update retries, with a final `ERROR` message on complete failure. By setting this option to `true` the integration will log intermediate `DEBUG` level retry messages instead of `WARNING` level, and will conclude with a final `WARNING` that the update has not been successful should all retries fail.
 
 **Key: "reload_on_advanced_change"**
 
