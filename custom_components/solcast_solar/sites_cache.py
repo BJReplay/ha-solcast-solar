@@ -77,6 +77,7 @@ from .util import (
     SchemaIncompatibleError,
     SitesStatus,
     SolcastApiStatus,
+    UpdateOutcome,
     UpdateResult,
     UsageStatus,
     check_unusual_azimuth,
@@ -601,7 +602,7 @@ class SitesCache:
                     # Could be a brand new install of the integration, or the file has been removed. Get the forecast and past actuals.
                     result: UpdateResult = await self.api.fetcher.get_forecast_update(do_past_hours=168)
                     self.api.status_message = result.message
-                    if self.api.status_message != "":
+                    if result.outcome == UpdateOutcome.FAILED:
                         return False
                     self.api.loaded_data = True
                     for filename, data in {
