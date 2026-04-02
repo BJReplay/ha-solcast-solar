@@ -63,7 +63,7 @@ def _occurs_in_log(caplog: pytest.LogCaptureFixture, text: str, occurrences: int
 def _log_level_for(caplog: pytest.LogCaptureFixture, text: str) -> int:
     """Return the level of the first caplog record whose message contains text."""
     for record in caplog.records:
-        if text in record.message:
+        if text in record.getMessage():
             return record.levelno
     raise AssertionError(f"No log record found containing: {text!r}")
 

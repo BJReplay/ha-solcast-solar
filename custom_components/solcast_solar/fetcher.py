@@ -334,6 +334,8 @@ class Fetcher:
 
             if b_status and s_status:
                 _LOGGER.info("Forecast update completed successfully%s", next_update())
+
+            status = "Build or serialisation failed" if not b_status or not s_status else ""
         else:
             _LOGGER.warning("Forecast has not been updated: %s%s", reason, next_update())
             if not status:

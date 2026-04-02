@@ -92,28 +92,6 @@ STATUS_TRANSLATE: dict[int, str] = {
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_is_allow_exceed_api_limit(hass: HomeAssistant) -> bool:
-    """Return whether the advanced API limit override is enabled."""
-
-    config_dir = Path(hass.config.config_dir)
-    advanced_dir = config_dir / CONFIG_DISCRETE_NAME if CONFIG_FOLDER_DISCRETE else config_dir
-    advanced_file = advanced_dir / "solcast-advanced.json"
-    if not advanced_file.exists():
-        return False
-
-    def _read_advanced_setting() -> bool:
-        with open(advanced_file, encoding="utf-8") as f:
-            data = json.load(f)
-            if not isinstance(data, dict):
-                return False
-            return data.get(ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM, False)
-
-    try:
-        return await hass.async_add_executor_job(_read_advanced_setting)
-    except (OSError, json.JSONDecodeError, ValueError):
-        return False
-
-
 @dataclass
 class SolcastData:
     """Runtime data definition."""
@@ -194,6 +172,29 @@ class HistoryType(int, Enum):
     FORECASTS = 0
     ESTIMATED_ACTUALS = 1
     ESTIMATED_ACTUALS_ADJUSTED = 2
+
+
+async def async_is_allow_exceed_api_limit(hass: HomeAssistant) -> bool:
+    """Return whether the advanced API limit override is enabled."""
+
+    config_dir = Path(hass.config.config_dir)
+    advanced_dir = config_dir / CONFIG_DISCRETE_NAME if CONFIG_FOLDER_DISCRETE else config_dir
+    advanced_file = advanced_dir / "solcast-advanced.json"
+    if not advanced_file.exists():
+        return False
+
+    def _read_advanced_setting() -> bool:
+        with open(advanced_file, encoding="utf-8") as f:
+            data = json.load(f)
+            if not isinstance(data, dict):
+                return False
+            value = data.get(ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM, False)
+            return (isinstance(value, bool) and value is True) or False
+
+    try:
+        return await hass.async_add_executor_job(_read_advanced_setting)
+    except (OSError, json.JSONDecodeError, ValueError):
+        return False
 
 
 def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any], sites: list[dict[str, Any]]) -> None:
