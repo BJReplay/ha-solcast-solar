@@ -9,8 +9,7 @@ These tests verify:
 """
 
 from collections import OrderedDict
-from datetime import datetime as dt, timedelta
-from operator import itemgetter
+from datetime import datetime as dt
 import tempfile
 from typing import Any
 from unittest.mock import MagicMock
@@ -55,10 +54,31 @@ def _make_mock_api(tz: ZoneInfo) -> MagicMock:
         ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION: 2,
         ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR: 0.95,
     }
-    # Use secure temporary files for test file paths
+    # Use temporary files for test file paths
     api.filename_generation = tempfile.NamedTemporaryFile(delete=False).name
     api.filename_dampening = tempfile.NamedTemporaryFile(delete=False).name
     return api
+
+
+def _make_mock_coordinator(
+    factors_list: list[float],
+    tz: ZoneInfo,
+    auto_dampen: bool = True,
+) -> SolcastUpdateCoordinator:
+    """Build a mock coordinator with enough internals for get_sensor_extra_attributes."""
+    coord = object.__new__(SolcastUpdateCoordinator)
+    solcast = MagicMock()
+    solcast.entry_options = {SITE_DAMP: True}
+    solcast.options.auto_dampen = auto_dampen
+    solcast.options.tz = tz
+    solcast.dampening.factors = {ALL: factors_list}
+    solcast.dampening.factors_mtime = 0
+    solcast.advanced_options = {}
+    coord.solcast = solcast
+    coord._SolcastUpdateCoordinator__get_value = {  # pyright: ignore[reportAttributeAccessIssue]
+        ENTITY_DAMPEN: [{METHOD: lambda: True}],
+    }
+    return coord
 
 
 def _build_matching_data(
@@ -74,27 +94,17 @@ def _build_matching_data(
     return matching_intervals, generation, actuals
 
 
-def _build_attribute_factors(
+def _get_attribute_factors(
     factors_list: list[float],
     tz: ZoneInfo,
+    auto_dampen: bool = True,
 ) -> list[dict[str, Any]]:
-    """Replicate the coordinator attribute builder logic for auto-dampen factors.
+    """Return dampening factor attributes using the coordinator method directly."""
+    coord = _make_mock_coordinator(factors_list, tz, auto_dampen)
+    result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
-    This is the pure-function equivalent of coordinator.py lines 418-438.
-    """
-    factors_dict: dict[str, dict[str, Any]] = {}
-    for i, f in enumerate(factors_list):
-        dst = dt.now(tz).replace(hour=i // 2, minute=i % 2 * 30, second=0, microsecond=0).dst() == timedelta(hours=1)
-        interval = f"{i // 2 + (1 if dst else 0):02d}:{i % 2 * 30:02d}"
-        factors_dict[interval] = {INTERVAL: interval, FACTOR: f}
-    for hour in ["00", "03"]:
-        if factors_dict.get(hour + ":00") is None:
-            factors_dict[hour + ":00"] = {INTERVAL: hour + ":00", FACTOR: 1}
-            factors_dict[hour + ":30"] = {INTERVAL: hour + ":30", FACTOR: 1}
-    if factors_dict.get("24:00"):
-        factors_dict.pop("24:00")
-        factors_dict.pop("24:30")
-    return sorted(factors_dict.values(), key=itemgetter(INTERVAL))
+    assert result is not None
+    return result[FACTORS]
 
 
 class TestCalculateFactorComputation:
@@ -284,7 +294,7 @@ class TestAttributeBuilderDSTLabels:
         factors_list = [1.0] * 48
         factors_list[20] = 0.819
 
-        result = _build_attribute_factors(factors_list, tz)
+        result = _get_attribute_factors(factors_list, tz)
 
         assert len(result) == 48
         # Find the entry with factor 0.819
@@ -302,7 +312,7 @@ class TestAttributeBuilderDSTLabels:
         factors_list = [1.0] * 48
         factors_list[20] = 0.819
 
-        result = _build_attribute_factors(factors_list, tz)
+        result = _get_attribute_factors(factors_list, tz)
 
         assert len(result) == 48
         matching = [e for e in result if e[FACTOR] == 0.819]
@@ -320,7 +330,7 @@ class TestAttributeBuilderDSTLabels:
         factors_list = [1.0] * 48
         factors_list[20] = 0.819
 
-        result = _build_attribute_factors(factors_list, tz)
+        result = _get_attribute_factors(factors_list, tz)
 
         # In the sorted result, find entry at label "11:00"
         entry_11 = next(e for e in result if e[INTERVAL] == "11:00")
@@ -337,7 +347,7 @@ class TestAttributeBuilderDSTLabels:
         factors_list = [1.0] * 48
         factors_list[20] = 0.819
 
-        result = _build_attribute_factors(factors_list, tz)
+        result = _get_attribute_factors(factors_list, tz)
 
         entry_10 = next(e for e in result if e[INTERVAL] == "10:00")
         assert entry_10[FACTOR] == 0.819
@@ -392,14 +402,14 @@ class TestDSTTransitionScenarios:
 
         # Before transition
         with freeze_time(frozen_before):
-            result_before = _build_attribute_factors(factors_list, tz)
+            result_before = _get_attribute_factors(factors_list, tz)
         matching_before = [e for e in result_before if e[FACTOR] == 0.819]
         assert len(matching_before) == 1
         assert matching_before[0][INTERVAL] == label_before
 
         # After transition
         with freeze_time(frozen_after):
-            result_after = _build_attribute_factors(factors_list, tz)
+            result_after = _get_attribute_factors(factors_list, tz)
         matching_after = [e for e in result_after if e[FACTOR] == 0.819]
         assert len(matching_after) == 1
         assert matching_after[0][INTERVAL] == label_after
@@ -503,7 +513,7 @@ class TestDSTTransitionScenarios:
 
         assert result[interval] == expected_factor
         # Display label is shifted but factor is at raw index
-        attrs = _build_attribute_factors(result, tz)
+        attrs = _get_attribute_factors(result, tz)
         matching = [e for e in attrs if e[FACTOR] == expected_factor]
         assert len(matching) == 1
         assert matching[0][INTERVAL] == "11:00"  # AEDT: 10:00+1
@@ -518,7 +528,7 @@ class TestAttributeBuilderEdgeCases:
         tz = ZoneInfo("Australia/Sydney")
         factors_list = [1.0] * 48
 
-        result = _build_attribute_factors(factors_list, tz)
+        result = _get_attribute_factors(factors_list, tz)
 
         assert len(result) == 48
         # Verify sorted order
@@ -535,7 +545,7 @@ class TestAttributeBuilderEdgeCases:
         tz = ZoneInfo("Australia/Sydney")
         factors_list = [0.5] * 48
 
-        result = _build_attribute_factors(factors_list, tz)
+        result = _get_attribute_factors(factors_list, tz)
 
         assert len(result) == 48
         labels = {e[INTERVAL] for e in result}
@@ -548,7 +558,7 @@ class TestAttributeBuilderEdgeCases:
         tz = ZoneInfo("Australia/Sydney")
         factors_list = [1.0] * 48
 
-        result = _build_attribute_factors(factors_list, tz)
+        result = _get_attribute_factors(factors_list, tz)
 
         assert len(result) == 48
         intervals = [e[INTERVAL] for e in result]
@@ -608,36 +618,10 @@ class TestWinterTimeDSTLabels:
         assert "Auto-dampen factor for 10:00 is 0.819" in caplog.text
 
 
-def _make_mock_coordinator(
-    tz: ZoneInfo,
-    factors_list: list[float],
-    auto_dampen: bool = True,
-) -> SolcastUpdateCoordinator:
-    """Build a mock coordinator with enough internals for get_sensor_extra_attributes.
-
-    This avoids the full coordinator __init__ but exercises the real method code.
-    """
-    coord = object.__new__(SolcastUpdateCoordinator)
-    solcast = MagicMock()
-    solcast.entry_options = {SITE_DAMP: True}
-    solcast.options.auto_dampen = auto_dampen
-    solcast.options.tz = tz
-    solcast.dampening.factors = {ALL: factors_list}
-    solcast.dampening.factors_mtime = 0
-    solcast.advanced_options = {}
-    coord.solcast = solcast
-    # Set the name-mangled __get_value with just the dampen key
-    coord._SolcastUpdateCoordinator__get_value = {  # pyright: ignore[reportAttributeAccessIssue]
-        ENTITY_DAMPEN: [{METHOD: lambda: True}],
-    }
-    return coord
-
-
 class TestCoordinatorAttributeBuilder:
     """Test the real coordinator get_sensor_extra_attributes method.
 
-    These tests exercise the DST fill-in (lines 432-433) and removal
-    (lines 435-436) branches in coordinator.py.
+    These tests exercise the DST fill-in and removal branches in coordinator.py.
     """
 
     @freeze_time("2025-10-06T14:00:00+11:00")  # Fully AEDT (day after transition)
@@ -650,7 +634,7 @@ class TestCoordinatorAttributeBuilder:
         """
         tz = ZoneInfo("Australia/Sydney")
         factors_list = [0.5] * 48
-        coord = _make_mock_coordinator(tz, factors_list)
+        coord = _make_mock_coordinator(factors_list, tz)
 
         result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
@@ -676,7 +660,7 @@ class TestCoordinatorAttributeBuilder:
         """
         tz = ZoneInfo("Australia/Sydney")
         factors_list = [0.5] * 48
-        coord = _make_mock_coordinator(tz, factors_list)
+        coord = _make_mock_coordinator(factors_list, tz)
 
         result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
@@ -702,7 +686,7 @@ class TestCoordinatorAttributeBuilder:
         factors_list = [1.0] * 48
         factors_list[46] = 0.7
         factors_list[47] = 0.8
-        coord = _make_mock_coordinator(tz, factors_list)
+        coord = _make_mock_coordinator(factors_list, tz)
 
         result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
@@ -719,7 +703,7 @@ class TestCoordinatorAttributeBuilder:
         tz = ZoneInfo("Australia/Sydney")
         factors_list = [1.0] * 48
         factors_list[20] = 0.819
-        coord = _make_mock_coordinator(tz, factors_list)
+        coord = _make_mock_coordinator(factors_list, tz)
 
         result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
@@ -739,7 +723,7 @@ class TestCoordinatorAttributeBuilder:
         tz = ZoneInfo("Australia/Sydney")
         factors_list = [1.0] * 48
         factors_list[20] = 0.819
-        coord = _make_mock_coordinator(tz, factors_list)
+        coord = _make_mock_coordinator(factors_list, tz)
 
         result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
@@ -753,7 +737,7 @@ class TestCoordinatorAttributeBuilder:
         """Test that the result is exactly 48 sorted entries during DST."""
         tz = ZoneInfo("Australia/Sydney")
         factors_list = [1.0] * 48
-        coord = _make_mock_coordinator(tz, factors_list)
+        coord = _make_mock_coordinator(factors_list, tz)
 
         result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
