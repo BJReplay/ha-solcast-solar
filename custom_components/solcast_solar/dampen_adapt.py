@@ -11,6 +11,7 @@ import json
 import logging
 import math
 from pathlib import Path
+from statistics import median
 import time
 from typing import TYPE_CHECKING, Any, Final, NamedTuple
 
@@ -169,7 +170,11 @@ class DampeningAdaptive:
         actuals = self._build_actuals_from_sites(earliest_common)
         generation_dampening, _ = await self.dampening.prepare_generation_data(earliest_common)
 
-        common_peak_interval, avg_gen, avg_factor, variance = self._select_comparison_interval(generation_dampening, min_history_days)
+        common_peak_interval, avg_gen, avg_factor, variance = self._select_comparison_interval(
+            generation_dampening,
+            min_history_days,
+            earliest_common,
+        )
         _LOGGER.debug(
             "Selected interval %d (%02d:%02d) for adaptive comparison: %.3f kWh, factor %.3f, variance %.4f",
             common_peak_interval,
@@ -781,10 +786,72 @@ class DampeningAdaptive:
                 borda_scores[adjusted_winner],
             )
 
+    def _build_interval_error_weights(
+        self,
+        generation_dampening: defaultdict[dt, dict[str, Any]],
+        min_history_days: int,
+        earliest_common: dt | None = None,
+    ) -> list[float]:
+        """Build interval weights from persistent current dampened forecast error.
+
+        Uses the current active dampening factors applied to historical estimated actuals
+        and compares those dampened estimates against recorder generation. Intervals with
+        repeatedly large errors receive higher weights, but only when enough valid days
+        contribute to make the errors credible.
+        """
+        if not generation_dampening:
+            return [0.0] * 48
+
+        current_all_factors: list[float] = self.dampening.factors.get(ALL, [])
+        if not current_all_factors:
+            return [0.0] * 48
+
+        actuals = self._build_actuals_from_sites(earliest_common or min(generation_dampening))
+        interval_error_samples: list[list[float]] = [[] for _ in range(48)]
+
+        for timestamp, gen_data in generation_dampening.items():
+            if gen_data.get(EXPORT_LIMITING, False):
+                continue
+
+            actual_generation = gen_data[GENERATION]
+            if actual_generation <= 0:
+                continue
+
+            interval = self.dampening.adjusted_interval_dt(timestamp)
+            factor_index = interval if len(current_all_factors) == 48 else interval // 2
+            if factor_index >= len(current_all_factors):
+                continue
+
+            day_start = self.dampening.api.dt_helper.day_start(timestamp)
+            if day_start not in actuals:
+                continue
+
+            dampened_estimate = actuals[day_start][interval] * current_all_factors[factor_index] * 0.5
+            interval_error_samples[interval].append(abs(actual_generation - dampened_estimate) / actual_generation)
+
+        error_weights = [0.0] * 48
+        for interval, samples in enumerate(interval_error_samples):
+            if not samples:
+                continue
+
+            confidence = min(1.0, len(samples) / max(min_history_days, 1))
+            error_weights[interval] = min(median(samples), 2.0) * confidence
+
+        return error_weights
+
+    def _apply_interval_error_bias(self, scores: list[float], error_weights: list[float]) -> list[float]:
+        """Bias interval scores toward persistent error when there is usable residual data."""
+        if not scores or not error_weights or max(scores) == 0.0 or max(error_weights) == 0.0:
+            return scores
+
+        biased_scores = [score * error_weights[index] for index, score in enumerate(scores)]
+        return biased_scores if max(biased_scores) > 0.0 else scores
+
     def _select_comparison_interval(
         self,
         generation_dampening: defaultdict[dt, dict[str, Any]],
         min_history_days: int,
+        earliest_common: dt | None = None,
     ) -> tuple[int, float, float, float]:
         """Select the best interval for single-interval adaptive comparison.
 
@@ -793,10 +860,12 @@ class DampeningAdaptive:
         - Dampening actually being applied (factor < 1.0)
         - Model disagreement (variance in factors)
         - Breadth of dampening across model/delta configurations
+        - Persistent current dampened forecast error
 
         Args:
             generation_dampening: Generation data for calculating interval totals.
             min_history_days: Minimum number of history days required for a model.
+            earliest_common: Optional common history start for building residuals.
 
         Returns:
             Tuple of (interval_index, avg_generation, avg_dampen_factor, variance).
@@ -858,10 +927,13 @@ class DampeningAdaptive:
         # Calculate breadth of dampening: fraction of dampening models that apply dampening
         # Intervals where more model strengths agree dampening is needed are better for comparison
         dampening_breadth = [len(combo_dampens[i]) / total_models if total_models > 0 else 0.0 for i in range(48)]
+        interval_error_weights = self._build_interval_error_weights(generation_dampening, min_history_days, earliest_common)
 
         # Score = (1 - avg_factor) × sqrt(variance) × dampening_breadth, for intervals
         # with adequate generation only (≥ 10% of peak to exclude pre-dawn/post-dusk).
-        # The goal here is dampening quality, not energy magnitude.
+        # The goal here is dampening quality, not energy magnitude. Where possible,
+        # bias this toward intervals where the current dampened forecast is also
+        # persistently wrong.
         min_gen_fraction = 0.10
         dampening_impact = [
             (1.0 - avg_dampen_factor[i]) * (dampen_variance[i] ** 0.5) * dampening_breadth[i]
@@ -869,6 +941,7 @@ class DampeningAdaptive:
             else 0.0
             for i in range(48)
         ]
+        dampening_impact = self._apply_interval_error_bias(dampening_impact, interval_error_weights)
 
         # Fall back progressively when history-based scoring cannot discriminate.
         if not dampening_impact or max(dampening_impact) == 0.0:
@@ -879,6 +952,7 @@ class DampeningAdaptive:
                 else 0.0
                 for i in range(48)
             ]
+            dampening_impact = self._apply_interval_error_bias(dampening_impact, interval_error_weights)
         if max(dampening_impact) == 0.0:
             # Second fallback: use the current model factors as a proxy for where dampening
             # matters. This handles the case where the history contains only 1.0 entries

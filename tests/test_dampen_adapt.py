@@ -581,6 +581,109 @@ async def test_select_comparison_interval_diluted_variance(
         assert await async_cleanup_integration_tests(hass)
 
 
+async def test_build_interval_error_weights_hourly_factor_mapping(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+) -> None:
+    """Test interval error weighting with hourly factor arrays."""
+
+    assert await async_cleanup_integration_tests(hass)
+
+    monkeypatch = pytest.MonkeyPatch()
+
+    try:
+        entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
+        solcast = entry.runtime_data.coordinator.solcast
+
+        day_start = solcast.dt_helper.day_start_utc() - timedelta(days=1)
+        interval = 20
+        timestamp = day_start + timedelta(minutes=interval * 30)
+        generation_dampening = defaultdict(dict, {timestamp: {GENERATION: 0.25, EXPORT_LIMITING: False}})
+
+        actuals = defaultdict(lambda: [0.0] * 48)
+        actuals[solcast.dt_helper.day_start(timestamp)][interval] = 4.0
+        monkeypatch.setattr(solcast.dampening.adaptive, "_build_actuals_from_sites", lambda _earliest: actuals)
+
+        assert solcast.dampening.adaptive._build_interval_error_weights(defaultdict(dict), 1, day_start) == [0.0] * 48
+
+        current_factors = [1.0] * 24
+        current_factors[interval // 2] = 0.5
+        solcast.dampening.factors = {ALL: current_factors}
+
+        weights = solcast.dampening.adaptive._build_interval_error_weights(generation_dampening, 1, day_start)
+
+        assert weights[interval] == 2.0
+        assert max(weights[:interval] + weights[interval + 1 :]) == 0.0
+        assert solcast.dampening.adaptive._apply_interval_error_bias([0.0] * 48, weights) == [0.0] * 48
+
+        solcast.dampening.factors = {ALL: [1.0] * 10}
+        assert solcast.dampening.adaptive._build_interval_error_weights(generation_dampening, 1, day_start) == [0.0] * 48
+    finally:
+        monkeypatch.undo()
+        assert await async_cleanup_integration_tests(hass)
+
+
+async def test_select_comparison_interval_prefers_persistent_error(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+) -> None:
+    """Test comparison interval selection favors persistently bad current intervals."""
+
+    assert await async_cleanup_integration_tests(hass)
+
+    monkeypatch = pytest.MonkeyPatch()
+
+    try:
+        entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
+        solcast = entry.runtime_data.coordinator.solcast
+
+        day_start = solcast.dt_helper.day_start_utc() - timedelta(days=1)
+        ts_10 = day_start + timedelta(minutes=10 * 30)
+        ts_20 = day_start + timedelta(minutes=20 * 30)
+        generation_dampening = defaultdict(
+            dict,
+            {
+                ts_10: {GENERATION: 1.0, EXPORT_LIMITING: False},
+                ts_20: {GENERATION: 0.25, EXPORT_LIMITING: False},
+            },
+        )
+
+        factors_a = [1.0] * 48
+        factors_b = [1.0] * 48
+        factors_a[10] = 0.8
+        factors_b[10] = 0.6
+        factors_a[20] = 0.8
+        factors_b[20] = 0.6
+        solcast.dampening.auto_factors_history = {
+            0: {VALUE_ADAPTIVE_DAMPENING_NO_DELTA: [{"period_start": day_start, "factors": factors_a}]},
+            1: {VALUE_ADAPTIVE_DAMPENING_NO_DELTA: [{"period_start": day_start, "factors": factors_b}]},
+        }
+
+        actuals = defaultdict(lambda: [0.0] * 48)
+        actuals[solcast.dt_helper.day_start(day_start)][10] = 4.0
+        actuals[solcast.dt_helper.day_start(day_start)][20] = 4.0
+        monkeypatch.setattr(solcast.dampening.adaptive, "_build_actuals_from_sites", lambda _earliest: actuals)
+
+        current_factors = [1.0] * 48
+        current_factors[10] = 0.5
+        current_factors[20] = 0.5
+        solcast.dampening.factors = {ALL: current_factors}
+
+        selected_interval, avg_gen, avg_factor, variance = solcast.dampening.adaptive._select_comparison_interval(
+            generation_dampening,
+            1,
+            day_start,
+        )
+
+        assert selected_interval == 20
+        assert avg_gen > 0
+        assert avg_factor < 1.0
+        assert variance > 0.0
+    finally:
+        monkeypatch.undo()
+        assert await async_cleanup_integration_tests(hass)
+
+
 async def test_select_comparison_interval_current_factors_fallback(
     recorder_mock: Recorder,
     hass: HomeAssistant,
