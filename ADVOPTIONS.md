@@ -268,14 +268,6 @@ The number of days of forecasts to request from Solcast. Setting this lower than
 
 Consider the setting of `forecast_day_entities` when lowering this option.
 
-**Key: "forecast_history_max_days"**
-
-Possible values: integer `22`..`3650` (default `730`)
-
-The number of days of history to retain for forecasts (and estimated actuals).
-
-There may be a performance implication when too much history data is retained, depending on the platform used for Home Assistant.
-
 ## Granular dampening
 
 **Key: "granular_dampening_delta_adjustment"**
@@ -313,6 +305,14 @@ Possible values: boolean `true`/`false` (default `false`)
 By default the value set in entities is not logged. This option enables that at `DEBUG` level.
 
 An integration reload is required.
+
+**Key: "history_max_days"**
+
+Possible values: integer `22`..`3650` (default `730`)
+
+The number of days of history to retain for forecasts and estimated actuals.
+
+There may be a performance implication when too much history data is retained, depending on the platform used for Home Assistant.
 
 **Key: "log_update_failure_only"**
 
