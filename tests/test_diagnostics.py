@@ -45,13 +45,15 @@ async def test_diagnostics(
 
         diagnostics = await get_diagnostics_for_config_entry(hass, hass_client, entry)
         assert ZONE_RAW in diagnostics["tz_conversion"]["repr"]  # type: ignore[call-overload, index, operator] # pyright: ignore[reportOperatorIssue, reportIndexIssue, reportCallIssue, reportArgumentType, reportOptionalSubscript]
-        assert diagnostics["used_api_requests"] == 4
-        assert diagnostics["api_request_limit"] == int(DEFAULT_INPUT1[API_LIMIT])
-        assert diagnostics["rooftop_site_count"] == 2
-        assert diagnostics["forecast_hard_limit_set"] is False
+        assert diagnostics["used_api_requests"] == 4, f"Expected 4 used API requests, got {diagnostics['used_api_requests']}"
+        assert diagnostics["api_request_limit"] == int(DEFAULT_INPUT1[API_LIMIT]), (
+            f"API limit mismatch: expected {int(DEFAULT_INPUT1[API_LIMIT])}, got {diagnostics['api_request_limit']}"
+        )
+        assert diagnostics["rooftop_site_count"] == 2, f"Expected 2 rooftop sites, got {diagnostics['rooftop_site_count']}"
+        assert diagnostics["forecast_hard_limit_set"] is False, "Hard limit should not be set initially"
         for site, data in diagnostics["data"][0]["siteinfo"].items():  # type: ignore[call-overload, index, union-attr] # pyright: ignore[reportArgumentType, reportIndexIssue, reportOptionalSubscript, reportUnknownMemberType]
-            assert site in ["1111-1111-1111-1111", "2222-2222-2222-2222"]
-            assert len(data["forecasts"]) > 300  # type: ignore[arg-type, call-overload, index] # pyright: ignore[reportArgumentType, reportIndexIssue, reportOptionalSubscript, reportUnknownMemberType]
+            assert site in ["1111-1111-1111-1111", "2222-2222-2222-2222"], f"Unexpected site ID: {site}"
+            assert len(data["forecasts"]) > 300, f"Site {site}: expected > 300 forecasts, got {len(data['forecasts'])}"  # type: ignore[arg-type, call-overload, index] # pyright: ignore[reportArgumentType, reportIndexIssue, reportOptionalSubscript, reportUnknownMemberType]
         assert diagnostics["energy_forecasts_graph"][solcast.dt_helper.now_utc().replace(hour=2, minute=0, second=0).isoformat()] == 3600.0  # type: ignore[call-overload, index]
 
         await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": "5.0"}, blocking=True)

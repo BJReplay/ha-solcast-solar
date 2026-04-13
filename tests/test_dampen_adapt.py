@@ -612,9 +612,11 @@ async def test_build_interval_error_weights_hourly_factor_mapping(
 
         weights = solcast.dampening.adaptive._build_interval_error_weights(generation_dampening, 1, day_start)
 
-        assert weights[interval] == 2.0
-        assert max(weights[:interval] + weights[interval + 1 :]) == 0.0
-        assert solcast.dampening.adaptive._apply_interval_error_bias([0.0] * 48, weights) == [0.0] * 48
+        assert weights[interval] == 2.0, f"Error weight at interval {interval} should be 2.0, got {weights[interval]}"
+        assert max(weights[:interval] + weights[interval + 1 :]) == 0.0, "Non-target intervals should have zero weight"
+        assert solcast.dampening.adaptive._apply_interval_error_bias([0.0] * 48, weights) == [0.0] * 48, (
+            "Bias applied to zeros should remain zeros"
+        )
 
         solcast.dampening.factors = {ALL: [1.0] * 10}
         assert solcast.dampening.adaptive._build_interval_error_weights(generation_dampening, 1, day_start) == [0.0] * 48
@@ -675,10 +677,10 @@ async def test_select_comparison_interval_prefers_persistent_error(
             day_start,
         )
 
-        assert selected_interval == 20
-        assert avg_gen > 0
-        assert avg_factor < 1.0
-        assert variance > 0.0
+        assert selected_interval == 20, f"Expected interval 20 (persistent error), got {selected_interval}"
+        assert avg_gen > 0, f"Expected avg_gen > 0, got {avg_gen}"
+        assert avg_factor < 1.0, f"Expected avg_factor < 1.0, got {avg_factor}"
+        assert variance > 0.0, f"Expected variance > 0.0, got {variance}"
     finally:
         monkeypatch.undo()
         assert await async_cleanup_integration_tests(hass)
@@ -743,8 +745,10 @@ async def test_select_comparison_interval_current_factors_fallback(
         #   21: (8/8 = 1.0) × 0.20 = 0.20 beats 15: (2/8 = 0.25) × 0.45 = 0.11
         # The correct approach ignores generation magnitude and selects maximum
         # dampening among intervals with adequate daylight production.
-        assert selected_interval == 15
-        assert avg_factor == 1.0  # history-based avg_factor — no active history entries
+        assert selected_interval == 15, f"Expected interval 15 (heaviest dampening), got {selected_interval}"
+        assert avg_factor == 1.0, (
+            f"Expected avg_factor 1.0 (no active history), got {avg_factor}"
+        )  # history-based avg_factor — no active history entries
     finally:
         assert await async_cleanup_integration_tests(hass)
 
@@ -941,7 +945,7 @@ async def test_calculate_single_interval_error_with_generation(
             log_breakdown=True,
         )
 
-        assert mean_ape > 0
+        assert mean_ape > 0, f"Expected mean_ape > 0 with generation, got {mean_ape}"
         assert "Single interval APE for day" in caplog.text
     finally:
         monkeypatch.undo()
@@ -973,7 +977,7 @@ async def test_calculate_single_interval_error_no_generation(
             log_breakdown=True,
         )
 
-        assert mean_ape == math.inf
+        assert mean_ape == math.inf, f"Expected mean_ape == inf with no generation, got {mean_ape}"
         assert "Single interval APE for day" in caplog.text
     finally:
         assert await async_cleanup_integration_tests(hass)
@@ -1015,7 +1019,7 @@ async def test_calculate_single_interval_error_skips_missing(
             0,
         )
 
-        assert mean_ape == math.inf
+        assert mean_ape == math.inf, f"Expected mean_ape == inf with missing actuals, got {mean_ape}"
     finally:
         monkeypatch.undo()
         assert await async_cleanup_integration_tests(hass)

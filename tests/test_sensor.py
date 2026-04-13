@@ -458,7 +458,9 @@ async def test_sensor_states(  # noqa: C901
         now = dt.now()
 
         # Test number of site sensors that exist.
-        assert len(hass.states.async_all("sensor")) == len(sensors) + (3 if key == "2" else 5)
+        assert len(hass.states.async_all("sensor")) == len(sensors) + (3 if key == "2" else 5), (
+            f"Settings {key}: expected {len(sensors) + (3 if key == '2' else 5)} sensors, got {len(hass.states.async_all('sensor'))}"
+        )
         no_error_or_exception(caplog)
         caplog.clear()
 
@@ -467,30 +469,38 @@ async def test_sensor_states(  # noqa: C901
             if sensor == "api_used":
                 continue
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
-            assert state
-            assert state.state != STATE_UNAVAILABLE
+            assert state, f"Settings {key}: sensor {sensor} not found"
+            assert state.state != STATE_UNAVAILABLE, f"Settings {key}: sensor {sensor} is unavailable"
             if "state" in attrs:
                 test = state.state
                 with contextlib.suppress(AttributeError, ValueError):
                     testd = dt.fromisoformat(test)
                     test = testd.replace(year=2024, month=1, day=1).astimezone(ZoneInfo(hass.config.time_zone)).isoformat()
                 if attrs["state"][key] == "isodate":
-                    assert dt.fromisoformat(test)
+                    assert dt.fromisoformat(test), f"Settings {key}: sensor {sensor} state is not a valid ISO date"
                 else:
-                    assert test == attrs["state"][key]
+                    assert test == attrs["state"][key], (
+                        f"Settings {key}: sensor {sensor} state expected {attrs['state'][key]!r}, got {test!r}"
+                    )
             state_attributes: ReadOnlyDict[str, Any] = state.attributes  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
             if attrs.get("attributes"):
                 for attribute in attrs["attributes"][key]:
                     testa = state_attributes.get(attribute)
                     with contextlib.suppress(AttributeError, ValueError):
                         testa = testa.replace(year=2024, month=1, day=1).isoformat()  # type: ignore[union-attr] # This is an assumed datetime, but that may not be
-                    assert testa == attrs["attributes"][key][attribute]
+                    assert testa == attrs["attributes"][key][attribute], (
+                        f"Settings {key}: sensor {sensor} attr {attribute!r} expected {attrs['attributes'][key][attribute]!r}, got {testa!r}"
+                    )
             if "api" not in sensor:
                 assert state_attributes["attribution"] == "Data retrieved from Solcast"
             if "unit_of_measurement" in attrs:
-                assert state_attributes["unit_of_measurement"] == attrs["unit_of_measurement"]
+                assert state_attributes["unit_of_measurement"] == attrs["unit_of_measurement"], (
+                    f"Settings {key}: sensor {sensor} unit expected {attrs['unit_of_measurement']!r}, got {state_attributes['unit_of_measurement']!r}"
+                )
             if "state_class" in attrs:
-                assert state_attributes["state_class"] == attrs["state_class"]
+                assert state_attributes["state_class"] == attrs["state_class"], (
+                    f"Settings {key}: sensor {sensor} state_class expected {attrs['state_class']!r}, got {state_attributes['state_class']!r}"
+                )
         no_error_or_exception(caplog)
         caplog.clear()
 
@@ -533,16 +543,22 @@ async def test_sensor_states(  # noqa: C901
             assert state is not None
             ci = state.attributes.get("analysis")
             assert ci is not None, f"analysis missing from {sensor_name}"
-            assert isinstance(ci, dict)
-            assert ci.get("confidence") == 0.75
+            assert isinstance(ci, dict), f"analysis for {sensor_name} should be a dict"
+            assert ci.get("confidence") == 0.75, f"{sensor_name}: expected confidence 0.75, got {ci.get('confidence')}"
             expected_spread = 11.82 if key == "2" else 16.2525
-            assert ci.get("spread_kwh") == expected_spread
+            assert ci.get("spread_kwh") == expected_spread, (
+                f"{sensor_name}: expected spread_kwh {expected_spread}, got {ci.get('spread_kwh')}"
+            )
             expected_estimate10 = 35.46 if key == "2" else 48.7575
             expected_estimate90 = 47.28 if key == "2" else 65.01
-            assert ci.get("estimate10_kwh") == expected_estimate10
-            assert ci.get("estimate90_kwh") == expected_estimate90
-            assert isinstance(ci.get("intervals"), list)
-            assert len(ci["intervals"]) > 0
+            assert ci.get("estimate10_kwh") == expected_estimate10, (
+                f"{sensor_name}: expected estimate10_kwh {expected_estimate10}, got {ci.get('estimate10_kwh')}"
+            )
+            assert ci.get("estimate90_kwh") == expected_estimate90, (
+                f"{sensor_name}: expected estimate90_kwh {expected_estimate90}, got {ci.get('estimate90_kwh')}"
+            )
+            assert isinstance(ci.get("intervals"), list), f"{sensor_name}: analysis intervals should be a list"
+            assert len(ci["intervals"]) > 0, f"{sensor_name}: analysis intervals should not be empty"
             interval_entry = ci["intervals"][0]
             assert "period_start" in interval_entry
             assert "spread_kwh" in interval_entry

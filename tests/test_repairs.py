@@ -77,12 +77,12 @@ async def test_missing_data_fixable(
         await reload_integration(hass, entry)
 
         # Assert the issue is present, fixable and non-persistent
-        assert len(issue_registry.issues) == 1
+        assert len(issue_registry.issues) == 1, f"Expected 1 issue, got {len(issue_registry.issues)}"
         issue = list(issue_registry.issues.values())[0]
-        assert issue.domain == DOMAIN
-        assert issue.issue_id == "records_missing_fixable"
-        assert issue.is_fixable is True
-        assert issue.is_persistent is False
+        assert issue.domain == DOMAIN, f"Expected domain {DOMAIN}, got {issue.domain}"
+        assert issue.issue_id == "records_missing_fixable", f"Expected issue_id 'records_missing_fixable', got {issue.issue_id}"
+        assert issue.is_fixable is True, "Missing data issue should be fixable"
+        assert issue.is_persistent is False, "Missing data issue should not be persistent"
 
         flow = await async_create_fix_flow(hass, "not_handled_issue", {})
         assert type(flow) is ConfirmRepairFlow
@@ -120,12 +120,12 @@ async def test_missing_data_initial(
 
         def assert_issue_present():
             # Assert the issue is present, unfixable and persistent
-            assert len(issue_registry.issues) == 1
+            assert len(issue_registry.issues) == 1, f"Expected 1 issue, got {len(issue_registry.issues)}"
             issue = list(issue_registry.issues.values())[0]
-            assert issue.domain == DOMAIN
-            assert issue.issue_id == "records_missing_initial"
-            assert issue.is_fixable is False
-            assert issue.is_persistent is True
+            assert issue.domain == DOMAIN, f"Expected domain {DOMAIN}, got {issue.domain}"
+            assert issue.issue_id == "records_missing_initial", f"Expected issue_id 'records_missing_initial', got {issue.issue_id}"
+            assert issue.is_fixable is False, "Initial missing data issue should not be fixable"
+            assert issue.is_persistent is True, "Initial missing data issue should be persistent"
 
         def assert_issue_not_present():
             # Assert the issue is not present
@@ -203,10 +203,10 @@ def test_unusual_azimuth(
 
     unusual, issue_key, proposal = check_unusual_azimuth(latitude, azimuth)
 
-    assert unusual is expected_unusual
-    assert issue_key == expected_issue_key
+    assert unusual is expected_unusual, f"lat={latitude}, az={azimuth}: expected unusual={expected_unusual}, got {unusual}"
+    assert issue_key == expected_issue_key, f"lat={latitude}, az={azimuth}: expected issue_key={expected_issue_key!r}, got {issue_key!r}"
     if expected_unusual:
-        assert proposal == expected_proposal
+        assert proposal == expected_proposal, f"lat={latitude}, az={azimuth}: expected proposal={expected_proposal}, got {proposal}"
 
 
 @pytest.mark.parametrize(
@@ -221,7 +221,9 @@ def test_unusual_azimuth(
 def test_redact_lat_lon_simple(input_str: str, expected: str) -> None:
     """Test redaction of latitude and longitude decimal places."""
 
-    assert redact_lat_lon_simple(input_str) == expected
+    assert redact_lat_lon_simple(input_str) == expected, (
+        f"redact({input_str!r}): expected {expected!r}, got {redact_lat_lon_simple(input_str)!r}"
+    )
 
 
 async def test_unusual_azimuth_issue_creation_and_cleanup(
@@ -240,15 +242,17 @@ async def test_unusual_azimuth_issue_creation_and_cleanup(
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
 
         # Assert the issue is present, persistent and has correct placeholders
-        assert len(issue_registry.issues) == 1
+        assert len(issue_registry.issues) == 1, f"Expected 1 unusual azimuth issue, got {len(issue_registry.issues)}"
         issue = list(issue_registry.issues.values())[0]
         assert f"Raise issue `{issue.issue_id}`" in caplog.text
-        assert issue.domain == DOMAIN
-        assert issue.issue_id == "unusual_azimuth_northern"
-        assert issue.is_fixable is False
-        assert issue.is_persistent is True
-        assert issue.translation_placeholders is not None
-        assert issue.translation_placeholders.get("proposal") == "130"
+        assert issue.domain == DOMAIN, f"Expected domain {DOMAIN}, got {issue.domain}"
+        assert issue.issue_id == "unusual_azimuth_northern", f"Expected issue_id 'unusual_azimuth_northern', got {issue.issue_id}"
+        assert issue.is_fixable is False, "Unusual azimuth issue should not be fixable"
+        assert issue.is_persistent is True, "Unusual azimuth issue should be persistent"
+        assert issue.translation_placeholders is not None, "Unusual azimuth issue should have translation placeholders"
+        assert issue.translation_placeholders.get("proposal") == "130", (
+            f"Expected proposal '130', got {issue.translation_placeholders.get('proposal')!r}"
+        )
         assert re.search(r"WARNING.+Unusual azimuth", caplog.text) is not None
 
         # Dismiss the issue and reload — verifies cleanup_issues and re-serialisation

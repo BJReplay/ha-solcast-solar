@@ -146,8 +146,10 @@ class TestCalculateFactorComputation:
 
         result = await dampening.calculate(matching_intervals, generation, actuals, [], dampening_model)
 
-        assert len(result) == 48
-        assert result[interval] == expected_factor
+        assert len(result) == 48, f"Model {dampening_model}: expected 48 intervals, got {len(result)}"
+        assert result[interval] == expected_factor, (
+            f"Model {dampening_model}: interval {interval} expected {expected_factor}, got {result[interval]}"
+        )
 
     @freeze_time("2025-10-03T14:00:00+11:00")
     async def test_unmatched_intervals_remain_one(self) -> None:
@@ -186,7 +188,7 @@ class TestCalculateFactorComputation:
 
         result = await dampening.calculate(matching_intervals, generation, actuals, [interval], 0)
 
-        assert result[interval] == 1.0
+        assert result[interval] == 1.0, f"Ignored interval {interval} should remain 1.0, got {result[interval]}"
 
 
 class TestCalculateDSTLabels:
@@ -296,11 +298,11 @@ class TestAttributeBuilderDSTLabels:
 
         result = _get_attribute_factors(factors_list, tz)
 
-        assert len(result) == 48
+        assert len(result) == 48, f"Expected 48 attribute entries during AEST, got {len(result)}"
         # Find the entry with factor 0.819
         matching = [e for e in result if e[FACTOR] == 0.819]
-        assert len(matching) == 1
-        assert matching[0][INTERVAL] == "10:00"
+        assert len(matching) == 1, f"Expected exactly 1 entry with factor 0.819 during AEST, got {len(matching)}"
+        assert matching[0][INTERVAL] == "10:00", f"AEST: factor 0.819 should be at 10:00, got {matching[0][INTERVAL]}"
 
     @freeze_time("2025-10-05T14:00:00+11:00")  # AEDT (after spring-forward)
     def test_summer_time_labels(self) -> None:
@@ -314,10 +316,10 @@ class TestAttributeBuilderDSTLabels:
 
         result = _get_attribute_factors(factors_list, tz)
 
-        assert len(result) == 48
+        assert len(result) == 48, f"Expected 48 attribute entries during AEDT, got {len(result)}"
         matching = [e for e in result if e[FACTOR] == 0.819]
-        assert len(matching) == 1
-        assert matching[0][INTERVAL] == "11:00"
+        assert len(matching) == 1, f"Expected exactly 1 entry with factor 0.819 during AEDT, got {len(matching)}"
+        assert matching[0][INTERVAL] == "11:00", f"AEDT: factor 0.819 should be at 11:00, got {matching[0][INTERVAL]}"
 
     @freeze_time("2025-10-05T14:00:00+11:00")  # AEDT
     def test_factor_at_original_index_maps_to_shifted_label(self) -> None:
@@ -334,11 +336,11 @@ class TestAttributeBuilderDSTLabels:
 
         # In the sorted result, find entry at label "11:00"
         entry_11 = next(e for e in result if e[INTERVAL] == "11:00")
-        assert entry_11[FACTOR] == 0.819
+        assert entry_11[FACTOR] == 0.819, f"AEDT: label 11:00 should have factor 0.819, got {entry_11[FACTOR]}"
 
         # Label "10:00" should be 1.0 (it maps to raw index 18 during AEDT)
         entry_10 = next(e for e in result if e[INTERVAL] == "10:00")
-        assert entry_10[FACTOR] == 1.0
+        assert entry_10[FACTOR] == 1.0, f"AEDT: label 10:00 should have factor 1.0, got {entry_10[FACTOR]}"
 
     @freeze_time("2025-10-02T14:00:00+10:00")  # AEST
     def test_factor_at_original_index_no_shift_during_standard(self) -> None:
@@ -350,7 +352,7 @@ class TestAttributeBuilderDSTLabels:
         result = _get_attribute_factors(factors_list, tz)
 
         entry_10 = next(e for e in result if e[INTERVAL] == "10:00")
-        assert entry_10[FACTOR] == 0.819
+        assert entry_10[FACTOR] == 0.819, f"AEST: label 10:00 should have factor 0.819, got {entry_10[FACTOR]}"
 
 
 class TestDSTTransitionScenarios:
@@ -404,15 +406,21 @@ class TestDSTTransitionScenarios:
         with freeze_time(frozen_before):
             result_before = _get_attribute_factors(factors_list, tz)
         matching_before = [e for e in result_before if e[FACTOR] == 0.819]
-        assert len(matching_before) == 1
-        assert matching_before[0][INTERVAL] == label_before
+        assert len(matching_before) == 1, (
+            f"Before transition ({frozen_before}): expected 1 entry with factor 0.819, got {len(matching_before)}"
+        )
+        assert matching_before[0][INTERVAL] == label_before, (
+            f"Before transition: expected label {label_before}, got {matching_before[0][INTERVAL]}"
+        )
 
         # After transition
         with freeze_time(frozen_after):
             result_after = _get_attribute_factors(factors_list, tz)
         matching_after = [e for e in result_after if e[FACTOR] == 0.819]
-        assert len(matching_after) == 1
-        assert matching_after[0][INTERVAL] == label_after
+        assert len(matching_after) == 1, f"After transition ({frozen_after}): expected 1 entry with factor 0.819, got {len(matching_after)}"
+        assert matching_after[0][INTERVAL] == label_after, (
+            f"After transition: expected label {label_after}, got {matching_after[0][INTERVAL]}"
+        )
 
     @pytest.mark.parametrize(
         ("frozen_before", "frozen_after", "interval", "dampening_model", "label_before", "label_after"),
@@ -467,8 +475,8 @@ class TestDSTTransitionScenarios:
             matching_intervals, generation, actuals = _build_matching_data(interval, timestamps, gen_values, act_values)
             with caplog.at_level("DEBUG"):
                 result = await dampening_obj.calculate(matching_intervals, generation, actuals, [], dampening_model)
-            assert result[interval] == 0.819
-            assert f"Auto-dampen factor for {label_before} is 0.819" in caplog.text
+            assert result[interval] == 0.819, f"Before transition: interval {interval} expected 0.819, got {result[interval]}"
+            assert f"Auto-dampen factor for {label_before} is 0.819" in caplog.text, f"Before transition: expected log label {label_before}"
             caplog.clear()
 
         # After transition
@@ -477,8 +485,8 @@ class TestDSTTransitionScenarios:
             dampening_obj = Dampening(api)
             with caplog.at_level("DEBUG"):
                 result = await dampening_obj.calculate(matching_intervals, generation, actuals, [], dampening_model)
-            assert result[interval] == 0.819
-            assert f"Auto-dampen factor for {label_after} is 0.819" in caplog.text
+            assert result[interval] == 0.819, f"After transition: interval {interval} expected 0.819, got {result[interval]}"
+            assert f"Auto-dampen factor for {label_after} is 0.819" in caplog.text, f"After transition: expected log label {label_after}"
 
     @pytest.mark.parametrize(
         ("dampening_model", "gen_values", "act_values", "expected_factor"),
@@ -511,12 +519,16 @@ class TestDSTTransitionScenarios:
 
         result = await dampening_obj.calculate(matching_intervals, generation, actuals, [], dampening_model)
 
-        assert result[interval] == expected_factor
+        assert result[interval] == expected_factor, (
+            f"Model {dampening_model}: interval {interval} expected {expected_factor}, got {result[interval]}"
+        )
         # Display label is shifted but factor is at raw index
         attrs = _get_attribute_factors(result, tz)
         matching = [e for e in attrs if e[FACTOR] == expected_factor]
-        assert len(matching) == 1
-        assert matching[0][INTERVAL] == "11:00"  # AEDT: 10:00+1
+        assert len(matching) == 1, f"Model {dampening_model}: expected 1 attribute entry with factor {expected_factor}, got {len(matching)}"
+        assert matching[0][INTERVAL] == "11:00", (
+            f"Model {dampening_model}: AEDT label should be 11:00, got {matching[0][INTERVAL]}"
+        )  # AEDT: 10:00+1
 
 
 class TestAttributeBuilderEdgeCases:
@@ -530,10 +542,10 @@ class TestAttributeBuilderEdgeCases:
 
         result = _get_attribute_factors(factors_list, tz)
 
-        assert len(result) == 48
+        assert len(result) == 48, f"AEDT: expected 48 entries, got {len(result)}"
         # Verify sorted order
         intervals = [e[INTERVAL] for e in result]
-        assert intervals == sorted(intervals)
+        assert intervals == sorted(intervals), "AEDT: attribute entries are not sorted"
 
     @freeze_time("2025-10-05T14:00:00+11:00")  # AEDT
     def test_fill_in_entries_during_dst(self) -> None:
@@ -547,10 +559,10 @@ class TestAttributeBuilderEdgeCases:
 
         result = _get_attribute_factors(factors_list, tz)
 
-        assert len(result) == 48
+        assert len(result) == 48, f"AEDT fill-in: expected 48 entries, got {len(result)}"
         labels = {e[INTERVAL] for e in result}
-        assert "00:00" in labels
-        assert "00:30" in labels
+        assert "00:00" in labels, "AEDT: missing 00:00 fill-in entry"
+        assert "00:30" in labels, "AEDT: missing 00:30 fill-in entry"
 
     @freeze_time("2025-10-02T14:00:00+10:00")  # AEST
     def test_no_extra_entries_during_standard_time(self) -> None:
@@ -560,12 +572,12 @@ class TestAttributeBuilderEdgeCases:
 
         result = _get_attribute_factors(factors_list, tz)
 
-        assert len(result) == 48
+        assert len(result) == 48, f"AEST: expected 48 entries, got {len(result)}"
         intervals = [e[INTERVAL] for e in result]
-        assert intervals == sorted(intervals)
+        assert intervals == sorted(intervals), "AEST: attribute entries are not sorted"
         # During standard time, no 24:00/24:30 should exist
-        assert "24:00" not in intervals
-        assert "24:30" not in intervals
+        assert "24:00" not in intervals, "AEST: unexpected 24:00 entry"
+        assert "24:30" not in intervals, "AEST: unexpected 24:30 entry"
 
 
 class TestWinterTimeDSTLabels:
@@ -638,17 +650,17 @@ class TestCoordinatorAttributeBuilder:
 
         result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
-        assert result is not None
+        assert result is not None, "Full DST: get_sensor_extra_attributes returned None"
         factors = result[FACTORS]
-        assert len(factors) == 48
+        assert len(factors) == 48, f"Full DST: expected 48 entries, got {len(factors)}"
         labels = {e[INTERVAL] for e in factors}
-        assert "00:00" in labels
-        assert "00:30" in labels
+        assert "00:00" in labels, "Full DST: missing 00:00 fill-in entry"
+        assert "00:30" in labels, "Full DST: missing 00:30 fill-in entry"
         # The filled entries have factor 1 (not 0.5)
         entry_00 = next(e for e in factors if e[INTERVAL] == "00:00")
-        assert entry_00[FACTOR] == 1
+        assert entry_00[FACTOR] == 1, f"Full DST: 00:00 fill-in should have factor 1, got {entry_00[FACTOR]}"
         entry_0030 = next(e for e in factors if e[INTERVAL] == "00:30")
-        assert entry_0030[FACTOR] == 1
+        assert entry_0030[FACTOR] == 1, f"Full DST: 00:30 fill-in should have factor 1, got {entry_0030[FACTOR]}"
 
     @freeze_time("2025-10-05T14:00:00+11:00")  # Transition day (AEST→AEDT)
     def test_fill_in_03_entries_on_transition_day(self) -> None:
@@ -664,16 +676,16 @@ class TestCoordinatorAttributeBuilder:
 
         result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
-        assert result is not None
+        assert result is not None, "Transition day: get_sensor_extra_attributes returned None"
         factors = result[FACTORS]
-        assert len(factors) == 48
+        assert len(factors) == 48, f"Transition day: expected 48 entries, got {len(factors)}"
         labels = {e[INTERVAL] for e in factors}
-        assert "03:00" in labels
-        assert "03:30" in labels
+        assert "03:00" in labels, "Transition day: missing 03:00 fill-in entry"
+        assert "03:30" in labels, "Transition day: missing 03:30 fill-in entry"
         entry_03 = next(e for e in factors if e[INTERVAL] == "03:00")
-        assert entry_03[FACTOR] == 1
+        assert entry_03[FACTOR] == 1, f"Transition day: 03:00 fill-in should have factor 1, got {entry_03[FACTOR]}"
         entry_0330 = next(e for e in factors if e[INTERVAL] == "03:30")
-        assert entry_0330[FACTOR] == 1
+        assert entry_0330[FACTOR] == 1, f"Transition day: 03:30 fill-in should have factor 1, got {entry_0330[FACTOR]}"
 
     @freeze_time("2025-10-06T14:00:00+11:00")  # Fully AEDT
     def test_remove_24h_entries_during_dst(self) -> None:
@@ -690,12 +702,12 @@ class TestCoordinatorAttributeBuilder:
 
         result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
-        assert result is not None
+        assert result is not None, "DST 24h removal: get_sensor_extra_attributes returned None"
         factors = result[FACTORS]
-        assert len(factors) == 48
+        assert len(factors) == 48, f"DST 24h removal: expected 48 entries, got {len(factors)}"
         labels = {e[INTERVAL] for e in factors}
-        assert "24:00" not in labels
-        assert "24:30" not in labels
+        assert "24:00" not in labels, "DST: 24:00 should be removed"
+        assert "24:30" not in labels, "DST: 24:30 should be removed"
 
     @freeze_time("2025-10-02T14:00:00+10:00")  # AEST (no DST)
     def test_no_fill_in_during_standard_time(self) -> None:
@@ -707,15 +719,15 @@ class TestCoordinatorAttributeBuilder:
 
         result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
-        assert result is not None
+        assert result is not None, "AEST standard: get_sensor_extra_attributes returned None"
         factors = result[FACTORS]
-        assert len(factors) == 48
+        assert len(factors) == 48, f"AEST standard: expected 48 entries, got {len(factors)}"
         labels = [e[INTERVAL] for e in factors]
-        assert labels == sorted(labels)
-        assert "24:00" not in labels
+        assert labels == sorted(labels), "AEST standard: attribute entries are not sorted"
+        assert "24:00" not in labels, "AEST standard: unexpected 24:00 entry"
         # Factor at index 20 maps to "10:00" during AEST
         entry_10 = next(e for e in factors if e[INTERVAL] == "10:00")
-        assert entry_10[FACTOR] == 0.819
+        assert entry_10[FACTOR] == 0.819, f"AEST standard: 10:00 should have factor 0.819, got {entry_10[FACTOR]}"
 
     @freeze_time("2025-10-05T14:00:00+11:00")  # AEDT
     def test_factor_at_index_20_maps_to_shifted_label(self) -> None:
@@ -727,10 +739,10 @@ class TestCoordinatorAttributeBuilder:
 
         result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
-        assert result is not None
+        assert result is not None, "AEDT index-20: get_sensor_extra_attributes returned None"
         factors = result[FACTORS]
         entry_11 = next(e for e in factors if e[INTERVAL] == "11:00")
-        assert entry_11[FACTOR] == 0.819
+        assert entry_11[FACTOR] == 0.819, f"AEDT: label 11:00 should have factor 0.819, got {entry_11[FACTOR]}"
 
     @freeze_time("2025-10-05T14:00:00+11:00")  # AEDT
     def test_all_48_entries_sorted_during_dst(self) -> None:
@@ -741,8 +753,8 @@ class TestCoordinatorAttributeBuilder:
 
         result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
-        assert result is not None
+        assert result is not None, "AEDT sorted: get_sensor_extra_attributes returned None"
         factors = result[FACTORS]
-        assert len(factors) == 48
+        assert len(factors) == 48, f"AEDT sorted: expected 48 entries, got {len(factors)}"
         intervals = [e[INTERVAL] for e in factors]
-        assert intervals == sorted(intervals)
+        assert intervals == sorted(intervals), "AEDT sorted: attribute entries are not sorted"

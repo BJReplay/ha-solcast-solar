@@ -81,8 +81,12 @@ async def test_select_change_value(
         await hass.async_block_till_done()
 
         assert hass.states.get(select_entity_id).state == resulting_state  # type: ignore[union-attr]
-        assert coordinator.solcast.options.key_estimate == resulting_state
-        assert hass.states.get(f"sensor.solcast_pv_forecast_{test_entity}").state == expected_value  # type: ignore[union-attr]
+        assert coordinator.solcast.options.key_estimate == resulting_state, (
+            f"key_estimate should be {resulting_state!r}, got {coordinator.solcast.options.key_estimate!r}"
+        )
+        assert hass.states.get(f"sensor.solcast_pv_forecast_{test_entity}").state == expected_value, (
+            f"Sensor {test_entity} state should be {expected_value!r} for mode {resulting_state}"
+        )  # type: ignore[union-attr]
 
         for _ in range(300):  # Extra time needed for refresh
             await hass.async_block_till_done()

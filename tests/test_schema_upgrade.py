@@ -48,12 +48,12 @@ def test_upgrade_from_v4() -> None:
 
     result = upgrade_cache_schema(data, 4, SITE_ID, auto_update_enabled=True)
 
-    assert result == JSON_VERSION
-    assert data[VERSION] == JSON_VERSION
-    assert data[LAST_ATTEMPT] == LAST_UPDATED_VALUE
-    assert data[AUTO_UPDATED] == 99999
-    assert data[FAILURE] == {LAST_24H: 0, LAST_7D: [0] * 7, LAST_14D: [0] * 14}
-    assert data[INTEGRATION_VERSION] == "unknown"
+    assert result == JSON_VERSION, f"v4 upgrade: returned version {result}, expected {JSON_VERSION}"
+    assert data[VERSION] == JSON_VERSION, f"v4 upgrade: VERSION field is {data[VERSION]}, expected {JSON_VERSION}"
+    assert data[LAST_ATTEMPT] == LAST_UPDATED_VALUE, "v4 upgrade: LAST_ATTEMPT should be backfilled from LAST_UPDATED"
+    assert data[AUTO_UPDATED] == 99999, f"v4 upgrade: AUTO_UPDATED should be 99999 when enabled, got {data[AUTO_UPDATED]}"
+    assert data[FAILURE] == {LAST_24H: 0, LAST_7D: [0] * 7, LAST_14D: [0] * 14}, "v4 upgrade: FAILURE structure mismatch"
+    assert data[INTEGRATION_VERSION] == "unknown", f"v4 upgrade: INTEGRATION_VERSION should be 'unknown', got {data[INTEGRATION_VERSION]}"
 
 
 def test_upgrade_from_ancient() -> None:
@@ -67,14 +67,16 @@ def test_upgrade_from_ancient() -> None:
 
     result = upgrade_cache_schema(data, 1, SITE_ID, auto_update_enabled=True)
 
-    assert result == JSON_VERSION
-    assert data[VERSION] == JSON_VERSION
-    assert data[LAST_ATTEMPT] == LAST_UPDATED_VALUE
-    assert data[AUTO_UPDATED] == 99999
-    assert data[INTEGRATION_VERSION] == "unknown"
+    assert result == JSON_VERSION, f"Ancient upgrade: returned version {result}, expected {JSON_VERSION}"
+    assert data[VERSION] == JSON_VERSION, f"Ancient upgrade: VERSION field is {data[VERSION]}, expected {JSON_VERSION}"
+    assert data[LAST_ATTEMPT] == LAST_UPDATED_VALUE, "Ancient upgrade: LAST_ATTEMPT should be backfilled"
+    assert data[AUTO_UPDATED] == 99999, f"Ancient upgrade: AUTO_UPDATED should be 99999 when enabled, got {data[AUTO_UPDATED]}"
+    assert data[INTEGRATION_VERSION] == "unknown", (
+        f"Ancient upgrade: INTEGRATION_VERSION should be 'unknown', got {data[INTEGRATION_VERSION]}"
+    )
     # Forecasts should have been migrated under siteinfo.
-    assert data[SITE_INFO] == {SITE_ID: {FORECASTS: SAMPLE_FORECASTS}}
-    assert FORECASTS not in data
+    assert data[SITE_INFO] == {SITE_ID: {FORECASTS: SAMPLE_FORECASTS}}, "Ancient upgrade: forecasts not migrated under siteinfo"
+    assert FORECASTS not in data, "Ancient upgrade: top-level FORECASTS should be removed after migration"
 
 
 def test_upgrade_auto_update_disabled() -> None:
@@ -86,8 +88,8 @@ def test_upgrade_auto_update_disabled() -> None:
 
     result = upgrade_cache_schema(data, 4, SITE_ID, auto_update_enabled=False)
 
-    assert result == JSON_VERSION
-    assert data[AUTO_UPDATED] == 0
+    assert result == JSON_VERSION, f"Disabled auto-update upgrade: returned version {result}, expected {JSON_VERSION}"
+    assert data[AUTO_UPDATED] == 0, f"Disabled auto-update: AUTO_UPDATED should be 0, got {data[AUTO_UPDATED]}"
 
 
 def test_incompatible_no_siteinfo_no_forecasts() -> None:

@@ -57,7 +57,7 @@ def _occurs_in_log(caplog: pytest.LogCaptureFixture, text: str, occurrences: int
     for entry in caplog.messages:
         if text in entry:
             occurs += 1
-    assert occurrences == occurs
+    assert occurrences == occurs, f"Expected {text!r} to occur {occurrences} times in the log, found {occurs}"
 
 
 def _log_level_for(caplog: pytest.LogCaptureFixture, text: str) -> int:

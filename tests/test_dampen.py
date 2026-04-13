@@ -408,33 +408,28 @@ async def test_auto_dampen_issues(
         assert await async_cleanup_integration_tests(hass)
 
 
-async def test_percentile() -> None:
+@pytest.mark.parametrize(
+    ("data", "pct", "expected"),
+    [
+        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 0, 1.0, id="p0 of [1..5]"),
+        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 25, 2.0, id="p25 of [1..5]"),
+        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 50, 3.0, id="p50 of [1..5]"),
+        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 75, 4.0, id="p75 of [1..5]"),
+        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 100, 5.0, id="p100 of [1..5]"),
+        pytest.param([5.0], 0, 5.0, id="p0 of [5.0]"),
+        pytest.param([5.0], 25, 5.0, id="p25 of [5.0]"),
+        pytest.param([5.0], 50, 5.0, id="p50 of [5.0]"),
+        pytest.param([5.0], 75, 5.0, id="p75 of [5.0]"),
+        pytest.param([5.0], 100, 5.0, id="p100 of [5.0]"),
+        pytest.param([0.1] * 10 + [0.5], 90, 0.1, id="p90 of 10x0.1+0.5"),
+        pytest.param([0.1] * 8 + [0.5], 90, 0.18, id="p90 of 8x0.1+0.5"),
+        pytest.param([], 50, 0.0, id="p50 of []"),
+    ],
+)
+async def test_percentile(data: list[float], pct: int, expected: float) -> None:
     """Test percentile function."""
-
-    data: list[float]
-
-    data = [1.0, 2.0, 3.0, 4.0, 5.0]
-    assert percentile(data, 0) == 1.0
-    assert percentile(data, 25) == 2.0
-    assert percentile(data, 50) == 3.0
-    assert percentile(data, 75) == 4.0
-    assert percentile(data, 100) == 5.0
-
-    data = [5.0]
-    assert percentile(data, 0) == 5.0
-    assert percentile(data, 25) == 5.0
-    assert percentile(data, 50) == 5.0
-    assert percentile(data, 75) == 5.0
-    assert percentile(data, 100) == 5.0
-
-    data = [0.1] * 10 + [0.5]
-    assert percentile(data, 90) == 0.1
-
-    data = [0.1] * 8 + [0.5]
-    assert round(percentile(data, 90), 2) == 0.18
-
-    data = []
-    assert percentile(data, 50) == 0.0
+    result = round(percentile(data, pct), 2)
+    assert result == expected, f"p{pct}: expected {expected}, got {result}"
 
 
 async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.LogCaptureFixture) -> None:
@@ -607,9 +602,11 @@ def test_compute_power_intervals_time_weighted_averaging() -> None:
 
     result = compute_power_intervals(power_readings, intervals)
 
-    assert result is True
-    assert abs(intervals[period_start] - 1.0) < 0.01
-    assert abs(intervals[period_start + timedelta(minutes=30)] - 3.0) < 0.01
+    assert result is True, "Time-weighted averaging should return True"
+    assert abs(intervals[period_start] - 1.0) < 0.01, f"Interval 1 (half-power): expected ~1.0 kWh, got {intervals[period_start]}"
+    assert abs(intervals[period_start + timedelta(minutes=30)] - 3.0) < 0.01, (
+        f"Interval 2 (constant 6kW): expected ~3.0 kWh, got {intervals[period_start + timedelta(minutes=30)]}"
+    )
 
 
 def test_compute_power_intervals_watt_conversion() -> None:
@@ -630,8 +627,8 @@ def test_compute_power_intervals_watt_conversion() -> None:
 
     result = compute_power_intervals(power_readings, intervals)
 
-    assert result is True
-    assert abs(intervals[period_start] - 1.0) < 0.01
+    assert result is True, "W→kW conversion should return True"
+    assert abs(intervals[period_start] - 1.0) < 0.01, f"W→kW interval: expected ~1.0 kWh, got {intervals[period_start]}"
 
 
 def test_compute_power_intervals_insufficient_readings() -> None:
@@ -641,11 +638,11 @@ def test_compute_power_intervals_insufficient_readings() -> None:
     intervals = _make_intervals(period_start)
 
     # Single reading
-    assert compute_power_intervals([(period_start, 2.0)], intervals) is False
+    assert compute_power_intervals([(period_start, 2.0)], intervals) is False, "Single reading should return False"
     # Empty
-    assert compute_power_intervals([], intervals) is False
+    assert compute_power_intervals([], intervals) is False, "Empty readings should return False"
     # All intervals should remain zero
-    assert all(v == 0.0 for v in intervals.values())
+    assert all(v == 0.0 for v in intervals.values()), "All intervals should remain 0.0 after insufficient readings"
 
 
 def test_compute_energy_intervals_period_edges_and_gaps() -> None:
@@ -688,9 +685,9 @@ def test_compute_energy_intervals_period_edges_and_gaps() -> None:
         period_end,
     )
 
-    assert result.uniform_increment is True
+    assert result.uniform_increment is True, "Period edges/gaps: expected uniform_increment True"
     day_total = sum(intervals.values())
-    assert day_total > 0
+    assert day_total > 0, "Period edges/gaps: day total should be > 0"
 
 
 def test_compute_energy_intervals_uniform_increment() -> None:
@@ -725,8 +722,8 @@ def test_compute_energy_intervals_uniform_increment() -> None:
         period_end,
     )
 
-    assert result.uniform_increment is True
-    assert result.upper > 0
+    assert result.uniform_increment is True, "Uniform increment: expected uniform_increment True"
+    assert result.upper > 0, f"Uniform increment: expected upper > 0, got {result.upper}"
 
 
 def test_compute_energy_intervals_zero_timedelta() -> None:
@@ -761,7 +758,7 @@ def test_compute_energy_intervals_zero_timedelta() -> None:
     )
 
     # With all zero time deltas, time_upper will be 0 (no non-zero samples).
-    assert result.uniform_increment is True
+    assert result.uniform_increment is True, "Zero timedelta: expected uniform_increment True"
 
 
 async def test_config_flow_mixed_generation_entity_types(

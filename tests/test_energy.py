@@ -50,18 +50,18 @@ async def test_energy_data(
             today_and_beyond = 0
             earliest_and_beyond = 0
             for timestamp, wh_hour in response["wh_hours"].items():
-                assert type(dt.fromisoformat(timestamp)) is dt
-                assert wh_hour % 1 == 0
+                assert type(dt.fromisoformat(timestamp)) is dt, f"Timestamp {timestamp!r} is not a valid ISO datetime"
+                assert wh_hour % 1 == 0, f"Wh value at {timestamp} should be a whole number, got {wh_hour}"
                 if dt.fromisoformat(timestamp) >= day_start:
                     today_and_beyond += 1
                 if dt.fromisoformat(timestamp) >= day_start_earliest_whole_day:
                     earliest_and_beyond += 1
 
             # Test that at least seven days of thirty time periods from today onwards are present
-            assert today_and_beyond >= 30 * 7
+            assert today_and_beyond >= 30 * 7, f"Expected >= {30 * 7} periods from today, got {today_and_beyond}"
 
             # Test that at least thirteen days of thirty time periods from earliest whole day onwards are present
-            assert earliest_and_beyond >= 30 * 13
+            assert earliest_and_beyond >= 30 * 13, f"Expected >= {30 * 13} periods from earliest day, got {earliest_and_beyond}"
         else:
             pytest.fail("Energy data is None")
 
