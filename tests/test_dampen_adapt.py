@@ -186,7 +186,9 @@ async def test_adaptive_auto_dampen(  # noqa: C901
                     assert "Advanced option 'automated_dampening_delta_adjustment_model' set to: 1" in caplog.text
                     assert "Advanced option 'automated_dampening_model' set to: 0" in caplog.text
                     assert "Task serialise_advanced_options took" in caplog.text
-                    assert re.search(r"Advanced options file .+ exists", caplog.text) is None
+                    assert re.search(r"Advanced options file .+ exists", caplog.text) is None, (
+                        "Advanced options file existence log should not appear"
+                    )
 
                     solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE] = [{"model": 2, "delta": -1}]
                     await solcast.dampening.adaptive.determine_best_settings()
@@ -399,7 +401,7 @@ async def test_adaptive_auto_dampen(  # noqa: C901
         entity_history["days_suppression"] = 3
         entity_history["offset"] = -1
         session_clear(MOCK_CORRUPT_ACTUALS)
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_update_history_deal_breaker(
@@ -410,7 +412,7 @@ async def test_update_history_deal_breaker(
 ) -> None:
     """Test update_history with deal breaker conditions."""
 
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
         config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
@@ -451,7 +453,7 @@ async def test_update_history_deal_breaker(
         entity_history["days_generation"] = 3
         entity_history["days_suppression"] = 3
         entity_history["offset"] = -1
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_select_comparison_interval_variance(
@@ -460,7 +462,7 @@ async def test_select_comparison_interval_variance(
 ) -> None:
     """Test comparison interval selection with variance across models."""
 
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
         entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
@@ -497,7 +499,7 @@ async def test_select_comparison_interval_variance(
         assert avg_factor < 1.0
         assert variance > 0
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_select_comparison_interval_single_factor(
@@ -506,7 +508,7 @@ async def test_select_comparison_interval_single_factor(
 ) -> None:
     """Test comparison interval selection with single-factor history."""
 
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
         entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
@@ -527,7 +529,7 @@ async def test_select_comparison_interval_single_factor(
         assert avg_factor < 1.0
         assert variance == 0.0
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_select_comparison_interval_diluted_variance(
@@ -543,7 +545,7 @@ async def test_select_comparison_interval_diluted_variance(
     preserved, and the returned variance should match the active-only computation.
     """
 
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
         entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
@@ -578,7 +580,7 @@ async def test_select_comparison_interval_diluted_variance(
         # Variance must equal the active-only value: variance([0.9, 0.5]) == 0.04
         assert abs(variance - 0.04) < 1e-9
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_build_interval_error_weights_hourly_factor_mapping(
@@ -587,7 +589,7 @@ async def test_build_interval_error_weights_hourly_factor_mapping(
 ) -> None:
     """Test interval error weighting with hourly factor arrays."""
 
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     monkeypatch = pytest.MonkeyPatch()
 
@@ -622,7 +624,7 @@ async def test_build_interval_error_weights_hourly_factor_mapping(
         assert solcast.dampening.adaptive._build_interval_error_weights(generation_dampening, 1, day_start) == [0.0] * 48
     finally:
         monkeypatch.undo()
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_select_comparison_interval_prefers_persistent_error(
@@ -631,7 +633,7 @@ async def test_select_comparison_interval_prefers_persistent_error(
 ) -> None:
     """Test comparison interval selection favors persistently bad current intervals."""
 
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     monkeypatch = pytest.MonkeyPatch()
 
@@ -683,7 +685,7 @@ async def test_select_comparison_interval_prefers_persistent_error(
         assert variance > 0.0, f"Expected variance > 0.0, got {variance}"
     finally:
         monkeypatch.undo()
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_select_comparison_interval_current_factors_fallback(
@@ -705,7 +707,7 @@ async def test_select_comparison_interval_current_factors_fallback(
     dampening among those with adequate daylight generation.
     """
 
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
         entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
@@ -750,7 +752,7 @@ async def test_select_comparison_interval_current_factors_fallback(
             f"Expected avg_factor 1.0 (no active history), got {avg_factor}"
         )  # history-based avg_factor — no active history entries
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_build_dampened_actuals_gap_tolerance(
@@ -767,7 +769,7 @@ async def test_build_dampened_actuals_gap_tolerance(
     - _find_earliest_common_history direct tests for non-uniform continuity failure
       and empty intersection, both should return None.
     """
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
         entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
@@ -798,15 +800,15 @@ async def test_build_dampened_actuals_gap_tolerance(
         # Partial match: returns non-None result with only day1.
         caplog.clear()
         result = solcast.dampening.adaptive._build_dampened_actuals_for_model(0, 0, day1, actuals)
-        assert result is not None
+        assert result is not None, "Result should not be None"
         assert day1 in result
-        assert day2 not in result
+        assert day2 not in result, f"{day2} should not be in result"
         assert "skipping missing actuals" in caplog.text
 
         # Zero match: earliest_common after all history entries → None.
         caplog.clear()
         result = solcast.dampening.adaptive._build_dampened_actuals_for_model(0, 0, day2 + timedelta(days=1), actuals)
-        assert result is None
+        assert result is None, "Result should be None"
         assert "produced no dampened actuals" in caplog.text
 
         # Direct _find_earliest_common_history tests — exercises non-uniform code paths.
@@ -842,7 +844,9 @@ async def test_build_dampened_actuals_gap_tolerance(
         solcast.dampening.auto_factors_history = _make_full_history(
             {model_min: gap_entries, **dict.fromkeys(range(model_min + 1, model_max + 1), continuous_entries)}
         )
-        assert solcast.dampening.adaptive._find_earliest_common_history(min_days) is None
+        assert solcast.dampening.adaptive._find_earliest_common_history(min_days) is None, (
+            "Gap history should return None for earliest common history"
+        )
 
         # Empty intersection: models 0-1 and models 2-3 have completely disjoint dates → None.
         early_entries = [
@@ -858,9 +862,11 @@ async def test_build_dampened_actuals_gap_tolerance(
         solcast.dampening.auto_factors_history = _make_full_history(
             {model_min: early_entries, model_min + 1: early_entries, model_max - 1: late_entries, model_max: late_entries}
         )
-        assert solcast.dampening.adaptive._find_earliest_common_history(min_days) is None
+        assert solcast.dampening.adaptive._find_earliest_common_history(min_days) is None, (
+            "Disjoint history should return None for earliest common history"
+        )
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_determine_best_settings_all_combos_skip(
@@ -876,7 +882,7 @@ async def test_determine_best_settings_all_combos_skip(
     - _log_model_rankings: 'if not model_rank_frequencies: return'
     - _apply_best_settings: 'if not current_valid: return'
     """
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
         entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
@@ -913,7 +919,7 @@ async def test_determine_best_settings_all_combos_skip(
         # No winner selected → _apply_best_settings short-circuits.
         assert "Could not determine best automated dampening settings" in caplog.text
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_calculate_single_interval_error_with_generation(
@@ -923,7 +929,7 @@ async def test_calculate_single_interval_error_with_generation(
 ) -> None:
     """Test single-interval error when generation is present."""
 
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
         entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
@@ -949,7 +955,7 @@ async def test_calculate_single_interval_error_with_generation(
         assert "Single interval APE for day" in caplog.text
     finally:
         monkeypatch.undo()
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_calculate_single_interval_error_no_generation(
@@ -959,7 +965,7 @@ async def test_calculate_single_interval_error_no_generation(
 ) -> None:
     """Test single-interval error handling when no generation is present."""
 
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
         entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
@@ -980,7 +986,7 @@ async def test_calculate_single_interval_error_no_generation(
         assert mean_ape == math.inf, f"Expected mean_ape == inf with no generation, got {mean_ape}"
         assert "Single interval APE for day" in caplog.text
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_calculate_single_interval_error_skips_missing(
@@ -989,7 +995,7 @@ async def test_calculate_single_interval_error_skips_missing(
 ) -> None:
     """Test single-interval error skips days with missing dampened actuals."""
 
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     monkeypatch = pytest.MonkeyPatch()
 
@@ -1022,7 +1028,7 @@ async def test_calculate_single_interval_error_skips_missing(
         assert mean_ape == math.inf, f"Expected mean_ape == inf with missing actuals, got {mean_ape}"
     finally:
         monkeypatch.undo()
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_determine_best_settings_alternative_issue(
@@ -1033,7 +1039,7 @@ async def test_determine_best_settings_alternative_issue(
 ) -> None:
     """Test alternate model issue creation and clearing in adaptive dampening."""
 
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
         options = copy.deepcopy(DEFAULT_INPUT2)
@@ -1102,7 +1108,7 @@ async def test_determine_best_settings_alternative_issue(
         await solcast.dampening.adaptive.determine_best_settings()
         assert "but adaptive dampening found that model" not in caplog.text
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_dampening_adaptations_development_flag(
@@ -1150,8 +1156,8 @@ async def test_dampening_adaptations_development_flag(
         from homeassistant.config_entries import ConfigEntryState  # noqa: PLC0415
 
         entry = await async_init_integration(hass, options)
-        assert entry.state is ConfigEntryState.LOADED
+        assert entry.state is ConfigEntryState.LOADED, f"Expected entry state ConfigEntryState.LOADED, got {entry.state}"
         assert called["update_history"], "update_history was not called"
         assert called["determine_best_settings"], "determine_best_settings was not called"
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

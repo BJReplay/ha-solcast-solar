@@ -406,7 +406,7 @@ async def test_sensor_states(  # noqa: C901
 
         # Special case for api_used
         state = hass.states.get("sensor.solcast_pv_forecast_api_used")
-        assert state
+        assert state, "api_used sensor state should exist"
         assert state.state != STATE_UNAVAILABLE
         assert state.state == sensors["api_used"]["state"][key]
         assert state.attributes.get("api_force_used") == 0
@@ -447,9 +447,9 @@ async def test_sensor_states(  # noqa: C901
         for sensor, attrs in sensors.items():
             entity = f"sensor.solcast_pv_forecast_{sensor}"
             if not attrs.get("should_be_disabled", False):
-                assert hass.states.get(entity) is not None
+                assert hass.states.get(entity) is not None, f"State for {entity} should exist"
                 continue
-            assert hass.states.get(entity) is None
+            assert hass.states.get(entity) is None, f"State for {entity} should not exist"
             er.async_get(hass).async_update_entity(entity, disabled_by=None)
         async with asyncio.timeout(300):
             while "Reloading configuration entries because disabled_by changed" not in caplog.text:
@@ -513,16 +513,18 @@ async def test_sensor_states(  # noqa: C901
             assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "6.0 kW"  # type: ignore[union-attr]
             # The single overall limit sensor should not exist (this always gets created during PyTest entry
             # load, then is cleaned up when all sensors are defined when more than one limit is specified).
-            assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set") is None
+            assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set") is None, (
+                "Overall hard limit sensor should not exist when per-site limits are specified"
+            )
 
             attribs: ReadOnlyDict[str, Any] = hass.states.get("sensor.first_site").attributes  # type: ignore[union-attr]
-            assert attribs
+            assert attribs, "first_site sensor attributes should exist"
             assert attribs.get("resource_id")
             assert attribs.get("name")
             assert attribs.get("friendly_name")
             assert attribs.get("install_date")
-            assert attribs.get("latitude") is None
-            assert attribs.get("longitude") is None
+            assert attribs.get("latitude") is None, "latitude should be redacted (None)"
+            assert attribs.get("longitude") is None, "longitude should be redacted (None)"
             assert attribs.get("capacity")
             assert attribs.get("capacity_dc")
             assert attribs.get("azimuth")
@@ -531,7 +533,7 @@ async def test_sensor_states(  # noqa: C901
             assert attribs.get("tags")
 
             attribs: ReadOnlyDict[str, Any] = hass.states.get("sensor.solcast_pv_forecast_forecast_today").attributes  # type: ignore[union-attr]
-            assert attribs
+            assert attribs, "forecast_today sensor attributes should exist"
             assert attribs.get("detailedForecast")
             assert attribs.get("detailedHourly")
             assert isinstance(attribs.get("detailedForecast"), list)
@@ -540,7 +542,7 @@ async def test_sensor_states(  # noqa: C901
         # Verify analysis attribute on forecast day sensors.
         for sensor_name in ("forecast_today", "forecast_tomorrow"):
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor_name}")
-            assert state is not None
+            assert state is not None, f"{sensor_name} sensor state should exist"
             ci = state.attributes.get("analysis")
             assert ci is not None, f"analysis missing from {sensor_name}"
             assert isinstance(ci, dict), f"analysis for {sensor_name} should be a dict"
@@ -585,14 +587,14 @@ async def test_sensor_states(  # noqa: C901
         assert "Auto forecast updates for" in caplog.text
 
         # Test get bad key and site.
-        assert coordinator.get_sensor_value("badkey") is None
-        assert coordinator.get_sensor_extra_attributes("badkey") is None
-        assert coordinator.get_site_sensor_value("badroof", "badkey") is None
-        assert coordinator.get_site_sensor_extra_attributes("badroof", "badkey") is None
+        assert coordinator.get_sensor_value("badkey") is None, "Bad sensor key should return None"
+        assert coordinator.get_sensor_extra_attributes("badkey") is None, "Bad sensor key extra attributes should return None"
+        assert coordinator.get_site_sensor_value("badroof", "badkey") is None, "Bad site/key should return None"
+        assert coordinator.get_site_sensor_extra_attributes("badroof", "badkey") is None, "Bad site/key extra attributes should return None"
         no_error_or_exception(caplog)
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_sensor_x_hours_long(
@@ -613,12 +615,12 @@ async def test_sensor_x_hours_long(
         await hass.async_block_till_done()
 
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_next_x_hours")
-        assert state
+        assert state, "forecast_next_x_hours sensor state should exist"
         assert state.state == "86910"
         no_error_or_exception(caplog)
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_sensor_unavailable(
@@ -655,12 +657,12 @@ async def test_sensor_unavailable(
         for sensor, assertions in SENSORS.items():
             if assertions.get("can_be_unavailable", False) and not assertions.get("should_be_disabled", False):
                 state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
-                assert state
+                assert state, f"Sensor {sensor} state should exist"
                 assert state.state == STATE_UNAVAILABLE
 
         for site in ("first_site", "second_site"):
             state = hass.states.get(f"sensor.{site}")
-            assert state
+            assert state, f"Site sensor {site} state should exist"
             assert state.state == STATE_UNAVAILABLE
 
         # Exceptions will be in the log
@@ -681,7 +683,7 @@ async def test_sensor_unavailable(
                 continue
             if assertions.get("can_be_unavailable", False) and not assertions.get("should_be_disabled", False):
                 state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
-                assert state
+                assert state, f"Sensor {sensor} state should exist"
                 assert state.state == STATE_UNAVAILABLE
 
         no_error_or_exception(caplog)
@@ -698,14 +700,14 @@ async def test_sensor_unavailable(
         coordinator.async_update_listeners()
 
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_today")
-        assert state
+        assert state, "forecast_today sensor state should exist"
         state_attributes: ReadOnlyDict[str, Any] = state.attributes  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-        assert state_attributes["dataCorrect"] is False
+        assert state_attributes["dataCorrect"] is False, "Expected state attribute dataCorrect to be False"
 
         no_error_or_exception(caplog)
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 def _raise_zero_division(*_args: Any, **_kwargs: Any):
@@ -744,14 +746,14 @@ async def test_sensor_unavailable_exception(
                 continue
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
             _ = state.attributes  # type: ignore[union-attr]
-            assert state
+            assert state, f"Sensor {sensor} state should exist"
             assert state.state == STATE_UNAVAILABLE
 
         for site in ("first_site", "second_site"):
             state = hass.states.get(f"sensor.{site}")
             _ = state.attributes  # type: ignore[union-attr]
-            assert state
+            assert state, f"Site sensor {site} state should exist"
             assert state.state == STATE_UNAVAILABLE
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

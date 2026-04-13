@@ -116,7 +116,7 @@ async def test_forecast_retry(
                     },
                 ]
             },
-        )
+        ), "Automation component setup failed"
         await hass.async_block_till_done()
 
         session_set(MOCK_BUSY)

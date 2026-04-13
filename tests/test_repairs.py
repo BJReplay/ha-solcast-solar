@@ -253,7 +253,7 @@ async def test_unusual_azimuth_issue_creation_and_cleanup(
         assert issue.translation_placeholders.get("proposal") == "130", (
             f"Expected proposal '130', got {issue.translation_placeholders.get('proposal')!r}"
         )
-        assert re.search(r"WARNING.+Unusual azimuth", caplog.text) is not None
+        assert re.search(r"WARNING.+Unusual azimuth", caplog.text) is not None, "Expected WARNING log for unusual azimuth"
 
         # Dismiss the issue and reload — verifies cleanup_issues and re-serialisation
         assert "Re-serialising sites cache for" in caplog.text
@@ -267,7 +267,7 @@ async def test_unusual_azimuth_issue_creation_and_cleanup(
         # Second reload — verify the dismissed state persists (debug log, no warning)
         caplog.clear()
         await reload_integration(hass, entry)
-        assert re.search(r"DEBUG.+Unusual azimuth", caplog.text) is not None
+        assert re.search(r"DEBUG.+Unusual azimuth", caplog.text) is not None, "Expected DEBUG log for unusual azimuth"
 
     finally:
         API_KEY_SITES["1"]["sites"][0]["latitude"] = old_latitude
@@ -294,7 +294,7 @@ async def test_unusual_azimuth_resolved_after_fix(
         assert len(issue_registry.issues) == 1
         issue = list(issue_registry.issues.values())[0]
         assert issue.issue_id == "unusual_azimuth_southern"
-        assert issue.translation_placeholders is not None
+        assert issue.translation_placeholders is not None, "Issue should have translation placeholders"
         assert issue.translation_placeholders.get("proposal") == "30"
 
         # Fix the azimuth at Solcast and reload

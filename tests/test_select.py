@@ -66,7 +66,7 @@ async def test_select_change_value(
                 DOMAIN,
                 "estimate_mode",
             )
-        ) is not None
+        ) is not None, "estimate_mode select entity should be registered"
         assert hass.states.get(select_entity_id).state == "estimate"  # type: ignore[union-attr]
 
         await hass.services.async_call(
@@ -93,4 +93,4 @@ async def test_select_change_value(
             freezer.tick(0.1)
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

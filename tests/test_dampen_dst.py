@@ -103,7 +103,7 @@ def _get_attribute_factors(
     coord = _make_mock_coordinator(factors_list, tz, auto_dampen)
     result = coord.get_sensor_extra_attributes(ENTITY_DAMPEN)
 
-    assert result is not None
+    assert result is not None, "Result should not be None"
     return result[FACTORS]
 
 

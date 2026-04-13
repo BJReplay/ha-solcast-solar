@@ -277,7 +277,7 @@ async def test_reauth_api_key(
         REASON = 1
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
 
         for test in TEST_REAUTH_API_KEY:
             result = await entry.start_reauth_flow(hass)
@@ -344,7 +344,7 @@ async def test_reauth_api_key(
     finally:
         if simulator.API_KEY_SITES.get("4"):
             simulator.API_KEY_SITES["1"] = simulator.API_KEY_SITES.pop("4")  # Restore the key
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_reconfigure_api_key1(
@@ -362,7 +362,7 @@ async def test_reconfigure_api_key1(
         REASON = 1
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
 
         for test in TEST_API_KEY:
             result = await hass.config_entries.flow.async_init(
@@ -400,7 +400,7 @@ async def test_reconfigure_api_key1(
         simulator.API_KEY_SITES["1"] = simulator.API_KEY_SITES.pop("4")  # Restore the key
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 @pytest.mark.parametrize(("set", "options", "to_assert", "ignore_missing_translations"), TEST_KEY_CHANGES)
@@ -417,7 +417,7 @@ async def test_reconfigure_api_key2(
 
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
 
         if set == MOCK_EXCEPTION:
             await async_cleanup_integration_caches(hass)
@@ -452,7 +452,7 @@ async def test_reconfigure_api_key2(
             assert result.get("reason") == "reconfigured"
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_reconfigure_api_quota(
@@ -472,7 +472,7 @@ async def test_reconfigure_api_quota(
         _input = None
         for test in TEST_API_LIMIT:
             entry = await async_init_integration(hass, test[OPTIONS])  # type: ignore[arg-type]
-            assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+            assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
             if _input is None or test[OPTIONS] != _input:
                 _input = copy.deepcopy(test[OPTIONS])
             result = await hass.config_entries.flow.async_init(
@@ -492,7 +492,7 @@ async def test_reconfigure_api_quota(
                 assert result["errors"]["base"] == test[REASON]  # type: ignore[index]
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 @pytest.mark.parametrize(("user_input", "reason"), TEST_API_KEY)
@@ -559,7 +559,7 @@ async def test_allow_exceed_api_limit_advanced_option_enabled(hass: HomeAssistan
     advanced_file = advanced_dir / "solcast-advanced.json"
     advanced_file.write_text(json.dumps({ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM: True}), encoding="utf-8")
 
-    assert await _async_is_allow_exceed_api_limit(hass)
+    assert await _async_is_allow_exceed_api_limit(hass), "API limit exceed should be allowed"
 
 
 async def test_allow_exceed_api_limit_advanced_option_invalid_json(hass: HomeAssistant) -> None:
@@ -571,7 +571,7 @@ async def test_allow_exceed_api_limit_advanced_option_invalid_json(hass: HomeAss
     advanced_file = advanced_dir / "solcast-advanced.json"
     advanced_file.write_text('{"bad_json":', encoding="utf-8")
 
-    assert not await _async_is_allow_exceed_api_limit(hass)
+    assert not await _async_is_allow_exceed_api_limit(hass), "API limit exceed should not be allowed"
 
 
 async def test_allow_exceed_api_limit_advanced_option_not_dict(hass: HomeAssistant) -> None:
@@ -583,7 +583,7 @@ async def test_allow_exceed_api_limit_advanced_option_not_dict(hass: HomeAssista
     advanced_file = advanced_dir / "solcast-advanced.json"
     advanced_file.write_text(json.dumps([True]), encoding="utf-8")
 
-    assert not await _async_is_allow_exceed_api_limit(hass)
+    assert not await _async_is_allow_exceed_api_limit(hass), "API limit exceed should not be allowed"
 
 
 @pytest.mark.parametrize(
@@ -696,11 +696,11 @@ async def test_dampen(
         for key, expect in value.items():
             assert entry.options[key] == expect
 
-        assert await hass.config_entries.async_unload(entry.entry_id)
+        assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
         await hass.async_block_till_done()
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_entry_options_upgrade(
@@ -719,11 +719,11 @@ async def test_entry_options_upgrade(
     try:
         config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
         entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
 
         assert entry.version == FINAL_VERSION
         # V4
-        assert entry.options.get("const_disableautopoll") is None
+        assert entry.options.get("const_disableautopoll") is None, "Expected option const_disableautopoll to be removed"
         # V5
         for a in range(24):
             assert entry.options.get(f"damp{a:02d}") == 1.0
@@ -732,35 +732,35 @@ async def test_entry_options_upgrade(
         # V7
         assert entry.options.get(KEY_ESTIMATE) == "estimate"
         # V8
-        assert entry.options.get(BRK_ESTIMATE) is True
-        assert entry.options.get(BRK_ESTIMATE10) is True
-        assert entry.options.get(BRK_ESTIMATE90) is True
-        assert entry.options.get(BRK_SITE) is True
-        assert entry.options.get(BRK_HALFHOURLY) is True
-        assert entry.options.get(BRK_HOURLY) is True
+        assert entry.options.get(BRK_ESTIMATE) is True, "Expected option BRK_ESTIMATE to be True"
+        assert entry.options.get(BRK_ESTIMATE10) is True, "Expected option BRK_ESTIMATE10 to be True"
+        assert entry.options.get(BRK_ESTIMATE90) is True, "Expected option BRK_ESTIMATE90 to be True"
+        assert entry.options.get(BRK_SITE) is True, "Expected option BRK_SITE to be True"
+        assert entry.options.get(BRK_HALFHOURLY) is True, "Expected option BRK_HALFHOURLY to be True"
+        assert entry.options.get(BRK_HOURLY) is True, "Expected option BRK_HOURLY to be True"
         # V9
         assert entry.options.get("api_quota") == "10"
         # V12
         assert entry.options.get(AUTO_UPDATE) == 0
-        assert entry.options.get(BRK_SITE_DETAILED) is False
-        assert entry.options.get(SITE_DAMP) is False  # "Hidden"-ish option
+        assert entry.options.get(BRK_SITE_DETAILED) is False, "Expected option BRK_SITE_DETAILED to be False"
+        assert entry.options.get(SITE_DAMP) is False, "Expected option SITE_DAMP to be False"  # "Hidden"-ish option
         # V14
-        assert entry.options.get(HARD_LIMIT) is None
+        assert entry.options.get(HARD_LIMIT) is None, "Expected option HARD_LIMIT to be None"
         assert entry.options.get(HARD_LIMIT_API) == "100.0"
         # V15
         assert entry.options.get(EXCLUDE_SITES) == []
         # V18
         assert entry.options.get(SITE_EXPORT_ENTITY) == ""
-        assert entry.options.get(GET_ACTUALS) is False
+        assert entry.options.get(GET_ACTUALS) is False, "Expected option GET_ACTUALS to be False"
         assert entry.options.get(USE_ACTUALS) is HistoryType.FORECASTS
         assert entry.options.get(GENERATION_ENTITIES) == []
         assert entry.options.get(SITE_EXPORT_LIMIT) == 0.0
-        assert entry.options.get(AUTO_DAMPEN) is False
+        assert entry.options.get(AUTO_DAMPEN) is False, "Expected option AUTO_DAMPEN to be False"
         # V19
         assert entry.options.get(API_LIMIT) == "10"
         assert entry.options.get(CUSTOM_HOURS) == 1
 
-        assert await hass.config_entries.async_unload(entry.entry_id)
+        assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
         await hass.async_block_till_done()
 
         # Test API limit gets imported from existing cache in upgrade to V9
@@ -769,14 +769,14 @@ async def test_entry_options_upgrade(
             json.dumps({"daily_limit": 50, "daily_limit_consumed": 34, "reset": "2024-01-01T00:00:00+00:00"}), encoding="utf-8"
         )
         entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
         assert entry.options.get("api_quota") == "50"
 
-        assert await hass.config_entries.async_unload(entry.entry_id)
+        assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
         await hass.async_block_till_done()
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_presumed_dead_and_full_flow(
@@ -792,7 +792,7 @@ async def test_presumed_dead_and_full_flow(
 
         # Test presumed dead
         caplog.clear()
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
 
         option: dict[str, Any] = {BRK_ESTIMATE: False, USE_ACTUALS: "0", SITE_EXPORT_ENTITY: []}
         user_input = DEFAULT_INPUT1_NO_DAMP | option
@@ -807,10 +807,10 @@ async def test_presumed_dead_and_full_flow(
         assert "Integration presumed dead, reloading" in caplog.text
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
         solcast: SolcastApi = coordinator.solcast
-        assert solcast.sites_status is SitesStatus.OK
-        assert solcast.loaded_data is True
+        assert solcast.sites_status is SitesStatus.OK, f"Expected sites status SitesStatus.OK, got {solcast.sites_status}"
+        assert solcast.loaded_data is True, "Solcast data should be loaded"
 
-        assert await hass.config_entries.async_unload(entry.entry_id)
+        assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
         await hass.async_block_till_done()
 
         # Test dampening step can  be reached
@@ -835,7 +835,7 @@ async def test_presumed_dead_and_full_flow(
         assert result.get("reason") == "reconfigured"
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_advanced_options(
@@ -932,7 +932,7 @@ async def test_advanced_options(
                     assert f"Advanced option proposed {option}: {value}" in caplog.text
                 assert f"Advanced option set {option}: {value}" in caplog.text
         assert "Advanced option forecast_history_max_days is deprecated, please use history_max_days" in caplog.text
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_DEPRECATED) is not None
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_DEPRECATED) is not None, "Issue ISSUE_ADVANCED_DEPRECATED should exist"
 
         caplog.clear()
 
@@ -988,8 +988,8 @@ async def test_advanced_options(
                     assert f"{option}: {value} (must be bool)" not in caplog.text
 
         assert "Removing advanced deprecation issue" in caplog.text
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_DEPRECATED) is None
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_PROBLEM) is not None
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_DEPRECATED) is None, "Issue ISSUE_ADVANCED_DEPRECATED should not exist"
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_PROBLEM) is not None, "Issue ISSUE_ADVANCED_PROBLEM should exist"
         assert "Advanced option set api_raise_issues: False" in caplog.text
         assert "Advanced option proposed reload_on_advanced_change: True" not in caplog.text
         assert "Advanced option set reload_on_advanced_change: True" in caplog.text
@@ -1020,7 +1020,7 @@ async def test_advanced_options(
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
         await wait()
         assert "Removing advanced problems issue" in caplog.text
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_PROBLEM) is None
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_PROBLEM) is None, "Issue ISSUE_ADVANCED_PROBLEM should not exist"
 
         caplog.clear()
 
@@ -1117,7 +1117,7 @@ async def test_advanced_options(
         await wait_for("Reloading configuration entries because disabled_by changed")
         await wait_for("Not adding entity Forecast Day 12 because it's disabled")
         entity_state = hass.states.get(entity)
-        assert entity_state is not None
+        assert entity_state is not None, "Entity state should not be None"
         assert entity_state.state == "42.552"
 
         await hass.config_entries.async_unload(entry.entry_id)
@@ -1125,7 +1125,7 @@ async def test_advanced_options(
         assert f"Cancelling coordinator task {TASK_WATCHDOG_ADVANCED_FILE_CHANGE}" in caplog.text
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 @pytest.mark.usefixtures("recorder_mock")
@@ -1147,4 +1147,4 @@ async def test_entry_options_development_flag(
             assert f"Upgraded to options version {CONFIG_VERSION}" in caplog.text
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

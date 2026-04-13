@@ -327,7 +327,7 @@ async def test_transition_detection(
             assert "Transitioning from" not in caplog.text, f"Unexpected transition detected for {timezone} on {freeze_date}"
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 @pytest.mark.parametrize(
@@ -381,7 +381,7 @@ async def test_updater_scheduling_across_dst(
         assert "Sun rise / set today" in caplog.text, f"Missing sunrise/sunset log for {description}"
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_apply_forward_on_spring_forward_day(
@@ -425,7 +425,7 @@ async def test_apply_forward_on_spring_forward_day(
         assert "Exception" not in caplog.text
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_apply_forward_on_fall_back_day(
@@ -467,7 +467,7 @@ async def test_apply_forward_on_fall_back_day(
         assert "Exception" not in caplog.text
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 async def test_updater_details_empty_intervals_on_dst_day(
@@ -491,9 +491,9 @@ async def test_updater_details_empty_intervals_on_dst_day(
 
         # Should not raise IndexError
         details = updater.get_auto_update_details()
-        assert details["next_auto_update"] is None
+        assert details["next_auto_update"] is None, "Expected next_auto_update to be None"
         assert "auto_update_divisions" in details
         assert details["auto_update_queue"] == []
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

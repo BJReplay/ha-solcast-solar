@@ -28,7 +28,7 @@ async def test_energy_data(
     not_available_entry = MockConfigEntry(
         domain=DOMAIN, unique_id="solcast_pv_solar", title="Solcast PV Forecast", data={}, options=DEFAULT_INPUT1, version=CONFIG_VERSION
     )
-    assert await async_get_solar_forecast(hass, not_available_entry.entry_id) is None
+    assert await async_get_solar_forecast(hass, not_available_entry.entry_id) is None, "Solar forecast should be None"
 
     entry: ConfigEntry = await async_init_integration(hass, DEFAULT_INPUT1)
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
@@ -36,7 +36,7 @@ async def test_energy_data(
     # Test that the function returns None if the coordinator does not exist
     runtime_data = entry.runtime_data.coordinator
     entry.runtime_data.coordinator = None
-    assert await async_get_solar_forecast(hass, entry.entry_id) is None
+    assert await async_get_solar_forecast(hass, entry.entry_id) is None, "Solar forecast should be None"
     entry.runtime_data.coordinator = runtime_data
 
     try:
@@ -44,7 +44,7 @@ async def test_energy_data(
 
         if response is not None:
             # Test dictionary structure and length
-            assert response.get("wh_hours") is not None
+            assert response.get("wh_hours") is not None, "Response should contain wh_hours"
             day_start = coordinator.solcast.dt_helper.day_start_utc()
             day_start_earliest_whole_day = coordinator.solcast.dt_helper.day_start_utc(future=-6)
             today_and_beyond = 0
@@ -66,4 +66,4 @@ async def test_energy_data(
             pytest.fail("Energy data is None")
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

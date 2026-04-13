@@ -137,7 +137,7 @@ async def test_timezone_transition(
             in caplog.text
         )
 
-        assert await hass.config_entries.async_unload(entry.entry_id)
+        assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
         await hass.async_block_till_done()
 
         caplog.clear()
@@ -147,7 +147,7 @@ async def test_timezone_transition(
         freezer.move_to(scenario["to_summer"] + " 00:00:00")
         entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone=scenario["timezone"])
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-        assert not coordinator.solcast.dt_helper.dst(dt.now())
+        assert not coordinator.solcast.dt_helper.dst(dt.now()), "DST should not be active"
 
         assert (
             f"Transitioning from {'standard to summer' if scenario['timezone'] == 'Australia/Sydney' else 'winter to summer'} time"
@@ -158,7 +158,7 @@ async def test_timezone_transition(
             in caplog.text
         )
 
-        assert await hass.config_entries.async_unload(entry.entry_id)
+        assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
         await hass.async_block_till_done()
 
     finally:

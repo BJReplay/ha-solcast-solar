@@ -86,7 +86,7 @@ async def test_auto_dampen(
 ) -> None:
     """Test automated dampening."""
 
-    assert await async_cleanup_integration_tests(hass)
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
         config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
@@ -152,7 +152,7 @@ async def test_auto_dampen(
         for _ in range(30):  # Extra time needed for reload to complete
             await hass.async_block_till_done()
             freezer.tick(0.1)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
         no_exception(caplog)
 
         assert "Auto-dampening suppressed: Excluded site for 3333-3333-3333-3333" in caplog.text
@@ -168,8 +168,8 @@ async def test_auto_dampen(
         coordinator, solcast = await reload_integration(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
-        assert Path(f"{config_dir}/solcast-actuals.json").is_file()
-        assert Path(f"{config_dir}/solcast-generation.json").is_file()
+        assert Path(f"{config_dir}/solcast-actuals.json").is_file(), f"File {Path(f'{config_dir}/solcast-actuals.json')} should exist"
+        assert Path(f"{config_dir}/solcast-generation.json").is_file(), f"File {Path(f'{config_dir}/solcast-generation.json')} should exist"
         assert "Generation data loaded" in caplog.text
 
         # Test service action to update dampening manually refused
@@ -239,11 +239,11 @@ async def test_auto_dampen(
                             caplog.text,
                         )
                         is not None
-                    )
+                    ), f"Expected adjusted dampening factor log for model {model}, adjustment {adjustment_model}"
 
         # Verify that the dampening entity that should be disabled by default is, then enable it.
         entity = "sensor.solcast_pv_forecast_dampening"
-        assert hass.states.get(entity) is None
+        assert hass.states.get(entity) is None, f"State for {entity} should not exist"
         er.async_get(hass).async_update_entity(entity, disabled_by=None)
         async with asyncio.timeout(300):
             while "Reloading configuration entries because disabled_by changed" not in caplog.text:
@@ -297,7 +297,7 @@ async def test_auto_dampen(
 
     finally:
         session_clear(MOCK_CORRUPT_ACTUALS)
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 @pytest.mark.parametrize(
@@ -369,7 +369,7 @@ async def test_auto_dampen_issues(
         for _ in range(30):  # Extra time needed for reload to complete
             freezer.tick(0.1)
             await hass.async_block_till_done()
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
         no_exception(caplog)
         assert "Calculating dampened estimated actual MAPE" not in caplog.text
         assert "Estimated actual mean APE" in caplog.text
@@ -381,7 +381,9 @@ async def test_auto_dampen_issues(
         match extra_sensors:
             case ExtraSensors.YES_WITH_SUPPRESSION:
                 for interval in ("12:00", "12:30", "13:00", "13:30", "14:00"):
-                    assert re.search(r"Auto-dampen suppressed for interval.+" + interval, caplog.text) is not None
+                    assert re.search(r"Auto-dampen suppressed for interval.+" + interval, caplog.text) is not None, (
+                        f"Expected auto-dampen suppression log for interval {interval}"
+                    )
                     assert f"Interval {interval} max generation: 0.000, []" in caplog.text
             case ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
                 assert "has no unit_of_measurement, assuming kWh" not in caplog.text
@@ -405,7 +407,7 @@ async def test_auto_dampen_issues(
                 pytest.fail("Assertions missing for extra_sensors value")
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 @pytest.mark.parametrize(

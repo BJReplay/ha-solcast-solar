@@ -31,11 +31,11 @@ async def test_system_health(
     await async_init_integration(hass, DEFAULT_INPUT1)
 
     try:
-        assert await async_setup_component(hass, "system_health", {})
+        assert await async_setup_component(hass, "system_health", {}), "system_health component setup failed"
         await hass.async_block_till_done()
 
         info = await get_system_health_info(hass, SYSTEM_HEALTH_DOMAIN)
         assert await info["can_reach_server"] == "ok"
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

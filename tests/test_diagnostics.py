@@ -59,7 +59,7 @@ async def test_diagnostics(
         await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": "5.0"}, blocking=True)
         await hass.async_block_till_done()  # Because integration reloads
         diagnostics = await get_diagnostics_for_config_entry(hass, hass_client, entry)
-        assert diagnostics["forecast_hard_limit_set"] is True
+        assert diagnostics["forecast_hard_limit_set"] is True, "Expected forecast_hard_limit_set to be True"
 
     finally:
-        assert await async_cleanup_integration_tests(hass)
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
