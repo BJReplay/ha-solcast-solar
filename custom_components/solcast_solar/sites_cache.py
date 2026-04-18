@@ -24,6 +24,7 @@ from homeassistant.helpers import issue_registry as ir
 
 from .const import (
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
+    ADVANCED_SOLCAST_PORT,
     ADVANCED_SOLCAST_URL,
     API_KEY,
     AUTO_UPDATED,
@@ -82,6 +83,7 @@ from .util import (
     UsageStatus,
     check_unusual_azimuth,
     clear_cache,
+    get_solcast_base_url,
     http_status_translate,
     raise_and_record,
     redact_api_key,
@@ -825,7 +827,10 @@ class SitesCache:
                 success = False
 
                 if not prior_crash:
-                    url = f"{self.api.advanced_options[ADVANCED_SOLCAST_URL]}/rooftop_sites"
+                    url = (
+                        f"{get_solcast_base_url(self.api.advanced_options[ADVANCED_SOLCAST_URL], self.api.advanced_options[ADVANCED_SOLCAST_PORT])}"
+                        "/rooftop_sites"
+                    )
                     params = {FORMAT: JSON, API_KEY: api_key}
                     _LOGGER.debug("Connecting to %s?format=json&api_key=%s", url, redact_api_key(api_key))
                     response: ClientResponse = await self.api.aiohttp_session.get(

@@ -24,6 +24,7 @@ from voluptuous.error import MultipleInvalid
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
     ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
+    ADVANCED_SOLCAST_PORT,
     API_LIMIT,
     AUTO_DAMPEN,
     AUTO_UPDATE,
@@ -68,6 +69,7 @@ from homeassistant.components.solcast_solar.util import (
     AutoUpdate,
     DateTimeEncoder,
     JSONDecoder,
+    get_solcast_base_url,
     sync_actuals_api_limit_issue,
 )
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
@@ -101,6 +103,7 @@ from . import (
     session_clear,
     session_reset_usage,
     session_set,
+    simulated,
     verify_data_schema,
 )
 
@@ -125,6 +128,56 @@ ACTIONS = [
 
 ZONE = ZoneInfo(ZONE_RAW)
 NOW = dt.now(ZONE)
+
+
+@pytest.mark.asyncio
+async def test_advanced_solcast_port_applied_runtime(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Apply an advanced Solcast port override without reloading the integration."""
+
+    try:
+        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+        entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT1))
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = coordinator.solcast
+
+        assert solcast.advanced_options[ADVANCED_SOLCAST_PORT] == 0
+
+        advanced_file = Path(f"{config_dir}/solcast-advanced.json")
+        caplog.clear()
+        advanced_file.write_text(json.dumps({ADVANCED_SOLCAST_PORT: 8443}), encoding="utf-8")
+        async with asyncio.timeout(10):
+            while solcast.advanced_options[ADVANCED_SOLCAST_PORT] != 8443:
+                await hass.async_block_till_done()
+                await asyncio.sleep(0.01)
+
+        assert solcast.advanced_options[ADVANCED_SOLCAST_PORT] == 8443
+
+        caplog.clear()
+        assert solcast.sites
+        site_id = solcast.sites[0]["resource_id"]
+        api_key = solcast.sites[0]["api_key"]
+        payload = simulated.raw_get_site_forecasts(site_id, api_key, 320)
+        response = unittest.mock.MagicMock(status=200, url=f"https://api.solcast.com.au:8443/rooftop_sites/{site_id}/forecasts")
+        response.text = unittest.mock.AsyncMock(return_value=json.dumps(payload))
+        original_session = solcast.aiohttp_session
+        mock_session = unittest.mock.MagicMock()
+        mock_session.get = unittest.mock.AsyncMock(return_value=response)
+        solcast.aiohttp_session = mock_session
+        try:
+            await solcast.fetcher.fetch_data(hours=320, path="forecasts", site=site_id, api_key=api_key, force=True)
+        finally:
+            solcast.aiohttp_session = original_session
+
+        mock_session.get.assert_awaited_once()
+        assert mock_session.get.await_args.kwargs["url"].startswith("https://api.solcast.com.au:8443/rooftop_sites/")
+
+        no_error_or_exception(caplog)
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 @pytest.fixture(autouse=True)
@@ -2962,3 +3015,28 @@ async def test_forecast_accuracy_sensor_no_data(
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+@pytest.mark.parametrize(
+    ("url", "port", "expected"),
+    [
+        # port <= 0 → URL returned unchanged (trailing slash stripped)
+        pytest.param("https://api.solcast.com.au", 0, "https://api.solcast.com.au", id="port=0 no-op"),
+        pytest.param("https://api.solcast.com.au/", -1, "https://api.solcast.com.au", id="port=-1 no-op trailing slash"),
+        # Normal host with positive port
+        pytest.param("https://api.solcast.com.au", 8443, "https://api.solcast.com.au:8443", id="normal host port override"),
+        # URL with a path component
+        pytest.param("https://api.solcast.com.au/v1", 9000, "https://api.solcast.com.au:9000/v1", id="host with path"),
+        # No netloc (bare path) → returned as-is even with positive port
+        pytest.param("/just/a/path", 8443, "/just/a/path", id="bare path no netloc"),
+        # IPv6 host: urlsplit strips brackets from hostname, code re-wraps them
+        pytest.param("https://[2001:db8::1]", 8443, "https://[2001:db8::1]:8443", id="IPv6 host re-wrapped"),
+        # URL with username only
+        pytest.param("https://user@api.solcast.com.au", 8443, "https://user@api.solcast.com.au:8443", id="username only"),
+        # URL with username and password
+        pytest.param("https://user:pass@api.solcast.com.au", 8443, "https://user:pass@api.solcast.com.au:8443", id="username and password"),
+    ],
+)
+def test_get_solcast_base_url(url: str, port: int, expected: str) -> None:
+    """Test get_solcast_base_url covers all branches."""
+    assert get_solcast_base_url(url, port) == expected

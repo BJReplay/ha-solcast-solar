@@ -27,6 +27,7 @@ from homeassistant.components.solcast_solar.const import (
     ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     ADVANCED_INVALID_JSON_TASK,
     ADVANCED_OPTION,
+    ADVANCED_SOLCAST_PORT,
     API_LIMIT,
     AUTO_DAMPEN,
     AUTO_UPDATE,
@@ -915,6 +916,7 @@ async def test_advanced_options(
             "forecast_future_days": 14,
             "forecast_history_max_days": 730,  # Intentionally using deprecated name to test aliasing
             "reload_on_advanced_change": False,
+            "solcast_port": 0,
             "solcast_url": "https://api.solcast.com.au",
             "trigger_on_api_available": "",
             "trigger_on_api_unavailable": "",
@@ -961,12 +963,13 @@ async def test_advanced_options(
             "granular_dampening_delta_adjustment": False,
             "reload_on_advanced_change": True,
             "unknown_option": True,
+            "solcast_port": 8443,
             "solcast_url": "https://localhost",
         }
         data_file.write_text(json.dumps(data_file_2), encoding="utf-8")
         await wait()
         for option, value in data_file_1.items():
-            if option in ["reload_on_advanced_change", "solcast_url"]:
+            if option in ["reload_on_advanced_change", "solcast_port", "solcast_url"]:
                 continue
             if advanced_options_with_aliases.get(option) is None:
                 assert f"Unknown advanced option ignored: {option}" in caplog.text
@@ -993,6 +996,8 @@ async def test_advanced_options(
         assert "Advanced option set api_raise_issues: False" in caplog.text
         assert "Advanced option proposed reload_on_advanced_change: True" not in caplog.text
         assert "Advanced option set reload_on_advanced_change: True" in caplog.text
+        assert f"Advanced option proposed {ADVANCED_SOLCAST_PORT}: 8443" in caplog.text
+        assert f"Advanced option set {ADVANCED_SOLCAST_PORT}: 8443" in caplog.text
         assert "solcast_url: https://localhost" in caplog.text
         assert "Invalid time in advanced option automated_dampening_ignore_intervals: 24:00" in caplog.text
         assert "Invalid time in advanced option automated_dampening_ignore_intervals: 12:20" in caplog.text

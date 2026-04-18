@@ -12,6 +12,7 @@ import math
 from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Any, NamedTuple
+from urllib.parse import urlsplit, urlunsplit
 
 from homeassistant.const import ATTR_ENTITY_ID, CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -64,6 +65,40 @@ from .const import (
 
 if TYPE_CHECKING:
     from . import coordinator
+
+
+def get_solcast_base_url(url: str, port: int) -> str:
+    """Return the Solcast base URL with an optional TCP port override."""
+
+    url = url.rstrip("/")
+    if port <= 0:
+        return url
+
+    split_url = urlsplit(url)
+    if not split_url.netloc:
+        return url
+
+    hostname = split_url.hostname or split_url.netloc
+    if ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
+
+    auth = ""
+    if split_url.username is not None:
+        auth = split_url.username
+        if split_url.password is not None:
+            auth = f"{auth}:{split_url.password}"
+        auth = f"{auth}@"
+
+    return urlunsplit(
+        (
+            split_url.scheme,
+            f"{auth}{hostname}:{port}",
+            split_url.path.rstrip("/"),
+            split_url.query,
+            split_url.fragment,
+        )
+    ).rstrip("/")
+
 
 # Status code translation, HTTP and more.
 # A HTTP 418 error is included here for fun. This was introduced in RFC2324#section-2.3.2 as an April Fools joke in 1998.

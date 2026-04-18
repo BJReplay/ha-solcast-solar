@@ -334,6 +334,16 @@ Do not set this option unless you are a developer and want to utilise the Solcas
 
 Do not add a trailing `/`. An integration reload is required.
 
+**Key: "solcast_port"**
+
+Possible values: integer (default `0`)
+
+Specify the TCP port to connect to the Solcast API end-points. The port may either be specified using this advanced option, or embedded in the `solcast_url` option (example, `https://api.solcast.com.au:8443`).
+
+Do not set this option unless you are a developer and want to utilise the Solcast API Simulator.
+
+Do not add a trailing `/`. An integration reload is required.
+
 **Key: "trigger_on_api_available"**
 
 Possible values: string (default `""`)

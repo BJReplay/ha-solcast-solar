@@ -56,6 +56,7 @@ from zoneinfo import ZoneInfo
 from simulator import API_KEY_SITES, SimulatedSolcast
 
 simulate = SimulatedSolcast()
+DEFAULT_PORT = 443
 
 
 def restart():
@@ -323,12 +324,8 @@ def get_time_zone():
         pass
 
 
-if __name__ == "__main__":
-    random.seed()
-    _LOGGER.info("Starting Solcast API simulator, will listen on localhost:443")
-    _LOGGER.info("Originally written by @autoSteve")
-    _LOGGER.info("Integration issues raised regarding this script will be closed without response because it is a development tool")
-    get_time_zone()
+def build_parser() -> argparse.ArgumentParser:
+    """Return the CLI argument parser."""
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", help="Set the API call limit available, example --limit 100", type=int, required=False)
@@ -346,46 +343,79 @@ if __name__ == "__main__":
         type=str,
         required=False,
     )
+    parser.add_argument("--port", help="Set the TCP port to listen on", type=int, default=DEFAULT_PORT, required=False)
     parser.add_argument("--debug", help="Set Flask debug mode on", action="store_true", required=False, default=False)
-    args = parser.parse_args()
+    return parser
+
+
+def _apply_args(args: argparse.Namespace) -> dict[str, int | bool | list[int]]:
+    """Return simulator runtime values derived from CLI arguments."""
+
+    api_limit = API_LIMIT
+    bomb_429 = BOMB_429.copy()
+    bomb_key = BOMB_KEY.copy()
+    generate_418 = GENERATE_418
+    generate_429 = GENERATE_429
+
     if args.limit:
-        API_LIMIT = args.limit  # pyright: ignore[reportConstantRedefinition]
-        _LOGGER.info("API limit has been set to %s", API_LIMIT)
+        api_limit = args.limit
+        _LOGGER.info("API limit has been set to %s", api_limit)
     if args.no429:
-        GENERATE_429 = False  # pyright: ignore[reportConstantRedefinition]
+        generate_429 = False
         _LOGGER.info("429 responses will not be generated")
     if args.bomb429:
-        if not GENERATE_429:
+        if not generate_429:
             _LOGGER.error("Cannot specify --bomb429 with --no429")
             sys.exit()
-        BOMB_429 = [  # pyright: ignore[reportConstantRedefinition]
-            int(x) for x in args.bomb429.split(",") if "-" not in x
-        ]  # Simple minutes of the hour. # pyright: ignore[reportConstantRedefinition]
+        bomb_429 = [int(x) for x in args.bomb429.split(",") if "-" not in x]
         if "-" in args.bomb429:
-            for x_to_y in [x for x in args.bomb429.split(",") if "-" in x]:  # Minute of the hour ranges.
+            for x_to_y in [x for x in args.bomb429.split(",") if "-" in x]:
                 split = x_to_y.split("-")
                 if len(split) != 2:
                     _LOGGER.error("Not two hyphen separated values for --bomb429")
-                BOMB_429 += list(range(int(split[0]), int(split[1]) + 1))  # pyright: ignore[reportConstantRedefinition]
-        list.sort(BOMB_429)  # pyright:ignore[reportUnknownMemberType]
-        _LOGGER.info("API too busy responses will be returned at minute(s) %s", BOMB_429)
+                bomb_429 += list(range(int(split[0]), int(split[1]) + 1))
+        list.sort(bomb_429)
+        _LOGGER.info("API too busy responses will be returned at minute(s) %s", bomb_429)
     if args.bombkey:
-        BOMB_KEY = [  # pyright: ignore[reportConstantRedefinition]
-            int(x) for x in args.bombkey.split(",") if "-" not in x
-        ]  # Simple minutes of the hour. # pyright: ignore[reportConstantRedefinition]
+        bomb_key = [int(x) for x in args.bombkey.split(",") if "-" not in x]
         if "-" in args.bombkey:
-            for x_to_y in [x for x in args.bombkey.split(",") if "-" in x]:  # Minute of the hour ranges.
+            for x_to_y in [x for x in args.bombkey.split(",") if "-" in x]:
                 split = x_to_y.split("-")
                 if len(split) != 2:
                     _LOGGER.error("Not two hyphen separated values for --bombkey")
-                BOMB_KEY += list(range(int(split[0]), int(split[1]) + 1))  # pyright: ignore[reportConstantRedefinition]
-        list.sort(BOMB_KEY)  # pyright:ignore[reportUnknownMemberType]
-        _LOGGER.info("API key changes will be happen at minute(s) %s", BOMB_KEY)
+                bomb_key += list(range(int(split[0]), int(split[1]) + 1))
+        list.sort(bomb_key)
+        _LOGGER.info("API key changes will be happen at minute(s) %s", bomb_key)
     if args.teapot:
-        GENERATE_418 = True  # pyright: ignore[reportConstantRedefinition]
+        generate_418 = True
         _LOGGER.info("I'm a teapot response will be sometimes generated")
 
-    if API_LIMIT == 50:
-        _LOGGER.info("API limit is default %s, usage has been reset", API_LIMIT)
+    if api_limit == 50:
+        _LOGGER.info("API limit is default %s, usage has been reset", api_limit)
 
-    app.run(debug=args.debug, host="127.0.0.1", port=443, ssl_context=("cert.pem", "key.pem"))
+    return {
+        "API_LIMIT": api_limit,
+        "BOMB_429": bomb_429,
+        "BOMB_KEY": bomb_key,
+        "GENERATE_418": generate_418,
+        "GENERATE_429": generate_429,
+    }
+
+
+def main(argv: list[str] | None = None) -> None:
+    """Run the simulator."""
+
+    random.seed()
+    get_time_zone()
+    args = build_parser().parse_args(argv)
+
+    _LOGGER.info("Starting Solcast API simulator, will listen on localhost:%s", args.port)
+    _LOGGER.info("Originally written by @autoSteve")
+    _LOGGER.info("Integration issues raised regarding this script will be closed without response because it is a development tool")
+
+    globals().update(_apply_args(args))
+    app.run(debug=args.debug, host="127.0.0.1", port=args.port, ssl_context=("cert.pem", "key.pem"))
+
+
+if __name__ == "__main__":
+    main()

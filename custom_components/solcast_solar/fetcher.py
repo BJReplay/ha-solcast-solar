@@ -27,6 +27,7 @@ from .const import (
     ADVANCED_FORECAST_FUTURE_DAYS,
     ADVANCED_HISTORY_MAX_DAYS,
     ADVANCED_LOG_UPDATE_FAILURE_ONLY,
+    ADVANCED_SOLCAST_PORT,
     ADVANCED_SOLCAST_URL,
     ADVANCED_TRIGGER_ON_API_AVAILABLE,
     ADVANCED_TRIGGER_ON_API_UNAVAILABLE,
@@ -76,6 +77,7 @@ from .util import (
     UpdateResult,
     async_trigger_automation_by_name,
     forecast_entry_update,
+    get_solcast_base_url,
     http_status_translate,
     raise_and_record,
     redact_api_key,
@@ -620,7 +622,11 @@ class Fetcher:
                     issue_registry = ir.async_get(self.api.hass)
 
                     if self.api.api_used[api_key] < self.api.api_limits[api_key] or force:
-                        url = f"{self.api.advanced_options[ADVANCED_SOLCAST_URL]}/rooftop_sites/{site}/{path}"
+                        base_url = get_solcast_base_url(
+                            self.api.advanced_options[ADVANCED_SOLCAST_URL],
+                            self.api.advanced_options[ADVANCED_SOLCAST_PORT],
+                        )
+                        url = f"{base_url}/rooftop_sites/{site}/{path}"
                         params: dict[str, str | int] = {FORMAT: JSON, API_KEY: api_key, HOURS: hours}
 
                         tries = UPDATE_TRIES
