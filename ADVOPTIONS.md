@@ -326,23 +326,16 @@ Possible values: boolean `true`/`false` (default `false`)
 
 Setting this option to `true` will cause the integration to reload whenever any advanced option is added or changed.
 
-**Key: "solcast_url"**
+**Key: "solcast_url" / "solcast_port"**
 
-Possible values: string URL (default `"https://api.solcast.com.au"`)
+Possible values for `solcast_url`: string (default `"https://api.solcast.com.au"`)
+Possible values for `solcast_port`: integer (default `0`)
 
-Do not set this option unless you are a developer and want to utilise the Solcast API Simulator.
+Do not set these options unless you are a developer and want to utilise the Solcast API Simulator.
 
-Do not add a trailing `/`. An integration reload is required.
+A trailing `/` is optional for the URL. An integration reload is required.
 
-**Key: "solcast_port"**
-
-Possible values: integer (default `0`)
-
-Specify the TCP port to connect to the Solcast API end-points. The port may either be specified using this advanced option, or embedded in the `solcast_url` option (example, `https://api.solcast.com.au:8443`).
-
-Do not set this option unless you are a developer and want to utilise the Solcast API Simulator.
-
-Do not add a trailing `/`. An integration reload is required.
+Specifying the TCP port to connect to the Solcast API end-points may either be by using the option `solcast_port`, or by embedding the TCP port in the `solcast_url` option (example, `https://localhost:8443/`). If `solcast_port` is used then it will override any URL-embedded port specified.
 
 **Key: "trigger_on_api_available"**
 
