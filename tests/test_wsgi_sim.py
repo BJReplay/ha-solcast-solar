@@ -24,10 +24,9 @@ def _load_wsgi_sim_module() -> ModuleType:
     try:
         with (
             patch("pathlib.Path.exists", return_value=True),
-            patch(
-                "subprocess.check_call",
-                patch("os.execl"),
-            ),
+            patch("subprocess.check_call", return_value=None),
+            patch("os.execl", return_value=None),
+            patch("sys.exit", return_value=None),
         ):
             spec.loader.exec_module(module)
     finally:

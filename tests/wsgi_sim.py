@@ -286,8 +286,7 @@ def get_site_estimated_actuals_advanced() -> tuple[Any, int]:
     if not end and not duration:
         _LOGGER.info("Missing end or duration parameter")
         return missing_parameter()
-    if duration is None:
-        _hours = int((end - start).total_seconds() / 3600)  # type: ignore[operator]
+    _hours = int((end - start).total_seconds() / 3600)  # type: ignore[operator]
     period_end = simulate.get_period(start, timedelta(minutes=30))
     response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
