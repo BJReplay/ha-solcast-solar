@@ -347,7 +347,9 @@ Possible values: boolean `true`/`false` (default `false`)
 
 The maximum configurable API limit is 50 by default. This value represents the maximum number of metered API calls that any Solcast hobbyist user has ever been able to make.
 
-Do not set this option unless you are a developer and want to utilise the Solcast API Simulator in a dev container, where a much larger available limit is possible.
+If not specified, then this option is set to `true` when `solcast_url` is non-default. In that case this option is used to force `allow_exceed_api_limit_maximum` to `false` if required.
+
+Do not set this option unless you are a developer and want to utilise the Solcast API Simulator in a dev container, plus you want to enable config/options flow adherence to a max. 50 limit by forcing it to be `false`.
 
 **Key: "solcast_url" / "solcast_port"**
 
