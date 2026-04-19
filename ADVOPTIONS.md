@@ -323,13 +323,13 @@ Setting this option to `true` will cause the integration to reload whenever any 
 
 Possible values: string (default `""`)
 
-When API availability has been determined (after a period of unavailability) then trigger the friendly name of an automation.
+When API availability has been determined (after a period of unavailability) then trigger the entity ID or friendly name of an automation.
 
 **Key: "trigger_on_api_unavailable"**
 
 Possible values: string (default `""`)
 
-When API unavailability has been determined then trigger the friendly name of an automation.
+When API unavailability has been determined then trigger the entity ID or friendly name of an automation.
 
 **Key: "user_agent"**
 

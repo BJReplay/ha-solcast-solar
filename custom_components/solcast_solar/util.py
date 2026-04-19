@@ -717,12 +717,13 @@ async def raise_or_clear_advanced_deprecated(
 
 
 async def async_trigger_automation_by_name(hass: HomeAssistant, name: str) -> bool:
-    """Trigger an automation by friendly name; returns True if found and triggered."""
+    """Trigger an automation by friendly name or entity ID; returns True if found and triggered."""
     success = False
     entity_id = None
     for state in hass.states.async_all("automation"):
-        if state.attributes.get("friendly_name") == name:
+        if state.entity_id == name or state.attributes.get("friendly_name") == name:
             entity_id = state.entity_id
+            break
     if entity_id:
         await hass.services.async_call("automation", "trigger", {ATTR_ENTITY_ID: entity_id}, blocking=True)
         success = True
