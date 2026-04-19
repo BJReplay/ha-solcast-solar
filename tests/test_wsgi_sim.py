@@ -8,8 +8,6 @@ import sys
 from types import ModuleType
 from unittest.mock import patch
 
-import pytest
-
 
 def _load_wsgi_sim_module() -> ModuleType:
     """Load the WSGI simulator module without starting the server."""
@@ -32,9 +30,8 @@ def _load_wsgi_sim_module() -> ModuleType:
 
 
 def _test_client(module: ModuleType):
-    """Return a Flask test client with 429 and 418 responses disabled."""
-    setattr(module, "GENERATE_429", False)
-    setattr(module, "GENERATE_418", False)
+    """Return a Flask test client with 418 responses disabled."""
+    setattr(module, "BOMB_418", False)
     module.app.config["TESTING"] = True  # type: ignore[attr-defined]
     return module.app.test_client()  # type: ignore[attr-defined]
 
@@ -42,9 +39,8 @@ def _test_client(module: ModuleType):
 def test_wsgi_sim_parser_accepts_port() -> None:
     """The simulator parser accepts an explicit TCP port."""
     module = _load_wsgi_sim_module()
-    args = module.build_parser().parse_args(["--port", "8443", "--no429"])
+    args = module.build_parser().parse_args(["--port", "8443"])
     assert args.port == 8443
-    assert args.no429 is True
 
 
 def test_wsgi_sim_parser_default_port() -> None:
@@ -70,10 +66,9 @@ def test_apply_args_defaults() -> None:
     module = _load_wsgi_sim_module()
     result = module._apply_args(module.build_parser().parse_args([]))
     assert result["API_LIMIT"] == 50
-    assert result["BOMB_429"] == [0]
+    assert result["BOMB_418"] is False
+    assert result["BOMB_429"] == []
     assert result["BOMB_KEY"] == []
-    assert result["GENERATE_418"] is False
-    assert result["GENERATE_429"] is True
 
 
 def test_apply_args_limit() -> None:
@@ -83,18 +78,11 @@ def test_apply_args_limit() -> None:
     assert result["API_LIMIT"] == 100
 
 
-def test_apply_args_no429() -> None:
-    """--no429 disables 429 generation."""
-    module = _load_wsgi_sim_module()
-    result = module._apply_args(module.build_parser().parse_args(["--no429"]))
-    assert result["GENERATE_429"] is False
-
-
 def test_apply_args_teapot() -> None:
     """--teapot enables 418 generation."""
     module = _load_wsgi_sim_module()
     result = module._apply_args(module.build_parser().parse_args(["--teapot"]))
-    assert result["GENERATE_418"] is True
+    assert result["BOMB_418"] is True
 
 
 def test_apply_args_bomb429_plain_values() -> None:
@@ -116,13 +104,6 @@ def test_apply_args_bombkey_range() -> None:
     module = _load_wsgi_sim_module()
     result = module._apply_args(module.build_parser().parse_args(["--bombkey", "30-31,45"]))
     assert result["BOMB_KEY"] == [30, 31, 45]
-
-
-def test_apply_args_bomb429_conflicts_with_no429() -> None:
-    """Combining --bomb429 with --no429 exits the simulator."""
-    module = _load_wsgi_sim_module()
-    with pytest.raises(SystemExit):
-        module._apply_args(module.build_parser().parse_args(["--no429", "--bomb429", "0"]))
 
 
 def test_route_sites_no_api_key() -> None:
@@ -187,7 +168,7 @@ def test_wsgi_sim_main_uses_configured_port() -> None:
         patch.object(module.random, "seed"),
         patch.object(module.app, "run") as mock_run,
     ):
-        module.main(["--port", "8443", "--no429"])
+        module.main(["--port", "8443"])
     mock_run.assert_called_once_with(
         debug=False,
         host="127.0.0.1",
@@ -204,7 +185,7 @@ def test_wsgi_sim_main_default_port() -> None:
         patch.object(module.random, "seed"),
         patch.object(module.app, "run") as mock_run,
     ):
-        module.main(["--no429"])
+        module.main([])
     mock_run.assert_called_once_with(
         debug=False,
         host="127.0.0.1",
@@ -221,7 +202,7 @@ def test_wsgi_sim_main_debug_mode() -> None:
         patch.object(module.random, "seed"),
         patch.object(module.app, "run") as mock_run,
     ):
-        module.main(["--no429", "--debug"])
+        module.main(["--debug"])
     mock_run.assert_called_once_with(
         debug=True,
         host="127.0.0.1",
