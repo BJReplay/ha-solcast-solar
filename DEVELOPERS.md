@@ -47,6 +47,6 @@ Present PyTest coverage of all modules is 100%. _Every_ statement of code is cur
 Home Assistant development standards to Platinum level is also a thing here, and non-conformance will also result in PR revisions required, or rejection. A strict type checking standard is maintained. The Home Assistant dev container incorporates much automated checking of code standards to help out, but you will likely need to add PyLance and configure type checking to strict standard. GitHub Copilot is also pretty neat at calling out inefficient or poorly constructed code, and this can also be used in the dev container.
 
 If you're really new to Home Assistant development then to set up the dev container install VSCode, fork homeAssistant-core to your own repo, go to https://developers.home-assistant.io/docs/development_environment/ and
-use the forked repo address https://github.com/{myGithubName}/homeAssistant-core/. Commits and PRs are not managed in the dev container unless you are developing core components, so use Github Desktop or Git command line instead for this custom component.
+use the forked repo address https://github.com/{myGithubName}/homeAssistant-core/. Commits and PRs are not managed in the dev container unless you are developing core components, so use GitHub Desktop or Git command line instead for this custom component.
 
 Welcome! Let's make this an even better integration!

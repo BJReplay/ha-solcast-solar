@@ -22,7 +22,13 @@ def _load_wsgi_sim_module() -> ModuleType:
     sys.modules[module_name] = module
     sys.path.insert(0, str(module_path.parent))
     try:
-        with patch("pathlib.Path.exists", return_value=True), patch("subprocess.check_call"):
+        with (
+            patch("pathlib.Path.exists", return_value=True),
+            patch(
+                "subprocess.check_call",
+                patch("os.execl"),
+            ),
+        ):
             spec.loader.exec_module(module)
     finally:
         sys.path.pop(0)

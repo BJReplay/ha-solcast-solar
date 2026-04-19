@@ -354,7 +354,7 @@ def _apply_args(args: argparse.Namespace) -> dict[str, int | bool | list[int]]:
     bomb_key = BOMB_KEY.copy()
     bomb_418 = BOMB_418
 
-    if args.limit:
+    if args.limit is not None:
         api_limit = args.limit
         _LOGGER.info("API limit has been set to %s", api_limit)
     if args.bomb429:
@@ -364,6 +364,7 @@ def _apply_args(args: argparse.Namespace) -> dict[str, int | bool | list[int]]:
                 split = x_to_y.split("-")
                 if len(split) != 2:
                     _LOGGER.error("Not two hyphen separated values for --bomb429")
+                    continue
                 bomb_429 += list(range(int(split[0]), int(split[1]) + 1))
         list.sort(bomb_429)
         _LOGGER.info("API too busy responses will be returned at minute(s) %s", bomb_429)
@@ -374,15 +375,13 @@ def _apply_args(args: argparse.Namespace) -> dict[str, int | bool | list[int]]:
                 split = x_to_y.split("-")
                 if len(split) != 2:
                     _LOGGER.error("Not two hyphen separated values for --bombkey")
+                    continue
                 bomb_key += list(range(int(split[0]), int(split[1]) + 1))
         list.sort(bomb_key)
-        _LOGGER.info("API key changes will be happen at minute(s) %s", bomb_key)
+        _LOGGER.info("API key changes will happen at minute(s) %s", bomb_key)
     if args.teapot:
         bomb_418 = True
         _LOGGER.info("I'm a teapot response will be sometimes generated")
-
-    if api_limit == 50:
-        _LOGGER.info("API limit is default %s, usage has been reset", api_limit)
 
     return {
         "API_LIMIT": api_limit,
