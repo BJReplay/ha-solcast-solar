@@ -35,6 +35,7 @@ You are free to raise an issue should a code exception occur after setting an ad
 1. [Forecasts](#forecasts)
 1. [Granular dampening](#granular-dampening)
 1. [General](#general)
+1. [Developer](#developer)
 
 ## Automated dampening
 
@@ -282,14 +283,6 @@ The adjustment will only apply to `ALL` factors, and not individual per-site dam
 
 ## General
 
-**Key: "allow_exceed_api_limit_maximum"**
-
-Possible values: boolean `true`/`false` (default `false`)
-
-The maximum configurable API limit is 50 by default. This value represents the maximum number of metered API calls that any Solcast hobbyist user has ever been able to make.
-
-Do not set this option unless you are a developer and want to utilise the Solcast API Simulator, where a much larger available limit is possible.
-
 **Key: "api_raise_issues"**
 
 Possible values: boolean `true`/`false` (default `true`)
@@ -326,17 +319,6 @@ Possible values: boolean `true`/`false` (default `false`)
 
 Setting this option to `true` will cause the integration to reload whenever any advanced option is added or changed.
 
-**Key: "solcast_url" / "solcast_port"**
-
-Possible values for `solcast_url`: string (default `"https://api.solcast.com.au"`)
-Possible values for `solcast_port`: integer (default `0`)
-
-Do not set these options unless you are a developer and want to utilise the Solcast API Simulator.
-
-A trailing `/` is optional for the URL. An integration reload is required.
-
-Specifying the TCP port to connect to the Solcast API end-points may either be by using the option `solcast_port`, or by embedding the TCP port in the `solcast_url` option (example, `https://localhost:8443/`). If `solcast_port` is used then it will override any URL-embedded port specified.
-
 **Key: "trigger_on_api_available"**
 
 Possible values: string (default `""`)
@@ -354,3 +336,26 @@ When API unavailability has been determined then trigger the friendly name of an
 Possible values: string (default `"default"`)
 
 The HTTP header User-Agent is set to "ha-solcast-solar-integration/x.x.x" by default. This advanced option allows it to be set to another user agent string.
+
+## Developer
+
+These advanced options are intended only for developers to use.
+
+**Key: "allow_exceed_api_limit_maximum"**
+
+Possible values: boolean `true`/`false` (default `false`)
+
+The maximum configurable API limit is 50 by default. This value represents the maximum number of metered API calls that any Solcast hobbyist user has ever been able to make.
+
+Do not set this option unless you are a developer and want to utilise the Solcast API Simulator in a dev container, where a much larger available limit is possible.
+
+**Key: "solcast_url" / "solcast_port"**
+
+Possible values for `solcast_url`: string (default `"https://api.solcast.com.au"`)
+Possible values for `solcast_port`: integer (default `0`)
+
+Do not set these options unless you are a developer and want to utilise the Solcast API Simulator in a dev container.
+
+A trailing `/` is optional for the URL. An integration reload is required.
+
+Specifying the TCP port to connect to the Solcast API end-points may either be by using the option `solcast_port`, or by embedding the TCP port in the `solcast_url` option (example, `https://localhost:8443/`). If `solcast_port` is used then it will override any URL-embedded port specified.
