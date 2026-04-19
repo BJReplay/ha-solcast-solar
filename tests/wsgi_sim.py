@@ -227,7 +227,7 @@ def get_sites() -> tuple[Any, int]:
 
 @app.route("/rooftop_sites/<site_id>/estimated_actuals", methods=["GET"])
 def get_site_estimated_actuals(site_id: str) -> tuple[Any, int]:
-    """Return simulated estimated actials for a site."""
+    """Return simulated estimated actuals for a site."""
 
     api_key = request.args.get("api_key")
     if api_key is None:
