@@ -358,6 +358,6 @@ Possible values for `solcast_port`: integer (default `0`)
 
 Do not set these options unless you are a developer and want to utilise the Solcast API Simulator in a dev container.
 
-A trailing `/` is optional for the URL. An integration reload is required.
+A trailing `/` is optional for the URL.
 
 Specifying the TCP port to connect to the Solcast API end-points may either be by using the option `solcast_port`, or by embedding the TCP port in the `solcast_url` option (example, `https://localhost:8443/`). If `solcast_port` is used then it will override any URL-embedded port specified.

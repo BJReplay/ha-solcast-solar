@@ -12,6 +12,8 @@ Optional run arguments:
 * --bomb429 w-x,y,z  The minute(s) of the hour to return API too busy, comma separated, example --bomb429 0-5,15,30-35,45
 * --bombkey w-x,y,z  The minute(s) of the hour to change the API key, comma separated, example --bombkey 0-5,15,30-35,45
 * --teapot           Infrequently generate 418 response.
+* --port PORT        Set the HTTPS listening port, example --port 8443
+* --debug            Enable debug mode.
 
 Theory of operation:
 
@@ -357,25 +359,25 @@ def _apply_args(args: argparse.Namespace) -> dict[str, int | bool | list[int]]:
         api_limit = args.limit
         _LOGGER.info("API limit has been set to %s", api_limit)
     if args.bomb429:
-        bomb_429 = [int(x) for x in args.bomb429.split(",") if "-" not in x]
+        bomb_429 = [int(x.strip()) for x in args.bomb429.split(",") if x.strip() and "-" not in x.strip()]
         if "-" in args.bomb429:
-            for x_to_y in [x for x in args.bomb429.split(",") if "-" in x]:
+            for x_to_y in [x.strip() for x in args.bomb429.split(",") if "-" in x]:
                 split = x_to_y.split("-")
                 if len(split) != 2:
                     _LOGGER.error("Not two hyphen separated values for --bomb429")
                     continue
-                bomb_429 += list(range(int(split[0]), int(split[1]) + 1))
+                bomb_429 += list(range(int(split[0].strip()), int(split[1].strip()) + 1))
         list.sort(bomb_429)
         _LOGGER.info("API too busy responses will be returned at minute(s) %s", bomb_429)
     if args.bombkey:
-        bomb_key = [int(x) for x in args.bombkey.split(",") if "-" not in x]
+        bomb_key = [int(x.strip()) for x in args.bombkey.split(",") if x.strip() and "-" not in x.strip()]
         if "-" in args.bombkey:
-            for x_to_y in [x for x in args.bombkey.split(",") if "-" in x]:
+            for x_to_y in [x.strip() for x in args.bombkey.split(",") if "-" in x]:
                 split = x_to_y.split("-")
                 if len(split) != 2:
                     _LOGGER.error("Not two hyphen separated values for --bombkey")
                     continue
-                bomb_key += list(range(int(split[0]), int(split[1]) + 1))
+                bomb_key += list(range(int(split[0].strip()), int(split[1].strip()) + 1))
         list.sort(bomb_key)
         _LOGGER.info("API key changes will happen at minute(s) %s", bomb_key)
     if args.teapot:

@@ -83,11 +83,8 @@ def get_solcast_base_url(url: str, port: int) -> str:
         hostname = f"[{hostname}]"
 
     auth = ""
-    if split_url.username is not None:
-        auth = split_url.username
-        if split_url.password is not None:
-            auth = f"{auth}:{split_url.password}"
-        auth = f"{auth}@"
+    if "@" in split_url.netloc:
+        auth = f"{split_url.netloc.rsplit('@', 1)[0]}@"
 
     return urlunsplit(
         (

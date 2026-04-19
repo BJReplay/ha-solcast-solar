@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import importlib
 import importlib.util
 from pathlib import Path
 import sys
 from types import ModuleType
 from unittest.mock import patch
+
+import pytest
+
+pytest.importorskip("flask", reason="Flask is required to run simulator tests")
+pytest.importorskip("isodate", reason="isodate is required to run simulator tests")
 
 
 def _load_wsgi_sim_module() -> ModuleType:
