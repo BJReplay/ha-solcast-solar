@@ -12,7 +12,7 @@ Optional run arguments:
 * --bomb429 w-x,y,z  The minute(s) of the hour to return API too busy, comma separated, example --bomb429 0-5,15,30-35,45
 * --bombkey w-x,y,z  The minute(s) of the hour to change the API key, comma separated, example --bombkey 0-5,15,30-35,45
 * --teapot           Infrequently generate 418 response.
-* --port PORT        Set the HTTPS listening port, example --port 8443
+* --port PORT        Set the listening port, example --port 8443
 * --debug            Enable debug mode.
 
 Theory of operation:
@@ -342,7 +342,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=str,
         required=False,
     )
-    parser.add_argument("--port", help="Set the TCP port to listen on", type=int, default=DEFAULT_PORT, required=False)
+    parser.add_argument("--port", help="Set the HTTPS listening port, example --port 8443", type=int, default=DEFAULT_PORT, required=False)
     parser.add_argument("--debug", help="Set Flask debug mode on", action="store_true", required=False, default=False)
     return parser
 
