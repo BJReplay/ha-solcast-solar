@@ -60,6 +60,7 @@ from .const import (
     EXCLUDE_SITES,
     FAILURES_LAST_7D,
     FAILURES_LAST_24H,
+    FORECASTS,
     GENERATION_ENTITIES,
     GET_ACTUALS,
     HARD_LIMIT,
@@ -593,7 +594,11 @@ class ServiceActions:
             }
 
         actuals_site_info = solcast.data_actuals.get(SITE_INFO, {})
-        sites_with_data = sorted(site_id for site_id in configured_site_ids if actuals_site_info.get(site_id))
+        sites_with_data = sorted(
+            site_id
+            for site_id in configured_site_ids
+            if actuals_site_info.get(site_id, {}).get(FORECASTS)
+        )
         missing_sites = sorted(configured_site_ids - set(sites_with_data))
         raw_last_updated = solcast.data_actuals.get(LAST_UPDATED)
         raw_last_attempt = solcast.data_actuals.get(LAST_ATTEMPT)

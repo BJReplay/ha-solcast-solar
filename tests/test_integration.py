@@ -45,6 +45,7 @@ from homeassistant.components.solcast_solar.const import (
     EVENT_END_DATETIME,
     EVENT_START_DATETIME,
     EXCLUDE_SITES,
+    FORECASTS,
     GENERATION_ENTITIES,
     GET_ACTUALS,
     HARD_LIMIT,
@@ -2962,7 +2963,7 @@ async def test_diagnostic_stale_forecast_and_actuals_health(
         solcast.data[AUTO_UPDATED] = 0
         solcast.data_actuals[LAST_UPDATED] = stale_time
         solcast.data_actuals[LAST_ATTEMPT] = stale_time
-        solcast.data_actuals[SITE_INFO] = {site_id: {"present": True} for site_id in configured_site_ids}
+        solcast.data_actuals[SITE_INFO] = {site_id: {FORECASTS: [{}]} for site_id in configured_site_ids}
 
         result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript]
@@ -2971,6 +2972,36 @@ async def test_diagnostic_stale_forecast_and_actuals_health(
         assert data["actuals_health"]["status"] == "stale"  # type: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert any("Forecast data has not been fetched yet" in issue for issue in data["issues"])  # type: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert any("Estimated actuals data is stale" in issue for issue in data["issues"])  # type: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_diagnostic_empty_actuals_site_data_reports_missing(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that empty actuals forecast lists are treated as missing data."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
+
+        stale_time = solcast.dt_helper.day_start_utc(future=-2)
+        configured_site_ids = {site[RESOURCE_ID] for site in solcast.sites}
+        solcast.data_actuals[LAST_UPDATED] = stale_time
+        solcast.data_actuals[LAST_ATTEMPT] = stale_time
+        solcast.data_actuals[SITE_INFO] = {site_id: {FORECASTS: []} for site_id in configured_site_ids}
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript]
+
+        assert data["actuals_health"]["status"] == "missing"  # type: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["actuals_health"]["site_data_present"] is False  # type: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("no actuals data is available" in issue.lower() for issue in data["issues"])  # type: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         no_error_or_exception(caplog)
 
