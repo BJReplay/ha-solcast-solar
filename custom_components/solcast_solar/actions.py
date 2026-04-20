@@ -772,6 +772,7 @@ class ServiceActions:
         opt = {**self._entry.options}
         await self._async_apply_api_related_options(call.data, opt)
 
+        # Apply validated options.
         for input_key, validator, option_key in (
             (AUTO_UPDATE, validate_auto_update_value, None),
             (KEY_ESTIMATE, validate_key_estimate_value, None),
@@ -781,13 +782,21 @@ class ServiceActions:
         ):
             self._apply_validated_option(call.data, opt, input_key, validator, option_key)
 
-        # Apply boolean breakdown options.
-        for key in (BRK_ESTIMATE, BRK_ESTIMATE10, BRK_ESTIMATE90, BRK_SITE, BRK_HALFHOURLY, BRK_HOURLY, BRK_SITE_DETAILED):
+        # Apply boolean options.
+        for key in (
+            AUTO_DAMPEN,
+            BRK_ESTIMATE,
+            BRK_ESTIMATE10,
+            BRK_ESTIMATE90,
+            BRK_HALFHOURLY,
+            BRK_HOURLY,
+            BRK_SITE,
+            BRK_SITE_DETAILED,
+            GET_ACTUALS,
+        ):
             self._apply_option(call.data, opt, key)
 
-        for key in (GET_ACTUALS, AUTO_DAMPEN):
-            self._apply_option(call.data, opt, key)
-
+        # Apply transformed list/string options.
         for input_key, transform in (
             (GENERATION_ENTITIES, lambda value: [entity.strip() for entity in value.split(",") if entity.strip()]),
             (EXCLUDE_SITES, lambda value: [site.strip() for site in value.split(",") if site.strip()]),
@@ -805,7 +814,7 @@ class ServiceActions:
         if opt.get(SITE_EXPORT_LIMIT, 0) > 0.0 and not opt.get(SITE_EXPORT_ENTITY, ""):
             raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_EXPORT_NO_ENTITY)
 
-        # Sync legacy keys before updating the entry, to keep downgrade compatibility.
+        # Sync legacy keys before updating the entry to keep downgrade compatibility.
         sync_legacy_keys(opt)
         self._hass.config_entries.async_update_entry(self._entry, options=opt)
 
