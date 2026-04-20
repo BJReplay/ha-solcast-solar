@@ -49,4 +49,19 @@ Home Assistant development standards to Platinum level is also a thing here, and
 If you're really new to Home Assistant development then to set up the dev container install VSCode, fork homeAssistant-core to your own repo, go to https://developers.home-assistant.io/docs/development_environment/ and
 use the forked repo address https://github.com/{myGithubName}/homeAssistant-core/. Commits and PRs are not managed in the dev container unless you are developing core components, so use GitHub Desktop or Git command line instead for this custom component.
 
+Note that there is an annoyance that can be fixed in the dev container. When HA starts it recreates the translations files for core integrations, and this will include files for this integration when it is mounted as core. Why this is an annoyance is that the translation files for this integration use indent spaces=2, while HA uses indent spaces=4. This can be fixed with a small HA modification.
+
+```diff
+diff --git a/script/translations/download.py b/script/translations/download.py
+index 4ed2d8f045f..129d73084e6 100755
+--- a/script/translations/download.py
++++ b/script/translations/download.py
+@@ -62,7 +62,7 @@ def run_download_docker() -> None:
+ 
+ def save_json(filename: Path, data: list | dict) -> None:
+     """Save JSON data to a file."""
+-    filename.write_text(json.dumps(data, sort_keys=True, indent=4), encoding="utf-8")
++    filename.write_text(json.dumps(data, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+```
+
 Welcome! Let's make this an even better integration!
