@@ -231,7 +231,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self.async_update_listeners()
 
     async def restart_time_track_midnight_update(self) -> None:
-        """Cancel and restart UTC time change tracker."""
+        """Cancel and restart UTC midnight time change tracker."""
         _LOGGER.warning("Restarting midnight UTC timer")
         if self.tasks.get(TASK_MIDNIGHT_UPDATE):
             self.tasks[TASK_MIDNIGHT_UPDATE]()  # Cancel the tracker
@@ -242,7 +242,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         _LOGGER.debug("Started task midnight_update")
 
     async def _update_utc_midnight_usage_sensor_data(self, _: dt | None = None) -> None:
-        """Reset tracked API usage at midnight UTC."""
+        """Reset tracked API usage and failure statistics at midnight UTC."""
         await self.solcast.sites_cache.reset_api_usage()
         await self.solcast.fetcher.reset_failure_stats()
         self._data_updated = True

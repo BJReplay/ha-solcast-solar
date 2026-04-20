@@ -1,7 +1,7 @@
 """Solcast PV forecast, service actions."""
 
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 from enum import Enum
 import logging
 from pathlib import Path
@@ -25,11 +25,13 @@ from .const import (
     ACTUALS_ATTEMPT,
     ACTUALS_UPDATED,
     API_FORCE_USED,
+    API_KEYS_CONFIGURED,
     API_LIMIT,
     API_REMAINING,
     API_USED,
     AUTO_DAMPEN,
     AUTO_UPDATE,
+    AUTO_UPDATED,
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
@@ -90,15 +92,22 @@ from .const import (
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
+    SITE_INFO,
     SITES_STATUS,
     STATUS,
     SUPPORTS_RESPONSE as SUPPORTS_RESPONSE_KEY,
     UNDAMPENED,
+    USAGE_STATUS,
     USE_ACTUALS,
 )
 from .coordinator import SolcastUpdateCoordinator
 from .solcastapi import SolcastApi
-from .util import async_is_allow_exceed_api_limit, sync_legacy_keys
+from .util import (
+    AutoUpdate,
+    UsageStatus,
+    async_is_allow_exceed_api_limit,
+    sync_legacy_keys,
+)
 from .validators import (
     validate_api_key_value,
     validate_api_limit_value,
@@ -515,6 +524,116 @@ class ServiceActions:
             }
         }
 
+    def _is_unset_timestamp(self, value: Any) -> bool:
+        """Return whether a timestamp-like value has not been meaningfully set."""
+        return not isinstance(value, datetime) or value.timestamp() == 0
+
+    def _format_timestamp(self, value: Any, timezone: Any) -> str | None:
+        """Format a timestamp-like value if it is meaningfully set."""
+        return value.astimezone(timezone).isoformat() if not self._is_unset_timestamp(value) else None
+
+    def _evaluate_forecast_health(self, solcast: SolcastApi, issues: list[str]) -> dict[str, Any]:
+        """Evaluate forecast freshness using the same rules as runtime recovery."""
+        raw_last_updated = solcast.data.get(LAST_UPDATED)
+        raw_last_attempt = solcast.data.get(LAST_ATTEMPT)
+        stale_start = solcast.sites_cache.stale_data
+        interval_just_passed = self._coordinator.interval_just_passed
+        expected_interval = interval_just_passed.astimezone(solcast.tz).isoformat() if interval_just_passed is not None else None
+        auto_update_value = int(solcast.options.auto_update)
+        auto_updated = int(solcast.data.get(AUTO_UPDATED, 0))
+        missed_auto_update = False
+        indeterminate = False
+
+        if auto_update_value != AutoUpdate.NONE:
+            if auto_updated == 99999 or auto_updated != self._coordinator.divisions:
+                indeterminate = True
+            elif (
+                auto_updated > 0
+                and interval_just_passed is not None
+                and isinstance(raw_last_attempt, datetime)
+                and raw_last_attempt < interval_just_passed
+            ):
+                missed_auto_update = True
+
+        if self._is_unset_timestamp(raw_last_updated):
+            status = "missing"
+            issues.append("Forecast data has not been fetched yet")
+        elif stale_start:
+            status = "stale"
+            issues.append("Forecast data is stale")
+        elif missed_auto_update:
+            status = "missed_interval"
+            issues.append("Forecast data missed the expected auto-update interval")
+        elif indeterminate:
+            status = "indeterminate"
+        else:
+            status = "fresh"
+
+        return {
+            "status": status,
+            "stale_start": stale_start,
+            "missed_auto_update": missed_auto_update,
+            "expected_interval": expected_interval,
+            "auto_update_divisions": self._coordinator.divisions,
+            "last_updated": self._format_timestamp(raw_last_updated, solcast.tz),
+            "last_attempt": self._format_timestamp(raw_last_attempt, solcast.tz),
+        }
+
+    def _evaluate_actuals_health(self, solcast: SolcastApi, configured_site_ids: set[str], issues: list[str]) -> dict[str, Any]:
+        """Evaluate whether actuals are enabled, present, and fresh enough to use."""
+        if not solcast.options.get_actuals:
+            return {
+                "status": "disabled",
+                "site_data_present": False,
+                "configured_sites": sorted(configured_site_ids),
+                "sites_with_data": [],
+                "missing_sites": sorted(configured_site_ids),
+                "last_updated": None,
+                "last_attempt": None,
+            }
+
+        actuals_site_info = solcast.data_actuals.get(SITE_INFO, {})
+        sites_with_data = sorted(site_id for site_id in configured_site_ids if actuals_site_info.get(site_id))
+        missing_sites = sorted(configured_site_ids - set(sites_with_data))
+        raw_last_updated = solcast.data_actuals.get(LAST_UPDATED)
+        raw_last_attempt = solcast.data_actuals.get(LAST_ATTEMPT)
+        stale_actuals = (
+            isinstance(raw_last_updated, datetime)
+            and not self._is_unset_timestamp(raw_last_updated)
+            and raw_last_updated < solcast.dt_helper.day_start_utc(future=-1)
+        )
+
+        if self._is_unset_timestamp(raw_last_updated) or not sites_with_data:
+            status = "missing"
+            issues.append("Estimated actuals are enabled but no actuals data is available")
+        elif stale_actuals:
+            status = "stale"
+            issues.append("Estimated actuals data is stale")
+        else:
+            status = "fresh"
+
+        return {
+            "status": status,
+            "site_data_present": bool(sites_with_data),
+            "configured_sites": sorted(configured_site_ids),
+            "sites_with_data": sites_with_data,
+            "missing_sites": missing_sites,
+            "last_updated": self._format_timestamp(raw_last_updated, solcast.tz),
+            "last_attempt": self._format_timestamp(raw_last_attempt, solcast.tz),
+        }
+
+    def _evaluate_excluded_sites(self, configured_site_ids: set[str], excluded_sites: set[str], issues: list[str]) -> dict[str, Any]:
+        """Evaluate whether excluded site IDs match configured sites."""
+        unknown_sites = sorted(excluded_sites - configured_site_ids)
+        if unknown_sites:
+            issues.append(f"Excluded sites are not configured: {', '.join(unknown_sites)}")
+
+        return {
+            "configured": sorted(excluded_sites),
+            "unknown_sites": unknown_sites,
+            "all_valid": not unknown_sites,
+        }
+
     async def async_diagnostic(self, call: ServiceCall) -> dict[str, Any]:
         """Handle diagnostic action.
 
@@ -545,7 +664,7 @@ class ServiceActions:
         actuals_attempt = solcast.data_actuals.get(LAST_ATTEMPT)
 
         api_status = {
-            "api_keys_configured": api_keys_count,
+            API_KEYS_CONFIGURED: api_keys_count,
             API_USED: api_used,
             API_LIMIT: api_limit_val,
             API_REMAINING: api_remaining,
@@ -558,15 +677,18 @@ class ServiceActions:
             FAILURES_LAST_7D: solcast.failures_last_7d,
             STATUS: solcast.status.name,
             SITES_STATUS: solcast.sites_status.name,
+            USAGE_STATUS: solcast.usage_status.name,
         }
 
         if solcast.failures_last_24h > 0:
-            issues.append(f"{solcast.failures_last_24h} API failure(s) in the last 24 hours")
+            issues.append(f"{solcast.failures_last_24h} API failure(s) since midnight UTC")
 
         # Sites.
         sites_info: list[dict[str, Any]] = []
+        configured_site_ids: set[str] = set()
         for site in solcast.sites:
-            sites_info.append(  # noqa: PERF401
+            configured_site_ids.add(site.get(RESOURCE_ID, "unknown"))
+            sites_info.append(
                 {
                     "resource_id": site.get(RESOURCE_ID, "unknown"),
                     "name": site.get("name", ""),
@@ -611,6 +733,15 @@ class ServiceActions:
             "has_granular_factors": bool(solcast.dampening.factors),
             "dampening_file_exists": cache_files.get("dampening", False),
         }
+
+        usage_health = {
+            "status": solcast.usage_status.name,
+            "ok": solcast.usage_status == UsageStatus.OK,
+        }
+
+        forecast_health = self._evaluate_forecast_health(solcast, issues)
+        actuals_health = self._evaluate_actuals_health(solcast, configured_site_ids, issues)
+        excluded_sites_health = self._evaluate_excluded_sites(configured_site_ids, set(opts.exclude_sites), issues)
 
         # Generation entities validation (if auto-dampening is enabled).
         generation_entity_checks: list[dict[str, Any]] = []
@@ -672,6 +803,10 @@ class ServiceActions:
                 "cache_files": cache_files,
                 "configuration": config_summary,
                 "dampening": dampening_status,
+                "forecast_health": forecast_health,
+                "actuals_health": actuals_health,
+                "excluded_sites": excluded_sites_health,
+                "usage_health": usage_health,
                 "generation_entities": generation_entity_checks,
                 "export_entity": export_entity_check,
                 "recorder_available": recorder_available,

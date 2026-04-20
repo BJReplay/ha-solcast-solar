@@ -13,6 +13,10 @@ from homeassistant.components.solcast_solar.const import (
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
     DEFAULT_FORECAST_DAYS,
+    FAILURE,
+    LAST_7D,
+    LAST_14D,
+    LAST_24H,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.core import HomeAssistant
@@ -47,14 +51,20 @@ async def test_midnight(
             Path(config_dir).mkdir(parents=False, exist_ok=True)
 
         # Test midnight UTC usage reset.
-        freezer.move_to("2025-01-10 23:59:59")
+        # Init well before midnight to avoid FreezeGun's asyncio.sleep patching
+        # (which advances frozen time) from crossing midnight during init.
+        freezer.move_to("2025-01-10 20:00:00")
 
         Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        coordinator.solcast.data[FAILURE][LAST_24H] = 2
+        coordinator.solcast.data[FAILURE][LAST_7D][0] = 2
+        coordinator.solcast.data[FAILURE][LAST_14D][0] = 2
 
         assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "4"  # type: ignore[union-attr]
+        assert coordinator.solcast.failures_last_24h == 2
         assert "Transitioning between summer/standard time" not in caplog.text
 
         coordinator._updater._intervals = [  # Inject expired interval  # pyright: ignore[reportPrivateUsage]
@@ -63,18 +73,25 @@ async def test_midnight(
         ]
         caplog.clear()
         coordinator._data_updated = False  # Improve test coverage  # pyright: ignore[reportPrivateUsage]
+        freezer.move_to("2025-01-10 23:59:59")
         await coordinator.async_refresh()
         for _ in range(6):
             freezer.tick(1)
             coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
             await coordinator.async_refresh()
-            await hass.async_block_till_done()
+            await hass.async_block_till_done(wait_background_tasks=True)
             # Result is used for the next test. An update task must be pending, which should occur at nine minutes past the hour.
-            if "API Used to 0" in caplog.text and "Create task pending_update" in caplog.text:  # Relies on SENSOR_UPDATE_LOGGING enabled
+            if (
+                "API Used to 0" in caplog.text
+                and "Create task pending_update" in caplog.text
+                and "Resetting failure statistics" in caplog.text
+            ):  # Relies on SENSOR_UPDATE_LOGGING enabled
                 break
 
         assert "Reset API usage" in caplog.text
+        assert "Resetting failure statistics" in caplog.text
         assert hass.states.get("sensor.solcast_pv_forecast_api_used").state == "0"  # type: ignore[union-attr]
+        assert coordinator.solcast.failures_last_24h == 0
 
         # Test auto-update occurs just after midnight UTC.
         caplog.clear()

@@ -28,6 +28,7 @@ from homeassistant.components.solcast_solar.const import (
     API_LIMIT,
     AUTO_DAMPEN,
     AUTO_UPDATE,
+    AUTO_UPDATED,
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
@@ -51,11 +52,15 @@ from homeassistant.components.solcast_solar.const import (
     ISSUE_ACTUALS_API_LIMIT,
     ISSUE_CORRUPT_FILE,
     KEY_ESTIMATE,
+    LAST_ATTEMPT,
+    LAST_UPDATED,
     PRESUMED_DEAD,
     PRIOR_CRASH_TIME,
+    RESOURCE_ID,
     SITE,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
+    SITE_INFO,
     UNDAMPENED,
     USE_ACTUALS,
 )
@@ -69,6 +74,7 @@ from homeassistant.components.solcast_solar.util import (
     AutoUpdate,
     DateTimeEncoder,
     JSONDecoder,
+    UsageStatus,
     get_solcast_base_url,
     sync_actuals_api_limit_issue,
 )
@@ -1855,6 +1861,17 @@ async def test_scenarios(  # noqa: C901
         await coordinator.update_integration_listeners()
         assert_state_assertions("post-update")
 
+        # Diagnostic should report a missed auto-update interval in this scenario.
+        interval_just_passed = dt.now(datetime.UTC).replace(second=0, microsecond=0) - timedelta(minutes=10)
+        coordinator._updater.interval_just_passed = interval_just_passed
+        solcast.data[LAST_UPDATED] = interval_just_passed + timedelta(minutes=1)
+        solcast.data[LAST_ATTEMPT] = interval_just_passed - timedelta(minutes=1)
+        solcast.data[AUTO_UPDATED] = coordinator.divisions
+        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["forecast_health"]["status"] == "missed_interval"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("missed the expected auto-update interval" in issue for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
         # Test stale start with auto update enabled
         _LOGGER.debug("Testing stale start with auto update enabled")
         alter_last_updated_as_stale()
@@ -1935,6 +1952,9 @@ async def test_scenarios(  # noqa: C901
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         assert "Auto update forecast is fresh" in caplog.text
+        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["forecast_health"]["status"] == "fresh"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         # Excluding site
         caplog.clear()
@@ -2263,6 +2283,9 @@ async def test_estimated_actuals(
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         caplog.clear()
+        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["actuals_health"]["status"] == "disabled"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         with pytest.raises(ServiceValidationError):
             await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates")
         assert "Estimated actuals not enabled" in caplog.text
@@ -2368,6 +2391,10 @@ async def test_diagnostic(
         assert "cache_files" in data  # pyright: ignore[reportOperatorIssue]
         assert "configuration" in data  # pyright: ignore[reportOperatorIssue]
         assert "dampening" in data  # pyright: ignore[reportOperatorIssue]
+        assert "forecast_health" in data  # pyright: ignore[reportOperatorIssue]
+        assert "actuals_health" in data  # pyright: ignore[reportOperatorIssue]
+        assert "excluded_sites" in data  # pyright: ignore[reportOperatorIssue]
+        assert "usage_health" in data  # pyright: ignore[reportOperatorIssue]
         assert "generation_entities" in data  # pyright: ignore[reportOperatorIssue]
         assert "export_entity" in data  # pyright: ignore[reportOperatorIssue]
         assert "recorder_available" in data  # pyright: ignore[reportOperatorIssue]
@@ -2383,6 +2410,7 @@ async def test_diagnostic(
         assert isinstance(api["actuals_attempt"], str)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert "status" in api  # pyright: ignore[reportOperatorIssue]
         assert "sites_status" in api  # pyright: ignore[reportOperatorIssue]
+        assert api["usage_status"] == "OK"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         # Verify sites section.
         assert len(data["sites"]) > 0  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2404,6 +2432,20 @@ async def test_diagnostic(
         dampening = data["dampening"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert isinstance(dampening["enabled"], bool)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert dampening["auto_dampening"] is False, "Expected auto_dampening to be False"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        forecast_health = data["forecast_health"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert forecast_health["status"] in {"fresh", "indeterminate"}  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        actuals_health = data["actuals_health"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert actuals_health["status"] == "fresh"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert actuals_health["site_data_present"] is True  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        excluded_sites = data["excluded_sites"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert excluded_sites["all_valid"] is True  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        usage_health = data["usage_health"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert usage_health["status"] == "OK"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert usage_health["ok"] is True  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         # Verify recorder availability.
         assert data["recorder_available"] is True, "Expected recorder_available to be True"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2878,6 +2920,88 @@ async def test_diagnostic_recorder_unavailable(
         assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert data["recorder_available"] is False, "Expected recorder_available to be False"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert any("recorder" in issue.lower() for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_diagnostic_stale_forecast_and_actuals_health(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that the diagnostic reports stale forecast and actuals health."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+
+        stale_time = solcast.dt_helper.day_start_utc(future=-2)
+        solcast.data[LAST_UPDATED] = stale_time
+        solcast.data[LAST_ATTEMPT] = stale_time
+        solcast.data[AUTO_UPDATED] = 1
+        solcast.data_actuals[LAST_UPDATED] = stale_time
+        solcast.data_actuals[LAST_ATTEMPT] = stale_time
+        solcast.data_actuals[SITE_INFO] = {}
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript]
+
+        assert data["overall_status"] == "issues_found"  # type: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["forecast_health"]["status"] == "stale"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["actuals_health"]["status"] == "missing"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("Forecast data is stale" in issue for issue in data["issues"])  # type: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("actuals data" in issue.lower() for issue in data["issues"])  # type: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        configured_site_ids = {site[RESOURCE_ID] for site in solcast.sites}
+        solcast.data[LAST_UPDATED] = dt.fromtimestamp(0, datetime.UTC)
+        solcast.data[LAST_ATTEMPT] = dt.fromtimestamp(0, datetime.UTC)
+        solcast.data[AUTO_UPDATED] = 0
+        solcast.data_actuals[LAST_UPDATED] = stale_time
+        solcast.data_actuals[LAST_ATTEMPT] = stale_time
+        solcast.data_actuals[SITE_INFO] = {site_id: {"present": True} for site_id in configured_site_ids}
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript]
+
+        assert data["forecast_health"]["status"] == "missing"  # type: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["actuals_health"]["status"] == "stale"  # type: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("Forecast data has not been fetched yet" in issue for issue in data["issues"])  # type: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("Estimated actuals data is stale" in issue for issue in data["issues"])  # type: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_diagnostic_usage_status_and_excluded_sites(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that the diagnostic reports usage status and invalid excluded sites."""
+
+    try:
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[EXCLUDE_SITES] = ["missing-site-id"]
+        entry = await async_init_integration(hass, options)
+        solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
+        solcast.usage_status = UsageStatus.ERROR
+        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+
+        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+
+        assert data["api"]["usage_status"] == "ERROR"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["usage_health"]["status"] == "ERROR"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["usage_health"]["ok"] is False  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["excluded_sites"]["all_valid"] is False  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["excluded_sites"]["unknown_sites"] == ["missing-site-id"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert any("Excluded sites are not configured" in issue for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         no_error_or_exception(caplog)
 

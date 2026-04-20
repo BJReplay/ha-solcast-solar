@@ -632,24 +632,46 @@ The response contains a `data` object with the following fields:
 | --- | --- | --- |
 | `overall_status` | string | `"ok"` when no issues are found, otherwise `"issues_found"` |
 | `issues` | list | Description of every problem detected. Empty when status is `"ok"` |
-| `api` | object | API limit and use, failure counts, forced update use, last update/attempt timestamps, and status names |
+| `api` | object | API state summary (`api_keys_configured`, `api_used`, `api_limit`, `api_remaining`, `api_force_used`, `last_updated`, `last_attempt`, `actuals_updated`, `actuals_attempt`, `failures_last_24h`, `failures_last_7d`, `status`, `sites_status`, `usage_status`) |
 | `sites` | list | One entry per configured rooftop site (`resource_id`, `name`) |
 | `cache_files` | object | Whether each data cache file exists on disk (`forecast`, `undampened`, `actuals`, `actuals_dampened`, `dampening`, `dampening_history`, `generation`, `advanced`) |
 | `configuration` | object | Active configuration summary (`auto_update`, `key_estimate`, `get_actuals`, `use_actuals`, `auto_dampen`, `hard_limit`, `excluded_sites`) |
 | `dampening` | object | Dampening feature state (`enabled`, `auto_dampening`, `has_granular_factors`, `dampening_file_exists`) |
+| `forecast_health` | object | Evaluated forecast freshness (`status`, `stale_start`, `missed_auto_update`, `expected_interval`, `auto_update_divisions`, `last_updated`, `last_attempt`) |
+| `actuals_health` | object | Evaluated estimated-actuals availability and freshness (`status`, `site_data_present`, `configured_sites`, `sites_with_data`, `missing_sites`, `last_updated`, `last_attempt`) |
+| `excluded_sites` | object | Validation result for configured excluded site IDs (`configured`, `unknown_sites`, `all_valid`) |
+| `usage_health` | object | Evaluated API usage cache health (`status`, `ok`) |
 | `generation_entities` | list | Validation result for each generation entity when auto-dampening is enabled (`entity_id`, `status`: `ok`/`not_found`/`disabled`/`unavailable`) |
 | `export_entity` | object | Validation result for the site export entity when configured (`entity_id`, `status`). Empty object when not configured |
 | `recorder_available` | boolean | Whether the Home Assistant recorder component is loaded |
 
 The `issues` list will include messages such as:
 - `"API quota exhausted for today"` (may not indicate a failure situation, just that no further un-forced updates can occur)
-- `"N API failure(s) in the last 24 hours"` (since UTC midnight)
+- `"N API failure(s) since midnight UTC"`
 - `"No sites configured"`
 - `"Forecast cache file missing"`
+- `"Forecast data has not been fetched yet"` / `"Forecast data is stale"` / `"Forecast data missed the expected auto-update interval"`
+- `"Estimated actuals are enabled but no actuals data is available"` / `"Estimated actuals data is stale"`
+- `"Excluded sites are not configured: <site_id>"`
 - `"Auto-dampening enabled but no generation entities configured"`
 - `"Generation entity <id> not found in registry"` / `"is disabled"` / `"is unavailable"`
 - `"Export entity <id> not found in registry"` / `"is disabled"` / `"is unavailable"`
 - `"Recorder not available but required for auto-dampening"`
+
+The `api.status`, `api.sites_status`, and `api.usage_status` fields report the raw runtime state names. `usage_status` is one of `OK`, `ERROR`, or `UNKNOWN`.
+
+The `forecast_health.status` field is one of:
+- `fresh`: forecast data is present and current
+- `missing`: forecast data has not been fetched yet
+- `stale`: forecast data is older than the integration stale-start threshold
+- `missed_interval`: auto-update is enabled and the last expected update window was missed
+- `indeterminate`: freshness cannot be inferred because the previous update was forced or the auto-update division count changed
+
+The `actuals_health.status` field is one of:
+- `disabled`: estimated actuals fetching is disabled
+- `fresh`: actuals data is present and current
+- `missing`: estimated actuals are enabled but no site data has been recorded yet
+- `stale`: actuals data exists but is older than the previous UTC day threshold
 
 ### Configuration
 
@@ -678,7 +700,7 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 
 `API Last Polled` attributes include the following:
 
-* `failure_count_today`: The count of failures (like `429/Too busy`) that have occurred since midnight local time.
+* `failure_count_today`: The count of failures (like `429/Too busy`) that have occurred since midnight UTC.
 * `failure_count_7_day`: The count of failures that have occurred over the past seven days.
 * `last_attempt`: The date/time of last attempted forecast update. "Currently healthy" is considered last polled >= last attempt.
 
@@ -1409,6 +1431,15 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 Latest minor/patch releases.
 
+v4.5.3
+
+* Expanded diagnostic self-test service action by @autoSteve
+* Code refactoring by @autoSteve
+* Add tests to suite to ensure runtime reliability by @autoSteve
+* API simulator improvements by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.5.2...v4.5.3
+
 v4.5.2
 
 * Add advanced option log_update_failure_only by @autoSteve
@@ -1958,7 +1989,7 @@ v4.0.23
 v4.0.22
 - this time weather sensor is gone.. and midnight UTC reset works
 - (*)added a config for setting a hard limit for inverters with over sized solar arrays
-   *99.9999999% of users will not need to ever user and set this (0.00000001% is @CarrapiettM)
+   *99.9999999% of users will not need to ever use and set this (0.00000001% is @CarrapiettM)
 
 v4.0.21
 - removed weather sensor as it keeps failing with errors
