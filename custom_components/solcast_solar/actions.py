@@ -1,5 +1,6 @@
 """Solcast PV forecast, service actions."""
 
+from collections.abc import Callable
 from datetime import timedelta
 from enum import Enum
 import logging
@@ -698,7 +699,62 @@ class ServiceActions:
         data = await self._solcast.dampening.get(site=site, site_underscores=site_underscores)
         return {"data": data}
 
-    async def async_set_options(self, call: ServiceCall) -> None:  # noqa: C901
+    def _apply_validated_option(
+        self,
+        call_data: dict[str, Any],
+        opt: dict[str, Any],
+        input_key: str,
+        validator: Callable[[str], tuple[Any, str | None]],
+        option_key: str | None = None,
+    ) -> None:
+        """Validate and apply a simple string-backed option if present."""
+        if (value := call_data.get(input_key)) is None:
+            return
+
+        validated_value, error = validator(value)
+        if error is not None:
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
+
+        opt[option_key or input_key] = validated_value
+
+    def _apply_option(
+        self,
+        call_data: dict[str, Any],
+        opt: dict[str, Any],
+        input_key: str,
+        option_key: str | None = None,
+        transform: Callable[[Any], Any] | None = None,
+    ) -> None:
+        """Apply an option directly or via a simple transform if present."""
+        if (value := call_data.get(input_key)) is None:
+            return
+
+        opt[option_key or input_key] = transform(value) if transform is not None else value
+
+    async def _async_apply_api_related_options(self, call_data: dict[str, Any], opt: dict[str, Any]) -> None:
+        """Validate and apply options that depend on API key count."""
+        if (api_key := call_data.get(CONF_API_KEY)) is not None:
+            validated_key, api_count, error = validate_api_key_value(api_key)
+            if error is not None:
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
+            opt[CONF_API_KEY] = validated_key
+        else:
+            api_count = len(opt[CONF_API_KEY].split(","))
+
+        if (api_limit := call_data.get(API_LIMIT)) is not None:
+            allow_exceed = await async_is_allow_exceed_api_limit(self._hass)
+            validated_quota, error = validate_api_limit_value(api_limit, api_count, allow_exceed=allow_exceed)
+            if error is not None:
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
+            opt[API_LIMIT] = validated_quota
+
+        if (hard_limit := call_data.get(HARD_LIMIT)) is not None:
+            validated_limit, error = validate_hard_limit_value(hard_limit, api_count)
+            if error is not None:
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
+            opt[HARD_LIMIT_API] = validated_limit
+
+    async def async_set_options(self, call: ServiceCall) -> None:
         """Handle set options action.
 
         Arguments:
@@ -714,90 +770,30 @@ class ServiceActions:
         _LOGGER.info("Action: Set options")
 
         opt = {**self._entry.options}
+        await self._async_apply_api_related_options(call.data, opt)
 
-        # Validate and apply API key.
-        if (api_key := call.data.get(CONF_API_KEY)) is not None:
-            validated_key, api_count, error = validate_api_key_value(api_key)
-            if error is not None:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
-            opt[CONF_API_KEY] = validated_key
-        else:
-            api_count = len(opt[CONF_API_KEY].split(","))
-
-        # Validate and apply API limit.
-        if (api_limit := call.data.get(API_LIMIT)) is not None:
-            allow_exceed = await async_is_allow_exceed_api_limit(self._hass)
-            validated_quota, error = validate_api_limit_value(api_limit, api_count, allow_exceed=allow_exceed)
-            if error is not None:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
-            opt[API_LIMIT] = validated_quota
-
-        # Validate and apply auto update.
-        if (auto_update := call.data.get(AUTO_UPDATE)) is not None:
-            validated_auto_update, error = validate_auto_update_value(auto_update)
-            if error is not None:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
-            opt[AUTO_UPDATE] = validated_auto_update
-
-        # Validate and apply key estimate.
-        if (key_estimate := call.data.get(KEY_ESTIMATE)) is not None:
-            validated_estimate, error = validate_key_estimate_value(key_estimate)
-            if error is not None:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
-            opt[KEY_ESTIMATE] = validated_estimate
-
-        # Validate and apply custom hours.
-        if (custom_hours := call.data.get(CUSTOM_HOURS)) is not None:
-            hour_val, error = validate_custom_hours_value(custom_hours)
-            if error is not None:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
-            opt[CUSTOM_HOURS] = hour_val
-
-        # Validate and apply hard limit.
-        if (hard_limit := call.data.get(HARD_LIMIT)) is not None:
-            validated_limit, error = validate_hard_limit_value(hard_limit, api_count)
-            if error is not None:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
-            opt[HARD_LIMIT_API] = validated_limit
+        for input_key, validator, option_key in (
+            (AUTO_UPDATE, validate_auto_update_value, None),
+            (KEY_ESTIMATE, validate_key_estimate_value, None),
+            (CUSTOM_HOURS, validate_custom_hours_value, None),
+            (USE_ACTUALS, validate_use_actuals_value, None),
+            (SITE_EXPORT_LIMIT, validate_export_limit_value, None),
+        ):
+            self._apply_validated_option(call.data, opt, input_key, validator, option_key)
 
         # Apply boolean breakdown options.
         for key in (BRK_ESTIMATE, BRK_ESTIMATE10, BRK_ESTIMATE90, BRK_SITE, BRK_HALFHOURLY, BRK_HOURLY, BRK_SITE_DETAILED):
-            if (val := call.data.get(key)) is not None:
-                opt[key] = val
+            self._apply_option(call.data, opt, key)
 
-        # Apply get actuals.
-        if (get_actuals := call.data.get(GET_ACTUALS)) is not None:
-            opt[GET_ACTUALS] = get_actuals
+        for key in (GET_ACTUALS, AUTO_DAMPEN):
+            self._apply_option(call.data, opt, key)
 
-        # Validate and apply use actuals.
-        if (use_actuals := call.data.get(USE_ACTUALS)) is not None:
-            validated_use_actuals, error = validate_use_actuals_value(use_actuals)
-            if error is not None:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
-            opt[USE_ACTUALS] = validated_use_actuals
-
-        # Apply auto dampen.
-        if (auto_dampen := call.data.get(AUTO_DAMPEN)) is not None:
-            opt[AUTO_DAMPEN] = auto_dampen
-
-        # Apply generation entities (comma-separated string to list).
-        if (gen_entities := call.data.get(GENERATION_ENTITIES)) is not None:
-            opt[GENERATION_ENTITIES] = [e.strip() for e in gen_entities.split(",") if e.strip()]
-
-        # Apply exclude sites (comma-separated string to list).
-        if (exclude_sites := call.data.get(EXCLUDE_SITES)) is not None:
-            opt[EXCLUDE_SITES] = [s.strip() for s in exclude_sites.split(",") if s.strip()]
-
-        # Apply site export entity.
-        if (site_export := call.data.get(SITE_EXPORT_ENTITY)) is not None:
-            opt[SITE_EXPORT_ENTITY] = site_export.strip()
-
-        # Validate and apply site export limit.
-        if (export_limit_str := call.data.get(SITE_EXPORT_LIMIT)) is not None:
-            validated_limit, error = validate_export_limit_value(export_limit_str)
-            if error is not None:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=error)
-            opt[SITE_EXPORT_LIMIT] = validated_limit
+        for input_key, transform in (
+            (GENERATION_ENTITIES, lambda value: [entity.strip() for entity in value.split(",") if entity.strip()]),
+            (EXCLUDE_SITES, lambda value: [site.strip() for site in value.split(",") if site.strip()]),
+            (SITE_EXPORT_ENTITY, str.strip),
+        ):
+            self._apply_option(call.data, opt, input_key, transform=transform)
 
         # Cross-validate interdependent options.
         if opt.get(USE_ACTUALS, 0) != 0 and not opt.get(GET_ACTUALS, False):
