@@ -1,4 +1,4 @@
-"""Solcast PV forecast, initialisation."""
+"""Solcast initialisation."""
 
 from collections.abc import Awaitable, Callable
 import contextlib
@@ -231,7 +231,7 @@ def __need_history_hours(coordinator: SolcastUpdateCoordinator) -> int:
     return need_history_hours
 
 
-async def __check_stale_start(coordinator: SolcastUpdateCoordinator) -> bool:
+async def __check_stale_start(coordinator: SolcastUpdateCoordinator, service_actions: ServiceActions) -> bool:
     """Check whether the integration has been failed for some time and then is restarted, and if so update forecast."""
     _LOGGER.debug("Checking for stale start")
     stale = False
@@ -242,14 +242,14 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator) -> bool:
             "completion": "Completed task stale_update",
             "need_history_hours": __need_history_hours(coordinator),
         }
-        await coordinator.service_event_update(**kwargs)
+        await service_actions.async_update_forecast(**kwargs)
         stale = True
     else:
         _LOGGER.debug("Start is not stale")
     return stale
 
 
-async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> bool:
+async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator, service_actions: ServiceActions) -> bool:
     """Check whether an auto-update has been missed, and if so update forecast."""
     stale = False
     if coordinator.solcast.options.auto_update != AutoUpdate.NONE:
@@ -270,7 +270,7 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> b
                     "completion": "Completed task update_missed",
                     "need_history_hours": __need_history_hours(coordinator),
                 }
-                await coordinator.service_event_update(**kwargs)
+                await service_actions.async_update_forecast(**kwargs)
                 stale = True
             else:
                 _LOGGER.debug("Auto update forecast is fresh")
@@ -401,10 +401,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data[DOMAIN].pop(PRIOR_CRASH_PLACEHOLDERS, None)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = True
 
-    if not await __check_auto_update_missed(coordinator):
-        await __check_stale_start(coordinator)
+    service_actions = ServiceActions(hass, entry, coordinator, solcast, coordinator.updater)
 
-    ServiceActions(hass, entry, coordinator, solcast)
+    if not await __check_auto_update_missed(coordinator, service_actions):
+        await __check_stale_start(coordinator, service_actions)
 
     if DAMPENING_ADAPTATIONS_DEVELOPMENT:
         if (
@@ -591,9 +591,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
                 await coordinator.solcast.build_actual_data()
         elif recalculate_splines:
             await coordinator.solcast.query.recalculate_splines()
-        coordinator.set_data_updated(True)
         await coordinator.update_integration_listeners()
-        coordinator.set_data_updated(False)
 
         hass.data[DOMAIN][ENTRY_OPTIONS] = {**entry.options}
         coordinator.solcast.entry_options = {**entry.options}

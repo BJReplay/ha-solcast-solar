@@ -1,13 +1,15 @@
-"""Support for the Solcast diagnostics."""
+"""Solcast diagnostics."""
 
 from __future__ import annotations
 
 from typing import Any, Final
 
+from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 
+from .actions import build_health_check_report
 from .coordinator import SolcastUpdateCoordinator
 
 TO_REDACT: Final = [
@@ -27,22 +29,13 @@ async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: ConfigE
 
     """
     coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-
-    def hard_limit_set():
-        hard_set = False
-        for hard_limit in coordinator.solcast.hard_limit.split(","):
-            if hard_limit != "100.0":
-                hard_set = True
-        return hard_set
-
     energy_data = coordinator.solcast.query.get_energy_data()
+    health_check = build_health_check_report(hass, coordinator, coordinator.solcast)
 
     return {
         "tz_conversion": coordinator.solcast.options.tz,
-        "used_api_requests": coordinator.solcast.api_used_count,
-        "api_request_limit": coordinator.solcast.api_limit,
         "rooftop_site_count": len(coordinator.solcast.sites),
-        "forecast_hard_limit_set": hard_limit_set(),
-        "data": (coordinator.data, TO_REDACT),
+        "health_check": async_redact_data(health_check, TO_REDACT),
+        "data": async_redact_data(coordinator.data, TO_REDACT),
         "energy_forecasts_graph": energy_data["wh_hours"] if energy_data is not None else {},
     }

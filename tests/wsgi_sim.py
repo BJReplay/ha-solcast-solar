@@ -8,11 +8,11 @@ Install:
 
 Optional run arguments:
 
-* --limit LIMIT      Set the API call limit available, example --limit 100 (There is no limit... 😉)
+* --limit LIMIT      Set the API call limit available, example --limit 100, default 50 (There is no limit... 😉)
 * --bomb429 w-x,y,z  The minute(s) of the hour to return API too busy, comma separated, example --bomb429 0-5,15,30-35,45
 * --bombkey w-x,y,z  The minute(s) of the hour to change the API key, comma separated, example --bombkey 0-5,15,30-35,45
-* --teapot           Infrequently generate 418 response.
-* --port PORT        Set the listening port, example --port 8443
+* --teapot           Return '418/I'm a teapot' status occasionally.
+* --port PORT        Set the listening port, example --port 8443, default 443
 * --debug            Enable debug mode.
 
 Theory of operation:
@@ -22,29 +22,31 @@ Theory of operation:
 * Forecast for every day is the same blissful-clear-day bell curve.
 * As time goes on new forecast hour values are calculated based on the current get forecasts call time of day.
 * 429 responses are only given when --bomb429 is specified.
-* An occasionally generated "I'm a teapot" status can verify that the integration handles unknown status returns.
+* An occasionally generated "I'm a teapot" status can verify that the integration handles unknown status returns gracefully.
 * The time zone used should be read from the Home Assistant configuration. If this fails then the zone will be Australia/Melbourne.
 
 SSL certificate:
 
-* The integration does not care whether the api.solcast.com.au certificate is valid, so a self-signed certificate is created by this simulator.
-* To generate a new self-signed certificate run in this folder: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 3650,
-* or simply delete *.pem files and restart the simulator to generate new ones. The DevContainer will already have openssl installed.
+The integration does not care whether the api.solcast.com.au certificate is valid, so a self-signed certificate is created by this simulator.
+To generate a new self-signed certificate run in this folder: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 3650,
+or simply delete *.pem files and restart the simulator to generate new ones. The DevContainer will already have openssl installed.
 
 Integration issues raised regarding the simulator will be closed without response.
 Raise a pull request instead, suggesting a fix for whatever is wrong, or to add additional functionality.
 
 Experimental support for advanced_pv_power:
 
-* Should Solcast deprecate the legacy hobbyist API, then the advanced_pv_power API calls will probably be preferred, just with capabilities limited by Solcast.
-* This simulator, and the integration are prepared should this occur.
+Should Solcast deprecate the legacy hobbyist API, then the advanced_pv_power API calls will probably be preferred, just with capabilities limited by Solcast.
+This simulator is prepared should this occur.
 
 """
 
 import argparse
+from collections.abc import Callable
 import copy
 import datetime
 from datetime import datetime as dt, timedelta
+import functools
 import json
 from logging.config import dictConfig
 import os
@@ -52,10 +54,11 @@ from pathlib import Path
 import random
 import subprocess
 import sys
-from typing import Any
+from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 from simulator import API_KEY_SITES, SimulatedSolcast
+import werkzeug
 
 simulate = SimulatedSolcast()
 DEFAULT_PORT = 443
@@ -126,7 +129,8 @@ dictConfig(  # Logger configuration
         "version": 1,
         "formatters": {
             "default": {
-                "format": "[%(asctime)s] %(levelname)s in %(module)s: %(message)s",
+                "format": "%(asctime)s.%(msecs)03d %(levelname)s [%(name)s:%(filename)s] %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
             }
         },
         "handlers": {
@@ -148,10 +152,34 @@ class DtJSONProvider(DefaultJSONProvider):
         return super().default(o)
 
 
+cli = sys.modules["flask.cli"]
+cli.show_server_banner = lambda *x: None  # pyright: ignore[reportAttributeAccessIssue]
+
 app = Flask(__name__)
 app.json = DtJSONProvider(app)
 _LOGGER = app.logger
 counter_last_reset = dt.now(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)  # Previous UTC midnight
+
+
+def _werkzeug_log_suppressor(func: Callable[..., Any]) -> Callable[..., Any]:
+    @functools.wraps(func)
+    def wrapper(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> Any:
+        if len(args) > 1 and (isinstance(args[1], str)):
+            if (
+                args[1].startswith("WARNING: This is a development server.")
+                or "* Running on http" in args[1]
+                or "Press CTRL+C to quit" in args[1]
+            ):
+                return None
+            if " - - [" in args[1] and len(args) >= 5:
+                # address = args[1].split(" - - [", 1)[0]
+                request_line = str(args[2])
+                status = str(args[3])
+                # size = str(args[4])
+                return func(args[0], 'Request: "%s" -> %s', request_line, status)
+        return func(*args, **kwargs)
+
+    return wrapper
 
 
 def validate_call(api_key: str, site_id: str | None = None, counter: bool = True) -> tuple[int, Any, Any]:
@@ -358,6 +386,8 @@ def _apply_args(args: argparse.Namespace) -> dict[str, int | bool | list[int]]:
     if args.limit is not None:
         api_limit = args.limit
         _LOGGER.info("API limit has been set to %s", api_limit)
+    if args.port != DEFAULT_PORT:
+        _LOGGER.info("Listening port has been set to %s", args.port)
     if args.bomb429:
         bomb_429 = [int(x.strip()) for x in args.bomb429.split(",") if x.strip() and "-" not in x.strip()]
         if "-" in args.bomb429:
@@ -382,7 +412,7 @@ def _apply_args(args: argparse.Namespace) -> dict[str, int | bool | list[int]]:
         _LOGGER.info("API key changes will happen at minute(s) %s", bomb_key)
     if args.teapot:
         bomb_418 = True
-        _LOGGER.info("I'm a teapot response will be sometimes generated")
+        _LOGGER.info("I'm a teapot status will be returned occasionally")
 
     return {
         "API_LIMIT": api_limit,
@@ -399,11 +429,14 @@ def main(argv: list[str] | None = None) -> None:
     get_time_zone()
     args = build_parser().parse_args(argv)
 
-    _LOGGER.info("Starting Solcast API simulator, will listen on localhost:%s", args.port)
+    _LOGGER.info("Starting Solcast API simulator")
     _LOGGER.info("Originally written by @autoSteve")
-    _LOGGER.info("Integration issues raised regarding this script will be closed without response because it is a development tool")
+    _LOGGER.info("Integration issues raised regarding this script will be closed without response")
 
     globals().update(_apply_args(args))
+    serving = cast(Any, werkzeug.serving)
+    werkzeug_log = serving._log
+    serving._log = _werkzeug_log_suppressor(werkzeug_log)
     app.run(debug=args.debug, host="127.0.0.1", port=args.port, ssl_context=("cert.pem", "key.pem"))
 
 

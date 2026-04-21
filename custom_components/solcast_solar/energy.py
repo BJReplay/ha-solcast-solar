@@ -1,4 +1,4 @@
-"""Energy platform."""
+"""Solcast energy platform."""
 
 from __future__ import annotations
 
@@ -38,4 +38,4 @@ async def async_get_solar_forecast(hass: HomeAssistant, config_entry_id: str) ->
     ):
         return None
 
-    return coordinator.get_energy_tab_data()
+    return coordinator.solcast.query.get_energy_data()

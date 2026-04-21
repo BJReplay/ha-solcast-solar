@@ -1,4 +1,4 @@
-"""Config flow for Solcast Solar integration."""
+"""Solcast config flow."""
 
 from __future__ import annotations
 

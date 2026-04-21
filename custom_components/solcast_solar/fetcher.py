@@ -1,4 +1,4 @@
-"""Solcast HTTP fetch and update orchestration."""
+"""Solcast API fetch and update orchestration."""
 
 # pylint: disable=pointless-string-statement
 

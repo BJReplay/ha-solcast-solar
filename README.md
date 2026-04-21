@@ -624,7 +624,7 @@ action: solcast_solar.diagnostic
 response_variable: result
 ```
 
-The `diagnostic` action returns a structured health report. Use it in a script with `response_variable` to inspect the result, or call it from **Developer tools** | **Actions** with **Perform action** to see the output directly.
+The `diagnostic` action returns a structured health report. Use it in a script with `response_variable` to inspect the result, or call it from _Developer tools_ | _Actions_ with _Perform action_ to see the output directly. This health check detail is also included in the integration `Download diagnostics` JSON file, with that dump also including system summary, forecast data and Energy dashboard data.
 
 The response contains a `data` object with the following fields:
 
@@ -1434,6 +1434,7 @@ Latest minor/patch releases.
 v4.5.3
 
 * Expanded diagnostic self-test service action by @autoSteve
+* Include health check detail in diagnostic download by @autoSteve
 * Code refactoring by @autoSteve
 * Add tests to suite to ensure runtime reliability by @autoSteve
 * API simulator improvements by @autoSteve

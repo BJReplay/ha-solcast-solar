@@ -1,4 +1,4 @@
-"""Support for Solcast PV forecast sensors."""
+"""Solcast sensor platform."""
 
 from __future__ import annotations
 
@@ -32,6 +32,7 @@ from .const import (
     AUTO_UPDATE_DIVISIONS,
     AUTO_UPDATE_NEXT,
     AUTO_UPDATE_QUEUE,
+    CONFIGURATION_URL,
     DESCRIPTION,
     DETAILED_FORECAST,
     DETAILED_HOURLY,
@@ -408,7 +409,7 @@ async def async_setup_entry(
                 _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
 
     # Site sensors
-    for site in coordinator.get_solcast_sites():
+    for site in coordinator.solcast.sites:
         k = {
             DESCRIPTION: SensorEntityDescription(
                 key=site[RESOURCE_ID],
@@ -420,7 +421,6 @@ async def async_setup_entry(
             )
         }
         site_sen = RooftopSensor(
-            key=SITES_DATA,
             coordinator=coordinator,
             entry=entry,
             sensor=k,
@@ -476,7 +476,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             model=INTEGRATION,
             entry_type=DeviceEntryType.SERVICE,
             sw_version=coordinator.version,
-            configuration_url="https://toolkit.solcast.com.au/",
+            configuration_url=CONFIGURATION_URL,
         )
 
     async def async_added_to_hass(self) -> None:
@@ -494,7 +494,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
                     exclude.append(f"{DETAILED_HOURLY}_" + s[RESOURCE_ID].replace("-", "_"))
             self._state_info[UNRECORDED_ATTRIBUTES] = self._state_info[UNRECORDED_ATTRIBUTES] | frozenset(exclude)
 
-        elif self.entity_description.key == "dampen":
+        elif self.entity_description.key == ENTITY_DAMPEN:
             exclude = [FACTORS]
             for option, settings in ADVANCED_OPTIONS.items():
                 if "dampening" in option and not settings.get(AMENDABLE, False):
@@ -526,16 +526,6 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         """
         return self._sensor_data
 
-    @cached_property
-    def should_poll(self) -> bool:
-        """Return whether the sensor should poll.
-
-        Returns:
-            bool: Always returns False, as sensors are not polled.
-
-        """
-        return False
-
     @callback
     def _handle_coordinator_update(self):
         """Handle updated data from the coordinator.
@@ -544,9 +534,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
         SensorUpdatePolicy.EVERY_TIME_INTERVAL), while the remaining sensors update after each
         forecast update or when the date changes.
         """
-        if self._update_policy == SensorUpdatePolicy.DEFAULT and not (
-            self._coordinator.get_date_changed() or self._coordinator.get_data_updated()
-        ):
+        if self._update_policy == SensorUpdatePolicy.DEFAULT and not (self._coordinator.date_changed or self._coordinator.data_updated):
             return
 
         try:
@@ -571,7 +559,6 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
     def __init__(
         self,
         *,
-        key: str,
         coordinator: SolcastUpdateCoordinator,
         entry: ConfigEntry,
         sensor: dict[str, SensorEntityDescription],
@@ -580,7 +567,6 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         """Initialise the sensor.
 
         Arguments:
-            key (str): The sensor name.
             coordinator (SolcastUpdateCoordinator): The integration coordinator instance.
             entry (ConfigEntry): The integration entry instance, contains the configuration.
             sensor (dict[str, SensorEntityDescription]): The details of the entity.
@@ -590,7 +576,6 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         super().__init__(coordinator)
 
         self.entity_description = sensor[DESCRIPTION]
-        self._key = key
         self._coordinator = coordinator
         self._rooftop_id = rooftop_id  # entity_description.
         self._attr_extra_state_attributes = {}
@@ -598,7 +583,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         self._sensor_data = None
 
         try:
-            self._sensor_data = coordinator.get_site_sensor_value(self._rooftop_id, key)
+            self._sensor_data = self._coordinator.solcast.query.get_rooftop_site_total_today(self._rooftop_id)
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor value: %s", e)
 
@@ -611,7 +596,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
             model=INTEGRATION,
             entry_type=DeviceEntryType.SERVICE,
             sw_version=coordinator.version,
-            configuration_url="https://toolkit.solcast.com.au/",
+            configuration_url=CONFIGURATION_URL,
         )
 
         self._unique_id = f"solcast_api_{sensor[DESCRIPTION].name}"
@@ -649,7 +634,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
             dict[str, Any] | None: The current attributes of a sensor.
 
         """
-        return self._coordinator.get_site_sensor_extra_attributes(self._rooftop_id, self._key)
+        return self._coordinator.solcast.query.get_rooftop_site_extra_data(self._rooftop_id)
 
     @property
     def native_value(self) -> int | dt | float | str | bool | None:  # type: ignore[explicit-override]
@@ -661,16 +646,6 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
         """
         return self._sensor_data
 
-    @cached_property
-    def should_poll(self) -> bool:
-        """Return whether the sensor should poll.
-
-        Returns:
-            bool: Always returns False, as sensors are not polled.
-
-        """
-        return False
-
     async def async_added_to_hass(self) -> None:
         """Entity is added to Home Assistant."""
         await super().async_added_to_hass()
@@ -678,10 +653,10 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
     @callback
     def _handle_coordinator_update(self):
         """Handle updated data from the coordinator."""
-        if not (self._coordinator.get_date_changed() or self._coordinator.get_data_updated()):
+        if not (self._coordinator.date_changed or self._coordinator.data_updated):
             return
         try:
-            self._sensor_data = self._coordinator.get_site_sensor_value(self._rooftop_id, self._key)
+            self._sensor_data = self._coordinator.solcast.query.get_rooftop_site_total_today(self._rooftop_id)
         except Exception as e:  # noqa: BLE001
             _LOGGER.error("Unable to get sensor value: %s: %s", e, traceback.format_exc())
             self._sensor_data = None

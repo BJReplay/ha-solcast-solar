@@ -9,6 +9,7 @@ from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import API_LIMIT, DOMAIN
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 
 from . import (
@@ -45,13 +46,19 @@ async def test_diagnostics(
 
         diagnostics = await get_diagnostics_for_config_entry(hass, hass_client, entry)
         assert ZONE_RAW in diagnostics["tz_conversion"]["repr"]  # type: ignore[call-overload, index, operator] # pyright: ignore[reportOperatorIssue, reportIndexIssue, reportCallIssue, reportArgumentType, reportOptionalSubscript]
-        assert diagnostics["used_api_requests"] == 4, f"Expected 4 used API requests, got {diagnostics['used_api_requests']}"
-        assert diagnostics["api_request_limit"] == int(DEFAULT_INPUT1[API_LIMIT]), (
-            f"API limit mismatch: expected {int(DEFAULT_INPUT1[API_LIMIT])}, got {diagnostics['api_request_limit']}"
+        assert diagnostics["health_check"]["api"]["api_used"] == 4, (  # type: ignore[call-overload, index]
+            f"Expected 4 used API requests, got {diagnostics['health_check']['api']['api_used']}"  # type: ignore[call-overload, index]
+        )
+        assert diagnostics["health_check"]["api"]["api_limit"] == int(DEFAULT_INPUT1[API_LIMIT]), (  # type: ignore[call-overload, index]
+            f"API limit mismatch: expected {int(DEFAULT_INPUT1[API_LIMIT])}, got {diagnostics['health_check']['api']['api_limit']}"  # type: ignore[call-overload, index]
         )
         assert diagnostics["rooftop_site_count"] == 2, f"Expected 2 rooftop sites, got {diagnostics['rooftop_site_count']}"
-        assert diagnostics["forecast_hard_limit_set"] is False, "Hard limit should not be set initially"
-        for site, data in diagnostics["data"][0]["siteinfo"].items():  # type: ignore[call-overload, index, union-attr] # pyright: ignore[reportArgumentType, reportIndexIssue, reportOptionalSubscript, reportUnknownMemberType]
+        assert diagnostics["health_check"]["configuration"]["hard_limit"] == "100.0", "Hard limit should not be set initially"  # type: ignore[call-overload, index]
+        assert "health_check" in diagnostics
+        assert diagnostics["health_check"]["overall_status"] == "ok"  # type: ignore[call-overload, index]
+        assert diagnostics["health_check"]["api"]["api_keys_configured"] == 1  # type: ignore[call-overload, index]
+        assert CONF_API_KEY not in diagnostics["health_check"]  # type: ignore[operator]
+        for site, data in diagnostics["data"]["siteinfo"].items():  # type: ignore[call-overload, index, union-attr] # pyright: ignore[reportArgumentType, reportIndexIssue, reportOptionalSubscript, reportUnknownMemberType]
             assert site in ["1111-1111-1111-1111", "2222-2222-2222-2222"], f"Unexpected site ID: {site}"
             assert len(data["forecasts"]) > 300, f"Site {site}: expected > 300 forecasts, got {len(data['forecasts'])}"  # type: ignore[arg-type, call-overload, index] # pyright: ignore[reportArgumentType, reportIndexIssue, reportOptionalSubscript, reportUnknownMemberType]
         assert diagnostics["energy_forecasts_graph"][solcast.dt_helper.now_utc().replace(hour=2, minute=0, second=0).isoformat()] == 3600.0  # type: ignore[call-overload, index]
@@ -59,7 +66,7 @@ async def test_diagnostics(
         await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": "5.0"}, blocking=True)
         await hass.async_block_till_done()  # Because integration reloads
         diagnostics = await get_diagnostics_for_config_entry(hass, hass_client, entry)
-        assert diagnostics["forecast_hard_limit_set"] is True, "Expected forecast_hard_limit_set to be True"
+        assert diagnostics["health_check"]["configuration"]["hard_limit"] == "5.0", "Expected hard limit to be updated to 5.0"  # type: ignore[call-overload, index]
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

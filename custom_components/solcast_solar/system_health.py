@@ -1,4 +1,4 @@
-"""Provide info to system health."""
+"""Solcast information for system health."""
 
 from __future__ import annotations
 

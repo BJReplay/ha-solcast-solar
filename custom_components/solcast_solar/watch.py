@@ -1,4 +1,4 @@
-"""Solcast PV forecast, file monitoring."""
+"""Solcast file monitoring."""
 
 from __future__ import annotations
 
@@ -213,9 +213,7 @@ class FileWatcher:
                         await coordinator.solcast.dampening.apply_forward()
                         _LOGGER.debug("Recalculate forecasts and refresh sensors")
                         await coordinator.solcast.build_forecast_data()
-                        coordinator.set_data_updated(True)
                         await coordinator.update_integration_listeners()
-                        coordinator.set_data_updated(False)
                 if self.watchdog[task][EVENT] == FileEvent.DELETE:
                     _LOGGER.debug("Granular dampening file deleted, no longer monitoring %s for changes", coordinator.file_dampening)
                     coordinator.solcast.dampening.factors = {}

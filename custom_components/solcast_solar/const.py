@@ -1,4 +1,4 @@
-"""Constants for the Solcast Solar integration."""
+"""Solcast constants."""
 
 import types
 from typing import Any, Final
@@ -89,6 +89,7 @@ CONFIG_DAMP: Final[str] = "config_damp"
 CONFIG_DISCRETE_NAME: Final[str] = "solcast_solar"
 CONFIG_FOLDER_DISCRETE: Final[bool] = True  # Whether to use a sub-folder for config files
 CONFIG_VERSION: Final[int] = 19
+CONFIGURATION_URL: Final[str] = "https://toolkit.solcast.com.au/"
 CURRENT_NAME: Final[str] = "current_name"
 CUSTOM_HOURS: Final[str] = "custom_hours"
 DAILY_LIMIT: Final[str] = "daily_limit"

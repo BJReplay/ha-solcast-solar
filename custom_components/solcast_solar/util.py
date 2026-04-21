@@ -1,4 +1,4 @@
-"""Utility."""
+"""Solcast utilities."""
 
 # pylint: disable=consider-using-enumerate
 
@@ -191,7 +191,7 @@ class UsageStatus(Enum):
 
 
 class AutoUpdate(int, Enum):
-    """The type of history data."""
+    """The auto update mode."""
 
     NONE = 0
     DAYLIGHT = 1

@@ -28,6 +28,7 @@ from homeassistant.components.solcast_solar.const import (
     DEFAULT_FORECAST_DAYS,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from homeassistant.components.solcast_solar.forecast import ForecastQuery
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.const import STATE_UNAVAILABLE, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
@@ -569,7 +570,7 @@ async def test_sensor_states(  # noqa: C901
         freezer.move_to(now.replace(hour=2, minute=30, second=0, microsecond=0))
         async_fire_time_changed(hass)
         await hass.async_block_till_done()
-        coordinator._data_updated = True  # Will trigger all sensor update # pyright: ignore[reportPrivateUsage]
+        coordinator._data_updated = True  # Will trigger all sensor update
 
         assert "Updating sensor" in caplog.text
         state = hass.states.get("sensor.solcast_pv_forecast_power_now")  # A per-five minute sensor
@@ -580,8 +581,8 @@ async def test_sensor_states(  # noqa: C901
 
         # Simulate date change
         caplog.clear()
-        coordinator._last_day = (dt.now(solcast.options.tz) - timedelta(days=1)).day  # pyright: ignore[reportPrivateUsage]
-        await coordinator.update_integration_listeners()
+        coordinator._last_day = (dt.now(solcast.options.tz) - timedelta(days=1)).day
+        await coordinator._update_integration_listeners()
         assert "Date has changed, recalculating splines" in caplog.text
         assert "Previous auto update would have been" in caplog.text
         assert "Auto forecast updates for" in caplog.text
@@ -589,8 +590,6 @@ async def test_sensor_states(  # noqa: C901
         # Test get bad key and site.
         assert coordinator.get_sensor_value("badkey") is None, "Bad sensor key should return None"
         assert coordinator.get_sensor_extra_attributes("badkey") is None, "Bad sensor key extra attributes should return None"
-        assert coordinator.get_site_sensor_value("badroof", "badkey") is None, "Bad site/key should return None"
-        assert coordinator.get_site_sensor_extra_attributes("badroof", "badkey") is None, "Bad site/key extra attributes should return None"
         no_error_or_exception(caplog)
 
     finally:
@@ -651,7 +650,7 @@ async def test_sensor_unavailable(
         solcast.data_undampened["siteinfo"]["2222-2222-2222-2222"]["forecasts"] = []
 
         await solcast.build_forecast_data()
-        coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
+        coordinator._data_updated = True
         coordinator.async_update_listeners()
 
         for sensor, assertions in SENSORS.items():
@@ -675,7 +674,7 @@ async def test_sensor_unavailable(
                 : -(269 + (DEFAULT_FORECAST_DAYS - 8) * 48)
             ]
         await solcast.build_forecast_data()
-        coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
+        coordinator._data_updated = True
         coordinator.async_update_listeners()
 
         for sensor, assertions in SENSORS.items():
@@ -696,7 +695,7 @@ async def test_sensor_unavailable(
                 : -(325 + (DEFAULT_FORECAST_DAYS - 8) * 48)
             ]
         await solcast.build_forecast_data()
-        coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
+        coordinator._data_updated = True
         coordinator.async_update_listeners()
 
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_today")
@@ -726,8 +725,8 @@ async def test_sensor_unavailable_exception(
 
     monkeypatch.setattr(SolcastUpdateCoordinator, "get_sensor_value", _raise_zero_division)
     monkeypatch.setattr(SolcastUpdateCoordinator, "get_sensor_extra_attributes", _raise_zero_division)
-    monkeypatch.setattr(SolcastUpdateCoordinator, "get_site_sensor_value", _raise_zero_division)
-    monkeypatch.setattr(SolcastUpdateCoordinator, "get_site_sensor_extra_attributes", _raise_zero_division)
+    monkeypatch.setattr(ForecastQuery, "get_rooftop_site_total_today", _raise_zero_division)
+    monkeypatch.setattr(ForecastQuery, "get_rooftop_site_extra_data", _raise_zero_division)
 
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
@@ -737,7 +736,7 @@ async def test_sensor_unavailable_exception(
                 await hass.async_block_till_done()
             coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
-        coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
+        coordinator._data_updated = True
         await coordinator.async_refresh()
         await hass.async_block_till_done()
 
