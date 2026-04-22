@@ -27,6 +27,7 @@ ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: Final[str] = "automat
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: Final[str] = "automated_dampening_adaptive_model_exclude"
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[str] = "automated_dampening_adaptive_model_minimum_history_days"
 ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[str] = "automated_dampening_delta_adjustment_model"
+ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: Final[str] = "automated_dampening_elevation_adjustment"
 ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: Final[str] = "automated_dampening_generation_fetch_delay"
 ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS: Final[str] = "automated_dampening_generation_history_load_days"
 ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS: Final[str] = "automated_dampening_ignore_intervals"
@@ -110,6 +111,7 @@ DEFAULT: Final[str] = "default"
 DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[int] = 3  # Minimum number of days of history for adaptive dampening model
 DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_UNDAMPENED_ACTUAL: Final[float] = 0.0  # Default to accepting all days
 DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[int] = 0  # Logarithmic adjustment is default model
+DEFAULT_DAMPENING_ELEVATION_ADJUSTMENT: Final[bool] = False  # Whether to adjust historical generation by sun elevation ratio
 DEFAULT_DAMPENING_INSIGNIFICANT: Final[float] = 0.95  # Dampening factors considered insignificant for automated dampening
 DEFAULT_DAMPENING_INSIGNIFICANT_ADJ: Final[float] = 0.95  # Adjusted dampening factors considered insignificant for automated dampening
 DEFAULT_DAMPENING_LOG_DELTA_ADJUSTMENT: Final[bool] = True  # Whether to logarithmically adjust applied automated dampening factors
@@ -423,6 +425,10 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         MAXIMUM: 1,
         DEFAULT: DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL,
         AMENDABLE: True,
+    },
+    ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: {
+        ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
+        DEFAULT: DEFAULT_DAMPENING_ELEVATION_ADJUSTMENT,
     },
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,

@@ -1,6 +1,7 @@
 """Tests for the Solcast Solar automated dampening."""
 
 import asyncio
+from collections import OrderedDict
 import copy
 import datetime
 from datetime import datetime as dt, timedelta
@@ -8,8 +9,10 @@ import json
 import logging
 from pathlib import Path
 import re
+import tempfile
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
 from freezegun.api import FrozenDateTimeFactory
@@ -21,6 +24,11 @@ from homeassistant.components.solcast_solar.config_flow import (
     SolcastSolarOptionFlowHandler,
 )
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT,
+    ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR,
+    ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION,
+    ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS,
+    ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
     AUTO_DAMPEN,
     AUTO_UPDATE,
     CONFIG_DISCRETE_NAME,
@@ -44,6 +52,7 @@ from homeassistant.components.solcast_solar.const import (
 from homeassistant.components.solcast_solar.dampen import Dampening
 from homeassistant.components.solcast_solar.util import (
     DateTimeEncoder,
+    DateTimeHelper,
     JSONDecoder,
     SolcastApiStatus,
     compute_energy_intervals,
@@ -96,6 +105,7 @@ async def test_auto_dampen(
         Path(f"{config_dir}/solcast-advanced.json").write_text(
             json.dumps(
                 {
+                    "automated_dampening_elevation_adjustment": False,
                     "automated_dampening_ignore_intervals": ["17:00"],
                     "automated_dampening_no_limiting_consistency": True,
                     "automated_dampening_generation_fetch_delay": 5,
@@ -805,3 +815,122 @@ async def test_config_flow_mixed_generation_entity_types(
     user_input[SITE_EXPORT_ENTITY] = []
     result = await flow.async_step_init(user_input)
     assert result["errors"]["base"] == "generation_mixed_types"  # type: ignore[index]
+
+
+def test_target_timestamp_shifts_to_target_day() -> None:
+    """_target_timestamp should preserve the UTC time-of-day on the target day."""
+    dampening = Dampening.__new__(Dampening)
+    past_ts = dt(2025, 1, 10, 13, 30, tzinfo=datetime.UTC)
+    target_day = dt(2025, 1, 25, 0, 0, tzinfo=datetime.UTC)
+    result = dampening._target_timestamp(past_ts, target_day)  # type: ignore[attr-defined]
+    assert result == dt(2025, 1, 25, 13, 30, tzinfo=datetime.UTC)
+
+
+def test_elevation_adjustment_ratio_near_horizon_returns_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ratio returns 1.0 when either sun elevation is below 5 degrees."""
+
+    class _Loc:
+        def __init__(self, elev_seq: list[float]) -> None:
+            self._elev_seq = list(elev_seq)
+
+        def solar_elevation(self, _when: dt) -> float:
+            return self._elev_seq.pop(0)
+
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(hass=SimpleNamespace())  # type: ignore[attr-defined]
+
+    # Past below horizon, target above
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc([2.0, 40.0]), 0),
+    )
+    assert dampening.elevation_adjustment_ratio(NOW, NOW) == 1.0
+
+    # Past above, target below horizon
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc([40.0, 2.0]), 0),
+    )
+    assert dampening.elevation_adjustment_ratio(NOW, NOW) == 1.0
+
+
+def test_elevation_adjustment_ratio_clamping_bounds(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ratio is clamped to [0.5, 2.0]."""
+
+    class _Loc:
+        def __init__(self, elev_past: float, elev_target: float) -> None:
+            self.elev_past = elev_past
+            self.elev_target = elev_target
+            self._call = 0
+
+        def solar_elevation(self, _when: dt) -> float:
+            self._call += 1
+            return self.elev_past if self._call == 1 else self.elev_target
+
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(hass=SimpleNamespace())  # type: ignore[attr-defined]
+
+    # High target vs low past would give a large ratio -> clamped to 2.0
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc(10.0, 80.0), 0),
+    )
+    assert dampening.elevation_adjustment_ratio(NOW, NOW) == 2.0
+
+    # Low target vs high past would give a tiny ratio -> clamped to 0.5
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc(80.0, 10.0), 0),
+    )
+    assert dampening.elevation_adjustment_ratio(NOW, NOW) == 0.5
+
+
+async def test_calculate_elevation_adjustment_applied(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise calculate() with elevation adjustment enabled."""
+
+    tz = ZoneInfo("Australia/Sydney")
+    api = MagicMock()
+    api.tz = tz
+    api.hass = SimpleNamespace()
+    api.dt_helper = DateTimeHelper(tz)
+    api.peak_intervals = [1.0] * 48
+    api.advanced_options = {
+        ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: False,
+        ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS: 2,
+        ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION: 2,
+        ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR: 0.95,
+        ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: True,
+    }
+    api.filename_generation = tempfile.NamedTemporaryFile(delete=False).name
+    api.filename_dampening = tempfile.NamedTemporaryFile(delete=False).name
+
+    dampening = Dampening(api)
+
+    # Stub astral so the ratio is deterministic and non-unity.
+    class _Loc:
+        def solar_elevation(self, _when: dt) -> float:
+            return 60.0 if _when.day % 2 == 0 else 30.0
+
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc(), 0),
+    )
+
+    interval = 20
+    timestamps = [
+        dt(2025, 10, 1, 0, 0, tzinfo=tz),  # elev 30
+        dt(2025, 10, 2, 0, 0, tzinfo=tz),  # elev 60
+        dt(2025, 10, 3, 0, 0, tzinfo=tz),  # elev 30
+    ]
+    # Third sample has act==0.0 -> hits the `act <= 0` short-circuit branch.
+    gen_values = [0.8, 0.7, 0.5]
+    act_values = [1.0, 1.0, 0.0]
+
+    matching_intervals: dict[int, list[dt]] = {interval: timestamps}
+    generation = dict(zip(timestamps, gen_values, strict=True))
+    actuals = OrderedDict(zip(timestamps, act_values, strict=True))
+
+    result = await dampening.calculate(matching_intervals, generation, actuals, [], 1)
+
+    assert len(result) == 48
+    assert result[interval] <= 1.0

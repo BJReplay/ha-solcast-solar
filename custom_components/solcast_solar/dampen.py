@@ -25,9 +25,11 @@ from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT
 from homeassistant.core import State
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.sun import get_astral_location
 
 from .const import (
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
+    ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS,
     ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR,
@@ -132,6 +134,36 @@ class Dampening:
             if interval.astimezone(self.api.tz).hour - offset >= 0
             else 0
         )
+
+    def elevation_adjustment_ratio(self, past_ts: dt, target_ts: dt) -> float:
+        """Return the sun-elevation ratio sin(elev_target) / sin(elev_past).
+
+        Used to normalise historical PV generation samples from a prior day to the expected
+        solar contribution on a target day, compensating for elevation drift.
+
+        Arguments:
+            past_ts: Timestamp of the past half-hour sample.
+            target_ts: Timestamp representing the same wall-clock moment on the target day.
+
+        Returns:
+            A clamped multiplier (float) to apply to the past generation value.
+        """
+        location, _ = get_astral_location(self.api.hass)
+        elev_past = location.solar_elevation(past_ts)
+        elev_target = location.solar_elevation(target_ts)
+        # Skip adjustment near the horizon where tiny sin values blow up the ratio
+        # and where shading models break down anyway.
+        if elev_past < 5.0 or elev_target < 5.0:
+            return 1.0
+        ratio = math.sin(math.radians(elev_target)) / math.sin(math.radians(elev_past))
+        # Clamp to avoid extreme swings from numerical edge-cases.
+        return max(0.5, min(2.0, ratio))
+
+    def _target_timestamp(self, past_ts: dt, target_day: dt) -> dt:
+        """Build a timestamp on target_day at the same UTC time-of-day as past_ts."""
+        past_midnight_utc = past_ts.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        target_midnight_utc = target_day.astimezone(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
+        return past_ts + (target_midnight_utc - past_midnight_utc)
 
     async def apply_forward(self, applicable_sites: list[str] | None = None, do_past_hours: int = 0) -> None:
         """Apply dampening to forward forecasts."""
@@ -1165,10 +1197,28 @@ class Dampening:
         ignored_intervals: list[int],
         dampening_model: int,
         verbose_log: bool = True,
+        target_day: dt | None = None,
     ) -> list[float]:
         """Applies selected dampening_model to passed data to calculate list of dampening factors."""
 
         dampening = [1.0] * 48  # Initialize dampening factors
+
+        apply_elevation_adjustment = bool(self.api.advanced_options.get(ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT, False))
+        if apply_elevation_adjustment and target_day is None:
+            target_day = self.api.dt_helper.day_start_utc()
+
+        # For the default model, ceiling comes from self.api.peak_intervals, which is the un-normalised max of past estimated
+        # actuals across MODEL_DAYS. It is normalised here (when elevation adjustment is enabled) to target_day's sun elevation.
+        peak_intervals: dict[int, float] = self.api.peak_intervals
+        if apply_elevation_adjustment and target_day is not None:
+            normalised_peaks: dict[int, float] = dict.fromkeys(range(48), 0.0)
+            for period_start, actual in actuals.items():
+                ratio = self.elevation_adjustment_ratio(period_start, self._target_timestamp(period_start, target_day))
+                adjusted = actual * ratio
+                idx = self.adjusted_interval_dt(period_start)
+                if normalised_peaks[idx] < adjusted:
+                    normalised_peaks[idx] = round(adjusted, 3)
+            peak_intervals = normalised_peaks
 
         # Check the generation for each interval and determine if it is consistently lower than the peak.
         for interval, matching in matching_intervals.items():
@@ -1188,9 +1238,21 @@ class Dampening:
                 if verbose_log:
                     _LOGGER.debug("Interval %s is intentionally ignored, skipping", interval_time)
                 continue
-            generation_samples: list[float] = [
-                round(generation.get(timestamp, 0.0), 3) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
-            ]
+            # Build (timestamp, gen, elevation_ratio) triplets for matching intervals
+            # that have non-zero generation. The ratio is retained so that per-pair
+            # raw dampening factors (gen/act) can be normalised to target_day's sun
+            # geometry in the 1/2/3 models below.
+            sample_triplets: list[tuple[dt, float, float]] = []
+            for timestamp in matching:
+                raw_gen = round(generation.get(timestamp, 0.0), 3)
+                if raw_gen == 0.0:
+                    continue
+                if apply_elevation_adjustment and target_day is not None:
+                    ratio = self.elevation_adjustment_ratio(timestamp, self._target_timestamp(timestamp, target_day))
+                else:
+                    ratio = 1.0
+                sample_triplets.append((timestamp, raw_gen, ratio))
+            generation_samples: list[float] = [gen for _, gen, _ in sample_triplets]
             preserve_this_interval = False
             if len(matching) > 0:
                 msg = ""
@@ -1199,16 +1261,15 @@ class Dampening:
                     _LOGGER.debug(
                         "Interval %s has peak estimated actual %.3f and %d matching intervals: %s",
                         interval_time,
-                        self.api.peak_intervals[interval],
+                        peak_intervals[interval],
                         len(matching),
                         ", ".join([date.astimezone(self.api.tz).strftime(DT_DATE_MONTH_DAY) for date in matching]),
                     )
                 match dampening_model:
                     case 1 | 2 | 3:
                         if len(matching) >= self.api.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS]:
-                            actual_samples: list[float] = [
-                                actuals.get(timestamp, 0.0) for timestamp in matching if generation.get(timestamp, 0.0) != 0.0
-                            ]
+                            actual_samples: list[float] = [actuals.get(timestamp, 0.0) for timestamp, _, _ in sample_triplets]
+                            ratio_samples: list[float] = [ratio for _, _, ratio in sample_triplets]
                             if verbose_log:
                                 _LOGGER.debug(
                                     "Selected %d estimated actuals for %s: %s",
@@ -1228,9 +1289,20 @@ class Dampening:
                             ):
                                 if len(actual_samples) == len(generation_samples):
                                     raw_factors: list[float] = []
-                                    for act, gen in zip(actual_samples, generation_samples, strict=True):
-                                        raw_factors.append(min(gen / act, 1.0) if act > 0 else 1.0)
+                                    for act, gen, ratio in zip(actual_samples, generation_samples, ratio_samples, strict=True):
+                                        if act <= 0:
+                                            raw_factors.append(1.0)
+                                            continue
+                                        # Normalise each historical pair's factor to target_day's sun geometry.
+                                        # Cap at 1.0 since dampening cannot amplify.
+                                        raw_factors.append(min((gen / act) * ratio, 1.0))
                                     if verbose_log:
+                                        if apply_elevation_adjustment and any(r != 1.0 for r in ratio_samples):
+                                            _LOGGER.debug(
+                                                "Elevation ratios applied for %s: %s",
+                                                interval_time,
+                                                ", ".join(f"{r:.3f}" for r in ratio_samples),
+                                            )
                                         _LOGGER.debug(
                                             "Candidate factors for %s: %s",
                                             interval_time,
@@ -1259,16 +1331,19 @@ class Dampening:
                                 msg = f"Not enough reliable generation samples for {interval_time} to determine dampening ({len(generation_samples)})"
                                 preserve_this_interval = self.api.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS]
                     case _:
-                        peak = max(generation_samples) if len(generation_samples) > 0 else 0.0
+                        # Normalise the numerator. Historical generation samples are scaled to what they would have been on target_day
+                        # given that interval's sun elevation. Pair the denominator (peak_intervals, already normalised above).
+                        normalised_generation = [round(gen * ratio, 3) for _, gen, ratio in sample_triplets]
+                        peak = max(normalised_generation) if len(normalised_generation) > 0 else 0.0
                         if verbose_log:
-                            _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, generation_samples)
+                            _LOGGER.debug("Interval %s max generation: %.3f, %s", interval_time, peak, normalised_generation)
                         if len(matching) >= self.api.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS]:
-                            if peak < self.api.peak_intervals[interval]:
+                            if peak < peak_intervals[interval]:
                                 if (
                                     len(generation_samples)
                                     >= self.api.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION]
                                 ):
-                                    factor = (peak / self.api.peak_intervals[interval]) if self.api.peak_intervals[interval] != 0 else 1.0
+                                    factor = (peak / peak_intervals[interval]) if peak_intervals[interval] != 0 else 1.0
                                     if self.api.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR] <= factor < 1.0:
                                         msg = f"Ignoring insignificant factor for {interval_time} of {factor:.3f}"
                                         factor = 1.0

@@ -92,6 +92,7 @@ async def test_adaptive_auto_dampen(  # noqa: C901
             json.dumps(
                 {
                     "automated_dampening_adaptive_model_configuration": True,
+                    "automated_dampening_elevation_adjustment": False,
                     "automated_dampening_model": 3,
                     "automated_dampening_delta_adjustment_model": -1,
                     "automated_dampening_adaptive_model_exclude": [{"model": 3, "delta": 0}],

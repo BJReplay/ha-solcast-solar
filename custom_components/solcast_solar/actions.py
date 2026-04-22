@@ -775,7 +775,7 @@ def _is_unset_timestamp(value: Any) -> bool:
 
 def _format_timestamp(value: Any, timezone: Any) -> str | None:
     """Format a timestamp-like value if it is meaningfully set."""
-    return value.astimezone(timezone).isoformat() if not _is_unset_timestamp(value) else None
+    return value.astimezone(timezone).replace(microsecond=0).isoformat() if not _is_unset_timestamp(value) else None
 
 
 def _evaluate_forecast_health(coordinator: SolcastUpdateCoordinator, solcast: SolcastApi, issues: list[str]) -> dict[str, Any]:

@@ -315,7 +315,13 @@ class DampeningAdaptive:
                 ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM] + 1,
             ):
                 dampening = await self.dampening.calculate(
-                    matching_intervals, generation, actuals, ignored_intervals, dampening_model, False
+                    matching_intervals,
+                    generation,
+                    actuals,
+                    ignored_intervals,
+                    dampening_model,
+                    False,
+                    target_day=self.dampening.api.dt_helper.day_start_utc(future=-1),
                 )
 
                 await self._add_history(  # Add entry for no delta adjustment
