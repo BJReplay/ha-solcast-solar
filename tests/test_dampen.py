@@ -346,6 +346,13 @@ async def test_auto_dampen_issues(
             options[GENERATION_ENTITIES][0] = "sensor.not_valid"
         if extra_sensors == ExtraSensors.DODGY:
             options[SITE_EXPORT_ENTITY] = "sensor.not_valid"
+            config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+            if CONFIG_FOLDER_DISCRETE:
+                Path(config_dir).mkdir(parents=False, exist_ok=True)
+            Path(f"{config_dir}/solcast-advanced.json").write_text(
+                json.dumps({ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: False}),
+                encoding="utf-8",
+            )
         er.async_get(hass).async_get_or_create("sensor", DOMAIN, ENTITY_ACCURACY)
         entry = await async_init_integration(hass, options, extra_sensors=extra_sensors)
 
