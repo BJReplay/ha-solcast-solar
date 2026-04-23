@@ -849,6 +849,8 @@ Automated dampening first builds a "consistently best" set of (more than one) ha
 
 It then compares that to [generation history](#key-input-actual-pv-generation-for-your-site) for these periods (excluding generation periods where export limits may have been hit by [optional export limiting](#optional-input-site-export-to-the-grid-combined-with-a-limit-value), or when intentionally suppressed). The highest actual generation value is selected from the similar best-estimated actual periods, but only if there is more than one generation value. This value determines whether external factors are likely impacting generation, and is used to calculate a "base" dampening factor.
 
+Historical generation and estimated actual values are adjusted to account for changing sun geometry before they are compared. This normalises comparison of days when the sun tracked a different arc across the sky, which is particularly useful for spring and autumn with adjustment strongest around sunrise and sunset, and for sites further from the equator.
+
 As automated dampening is looking to identify when shading is affecting your solar generation it will discard 'non-best estimated PV generation' day intervals. These are intervals on days when PV generation is reduced due to cloud, rain, etc.
 
 Said another way, and in very simple English, Solcast have estimated in the past that production should have been 'X' kW average at a certain time on sunny days, but the most that has ever been achieved recently has been 'Y' kW, so the integration will adjust future forecasts towards 'Y'. Or even simpler, the estimated actual generation is consistently higher than what can be achieved, so reduce the forecast.
@@ -1433,6 +1435,7 @@ Latest minor/patch releases.
 
 v4.5.3
 
+* Add sun elevation adjustment for automated dampening by @autoSteve
 * Expanded diagnostic self-test service action by @autoSteve
 * Include health check detail in diagnostic download by @autoSteve
 * Code refactoring by @autoSteve
