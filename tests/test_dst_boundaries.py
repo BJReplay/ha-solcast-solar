@@ -7,8 +7,6 @@ transition detection on DST transition days.
 
 import copy
 from datetime import datetime as dt
-import json
-from pathlib import Path
 import tempfile
 from typing import Any
 from unittest.mock import MagicMock
@@ -25,8 +23,6 @@ from homeassistant.components.solcast_solar.const import (
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
     AUTO_DAMPEN,
     AUTO_UPDATE,
-    CONFIG_DISCRETE_NAME,
-    CONFIG_FOLDER_DISCRETE,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
     GET_ACTUALS,
@@ -46,6 +42,7 @@ from . import (
     ExtraSensors,
     async_cleanup_integration_tests,
     async_init_integration,
+    write_advanced_options,
 )
 
 
@@ -410,10 +407,7 @@ async def test_apply_forward_on_spring_forward_day(
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
 
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
-        Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
+        write_advanced_options(hass.config.config_dir, {"entity_logging": True})
 
         entry = await async_init_integration(hass, options, timezone="Australia/Sydney", extra_sensors=ExtraSensors.YES_WATT_HOUR)
         solcast = entry.runtime_data.coordinator.solcast
@@ -453,10 +447,7 @@ async def test_apply_forward_on_fall_back_day(
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
 
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
-        Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
+        write_advanced_options(hass.config.config_dir, {"entity_logging": True})
 
         entry = await async_init_integration(hass, options, timezone="Australia/Sydney", extra_sensors=ExtraSensors.YES_WATT_HOUR)
         solcast = entry.runtime_data.coordinator.solcast

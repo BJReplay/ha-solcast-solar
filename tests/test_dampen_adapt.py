@@ -25,8 +25,6 @@ from homeassistant.components.solcast_solar.const import (
     ALL,
     AUTO_DAMPEN,
     AUTO_UPDATE,
-    CONFIG_DISCRETE_NAME,
-    CONFIG_FOLDER_DISCRETE,
     DOMAIN,
     ENTITY_ACCURACY,
     EXCLUDE_SITES,
@@ -62,10 +60,12 @@ from . import (
     async_cleanup_integration_tests,
     async_init_integration,
     entity_history,
+    get_config_dir,
     no_exception,
     reload_integration,
     session_clear,
     wait_for_it,
+    write_advanced_options,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -84,28 +84,24 @@ async def test_adaptive_auto_dampen(  # noqa: C901
     entity_history["offset"] = 2
 
     try:
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
+        config_dir = get_config_dir(hass.config.config_dir, create=True)
 
-        Path(f"{config_dir}/solcast-advanced.json").write_text(
-            json.dumps(
-                {
-                    "automated_dampening_adaptive_model_configuration": True,
-                    "automated_dampening_elevation_adjustment": False,
-                    "automated_dampening_model": 3,
-                    "automated_dampening_delta_adjustment_model": -1,
-                    "automated_dampening_adaptive_model_exclude": [{"model": 3, "delta": 0}],
-                    "automated_dampening_ignore_intervals": ["17:00"],
-                    "automated_dampening_no_limiting_consistency": True,
-                    "automated_dampening_generation_fetch_delay": 5,
-                    "automated_dampening_insignificant_factor": 0.988,
-                    "automated_dampening_insignificant_factor_adjusted": 0.989,
-                    "estimated_actuals_fetch_delay": 5,
-                    "estimated_actuals_log_mape_breakdown": True,
-                }
-            ),
-            encoding="utf-8",
+        write_advanced_options(
+            hass.config.config_dir,
+            {
+                "automated_dampening_adaptive_model_configuration": True,
+                "automated_dampening_elevation_adjustment": False,
+                "automated_dampening_model": 3,
+                "automated_dampening_delta_adjustment_model": -1,
+                "automated_dampening_adaptive_model_exclude": [{"model": 3, "delta": 0}],
+                "automated_dampening_ignore_intervals": ["17:00"],
+                "automated_dampening_no_limiting_consistency": True,
+                "automated_dampening_generation_fetch_delay": 5,
+                "automated_dampening_insignificant_factor": 0.988,
+                "automated_dampening_insignificant_factor_adjusted": 0.989,
+                "estimated_actuals_fetch_delay": 5,
+                "estimated_actuals_log_mape_breakdown": True,
+            },
         )
 
         options = copy.deepcopy(DEFAULT_INPUT2)
@@ -416,17 +412,11 @@ async def test_update_history_deal_breaker(
     assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
-
-        Path(f"{config_dir}/solcast-advanced.json").write_text(
-            json.dumps(
-                {
-                    "automated_dampening_adaptive_model_configuration": True,
-                }
-            ),
-            encoding="utf-8",
+        write_advanced_options(
+            hass.config.config_dir,
+            {
+                "automated_dampening_adaptive_model_configuration": True,
+            },
         )
 
         entity_history["days_generation"] = 1
@@ -1141,14 +1131,7 @@ async def test_dampening_adaptations_development_flag(
     monkeypatch.setattr(DampeningAdaptive, "update_history", _fake_update_history)
     monkeypatch.setattr(DampeningAdaptive, "determine_best_settings", _fake_determine_best_settings)
 
-    config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-    if CONFIG_FOLDER_DISCRETE:
-        Path(config_dir).mkdir(parents=False, exist_ok=True)
-
-    Path(f"{config_dir}/solcast-advanced.json").write_text(
-        json.dumps({"automated_dampening_adaptive_model_configuration": True}),
-        encoding="utf-8",
-    )
+    write_advanced_options(hass.config.config_dir, {"automated_dampening_adaptive_model_configuration": True})
 
     options = copy.deepcopy(DEFAULT_INPUT2)
     options[AUTO_DAMPEN] = True

@@ -31,8 +31,6 @@ from homeassistant.components.solcast_solar.const import (
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
     AUTO_DAMPEN,
     AUTO_UPDATE,
-    CONFIG_DISCRETE_NAME,
-    CONFIG_FOLDER_DISCRETE,
     DOMAIN,
     ENTITY_ACCURACY,
     ESTIMATE,
@@ -72,11 +70,13 @@ from . import (
     async_cleanup_integration_tests,
     async_init_integration,
     exec_update_actuals,
+    get_config_dir,
     no_exception,
     reload_integration,
     session_clear,
     session_set,
     wait_for_it,
+    write_advanced_options,
 )
 
 from tests.common import MockConfigEntry
@@ -98,24 +98,20 @@ async def test_auto_dampen(
     assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
+        config_dir = get_config_dir(hass.config.config_dir, create=True)
 
-        Path(f"{config_dir}/solcast-advanced.json").write_text(
-            json.dumps(
-                {
-                    "automated_dampening_elevation_adjustment": False,
-                    "automated_dampening_ignore_intervals": ["17:00"],
-                    "automated_dampening_no_limiting_consistency": True,
-                    "automated_dampening_generation_fetch_delay": 5,
-                    "automated_dampening_insignificant_factor": 0.988,
-                    "automated_dampening_insignificant_factor_adjusted": 0.989,
-                    "estimated_actuals_fetch_delay": 5,
-                    "estimated_actuals_log_mape_breakdown": True,
-                }
-            ),
-            encoding="utf-8",
+        write_advanced_options(
+            config_dir,
+            {
+                "automated_dampening_elevation_adjustment": False,
+                "automated_dampening_ignore_intervals": ["17:00"],
+                "automated_dampening_no_limiting_consistency": True,
+                "automated_dampening_generation_fetch_delay": 5,
+                "automated_dampening_insignificant_factor": 0.988,
+                "automated_dampening_insignificant_factor_adjusted": 0.989,
+                "estimated_actuals_fetch_delay": 5,
+                "estimated_actuals_log_mape_breakdown": True,
+            },
         )
 
         options = copy.deepcopy(DEFAULT_INPUT2)
@@ -346,13 +342,7 @@ async def test_auto_dampen_issues(
             options[GENERATION_ENTITIES][0] = "sensor.not_valid"
         if extra_sensors == ExtraSensors.DODGY:
             options[SITE_EXPORT_ENTITY] = "sensor.not_valid"
-            config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-            if CONFIG_FOLDER_DISCRETE:
-                Path(config_dir).mkdir(parents=False, exist_ok=True)
-            Path(f"{config_dir}/solcast-advanced.json").write_text(
-                json.dumps({ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: False}),
-                encoding="utf-8",
-            )
+            write_advanced_options(hass.config.config_dir, {ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: False})
         er.async_get(hass).async_get_or_create("sensor", DOMAIN, ENTITY_ACCURACY)
         entry = await async_init_integration(hass, options, extra_sensors=extra_sensors)
 

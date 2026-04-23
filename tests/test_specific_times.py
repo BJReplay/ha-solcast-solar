@@ -1,17 +1,13 @@
 """Test midnight rollover."""
 
 from datetime import datetime as dt
-import json
 import logging
-from pathlib import Path
 
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
-    CONFIG_DISCRETE_NAME,
-    CONFIG_FOLDER_DISCRETE,
     DEFAULT_FORECAST_DAYS,
     FAILURE,
     LAST_7D,
@@ -21,7 +17,12 @@ from homeassistant.components.solcast_solar.const import (
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.core import HomeAssistant
 
-from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
+from . import (
+    DEFAULT_INPUT1,
+    async_cleanup_integration_tests,
+    async_init_integration,
+    write_advanced_options,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -46,16 +47,12 @@ async def test_midnight(
     """Test midnight updates."""
 
     try:
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
-
         # Test midnight UTC usage reset.
         # Init well before midnight to avoid FreezeGun's asyncio.sleep patching
         # (which advances frozen time) from crossing midnight during init.
         freezer.move_to("2025-01-10 20:00:00")
 
-        Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
+        write_advanced_options(hass.config.config_dir, {"entity_logging": True})
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator

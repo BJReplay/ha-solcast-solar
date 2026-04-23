@@ -5,6 +5,7 @@ import contextlib
 import copy
 from datetime import UTC, datetime as dt, timedelta
 from enum import Enum
+import json
 import logging
 from pathlib import Path
 import re
@@ -210,6 +211,33 @@ class ExtraSensors(Enum):
 _LOGGER = logging.getLogger(__name__)
 
 simulated: SimulatedSolcast = SimulatedSolcast()
+
+
+def get_config_dir(config_dir: str | Path, create: bool = False) -> Path:
+    """Return the Solcast test config directory."""
+
+    base_path = Path(config_dir)
+    if CONFIG_FOLDER_DISCRETE and base_path.name != CONFIG_DISCRETE_NAME:
+        solcast_config_dir = base_path / CONFIG_DISCRETE_NAME
+    else:
+        solcast_config_dir = base_path
+    if create and CONFIG_FOLDER_DISCRETE:
+        solcast_config_dir.mkdir(parents=True, exist_ok=True)
+    return solcast_config_dir
+
+
+def get_advanced_options_file(config_dir: str | Path, create: bool = False) -> Path:
+    """Return the advanced options file path for Solcast tests."""
+
+    return get_config_dir(config_dir, create=create) / "solcast-advanced.json"
+
+
+def write_advanced_options(config_dir: str | Path, advanced_options: dict[str, Any]) -> Path:
+    """Write Solcast advanced options for tests and return the file path."""
+
+    advanced_file = get_advanced_options_file(config_dir, create=True)
+    advanced_file.write_text(json.dumps(advanced_options), encoding="utf-8")
+    return advanced_file
 
 
 def verify_data_schema(data: dict[str, Any]) -> None:
@@ -926,7 +954,7 @@ async def wait_for_it(
 async def async_cleanup_integration_caches(hass: HomeAssistant, **kwargs: Any) -> bool:
     """Clean up the Solcast Solar integration caches and session."""
 
-    config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+    config_dir = get_config_dir(hass.config.config_dir)
 
     def list_files() -> list[str]:
         return [str(cache) for cache in Path(config_dir).glob("solcast*.json")]
@@ -949,7 +977,7 @@ async def async_cleanup_integration_caches(hass: HomeAssistant, **kwargs: Any) -
 async def async_cleanup_integration_tests(hass: HomeAssistant, **kwargs: Any) -> bool:
     """Clean up the Solcast Solar integration caches and session."""
 
-    config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+    config_dir = get_config_dir(hass.config.config_dir)
 
     def list_files() -> list[str]:
         return [str(cache) for cache in Path(config_dir).glob("solcast*.json")]

@@ -4,9 +4,7 @@ import asyncio
 import contextlib
 import copy
 from datetime import datetime as dt, timedelta
-import json
 import logging
-from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -21,8 +19,6 @@ from homeassistant.components.solcast_solar.const import (
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
     BRK_SITE,
-    CONFIG_DISCRETE_NAME,
-    CONFIG_FOLDER_DISCRETE,
     CUSTOM_HOURS,
     DEFAULT_FORECAST_DAY_SENSORS,
     DEFAULT_FORECAST_DAYS,
@@ -41,6 +37,7 @@ from . import (
     async_cleanup_integration_tests,
     async_init_integration,
     no_error_or_exception,
+    write_advanced_options,
 )
 
 from tests.common import async_fire_time_changed
@@ -387,10 +384,7 @@ async def test_sensor_states(  # noqa: C901
         return estimate_set
 
     try:
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
-        Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
+        write_advanced_options(hass.config.config_dir, {"entity_logging": True})
 
         entry = await async_init_integration(hass, settings)
         freezer.move_to(dt.now() + timedelta(minutes=1))

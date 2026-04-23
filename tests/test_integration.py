@@ -106,12 +106,15 @@ from . import (
     ZONE_RAW,
     async_cleanup_integration_tests,
     async_init_integration,
+    get_advanced_options_file,
+    get_config_dir,
     no_error_or_exception,
     session_clear,
     session_reset_usage,
     session_set,
     simulated,
     verify_data_schema,
+    write_advanced_options,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -146,14 +149,13 @@ async def test_advanced_solcast_port_applied_runtime(
     """Apply an advanced Solcast port override without reloading the integration."""
 
     try:
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
         entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT1))
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
         solcast: SolcastApi = coordinator.solcast
 
         assert solcast.advanced_options[ADVANCED_SOLCAST_PORT] == 0
 
-        advanced_file = Path(f"{config_dir}/solcast-advanced.json")
+        advanced_file = get_advanced_options_file(hass.config.config_dir, create=True)
         caplog.clear()
         advanced_file.write_text(json.dumps({ADVANCED_SOLCAST_PORT: 8443}), encoding="utf-8")
         async with asyncio.timeout(10):
@@ -592,13 +594,8 @@ async def test_integration(  # noqa: C901
     """Test integration init."""
 
     try:
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
-        Path(f"{config_dir}/solcast-advanced.json").write_text(
-            json.dumps(advanced_options := {"entity_logging": True}),
-            encoding="utf-8",
-        )
+        config_dir = str(get_config_dir(hass.config.config_dir, create=True))
+        write_advanced_options(config_dir, advanced_options := {"entity_logging": True})
 
         # Test startup
         entry: ConfigEntry = await async_init_integration(hass, options | ({GET_ACTUALS: True} if options == DEFAULT_INPUT1 else {}))
@@ -797,10 +794,7 @@ async def test_integration(  # noqa: C901
             else:
                 pytest.fail("Test undampened: State of forecast_tomorrow is None")
 
-            Path(f"{config_dir}/solcast-advanced.json").write_text(
-                json.dumps(advanced_options | {"granular_dampening_delta_adjustment": True}),
-                encoding="utf-8",
-            )
+            write_advanced_options(config_dir, advanced_options | {"granular_dampening_delta_adjustment": True})
             await _wait_for(caplog, "Advanced option set granular_dampening_delta_adjustment: True")
 
             await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates", wait=True)
@@ -862,10 +856,7 @@ async def test_integration(  # noqa: C901
                 else:
                     pytest.fail("Test dampened: State of forecast_tomorrow is None")
 
-            Path(f"{config_dir}/solcast-advanced.json").write_text(
-                json.dumps(advanced_options),
-                encoding="utf-8",
-            )
+            write_advanced_options(config_dir, advanced_options)
             await _wait_for(caplog, "Advanced option set entity_logging: True")
 
             # Remove the granular dampening file
@@ -936,12 +927,8 @@ async def test_remaining_actions(
     """Test remaining actions."""
 
     try:
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
-        Path(f"{config_dir}/solcast-advanced.json").write_text(
-            json.dumps({"entity_logging": True, "forecast_day_entities": 10}), encoding="utf-8"
-        )
+        config_dir = str(get_config_dir(hass.config.config_dir, create=True))
+        write_advanced_options(config_dir, {"entity_logging": True, "forecast_day_entities": 10})
 
         # Start with two API keys and three sites
         entry = await async_init_integration(hass, DEFAULT_INPUT2)
@@ -1258,9 +1245,7 @@ async def test_remaining_actions(
 
         _LOGGER.debug("Test set_options with api_limit exceeding maximum when advanced override is enabled")
         base_config_dir = Path(hass.config.config_dir)
-        advanced_dir = base_config_dir / CONFIG_DISCRETE_NAME if CONFIG_FOLDER_DISCRETE else base_config_dir
-        advanced_dir.mkdir(parents=True, exist_ok=True)
-        (advanced_dir / "solcast-advanced.json").write_text(json.dumps({ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM: True}), encoding="utf-8")
+        write_advanced_options(base_config_dir, {ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM: True})
         await hass.services.async_call(DOMAIN, "set_options", {"api_limit": "51"}, blocking=True)
         await hass.async_block_till_done()
         assert entry.options[API_LIMIT] == "51"
@@ -1712,7 +1697,7 @@ async def test_actuals_api_limit_issue_single_limit_multiple_keys(
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
-async def test_scenarios(  # noqa: C901
+async def test_scenarios(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
@@ -1722,10 +1707,8 @@ async def test_scenarios(  # noqa: C901
     """Test various integration scenarios."""
 
     try:
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
-        Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
+        config_dir = str(get_config_dir(hass.config.config_dir, create=True))
+        write_advanced_options(config_dir, {"entity_logging": True})
 
         freezer.move_to(dt.now(tz=ZoneInfo(ZONE_RAW)).replace(hour=12, minute=0, second=0, microsecond=0))
 
