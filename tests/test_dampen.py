@@ -7,6 +7,7 @@ import datetime
 from datetime import datetime as dt, timedelta
 import json
 import logging
+import math
 from pathlib import Path
 import re
 import tempfile
@@ -42,6 +43,8 @@ from homeassistant.components.solcast_solar.const import (
     PRESUMED_DEAD,
     RESOURCE_ID,
     SERVICE_SET_DAMPENING,
+    SITE_ATTRIBUTE_AZIMUTH,
+    SITE_ATTRIBUTE_TILT,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
     SITE_INFO,
@@ -864,8 +867,16 @@ def test_elevation_adjustment_ratio_clamping_bounds(monkeypatch: pytest.MonkeyPa
             self._call += 1
             return self.elev_past if self._call == 1 else self.elev_target
 
+        def solar_azimuth(self, _when: dt) -> float:
+            return 180.0
+
     dampening = Dampening.__new__(Dampening)
-    dampening.api = SimpleNamespace(hass=SimpleNamespace())  # type: ignore[attr-defined]
+    # No tilt/azimuth metadata on sites, so geometry is skipped and clamp is pure elevation. Simple.
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        hass=SimpleNamespace(),
+        options=SimpleNamespace(exclude_sites=[]),
+        sites=[],
+    )  # type: ignore[attr-defined]
 
     # High target vs low past would give a large ratio -> clamped to 2.0
     monkeypatch.setattr(
@@ -880,6 +891,121 @@ def test_elevation_adjustment_ratio_clamping_bounds(monkeypatch: pytest.MonkeyPa
         lambda _hass: (_Loc(80.0, 10.0), 0),
     )
     assert dampening.elevation_adjustment_ratio(NOW, NOW) == 0.5
+
+
+def test_elevation_adjustment_ratio_uses_site_geometry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tilt and azimuth metadata drive the ratio, diverging from the elevation-only baseline."""
+
+    class _Loc:
+        def solar_elevation(self, when: dt) -> float:
+            return 35.0 if when.day == 1 else 55.0
+
+        def solar_azimuth(self, when: dt) -> float:
+            return 90.0 if when.day == 1 else 240.0
+
+    past_ts = dt(2025, 6, 1, 12, 0, tzinfo=datetime.UTC)
+    target_ts = dt(2025, 6, 2, 12, 0, tzinfo=datetime.UTC)
+
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        hass=SimpleNamespace(),
+        options=SimpleNamespace(exclude_sites=[]),
+        sites=[
+            {RESOURCE_ID: "east", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 90.0},
+            {RESOURCE_ID: "west", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 270.0},
+        ],
+    )  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc(), 0),
+    )
+
+    base_ratio = math.sin(math.radians(55.0)) / math.sin(
+        math.radians(35.0)
+    )  # About 1.428, which is the elevation-only ratio we expect to be adjusted by geometry.
+    ratio = dampening.elevation_adjustment_ratio(past_ts, target_ts)
+
+    # Computed geometry ratios per site:
+    #   east (panel_azimuth=90):
+    #     past_gain  = sin(35) x cos(30) + cos(35) x sin(30) x cos(90-90)   ≈ 0.9063
+    #     target_gain= sin(55) x cos(30) + cos(55) x sin(30) x cos(240-90)  ≈ 0.4610
+    #     ratio_east ≈ 0.509
+    #   west (panel_azimuth=270):
+    #     past_gain  = sin(35) x cos(30) + cos(35) x sin(30) x cos(90-270)  ≈ 0.0872
+    #     target_gain= sin(55) x cos(30) + cos(55) x sin(30) x cos(240-270) ≈ 0.9578
+    #     ratio_west ≈ 10.99
+    #   average ≈ 5.75 → clamped to 2.0
+    assert ratio == pytest.approx(2.0)
+    assert ratio > base_ratio
+
+
+def test_elevation_adjustment_ratio_falls_back_when_all_sites_face_away(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ratio falls back to elevation-only when every site's panel faces away (zero gain)."""
+
+    class _Loc:
+        def solar_elevation(self, when: dt) -> float:
+            return 35.0 if when.day == 1 else 55.0
+
+        def solar_azimuth(self, _when: dt) -> float:
+            return 90.0
+
+    past_ts = dt(2025, 6, 1, 12, 0, tzinfo=datetime.UTC)
+    target_ts = dt(2025, 6, 2, 12, 0, tzinfo=datetime.UTC)
+
+    dampening = Dampening.__new__(Dampening)
+    # Tilt=90, panel faces directly away from sun (azimuth delta=180°), so gain <= 0 for both timestamps.
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        hass=SimpleNamespace(),
+        options=SimpleNamespace(exclude_sites=[]),
+        sites=[{RESOURCE_ID: "a", SITE_ATTRIBUTE_TILT: 90, SITE_ATTRIBUTE_AZIMUTH: 270}],
+    )  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc(), 0),
+    )
+
+    base_ratio = math.sin(math.radians(55.0)) / math.sin(
+        math.radians(35.0)
+    )  # About 1.428, we want it to approximately match this time for the "impossible fallback".
+    ratio = dampening.elevation_adjustment_ratio(past_ts, target_ts)
+    assert ratio == pytest.approx(base_ratio)
+
+
+def test_elevation_adjustment_ratio_unclamped_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Geometry ratio is returned unchanged when it falls within [0.5, 2.0]."""
+
+    class _Loc:
+        def solar_elevation(self, when: dt) -> float:
+            return 35.0 if when.day == 1 else 55.0
+
+        def solar_azimuth(self, _when: dt) -> float:
+            return 180.0  # Sun due south at both timestamps.
+
+    past_ts = dt(2025, 6, 1, 12, 0, tzinfo=datetime.UTC)
+    target_ts = dt(2025, 6, 2, 12, 0, tzinfo=datetime.UTC)
+
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        hass=SimpleNamespace(),
+        options=SimpleNamespace(exclude_sites=[]),
+        sites=[{RESOURCE_ID: "south", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 180.0}],
+    )  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc(), 0),
+    )
+
+    # Single south-facing site, sun due south at both timestamps
+    past_gain = math.sin(math.radians(35.0)) * math.cos(math.radians(30.0)) + math.cos(math.radians(35.0)) * math.sin(math.radians(30.0))
+    target_gain = math.sin(math.radians(55.0)) * math.cos(math.radians(30.0)) + math.cos(math.radians(55.0)) * math.sin(math.radians(30.0))
+    expected = target_gain / past_gain
+
+    ratio = dampening.elevation_adjustment_ratio(past_ts, target_ts)  # 1.099 expected
+    assert ratio == pytest.approx(expected)
+    assert 0.5 < ratio < 2.0  # Confirm no clamping occurred.
 
 
 async def test_calculate_elevation_adjustment_applied(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -907,6 +1033,9 @@ async def test_calculate_elevation_adjustment_applied(monkeypatch: pytest.Monkey
     class _Loc:
         def solar_elevation(self, _when: dt) -> float:
             return 60.0 if _when.day % 2 == 0 else 30.0
+
+        def solar_azimuth(self, _when: dt) -> float:
+            return 180.0
 
     monkeypatch.setattr(
         "homeassistant.components.solcast_solar.dampen.get_astral_location",

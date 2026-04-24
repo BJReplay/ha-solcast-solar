@@ -65,6 +65,8 @@ from .const import (
     PLATFORM_SWITCH,
     RESOURCE_ID,
     SITE,
+    SITE_ATTRIBUTE_AZIMUTH,
+    SITE_ATTRIBUTE_TILT,
     SITE_DAMP,
     SITE_INFO,
     VERSION,
@@ -135,29 +137,70 @@ class Dampening:
             else 0
         )
 
+    @staticmethod
+    def _tilt_incidence_gain(elevation: float, solar_azimuth: float, tilt: float, panel_azimuth: float) -> float:
+        """Return a simple tilt-aware irradiance gain for one site."""
+        elevation_rad = math.radians(elevation)
+        tilt_rad = math.radians(tilt)
+        azimuth_delta_rad = math.radians(solar_azimuth - panel_azimuth)
+
+        gain = math.sin(elevation_rad) * math.cos(tilt_rad) + math.cos(elevation_rad) * math.sin(tilt_rad) * math.cos(azimuth_delta_rad)
+        return max(gain, 0.0)
+
     def elevation_adjustment_ratio(self, past_ts: dt, target_ts: dt) -> float:
-        """Return the sun-elevation ratio sin(elev_target) / sin(elev_past).
+        """Return a geometry-normalisation ratio between past and target timestamps.
 
         Used to normalise historical PV generation samples from a prior day to the expected
-        solar contribution on a target day, compensating for elevation drift.
+        solar contribution on a target day, compensating for solar-geometry drift.
+
+        For each site, the cos-incidence gain is computed at both timestamps; the site ratios
+        are averaged across all sites.
 
         Arguments:
             past_ts: Timestamp of the past half-hour sample.
             target_ts: Timestamp representing the same wall-clock moment on the target day.
 
         Returns:
-            A clamped multiplier (float) to apply to the past generation value.
+            (float) A clamped multiplier to apply to the past value.
         """
         location, _ = get_astral_location(self.api.hass)
         elev_past = location.solar_elevation(past_ts)
         elev_target = location.solar_elevation(target_ts)
+
         # Skip adjustment near the horizon where tiny sin values blow up the ratio
         # and where shading models break down anyway.
         if elev_past < 5.0 or elev_target < 5.0:
             return 1.0
-        ratio = math.sin(math.radians(elev_target)) / math.sin(math.radians(elev_past))
+
+        azimuth_past = location.solar_azimuth(past_ts)
+        azimuth_target = location.solar_azimuth(target_ts)
+
+        ratio_sum = 0.0
+        count = 0
+
+        exclude_sites = set(self.api.options.exclude_sites)
+
+        for site in self.api.sites:
+            if site[RESOURCE_ID] in exclude_sites:
+                continue
+
+            tilt = float(site[SITE_ATTRIBUTE_TILT])
+            panel_azimuth = float(site[SITE_ATTRIBUTE_AZIMUTH])
+
+            past_gain = self._tilt_incidence_gain(elev_past, azimuth_past, tilt, panel_azimuth)
+            target_gain = self._tilt_incidence_gain(elev_target, azimuth_target, tilt, panel_azimuth)
+            if past_gain <= 0.0 or target_gain <= 0.0:
+                continue
+
+            ratio_sum += target_gain / past_gain
+            count += 1
+
+        if count == 0:
+            # No site sees the sun at both timestamps. Impossible fallback really. This used to be the non-azimuth/tilt adjusted return, included for posterity.
+            return max(0.5, min(2.0, math.sin(math.radians(elev_target)) / math.sin(math.radians(elev_past))))
+
         # Clamp to avoid extreme swings from numerical edge-cases.
-        return max(0.5, min(2.0, ratio))
+        return max(0.5, min(2.0, ratio_sum / count))
 
     def _target_timestamp(self, past_ts: dt, target_day: dt) -> dt:
         """Build a timestamp on target_day at the same UTC time-of-day as past_ts."""
