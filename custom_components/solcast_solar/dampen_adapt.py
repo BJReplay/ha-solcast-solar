@@ -173,7 +173,7 @@ class DampeningAdaptive:
         common_peak_interval, avg_gen, avg_factor, variance = self._select_comparison_interval(
             generation_dampening,
             min_history_days,
-            earliest_common,
+            actuals,
         )
         _LOGGER.debug(
             "Selected interval %d (%02d:%02d) for adaptive comparison: %.3f kWh, factor %.3f, variance %.4f",
@@ -796,7 +796,7 @@ class DampeningAdaptive:
         self,
         generation_dampening: defaultdict[dt, dict[str, Any]],
         min_history_days: int,
-        earliest_common: dt | None = None,
+        actuals: defaultdict[dt, list[float]] | None = None,
     ) -> list[float]:
         """Build interval weights from persistent current dampened forecast error.
 
@@ -812,7 +812,8 @@ class DampeningAdaptive:
         if not current_all_factors:
             return [0.0] * 48
 
-        actuals = self._build_actuals_from_sites(earliest_common or min(generation_dampening))
+        if actuals is None:
+            actuals = self._build_actuals_from_sites(min(generation_dampening))
         interval_error_samples: list[list[float]] = [[] for _ in range(48)]
 
         for timestamp, gen_data in generation_dampening.items():
@@ -857,7 +858,7 @@ class DampeningAdaptive:
         self,
         generation_dampening: defaultdict[dt, dict[str, Any]],
         min_history_days: int,
-        earliest_common: dt | None = None,
+        actuals: defaultdict[dt, list[float]] | None = None,
     ) -> tuple[int, float, float, float]:
         """Select the best interval for single-interval adaptive comparison.
 
@@ -871,7 +872,7 @@ class DampeningAdaptive:
         Args:
             generation_dampening: Generation data for calculating interval totals.
             min_history_days: Minimum number of history days required for a model.
-            earliest_common: Optional common history start for building residuals.
+            actuals: Optional pre-built undampened actuals; built on demand when not supplied.
 
         Returns:
             Tuple of (interval_index, avg_generation, avg_dampen_factor, variance).
@@ -933,7 +934,7 @@ class DampeningAdaptive:
         # Calculate breadth of dampening: fraction of dampening models that apply dampening
         # Intervals where more model strengths agree dampening is needed are better for comparison
         dampening_breadth = [len(combo_dampens[i]) / total_models if total_models > 0 else 0.0 for i in range(48)]
-        interval_error_weights = self._build_interval_error_weights(generation_dampening, min_history_days, earliest_common)
+        interval_error_weights = self._build_interval_error_weights(generation_dampening, min_history_days, actuals)
 
         # Score = (1 - avg_factor) × sqrt(variance) × dampening_breadth, for intervals
         # with adequate generation only (≥ 10% of peak to exclude pre-dawn/post-dusk).

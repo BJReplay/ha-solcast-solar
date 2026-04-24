@@ -582,8 +582,6 @@ async def test_build_interval_error_weights_hourly_factor_mapping(
 
     assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
-    monkeypatch = pytest.MonkeyPatch()
-
     try:
         entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
         solcast = entry.runtime_data.coordinator.solcast
@@ -595,15 +593,14 @@ async def test_build_interval_error_weights_hourly_factor_mapping(
 
         actuals = defaultdict(lambda: [0.0] * 48)
         actuals[solcast.dt_helper.day_start(timestamp)][interval] = 4.0
-        monkeypatch.setattr(solcast.dampening.adaptive, "_build_actuals_from_sites", lambda _earliest: actuals)
 
-        assert solcast.dampening.adaptive._build_interval_error_weights(defaultdict(dict), 1, day_start) == [0.0] * 48
+        assert solcast.dampening.adaptive._build_interval_error_weights(defaultdict(dict), 1) == [0.0] * 48
 
         current_factors = [1.0] * 24
         current_factors[interval // 2] = 0.5
         solcast.dampening.factors = {ALL: current_factors}
 
-        weights = solcast.dampening.adaptive._build_interval_error_weights(generation_dampening, 1, day_start)
+        weights = solcast.dampening.adaptive._build_interval_error_weights(generation_dampening, 1, actuals)
 
         assert weights[interval] == 2.0, f"Error weight at interval {interval} should be 2.0, got {weights[interval]}"
         assert max(weights[:interval] + weights[interval + 1 :]) == 0.0, "Non-target intervals should have zero weight"
@@ -612,9 +609,8 @@ async def test_build_interval_error_weights_hourly_factor_mapping(
         )
 
         solcast.dampening.factors = {ALL: [1.0] * 10}
-        assert solcast.dampening.adaptive._build_interval_error_weights(generation_dampening, 1, day_start) == [0.0] * 48
+        assert solcast.dampening.adaptive._build_interval_error_weights(generation_dampening, 1, actuals) == [0.0] * 48
     finally:
-        monkeypatch.undo()
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
@@ -625,8 +621,6 @@ async def test_select_comparison_interval_prefers_persistent_error(
     """Test comparison interval selection favors persistently bad current intervals."""
 
     assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
-
-    monkeypatch = pytest.MonkeyPatch()
 
     try:
         entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT2))
@@ -657,7 +651,6 @@ async def test_select_comparison_interval_prefers_persistent_error(
         actuals = defaultdict(lambda: [0.0] * 48)
         actuals[solcast.dt_helper.day_start(day_start)][10] = 4.0
         actuals[solcast.dt_helper.day_start(day_start)][20] = 4.0
-        monkeypatch.setattr(solcast.dampening.adaptive, "_build_actuals_from_sites", lambda _earliest: actuals)
 
         current_factors = [1.0] * 48
         current_factors[10] = 0.5
@@ -667,7 +660,7 @@ async def test_select_comparison_interval_prefers_persistent_error(
         selected_interval, avg_gen, avg_factor, variance = solcast.dampening.adaptive._select_comparison_interval(
             generation_dampening,
             1,
-            day_start,
+            actuals,
         )
 
         assert selected_interval == 20, f"Expected interval 20 (persistent error), got {selected_interval}"
@@ -675,7 +668,6 @@ async def test_select_comparison_interval_prefers_persistent_error(
         assert avg_factor < 1.0, f"Expected avg_factor < 1.0, got {avg_factor}"
         assert variance > 0.0, f"Expected variance > 0.0, got {variance}"
     finally:
-        monkeypatch.undo()
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
