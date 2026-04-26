@@ -57,6 +57,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from simulator import API_KEY_SITES, SimulatedSolcast
+
 simulate = SimulatedSolcast()
 DEFAULT_PORT = 443
 
@@ -164,11 +165,7 @@ class _WerkzeugLogFilter(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         """Return False to suppress a record, or True to allow it (possibly modified)."""
         msg = record.getMessage()
-        if (
-            msg.startswith("WARNING: This is a development server.")
-            or " * Running on http" in msg
-            or "Press CTRL+C to quit" in msg
-        ):
+        if msg.startswith("WARNING: This is a development server.") or " * Running on http" in msg or "Press CTRL+C to quit" in msg:
             return False
         if isinstance(record.args, tuple) and len(record.args) >= 2 and " - - [" in record.msg:
             try:
