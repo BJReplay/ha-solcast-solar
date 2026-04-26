@@ -1040,6 +1040,7 @@ class Dampening:
         values: tuple[dict[str, Any], ...],
         percentiles: tuple[int, ...] = (50,),
         log_breakdown: bool = False,
+        breakdown_label: str = "",
     ) -> tuple[bool, float, list[float], dict[str, float]]:
         """Calculate mean and percentile absolute percentage error."""
         value_day: defaultdict[dt, float] = defaultdict(float)
@@ -1058,8 +1059,10 @@ class Dampening:
             error[day] = abs(generation_day[day] - value) / generation_day[day] * 100.0 if generation_day[day] > 0 else math.inf
 
             if log_breakdown:
+                label_prefix = f"{breakdown_label} " if breakdown_label else ""
                 _LOGGER.debug(
-                    "APE calculation for day %s, Actual %.2f kWh, Estimate %.2f kWh, Error %.2f%s",
+                    "%sAPE calculation for day %s, Actual %.2f kWh, Estimate %.2f kWh, Error %.2f%s",
+                    label_prefix,
                     day.strftime(DT_DATE_ONLY_FORMAT),
                     generation_day[day],
                     value,

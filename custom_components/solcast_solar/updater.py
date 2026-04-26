@@ -456,6 +456,7 @@ class Updater:
                     dampened_estimates,
                     percentiles_to_calculate,
                     log_mape_breakdown,
+                    "Dampened",
                 ),
                 self._coordinator.solcast.dampening.calculate_error(
                     generation_dampening_day,
@@ -463,6 +464,7 @@ class Updater:
                     undampened_estimates,
                     percentiles_to_calculate,
                     log_mape_breakdown,
+                    "Undampened",
                 ),
             )
         else:
@@ -484,6 +486,7 @@ class Updater:
                 ),
                 percentiles_to_calculate,
                 log_mape_breakdown,
+                "Undampened",
             )
         if inf_u or inf_d:
             _LOGGER.debug("Excluding %s values", math.inf)

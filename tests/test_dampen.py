@@ -209,7 +209,8 @@ async def test_auto_dampen(
         assert "Advanced option set automated_dampening_ignore_intervals: ['17:00']" in caplog.text
         assert "Calculating dampened estimated actual MAPE" in caplog.text
         assert "Calculating undampened estimated actual MAPE" in caplog.text
-        assert "APE calculation for day" in caplog.text
+        assert "Dampened APE calculation for day" in caplog.text
+        assert "Undampened APE calculation for day" in caplog.text
         assert "Estimated actual mean APE" in caplog.text
         assert "Getting estimated actuals update for site" in caplog.text
         assert "Apply dampening to previous day estimated actuals" in caplog.text
