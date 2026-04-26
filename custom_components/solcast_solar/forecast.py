@@ -1,7 +1,5 @@
 """Solcast forecast query and spline interpolation engine."""
 
-# pylint: disable=pointless-string-statement
-
 from __future__ import annotations
 
 from collections import OrderedDict
@@ -36,7 +34,7 @@ from .const import (
     SITE_ATTRIBUTE_TAGS,
     SITE_ATTRIBUTE_TILT,
 )
-from .util import HistoryType, cubic_interp
+from .util import HistoryType, cubic_interp, format_site_key
 
 if TYPE_CHECKING:
     from .solcastapi import SolcastApi
@@ -256,12 +254,12 @@ class ForecastQuery:
             result[DETAILED_FORECAST] = _tuple
             if self.api.options.attr_brk_site_detailed:
                 for site in self.api.sites:
-                    result[f"{DETAILED_FORECAST}_{site[RESOURCE_ID].replace('-', '_')}"] = tuples[site[RESOURCE_ID]]
+                    result[f"{DETAILED_FORECAST}_{format_site_key(site[RESOURCE_ID])}"] = tuples[site[RESOURCE_ID]]
         if self.api.options.attr_brk_hourly:
             result[DETAILED_HOURLY] = hourly_tuple
             if self.api.options.attr_brk_site_detailed:
                 for site in self.api.sites:
-                    result[f"{DETAILED_HOURLY}_{site[RESOURCE_ID].replace('-', '_')}"] = hourly_tuples[site[RESOURCE_ID]]
+                    result[f"{DETAILED_HOURLY}_{format_site_key(site[RESOURCE_ID])}"] = hourly_tuples[site[RESOURCE_ID]]
         return result
 
     def get_forecast_n_hour(
@@ -429,9 +427,9 @@ class ForecastQuery:
         result: dict[str, Any] = {}
         if self.api.options.attr_brk_site:
             for site in self.api.sites:
-                result[site[RESOURCE_ID].replace("-", "_")] = get_forecast_value(n, site=site[RESOURCE_ID])
+                result[format_site_key(site[RESOURCE_ID])] = get_forecast_value(n, site=site[RESOURCE_ID])
                 for forecast_confidence in self.api.estimate_set:
-                    result[forecast_confidence.replace("pv_", "") + "_" + site[RESOURCE_ID].replace("-", "_")] = get_forecast_value(
+                    result[forecast_confidence.replace("pv_", "") + "_" + format_site_key(site[RESOURCE_ID])] = get_forecast_value(
                         n,
                         site=site[RESOURCE_ID],
                         forecast_confidence=forecast_confidence,

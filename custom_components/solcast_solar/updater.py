@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 from datetime import datetime as dt, timedelta
 import logging
@@ -194,27 +195,27 @@ class Updater:
         """Set the next forecast update message time."""
         self._coordinator.solcast.fetcher.set_next_update(None)
         if len(self._intervals) > 0:
-            next_update = self._intervals[0].astimezone(self._coordinator.solcast.options.tz)
+            tz = self._coordinator.solcast.options.tz
+            next_update = self._intervals[0].astimezone(tz)
             self._coordinator.solcast.fetcher.set_next_update(
-                next_update.strftime(DT_TIME_FORMAT)
-                if next_update.date() == dt.now(self._coordinator.solcast.options.tz).date()
-                else next_update.strftime(DT_DATE_FORMAT)
+                next_update.strftime(DT_TIME_FORMAT) if next_update.date() == dt.now(tz).date() else next_update.strftime(DT_DATE_FORMAT)
             )
 
     def get_auto_update_details(self) -> dict[str, Any]:
         """Return attributes for the last updated sensor."""
 
+        tz = self._coordinator.solcast.options.tz
         base: dict[str, int | dt] = {
-            "last_attempt": self._coordinator.solcast.last_attempt.astimezone(self._coordinator.solcast.options.tz),
+            "last_attempt": self._coordinator.solcast.last_attempt.astimezone(tz),
             "failure_count_today": self._coordinator.solcast.failures_last_24h,
             "failure_count_7_day": self._coordinator.solcast.failures_last_7d,
             "failure_count_14_day": self._coordinator.solcast.failures_last_14d,
         }
         if self._coordinator.solcast.options.auto_update != AutoUpdate.NONE:
             return base | {
-                "next_auto_update": self._intervals[0].astimezone(self._coordinator.solcast.options.tz) if self._intervals else None,
+                "next_auto_update": self._intervals[0].astimezone(tz) if self._intervals else None,
                 "auto_update_divisions": self.divisions,
-                "auto_update_queue": [i.astimezone(self._coordinator.solcast.options.tz) for i in self._intervals[:48]],
+                "auto_update_queue": [i.astimezone(tz) for i in self._intervals[:48]],
             }
         return base
 
@@ -296,10 +297,11 @@ class Updater:
 
         if self._coordinator.solcast.options.get_actuals:
             if not self._coordinator.solcast.estimated_actuals_updated_today:
-                now_minute = self._get_minute_of_day(dt.now(self._coordinator.solcast.options.tz))
+                tz = self._coordinator.solcast.options.tz
+                now_minute = self._get_minute_of_day(dt.now(tz))
                 if now_minute <= self._coordinator.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY]:
                     update_at = (
-                        dt.now(self._coordinator.solcast.options.tz).replace(
+                        dt.now(tz).replace(
                             hour=0,
                             minute=0,
                             second=5
@@ -311,7 +313,7 @@ class Updater:
                     )
                     _LOGGER.debug(
                         "Scheduling generation update at %s",
-                        update_at.astimezone(self._coordinator.solcast.options.tz).strftime(DT_TIME_FORMAT),
+                        update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
                     )
                     self._coordinator.tasks[TASK_NEW_DAY_GENERATION] = async_track_point_in_utc_time(
                         self._coordinator.hass,
@@ -325,12 +327,11 @@ class Updater:
         scheduled = False
         if self._coordinator.solcast.options.get_actuals:
             if not self._coordinator.solcast.estimated_actuals_updated_today:
-                now_minute = self._get_minute_of_day(dt.now(self._coordinator.solcast.options.tz))
+                tz = self._coordinator.solcast.options.tz
+                now_minute = self._get_minute_of_day(dt.now(tz))
                 if now_minute <= self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY]:
                     update_at = (
-                        dt.now(self._coordinator.solcast.options.tz).replace(
-                            hour=0, minute=0, second=0, microsecond=0
-                        )  # i.e. midnight local
+                        dt.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)  # i.e. midnight local
                         + timedelta(
                             minutes=max(now_minute, self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY])
                         )
@@ -338,7 +339,7 @@ class Updater:
                     )
                     _LOGGER.debug(
                         "Scheduling estimated actuals update at %s",
-                        update_at.astimezone(self._coordinator.solcast.options.tz).strftime(DT_TIME_FORMAT),
+                        update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
                     )
                     self._coordinator.tasks[TASK_NEW_DAY_ACTUALS] = async_track_point_in_utc_time(
                         self._coordinator.hass,
@@ -418,49 +419,72 @@ class Updater:
         inf_u = False
         inf_d = False
         inf_d_daily: dict[str, float] = {}
+        log_mape_breakdown = self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN]
+        day_start_minus_30 = self._coordinator.solcast.dt_helper.day_start_utc() - timedelta(minutes=30)
         if self._coordinator.solcast.options.auto_dampen and earliest_dampened_start is not None:
-            if self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN]:
+            if log_mape_breakdown:
                 _LOGGER.debug(
                     "Calculating dampened estimated actual MAPE from %s to %s",
                     earliest_dampened_start.astimezone(self._coordinator.solcast.options.tz).strftime(DT_DATE_ONLY_FORMAT),
-                    (self._coordinator.solcast.dt_helper.day_start_utc() - timedelta(minutes=30))
-                    .astimezone(self._coordinator.solcast.options.tz)
-                    .strftime(DT_DATE_ONLY_FORMAT),
+                    day_start_minus_30.astimezone(self._coordinator.solcast.options.tz).strftime(DT_DATE_ONLY_FORMAT),
                 )
-
-            inf_d, error_dampened, error_dampened_percentiles, inf_d_daily = await self._coordinator.solcast.dampening.calculate_error(
-                generation_dampening_day,
-                generation_dampening,
-                await self._coordinator.solcast.query.get_estimate_list(
+            if log_mape_breakdown:
+                _LOGGER.debug(
+                    "Calculating undampened estimated actual MAPE from %s to %s",
+                    earliest_undampened_start.astimezone(self._coordinator.solcast.options.tz).strftime(DT_DATE_ONLY_FORMAT),
+                    day_start_minus_30.astimezone(self._coordinator.solcast.options.tz).strftime(DT_DATE_ONLY_FORMAT),
+                )
+            dampened_estimates, undampened_estimates = await asyncio.gather(
+                self._coordinator.solcast.query.get_estimate_list(
                     earliest_dampened_start,
-                    self._coordinator.solcast.dt_helper.day_start_utc() - timedelta(minutes=30),
+                    day_start_minus_30,
                     False,  # Undampened = False
                 ),
-                percentiles_to_calculate,
-                self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN],
+                self._coordinator.solcast.query.get_estimate_list(
+                    earliest_undampened_start,
+                    day_start_minus_30,
+                    True,  # Undampened = True
+                ),
+            )
+            (
+                (inf_d, error_dampened, error_dampened_percentiles, inf_d_daily),
+                (inf_u, error_undampened, error_undampened_percentiles, inf_u_daily),
+            ) = await asyncio.gather(
+                self._coordinator.solcast.dampening.calculate_error(
+                    generation_dampening_day,
+                    generation_dampening,
+                    dampened_estimates,
+                    percentiles_to_calculate,
+                    log_mape_breakdown,
+                ),
+                self._coordinator.solcast.dampening.calculate_error(
+                    generation_dampening_day,
+                    generation_dampening,
+                    undampened_estimates,
+                    percentiles_to_calculate,
+                    log_mape_breakdown,
+                ),
             )
         else:
             error_dampened = -1.0  # Not applicable
             error_dampened_percentiles = [-1.0] * len(percentiles_to_calculate)  # Not applicable
-        if self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN]:
-            _LOGGER.debug(
-                "Calculating undampened estimated actual MAPE from %s to %s",
-                earliest_undampened_start.astimezone(self._coordinator.solcast.options.tz).strftime(DT_DATE_ONLY_FORMAT),
-                (self._coordinator.solcast.dt_helper.day_start_utc() - timedelta(minutes=30))
-                .astimezone(self._coordinator.solcast.options.tz)
-                .strftime(DT_DATE_ONLY_FORMAT),
+            if log_mape_breakdown:
+                _LOGGER.debug(
+                    "Calculating undampened estimated actual MAPE from %s to %s",
+                    earliest_undampened_start.astimezone(self._coordinator.solcast.options.tz).strftime(DT_DATE_ONLY_FORMAT),
+                    day_start_minus_30.astimezone(self._coordinator.solcast.options.tz).strftime(DT_DATE_ONLY_FORMAT),
+                )
+            inf_u, error_undampened, error_undampened_percentiles, inf_u_daily = await self._coordinator.solcast.dampening.calculate_error(
+                generation_dampening_day,
+                generation_dampening,
+                await self._coordinator.solcast.query.get_estimate_list(
+                    earliest_undampened_start,
+                    day_start_minus_30,
+                    True,  # Undampened = True
+                ),
+                percentiles_to_calculate,
+                log_mape_breakdown,
             )
-        inf_u, error_undampened, error_undampened_percentiles, inf_u_daily = await self._coordinator.solcast.dampening.calculate_error(
-            generation_dampening_day,
-            generation_dampening,
-            await self._coordinator.solcast.query.get_estimate_list(
-                earliest_undampened_start,
-                self._coordinator.solcast.dt_helper.day_start_utc() - timedelta(minutes=30),
-                True,  # Undampened = True
-            ),
-            percentiles_to_calculate,
-            self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN],
-        )
         if inf_u or inf_d:
             _LOGGER.debug("Excluding %s values", math.inf)
         _LOGGER.debug(

@@ -1,7 +1,5 @@
 """Solcast API."""
 
-# pylint: disable=pointless-string-statement
-
 from __future__ import annotations
 
 import asyncio
@@ -62,6 +60,8 @@ from .const import (
     FORECASTS,
     GENERATION_ENTITIES,
     GET_ACTUALS,
+    HALF_HOUR_MINUTES,
+    HALF_HOUR_SECONDS,
     HARD_LIMIT_API,
     ISSUE_CORRUPT_FILE,
     ISSUE_RECORDS_MISSING,
@@ -529,7 +529,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         dt.strftime(latest.astimezone(self.tz), DT_DATE_FORMAT),
                         data_set,
                     )
-                periods: list[dt] = [earliest + timedelta(minutes=30 * x) for x in range(int((latest - earliest).total_seconds() / 1800))]
+                periods: list[dt] = [
+                    earliest + timedelta(minutes=HALF_HOUR_MINUTES * x)
+                    for x in range(int((latest - earliest).total_seconds() / HALF_HOUR_SECONDS))
+                ]
                 sites_hard_limit[api_key] = {est: {} for est in estimates}
                 for count, period in enumerate(periods):
                     for pv_estimate in estimates:

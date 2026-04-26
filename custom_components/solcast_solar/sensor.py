@@ -70,7 +70,7 @@ from .const import (
     UNRECORDED_ATTRIBUTES,
 )
 from .coordinator import SolcastUpdateCoordinator
-from .util import api_key_last_six, redact_api_key
+from .util import api_key_last_six, format_site_key, redact_api_key
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -490,8 +490,8 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
             exclude = [ANALYSIS, DETAILED_FORECAST, DETAILED_HOURLY]
             if self._coordinator.solcast.options.attr_brk_site_detailed:
                 for s in self._coordinator.solcast.sites:
-                    exclude.append(f"{DETAILED_FORECAST}_" + s[RESOURCE_ID].replace("-", "_"))
-                    exclude.append(f"{DETAILED_HOURLY}_" + s[RESOURCE_ID].replace("-", "_"))
+                    exclude.append(f"{DETAILED_FORECAST}_" + format_site_key(s[RESOURCE_ID]))
+                    exclude.append(f"{DETAILED_HOURLY}_" + format_site_key(s[RESOURCE_ID]))
             self._state_info[UNRECORDED_ATTRIBUTES] = self._state_info[UNRECORDED_ATTRIBUTES] | frozenset(exclude)
 
         elif self.entity_description.key == ENTITY_DAMPEN:

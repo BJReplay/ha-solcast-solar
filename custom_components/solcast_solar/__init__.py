@@ -1,5 +1,7 @@
 """Solcast initialisation."""
 
+from __future__ import annotations
+
 from collections.abc import Awaitable, Callable
 import contextlib
 from datetime import datetime as dt, timedelta

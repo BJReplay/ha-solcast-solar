@@ -1,5 +1,7 @@
 """Repairs for the Solcast Solar integration."""
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 

@@ -58,7 +58,6 @@ from homeassistant.components.solcast_solar.util import (
     SolcastApiStatus,
     compute_energy_intervals,
     compute_power_intervals,
-    percentile,
 )
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
@@ -418,30 +417,6 @@ async def test_auto_dampen_issues(
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
-
-
-@pytest.mark.parametrize(
-    ("data", "pct", "expected"),
-    [
-        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 0, 1.0, id="p0 of [1..5]"),
-        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 25, 2.0, id="p25 of [1..5]"),
-        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 50, 3.0, id="p50 of [1..5]"),
-        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 75, 4.0, id="p75 of [1..5]"),
-        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 100, 5.0, id="p100 of [1..5]"),
-        pytest.param([5.0], 0, 5.0, id="p0 of [5.0]"),
-        pytest.param([5.0], 25, 5.0, id="p25 of [5.0]"),
-        pytest.param([5.0], 50, 5.0, id="p50 of [5.0]"),
-        pytest.param([5.0], 75, 5.0, id="p75 of [5.0]"),
-        pytest.param([5.0], 100, 5.0, id="p100 of [5.0]"),
-        pytest.param([0.1] * 10 + [0.5], 90, 0.1, id="p90 of 10x0.1+0.5"),
-        pytest.param([0.1] * 8 + [0.5], 90, 0.18, id="p90 of 8x0.1+0.5"),
-        pytest.param([], 50, 0.0, id="p50 of []"),
-    ],
-)
-async def test_percentile(data: list[float], pct: int, expected: float) -> None:
-    """Test percentile function."""
-    result = round(percentile(data, pct), 2)
-    assert result == expected, f"p{pct}: expected {expected}, got {result}"
 
 
 async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.LogCaptureFixture) -> None:

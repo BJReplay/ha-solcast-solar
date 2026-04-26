@@ -1,7 +1,5 @@
 """Solcast API fetch and update orchestration."""
 
-# pylint: disable=pointless-string-statement
-
 from __future__ import annotations
 
 import asyncio
@@ -102,6 +100,10 @@ class Fetcher:
         self.api = api
         self._next_update: str | None = None
 
+    def _log_failure(self, message: str, *args: Any) -> None:
+        """Log at warning or error level based on the failure-only advanced option."""
+        (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(message, *args)
+
     async def build_forecast_and_actuals(self, raise_exc=False) -> bool:
         """Build the forecast and estimated actual data.
 
@@ -118,17 +120,13 @@ class Fetcher:
             if self.api.status == SolcastApiStatus.OK and not await self.api.build_forecast_data():
                 self.api.status = SolcastApiStatus.BUILD_FAILED_FORECASTS
                 success = False
-                (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(
-                    "Failed to build forecast data"
-                )
+                self._log_failure("Failed to build forecast data")
                 if raise_exc:
                     raise_and_record(self.api.hass, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_FORECASTS)
             if self.api.status == SolcastApiStatus.OK and self.api.options.get_actuals and not await self.api.build_actual_data():
                 self.api.status = SolcastApiStatus.BUILD_FAILED_ACTUALS
                 success = False
-                (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(
-                    "Failed to build estimated actuals data"
-                )
+                self._log_failure("Failed to build estimated actuals data")
                 if raise_exc:
                     raise_and_record(self.api.hass, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_ACTUALS)
         return success
@@ -233,17 +231,18 @@ class Fetcher:
             await self.api.dampening.apply_yesterday()
 
         if status != DataCallStatus.SUCCESS:
-            (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(
-                "Update estimated actuals failed: %s", reason
-            )
+            self._log_failure("Update estimated actuals failed: %s", reason)
         else:
-            self.api.data_actuals[LAST_UPDATED] = dt.now(UTC).replace(microsecond=0)
-            self.api.data_actuals[LAST_ATTEMPT] = dt.now(UTC).replace(microsecond=0)
-            await self.api.sites_cache.serialise_data(self.api.data_actuals, self.api.filename_actuals)
-            self.api.data_actuals_dampened[LAST_UPDATED] = dt.now(UTC).replace(microsecond=0)
-            self.api.data_actuals_dampened[LAST_ATTEMPT] = dt.now(UTC).replace(microsecond=0)
-            await self.api.sites_cache.serialise_data(self.api.data_actuals_dampened, self.api.filename_actuals_dampened)
-            await self.api.sites_cache.serialise_data(self.api.data, self.api.filename)
+            now = dt.now(UTC).replace(microsecond=0)
+            self.api.data_actuals[LAST_UPDATED] = now
+            self.api.data_actuals[LAST_ATTEMPT] = now
+            self.api.data_actuals_dampened[LAST_UPDATED] = now
+            self.api.data_actuals_dampened[LAST_ATTEMPT] = now
+            await asyncio.gather(
+                self.api.sites_cache.serialise_data(self.api.data_actuals, self.api.filename_actuals),
+                self.api.sites_cache.serialise_data(self.api.data_actuals_dampened, self.api.filename_actuals_dampened),
+                self.api.sites_cache.serialise_data(self.api.data, self.api.filename),
+            )
 
         _LOGGER.debug("Task update_estimated_actuals took %.3f seconds", time.time() - start_time)
 

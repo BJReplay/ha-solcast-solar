@@ -1,7 +1,8 @@
 """Solcast utilities."""
 
-# pylint: disable=consider-using-enumerate
+from __future__ import annotations
 
+# pylint: disable=consider-using-enumerate
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime as dt, timedelta, tzinfo
@@ -249,8 +250,8 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
         _remove_issue()
         return
 
-    api_keys = [key.strip() for key in str(options.get(CONF_API_KEY, "")).split(",") if key.strip()]
-    api_limits = [limit.strip() for limit in str(options.get(API_LIMIT, "")).split(",") if limit.strip()]
+    api_keys = split_and_strip(str(options.get(CONF_API_KEY, "")))
+    api_limits = split_and_strip(str(options.get(API_LIMIT, "")))
     if not api_keys or not api_limits:
         _remove_issue()
         return
@@ -260,7 +261,7 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
         api_limits.append(api_limits[-1])
 
     try:
-        configured_limits = [int(api_limits[index]) for index in range(len(api_keys))]
+        configured_limits = [int(lim) for lim in api_limits]
     except ValueError:
         _remove_issue()
         return
@@ -274,9 +275,9 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
         if (site_key := site.get(CONF_API_KEY)) in sites_per_key:
             sites_per_key[site_key] += 1
 
-    suggested_limits = [max(configured_limits[index] - sites_per_key.get(api_keys[index], 0), 1) for index in range(len(api_keys))]
+    suggested_limits = [max(lim - sites_per_key.get(key, 0), 1) for lim, key in zip(configured_limits, api_keys, strict=True)]
 
-    if all(configured_limits[index] <= suggested_limits[index] for index in range(len(configured_limits))):
+    if all(c <= s for c, s in zip(configured_limits, suggested_limits, strict=True)):
         _remove_issue()
         return
 
@@ -437,7 +438,7 @@ class JSONDecoder(json.JSONDecoder):
         for key, value in o.items():
             try:
                 result[key] = dt.fromisoformat(value)
-            except:  # noqa: E722
+            except (TypeError, ValueError):
                 result[key] = value
         return result
 
@@ -452,6 +453,18 @@ def api_key_last_six(api_key: str) -> str:
     """Return last six characters of API key."""
 
     return api_key[-6:]
+
+
+def split_and_strip(value: str) -> list[str]:
+    """Split a comma-separated string and strip whitespace, discarding empty items."""
+
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def format_site_key(site_id: str) -> str:
+    """Convert a site ID to a safe dictionary key by replacing hyphens with underscores."""
+
+    return site_id.replace("-", "_")
 
 
 def redact_api_key(api_key: str) -> str:
@@ -948,44 +961,19 @@ def cubic_interp(x0: list[Any], x: list[Any], y: list[Any]) -> list[Any]:
 
     """
 
-    def clip(lst: list[Any], min_val: float, max_val: float, in_place: bool = False) -> list[Any]:  # numpy-like clip
-        if not in_place:
-            lst = lst[:]
-        for i in range(len(lst)):
-            if lst[i] < min_val:
-                lst[i] = min_val
-            elif lst[i] > max_val:
-                lst[i] = max_val
-        return lst
-
-    def search_sorted(list_to_insert: list[Any], insert_into: list[Any]) -> list[Any]:  # numpy-like search_sorted
-        def float_search_sorted(float_to_insert: Any, insert_into: list[Any]) -> int:
-            for i in range(len(insert_into)):
-                if float_to_insert <= insert_into[i]:
-                    return i
-            return len(insert_into)
-
-        return [float_search_sorted(i, insert_into) for i in list_to_insert]
-
-    def subtract(a: float, b: float) -> float:
-        return a - b
-
     size: int = len(x)
     x_diff: list[Any] = diff(x, non_negative=False)
     y_diff: list[Any] = diff(y, non_negative=False)
 
     li: list[Any] = [0] * size
     li_1: list[Any] = [0] * (size - 1)
-    z: list[Any] = [0] * (size)
+    z: list[Any] = [0] * size
 
     li[0] = math.sqrt(2 * x_diff[0])
     li_1[0] = 0.0
-    b0: float = 0.0
-    z[0] = b0 / li[0]
+    z[0] = 0.0
 
-    bi: float = 0.0
-
-    for i in range(1, size - 1, 1):
+    for i in range(1, size - 1):
         li_1[i] = x_diff[i - 1] / li[i - 1]
         li[i] = math.sqrt(2 * (x_diff[i - 1] + x_diff[i]) - li_1[i - 1] * li_1[i - 1])
         bi = 6 * (y_diff[i] / x_diff[i] - y_diff[i - 1] / x_diff[i - 1])
@@ -994,33 +982,23 @@ def cubic_interp(x0: list[Any], x: list[Any], y: list[Any]) -> list[Any]:
     i = size - 1
     li_1[i - 1] = x_diff[-1] / li[i - 1]
     li[i] = math.sqrt(2 * x_diff[-1] - li_1[i - 1] * li_1[i - 1])
-    bi = 0.0
-    z[i] = (bi - li_1[i - 1] * z[i - 1]) / li[i]
+    z[i] = -li_1[i - 1] * z[i - 1] / li[i]
 
-    i = size - 1
-    z[i] = z[i] / li[i]
+    z[-1] /= li[-1]
     for i in range(size - 2, -1, -1):
         z[i] = (z[i] - li_1[i - 1] * z[i + 1]) / li[i]
 
-    index = search_sorted(x0, x)
-    index = clip(index, 1, size - 1)
-
-    xi1: list[Any] = [x[num] for num in index]
-    xi0: list[Any] = [x[num - 1] for num in index]
-    yi1: list[Any] = [y[num] for num in index]
-    yi0: list[Any] = [y[num - 1] for num in index]
-    zi1: list[Any] = [z[num] for num in index]
-    zi0: list[Any] = [z[num - 1] for num in index]
-    hi1 = list(map(subtract, xi1, xi0))
-
-    f0: list[Any] = [0] * len(hi1)
-    for j in range(len(f0)):
-        f0[j] = round(
-            zi0[j] / (6 * hi1[j]) * (xi1[j] - x0[j]) ** 3
-            + zi1[j] / (6 * hi1[j]) * (x0[j] - xi0[j]) ** 3
-            + (yi1[j] / hi1[j] - zi1[j] * hi1[j] / 6) * (x0[j] - xi0[j])
-            + (yi0[j] / hi1[j] - zi0[j] * hi1[j] / 6) * (xi1[j] - x0[j]),
+    return [
+        round(
+            z[n - 1] / (6 * (h := x[n] - x[n - 1])) * (x[n] - x_) ** 3
+            + z[n] / (6 * h) * (x_ - x[n - 1]) ** 3
+            + (y[n] / h - z[n] * h / 6) * (x_ - x[n - 1])
+            + (y[n - 1] / h - z[n - 1] * h / 6) * (x[n] - x_),
             4,
         )
-
-    return f0
+        for n, x_ in zip(
+            [max(1, min(next((i for i, val in enumerate(x) if item <= val), len(x)), size - 1)) for item in x0],
+            x0,
+            strict=True,
+        )
+    ]

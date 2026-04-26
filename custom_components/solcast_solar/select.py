@@ -1,5 +1,7 @@
 """Selector to allow users to select the pv_ data field to use for calculations."""
 
+from __future__ import annotations
+
 from enum import IntEnum
 import logging
 from typing import Any

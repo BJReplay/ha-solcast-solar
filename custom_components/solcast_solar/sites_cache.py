@@ -1,7 +1,5 @@
 """Solcast sites, usage and cache management."""
 
-# pylint: disable=pointless-string-statement
-
 from __future__ import annotations
 
 from collections import defaultdict
@@ -90,6 +88,7 @@ from .util import (
     redact_lat_lon,
     redact_lat_lon_simple,
     redact_msg_api_key,
+    split_and_strip,
     upgrade_cache_schema,
 )
 
@@ -375,7 +374,7 @@ class SitesCache:
                         extant_usage[UNKNOWN] = response_json
             return extant_sites, extant_usage
 
-        api_keys = [api_key.strip() for api_key in self.api.options.api_key.split(",")]
+        api_keys = split_and_strip(self.api.options.api_key)
         if self.multi_key:
             await from_single_site_to_multi(api_keys)
         else:
@@ -1009,7 +1008,7 @@ class SitesCache:
             for index in range(len(api_keys)):  # If only one limit value is present, yet there are multiple sites then use the same limit.
                 if len(api_limit_values) < index + 1:
                     api_limit_values.append(api_limit_values[index - 1])
-            quota = {api_keys[index].strip(): int(api_limit_values[index].strip()) for index in range(len(api_limit_values))}
+            quota = {k.strip(): int(v.strip()) for k, v in zip(api_keys, api_limit_values, strict=True)}
 
             for api_key in api_keys:
                 api_key = api_key.strip()

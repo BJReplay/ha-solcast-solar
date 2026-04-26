@@ -1,7 +1,5 @@
 """Solcast advanced options."""
 
-# pylint: disable=pointless-string-statement
-
 from __future__ import annotations
 
 import asyncio

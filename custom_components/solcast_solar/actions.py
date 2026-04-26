@@ -1,5 +1,7 @@
 """Solcast service actions."""
 
+from __future__ import annotations
+
 import asyncio
 from collections.abc import Callable
 from datetime import datetime, timedelta
@@ -117,6 +119,7 @@ from .util import (
     AutoUpdate,
     UsageStatus,
     async_is_allow_exceed_api_limit,
+    split_and_strip,
     sync_legacy_keys,
 )
 from .validators import (
@@ -480,7 +483,7 @@ class ServiceActions:
                 self._solcast.dampening.set_allow_granular_reset(True)
         else:
             await self._solcast.dampening.refresh_granular_data()  # Ensure latest file content gets updated
-            self._solcast.dampening.factors[site] = [float(factors[i]) for i in range(len(factors))]
+            self._solcast.dampening.factors[site] = [float(f) for f in factors]
             await self._solcast.dampening.serialise_granular()
             old_damp = opt.get(SITE_DAMP, False)
             opt[SITE_DAMP] = True  # Set "hidden" option.
@@ -669,8 +672,8 @@ class ServiceActions:
 
         # Apply transformed list/string options.
         for input_key, transform in (
-            (GENERATION_ENTITIES, lambda value: [entity.strip() for entity in value.split(",") if entity.strip()]),
-            (EXCLUDE_SITES, lambda value: [site.strip() for site in value.split(",") if site.strip()]),
+            (GENERATION_ENTITIES, split_and_strip),
+            (EXCLUDE_SITES, split_and_strip),
             (SITE_EXPORT_ENTITY, str.strip),
         ):
             self._apply_option(call.data, opt, input_key, transform=transform)
@@ -883,6 +886,32 @@ def _evaluate_excluded_sites(configured_site_ids: set[str], excluded_sites: set[
     }
 
 
+def _check_entity_status(
+    hass: HomeAssistant,
+    entity_id: str,
+    entity_registry: er.EntityRegistry,
+    entity_label: str,
+    issues: list[str],
+) -> dict[str, Any]:
+    """Check entity registry and state, returning a status dict and appending any issues found."""
+    check: dict[str, Any] = {"entity_id": entity_id}
+    r_entity = entity_registry.async_get(entity_id)
+    if r_entity is None:
+        check["status"] = "not_found"
+        issues.append(f"{entity_label} {entity_id} not found in registry")
+    elif r_entity.disabled_by is not None:
+        check["status"] = "disabled"
+        issues.append(f"{entity_label} {entity_id} is disabled")
+    else:
+        state = hass.states.get(entity_id)
+        if state is None or state.state in ("unavailable", "unknown"):
+            check["status"] = "unavailable"
+            issues.append(f"{entity_label} {entity_id} is unavailable")
+        else:
+            check["status"] = "ok"
+    return check
+
+
 def build_health_check_report(hass: HomeAssistant, coordinator: SolcastUpdateCoordinator, solcast: SolcastApi) -> dict[str, Any]:
     """Build the structured Solcast health report used by diagnostics surfaces."""
     issues: list[str] = []
@@ -978,45 +1007,17 @@ def build_health_check_report(hass: HomeAssistant, coordinator: SolcastUpdateCoo
     generation_entity_checks: list[dict[str, Any]] = []
     if opts.auto_dampen and opts.generation_entities:
         entity_registry = er.async_get(hass)
-        for entity_id in opts.generation_entities:
-            check: dict[str, Any] = {"entity_id": entity_id}
-            r_entity = entity_registry.async_get(entity_id)
-            if r_entity is None:
-                check["status"] = "not_found"
-                issues.append(f"Generation entity {entity_id} not found in registry")
-            elif r_entity.disabled_by is not None:
-                check["status"] = "disabled"
-                issues.append(f"Generation entity {entity_id} is disabled")
-            else:
-                state = hass.states.get(entity_id)
-                if state is None or state.state in ("unavailable", "unknown"):
-                    check["status"] = "unavailable"
-                    issues.append(f"Generation entity {entity_id} is unavailable")
-                else:
-                    check["status"] = "ok"
-            generation_entity_checks.append(check)
+        generation_entity_checks = [
+            _check_entity_status(hass, entity_id, entity_registry, "Generation entity", issues) for entity_id in opts.generation_entities
+        ]
     elif opts.auto_dampen and not opts.generation_entities:
         issues.append("Auto-dampening enabled but no generation entities configured")
 
     export_entity_check: dict[str, Any] = {}
     if opts.site_export_entity:
         entity_id = opts.site_export_entity
-        export_entity_check["entity_id"] = entity_id
         entity_registry = er.async_get(hass)
-        r_entity = entity_registry.async_get(entity_id)
-        if r_entity is None:
-            export_entity_check["status"] = "not_found"
-            issues.append(f"Export entity {entity_id} not found in registry")
-        elif r_entity.disabled_by is not None:
-            export_entity_check["status"] = "disabled"
-            issues.append(f"Export entity {entity_id} is disabled")
-        else:
-            state = hass.states.get(entity_id)
-            if state is None or state.state in ("unavailable", "unknown"):
-                export_entity_check["status"] = "unavailable"
-                issues.append(f"Export entity {entity_id} is unavailable")
-            else:
-                export_entity_check["status"] = "ok"
+        export_entity_check = _check_entity_status(hass, entity_id, entity_registry, "Export entity", issues)
 
     recorder_available = "recorder" in hass.config.components
     if not recorder_available and opts.auto_dampen:

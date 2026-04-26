@@ -1,5 +1,7 @@
 """Solcast constants."""
 
+from __future__ import annotations
+
 import types
 from typing import Any, Final
 
@@ -249,6 +251,8 @@ GENERATION_ENTITIES: Final[str] = "generation_entities"
 GENERATION_VERSION: Final[int] = 1
 GET_ACTUALS: Final[str] = "get_actuals"
 HARD_LIMIT: Final[str] = "hard_limit"
+HALF_HOUR_MINUTES: Final[int] = 30
+HALF_HOUR_SECONDS: Final[int] = 1800
 HARD_LIMIT_API: Final[str] = "hard_limit_api"
 HEADERS_ACCEPT: Final[str] = "Accept"
 HEADERS_USER_AGENT: Final[str] = "User-Agent"
@@ -258,6 +262,7 @@ INFINITY_EXCLUDED: Final[str] = "infinity_excluded"
 INTEGRATION: Final[str] = "Solcast PV Forecast"
 INTEGRATION_AUTOMATED: Final[str] = "integration_automated"
 INTERVAL: Final[str] = "interval"
+INTERVALS_PER_DAY: Final[int] = 48
 ISSUE_API_UNAVAILABLE: Final[str] = "api_unavailable"
 ISSUE_ADVANCED_DEPRECATED: Final[str] = "advanced_deprecated"
 ISSUE_ADVANCED_PROBLEM: Final[str] = "advanced_problem"

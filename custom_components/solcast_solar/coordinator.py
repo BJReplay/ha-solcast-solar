@@ -335,10 +335,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 if self.solcast.options.auto_dampen:
                     factors: dict[str, dict[str, Any]] = {}
                     dst = False
+                    now_local = dt.now(self.solcast.options.tz)
                     for i, f in enumerate(self.solcast.dampening.factors.get(ALL, [])):
-                        dst = dt.now(self.solcast.options.tz).replace(
-                            hour=i // 2, minute=i % 2 * 30, second=0, microsecond=0
-                        ).dst() == timedelta(hours=1)
+                        dst = now_local.replace(hour=i // 2, minute=i % 2 * 30, second=0, microsecond=0).dst() == timedelta(hours=1)
                         interval = f"{i // 2 + (1 if dst else 0):02d}:{i % 2 * 30:02d}"
                         factors[interval] = {
                             INTERVAL: interval,
