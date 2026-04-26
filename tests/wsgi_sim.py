@@ -42,24 +42,21 @@ This simulator is prepared should this occur.
 """
 
 import argparse
-from collections.abc import Callable
 import copy
 import datetime
 from datetime import datetime as dt, timedelta
-import functools
 import json
+import logging
 from logging.config import dictConfig
 import os
 from pathlib import Path
 import random
 import subprocess
 import sys
-from typing import Any, cast
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from simulator import API_KEY_SITES, SimulatedSolcast
-import werkzeug
-
 simulate = SimulatedSolcast()
 DEFAULT_PORT = 443
 
@@ -161,25 +158,25 @@ _LOGGER = app.logger
 counter_last_reset = dt.now(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)  # Previous UTC midnight
 
 
-def _werkzeug_log_suppressor(func: Callable[..., Any]) -> Callable[..., Any]:
-    @functools.wraps(func)
-    def wrapper(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> Any:
-        if len(args) > 1 and (isinstance(args[1], str)):
-            if (
-                args[1].startswith("WARNING: This is a development server.")
-                or "* Running on http" in args[1]
-                or "Press CTRL+C to quit" in args[1]
-            ):
-                return None
-            if " - - [" in args[1] and len(args) >= 5:
-                # address = args[1].split(" - - [", 1)[0]
-                request_line = str(args[2])
-                status = str(args[3])
-                # size = str(args[4])
-                return func(args[0], 'Request: "%s" -> %s', request_line, status)
-        return func(*args, **kwargs)
+class _WerkzeugLogFilter(logging.Filter):
+    """Suppress startup noise and reformat access log entries for the Werkzeug logger."""
 
-    return wrapper
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Return False to suppress a record, or True to allow it (possibly modified)."""
+        msg = record.getMessage()
+        if (
+            msg.startswith("WARNING: This is a development server.")
+            or " * Running on http" in msg
+            or "Press CTRL+C to quit" in msg
+        ):
+            return False
+        if isinstance(record.args, tuple) and len(record.args) >= 2 and " - - [" in record.msg:
+            try:
+                record.msg = 'Request: "%s" -> %s'
+                record.args = (str(record.args[0]), str(record.args[1]))
+            except (IndexError, TypeError):
+                pass
+        return True
 
 
 def validate_call(api_key: str, site_id: str | None = None, counter: bool = True) -> tuple[int, Any, Any]:
@@ -434,9 +431,7 @@ def main(argv: list[str] | None = None) -> None:
     _LOGGER.info("Integration issues raised regarding this script will be closed without response")
 
     globals().update(_apply_args(args))
-    serving = cast(Any, werkzeug.serving)
-    werkzeug_log = serving._log
-    serving._log = _werkzeug_log_suppressor(werkzeug_log)
+    logging.getLogger("werkzeug").addFilter(_WerkzeugLogFilter())
     app.run(debug=args.debug, host="127.0.0.1", port=args.port, ssl_context=("cert.pem", "key.pem"))
 
 

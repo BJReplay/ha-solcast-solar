@@ -986,7 +986,7 @@ def cubic_interp(x0: list[Any], x: list[Any], y: list[Any]) -> list[Any]:
 
     z[-1] /= li[-1]
     for i in range(size - 2, -1, -1):
-        z[i] = (z[i] - li_1[i - 1] * z[i + 1]) / li[i]
+        z[i] = (z[i] - li_1[i] * z[i + 1]) / li[i]
 
     return [
         round(
