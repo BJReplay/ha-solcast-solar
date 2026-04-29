@@ -67,7 +67,9 @@ Adjusts historical generation and estimated actual values for changing sun geome
 
 Past data used to model dampening for today was recorded on days when the sun tracked a different arc across the sky. In spring and autumn in particular, a half-hour interval fourteen days ago may have seen a noticeably different solar elevation than the same half-hour today, which biases the "peak" and per-pair ratios used by the various dampening models. This bias is strongest around sunrise and sunset, and for sites further from the equator.
 
-When this option is enabled the integration computes, for every past half-hour sample used in modelling, the ratio `sin(elevation_today) / sin(elevation_past)`, where `elevation_today` is the sun elevation at the matching half-hour today and `elevation_past` being when the sample was recorded. Each historical estimated actual and generation pair for dampening models 1/2/3 has an appropriate ratio applied, and the peak estimated actual used by the default model is likewise normalised to today's sun geometry.
+When this option is enabled the integration computes a geometry-normalised ratio between past and present timestamps for every past half-hour sample used in modelling. This normalises historical PV generation samples from a prior day to the expected solar contribution on the present day, compensating for solar-geometry drift. Said another way, your given panel tilt and azimuth will subtly change generation over time based on where the sun would be, so this mechanism compensates for that in automated dampening computations to improve peak interval comparison.
+
+Each historical estimated actual and generation pair for dampening models 1/2/3 has an appropriate ratio applied, and the peak estimated actual used by the default model is likewise normalised to today's sun geometry.
 
 **Key: "automated_dampening_generation_fetch_delay"**
 
