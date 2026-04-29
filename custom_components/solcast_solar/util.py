@@ -259,6 +259,7 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
     original_limit_count = len(api_limits)
     while len(api_limits) < len(api_keys):
         api_limits.append(api_limits[-1])
+    api_limits = api_limits[: len(api_keys)]
 
     try:
         configured_limits = [int(lim) for lim in api_limits]
