@@ -419,6 +419,7 @@ class AdvancedOptions:
                     ):
                         _LOGGER.debug("Forcing allow_exceed_api_limit_maximum to true because solcast_url is non-default")
                         advanced_options_proposal[ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM] = True
+                        change = True
                     self.api.advanced_options.update(advanced_options_proposal)
                     if not self.api.advanced_options.get(ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION, False):
                         await clear_cache(self.api.filename_dampening_history, False)  # remove dampening history if necessary

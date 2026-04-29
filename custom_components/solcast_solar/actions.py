@@ -916,7 +916,7 @@ def build_health_check_report(hass: HomeAssistant, coordinator: SolcastUpdateCoo
     """Build the structured Solcast health report used by diagnostics surfaces."""
     issues: list[str] = []
 
-    api_keys_count = len(solcast.options.api_key.split(","))
+    api_keys_count = len(split_and_strip(solcast.options.api_key))
     api_used = solcast.api_used_count
     api_limit_val = solcast.api_limit
     api_remaining = max(api_limit_val - api_used, 0)
