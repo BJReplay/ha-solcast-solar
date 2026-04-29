@@ -1008,6 +1008,7 @@ class SitesCache:
             for index in range(len(api_keys)):  # If only one limit value is present, yet there are multiple sites then use the same limit.
                 if len(api_limit_values) < index + 1:
                     api_limit_values.append(api_limit_values[index - 1])
+            api_limit_values = api_limit_values[: len(api_keys)]
             quota = {k.strip(): int(v.strip()) for k, v in zip(api_keys, api_limit_values, strict=True)}
 
             for api_key in api_keys:
