@@ -15,6 +15,7 @@ from homeassistant.components.recorder import Recorder
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.components.solcast_solar.const import (
     API_LIMIT,
+    AUTO_DAMPEN,
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
@@ -22,6 +23,12 @@ from homeassistant.components.solcast_solar.const import (
     CUSTOM_HOURS,
     DEFAULT_FORECAST_DAY_SENSORS,
     DEFAULT_FORECAST_DAYS,
+    ESTIMATE,
+    ESTIMATE10,
+    ESTIMATE90,
+    UNDAMPENED_ESTIMATE,
+    UNDAMPENED_ESTIMATE10,
+    UNDAMPENED_ESTIMATE90,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.forecast import ForecastQuery
@@ -559,6 +566,40 @@ async def test_sensor_states(  # noqa: C901
             interval_entry = ci["intervals"][0]
             assert "period_start" in interval_entry
             assert "spread_kwh" in interval_entry
+
+        # Verify undampened day totals are exposed consistently on all day sensors.
+        for sensor_name in sensors:
+            if sensor_name not in ("forecast_today", "forecast_tomorrow") and "forecast_day_" not in sensor_name:
+                continue
+            state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor_name}")
+            assert state is not None, f"{sensor_name} sensor state should exist"
+            attribs = state.attributes
+            if sensor_name == "forecast_today":
+                day = 0
+            elif sensor_name == "forecast_tomorrow":
+                day = 1
+            else:
+                day = int(sensor_name.replace("forecast_day_", "")) - 1
+            if settings[AUTO_DAMPEN]:
+                assert attribs.get(UNDAMPENED_ESTIMATE) == solcast.query.get_total_energy_forecast_day(
+                    day,
+                    forecast_confidence=ESTIMATE,
+                    undampened=True,
+                )
+                assert attribs.get(UNDAMPENED_ESTIMATE10) == solcast.query.get_total_energy_forecast_day(
+                    day,
+                    forecast_confidence=ESTIMATE10,
+                    undampened=True,
+                )
+                assert attribs.get(UNDAMPENED_ESTIMATE90) == solcast.query.get_total_energy_forecast_day(
+                    day,
+                    forecast_confidence=ESTIMATE90,
+                    undampened=True,
+                )
+            else:
+                assert UNDAMPENED_ESTIMATE not in attribs
+                assert UNDAMPENED_ESTIMATE10 not in attribs
+                assert UNDAMPENED_ESTIMATE90 not in attribs
 
         # Test last sensor update time.
         freezer.move_to(now.replace(hour=2, minute=30, second=0, microsecond=0))

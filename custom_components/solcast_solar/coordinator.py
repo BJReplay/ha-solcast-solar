@@ -45,6 +45,9 @@ from .const import (
     ENTITY_POWER_NOW_30M,
     ENTITY_TOTAL_KWH_FORECAST_TODAY,
     ENTITY_TOTAL_KWH_FORECAST_TOMORROW,
+    ESTIMATE,
+    ESTIMATE10,
+    ESTIMATE90,
     FACTOR,
     FACTORS,
     INFINITY_EXCLUDED,
@@ -60,6 +63,9 @@ from .const import (
     TASK_MIDNIGHT_UPDATE,
     UNDAMPENED_APE_BREAKDOWN,
     UNDAMPENED_DAILY,
+    UNDAMPENED_ESTIMATE,
+    UNDAMPENED_ESTIMATE10,
+    UNDAMPENED_ESTIMATE90,
     UNDAMPENED_MAPE,
     UNDAMPENED_PERCENTILES,
     VALUE,
@@ -127,6 +133,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         days = [ENTITY_TOTAL_KWH_FORECAST_TODAY, ENTITY_TOTAL_KWH_FORECAST_TOMORROW] + [
             f"total_kwh_forecast_d{r}" for r in range(3, self.advanced_day_entities)
         ]
+        self._forecast_day_keys = set(days)
         self.__get_value |= {
             day: [
                 {METHOD: self.solcast.query.get_total_energy_forecast_day, VALUE: ahead},
@@ -392,6 +399,27 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     **{f"dampened_p{p}_ape": v for p, v in data.get(DAMPENED_PERCENTILES, {}).items()},
                     **{f"undampened_p{p}_ape": v for p, v in data.get(UNDAMPENED_PERCENTILES, {}).items()},
                 }
+
+        forecast_day_keys: set[str] = getattr(self, "_forecast_day_keys", set())
+        if key in forecast_day_keys and self.solcast.options.auto_dampen:
+            ahead = self.__get_value[key][0][VALUE]
+            ret |= {
+                UNDAMPENED_ESTIMATE: self.solcast.query.get_total_energy_forecast_day(
+                    ahead,
+                    forecast_confidence=ESTIMATE,
+                    undampened=True,
+                ),
+                UNDAMPENED_ESTIMATE10: self.solcast.query.get_total_energy_forecast_day(
+                    ahead,
+                    forecast_confidence=ESTIMATE10,
+                    undampened=True,
+                ),
+                UNDAMPENED_ESTIMATE90: self.solcast.query.get_total_energy_forecast_day(
+                    ahead,
+                    forecast_confidence=ESTIMATE90,
+                    undampened=True,
+                ),
+            }
 
         if key == ENTITY_API_COUNTER:
             ret[API_FORCE_USED] = self.solcast.successes_forced_24h

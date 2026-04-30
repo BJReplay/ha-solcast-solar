@@ -492,6 +492,9 @@ For the `Forecast Next X Hours` sensor only:
 For daily forecast sensors only:
 
 * `analysis`: Forecast confidence analysis derived from the spread between `estimate10` and `estimate90` (dict), contains the day totals for `estimate10_kwh` and `estimate90_kwh`, the `spread_kwh` between them, a `confidence` score (0–1, where 1 = quite certain, 0.1 not so much), and an `intervals` list with per-half-hour `period_start`, `spread_kwh` and `confidence` values.
+* `undampened_estimate`: Undampened daily total for the 50th percentile forecast (number, kWh). Available only when automated dampening is enabled.
+* `undampened_estimate10`: Undampened daily total for the 10th percentile forecast (number, kWh). Available only when automated dampening is enabled.
+* `undampened_estimate90`: Undampened daily total for the 90th percentile forecast (number, kWh). Available only when automated dampening is enabled.
 * `detailedForecast`: A half-hourly breakdown of expected average power generation for each interval (list of dicts, units in kW, not kWh), and if automated dampening is active then the factor determined for each interval is also included
 * `detailedHourly`: An hourly breakdown of expected average power generation for each interval (list of dicts, units in kW)
 * `detailedForecast_1234_5678_9012_3456`: A half-hourly site-specific breakdown of expected average power generation for each interval (list of dicts, units in kW)
@@ -1437,6 +1440,7 @@ v4.5.3
 
 * Add sun elevation adjustment for automated dampening by @autoSteve
 * Expanded diagnostic self-test service action by @autoSteve
+* Add undampened total forecast attributes when auto-dampen is enabled by @autoSteve
 * Include health check detail in diagnostic download by @autoSteve
 * Code refactoring by @autoSteve
 * Add tests to suite to ensure runtime reliability by @autoSteve

@@ -398,6 +398,7 @@ class ForecastQuery:
         n_day: int,
         site: str | None = None,
         forecast_confidence: str | None = None,
+        undampened: bool = False,
     ) -> float | None:
         """Return forecast production total for N days ahead.
 
@@ -405,13 +406,20 @@ class ForecastQuery:
             n_day (int): A day (0 = today, 1 = tomorrow, etc., with a maximum of day FORECAST_DAYS - 1).
             site (str): An optional Solcast site ID, used to build site breakdown attributes.
             forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
+            undampened (bool): Whether to use undampened forecast data.
 
         Returns:
             float | None: The forecast total solar generation for a given day as kWh.
         """
         start_utc = self.api.dt_helper.day_start_utc(future=n_day)
         end_utc = self.api.dt_helper.day_start_utc(future=n_day + 1)
-        estimate = self._get_forecast_pv_estimates(start_utc, end_utc, site=site, forecast_confidence=forecast_confidence)
+        estimate = self._get_forecast_pv_estimates(
+            start_utc,
+            end_utc,
+            site=site,
+            forecast_confidence=forecast_confidence,
+            undampened=undampened,
+        )
         return round(0.5 * estimate, 4) if estimate is not None else None
 
     def get_forecast_attributes(self, get_forecast_value: Any, n: int = 0) -> dict[str, Any]:
@@ -716,6 +724,7 @@ class ForecastQuery:
         end_utc: dt,
         site: str | None = None,
         forecast_confidence: str | None = None,
+        undampened: bool = False,
     ) -> float | None:
         """Return energy total for a period.
 
@@ -724,11 +733,15 @@ class ForecastQuery:
             end_utc (datetime): End of time period datetime in UTC.
             site (str): Optional Solcast site ID, used to provide site breakdown.
             forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
+            undampened (bool): Whether to use undampened forecast data.
 
         Returns:
             float | None: Energy forecast total for a period as kWh.
         """
-        data = self.api.data_forecasts if site is None else self.api.site_data_forecasts[site]
+        if site is None:
+            data = self.api.data_forecasts_undampened if undampened else self.api.data_forecasts
+        else:
+            data = self.api.site_data_forecasts_undampened[site] if undampened else self.api.site_data_forecasts[site]
         forecast_confidence = self.api.use_forecast_confidence if forecast_confidence is None else forecast_confidence
         result = 0
         start_index, end_index = self.get_list_slice(  # Get start and end indexes for the requested range.
