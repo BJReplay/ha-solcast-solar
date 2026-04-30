@@ -428,6 +428,9 @@ async def test_api_failure(
             session_set(MOCK_BUSY)
             entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
+            if entry.state in (ConfigEntryState.SETUP_ERROR, ConfigEntryState.SETUP_RETRY):
+                await hass.config_entries.async_remove(entry.entry_id)
+                await hass.async_block_till_done()
             session_clear(MOCK_BUSY)
             hass.data[DOMAIN][PRESUMED_DEAD] = False
 
@@ -436,6 +439,9 @@ async def test_api_failure(
                 session_set(returned)
                 entry = await async_init_integration(hass, DEFAULT_INPUT2)
                 assertions(entry)
+                if entry.state in (ConfigEntryState.SETUP_ERROR, ConfigEntryState.SETUP_RETRY):
+                    await hass.config_entries.async_remove(entry.entry_id)
+                    await hass.async_block_till_done()
                 session_clear(returned)
                 hass.data[DOMAIN][PRESUMED_DEAD] = False
 
@@ -443,14 +449,23 @@ async def test_api_failure(
             session_set(MOCK_EXCEPTION, exception=ConnectionRefusedError)
             entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
+            if entry.state in (ConfigEntryState.SETUP_ERROR, ConfigEntryState.SETUP_RETRY):
+                await hass.config_entries.async_remove(entry.entry_id)
+                await hass.async_block_till_done()
             hass.data[DOMAIN][PRESUMED_DEAD] = False
             session_set(MOCK_EXCEPTION, exception=TimeoutError)
             entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
+            if entry.state in (ConfigEntryState.SETUP_ERROR, ConfigEntryState.SETUP_RETRY):
+                await hass.config_entries.async_remove(entry.entry_id)
+                await hass.async_block_till_done()
             hass.data[DOMAIN][PRESUMED_DEAD] = False
             session_set(MOCK_EXCEPTION, exception=ClientConnectionError)
             entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
+            if entry.state in (ConfigEntryState.SETUP_ERROR, ConfigEntryState.SETUP_RETRY):
+                await hass.config_entries.async_remove(entry.entry_id)
+                await hass.async_block_till_done()
             session_clear(MOCK_EXCEPTION)
             hass.data[DOMAIN][PRESUMED_DEAD] = False
 
@@ -471,6 +486,7 @@ async def test_api_failure(
                     session_set(MOCK_EXCEPTION, exception=test["exception"])
 
                 entry: ConfigEntry = await async_init_integration(hass, DEFAULT_INPUT2)
+                await _wait_for_startup_tasks(hass, caplog)
                 coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
                 solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
                 solcast.options.auto_update = AutoUpdate.NONE
@@ -500,7 +516,6 @@ async def test_api_failure(
                 else:
                     session_clear(MOCK_EXCEPTION)
 
-                await hass.config_entries.async_unload(entry.entry_id)
                 await hass.async_block_till_done()
             caplog.clear()
 
