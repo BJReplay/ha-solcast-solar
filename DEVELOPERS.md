@@ -38,7 +38,7 @@ To get the WSGI simulator to work an advanced integration option (`solcast_url`)
 
 Re-building the dev container will require `/etc/hosts` to be modified again if that approach has been used. Using the advanced option persists a re-build, and even more so if a mount of the config folder has been done.
 
-The tests will show up at `tests/components/solcast_solar`. `cd` to there and execute `pytest` for all, or `pytest test_xxxx.py` for just one test module. To inspect logging, `pytest -o log_cli=true --log-cli-level=DEBUG [module.py ...]`. For a test coverage report, `pytest --cov=homeassistant.components.solcast_solar --cov-report term-missing -v`.
+The tests will show up at `tests/components/solcast_solar`. `cd` to there and execute `pytest -n auto` for all, or `pytest test_xxxx.py` for just one test module. To inspect logging, `pytest -o log_cli=true --log-cli-level=DEBUG [module.py ...]`. For a test coverage report, `pytest -n auto --cov=homeassistant.components.solcast_solar --cov-report term-missing -v` using `xdist` parallelism (drop `-n auto` for a serialised run).
 
 Additional test contributions will be most welcome. In fact, test contributions will be required if your code modifications introduce lines of code that are not properly tested by the current PyTest modules.
 
