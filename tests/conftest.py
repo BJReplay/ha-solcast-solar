@@ -9,6 +9,8 @@ import freezegun
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
+from . import aioresponses_reset
+
 import tests.common as tests_common
 
 _SUPPRESS_LOGGERS = [
@@ -32,6 +34,13 @@ def suppress_noisy_loggers() -> Generator[None]:
     yield
     for logger, was_disabled in zip(loggers, previous, strict=True):
         logger.disabled = was_disabled
+
+
+@pytest.fixture(autouse=True)
+def reset_aioresponses() -> Generator[None]:
+    """Ensure the aiohttp mock is stopped after every test."""
+    yield
+    aioresponses_reset()
 
 
 @pytest.fixture(autouse=True)
