@@ -340,6 +340,14 @@ async def _wait_for(caplog: pytest.LogCaptureFixture, wait_text: str) -> None:
             await asyncio.sleep(0.01)
 
 
+async def _wait_for_startup_tasks(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
+    """Wait for startup-triggered tasks that can race with the next test phase."""
+
+    if "Started task stale_update" in caplog.text:
+        await _wait_for(caplog, "Completed task stale_update")
+    await hass.async_block_till_done()
+
+
 async def _wait_for_raise(hass: HomeAssistant, exception: Exception) -> None:
     """Wait for exception."""
 
@@ -416,6 +424,7 @@ async def test_api_failure(
             caplog.clear()
 
         async def too_busy(assertions: Callable[[ConfigEntry], None]):
+            caplog.clear()
             session_set(MOCK_BUSY)
             entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
@@ -504,8 +513,11 @@ async def test_api_failure(
 
         # Normal start and teardown to create caches
         session_clear(MOCK_BUSY)
+        caplog.clear()
         entry: ConfigEntry = await async_init_integration(hass, DEFAULT_INPUT2)
+        await _wait_for_startup_tasks(hass, caplog)
         assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
+        await hass.async_block_till_done()
 
         # Test API too busy during get sites with the cache present
         await too_busy(assertions2_busy)
@@ -932,6 +944,7 @@ async def test_remaining_actions(
 
         # Start with two API keys and three sites
         entry = await async_init_integration(hass, DEFAULT_INPUT2)
+        await _wait_for_startup_tasks(hass, caplog)
         assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
         assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
         await hass.async_block_till_done()
@@ -2326,9 +2339,7 @@ async def test_config_folder_migration(
         assert not config_file_old.is_file(), f"File {config_file_old} should not exist"
         assert config_file_new.is_file(), f"File {config_file_new} should exist"
         assert entry.state is ConfigEntryState.LOADED, f"Expected entry state ConfigEntryState.LOADED, got {entry.state}"
-        assert re.search(
-            r"INFO.+Migrating config directory file.+config/solcast-test.json to .+config/solcast_solar/solcast-test.json", caplog.text
-        )
+        assert f"Migrating config directory file {config_file_old} to {config_file_new}" in caplog.text
         no_error_or_exception(caplog)
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
