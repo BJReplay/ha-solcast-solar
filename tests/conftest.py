@@ -11,7 +11,7 @@ import pytest
 
 import tests.common as tests_common
 
-disable_loggers = [
+_SUPPRESS_LOGGERS = [
     "homeassistant.core",
     "homeassistant.components.recorder.core",
     "homeassistant.components.recorder.pool",
@@ -22,12 +22,16 @@ disable_loggers = [
 ]
 
 
-def pytest_configure():
-    """Disable loggers."""
-
-    for logger_name in disable_loggers:
-        logger = logging.getLogger(logger_name)
+@pytest.fixture(autouse=True)
+def suppress_noisy_loggers() -> Generator[None]:
+    """Disable noisy loggers for the duration of each test only."""
+    loggers = [logging.getLogger(name) for name in _SUPPRESS_LOGGERS]
+    previous = [logger.disabled for logger in loggers]
+    for logger in loggers:
         logger.disabled = True
+    yield
+    for logger, was_disabled in zip(loggers, previous, strict=True):
+        logger.disabled = was_disabled
 
 
 @pytest.fixture(autouse=True)
