@@ -188,7 +188,7 @@
     "damp_not_for_site": {
       "message": "サイト {site} に対するサイト別ダンペニングは設定されていません。"
     },
-    "damp_not_site": {
+    "not_a_site": {
       "message": "設定されたサイトではありません。"
     },
     "damp_outside_range": {

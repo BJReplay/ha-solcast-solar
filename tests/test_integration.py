@@ -44,6 +44,7 @@ from homeassistant.components.solcast_solar.const import (
     DOMAIN,
     EVENT_END_DATETIME,
     EVENT_START_DATETIME,
+    EXCEPTION_NOT_A_SITE,
     EXCLUDE_SITES,
     FORECASTS,
     GENERATION_ENTITIES,
@@ -1540,6 +1541,22 @@ async def test_remaining_actions(
                 blocking=True,
                 return_response=True,
             )
+
+        # Test invalid site
+        _LOGGER.debug("Testing invalid site for query forecast data")
+        with pytest.raises(ServiceValidationError) as exc_info:
+            await hass.services.async_call(
+                DOMAIN,
+                "query_forecast_data",
+                {
+                    EVENT_START_DATETIME: solcast.dt_helper.day_start_utc().isoformat(),
+                    EVENT_END_DATETIME: solcast.dt_helper.day_start_utc(future=1).isoformat(),
+                    SITE: "9999-9999-9999-9999",
+                },
+                blocking=True,
+                return_response=True,
+            )
+        assert exc_info.value.translation_key == EXCEPTION_NOT_A_SITE
 
         # Verify data schema
         verify_data_schema(solcast.data)

@@ -188,7 +188,7 @@
     "damp_not_for_site": {
       "message": "La amortiguación del sitio no está configurada para {site}."
     },
-    "damp_not_site": {
+    "not_a_site": {
       "message": "No es un sitio configurado."
     },
     "damp_outside_range": {

@@ -56,13 +56,13 @@ from .const import (
     EXCEPTION_DAMP_ERROR_PARSING,
     EXCEPTION_DAMP_NO_ALL_24,
     EXCEPTION_DAMP_NO_FACTORS,
-    EXCEPTION_DAMP_NOT_SITE,
     EXCEPTION_DAMP_OUTSIDE_RANGE,
     EXCEPTION_DAMPEN_WITHOUT_ACTUALS,
     EXCEPTION_DAMPEN_WITHOUT_GENERATION,
     EXCEPTION_EXPORT_NO_ENTITY,
     EXCEPTION_INIT_KEY_INVALID,
     EXCEPTION_INTEGRATION_NOT_LOADED,
+    EXCEPTION_NOT_A_SITE,
     EXCEPTION_SET_OPTIONS_EMPTY,
     EXCLUDE_SITES,
     FAILURES_LAST_7D,
@@ -391,10 +391,13 @@ class ServiceActions:
         """
         try:
             _LOGGER.info("Action: Query forecast data")
+            site = call.data.get(SITE, "all").replace("_", "-")
+            if site != "all" and site not in [s[RESOURCE_ID] for s in self._solcast.sites]:
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_NOT_A_SITE)
             data = await self._solcast.query.get_forecast_list(
                 dt_util.as_utc(call.data.get(EVENT_START_DATETIME, dt_util.now())),
                 dt_util.as_utc(call.data.get(EVENT_END_DATETIME, dt_util.now())),
-                call.data.get(SITE, "all").replace("_", "-"),
+                site,
                 call.data.get(UNDAMPENED, False),
             )
         except ValueError as e:
@@ -455,7 +458,7 @@ class ServiceActions:
                 if (len(factors)) != 48:
                     raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_DAMP_NO_ALL_24)
             elif site not in [s[RESOURCE_ID] for s in self._solcast.sites]:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_DAMP_NOT_SITE)
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_NOT_A_SITE)
         elif len(factors) == 48:
             site = "all"
         out_of_range = False

@@ -188,7 +188,7 @@
     "damp_not_for_site": {
       "message": "Site dampening is not set for {site}."
     },
-    "damp_not_site": {
+    "not_a_site": {
       "message": "Not a configured site."
     },
     "damp_outside_range": {

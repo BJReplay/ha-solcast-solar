@@ -188,7 +188,7 @@
     "damp_not_for_site": {
       "message": "Sitedemping is niet ingesteld voor {site}."
     },
-    "damp_not_site": {
+    "not_a_site": {
       "message": "Geen geconfigureerde site."
     },
     "damp_outside_range": {

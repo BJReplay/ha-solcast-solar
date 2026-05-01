@@ -188,7 +188,7 @@
     "damp_not_for_site": {
       "message": "Tłumienie witryny nie jest ustawione dla {site}."
     },
-    "damp_not_site": {
+    "not_a_site": {
       "message": "Nie skonfigurowana witryna."
     },
     "damp_outside_range": {
