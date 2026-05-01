@@ -15,7 +15,6 @@ from homeassistant.components.recorder import Recorder
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.components.solcast_solar.const import (
     API_LIMIT,
-    AUTO_DAMPEN,
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
@@ -580,7 +579,7 @@ async def test_sensor_states(  # noqa: C901
                 day = 1
             else:
                 day = int(sensor_name.replace("forecast_day_", "")) - 1
-            if settings[AUTO_DAMPEN]:
+            if solcast.dampening_enabled:
                 assert attribs.get(UNDAMPENED_ESTIMATE) == solcast.query.get_total_energy_forecast_day(
                     day,
                     forecast_confidence=ESTIMATE,
@@ -653,6 +652,45 @@ async def test_sensor_x_hours_long(
         assert state.state == "86910"
         no_error_or_exception(caplog)
 
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_forecast_day_undampened_attributes_with_manual_dampening(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+) -> None:
+    """Test day undampened attributes are exposed when manual dampening is active."""
+
+    settings = copy.deepcopy(DEFAULT_INPUT1)
+    settings["damp12"] = 0.9
+
+    try:
+        entry = await async_init_integration(hass, settings)
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast = coordinator.solcast
+
+        assert solcast.dampening_enabled
+
+        state = hass.states.get("sensor.solcast_pv_forecast_forecast_today")
+        assert state is not None
+        attribs = state.attributes
+
+        assert attribs.get(UNDAMPENED_ESTIMATE) == solcast.query.get_total_energy_forecast_day(
+            0,
+            forecast_confidence=ESTIMATE,
+            undampened=True,
+        )
+        assert attribs.get(UNDAMPENED_ESTIMATE10) == solcast.query.get_total_energy_forecast_day(
+            0,
+            forecast_confidence=ESTIMATE10,
+            undampened=True,
+        )
+        assert attribs.get(UNDAMPENED_ESTIMATE90) == solcast.query.get_total_energy_forecast_day(
+            0,
+            forecast_confidence=ESTIMATE90,
+            undampened=True,
+        )
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 

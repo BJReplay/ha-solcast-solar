@@ -401,7 +401,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 }
 
         forecast_day_keys: set[str] = getattr(self, "_forecast_day_keys", set())
-        if key in forecast_day_keys and self.solcast.options.auto_dampen:
+        if key in forecast_day_keys and self.solcast.dampening_enabled:
             ahead = self.__get_value[key][0][VALUE]
             ret |= {
                 UNDAMPENED_ESTIMATE: self.solcast.query.get_total_energy_forecast_day(
