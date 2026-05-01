@@ -405,7 +405,19 @@ async def _wait_for(caplog: pytest.LogCaptureFixture, wait_text: str) -> None:
 async def _wait_for_startup_tasks(hass: HomeAssistant, caplog: pytest.LogCaptureFixture) -> None:
     """Wait for startup-triggered tasks that can race with the next test phase."""
 
-    if "Started task stale_update" in caplog.text:
+    stale_update_started = "Started task stale_update" in caplog.text
+    deadline = asyncio.get_running_loop().time() + 1
+
+    while not stale_update_started and "Completed task stale_update" not in caplog.text:
+        await hass.async_block_till_done()
+        if "Started task stale_update" in caplog.text:
+            stale_update_started = True
+            break
+        if asyncio.get_running_loop().time() >= deadline:
+            break
+        await asyncio.sleep(0.01)
+
+    if stale_update_started and "Completed task stale_update" not in caplog.text:
         await _wait_for(caplog, "Completed task stale_update")
     await hass.async_block_till_done()
 
