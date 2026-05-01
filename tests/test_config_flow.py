@@ -25,9 +25,39 @@ from homeassistant.components.solcast_solar.config_flow import (
 )
 from homeassistant.components.solcast_solar.const import (
     ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
+    ADVANCED_API_RAISE_ISSUES,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
+    ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
+    ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS,
+    ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS,
+    ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR,
+    ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED,
+    ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION,
+    ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS,
+    ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS,
+    ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT,
+    ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY,
+    ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK,
+    ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY,
+    ADVANCED_ENTITY_LOGGING,
+    ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY,
+    ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES,
+    ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN,
+    ADVANCED_FORECAST_DAY_ENTITIES,
+    ADVANCED_FORECAST_FUTURE_DAYS,
+    ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT,
+    ADVANCED_HISTORY_MAX_DAYS,
     ADVANCED_INVALID_JSON_TASK,
     ADVANCED_OPTION,
+    ADVANCED_RELOAD_ON_ADVANCED_CHANGE,
     ADVANCED_SOLCAST_PORT,
+    ADVANCED_SOLCAST_URL,
+    ADVANCED_TRIGGER_ON_API_AVAILABLE,
+    ADVANCED_TRIGGER_ON_API_UNAVAILABLE,
+    AFFIRMATION_REAUTH_SUCCESSFUL,
+    AFFIRMATION_RECONFIGURED,
     API_LIMIT,
     AUTO_DAMPEN,
     AUTO_UPDATE,
@@ -42,7 +72,26 @@ from homeassistant.components.solcast_solar.const import (
     CONFIG_FOLDER_DISCRETE,
     CONFIG_VERSION,
     CUSTOM_HOURS,
+    DAILY_LIMIT,
+    DAILY_LIMIT_CONSUMED,
+    DEFAULT_DAMPENING_SUPPRESSION_ENTITY,
+    DEFAULT_SOLCAST_HTTPS_URL,
     DOMAIN,
+    EXCEPTION_ACTUALS_WITHOUT_GET,
+    EXCEPTION_API_DUPLICATE,
+    EXCEPTION_API_LOOKS_LIKE_SITE,
+    EXCEPTION_CUSTOM_INVALID,
+    EXCEPTION_DAMPEN_WITHOUT_ACTUALS,
+    EXCEPTION_DAMPEN_WITHOUT_GENERATION,
+    EXCEPTION_EXPORT_MULTIPLE_ENTITIES,
+    EXCEPTION_EXPORT_NO_ENTITY,
+    EXCEPTION_HARD_NOT_POSITIVE_NUMBER,
+    EXCEPTION_HARD_TOO_MANY,
+    EXCEPTION_LIMIT_EXCEEDS_MAXIMUM,
+    EXCEPTION_LIMIT_NOT_NUMBER,
+    EXCEPTION_LIMIT_ONE_OR_GREATER,
+    EXCEPTION_LIMIT_TOO_MANY,
+    EXCEPTION_SINGLE_INSTANCE_ALLOWED,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
     GET_ACTUALS,
@@ -52,6 +101,8 @@ from homeassistant.components.solcast_solar.const import (
     ISSUE_ADVANCED_PROBLEM,
     KEY_ESTIMATE,
     PRESUMED_DEAD,
+    PROBLEMS,
+    RESET,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
@@ -90,6 +141,10 @@ from tests.common import MockConfigEntry
 
 _LOGGER = logging.getLogger(__name__)
 
+# Keep config flow tests on one xdist worker to reduce scheduling variance
+# and shared-state side effects across workers.
+pytestmark = pytest.mark.xdist_group("solcast_config_flow")
+
 API_KEY1 = "65sa6d46-sadf876_sd54"
 API_KEY2 = "65sa6946-glad876_pf69"
 
@@ -103,17 +158,17 @@ MOCK_ENTRY1 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT1_COP
 MOCK_ENTRY2 = MockConfigEntry(domain=DOMAIN, data={}, options=DEFAULT_INPUT2_COPY)
 
 TEST_API_KEY: list[tuple[Any, Any]] = [
-    ({CONF_API_KEY: "1234-5678-8765-4321", API_LIMIT: "10", AUTO_UPDATE: "1"}, "api_looks_like_site"),
-    ({CONF_API_KEY: KEY1 + "," + KEY1, API_LIMIT: "10", AUTO_UPDATE: "1"}, "api_duplicate"),
+    ({CONF_API_KEY: "1234-5678-8765-4321", API_LIMIT: "10", AUTO_UPDATE: "1"}, EXCEPTION_API_LOOKS_LIKE_SITE),
+    ({CONF_API_KEY: KEY1 + "," + KEY1, API_LIMIT: "10", AUTO_UPDATE: "1"}, EXCEPTION_API_DUPLICATE),
     ({CONF_API_KEY: KEY1, API_LIMIT: "10", AUTO_UPDATE: "0"}, None),
     ({CONF_API_KEY: KEY1, API_LIMIT: "10", AUTO_UPDATE: "1"}, None),
     ({CONF_API_KEY: KEY1 + "," + KEY2, API_LIMIT: "10", AUTO_UPDATE: "2"}, None),
-    ({CONF_API_KEY: KEY1 + "," + KEY2, API_LIMIT: "0", AUTO_UPDATE: "2"}, "limit_one_or_greater"),
+    ({CONF_API_KEY: KEY1 + "," + KEY2, API_LIMIT: "0", AUTO_UPDATE: "2"}, EXCEPTION_LIMIT_ONE_OR_GREATER),
 ]
 
 TEST_REAUTH_API_KEY: list[tuple[Any, Any]] = [
-    ({CONF_API_KEY: "1234-5678-8765-4321"}, "api_looks_like_site"),
-    ({CONF_API_KEY: KEY1 + "," + KEY1}, "api_duplicate"),
+    ({CONF_API_KEY: "1234-5678-8765-4321"}, EXCEPTION_API_LOOKS_LIKE_SITE),
+    ({CONF_API_KEY: KEY1 + "," + KEY1}, EXCEPTION_API_DUPLICATE),
     ({CONF_API_KEY: "555"}, "Bad API key, 403/Forbidden"),
     ({CONF_API_KEY: KEY1 + "," + KEY2}, None),
 ]
@@ -152,13 +207,13 @@ TEST_KEY_CHANGES: list[tuple[Any, Any, str | None, list[str]]] = [
 ]
 
 TEST_API_LIMIT: list[tuple[dict[Any, Any], dict[Any, Any], str | None]] = [
-    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "invalid", AUTO_UPDATE: "1"}, "limit_not_number"),
-    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "0", AUTO_UPDATE: "1"}, "limit_one_or_greater"),
-    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "51", AUTO_UPDATE: "1"}, "limit_exceeds_maximum"),
-    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "10,10", AUTO_UPDATE: "1"}, "limit_too_many"),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "invalid", AUTO_UPDATE: "1"}, EXCEPTION_LIMIT_NOT_NUMBER),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "0", AUTO_UPDATE: "1"}, EXCEPTION_LIMIT_ONE_OR_GREATER),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "51", AUTO_UPDATE: "1"}, EXCEPTION_LIMIT_EXCEEDS_MAXIMUM),
+    (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "10,10", AUTO_UPDATE: "1"}, EXCEPTION_LIMIT_TOO_MANY),
     (DEFAULT_INPUT1, {CONF_API_KEY: KEY1, API_LIMIT: "10", AUTO_UPDATE: "1"}, None),
     (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_LIMIT: "10,10", AUTO_UPDATE: "1"}, None),
-    (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_LIMIT: "10,10,10", AUTO_UPDATE: "1"}, "limit_too_many"),
+    (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_LIMIT: "10,10,10", AUTO_UPDATE: "1"}, EXCEPTION_LIMIT_TOO_MANY),
     (DEFAULT_INPUT2, {CONF_API_KEY: KEY1 + "," + KEY2, API_LIMIT: "10", AUTO_UPDATE: "1"}, None),
 ]
 
@@ -172,7 +227,7 @@ async def test_single_instance(
 
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": config_entries.SOURCE_USER})
     assert result.get("type") is FlowResultType.ABORT
-    assert result.get("reason") == "single_instance_allowed"
+    assert result.get("reason") == EXCEPTION_SINGLE_INSTANCE_ALLOWED
 
 
 async def test_create_entry(hass: HomeAssistant) -> None:
@@ -289,7 +344,7 @@ async def test_reauth_api_key(
                 user_input=test[USER_INPUT],
             )
             await hass.async_block_till_done()
-            if result.get("reason") != "reauth_successful":
+            if result.get("reason") != AFFIRMATION_REAUTH_SUCCESSFUL:
                 assert test[REASON] in result["errors"]["base"]  # type: ignore[index]
 
         await hass.config_entries.async_unload(entry.entry_id)
@@ -304,7 +359,7 @@ async def test_reauth_api_key(
             user_input={CONF_API_KEY: "4" + "," + KEY2},
         )
         await hass.async_block_till_done()
-        assert result.get("reason") == "reauth_successful"
+        assert result.get("reason") == AFFIRMATION_REAUTH_SUCCESSFUL
         assert "An API key has changed, resetting usage" not in caplog.text  # Existing key change, so not seen
         assert "API key ******4 has changed" in caplog.text
         assert "Using extant cache data for API key ******4" in caplog.text
@@ -379,7 +434,7 @@ async def test_reconfigure_api_key1(
                 user_input=test[USER_INPUT],
             )
             await hass.async_block_till_done()
-            if result.get("reason") != "reconfigured":
+            if result.get("reason") != AFFIRMATION_RECONFIGURED:
                 assert result["errors"]["base"] == test[REASON]  # type: ignore[index]
 
         await hass.config_entries.async_unload(entry.entry_id)
@@ -450,7 +505,7 @@ async def test_reconfigure_api_key2(
         if to_assert:
             assert to_assert in result["errors"]["base"]  # type: ignore[index]
         else:
-            assert result.get("reason") == "reconfigured"
+            assert result.get("reason") == AFFIRMATION_RECONFIGURED
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
@@ -587,11 +642,23 @@ async def test_allow_exceed_api_limit_advanced_option_not_dict(hass: HomeAssista
     assert not await _async_is_allow_exceed_api_limit(hass), "API limit exceed should not be allowed"
 
 
+async def test_allow_exceed_api_limit_advanced_option_not_boolean(hass: HomeAssistant) -> None:
+    """Test that a non-boolean override value defaults to not allowing exceed."""
+
+    config_dir = Path(hass.config.config_dir)
+    advanced_dir = config_dir / CONFIG_DISCRETE_NAME if CONFIG_FOLDER_DISCRETE else config_dir
+    advanced_dir.mkdir(parents=True, exist_ok=True)
+    advanced_file = advanced_dir / "solcast-advanced.json"
+    advanced_file.write_text(json.dumps({ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM: "true"}), encoding="utf-8")
+
+    assert not await _async_is_allow_exceed_api_limit(hass), "API limit exceed should not be allowed"
+
+
 @pytest.mark.parametrize(
     ("options", "value", "reason"),
     [
-        ((DEFAULT_INPUT1, 0, "custom_invalid")),
-        ((DEFAULT_INPUT1, 145, "custom_invalid")),
+        ((DEFAULT_INPUT1, 0, EXCEPTION_CUSTOM_INVALID)),
+        ((DEFAULT_INPUT1, 145, EXCEPTION_CUSTOM_INVALID)),
         ((DEFAULT_INPUT1, 8, None)),
     ],
 )
@@ -611,9 +678,9 @@ async def test_options_custom_hour_sensor(hass: HomeAssistant, options: dict[str
 @pytest.mark.parametrize(
     ("options", "value", "reason"),
     [
-        ((DEFAULT_INPUT1, "invalid", "hard_not_positive_number")),
-        ((DEFAULT_INPUT1, "-1", "hard_not_positive_number")),
-        ((DEFAULT_INPUT1, "6,6.0", "hard_too_many")),
+        ((DEFAULT_INPUT1, "invalid", EXCEPTION_HARD_NOT_POSITIVE_NUMBER)),
+        ((DEFAULT_INPUT1, "-1", EXCEPTION_HARD_NOT_POSITIVE_NUMBER)),
+        ((DEFAULT_INPUT1, "6,6.0", EXCEPTION_HARD_TOO_MANY)),
         ((DEFAULT_INPUT1, "6", None)),
         ((DEFAULT_INPUT2, "6,6.0", None)),
         ((DEFAULT_INPUT2, "6", None)),
@@ -636,11 +703,11 @@ async def test_options_hard_limit(hass: HomeAssistant, options: dict[str, Any], 
 @pytest.mark.parametrize(
     ("options", "reason"),
     [
-        (({GET_ACTUALS: False, USE_ACTUALS: 1, SITE_EXPORT_ENTITY: []}, "actuals_without_get")),
-        (({AUTO_DAMPEN: True, GET_ACTUALS: False, SITE_EXPORT_ENTITY: []}, "dampen_without_actuals")),
-        (({AUTO_DAMPEN: True, GET_ACTUALS: True, GENERATION_ENTITIES: [], SITE_EXPORT_ENTITY: []}, "dampen_without_generation")),
-        (({SITE_EXPORT_ENTITY: ["entity.one", "entity.two"]}, "export_multiple_entities")),
-        (({SITE_EXPORT_LIMIT: 5, SITE_EXPORT_ENTITY: []}, "export_no_entity")),
+        (({GET_ACTUALS: False, USE_ACTUALS: 1, SITE_EXPORT_ENTITY: []}, EXCEPTION_ACTUALS_WITHOUT_GET)),
+        (({AUTO_DAMPEN: True, GET_ACTUALS: False, SITE_EXPORT_ENTITY: []}, EXCEPTION_DAMPEN_WITHOUT_ACTUALS)),
+        (({AUTO_DAMPEN: True, GET_ACTUALS: True, GENERATION_ENTITIES: [], SITE_EXPORT_ENTITY: []}, EXCEPTION_DAMPEN_WITHOUT_GENERATION)),
+        (({SITE_EXPORT_ENTITY: ["entity.one", "entity.two"]}, EXCEPTION_EXPORT_MULTIPLE_ENTITIES)),
+        (({SITE_EXPORT_LIMIT: 5, SITE_EXPORT_ENTITY: []}, EXCEPTION_EXPORT_NO_ENTITY)),
     ],
 )
 async def test_options_auto_dampen(hass: HomeAssistant, options: dict[str, Any], reason: str | None) -> None:
@@ -693,7 +760,7 @@ async def test_dampen(
         flow.hass = hass
 
         result = await flow.async_step_dampen(user_input)
-        assert result.get("reason") == "reconfigured"
+        assert result.get("reason") == AFFIRMATION_RECONFIGURED
         for key, expect in value.items():
             assert entry.options[key] == expect
 
@@ -766,9 +833,7 @@ async def test_entry_options_upgrade(
 
         # Test API limit gets imported from existing cache in upgrade to V9
         data_file = Path(f"{config_dir}/solcast-usage.json")
-        data_file.write_text(
-            json.dumps({"daily_limit": 50, "daily_limit_consumed": 34, "reset": "2024-01-01T00:00:00+00:00"}), encoding="utf-8"
-        )
+        data_file.write_text(json.dumps({DAILY_LIMIT: 50, DAILY_LIMIT_CONSUMED: 34, RESET: "2024-01-01T00:00:00+00:00"}), encoding="utf-8")
         entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
         assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
         assert entry.options.get("api_quota") == "50"
@@ -833,7 +898,7 @@ async def test_presumed_dead_and_full_flow(
             user_input,
         )
         await hass.async_block_till_done()
-        assert result.get("reason") == "reconfigured"
+        assert result.get("reason") == AFFIRMATION_RECONFIGURED
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
@@ -893,33 +958,33 @@ async def test_advanced_options(
 
         _LOGGER.debug("Testing advanced options 1")
         data_file_1: dict[str, Any] = {
-            "api_raise_issues": True,
-            "automated_dampening_adaptive_model_configuration": False,
-            "automated_dampening_adaptive_model_exclude": [],
-            "automated_dampening_adaptive_model_minimum_history_days": 3,
-            "automated_dampening_minimum_matching_intervals": 2,
-            "automated_dampening_ignore_intervals": ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30"],
-            "automated_dampening_insignificant_factor": 0.95,
-            "automated_dampening_insignificant_factor_adjusted": 0.95,
-            "automated_dampening_no_delta_adjustment": False,
-            "automated_dampening_no_limiting_consistency": False,
-            "automated_dampening_model_days": 14,
-            "automated_dampening_generation_fetch_delay": 0,
-            "automated_dampening_generation_history_load_days": 7,
-            "automated_dampening_similar_peak": 0.90,
-            "automated_dampening_suppression_entity": "solcast_suppress_auto_dampening",
-            "entity_logging": True,  # The odd-man-out, detected as removed later and set to default
-            "estimated_actuals_fetch_delay": 0,
-            "estimated_actuals_log_ape_percentiles": [50],
-            "estimated_actuals_log_mape_breakdown": False,
-            "forecast_day_entities": 8,
-            "forecast_future_days": 14,
+            ADVANCED_API_RAISE_ISSUES: True,
+            ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: False,
+            ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: [],
+            ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: 3,
+            ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS: 2,
+            ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS: ["12:00", "12:30", "13:00", "13:30", "14:00", "14:30", "15:00", "15:30"],
+            ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR: 0.95,
+            ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED: 0.95,
+            ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT: False,
+            ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY: False,
+            ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS: 14,
+            ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: 0,
+            ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS: 7,
+            ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: 0.90,
+            ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY: DEFAULT_DAMPENING_SUPPRESSION_ENTITY,
+            ADVANCED_ENTITY_LOGGING: True,  # The odd-man-out, detected as removed later and set to default
+            ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY: 0,
+            ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES: [50],
+            ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN: False,
+            ADVANCED_FORECAST_DAY_ENTITIES: 8,
+            ADVANCED_FORECAST_FUTURE_DAYS: 14,
             "forecast_history_max_days": 730,  # Intentionally using deprecated name to test aliasing
-            "reload_on_advanced_change": False,
-            "solcast_port": 0,
-            "solcast_url": "https://api.solcast.com.au",
-            "trigger_on_api_available": "",
-            "trigger_on_api_unavailable": "",
+            ADVANCED_RELOAD_ON_ADVANCED_CHANGE: False,
+            ADVANCED_SOLCAST_PORT: 0,
+            ADVANCED_SOLCAST_URL: DEFAULT_SOLCAST_HTTPS_URL,
+            ADVANCED_TRIGGER_ON_API_AVAILABLE: "",
+            ADVANCED_TRIGGER_ON_API_UNAVAILABLE: "",
         }
         caplog.clear()
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
@@ -940,36 +1005,36 @@ async def test_advanced_options(
 
         _LOGGER.debug("Testing advanced options 2")
         data_file_2: dict[str, Any] = {
-            "api_raise_issues": False,
-            "automated_dampening_adaptive_model_configuration": 0,
-            "automated_dampening_adaptive_model_exclude": ["wrong", "wrong", "so wrong"],
-            "automated_dampening_adaptive_model_minimum_history_days": 0,
-            "automated_dampening_minimum_matching_generation": 0,
-            "automated_dampening_minimum_matching_intervals": 0,
-            "automated_dampening_ignore_intervals": ["24:00", "12:20", "13:00", "13:00", "14:00", "14:30", "15:00", "15:30"],
-            "automated_dampening_insignificant_factor": 1.1,
-            "automated_dampening_insignificant_factor_adjusted": 1.1,
-            "automated_dampening_no_delta_adjustment": "wrong_type",
-            "automated_dampening_model_days": 21,
-            "automated_dampening_generation_fetch_delay": -10,
-            "automated_dampening_generation_history_load_days": 22,
-            "automated_dampening_similar_peak": 1.1,
-            "automated_dampening_suppression_entity": 5,
-            "estimated_actuals_fetch_delay": 140,
-            "estimated_actuals_log_ape_percentiles": [10, 50, 10, "wrong_type", 0.5],
-            "forecast_day_entities": 16,
-            "forecast_future_days": 16,
-            "history_max_days": 10,
-            "granular_dampening_delta_adjustment": False,
-            "reload_on_advanced_change": True,
+            ADVANCED_API_RAISE_ISSUES: False,
+            ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: 0,
+            ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: ["wrong", "wrong", "so wrong"],
+            ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: 0,
+            ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION: 0,
+            ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS: 0,
+            ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS: ["24:00", "12:20", "13:00", "13:00", "14:00", "14:30", "15:00", "15:30"],
+            ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR: 1.1,
+            ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED: 1.1,
+            ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT: "wrong_type",
+            ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS: 21,
+            ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: -10,
+            ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS: 22,
+            ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: 1.1,
+            ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY: 5,
+            ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY: 140,
+            ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES: [10, 50, 10, "wrong_type", 0.5],
+            ADVANCED_FORECAST_DAY_ENTITIES: 16,
+            ADVANCED_FORECAST_FUTURE_DAYS: 16,
+            ADVANCED_HISTORY_MAX_DAYS: 10,
+            ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: False,
+            ADVANCED_RELOAD_ON_ADVANCED_CHANGE: True,
             "unknown_option": True,
-            "solcast_port": 8443,
-            "solcast_url": "https://localhost",
+            ADVANCED_SOLCAST_PORT: 8443,
+            ADVANCED_SOLCAST_URL: "https://localhost",
         }
         data_file.write_text(json.dumps(data_file_2), encoding="utf-8")
         await wait()
         for option, value in data_file_1.items():
-            if option in ["reload_on_advanced_change", "solcast_port", "solcast_url"]:
+            if option in [ADVANCED_RELOAD_ON_ADVANCED_CHANGE, ADVANCED_SOLCAST_PORT, ADVANCED_SOLCAST_URL]:
                 continue
             if advanced_options_with_aliases.get(option) is None:
                 assert f"Unknown advanced option ignored: {option}" in caplog.text
@@ -1012,14 +1077,14 @@ async def test_advanced_options(
         assert "Start is not stale" in caplog.text
 
         # Cause an additional error to check issue gets re-raised
-        data_file_2["automated_dampening_model_days"] = 99
+        data_file_2[ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS] = 99
         data_file.write_text(json.dumps(data_file_2), encoding="utf-8")
         await wait()
         assert "automated_dampening_model_days: 99 (must be 2-21)" in caplog.text
         issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ADVANCED_PROBLEM)
         assert issue is not None and issue.translation_placeholders is not None
-        assert "automated_dampening_model_days: 99" in issue.translation_placeholders["problems"]
-        assert "unknown_option" in issue.translation_placeholders["problems"]
+        assert "automated_dampening_model_days: 99" in issue.translation_placeholders[PROBLEMS]
+        assert "unknown_option" in issue.translation_placeholders[PROBLEMS]
 
         _LOGGER.debug("Testing advanced options revert to defaults")
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
@@ -1031,7 +1096,7 @@ async def test_advanced_options(
 
         _LOGGER.debug("Testing advanced options 3")
         data_file_3: dict[str, Any] = {
-            "automated_dampening_adaptive_model_exclude": [
+            ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: [
                 {"model": 2},
                 {"model": 3, "delta": 1},
                 {"model": 3, "delta": "hairy_one"},
@@ -1040,12 +1105,12 @@ async def test_advanced_options(
                 {"model": 1, "delta": 1, "gift_with_purchase": True},
                 {"bullshit": "value", "delta": "value", "so wrong": "value"},
             ],
-            "automated_dampening_generation_fetch_delay": 40,
-            "estimated_actuals_fetch_delay": 30,
-            "forecast_future_days": 8,
-            "forecast_day_entities": 10,
-            "granular_dampening_delta_adjustment": True,
-            "automated_dampening_no_delta_adjustment": True,
+            ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: 40,
+            ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY: 30,
+            ADVANCED_FORECAST_FUTURE_DAYS: 8,
+            ADVANCED_FORECAST_DAY_ENTITIES: 10,
+            ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: True,
+            ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT: True,
             "forecast_history_max_days": 365,
         }
         data_file.write_text(json.dumps(data_file_3), encoding="utf-8")
@@ -1088,13 +1153,13 @@ async def test_advanced_options(
 
         _LOGGER.debug("Testing advanced options 4")
         requires = {
-            "automated_dampening_adaptive_model_configuration": [
-                {"option": "automated_dampening_adaptive_model_minimum_history_days", "value": 7},
-                {"option": "automated_dampening_adaptive_model_exclude", "value": [{"model": 1, "delta": 2}]},
+            ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: [
+                {"option": ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS, "value": 7},
+                {"option": ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE, "value": [{"model": 1, "delta": 2}]},
             ]
         }
         data_file_4: dict[str, Any] = {
-            "automated_dampening_adaptive_model_configuration": False,
+            ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: False,
             **{option["option"]: option["value"] for options in requires.values() for option in options},
         }
         data_file.write_text(json.dumps(data_file_4), encoding="utf-8")
@@ -1110,8 +1175,8 @@ async def test_advanced_options(
         assert "Advanced options file invalid format, expected JSON `dict`" in caplog.text
         assert "Raise issue in 60 seconds" in caplog.text
 
-        data_file_1["reload_on_advanced_change"] = True
-        data_file_1["forecast_day_entities"] = 14
+        data_file_1[ADVANCED_RELOAD_ON_ADVANCED_CHANGE] = True
+        data_file_1[ADVANCED_FORECAST_DAY_ENTITIES] = 14
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
         await wait()
         assert ADVANCED_INVALID_JSON_TASK not in solcast.tasks

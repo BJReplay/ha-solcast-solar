@@ -15,18 +15,28 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
+    ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT,
+    ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
+    ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS,
+    ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR,
+    ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED,
     ADVANCED_AUTOMATED_DAMPENING_MODEL,
     ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT,
+    ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY,
+    ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY,
+    ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN,
     ADVANCED_OPTIONS,
     ALL,
     AUTO_DAMPEN,
     AUTO_UPDATE,
     DOMAIN,
     ENTITY_ACCURACY,
+    ESTIMATE,
     EXCLUDE_SITES,
     EXPORT_LIMITING,
     FORECASTS,
@@ -89,18 +99,18 @@ async def test_adaptive_auto_dampen(  # noqa: C901
         write_advanced_options(
             hass.config.config_dir,
             {
-                "automated_dampening_adaptive_model_configuration": True,
-                "automated_dampening_elevation_adjustment": False,
-                "automated_dampening_model": 3,
-                "automated_dampening_delta_adjustment_model": -1,
-                "automated_dampening_adaptive_model_exclude": [{"model": 3, "delta": 0}],
-                "automated_dampening_ignore_intervals": ["17:00"],
-                "automated_dampening_no_limiting_consistency": True,
-                "automated_dampening_generation_fetch_delay": 5,
-                "automated_dampening_insignificant_factor": 0.988,
-                "automated_dampening_insignificant_factor_adjusted": 0.989,
-                "estimated_actuals_fetch_delay": 5,
-                "estimated_actuals_log_mape_breakdown": True,
+                ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: True,
+                ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: False,
+                ADVANCED_AUTOMATED_DAMPENING_MODEL: 3,
+                ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: -1,
+                ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: [{"model": 3, "delta": 0}],
+                ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS: ["17:00"],
+                ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY: True,
+                ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: 5,
+                ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR: 0.988,
+                ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED: 0.989,
+                ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY: 5,
+                ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN: True,
             },
         )
 
@@ -121,20 +131,20 @@ async def test_adaptive_auto_dampen(  # noqa: C901
 
         # Fiddle with undampened data cache
         undampened = json.loads(Path(f"{config_dir}/solcast-undampened.json").read_text(encoding="utf-8"), cls=JSONDecoder)
-        for site in undampened["siteinfo"].values():
-            for forecast in site["forecasts"]:
-                forecast["pv_estimate"] *= 0.85
+        for site in undampened[SITE_INFO].values():
+            for forecast in site[FORECASTS]:
+                forecast[ESTIMATE] *= 0.85
         Path(f"{config_dir}/solcast-undampened.json").write_text(json.dumps(undampened, cls=DateTimeEncoder), encoding="utf-8")
 
         # Fiddle with estimated actual data cache
         actuals = json.loads(Path(f"{config_dir}/solcast-actuals.json").read_text(encoding="utf-8"), cls=JSONDecoder)
-        for site in actuals["siteinfo"].values():
-            for forecast in site["forecasts"]:
+        for site in actuals[SITE_INFO].values():
+            for forecast in site[FORECASTS]:
                 if (
-                    forecast["period_start"].astimezone(ZoneInfo(ZONE_RAW)).hour == 10
-                    and forecast["period_start"].astimezone(ZoneInfo(ZONE_RAW)).minute == 30
+                    forecast[PERIOD_START].astimezone(ZoneInfo(ZONE_RAW)).hour == 10
+                    and forecast[PERIOD_START].astimezone(ZoneInfo(ZONE_RAW)).minute == 30
                 ):
-                    forecast["pv_estimate"] *= 0.91
+                    forecast[ESTIMATE] *= 0.91
         Path(f"{config_dir}/solcast-actuals.json").write_text(json.dumps(actuals, cls=DateTimeEncoder), encoding="utf-8")
 
         # Reload to load saved data and prime initial generation
@@ -164,7 +174,7 @@ async def test_adaptive_auto_dampen(  # noqa: C901
             _LOGGER.debug("Rolling over to tomorrow")
             caplog.clear()
             removed = -5
-            solcast.data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"].pop(removed)
+            solcast.data_actuals[SITE_INFO]["1111-1111-1111-1111"][FORECASTS].pop(removed)
             freezer.move_to((dt.now(solcast.tz) + timedelta(**roll)).replace(minute=0, second=0, microsecond=0))
             await hass.async_block_till_done()
             solcast.suppress_advanced_watchdog_reload = True
@@ -180,8 +190,8 @@ async def test_adaptive_auto_dampen(  # noqa: C901
                     assert "Dampening history actuals suppressed site 3333-3333-3333-3333" in caplog.text
                     assert "Skipping model 2 and delta 0 as history of 2 days" in caplog.text
                     assert "Skipping model 2 and delta 1 as history of 1 days" in caplog.text
-                    assert "Advanced option 'automated_dampening_delta_adjustment_model' set to: 1" in caplog.text
-                    assert "Advanced option 'automated_dampening_model' set to: 0" in caplog.text
+                    assert f"Advanced option '{ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL}' set to: 1" in caplog.text
+                    assert f"Advanced option '{ADVANCED_AUTOMATED_DAMPENING_MODEL}' set to: 0" in caplog.text
                     assert "Task serialise_advanced_options took" in caplog.text
                     assert re.search(r"Advanced options file .+ exists", caplog.text) is None, (
                         "Advanced options file existence log should not appear"
@@ -362,7 +372,7 @@ async def test_adaptive_auto_dampen(  # noqa: C901
         _LOGGER.debug("Testing adaptive dampening with missing actuals for dampening history entry")
         # Get one of the days from dampening history that should have actuals
         sample_entry = solcast.dampening.auto_factors_history[0][-1][1]
-        problem_day = solcast.dt_helper.day_start(sample_entry["period_start"])
+        problem_day = solcast.dt_helper.day_start(sample_entry[PERIOD_START])
         saved_actuals = {}
         for site_id in solcast.data_actuals[SITE_INFO]:
             if site_id not in saved_actuals:
@@ -415,7 +425,7 @@ async def test_update_history_deal_breaker(
         write_advanced_options(
             hass.config.config_dir,
             {
-                "automated_dampening_adaptive_model_configuration": True,
+                ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: True,
             },
         )
 
@@ -471,14 +481,14 @@ async def test_select_comparison_interval_variance(
         solcast.dampening.auto_factors_history = {
             0: {
                 VALUE_ADAPTIVE_DAMPENING_NO_DELTA: [
-                    {"period_start": day_start, "factors": factors_a},
-                    {"period_start": day_start, "factors": factors_b},
+                    {PERIOD_START: day_start, "factors": factors_a},
+                    {PERIOD_START: day_start, "factors": factors_b},
                 ]
             },
             1: {
                 VALUE_ADAPTIVE_DAMPENING_NO_DELTA: [
-                    {"period_start": day_start, "factors": factors_b},
-                    {"period_start": day_start, "factors": factors_a},
+                    {PERIOD_START: day_start, "factors": factors_b},
+                    {PERIOD_START: day_start, "factors": factors_a},
                 ]
             },
         }
@@ -511,7 +521,7 @@ async def test_select_comparison_interval_single_factor(
         factors = [1.0] * 48
         factors[0] = 0.9
 
-        solcast.dampening.auto_factors_history = {0: {VALUE_ADAPTIVE_DAMPENING_NO_DELTA: [{"period_start": day_start, "factors": factors}]}}
+        solcast.dampening.auto_factors_history = {0: {VALUE_ADAPTIVE_DAMPENING_NO_DELTA: [{PERIOD_START: day_start, "factors": factors}]}}
 
         selected_interval, avg_gen, avg_factor, variance = solcast.dampening.adaptive._select_comparison_interval(generation_dampening, 1)
 
@@ -554,9 +564,9 @@ async def test_select_comparison_interval_diluted_variance(
         factors_a[0] = 0.9
         factors_b[0] = 0.5
 
-        undampened_entry = {"period_start": day_start, "factors": [1.0] * 48}
-        history_a = [undampened_entry] * 8 + [{"period_start": day_start, "factors": factors_a}]
-        history_b = [undampened_entry] * 8 + [{"period_start": day_start, "factors": factors_b}]
+        undampened_entry = {PERIOD_START: day_start, "factors": [1.0] * 48}
+        history_a = [undampened_entry] * 8 + [{PERIOD_START: day_start, "factors": factors_a}]
+        history_b = [undampened_entry] * 8 + [{PERIOD_START: day_start, "factors": factors_b}]
 
         solcast.dampening.auto_factors_history = {
             0: {VALUE_ADAPTIVE_DAMPENING_NO_DELTA: history_a},
@@ -644,8 +654,8 @@ async def test_select_comparison_interval_prefers_persistent_error(
         factors_a[20] = 0.8
         factors_b[20] = 0.6
         solcast.dampening.auto_factors_history = {
-            0: {VALUE_ADAPTIVE_DAMPENING_NO_DELTA: [{"period_start": day_start, "factors": factors_a}]},
-            1: {VALUE_ADAPTIVE_DAMPENING_NO_DELTA: [{"period_start": day_start, "factors": factors_b}]},
+            0: {VALUE_ADAPTIVE_DAMPENING_NO_DELTA: [{PERIOD_START: day_start, "factors": factors_a}]},
+            1: {VALUE_ADAPTIVE_DAMPENING_NO_DELTA: [{PERIOD_START: day_start, "factors": factors_b}]},
         }
 
         actuals = defaultdict(lambda: [0.0] * 48)
@@ -713,7 +723,7 @@ async def test_select_comparison_interval_current_factors_fallback(
         # History is entirely undampened — all factors 1.0 — so history-based scoring
         # produces zero for every interval.
         solcast.dampening.auto_factors_history = {
-            0: {VALUE_ADAPTIVE_DAMPENING_NO_DELTA: [{"period_start": day_start, "factors": [1.0] * 48}]},
+            0: {VALUE_ADAPTIVE_DAMPENING_NO_DELTA: [{PERIOD_START: day_start, "factors": [1.0] * 48}]},
         }
 
         # The running model applies heavy dampening at interval 15 (factor 0.55)
@@ -770,8 +780,8 @@ async def test_build_dampened_actuals_gap_tolerance(
         solcast.dampening.auto_factors_history = {
             0: {
                 0: [
-                    {"period_start": day1, "factors": factors},
-                    {"period_start": day2, "factors": factors},
+                    {PERIOD_START: day1, "factors": factors},
+                    {PERIOD_START: day2, "factors": factors},
                 ]
             }
         }
@@ -815,14 +825,14 @@ async def test_build_dampened_actuals_gap_tolerance(
         # Intersection with models 1-3 is {day0, day0+1}, earliest=day0.
         # Continuity check for model 0 trips on day0+1 → day0+3 (skips day0+2) → None.
         gap_entries = [
-            {"period_start": day0, "factors": [1.0] * 48},
-            {"period_start": day0 + timedelta(days=1), "factors": [1.0] * 48},
-            {"period_start": day0 + timedelta(days=3), "factors": [1.0] * 48},
+            {PERIOD_START: day0, "factors": [1.0] * 48},
+            {PERIOD_START: day0 + timedelta(days=1), "factors": [1.0] * 48},
+            {PERIOD_START: day0 + timedelta(days=3), "factors": [1.0] * 48},
         ]
         continuous_entries = [
-            {"period_start": day0, "factors": [1.0] * 48},
-            {"period_start": day0 + timedelta(days=1), "factors": [1.0] * 48},
-            {"period_start": day0 + timedelta(days=2), "factors": [1.0] * 48},
+            {PERIOD_START: day0, "factors": [1.0] * 48},
+            {PERIOD_START: day0 + timedelta(days=1), "factors": [1.0] * 48},
+            {PERIOD_START: day0 + timedelta(days=2), "factors": [1.0] * 48},
         ]
         solcast.dampening.auto_factors_history = _make_full_history(
             {model_min: gap_entries, **dict.fromkeys(range(model_min + 1, model_max + 1), continuous_entries)}
@@ -833,14 +843,14 @@ async def test_build_dampened_actuals_gap_tolerance(
 
         # Empty intersection: models 0-1 and models 2-3 have completely disjoint dates → None.
         early_entries = [
-            {"period_start": day0, "factors": [1.0] * 48},
-            {"period_start": day0 + timedelta(days=1), "factors": [1.0] * 48},
-            {"period_start": day0 + timedelta(days=2), "factors": [1.0] * 48},
+            {PERIOD_START: day0, "factors": [1.0] * 48},
+            {PERIOD_START: day0 + timedelta(days=1), "factors": [1.0] * 48},
+            {PERIOD_START: day0 + timedelta(days=2), "factors": [1.0] * 48},
         ]
         late_entries = [
-            {"period_start": day0 + timedelta(days=10), "factors": [1.0] * 48},
-            {"period_start": day0 + timedelta(days=11), "factors": [1.0] * 48},
-            {"period_start": day0 + timedelta(days=12), "factors": [1.0] * 48},
+            {PERIOD_START: day0 + timedelta(days=10), "factors": [1.0] * 48},
+            {PERIOD_START: day0 + timedelta(days=11), "factors": [1.0] * 48},
+            {PERIOD_START: day0 + timedelta(days=12), "factors": [1.0] * 48},
         ]
         solcast.dampening.auto_factors_history = _make_full_history(
             {model_min: early_entries, model_min + 1: early_entries, model_max - 1: late_entries, model_max: late_entries}
@@ -1033,7 +1043,7 @@ async def test_determine_best_settings_alternative_issue(
         day_start = solcast.dt_helper.day_start_utc() - timedelta(days=1)
         factors = [1.0] * 48
         factors[0] = 0.9
-        history_entry = {"period_start": day_start, "factors": factors}
+        history_entry = {PERIOD_START: day_start, "factors": factors}
 
         min_model = ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MINIMUM]
         max_model = ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][MAXIMUM]
@@ -1123,7 +1133,7 @@ async def test_dampening_adaptations_development_flag(
     monkeypatch.setattr(DampeningAdaptive, "update_history", _fake_update_history)
     monkeypatch.setattr(DampeningAdaptive, "determine_best_settings", _fake_determine_best_settings)
 
-    write_advanced_options(hass.config.config_dir, {"automated_dampening_adaptive_model_configuration": True})
+    write_advanced_options(hass.config.config_dir, {ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: True})
 
     options = copy.deepcopy(DEFAULT_INPUT2)
     options[AUTO_DAMPEN] = True

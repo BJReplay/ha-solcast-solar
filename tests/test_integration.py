@@ -23,9 +23,19 @@ from voluptuous.error import MultipleInvalid
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
+    ACTUALS_ATTEMPT,
+    ACTUALS_UPDATED,
     ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
+    ADVANCED_ENTITY_LOGGING,
+    ADVANCED_FORECAST_DAY_ENTITIES,
+    ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT,
     ADVANCED_SOLCAST_PORT,
+    API_FORCE_USED,
+    API_KEY,
+    API_KEYS_CONFIGURED,
     API_LIMIT,
+    API_REMAINING,
+    API_USED,
     AUTO_DAMPEN,
     AUTO_UPDATE,
     AUTO_UPDATED,
@@ -38,32 +48,83 @@ from homeassistant.components.solcast_solar.const import (
     BRK_SITE_DETAILED,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
+    CONFIGURED_VALUE,
     CUSTOM_HOURS,
+    DAILY_LIMIT,
+    DAILY_LIMIT_CONSUMED,
+    DAMP_FACTOR,
+    DAMPENED_APE_BREAKDOWN,
+    DAMPENED_DAILY,
+    DAMPENED_MAPE,
+    DAMPENED_PERCENTILES,
+    DATA_SET_FORECAST,
     DEFAULT_FORECAST_DAYS,
+    DEFAULT_SOLCAST_HTTPS_URL,
     DELAYED_RESTART_ON_CRASH,
     DOMAIN,
+    ENTITY_ACCURACY,
+    ESTIMATE,
+    ESTIMATE10,
+    ESTIMATE90,
     EVENT_END_DATETIME,
     EVENT_START_DATETIME,
+    EXCEPTION_ACTUALS_WITHOUT_GET,
+    EXCEPTION_DAMP_NOT_FOR_SITE,
+    EXCEPTION_DAMP_USE_ALL,
+    EXCEPTION_DAMPEN_WITHOUT_ACTUALS,
+    EXCEPTION_DAMPEN_WITHOUT_GENERATION,
+    EXCEPTION_EXPORT_NO_ENTITY,
     EXCEPTION_NOT_A_SITE,
+    EXCEPTION_SET_OPTIONS_EMPTY,
     EXCLUDE_SITES,
     FORECASTS,
     GENERATION_ENTITIES,
     GET_ACTUALS,
     HARD_LIMIT,
     HARD_LIMIT_API,
+    INFINITY_EXCLUDED,
     ISSUE_ACTUALS_API_LIMIT,
     ISSUE_CORRUPT_FILE,
     KEY_ESTIMATE,
+    LAST_24H,
     LAST_ATTEMPT,
     LAST_UPDATED,
+    MODEL_PERIOD_DAYS,
+    PERIOD_START,
     PRESUMED_DEAD,
     PRIOR_CRASH_TIME,
     RESOURCE_ID,
+    SERVICE_CLEAR_DATA,
+    SERVICE_DIAGNOSTIC,
+    SERVICE_FORCE_UPDATE_ESTIMATES,
+    SERVICE_FORCE_UPDATE_FORECASTS,
+    SERVICE_GET_DAMPENING,
+    SERVICE_GET_OPTIONS,
+    SERVICE_QUERY_ESTIMATE_DATA,
+    SERVICE_QUERY_FORECAST_DATA,
+    SERVICE_REMOVE_HARD_LIMIT,
+    SERVICE_SET_CUSTOM_HOURS,
+    SERVICE_SET_DAMPENING,
+    SERVICE_SET_HARD_LIMIT,
+    SERVICE_SET_OPTIONS,
+    SERVICE_UPDATE,
     SITE,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
     SITE_INFO,
+    SITES,
+    SITES_STATUS,
+    SUGGESTED_VALUE,
+    TASK_CHECK_FETCH,
+    TASK_LISTENERS,
+    TASK_MIDNIGHT_UPDATE,
+    TASK_NEW_DAY_ACTUALS,
     UNDAMPENED,
+    UNDAMPENED_APE_BREAKDOWN,
+    UNDAMPENED_DAILY,
+    UNDAMPENED_MAPE,
+    UNDAMPENED_PERCENTILES,
+    USAGE_STATUS,
     USE_ACTUALS,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
@@ -121,20 +182,20 @@ from . import (
 _LOGGER = logging.getLogger(__name__)
 
 ACTIONS = [
-    "clear_all_solcast_data",
-    "diagnostic",
-    "force_update_estimates",
-    "force_update_forecasts",
-    "get_dampening",
-    "get_options",
-    "query_estimate_data",
-    "query_forecast_data",
-    "remove_hard_limit",
-    "set_dampening",
-    "set_custom_hours",
-    "set_hard_limit",
-    "set_options",
-    "update_forecasts",
+    SERVICE_CLEAR_DATA,
+    SERVICE_DIAGNOSTIC,
+    SERVICE_FORCE_UPDATE_ESTIMATES,
+    SERVICE_FORCE_UPDATE_FORECASTS,
+    SERVICE_GET_DAMPENING,
+    SERVICE_GET_OPTIONS,
+    SERVICE_QUERY_ESTIMATE_DATA,
+    SERVICE_QUERY_FORECAST_DATA,
+    SERVICE_REMOVE_HARD_LIMIT,
+    SERVICE_SET_DAMPENING,
+    SERVICE_SET_CUSTOM_HOURS,
+    SERVICE_SET_HARD_LIMIT,
+    SERVICE_SET_OPTIONS,
+    SERVICE_UPDATE,
 ]
 
 ZONE = ZoneInfo(ZONE_RAW)
@@ -168,8 +229,8 @@ async def test_advanced_solcast_port_applied_runtime(
 
         caplog.clear()
         assert solcast.sites
-        site_id = solcast.sites[0]["resource_id"]
-        api_key = solcast.sites[0]["api_key"]
+        site_id = solcast.sites[0][RESOURCE_ID]
+        api_key = solcast.sites[0][API_KEY]
         payload = simulated.raw_get_site_forecasts(site_id, api_key, 320)
         response = unittest.mock.MagicMock(status=200, url=f"https://api.solcast.com.au:8443/rooftop_sites/{site_id}/forecasts")
         response.text = unittest.mock.AsyncMock(return_value=json.dumps(payload))
@@ -178,7 +239,7 @@ async def test_advanced_solcast_port_applied_runtime(
         mock_session.get = unittest.mock.AsyncMock(return_value=response)
         solcast.aiohttp_session = mock_session
         try:
-            await solcast.fetcher.fetch_data(hours=320, path="forecasts", site=site_id, api_key=api_key, force=True)
+            await solcast.fetcher.fetch_data(hours=320, path=FORECASTS, site=site_id, api_key=api_key, force=True)
         finally:
             solcast.aiohttp_session = original_session
 
@@ -247,9 +308,9 @@ async def _exec_update(
     if last_update_delta == 0:
         last_updated = dt(year=2020, month=1, day=1, hour=1, minute=1, second=1, tzinfo=datetime.UTC)
     else:
-        last_updated = solcast.data["last_updated"] - timedelta(seconds=last_update_delta)
+        last_updated = solcast.data[LAST_UPDATED] - timedelta(seconds=last_update_delta)
         _LOGGER.info("Mock last updated: %s", last_updated)
-    solcast.data["last_updated"] = last_updated
+    solcast.data[LAST_UPDATED] = last_updated
     await hass.services.async_call(DOMAIN, action, {}, blocking=True)
     if wait_exception:
         await _wait_for_raise(hass, wait_exception)
@@ -285,9 +346,9 @@ async def _exec_update_actuals(
     if last_update_delta == 0:
         last_updated = dt(year=2020, month=1, day=1, hour=1, minute=1, second=1, tzinfo=datetime.UTC)
     else:
-        last_updated = solcast.data_actuals["last_updated"] - timedelta(seconds=last_update_delta)
+        last_updated = solcast.data_actuals[LAST_UPDATED] - timedelta(seconds=last_update_delta)
         _LOGGER.info("Mock last updated: %s", last_updated)
-    solcast.data_actuals["last_updated"] = last_updated
+    solcast.data_actuals[LAST_UPDATED] = last_updated
     await hass.services.async_call(DOMAIN, action, {}, blocking=True)
     if wait_exception:
         await _wait_for_raise(hass, wait_exception)
@@ -295,7 +356,7 @@ async def _exec_update_actuals(
         await _wait_for_update(hass, caplog)
         await solcast.tasks_cancel()
         async with asyncio.timeout(30):
-            while coordinator.tasks.get("actuals"):
+            while coordinator.tasks.get(TASK_NEW_DAY_ACTUALS):
                 await asyncio.sleep(0.01)
     await hass.async_block_till_done()
 
@@ -503,7 +564,7 @@ async def test_api_failure(
                         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
                     solcast.options.auto_update = AutoUpdate.DAYLIGHT
                     with pytest.raises(ConfigEntryAuthFailed):
-                        await _exec_update(hass, solcast, caplog, "force_update_forecasts", last_update_delta=20)
+                        await _exec_update(hass, solcast, caplog, SERVICE_FORCE_UPDATE_FORECASTS, last_update_delta=20)
                     solcast.options.auto_update = AutoUpdate.NONE
                 else:
                     await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
@@ -576,8 +637,8 @@ async def test_schema_upgrade_caller(
             undampened_file.unlink()
         data = copy.deepcopy(original_data)
         data["version"] = 4
-        data.pop("last_attempt")
-        data.pop("auto_updated")
+        data.pop(LAST_ATTEMPT)
+        data.pop(AUTO_UPDATED)
         data_file.write_text(json.dumps(data), encoding="utf-8")
         await _reload(hass, entry)
         assert "version from v4 to v10" in caplog.text
@@ -591,9 +652,9 @@ async def test_schema_upgrade_caller(
             undampened_file.unlink()
         data = copy.deepcopy(original_data)
         data.pop("version")
-        data.pop("siteinfo")
-        data.pop("last_attempt")
-        data.pop("auto_updated")
+        data.pop(SITE_INFO)
+        data.pop(LAST_ATTEMPT)
+        data.pop(AUTO_UPDATED)
         data["some_stuff"] = {"fraggle": "rock"}
         data_file.write_text(json.dumps(data), encoding="utf-8")
         _coordinator, solcast = await _reload(hass, entry)
@@ -623,7 +684,7 @@ async def test_integration(  # noqa: C901
 
     try:
         config_dir = str(get_config_dir(hass.config.config_dir, create=True))
-        write_advanced_options(config_dir, advanced_options := {"entity_logging": True})
+        write_advanced_options(config_dir, advanced_options := {ADVANCED_ENTITY_LOGGING: True})
 
         # Test startup
         entry: ConfigEntry = await async_init_integration(hass, options | ({GET_ACTUALS: True} if options == DEFAULT_INPUT1 else {}))
@@ -670,7 +731,7 @@ async def test_integration(  # noqa: C901
         assert solcast.tz == ZONE
 
         # Test cache files are as expected
-        if len(options["api_key"].split(",")) == 1:
+        if len(options[API_KEY].split(",")) == 1:
             assert not Path(f"{config_dir}/solcast-sites-1.json").is_file(), (
                 f"File {Path(f'{config_dir}/solcast-sites-1.json')} should not exist"
             )
@@ -698,9 +759,9 @@ async def test_integration(  # noqa: C901
             )
 
         # Test coordinator tasks are created
-        assert coordinator.tasks["listeners"]
-        assert coordinator.tasks["check_fetch"]
-        assert coordinator.tasks["midnight_update"]
+        assert coordinator.tasks[TASK_LISTENERS]
+        assert coordinator.tasks[TASK_CHECK_FETCH]
+        assert coordinator.tasks[TASK_MIDNIGHT_UPDATE]
 
         # Test expected services are registered
         assert len(hass.services.async_services_for_domain(DOMAIN).keys()) == len(ACTIONS)
@@ -712,24 +773,24 @@ async def test_integration(  # noqa: C901
             await hass.services.async_call(DOMAIN, "update_forecasts", {}, blocking=True)
 
         # Test forced update and clear data actions
-        await _exec_update(hass, solcast, caplog, "force_update_forecasts")
+        await _exec_update(hass, solcast, caplog, SERVICE_FORCE_UPDATE_FORECASTS)
 
         # Test for API key redaction
-        for api_key in options["api_key"].split(","):
+        for api_key in options[API_KEY].split(","):
             assert "key=" + api_key not in caplog.text
             assert "key: " + api_key not in caplog.text
             assert "sites-" + api_key not in caplog.text
             assert "usage-" + api_key not in caplog.text
 
         # Test force, force abort because running and clear data actions
-        await _exec_update(hass, solcast, caplog, "force_update_forecasts", wait=False)
+        await _exec_update(hass, solcast, caplog, SERVICE_FORCE_UPDATE_FORECASTS, wait=False)
         caplog.clear()
-        await _exec_update(hass, solcast, caplog, "force_update_forecasts", wait=False)  # Twice to cover abort force
+        await _exec_update(hass, solcast, caplog, SERVICE_FORCE_UPDATE_FORECASTS, wait=False)  # Twice to cover abort force
         await _wait_for_abort(caplog)
         await _exec_update(hass, solcast, caplog, "update_forecasts", wait=False)  # Thrice to cover abort normal
         await _wait_for_abort(caplog)
         await hass.async_block_till_done()
-        await _exec_update(hass, solcast, caplog, "clear_all_solcast_data")  # Will cancel active fetch
+        await _exec_update(hass, solcast, caplog, SERVICE_CLEAR_DATA)  # Will cancel active fetch
 
         # Test update within ten seconds of prior update
         solcast.options.auto_update = AutoUpdate.NONE
@@ -794,7 +855,7 @@ async def test_integration(  # noqa: C901
 
         # Test update beyond ten seconds of prior update, also with stale usage cache and dodgy dampening file
         session_reset_usage()
-        for api_key in options["api_key"].split(","):
+        for api_key in options[API_KEY].split(","):
             solcast.sites_cache._api_used_reset[api_key] = dt.now(datetime.UTC) - timedelta(days=5)
         solcast.options.auto_update = AutoUpdate.NONE
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
@@ -822,10 +883,10 @@ async def test_integration(  # noqa: C901
             else:
                 pytest.fail("Test undampened: State of forecast_tomorrow is None")
 
-            write_advanced_options(config_dir, advanced_options | {"granular_dampening_delta_adjustment": True})
+            write_advanced_options(config_dir, advanced_options | {ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: True})
             await _wait_for(caplog, "Advanced option set granular_dampening_delta_adjustment: True")
 
-            await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates", wait=True)
+            await _exec_update_actuals(hass, coordinator, solcast, caplog, SERVICE_FORCE_UPDATE_ESTIMATES, wait=True)
             ##### assert "Determining peak estimated actual intervals" in caplog.text
             assert "Automated dampening is not enabled" in caplog.text
 
@@ -842,13 +903,13 @@ async def test_integration(  # noqa: C901
                         first = False
                         # Fiddle with estimated actual data cache
                         actuals = json.loads(Path(f"{config_dir}/solcast-actuals.json").read_text(encoding="utf-8"), cls=JSONDecoder)
-                        for site in actuals["siteinfo"].values():
-                            for forecast in site["forecasts"]:
+                        for site in actuals[SITE_INFO].values():
+                            for forecast in site[FORECASTS]:
                                 if (
-                                    forecast["period_start"].astimezone(ZoneInfo(ZONE_RAW)).hour > 10
-                                    and forecast["period_start"].astimezone(ZoneInfo(ZONE_RAW)).hour < 14
+                                    forecast[PERIOD_START].astimezone(ZoneInfo(ZONE_RAW)).hour > 10
+                                    and forecast[PERIOD_START].astimezone(ZoneInfo(ZONE_RAW)).hour < 14
                                 ):
-                                    forecast["pv_estimate"] *= 1.11
+                                    forecast[ESTIMATE] *= 1.11
                         Path(f"{config_dir}/solcast-actuals.json").write_text(json.dumps(actuals, cls=DateTimeEncoder), encoding="utf-8")
 
                         # Reload to load saved data and prime initial generation
@@ -914,7 +975,7 @@ async def test_integration(  # noqa: C901
         caplog.clear()
 
         # Test reset usage cache when fresh
-        for api_key in options["api_key"].split(","):
+        for api_key in options[API_KEY].split(","):
             solcast.sites_cache._api_used_reset[api_key] = solcast.sites_cache._api_used_reset[api_key] - timedelta(hours=24)  # type: ignore[assignment, operator]
         await solcast.sites_cache.reset_api_usage()
         assert "Reset API usage" in caplog.text
@@ -925,7 +986,7 @@ async def test_integration(  # noqa: C901
         if options == DEFAULT_INPUT2:
             Path(f"{config_dir}/solcast.json").unlink()
             Path(f"{config_dir}/solcast-undampened.json").unlink()
-            await hass.services.async_call(DOMAIN, "clear_all_solcast_data", {}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_CLEAR_DATA, {}, blocking=True)
             await hass.async_block_till_done()
             assert "There is no solcast-undampened.json to delete" in caplog.text
             assert "There is no solcast.json to delete" in caplog.text
@@ -956,7 +1017,7 @@ async def test_remaining_actions(
 
     try:
         config_dir = str(get_config_dir(hass.config.config_dir, create=True))
-        write_advanced_options(config_dir, {"entity_logging": True, "forecast_day_entities": 10})
+        write_advanced_options(config_dir, {ADVANCED_ENTITY_LOGGING: True, ADVANCED_FORECAST_DAY_ENTITIES: 10})
 
         # Start with two API keys and three sites
         entry = await async_init_integration(hass, DEFAULT_INPUT2)
@@ -996,105 +1057,113 @@ async def test_remaining_actions(
         _LOGGER.debug("Test forced update when auto-update is disabled")
         solcast.options.auto_update = AutoUpdate.NONE
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "force_update_forecasts", {}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_FORCE_UPDATE_FORECASTS, {}, blocking=True)
 
         # Test set/get dampening factors
         async def _clear_granular_dampening():
             # Clear granular dampening
-            await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("1.0," * 24)[:-1]}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_DAMPENING, {DAMP_FACTOR: ("1.0," * 24)[:-1]}, blocking=True)
             await hass.async_block_till_done()  # Because options change
-            dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
+            dampening = await hass.services.async_call(DOMAIN, SERVICE_GET_DAMPENING, {}, blocking=True, return_response=True)
             if dampening is not None:
                 assert (
                     dampening.get("data", [{}])[0]  # pyright: ignore[reportArgumentType, reportIndexIssue, reportOptionalSubscript] # Response is always a list
                     == {
                         "site": "all",
-                        "damp_factor": ("1.0," * 24)[:-1],
+                        DAMP_FACTOR: ("1.0," * 24)[:-1],
                     }
                 )
             else:
                 pytest.fail("Dampening is None")
 
-        dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
+        dampening = await hass.services.async_call(DOMAIN, SERVICE_GET_DAMPENING, {}, blocking=True, return_response=True)
         if dampening is not None:
             if isinstance(dampening.get("data", [{}]), list):
                 assert (
                     dampening.get("data", [{}])[0]  # type: ignore[index]
                     == {
                         "site": "all",
-                        "damp_factor": ("1.0," * 24)[:-1],
+                        DAMP_FACTOR: ("1.0," * 24)[:-1],
                     }
                 )
                 odd_factors: list[dict[str, Any]] = [
                     {"set": {}, "expect": MultipleInvalid},  # No factors
-                    {"set": {"damp_factor": "  "}, "expect": ServiceValidationError},  # No factors
-                    {"set": {"damp_factor": ("0.5," * 5)[:-1]}, "expect": ServiceValidationError},  # Insufficient factors
-                    {"set": {"damp_factor": ("0.5," * 15)[:-1]}, "expect": ServiceValidationError},  # Not 24 or 48 factors
-                    {"set": {"damp_factor": ("1.5," * 24)[:-1]}, "expect": ServiceValidationError},  # Out of range factors
-                    {"set": {"damp_factor": ("0.8f," * 24)[:-1]}, "expect": ServiceValidationError},  # Weird factors
+                    {"set": {DAMP_FACTOR: "  "}, "expect": ServiceValidationError},  # No factors
+                    {"set": {DAMP_FACTOR: ("0.5," * 5)[:-1]}, "expect": ServiceValidationError},  # Insufficient factors
+                    {"set": {DAMP_FACTOR: ("0.5," * 15)[:-1]}, "expect": ServiceValidationError},  # Not 24 or 48 factors
+                    {"set": {DAMP_FACTOR: ("1.5," * 24)[:-1]}, "expect": ServiceValidationError},  # Out of range factors
+                    {"set": {DAMP_FACTOR: ("0.8f," * 24)[:-1]}, "expect": ServiceValidationError},  # Weird factors
                     {
-                        "set": {"site": "all", "damp_factor": ("1.0," * 24)[:-1]},
+                        "set": {"site": "all", DAMP_FACTOR: ("1.0," * 24)[:-1]},
                         "expect": ServiceValidationError,
                     },  # Site with 24 dampening factors
                 ]
                 for factors in odd_factors:
                     _LOGGER.debug("Test set odd dampening factors: %s", factors)
                     with pytest.raises(factors["expect"]):
-                        await hass.services.async_call(DOMAIN, "set_dampening", factors["set"], blocking=True)
+                        await hass.services.async_call(DOMAIN, SERVICE_SET_DAMPENING, factors["set"], blocking=True)
             else:
                 pytest.fail("Dampening data is not a list")
         else:
             pytest.fail("Dampening is None")
 
         _LOGGER.debug("Test set various dampening factors")
-        await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("0.5," * 24)[:-1]}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_DAMPENING, {DAMP_FACTOR: ("0.5," * 24)[:-1]}, blocking=True)
         await hass.async_block_till_done()  # Because options change
-        dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
-        assert dampening.get("data", [{}])[0] == {"site": "all", "damp_factor": ("0.5," * 24)[:-1]}  # type: ignore[union-attr, index]
+        dampening = await hass.services.async_call(DOMAIN, SERVICE_GET_DAMPENING, {}, blocking=True, return_response=True)
+        assert dampening.get("data", [{}])[0] == {"site": "all", DAMP_FACTOR: ("0.5," * 24)[:-1]}  # type: ignore[union-attr, index]
         # Granular dampening
-        await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("0.5," * 48)[:-1]}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_DAMPENING, {DAMP_FACTOR: ("0.5," * 48)[:-1]}, blocking=True)
         await hass.async_block_till_done()  # Because options change
         assert Path(f"{config_dir}/solcast-dampening.json").is_file(), f"File {Path(f'{config_dir}/solcast-dampening.json')} should exist"
-        dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
-        assert dampening.get("data", [{}])[0] == {"site": "all", "damp_factor": ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
+        dampening = await hass.services.async_call(DOMAIN, SERVICE_GET_DAMPENING, {}, blocking=True, return_response=True)
+        assert dampening.get("data", [{}])[0] == {"site": "all", DAMP_FACTOR: ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
         # Trigger re-apply forward dampening
-        await hass.services.async_call(DOMAIN, "set_dampening", {"damp_factor": ("0.75," * 48)[:-1]}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_DAMPENING, {DAMP_FACTOR: ("0.75," * 48)[:-1]}, blocking=True)
         await hass.async_block_till_done()  # Because options change
         await _clear_granular_dampening()
 
         # Request dampening for a site when using legacy dampening
-        with pytest.raises(ServiceValidationError):
+        with pytest.raises(ServiceValidationError) as exc_info:
             dampening = await hass.services.async_call(
-                DOMAIN, "get_dampening", {"site": "1111-1111-1111-1111"}, blocking=True, return_response=True
+                DOMAIN, SERVICE_GET_DAMPENING, {"site": "1111-1111-1111-1111"}, blocking=True, return_response=True
             )
+        assert exc_info.value.translation_key == EXCEPTION_DAMP_USE_ALL
         # Granular dampening with site
         _LOGGER.debug("Test granular dampening with site")
         await hass.services.async_call(
-            DOMAIN, "set_dampening", {"site": "1111_1111_1111_1111", "damp_factor": ("0.5," * 48)[:-1]}, blocking=True
+            DOMAIN, SERVICE_SET_DAMPENING, {"site": "1111_1111_1111_1111", DAMP_FACTOR: ("0.5," * 48)[:-1]}, blocking=True
         )
         await hass.async_block_till_done()  # Because options change
-        dampening = await hass.services.async_call(DOMAIN, "get_dampening", {}, blocking=True, return_response=True)
-        assert dampening.get("data", [{}])[0] == {"site": "1111-1111-1111-1111", "damp_factor": ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
+        dampening = await hass.services.async_call(DOMAIN, SERVICE_GET_DAMPENING, {}, blocking=True, return_response=True)
+        assert dampening.get("data", [{}])[0] == {"site": "1111-1111-1111-1111", DAMP_FACTOR: ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
         dampening = await hass.services.async_call(
-            DOMAIN, "get_dampening", {"site": "1111_1111_1111_1111"}, blocking=True, return_response=True
+            DOMAIN, SERVICE_GET_DAMPENING, {"site": "1111_1111_1111_1111"}, blocking=True, return_response=True
         )
-        assert dampening.get("data", [{}])[0] == {"site": "1111_1111_1111_1111", "damp_factor": ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
-        with pytest.raises(ServiceValidationError):
-            dampening = await hass.services.async_call(
-                DOMAIN, "set_dampening", {"site": "9999-9999-9999-9999", "damp_factor": ("0.5," * 48)[:-1]}, blocking=True
+        assert dampening.get("data", [{}])[0] == {"site": "1111_1111_1111_1111", DAMP_FACTOR: ("0.5," * 48)[:-1]}  # type: ignore[union-attr, index]
+        with pytest.raises(ServiceValidationError) as exc_info:
+            await hass.services.async_call(
+                DOMAIN, SERVICE_GET_DAMPENING, {"site": "2222-2222-2222-2222"}, blocking=True, return_response=True
             )
-        with pytest.raises(ServiceValidationError):
+        assert exc_info.value.translation_key == EXCEPTION_DAMP_NOT_FOR_SITE
+        with pytest.raises(ServiceValidationError) as exc_info:
             dampening = await hass.services.async_call(
-                DOMAIN, "get_dampening", {"site": "9999-9999-9999-9999"}, blocking=True, return_response=True
+                DOMAIN, SERVICE_SET_DAMPENING, {"site": "9999-9999-9999-9999", DAMP_FACTOR: ("0.5," * 48)[:-1]}, blocking=True
             )
-        await hass.services.async_call(DOMAIN, "set_dampening", {"site": "all", "damp_factor": ("0.5," * 48)[:-1]}, blocking=True)
+        assert exc_info.value.translation_key == EXCEPTION_NOT_A_SITE
+        with pytest.raises(ServiceValidationError) as exc_info:
+            dampening = await hass.services.async_call(
+                DOMAIN, SERVICE_GET_DAMPENING, {"site": "9999-9999-9999-9999"}, blocking=True, return_response=True
+            )
+        assert exc_info.value.translation_key == EXCEPTION_NOT_A_SITE
+        await hass.services.async_call(DOMAIN, SERVICE_SET_DAMPENING, {"site": "all", DAMP_FACTOR: ("0.5," * 48)[:-1]}, blocking=True)
         caplog.clear()
         dampening = await hass.services.async_call(
-            DOMAIN, "get_dampening", {"site": "1111-1111-1111-1111"}, blocking=True, return_response=True
+            DOMAIN, SERVICE_GET_DAMPENING, {"site": "1111-1111-1111-1111"}, blocking=True, return_response=True
         )
         assert "being overridden by an all sites entry" in caplog.text
         dampening = await hass.services.async_call(
-            DOMAIN, "get_dampening", {"site": "2222-2222-2222-2222"}, blocking=True, return_response=True
+            DOMAIN, SERVICE_GET_DAMPENING, {"site": "2222-2222-2222-2222"}, blocking=True, return_response=True
         )
         assert "being overridden by an all sites entry" in caplog.text
         await _clear_granular_dampening()
@@ -1102,22 +1171,22 @@ async def test_remaining_actions(
         # Test set/clear hard limit
         odd_limits: list[dict[str, Any]] = [
             {"set": {}, "expect": MultipleInvalid},  # No hard limit
-            {"set": {"hard_limit": "zzzzzz"}, "expect": ServiceValidationError},  # Silly hard limit
-            {"set": {"hard_limit": "-5"}, "expect": ServiceValidationError},  # Negative hard limit
-            {"set": {"hard_limit": "5.0,5.0,5.0"}, "expect": ServiceValidationError},  # Too many hard limits
+            {"set": {HARD_LIMIT: "zzzzzz"}, "expect": ServiceValidationError},  # Silly hard limit
+            {"set": {HARD_LIMIT: "-5"}, "expect": ServiceValidationError},  # Negative hard limit
+            {"set": {HARD_LIMIT: "5.0,5.0,5.0"}, "expect": ServiceValidationError},  # Too many hard limits
         ]
         for limits in odd_limits:
             _LOGGER.debug("Test set odd hard limit: %s", limits)
             with pytest.raises(limits["expect"]):
-                await hass.services.async_call(DOMAIN, "set_hard_limit", limits["set"], blocking=True)
+                await hass.services.async_call(DOMAIN, SERVICE_SET_HARD_LIMIT, limits["set"], blocking=True)
 
         async def _set_hard_limit(hard_limit: str) -> SolcastApi:
-            await hass.services.async_call(DOMAIN, "set_hard_limit", {"hard_limit": hard_limit}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_HARD_LIMIT, {HARD_LIMIT: hard_limit}, blocking=True)
             await hass.async_block_till_done()
             return patch_solcast_api(entry.runtime_data.coordinator.solcast)  # Because integration reloads
 
         async def _remove_hard_limit() -> SolcastApi:
-            await hass.services.async_call(DOMAIN, "remove_hard_limit", {}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_REMOVE_HARD_LIMIT, {}, blocking=True)
             await hass.async_block_till_done()
             return patch_solcast_api(entry.runtime_data.coordinator.solcast)  # Because integration reloads
 
@@ -1126,7 +1195,7 @@ async def test_remaining_actions(
         assert solcast.hard_limit == "5.0"
         assert "Build hard limit period values from scratch for forecast" in caplog.text
         assert "Build hard limit period values from scratch for undampened forecast" in caplog.text
-        for estimate in ["pv_estimate", "pv_estimate10", "pv_estimate90"]:
+        for estimate in [ESTIMATE, ESTIMATE10, ESTIMATE90]:
             assert len(solcast._sites_hard_limit["all"][estimate]) > 0
             assert len(solcast._sites_hard_limit_undampened["all"][estimate]) > 0
         assert re.search("Build hard limit processing took.+seconds for forecast", caplog.text)
@@ -1178,8 +1247,8 @@ async def test_remaining_actions(
         assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "5.0 kW"  # type: ignore[union-attr]
         assert "Build hard limit period values from scratch for forecast" in caplog.text
         assert "Build hard limit period values from scratch for undampened forecast" in caplog.text
-        for api_key in entry.options["api_key"].split(","):
-            for estimate in ["pv_estimate", "pv_estimate10", "pv_estimate90"]:
+        for api_key in entry.options[API_KEY].split(","):
+            for estimate in [ESTIMATE, ESTIMATE10, ESTIMATE90]:
                 assert len(solcast._sites_hard_limit[api_key][estimate]) > 0
                 assert len(solcast._sites_hard_limit_undampened[api_key][estimate]) > 0
         assert re.search("Build hard limit processing took.+seconds for forecast", caplog.text)
@@ -1189,7 +1258,7 @@ async def test_remaining_actions(
         _LOGGER.debug("Test set single hard limit value for both API keys")
         solcast = await _remove_hard_limit()
         assert solcast.hard_limit == "100.0"
-        for estimate in ["pv_estimate", "pv_estimate10", "pv_estimate90"]:
+        for estimate in [ESTIMATE, ESTIMATE10, ESTIMATE90]:
             assert len(solcast._sites_hard_limit["all"][estimate]) == 0
             assert len(solcast._sites_hard_limit_undampened["all"][estimate]) == 0
         assert re.search("Build hard limit processing took.+seconds for forecast", caplog.text) is None, (
@@ -1211,10 +1280,10 @@ async def test_remaining_actions(
         for hours_test in invalid_hours:
             _LOGGER.debug("Test set invalid custom hours: %s", hours_test)
             with pytest.raises(hours_test["expect"]):
-                await hass.services.async_call(DOMAIN, "set_custom_hours", hours_test["set"], blocking=True)
+                await hass.services.async_call(DOMAIN, SERVICE_SET_CUSTOM_HOURS, hours_test["set"], blocking=True)
 
         async def _set_custom_hours(hours: str) -> SolcastApi:
-            await hass.services.async_call(DOMAIN, "set_custom_hours", {"hours": hours}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_CUSTOM_HOURS, {"hours": hours}, blocking=True)
             await hass.async_block_till_done()
             return patch_solcast_api(entry.runtime_data.coordinator.solcast)  # Because integration reloads
 
@@ -1233,118 +1302,123 @@ async def test_remaining_actions(
 
         # Test set_options action
         _LOGGER.debug("Test set_options with no data")
-        with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {}, blocking=True)
+        with pytest.raises(ServiceValidationError) as exc_info:
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {}, blocking=True)
+        assert exc_info.value.translation_key == EXCEPTION_SET_OPTIONS_EMPTY
 
         _LOGGER.debug("Test set_options with invalid hard limit")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"hard_limit": "zzzz"}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {HARD_LIMIT: "zzzz"}, blocking=True)
 
         _LOGGER.debug("Test set_options with invalid custom hours")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"custom_hours": "0"}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {CUSTOM_HOURS: "0"}, blocking=True)
 
         _LOGGER.debug("Test set_options with invalid auto update (boolean coerced to string)")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"auto_update": "True"}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {AUTO_UPDATE: "True"}, blocking=True)
 
         _LOGGER.debug("Test set_options with invalid key estimate")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"key_estimate": "bad"}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {KEY_ESTIMATE: "bad"}, blocking=True)
 
         _LOGGER.debug("Test set_options with invalid use actuals")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"use_actuals": "5"}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {USE_ACTUALS: "5"}, blocking=True)
 
         _LOGGER.debug("Test set_options with invalid export limit")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"site_export_limit": "abc"}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {SITE_EXPORT_LIMIT: "abc"}, blocking=True)
 
         _LOGGER.debug("Test set_options with out of range export limit")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"site_export_limit": "101"}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {SITE_EXPORT_LIMIT: "101"}, blocking=True)
 
         _LOGGER.debug("Test set_options with invalid api_limit")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"api_limit": "abc"}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {API_LIMIT: "abc"}, blocking=True)
 
         _LOGGER.debug("Test set_options with api_limit exceeding default maximum")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"api_limit": "51"}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {API_LIMIT: "51"}, blocking=True)
 
         _LOGGER.debug("Test set_options with api_limit exceeding maximum when advanced override is enabled")
         base_config_dir = Path(hass.config.config_dir)
         write_advanced_options(base_config_dir, {ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM: True})
-        await hass.services.async_call(DOMAIN, "set_options", {"api_limit": "51"}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {API_LIMIT: "51"}, blocking=True)
         await hass.async_block_till_done()
         assert entry.options[API_LIMIT] == "51"
 
         _LOGGER.debug("Test set_options with invalid use_actuals (boolean coerced to string)")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"use_actuals": "True"}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {USE_ACTUALS: "True"}, blocking=True)
 
         _LOGGER.debug("Test set_options with invalid use_actuals (out of range)")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"use_actuals": "3"}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {USE_ACTUALS: "3"}, blocking=True)
 
         _LOGGER.debug("Test set_options with empty api_key")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"api_key": ""}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {API_KEY: ""}, blocking=True)
 
         _LOGGER.debug("Test set_options with duplicate api_key")
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"api_key": "abc123,abc123"}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {API_KEY: "abc123,abc123"}, blocking=True)
 
         _LOGGER.debug("Test set_options with valid api_key (same key, no reload)")
         original_key = entry.options[CONF_API_KEY]
-        await hass.services.async_call(DOMAIN, "set_options", {"api_key": original_key}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {API_KEY: original_key}, blocking=True)
         await hass.async_block_till_done()
         assert entry.options[CONF_API_KEY] == original_key
 
         # Cross-validation errors
         _LOGGER.debug("Test set_options use_actuals without get_actuals")
-        with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"use_actuals": "1", "get_actuals": False}, blocking=True)
+        with pytest.raises(ServiceValidationError) as exc_info:
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {USE_ACTUALS: "1", GET_ACTUALS: False}, blocking=True)
+        assert exc_info.value.translation_key == EXCEPTION_ACTUALS_WITHOUT_GET
 
         _LOGGER.debug("Test set_options auto_dampen without get_actuals")
-        with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"auto_dampen": True, "get_actuals": False}, blocking=True)
+        with pytest.raises(ServiceValidationError) as exc_info:
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {AUTO_DAMPEN: True, GET_ACTUALS: False}, blocking=True)
+        assert exc_info.value.translation_key == EXCEPTION_DAMPEN_WITHOUT_ACTUALS
 
         _LOGGER.debug("Test set_options auto_dampen without generation entities")
-        with pytest.raises(ServiceValidationError):
+        with pytest.raises(ServiceValidationError) as exc_info:
             await hass.services.async_call(
-                DOMAIN, "set_options", {"auto_dampen": True, "get_actuals": True, "generation_entities": ""}, blocking=True
+                DOMAIN, SERVICE_SET_OPTIONS, {AUTO_DAMPEN: True, GET_ACTUALS: True, GENERATION_ENTITIES: ""}, blocking=True
             )
+        assert exc_info.value.translation_key == EXCEPTION_DAMPEN_WITHOUT_GENERATION
 
         _LOGGER.debug("Test set_options export limit without entity")
-        with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, "set_options", {"site_export_limit": "5.0", "site_export_entity": ""}, blocking=True)
+        with pytest.raises(ServiceValidationError) as exc_info:
+            await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {SITE_EXPORT_LIMIT: "5.0", SITE_EXPORT_ENTITY: ""}, blocking=True)
+        assert exc_info.value.translation_key == EXCEPTION_EXPORT_NO_ENTITY
 
         # Valid set_options calls
         _LOGGER.debug("Test set_options custom hours only")
-        await hass.services.async_call(DOMAIN, "set_options", {"custom_hours": "12"}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {CUSTOM_HOURS: "12"}, blocking=True)
         await hass.async_block_till_done()
         assert entry.options[CUSTOM_HOURS] == 12
 
         _LOGGER.debug("Test set_options hard limit only")
-        await hass.services.async_call(DOMAIN, "set_options", {"hard_limit": "5000"}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {HARD_LIMIT: "5000"}, blocking=True)
         await hass.async_block_till_done()
         assert entry.options[HARD_LIMIT_API] == "5000.0"
 
         _LOGGER.debug("Test set_options auto update")
-        await hass.services.async_call(DOMAIN, "set_options", {"auto_update": "2"}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {AUTO_UPDATE: "2"}, blocking=True)
         await hass.async_block_till_done()
         assert entry.options[AUTO_UPDATE] == 2
 
         _LOGGER.debug("Test set_options key estimate")
-        await hass.services.async_call(DOMAIN, "set_options", {"key_estimate": "estimate10"}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {KEY_ESTIMATE: "estimate10"}, blocking=True)
         await hass.async_block_till_done()
         assert entry.options[KEY_ESTIMATE] == "estimate10"
 
         _LOGGER.debug("Test set_options boolean breakdowns")
         await hass.services.async_call(
             DOMAIN,
-            "set_options",
+            SERVICE_SET_OPTIONS,
             {
                 BRK_ESTIMATE: False,
                 BRK_ESTIMATE10: False,
@@ -1366,7 +1440,7 @@ async def test_remaining_actions(
         assert entry.options[BRK_SITE_DETAILED] is True, "Expected option BRK_SITE_DETAILED to be True"
 
         _LOGGER.debug("Test set_options get actuals and use actuals")
-        await hass.services.async_call(DOMAIN, "set_options", {"get_actuals": True, "use_actuals": "1"}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {GET_ACTUALS: True, USE_ACTUALS: "1"}, blocking=True)
         await hass.async_block_till_done()
         assert entry.options[GET_ACTUALS] is True, "Expected option GET_ACTUALS to be True"
         assert entry.options[USE_ACTUALS] == 1
@@ -1374,8 +1448,8 @@ async def test_remaining_actions(
         _LOGGER.debug("Test set_options generation entities and exclude sites")
         await hass.services.async_call(
             DOMAIN,
-            "set_options",
-            {"generation_entities": "sensor.pv1, sensor.pv2", "exclude_sites": "1111-1111-1111-1111"},
+            SERVICE_SET_OPTIONS,
+            {GENERATION_ENTITIES: "sensor.pv1, sensor.pv2", EXCLUDE_SITES: "1111-1111-1111-1111"},
             blocking=True,
         )
         await hass.async_block_till_done()
@@ -1385,8 +1459,8 @@ async def test_remaining_actions(
         _LOGGER.debug("Test set_options site export")
         await hass.services.async_call(
             DOMAIN,
-            "set_options",
-            {"site_export_entity": "sensor.grid_export", "site_export_limit": "5.0"},
+            SERVICE_SET_OPTIONS,
+            {SITE_EXPORT_ENTITY: "sensor.grid_export", SITE_EXPORT_LIMIT: "5.0"},
             blocking=True,
         )
         await hass.async_block_till_done()
@@ -1394,19 +1468,19 @@ async def test_remaining_actions(
         assert entry.options[SITE_EXPORT_LIMIT] == 5.0
 
         _LOGGER.debug("Test set_options api_limit valid")
-        await hass.services.async_call(DOMAIN, "set_options", {"api_limit": "15"}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {API_LIMIT: "15"}, blocking=True)
         await hass.async_block_till_done()
         assert entry.options[API_LIMIT] == "15"
 
         _LOGGER.debug("Test set_options auto_dampen")
-        await hass.services.async_call(DOMAIN, "set_options", {"auto_dampen": True}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {AUTO_DAMPEN: True}, blocking=True)
         await hass.async_block_till_done()
         assert entry.options[AUTO_DAMPEN] is True, "Expected option AUTO_DAMPEN to be True"
 
         # Reset breakdowns to True for later tests
         await hass.services.async_call(
             DOMAIN,
-            "set_options",
+            SERVICE_SET_OPTIONS,
             {
                 BRK_ESTIMATE: True,
                 BRK_ESTIMATE10: True,
@@ -1457,7 +1531,7 @@ async def test_remaining_actions(
             SITE_EXPORT_ENTITY: entry.options[SITE_EXPORT_ENTITY],
             SITE_EXPORT_LIMIT: entry.options[SITE_EXPORT_LIMIT],
         }
-        result = await hass.services.async_call(DOMAIN, "get_options", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_GET_OPTIONS, {}, blocking=True, return_response=True)
         assert result is not None, "get_options result is None"
         data = result.get("data")
         assert data is not None, "get_options data is None"
@@ -1467,15 +1541,15 @@ async def test_remaining_actions(
         assert not unexpected, f"get_options returned unexpected keys: {unexpected}"
 
         _LOGGER.debug("Test get_options after modifying options")
-        await hass.services.async_call(DOMAIN, "set_options", {CUSTOM_HOURS: "48", AUTO_UPDATE: "2"}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {CUSTOM_HOURS: "48", AUTO_UPDATE: "2"}, blocking=True)
         await hass.async_block_till_done()
-        result = await hass.services.async_call(DOMAIN, "get_options", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_GET_OPTIONS, {}, blocking=True, return_response=True)
         assert result is not None, "get_options result is None"
         assert result["data"][CUSTOM_HOURS] is not None and result["data"][CUSTOM_HOURS] == 48  # type: ignore[union-attr]
         assert result["data"][AUTO_UPDATE] is not None and result["data"][AUTO_UPDATE] == 2  # type: ignore[union-attr]
 
         # Reset changes
-        await hass.services.async_call(DOMAIN, "set_options", {CUSTOM_HOURS: "24", AUTO_UPDATE: "0"}, blocking=True)
+        await hass.services.async_call(DOMAIN, SERVICE_SET_OPTIONS, {CUSTOM_HOURS: "24", AUTO_UPDATE: "0"}, blocking=True)
         await hass.async_block_till_done()
 
         caplog.clear()
@@ -1519,7 +1593,7 @@ async def test_remaining_actions(
             _LOGGER.debug("Testing query forecast data: %s", query["query"])
             forecast_data = await hass.services.async_call(
                 DOMAIN,
-                "query_forecast_data",
+                SERVICE_QUERY_FORECAST_DATA,
                 query["query"],
                 blocking=True,
                 return_response=True,
@@ -1533,7 +1607,7 @@ async def test_remaining_actions(
         with pytest.raises(ServiceValidationError):
             forecast_data = await hass.services.async_call(
                 DOMAIN,
-                "query_forecast_data",
+                SERVICE_QUERY_FORECAST_DATA,
                 {
                     EVENT_START_DATETIME: solcast.dt_helper.day_start_utc(future=DEFAULT_FORECAST_DAYS + 2).isoformat(),
                     EVENT_END_DATETIME: solcast.dt_helper.day_start_utc(future=DEFAULT_FORECAST_DAYS + 6).isoformat(),
@@ -1547,7 +1621,7 @@ async def test_remaining_actions(
         with pytest.raises(ServiceValidationError) as exc_info:
             await hass.services.async_call(
                 DOMAIN,
-                "query_forecast_data",
+                SERVICE_QUERY_FORECAST_DATA,
                 {
                     EVENT_START_DATETIME: solcast.dt_helper.day_start_utc().isoformat(),
                     EVENT_END_DATETIME: solcast.dt_helper.day_start_utc(future=1).isoformat(),
@@ -1578,7 +1652,7 @@ async def test_remaining_actions(
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
-@pytest.mark.parametrize("api_limit", ["10", "50"])
+@pytest.mark.parametrize(API_LIMIT, ["10", "50"])
 async def test_actuals_api_limit_issue_raised_and_cleared(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -1610,8 +1684,8 @@ async def test_actuals_api_limit_issue_raised_and_cleared(
         suggested_value = ",".join(str(max(int(limits[index]) - sites_per_key[api_keys[index]], 1)) for index in range(len(api_keys)))
 
         assert issue.translation_placeholders is not None, "Issue should have translation placeholders"
-        assert issue.translation_placeholders["configured_value"] == configured_value
-        assert issue.translation_placeholders["suggested_value"] == suggested_value
+        assert issue.translation_placeholders[CONFIGURED_VALUE] == configured_value
+        assert issue.translation_placeholders[SUGGESTED_VALUE] == suggested_value
 
         # User resolves by disabling estimated actuals acquisition.
         new_options = {**entry.options, GET_ACTUALS: False}
@@ -1699,8 +1773,8 @@ async def test_actuals_api_limit_issue_invalid_option_paths(
         issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_API_LIMIT)
         assert issue is not None, "Issue should exist"
         assert issue.translation_placeholders is not None, "Issue should have translation placeholders"
-        assert issue.translation_placeholders["configured_value"] == "10,50"
-        assert issue.translation_placeholders["suggested_value"] == "8,48"
+        assert issue.translation_placeholders[CONFIGURED_VALUE] == "10,50"
+        assert issue.translation_placeholders[SUGGESTED_VALUE] == "8,48"
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
@@ -1736,8 +1810,8 @@ async def test_actuals_api_limit_issue_single_limit_multiple_keys(
         issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_API_LIMIT)
         assert issue is not None, "Issue should exist"
         assert issue.translation_placeholders is not None, "Issue should have translation placeholders"
-        assert issue.translation_placeholders["configured_value"] == "10"
-        assert issue.translation_placeholders["suggested_value"] == "8"
+        assert issue.translation_placeholders[CONFIGURED_VALUE] == "10"
+        assert issue.translation_placeholders[SUGGESTED_VALUE] == "8"
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
@@ -1753,7 +1827,7 @@ async def test_scenarios(
 
     try:
         config_dir = str(get_config_dir(hass.config.config_dir, create=True))
-        write_advanced_options(config_dir, {"entity_logging": True})
+        write_advanced_options(config_dir, {ADVANCED_ENTITY_LOGGING: True})
 
         freezer.move_to(dt.now(tz=ZoneInfo(ZONE_RAW)).replace(hour=12, minute=0, second=0, microsecond=0))
 
@@ -1810,44 +1884,44 @@ async def test_scenarios(
 
         def alter_in_memory_as_stale():
             extant_data = copy.deepcopy(solcast.data_forecasts)  # pyright: ignore[reportOptionalMemberAccess]
-            solcast.data_forecasts = [f for f in extant_data if f["period_start"] >= dt.now(datetime.UTC).replace(second=0, microsecond=0)]  # pyright: ignore[reportOptionalMemberAccess]
+            solcast.data_forecasts = [f for f in extant_data if f[PERIOD_START] >= dt.now(datetime.UTC).replace(second=0, microsecond=0)]  # pyright: ignore[reportOptionalMemberAccess]
 
         def alter_last_updated_as_stale():
             data = json.loads(data_file.read_text(encoding="utf-8"))
-            data["last_updated"] = (dt.now(datetime.UTC) - timedelta(days=5)).isoformat()
-            data["last_attempt"] = data["last_updated"]
-            data["auto_updated"] = 10
+            data[LAST_UPDATED] = (dt.now(datetime.UTC) - timedelta(days=5)).isoformat()
+            data[LAST_ATTEMPT] = data[LAST_UPDATED]
+            data[AUTO_UPDATED] = 10
             # Remove forecasts today up to "now"
-            for site in data["siteinfo"].values():
-                site["forecasts"] = [f for f in site["forecasts"] if f["period_start"] > dt.now(datetime.UTC).isoformat()]
+            for site in data[SITE_INFO].values():
+                site[FORECASTS] = [f for f in site[FORECASTS] if f[PERIOD_START] > dt.now(datetime.UTC).isoformat()]
             data_file.write_text(json.dumps(data), encoding="utf-8")
             session_reset_usage()
 
         def alter_last_updated_as_very_stale():
             for d_file in [data_file, data_file_undampened]:
                 data = json.loads(d_file.read_text(encoding="utf-8"))
-                data["last_updated"] = (dt.now(datetime.UTC) - timedelta(days=DEFAULT_FORECAST_DAYS + 1)).isoformat()
-                data["last_attempt"] = data["last_updated"]
-                data["auto_updated"] = 10
+                data[LAST_UPDATED] = (dt.now(datetime.UTC) - timedelta(days=DEFAULT_FORECAST_DAYS + 1)).isoformat()
+                data[LAST_ATTEMPT] = data[LAST_UPDATED]
+                data[AUTO_UPDATED] = 10
                 # Shift all forecast intervals back nine days
-                for site in data["siteinfo"].values():
-                    site["forecasts"] = [
+                for site in data[SITE_INFO].values():
+                    site[FORECASTS] = [
                         {
-                            "period_start": (dt.fromisoformat(f["period_start"]) - timedelta(days=DEFAULT_FORECAST_DAYS + 1)).isoformat(),
-                            "pv_estimate": f["pv_estimate"],
-                            "pv_estimate10": f["pv_estimate10"],
-                            "pv_estimate90": f["pv_estimate90"],
+                            PERIOD_START: (dt.fromisoformat(f[PERIOD_START]) - timedelta(days=DEFAULT_FORECAST_DAYS + 1)).isoformat(),
+                            ESTIMATE: f[ESTIMATE],
+                            ESTIMATE10: f[ESTIMATE10],
+                            ESTIMATE90: f[ESTIMATE90],
                         }
-                        for f in site["forecasts"]
+                        for f in site[FORECASTS]
                     ]
                 d_file.write_text(json.dumps(data), encoding="utf-8")
             session_reset_usage()
 
         def alter_last_updated_as_fresh(last_update: str):
             data = json.loads(data_file.read_text(encoding="utf-8"))
-            data["last_updated"] = last_update
-            data["last_attempt"] = data["last_updated"]
-            data["auto_updated"] = 10
+            data[LAST_UPDATED] = last_update
+            data[LAST_ATTEMPT] = data[LAST_UPDATED]
+            data[AUTO_UPDATED] = 10
             data_file.write_text(json.dumps(data), encoding="utf-8")
 
         def restore_data():
@@ -1880,7 +1954,7 @@ async def test_scenarios(
         solcast.data[LAST_UPDATED] = interval_just_passed + timedelta(minutes=1)
         solcast.data[LAST_ATTEMPT] = interval_just_passed - timedelta(minutes=1)
         solcast.data[AUTO_UPDATED] = coordinator.divisions
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert data["forecast_health"]["status"] == "missed_interval"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert any("missed the expected auto-update interval" in issue for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -1894,7 +1968,7 @@ async def test_scenarios(
             pytest.fail("Reload failed")
         await _wait_for_update(hass, caplog, freezer)
         assert "is older than expected, should be" in caplog.text
-        assert solcast.data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
+        assert solcast.data[LAST_UPDATED] > dt.now(datetime.UTC) - timedelta(minutes=10)
         assert "ERROR" not in caplog.text
         no_error_or_exception(caplog)
 
@@ -1916,7 +1990,7 @@ async def test_scenarios(
             pytest.fail("Reload failed")
         await _wait_for_update(hass, caplog, freezer)
         assert "is older than expected, should be" in caplog.text
-        assert solcast.data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
+        assert solcast.data[LAST_UPDATED] > dt.now(datetime.UTC) - timedelta(minutes=10)
         assert "hours of past data" in caplog.text
         assert "ERROR" not in caplog.text
         no_error_or_exception(caplog)
@@ -1949,7 +2023,7 @@ async def test_scenarios(
             pytest.fail("Reload failed")
         await _wait_for_update(hass, caplog, freezer)
         assert "The update automation has not been running" in caplog.text
-        assert solcast.data["last_updated"] > dt.now(datetime.UTC) - timedelta(minutes=10)
+        assert solcast.data[LAST_UPDATED] > dt.now(datetime.UTC) - timedelta(minutes=10)
         assert "hours of past data" in caplog.text
         assert "ERROR" not in caplog.text
         no_error_or_exception(caplog)
@@ -1965,7 +2039,7 @@ async def test_scenarios(
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         assert "Auto update forecast is fresh" in caplog.text
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert data["forecast_health"]["status"] == "fresh"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
@@ -1997,8 +2071,8 @@ async def test_scenarios(
         session_set(MOCK_BUSY)
         sites_file = Path(f"{config_dir}/solcast-sites.json")
         data = json.loads(sites_file.read_text(encoding="utf-8"))
-        data["sites"][0].pop("api_key")
-        data["sites"][1]["api_key"] = "888"
+        data[SITES][0].pop(API_KEY)
+        data[SITES][1][API_KEY] = "888"
         sites_file.write_text(json.dumps(data), encoding="utf-8")
         opt = {**entry.options}
         opt[CONF_API_KEY] = "2"
@@ -2082,7 +2156,7 @@ async def test_scenarios(
 
         def _corrupt_data():
             data = json.loads(data_file.read_text(encoding="utf-8"))
-            data["siteinfo"]["3333-3333-3333-3333"]["forecasts"] = [{"bob": 0}]
+            data[SITE_INFO]["3333-3333-3333-3333"][FORECASTS] = [{"bob": 0}]
             data_file.write_text(json.dumps(data), encoding="utf-8")
 
         def _corrupt_with_zero_length():
@@ -2102,9 +2176,9 @@ async def test_scenarios(
         hass.data[DOMAIN].pop(PRESUMED_DEAD, None)
         hass.data[DOMAIN].pop("prior_crash_allow_sites", None)
         usage_corruption: list[dict[str, Any]] = [
-            {"daily_limit": "10", "daily_limit_consumed": 8, "reset": "2025-01-05T00:00:00+00:00"},
-            {"daily_limit": 10, "daily_limit_consumed": "8", "reset": "2025-01-05T00:00:00+00:00"},
-            {"daily_limit": 10, "daily_limit_consumed": 8, "reset": "notadate"},
+            {DAILY_LIMIT: "10", DAILY_LIMIT_CONSUMED: 8, "reset": "2025-01-05T00:00:00+00:00"},
+            {DAILY_LIMIT: 10, DAILY_LIMIT_CONSUMED: "8", "reset": "2025-01-05T00:00:00+00:00"},
+            {DAILY_LIMIT: 10, DAILY_LIMIT_CONSUMED: 8, "reset": "notadate"},
         ]
         for test in usage_corruption:
             _LOGGER.debug("Testing usage corruption: %s", test)
@@ -2138,9 +2212,9 @@ async def test_scenarios(
         # Corrupt solcast.json with a non-convertable ISO datetime string (e.g. year out of Python range).
         _LOGGER.debug("Testing non-convertable period_start: solcast.json")
         nc_data = json.loads(data_file.read_text(encoding="utf-8"))
-        first_site = next(iter(nc_data["siteinfo"]))
-        nc_data["siteinfo"][first_site]["forecasts"].insert(
-            0, {"period_start": "18409-09-29T02:00:00+00:00", "pv_estimate": 0.0, "pv_estimate10": 0.0, "pv_estimate90": 0.0}
+        first_site = next(iter(nc_data[SITE_INFO]))
+        nc_data[SITE_INFO][first_site][FORECASTS].insert(
+            0, {PERIOD_START: "18409-09-29T02:00:00+00:00", ESTIMATE: 0.0, ESTIMATE10: 0.0, ESTIMATE90: 0.0}
         )
         data_file.write_text(json.dumps(nc_data), encoding="utf-8")
         await _reload(hass, entry)
@@ -2203,7 +2277,7 @@ async def test_estimated_actuals(
         # Kill the cache, then re-create with a forced update
         _LOGGER.debug("Testing force update actuals")
         Path(f"{config_dir}/solcast-dampening.json").unlink(missing_ok=True)  # Remove dampening file
-        await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates", wait=True)
+        await _exec_update_actuals(hass, coordinator, solcast, caplog, SERVICE_FORCE_UPDATE_ESTIMATES, wait=True)
         assert Path(f"{config_dir}/solcast-actuals.json").is_file(), f"File {Path(f'{config_dir}/solcast-actuals.json')} should exist"
         assert "Estimated actuals dictionary for site 1111-1111-1111-1111" in caplog.text
         assert "Estimated actuals dictionary for site 2222-2222-2222-2222" in caplog.text
@@ -2229,7 +2303,7 @@ async def test_estimated_actuals(
             _LOGGER.debug("Testing query estimated data: %s", query["query"])
             estimate_data = await hass.services.async_call(
                 DOMAIN,
-                "query_estimate_data",
+                SERVICE_QUERY_ESTIMATE_DATA,
                 query["query"],
                 blocking=True,
                 return_response=True,
@@ -2241,7 +2315,7 @@ async def test_estimated_actuals(
         with pytest.raises(ServiceValidationError):
             estimate_data = await hass.services.async_call(
                 DOMAIN,
-                "query_estimate_data",
+                SERVICE_QUERY_ESTIMATE_DATA,
                 {
                     EVENT_START_DATETIME: solcast.dt_helper.day_start_utc(future=-50).isoformat(),
                     EVENT_END_DATETIME: solcast.dt_helper.day_start_utc(future=-40).isoformat(),
@@ -2265,7 +2339,7 @@ async def test_estimated_actuals(
             assert energy_dashboard["wh_hours"].get((solcast.dt_helper.day_start_utc() - timedelta(hours=8)).isoformat()) == 936.0
 
         session_set(MOCK_ALTER_HISTORY)
-        await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates")
+        await _exec_update_actuals(hass, coordinator, solcast, caplog, SERVICE_FORCE_UPDATE_ESTIMATES)
         caplog.clear()
         opt = {**entry.options}
         opt[USE_ACTUALS] = 1
@@ -2281,8 +2355,8 @@ async def test_estimated_actuals(
 
         _LOGGER.debug("Testing get actuals abort if already in progress")
         caplog.clear()
-        await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates", wait=False)
-        await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates", wait=False)
+        await _exec_update_actuals(hass, coordinator, solcast, caplog, SERVICE_FORCE_UPDATE_ESTIMATES, wait=False)
+        await _exec_update_actuals(hass, coordinator, solcast, caplog, SERVICE_FORCE_UPDATE_ESTIMATES, wait=False)
         await _wait_for_update(hass, caplog)
         assert "update already in progress" in caplog.text
         caplog.clear()
@@ -2296,11 +2370,11 @@ async def test_estimated_actuals(
         hass.config_entries.async_update_entry(entry, options=opt)
         await hass.async_block_till_done()
         caplog.clear()
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert data["actuals_health"]["status"] == "disabled"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         with pytest.raises(ServiceValidationError):
-            await _exec_update_actuals(hass, coordinator, solcast, caplog, "force_update_estimates")
+            await _exec_update_actuals(hass, coordinator, solcast, caplog, SERVICE_FORCE_UPDATE_ESTIMATES)
         assert "Estimated actuals not enabled" in caplog.text
 
     finally:
@@ -2317,22 +2391,22 @@ async def test_service_supports_response(
         await async_init_integration(hass, DEFAULT_INPUT1)
 
         response_actions = {
-            "diagnostic",
-            "get_dampening",
-            "get_options",
-            "query_estimate_data",
-            "query_forecast_data",
+            SERVICE_DIAGNOSTIC,
+            SERVICE_GET_DAMPENING,
+            SERVICE_GET_OPTIONS,
+            SERVICE_QUERY_ESTIMATE_DATA,
+            SERVICE_QUERY_FORECAST_DATA,
         }
         non_response_actions = {
-            "clear_all_solcast_data",
-            "force_update_estimates",
-            "force_update_forecasts",
-            "remove_hard_limit",
-            "set_custom_hours",
-            "set_dampening",
-            "set_hard_limit",
-            "set_options",
-            "update_forecasts",
+            SERVICE_CLEAR_DATA,
+            SERVICE_FORCE_UPDATE_ESTIMATES,
+            SERVICE_FORCE_UPDATE_FORECASTS,
+            SERVICE_REMOVE_HARD_LIMIT,
+            SERVICE_SET_CUSTOM_HOURS,
+            SERVICE_SET_DAMPENING,
+            SERVICE_SET_HARD_LIMIT,
+            SERVICE_SET_OPTIONS,
+            SERVICE_UPDATE,
         }
 
         registered = hass.services.async_services_for_domain(DOMAIN)
@@ -2362,7 +2436,7 @@ async def test_config_folder_migration(
 
     try:
         Path(f"{hass.config.config_dir}/solcast-test.json").write_text(  # Create old config file
-            json.dumps({"last_updated": dt.now(datetime.UTC).isoformat(), "siteinfo": {}}), encoding="utf-8"
+            json.dumps({LAST_UPDATED: dt.now(datetime.UTC).isoformat(), SITE_INFO: {}}), encoding="utf-8"
         )
         options = copy.deepcopy(DEFAULT_INPUT1)
         entry = await async_init_integration(hass, options)  # This will trigger migration
@@ -2390,7 +2464,7 @@ async def test_diagnostic(
         assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
 
         # Run the self-test action.
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         assert result is not None, "Result should not be None"
         data = result["data"]
 
@@ -2412,32 +2486,32 @@ async def test_diagnostic(
 
         # Verify API section.
         api = data["api"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportCallIssue, reportArgumentType]
-        assert api["api_keys_configured"] == 1  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert isinstance(api["api_used"], int)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert isinstance(api["api_limit"], int)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert isinstance(api["api_remaining"], int)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert isinstance(api["api_force_used"], int)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert isinstance(api["actuals_updated"], str)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert isinstance(api["actuals_attempt"], str)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert api[API_KEYS_CONFIGURED] == 1  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert isinstance(api[API_USED], int)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert isinstance(api[API_LIMIT], int)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert isinstance(api[API_REMAINING], int)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert isinstance(api[API_FORCE_USED], int)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert isinstance(api[ACTUALS_UPDATED], str)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert isinstance(api[ACTUALS_ATTEMPT], str)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert "status" in api  # pyright: ignore[reportOperatorIssue]
-        assert "sites_status" in api  # pyright: ignore[reportOperatorIssue]
-        assert api["usage_status"] == "OK"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert SITES_STATUS in api  # pyright: ignore[reportOperatorIssue]
+        assert api[USAGE_STATUS] == "OK"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         # Verify sites section.
-        assert len(data["sites"]) > 0  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        for site in data["sites"]:  # type: ignore # pyright: ignorereportOptionalIterable, [reportArgumentType, reportCallIssue]  # noqa: PGH003
-            assert "resource_id" in site
+        assert len(data[SITES]) > 0  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        for site in data[SITES]:  # type: ignore # pyright: ignorereportOptionalIterable, [reportArgumentType, reportCallIssue]  # noqa: PGH003
+            assert RESOURCE_ID in site
 
         # Verify cache files section.
-        assert isinstance(data["cache_files"]["forecast"], bool)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert isinstance(data["cache_files"][DATA_SET_FORECAST], bool)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert isinstance(data["cache_files"]["advanced"], bool)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         # Verify configuration section.
         config = data["configuration"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert config["auto_update"] in ("DAYLIGHT", "1")  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert config["key_estimate"] == "estimate"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert config["get_actuals"] is True, "Expected get_actuals to be True"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert config["auto_dampen"] is False, "Expected auto_dampen to be False"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert config[AUTO_UPDATE] in ("DAYLIGHT", "1")  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert config[KEY_ESTIMATE] == "estimate"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert config[GET_ACTUALS] is True, "Expected get_actuals to be True"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert config[AUTO_DAMPEN] is False, "Expected auto_dampen to be False"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         # Verify dampening section.
         dampening = data["dampening"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2462,7 +2536,7 @@ async def test_diagnostic(
         assert data["recorder_available"] is True, "Expected recorder_available to be True"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         # Generation entities and export entity should be empty (not configured in DEFAULT_INPUT1).
-        assert data["generation_entities"] == []  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data[GENERATION_ENTITIES] == []  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert data["export_entity"] == {}  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         no_error_or_exception(caplog)
@@ -2486,7 +2560,7 @@ async def test_diagnostic_with_issues(
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
         assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         assert result is not None, "Result should not be None"
         data = result["data"]
 
@@ -2496,9 +2570,9 @@ async def test_diagnostic_with_issues(
         assert any("sensor.nonexistent_entity" in issue for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         # Verify the generation entity check details.
-        assert len(data["generation_entities"]) == 1  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert data["generation_entities"][0]["entity_id"] == "sensor.nonexistent_entity"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert data["generation_entities"][0]["status"] == "not_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert len(data[GENERATION_ENTITIES]) == 1  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data[GENERATION_ENTITIES][0]["entity_id"] == "sensor.nonexistent_entity"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data[GENERATION_ENTITIES][0]["status"] == "not_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         no_error_or_exception(caplog)
 
@@ -2533,7 +2607,7 @@ async def test_diagnostic_disabled_entity(
         )
         entity_registry.async_update_entity(entity_id, disabled_by=RegistryEntryDisabler.USER)
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2574,13 +2648,13 @@ async def test_diagnostic_unavailable_entity(
         )
         hass.states.async_set(entity_id, "unavailable")
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert any("unavailable" in issue for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert data["generation_entities"][0]["entity_id"] == entity_id  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert data["generation_entities"][0]["status"] == "unavailable"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data[GENERATION_ENTITIES][0]["entity_id"] == entity_id  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data[GENERATION_ENTITIES][0]["status"] == "unavailable"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         no_error_or_exception(caplog)
 
@@ -2603,7 +2677,7 @@ async def test_diagnostic_auto_dampen_no_entities(
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
         assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2629,7 +2703,7 @@ async def test_diagnostic_export_entity_not_found(
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
         assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2668,7 +2742,7 @@ async def test_diagnostic_export_entity_disabled(
         )
         entity_registry.async_update_entity(entity_id, disabled_by=RegistryEntryDisabler.USER)
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2706,7 +2780,7 @@ async def test_diagnostic_export_entity_unavailable(
         )
         hass.states.async_set(entity_id, "unavailable")
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2733,25 +2807,25 @@ async def test_diagnostic_api_and_cache_issues(
 
         # Simulate API quota exhausted and failures.
         original_used = solcast.api_used.copy()
-        original_failure = solcast.data["failure"]["last_24h"]
+        original_failure = solcast.data["failure"][LAST_24H]
         original_filename = solcast.filename
         for key in solcast.api_used:
             solcast.api_used[key] = solcast.api_limit
-        solcast.data["failure"]["last_24h"] = 3
+        solcast.data["failure"][LAST_24H] = 3
         solcast.filename = "/nonexistent/path/forecast.json"
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert any("quota exhausted" in issue.lower() for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert any("failure" in issue.lower() for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         assert any("cache file missing" in issue.lower() for issue in data["issues"])  # pyright: ignore[reportGeneralTypeIssues, reportOptionalIterable, reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
-        assert data["api"]["api_remaining"] == 0  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
+        assert data["api"][API_REMAINING] == 0  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         # Restore.
         solcast.api_used = original_used
-        solcast.data["failure"]["last_24h"] = original_failure
+        solcast.data["failure"][LAST_24H] = original_failure
         solcast.filename = original_filename
 
         no_error_or_exception(caplog)
@@ -2775,7 +2849,7 @@ async def test_diagnostic_no_sites(
         original_sites = solcast.sites
         solcast.sites = []
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2852,7 +2926,7 @@ async def test_diagnostic_generation_entity_ok(
         )
         hass.states.async_set(entity_id, "1.5")
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         assert data["generation_entities"][0]["entity_id"] == entity_id  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2889,7 +2963,7 @@ async def test_diagnostic_export_entity_ok(
         )
         hass.states.async_set(entity_id, "42.5")
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         assert data["export_entity"]["entity_id"] == entity_id  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2925,7 +2999,7 @@ async def test_diagnostic_recorder_unavailable(
             return original_contains(item)
 
         with unittest.mock.patch.object(type(hass.config.components), "__contains__", side_effect=mock_contains):
-            result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+            result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         assert data["overall_status"] == "issues_found"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2958,7 +3032,7 @@ async def test_diagnostic_stale_forecast_and_actuals_health(
         solcast.data_actuals[LAST_ATTEMPT] = stale_time
         solcast.data_actuals[SITE_INFO] = {}
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript]
 
         assert data["overall_status"] == "issues_found"  # type: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -2975,7 +3049,7 @@ async def test_diagnostic_stale_forecast_and_actuals_health(
         solcast.data_actuals[LAST_ATTEMPT] = stale_time
         solcast.data_actuals[SITE_INFO] = {site_id: {FORECASTS: [{}]} for site_id in configured_site_ids}
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript]
 
         assert data["forecast_health"]["status"] == "missing"  # type: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -3006,7 +3080,7 @@ async def test_diagnostic_empty_actuals_site_data_reports_missing(
         solcast.data_actuals[LAST_ATTEMPT] = stale_time
         solcast.data_actuals[SITE_INFO] = {site_id: {FORECASTS: []} for site_id in configured_site_ids}
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript]
 
         assert data["actuals_health"]["status"] == "missing"  # type: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -3034,7 +3108,7 @@ async def test_diagnostic_usage_status_and_excluded_sites(
         solcast.usage_status = UsageStatus.ERROR
         assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
 
-        result = await hass.services.async_call(DOMAIN, "diagnostic", {}, blocking=True, return_response=True)
+        result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
 
         assert data["api"]["usage_status"] == "ERROR"  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -3066,33 +3140,33 @@ async def test_forecast_accuracy_sensor_with_actuals(
 
         # Inject mock accuracy data into the updater.
         coordinator._updater.accuracy_data = {  # pyright: ignore[reportPrivateUsage]
-            "dampened_mape": 5.25,
-            "undampened_mape": 8.75,
-            "model_period_days": 14,
-            "infinity_excluded": True,
-            "dampened_daily": {"2026-03-01": 4.1, "2026-03-02": 6.3},
-            "undampened_daily": {"2026-03-01": 7.8, "2026-03-02": 9.7},
-            "dampened_percentiles": {50: 4.5, 90: 9.1},
-            "undampened_percentiles": {50: 7.2, 90: 14.3},
+            DAMPENED_MAPE: 5.25,
+            UNDAMPENED_MAPE: 8.75,
+            MODEL_PERIOD_DAYS: 14,
+            INFINITY_EXCLUDED: True,
+            DAMPENED_DAILY: {"2026-03-01": 4.1, "2026-03-02": 6.3},
+            UNDAMPENED_DAILY: {"2026-03-01": 7.8, "2026-03-02": 9.7},
+            DAMPENED_PERCENTILES: {50: 4.5, 90: 9.1},
+            UNDAMPENED_PERCENTILES: {50: 7.2, 90: 14.3},
         }
 
         # Sensor value should be the dampened MAPE.
-        value = coordinator.get_sensor_value("accuracy")
+        value = coordinator.get_sensor_value(ENTITY_ACCURACY)
         assert value == 5.25
 
         # Sensor attributes should include the full breakdown.
-        attrs = coordinator.get_sensor_extra_attributes("accuracy")
+        attrs = coordinator.get_sensor_extra_attributes(ENTITY_ACCURACY)
         assert attrs is not None, "Accuracy sensor attributes should not be None"
-        assert attrs["undampened_mape"] == 8.75
-        assert attrs["model_period_days"] == 14
-        assert attrs["infinity_excluded"] is True, "Expected attribute infinity_excluded to be True"
-        assert attrs["dampened_ape_breakdown"] == [
-            {"period_start": "2026-03-01", "ape": 4.1},
-            {"period_start": "2026-03-02", "ape": 6.3},
+        assert attrs[UNDAMPENED_MAPE] == 8.75
+        assert attrs[MODEL_PERIOD_DAYS] == 14
+        assert attrs[INFINITY_EXCLUDED] is True, "Expected attribute infinity_excluded to be True"
+        assert attrs[DAMPENED_APE_BREAKDOWN] == [
+            {PERIOD_START: "2026-03-01", "ape": 4.1},
+            {PERIOD_START: "2026-03-02", "ape": 6.3},
         ]
-        assert attrs["undampened_ape_breakdown"] == [
-            {"period_start": "2026-03-01", "ape": 7.8},
-            {"period_start": "2026-03-02", "ape": 9.7},
+        assert attrs[UNDAMPENED_APE_BREAKDOWN] == [
+            {PERIOD_START: "2026-03-01", "ape": 7.8},
+            {PERIOD_START: "2026-03-02", "ape": 9.7},
         ]
         assert attrs["dampened_p50_ape"] == 4.5
         assert attrs["dampened_p90_ape"] == 9.1
@@ -3121,28 +3195,28 @@ async def test_forecast_accuracy_sensor_no_dampening(
 
         # Simulate no dampening: dampened_mape is None, undampened is available.
         coordinator._updater.accuracy_data = {  # pyright: ignore[reportPrivateUsage]
-            "dampened_mape": None,
-            "undampened_mape": 12.5,
-            "model_period_days": 14,
-            "infinity_excluded": False,
-            "dampened_daily": {},
-            "undampened_daily": {"2026-03-01": 11.0},
-            "dampened_percentiles": {},
-            "undampened_percentiles": {50: 11.0},
+            DAMPENED_MAPE: None,
+            UNDAMPENED_MAPE: 12.5,
+            MODEL_PERIOD_DAYS: 14,
+            INFINITY_EXCLUDED: False,
+            DAMPENED_DAILY: {},
+            UNDAMPENED_DAILY: {"2026-03-01": 11.0},
+            DAMPENED_PERCENTILES: {},
+            UNDAMPENED_PERCENTILES: {50: 11.0},
         }
 
         # Value is None when dampened MAPE is not available.
-        value = coordinator.get_sensor_value("accuracy")
+        value = coordinator.get_sensor_value(ENTITY_ACCURACY)
         assert value is None, "Accuracy value should be None without dampened MAPE"
 
         # Attributes should still contain the undampened breakdown.
-        attrs = coordinator.get_sensor_extra_attributes("accuracy")
+        attrs = coordinator.get_sensor_extra_attributes(ENTITY_ACCURACY)
         assert attrs is not None, "Accuracy sensor attributes should not be None"
-        assert attrs["undampened_mape"] == 12.5
-        assert attrs["model_period_days"] == 14
-        assert attrs["infinity_excluded"] is False, "Expected attribute infinity_excluded to be False"
-        assert attrs["undampened_ape_breakdown"] == [{"period_start": "2026-03-01", "ape": 11.0}]
-        assert attrs["dampened_ape_breakdown"] == []
+        assert attrs[UNDAMPENED_MAPE] == 12.5
+        assert attrs[MODEL_PERIOD_DAYS] == 14
+        assert attrs[INFINITY_EXCLUDED] is False, "Expected attribute infinity_excluded to be False"
+        assert attrs[UNDAMPENED_APE_BREAKDOWN] == [{PERIOD_START: "2026-03-01", "ape": 11.0}]
+        assert attrs[DAMPENED_APE_BREAKDOWN] == []
         assert attrs["undampened_p50_ape"] == 11.0
         assert "dampened_p50_ape" not in attrs
 
@@ -3168,11 +3242,11 @@ async def test_forecast_accuracy_sensor_no_data(
 
         # With no accuracy data, the sensor should return None.
         coordinator._updater.accuracy_data = {}  # pyright: ignore[reportPrivateUsage]
-        value = coordinator.get_sensor_value("accuracy")
+        value = coordinator.get_sensor_value(ENTITY_ACCURACY)
         assert value is None, "Accuracy value should be None with empty data"
 
         # Attributes should be empty when no data.
-        attrs = coordinator.get_sensor_extra_attributes("accuracy")
+        attrs = coordinator.get_sensor_extra_attributes(ENTITY_ACCURACY)
         assert attrs is not None, "Accuracy sensor attributes should not be None"
         assert attrs == {}
 
@@ -3186,10 +3260,10 @@ async def test_forecast_accuracy_sensor_no_data(
     ("url", "port", "expected"),
     [
         # port <= 0 → URL returned unchanged (trailing slash stripped)
-        pytest.param("https://api.solcast.com.au", 0, "https://api.solcast.com.au", id="port=0 no-op"),
-        pytest.param("https://api.solcast.com.au/", -1, "https://api.solcast.com.au", id="port=-1 no-op trailing slash"),
+        pytest.param(DEFAULT_SOLCAST_HTTPS_URL, 0, DEFAULT_SOLCAST_HTTPS_URL, id="port=0 no-op"),
+        pytest.param("https://api.solcast.com.au/", -1, DEFAULT_SOLCAST_HTTPS_URL, id="port=-1 no-op trailing slash"),
         # Normal host with positive port
-        pytest.param("https://api.solcast.com.au", 8443, "https://api.solcast.com.au:8443", id="normal host port override"),
+        pytest.param(DEFAULT_SOLCAST_HTTPS_URL, 8443, "https://api.solcast.com.au:8443", id="normal host port override"),
         # URL with a path component
         pytest.param("https://api.solcast.com.au/v1", 9000, "https://api.solcast.com.au:9000/v1", id="host with path"),
         # No netloc (bare path) → returned as-is even with positive port

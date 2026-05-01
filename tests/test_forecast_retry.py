@@ -11,7 +11,11 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_LOG_UPDATE_FAILURE_ONLY,
+    ADVANCED_TRIGGER_ON_API_AVAILABLE,
+    ADVANCED_TRIGGER_ON_API_UNAVAILABLE,
     DOMAIN,
+    LAST_UPDATED,
     SERVICE_FORCE_UPDATE_FORECASTS,
 )
 from homeassistant.components.solcast_solar.util import UpdateOutcome, UpdateResult
@@ -80,8 +84,8 @@ async def test_forecast_retry(
         write_advanced_options(
             hass.config.config_dir,
             {
-                "trigger_on_api_unavailable": "Automation unavailable",
-                "trigger_on_api_available": "Automation available",
+                ADVANCED_TRIGGER_ON_API_UNAVAILABLE: "Automation unavailable",
+                ADVANCED_TRIGGER_ON_API_AVAILABLE: "Automation available",
             },
         )
 
@@ -114,7 +118,7 @@ async def test_forecast_retry(
         session_set(MOCK_BUSY)
         caplog.clear()
 
-        solcast.data["last_updated"] -= timedelta(minutes=20)
+        solcast.data[LAST_UPDATED] -= timedelta(minutes=20)
         with mock.patch("homeassistant.components.solcast_solar.fetcher.Fetcher._sleep", new_callable=AsyncMockDoNothing):
             async with asyncio.timeout(10):
                 while "Raise issue for api_unavailable" not in caplog.text:
@@ -163,9 +167,9 @@ async def test_log_update_failure_only_enabled(
         write_advanced_options(
             hass.config.config_dir,
             {
-                "trigger_on_api_unavailable": "Automation unavailable",
-                "trigger_on_api_available": "Automation available",
-                "log_update_failure_only": True,
+                ADVANCED_TRIGGER_ON_API_UNAVAILABLE: "Automation unavailable",
+                ADVANCED_TRIGGER_ON_API_AVAILABLE: "Automation available",
+                ADVANCED_LOG_UPDATE_FAILURE_ONLY: True,
             },
         )
 
@@ -177,7 +181,7 @@ async def test_log_update_failure_only_enabled(
         caplog.clear()
         caplog.set_level(logging.DEBUG)
 
-        solcast.data["last_updated"] -= timedelta(minutes=20)
+        solcast.data[LAST_UPDATED] -= timedelta(minutes=20)
         with mock.patch("homeassistant.components.solcast_solar.fetcher.Fetcher._sleep", new_callable=AsyncMockDoNothing):
             async with asyncio.timeout(10):
                 while "Raise issue for api_unavailable" not in caplog.text:

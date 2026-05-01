@@ -21,8 +21,12 @@ from homeassistant.components.solcast_solar.const import (
     ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION,
     ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS,
     ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
+    ADVANCED_ENTITY_LOGGING,
     AUTO_DAMPEN,
     AUTO_UPDATE,
+    AUTO_UPDATE_DIVISIONS,
+    AUTO_UPDATE_NEXT,
+    AUTO_UPDATE_QUEUE,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
     GET_ACTUALS,
@@ -407,7 +411,7 @@ async def test_apply_forward_on_spring_forward_day(
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
 
-        write_advanced_options(hass.config.config_dir, {"entity_logging": True})
+        write_advanced_options(hass.config.config_dir, {ADVANCED_ENTITY_LOGGING: True})
 
         entry = await async_init_integration(hass, options, timezone="Australia/Sydney", extra_sensors=ExtraSensors.YES_WATT_HOUR)
         solcast = entry.runtime_data.coordinator.solcast
@@ -447,7 +451,7 @@ async def test_apply_forward_on_fall_back_day(
         options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
         options[SITE_EXPORT_LIMIT] = 5.0
 
-        write_advanced_options(hass.config.config_dir, {"entity_logging": True})
+        write_advanced_options(hass.config.config_dir, {ADVANCED_ENTITY_LOGGING: True})
 
         entry = await async_init_integration(hass, options, timezone="Australia/Sydney", extra_sensors=ExtraSensors.YES_WATT_HOUR)
         solcast = entry.runtime_data.coordinator.solcast
@@ -482,9 +486,9 @@ async def test_updater_details_empty_intervals_on_dst_day(
 
         # Should not raise IndexError
         details = updater.get_auto_update_details()
-        assert details["next_auto_update"] is None, "Expected next_auto_update to be None"
-        assert "auto_update_divisions" in details
-        assert details["auto_update_queue"] == []
+        assert details[AUTO_UPDATE_NEXT] is None, "Expected next_auto_update to be None"
+        assert AUTO_UPDATE_DIVISIONS in details
+        assert details[AUTO_UPDATE_QUEUE] == []
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

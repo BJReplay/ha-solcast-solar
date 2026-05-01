@@ -48,6 +48,7 @@ from .const import (
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
+    EXCEPTION_INIT_KEY_INVALID,
     FACTOR,
     FACTORS,
     INFINITY_EXCLUDED,
@@ -173,7 +174,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """
         # Check for re-authentication required
         if self.solcast.reauth_required:
-            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
+            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key=EXCEPTION_INIT_KEY_INVALID)
 
         return self.solcast.data
 

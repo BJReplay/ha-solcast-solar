@@ -53,6 +53,9 @@ from .const import (
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
+    EXCEPTION_DAMP_NOT_FOR_SITE,
+    EXCEPTION_DAMP_USE_ALL,
+    EXCEPTION_NOT_A_SITE,
     EXPORT_LIMITING,
     FORECASTS,
     GENERATION,
@@ -487,6 +490,12 @@ class Dampening:
                 sites = [site]
             all_set = self.factors.get(ALL) is not None
             if site:
+                available_sites = {item[RESOURCE_ID] for item in self.api.sites}
+                if site != ALL and site not in available_sites:
+                    raise ServiceValidationError(
+                        translation_domain=DOMAIN,
+                        translation_key=EXCEPTION_NOT_A_SITE,
+                    )
                 if not all_set:
                     if site in self.factors:
                         return [
@@ -499,7 +508,7 @@ class Dampening:
                         ]
                     raise ServiceValidationError(
                         translation_domain=DOMAIN,
-                        translation_key="damp_not_for_site",
+                        translation_key=EXCEPTION_DAMP_NOT_FOR_SITE,
                         translation_placeholders={SITE: site},
                     )
                 if site != ALL:
@@ -543,7 +552,7 @@ class Dampening:
             ]
         raise ServiceValidationError(
             translation_domain=DOMAIN,
-            translation_key="damp_use_all",
+            translation_key=EXCEPTION_DAMP_USE_ALL,
             translation_placeholders={SITE: site},
         )
 

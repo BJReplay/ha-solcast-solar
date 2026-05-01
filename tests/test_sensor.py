@@ -14,17 +14,43 @@ import pytest
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_ENTITY_LOGGING,
+    ANALYSIS,
+    API_FORCE_USED,
     API_LIMIT,
+    API_USED,
+    ATTRIBUTION,
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
     BRK_SITE,
     CUSTOM_HOURS,
+    DATA_CORRECT,
     DEFAULT_FORECAST_DAY_SENSORS,
     DEFAULT_FORECAST_DAYS,
+    DETAILED_FORECAST,
+    DETAILED_HOURLY,
+    DT_TIME_FORMAT,
+    ENTITY_FORECAST_NEXT_HOUR,
+    ENTITY_FORECAST_REMAINING_TODAY,
+    ENTITY_FORECAST_THIS_HOUR,
+    ENTITY_POWER_NOW,
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
+    FORECASTS,
+    PERIOD_START,
+    RESOURCE_ID,
+    SITE_ATTRIBUTE_AZIMUTH,
+    SITE_ATTRIBUTE_CAPACITY,
+    SITE_ATTRIBUTE_CAPACITY_DC,
+    SITE_ATTRIBUTE_INSTALL_DATE,
+    SITE_ATTRIBUTE_LATITUDE,
+    SITE_ATTRIBUTE_LONGITUDE,
+    SITE_ATTRIBUTE_LOSS_FACTOR,
+    SITE_ATTRIBUTE_TAGS,
+    SITE_ATTRIBUTE_TILT,
+    SITE_INFO,
     UNDAMPENED_ESTIMATE,
     UNDAMPENED_ESTIMATE10,
     UNDAMPENED_ESTIMATE90,
@@ -131,7 +157,7 @@ SENSORS: dict[str, dict[str, Any]] = {
         },
         "can_be_unavailable": True,
     },
-    "forecast_this_hour": {
+    ENTITY_FORECAST_THIS_HOUR: {
         "state": {"2": "7200", "1": "9900"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
@@ -154,7 +180,7 @@ SENSORS: dict[str, dict[str, Any]] = {
         },
         "can_be_unavailable": True,
     },
-    "forecast_remaining_today": {
+    ENTITY_FORECAST_REMAINING_TODAY: {
         "state": {"2": "23.6817", "1": "32.5624"},
         "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
         "attributes": {
@@ -177,7 +203,7 @@ SENSORS: dict[str, dict[str, Any]] = {
         },
         "can_be_unavailable": True,
     },
-    "forecast_next_hour": {
+    ENTITY_FORECAST_NEXT_HOUR: {
         "state": {"2": "6732", "1": "9256"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
@@ -204,8 +230,8 @@ SENSORS: dict[str, dict[str, Any]] = {
         "state": {"2": "13748", "1": "18904"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
-            "2": {"estimate": 13748, "estimate10": 11457, "estimate90": 15276, "custom_hours": 1},
-            "1": {"estimate": 18904, "estimate10": 15753, "estimate90": 21004, "custom_hours": 1},
+            "2": {"estimate": 13748, "estimate10": 11457, "estimate90": 15276, CUSTOM_HOURS: 1},
+            "1": {"estimate": 18904, "estimate10": 15753, "estimate90": 21004, CUSTOM_HOURS: 1},
         },
         "breakdown": {
             "1": {
@@ -277,7 +303,7 @@ SENSORS: dict[str, dict[str, Any]] = {
         },
         "can_be_unavailable": True,
     },
-    "power_now": {
+    ENTITY_POWER_NOW: {
         "state": {"2": "7221", "1": "9928"},
         "unit_of_measurement": UnitOfPower.WATT,
         "state_class": SensorStateClass.MEASUREMENT,
@@ -349,8 +375,8 @@ SENSORS: dict[str, dict[str, Any]] = {
         },
         "can_be_unavailable": True,
     },
-    "api_used": {"state": {"2": "4", "1": "4"}},
-    "api_limit": {"state": {"2": DEFAULT_INPUT1[API_LIMIT], "1": DEFAULT_INPUT1[API_LIMIT]}},
+    API_USED: {"state": {"2": "4", "1": "4"}},
+    API_LIMIT: {"state": {"2": DEFAULT_INPUT1[API_LIMIT], "1": DEFAULT_INPUT1[API_LIMIT]}},
     "api_last_polled": {"state": {"2": "isodate", "1": "isodate"}},
 }
 
@@ -390,7 +416,7 @@ async def test_sensor_states(  # noqa: C901
         return estimate_set
 
     try:
-        write_advanced_options(hass.config.config_dir, {"entity_logging": True})
+        write_advanced_options(hass.config.config_dir, {ADVANCED_ENTITY_LOGGING: True})
 
         entry = await async_init_integration(hass, settings)
         freezer.move_to(dt.now() + timedelta(minutes=1))
@@ -409,8 +435,8 @@ async def test_sensor_states(  # noqa: C901
         state = hass.states.get("sensor.solcast_pv_forecast_api_used")
         assert state, "api_used sensor state should exist"
         assert state.state != STATE_UNAVAILABLE
-        assert state.state == sensors["api_used"]["state"][key]
-        assert state.attributes.get("api_force_used") == 0
+        assert state.state == sensors[API_USED]["state"][key]
+        assert state.attributes.get(API_FORCE_USED) == 0
 
         freezer.move_to((dt.now(solcast.tz) + timedelta(hours=24)).replace(minute=27, second=27))
         await hass.async_block_till_done()
@@ -467,7 +493,7 @@ async def test_sensor_states(  # noqa: C901
 
         # Test initial sensor values.
         for sensor, attrs in sensors.items():
-            if sensor == "api_used":
+            if sensor == API_USED:
                 continue
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
             assert state, f"Settings {key}: sensor {sensor} not found"
@@ -493,7 +519,7 @@ async def test_sensor_states(  # noqa: C901
                         f"Settings {key}: sensor {sensor} attr {attribute!r} expected {attrs['attributes'][key][attribute]!r}, got {testa!r}"
                     )
             if "api" not in sensor:
-                assert state_attributes["attribution"] == "Data retrieved from Solcast"
+                assert state_attributes["attribution"] == ATTRIBUTION
             if "unit_of_measurement" in attrs:
                 assert state_attributes["unit_of_measurement"] == attrs["unit_of_measurement"], (
                     f"Settings {key}: sensor {sensor} unit expected {attrs['unit_of_measurement']!r}, got {state_attributes['unit_of_measurement']!r}"
@@ -520,31 +546,31 @@ async def test_sensor_states(  # noqa: C901
 
             attribs: ReadOnlyDict[str, Any] = hass.states.get("sensor.first_site").attributes  # type: ignore[union-attr]
             assert attribs, "first_site sensor attributes should exist"
-            assert attribs.get("resource_id")
+            assert attribs.get(RESOURCE_ID)
             assert attribs.get("name")
             assert attribs.get("friendly_name")
-            assert attribs.get("install_date")
-            assert attribs.get("latitude") is None, "latitude should be redacted (None)"
-            assert attribs.get("longitude") is None, "longitude should be redacted (None)"
-            assert attribs.get("capacity")
-            assert attribs.get("capacity_dc")
-            assert attribs.get("azimuth")
-            assert attribs.get("tilt")
-            assert attribs.get("loss_factor")
-            assert attribs.get("tags")
+            assert attribs.get(SITE_ATTRIBUTE_INSTALL_DATE)
+            assert attribs.get(SITE_ATTRIBUTE_LATITUDE) is None, "latitude should be redacted (None)"
+            assert attribs.get(SITE_ATTRIBUTE_LONGITUDE) is None, "longitude should be redacted (None)"
+            assert attribs.get(SITE_ATTRIBUTE_CAPACITY)
+            assert attribs.get(SITE_ATTRIBUTE_CAPACITY_DC)
+            assert attribs.get(SITE_ATTRIBUTE_AZIMUTH)
+            assert attribs.get(SITE_ATTRIBUTE_TILT)
+            assert attribs.get(SITE_ATTRIBUTE_LOSS_FACTOR)
+            assert attribs.get(SITE_ATTRIBUTE_TAGS)
 
             attribs: ReadOnlyDict[str, Any] = hass.states.get("sensor.solcast_pv_forecast_forecast_today").attributes  # type: ignore[union-attr]
             assert attribs, "forecast_today sensor attributes should exist"
-            assert attribs.get("detailedForecast")
-            assert attribs.get("detailedHourly")
-            assert isinstance(attribs.get("detailedForecast"), list)
-            assert isinstance(attribs.get("detailedHourly"), list)
+            assert attribs.get(DETAILED_FORECAST)
+            assert attribs.get(DETAILED_HOURLY)
+            assert isinstance(attribs.get(DETAILED_FORECAST), list)
+            assert isinstance(attribs.get(DETAILED_HOURLY), list)
 
         # Verify analysis attribute on forecast day sensors.
         for sensor_name in ("forecast_today", "forecast_tomorrow"):
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor_name}")
             assert state is not None, f"{sensor_name} sensor state should exist"
-            ci = state.attributes.get("analysis")
+            ci = state.attributes.get(ANALYSIS)
             assert ci is not None, f"analysis missing from {sensor_name}"
             assert isinstance(ci, dict), f"analysis for {sensor_name} should be a dict"
             assert ci.get("confidence") == 0.75, f"{sensor_name}: expected confidence 0.75, got {ci.get('confidence')}"
@@ -563,7 +589,7 @@ async def test_sensor_states(  # noqa: C901
             assert isinstance(ci.get("intervals"), list), f"{sensor_name}: analysis intervals should be a list"
             assert len(ci["intervals"]) > 0, f"{sensor_name}: analysis intervals should not be empty"
             interval_entry = ci["intervals"][0]
-            assert "period_start" in interval_entry
+            assert PERIOD_START in interval_entry
             assert "spread_kwh" in interval_entry
 
         # Verify undampened day totals are exposed consistently on all day sensors.
@@ -608,9 +634,9 @@ async def test_sensor_states(  # noqa: C901
 
         assert "Updating sensor" in caplog.text
         state = hass.states.get("sensor.solcast_pv_forecast_power_now")  # A per-five minute sensor
-        assert state.last_updated.strftime("%H:%M:%S") == "02:30:00"  # type: ignore[union-attr]
+        assert state.last_updated.strftime(DT_TIME_FORMAT) == "02:30:00"  # type: ignore[union-attr]
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_remaining_today")  # A per-update/midnight sensor
-        assert state.last_updated.strftime("%H:%M:%S") == "02:30:00"  # type: ignore[union-attr]
+        assert state.last_updated.strftime(DT_TIME_FORMAT) == "02:30:00"  # type: ignore[union-attr]
         no_error_or_exception(caplog)
 
         # Simulate date change
@@ -717,10 +743,10 @@ async def test_sensor_unavailable(
         # Turn SolcastApi to custard.
         old_solcast_data = copy.deepcopy(solcast.data)
         old_solcast_data_undampened = copy.deepcopy(solcast.data_undampened)
-        solcast.data["siteinfo"]["1111-1111-1111-1111"]["forecasts"] = ["blah"]
-        solcast.data["siteinfo"]["2222-2222-2222-2222"]["forecasts"] = []
-        solcast.data_undampened["siteinfo"]["1111-1111-1111-1111"]["forecasts"] = []
-        solcast.data_undampened["siteinfo"]["2222-2222-2222-2222"]["forecasts"] = []
+        solcast.data[SITE_INFO]["1111-1111-1111-1111"][FORECASTS] = ["blah"]
+        solcast.data[SITE_INFO]["2222-2222-2222-2222"][FORECASTS] = []
+        solcast.data_undampened[SITE_INFO]["1111-1111-1111-1111"][FORECASTS] = []
+        solcast.data_undampened[SITE_INFO]["2222-2222-2222-2222"][FORECASTS] = []
 
         await solcast.build_forecast_data()
         coordinator._data_updated = True
@@ -743,7 +769,7 @@ async def test_sensor_unavailable(
         # Test when some future day data is missing (remove D3 onwards).
         solcast.data_undampened = old_solcast_data_undampened
         for site in ("1111-1111-1111-1111", "2222-2222-2222-2222"):
-            solcast.data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][
+            solcast.data[SITE_INFO][site][FORECASTS] = old_solcast_data[SITE_INFO][site][FORECASTS][
                 : -(269 + (DEFAULT_FORECAST_DAYS - 8) * 48)
             ]
         await solcast.build_forecast_data()
@@ -764,7 +790,7 @@ async def test_sensor_unavailable(
         # Test when 'today' is partial (remove D3 onwards).
         solcast.data_undampened = old_solcast_data_undampened
         for site in ("1111-1111-1111-1111", "2222-2222-2222-2222"):
-            solcast.data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][
+            solcast.data[SITE_INFO][site][FORECASTS] = old_solcast_data[SITE_INFO][site][FORECASTS][
                 : -(325 + (DEFAULT_FORECAST_DAYS - 8) * 48)
             ]
         await solcast.build_forecast_data()
@@ -774,7 +800,7 @@ async def test_sensor_unavailable(
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_today")
         assert state, "forecast_today sensor state should exist"
         state_attributes: ReadOnlyDict[str, Any] = state.attributes  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-        assert state_attributes["dataCorrect"] is False, "Expected state attribute dataCorrect to be False"
+        assert state_attributes[DATA_CORRECT] is False, "Expected state attribute dataCorrect to be False"
 
         no_error_or_exception(caplog)
 

@@ -28,6 +28,7 @@ from .const import (
     AUTO_UPDATED,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
+    CONFIGURED_VALUE,
     CUSTOM_HOURS,
     DOMAIN,
     DT_DATE_ONLY_FORMAT,
@@ -61,6 +62,7 @@ from .const import (
     SUCCESS,
     SUCCESS_FORCED,
     SUCCESS_TRACKED,
+    SUGGESTED_VALUE,
     VERSION,
 )
 
@@ -303,8 +305,8 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
         severity=ir.IssueSeverity.WARNING,
         translation_key=ISSUE_ACTUALS_API_LIMIT,
         translation_placeholders={
-            "configured_value": configured_value,
-            "suggested_value": suggested_value,
+            CONFIGURED_VALUE: configured_value,
+            SUGGESTED_VALUE: suggested_value,
         },
     )
 

@@ -5,7 +5,11 @@ from datetime import datetime as dt
 import pytest
 
 from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.const import CONFIG_VERSION, DOMAIN
+from homeassistant.components.solcast_solar.const import (
+    CONFIG_VERSION,
+    DOMAIN,
+    INTEGRATION,
+)
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.energy import async_get_solar_forecast
 from homeassistant.config_entries import ConfigEntry
@@ -26,7 +30,7 @@ async def test_energy_data(
 
     # Test that the function returns None if the domain is not yet available
     not_available_entry = MockConfigEntry(
-        domain=DOMAIN, unique_id="solcast_pv_solar", title="Solcast PV Forecast", data={}, options=DEFAULT_INPUT1, version=CONFIG_VERSION
+        domain=DOMAIN, unique_id="solcast_pv_solar", title=INTEGRATION, data={}, options=DEFAULT_INPUT1, version=CONFIG_VERSION
     )
     assert await async_get_solar_forecast(hass, not_available_entry.entry_id) is None, "Solar forecast should be None"
 

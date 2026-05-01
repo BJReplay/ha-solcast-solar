@@ -9,6 +9,11 @@ from types import ModuleType
 from unittest.mock import patch
 
 import pytest
+from homeassistant.components.solcast_solar.const import (
+    ESTIMATED_ACTUALS,
+    FORECASTS,
+    SITES,
+)
 
 pytest.importorskip("flask", reason="Flask is required to run simulator tests")
 pytest.importorskip("isodate", reason="isodate is required to run simulator tests")
@@ -133,7 +138,7 @@ def test_route_sites_valid_key() -> None:
     client = _test_client(_load_wsgi_sim_module())
     response = client.get("/rooftop_sites?api_key=1")
     assert response.status_code == 200
-    assert "sites" in response.get_json()
+    assert SITES in response.get_json()
 
 
 def test_route_forecasts_valid() -> None:
@@ -141,7 +146,7 @@ def test_route_forecasts_valid() -> None:
     client = _test_client(_load_wsgi_sim_module())
     response = client.get("/rooftop_sites/1111-1111-1111-1111/forecasts?api_key=1&hours=8")
     assert response.status_code == 200
-    assert "forecasts" in response.get_json()
+    assert FORECASTS in response.get_json()
 
 
 def test_route_forecasts_missing_hours() -> None:
@@ -161,7 +166,7 @@ def test_route_estimated_actuals_valid() -> None:
     client = _test_client(_load_wsgi_sim_module())
     response = client.get("/rooftop_sites/1111-1111-1111-1111/estimated_actuals?api_key=1&hours=8")
     assert response.status_code == 200
-    assert "estimated_actuals" in response.get_json()
+    assert ESTIMATED_ACTUALS in response.get_json()
 
 
 def test_route_estimated_actuals_missing_hours() -> None:

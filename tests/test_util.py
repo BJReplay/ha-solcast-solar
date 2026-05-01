@@ -8,11 +8,15 @@ import pytest
 from homeassistant.components.solcast_solar.const import (
     API_LIMIT,
     CUSTOM_HOURS,
+    DEFAULT_SOLCAST_HTTPS_URL,
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
     ISSUE_UNUSUAL_AZIMUTH_NORTHERN,
     ISSUE_UNUSUAL_AZIMUTH_SOUTHERN,
+    PERIOD_START,
+    SITE_ATTRIBUTE_LATITUDE,
+    SITE_ATTRIBUTE_LONGITUDE,
 )
 from homeassistant.components.solcast_solar.util import (
     check_unusual_azimuth,
@@ -39,22 +43,20 @@ class TestGetSolcastBaseUrl:
 
     def test_no_port_returns_url_unchanged(self) -> None:
         """Port <= 0 must return the URL with no modification."""
-        assert get_solcast_base_url("https://api.solcast.com.au", 0) == "https://api.solcast.com.au", (
-            "Port 0 should leave the URL unchanged"
-        )
-        assert get_solcast_base_url("https://api.solcast.com.au", -1) == "https://api.solcast.com.au", (
+        assert get_solcast_base_url(DEFAULT_SOLCAST_HTTPS_URL, 0) == DEFAULT_SOLCAST_HTTPS_URL, "Port 0 should leave the URL unchanged"
+        assert get_solcast_base_url(DEFAULT_SOLCAST_HTTPS_URL, -1) == DEFAULT_SOLCAST_HTTPS_URL, (
             "Negative port should leave the URL unchanged"
         )
 
     def test_trailing_slash_stripped(self) -> None:
         """Trailing slashes on the base URL should be removed."""
-        assert get_solcast_base_url("https://api.solcast.com.au/", 0) == "https://api.solcast.com.au", (
+        assert get_solcast_base_url("https://api.solcast.com.au/", 0) == DEFAULT_SOLCAST_HTTPS_URL, (
             "Trailing slash must be stripped from the base URL"
         )
 
     def test_port_injected_into_netloc(self) -> None:
         """A positive port should appear in the returned URL."""
-        result = get_solcast_base_url("https://api.solcast.com.au", 8080)
+        result = get_solcast_base_url(DEFAULT_SOLCAST_HTTPS_URL, 8080)
         assert ":8080" in result, f"Port 8080 should appear in the netloc of {result!r}"
         assert result.startswith("https://"), f"Scheme must be preserved as https://, got {result!r}"
 
@@ -163,7 +165,7 @@ class TestRedactLatLon:
 
     def test_redact_lat_lon_masks_coordinate_values(self) -> None:
         """Latitude and longitude values must be fully masked."""
-        result = redact_lat_lon("{'latitude': 12.3456, 'longitude': -98.7654}")
+        result = redact_lat_lon(f"{{{SITE_ATTRIBUTE_LATITUDE!r}: 12.3456, {SITE_ATTRIBUTE_LONGITUDE!r}: -98.7654}}")
         assert "12.3456" not in result, f"Raw latitude must not appear in {result!r}"
         assert "**.******" in result, f"Latitude should be replaced with a masked placeholder in {result!r}"
 
@@ -240,8 +242,8 @@ class TestForecastEntryUpdate:
         forecasts: dict = {}
         ts = dt(2025, 6, 1, 0, 0, tzinfo=UTC)
         forecast_entry_update(forecasts, ts, 1.5)
-        assert forecasts[ts]["pv_estimate"] == 1.5, "pv_estimate must be stored with the provided value"
-        assert "pv_estimate10" not in forecasts[ts], "pv_estimate10 must not be present when p10 was not supplied"
+        assert forecasts[ts][ESTIMATE] == 1.5, "pv_estimate must be stored with the provided value"
+        assert ESTIMATE10 not in forecasts[ts], "pv_estimate10 must not be present when p10 was not supplied"
 
     def test_creates_new_entry_with_p10_p90(self) -> None:
         """A new entry created with all three estimates should store each under its constant key."""
@@ -255,14 +257,14 @@ class TestForecastEntryUpdate:
     def test_updates_existing_entry_estimate(self) -> None:
         """Calling forecast_entry_update on an existing entry must overwrite the p50 estimate."""
         ts = dt(2025, 6, 1, 1, 0, tzinfo=UTC)
-        forecasts: dict = {ts: {"period_start": ts, ESTIMATE: 1.0}}
+        forecasts: dict = {ts: {PERIOD_START: ts, ESTIMATE: 1.0}}
         forecast_entry_update(forecasts, ts, 2.5)
         assert forecasts[ts][ESTIMATE] == 2.5, f"ESTIMATE should be updated to 2.5, got {forecasts[ts][ESTIMATE]!r}"
 
     def test_updates_existing_entry_p10_p90(self) -> None:
         """Calling forecast_entry_update on an existing entry must overwrite p10 and p90."""
         ts = dt(2025, 6, 1, 1, 30, tzinfo=UTC)
-        forecasts: dict = {ts: {"period_start": ts, ESTIMATE: 1.0, ESTIMATE10: 0.5, ESTIMATE90: 1.5}}
+        forecasts: dict = {ts: {PERIOD_START: ts, ESTIMATE: 1.0, ESTIMATE10: 0.5, ESTIMATE90: 1.5}}
         forecast_entry_update(forecasts, ts, 2.0, pv10=1.5, pv90=2.5)
         assert forecasts[ts][ESTIMATE10] == 1.5, f"ESTIMATE10 should be updated to 1.5, got {forecasts[ts][ESTIMATE10]!r}"
         assert forecasts[ts][ESTIMATE90] == 2.5, f"ESTIMATE90 should be updated to 2.5, got {forecasts[ts][ESTIMATE90]!r}"

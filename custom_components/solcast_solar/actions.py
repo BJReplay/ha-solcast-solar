@@ -48,6 +48,7 @@ from .const import (
     DOMAIN,
     EVENT_END_DATETIME,
     EVENT_START_DATETIME,
+    EXCEPTION_ACTUALS_NOT_ENABLED,
     EXCEPTION_ACTUALS_WITHOUT_GET,
     EXCEPTION_AUTO_USE_FORCE,
     EXCEPTION_AUTO_USE_NORMAL,
@@ -302,7 +303,7 @@ class ServiceActions:
 
         if not self._solcast.entry_options[GET_ACTUALS]:
             _LOGGER.debug("Estimated actuals not enabled, ignoring service action")
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="actuals_not_enabled")
+            raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_ACTUALS_NOT_ENABLED)
 
         if self._coordinator.tasks.get(TASK_ACTUALS_FETCH) is None:
             task = asyncio.create_task(self._updater.update_estimated_actuals_history())

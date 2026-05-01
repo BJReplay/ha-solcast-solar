@@ -8,6 +8,7 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_ENTITY_LOGGING,
     DEFAULT_FORECAST_DAYS,
     FAILURE,
     LAST_7D,
@@ -52,7 +53,7 @@ async def test_midnight(
         # (which advances frozen time) from crossing midnight during init.
         freezer.move_to("2025-01-10 20:00:00")
 
-        write_advanced_options(hass.config.config_dir, {"entity_logging": True})
+        write_advanced_options(hass.config.config_dir, {ADVANCED_ENTITY_LOGGING: True})
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
