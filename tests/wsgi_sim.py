@@ -63,7 +63,7 @@ DEFAULT_PORT = 443
 
 
 def restart():
-    """Restarts the sim."""
+    """Restart the sim."""
 
     python = sys.executable
     os.execl(python, python, *sys.argv)

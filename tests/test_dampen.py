@@ -144,14 +144,14 @@ async def test_auto_dampen(
         er.async_get(hass).async_get_or_create("sensor", DOMAIN, ENTITY_ACCURACY)
         entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.YES_WATT_HOUR)
 
-        # Fiddle with undampened data cache
+        # Adjust undampened data cache
         undampened = json.loads(Path(f"{config_dir}/solcast-undampened.json").read_text(encoding="utf-8"), cls=JSONDecoder)
         for site in undampened[SITE_INFO].values():
             for forecast in site[FORECASTS]:
                 forecast[ESTIMATE] *= 0.85
         Path(f"{config_dir}/solcast-undampened.json").write_text(json.dumps(undampened, cls=DateTimeEncoder), encoding="utf-8")
 
-        # Fiddle with estimated actual data cache
+        # Adjust estimated actual data cache
         actuals = json.loads(Path(f"{config_dir}/solcast-actuals.json").read_text(encoding="utf-8"), cls=JSONDecoder)
         for site in actuals[SITE_INFO].values():
             for forecast in site[FORECASTS]:
@@ -180,7 +180,6 @@ async def test_auto_dampen(
         assert "Interval 08:30 has peak estimated actual 0.936" in caplog.text
         assert "Interval 08:30 max generation: 0.777" in caplog.text
         assert "Auto-dampen factor for 08:30 is 0.830" in caplog.text
-        # assert "Auto-dampen factor for 11:00" not in caplog.text
         assert "Ignoring insignificant factor for 11:00 of 0.993" in caplog.text
         assert "Ignoring excessive PV generation" not in caplog.text
 

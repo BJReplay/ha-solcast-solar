@@ -426,7 +426,6 @@ async def test_reconfigure_api_key1(
                 context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
                 data=entry.data,
             )
-            # await hass.async_block_till_done()
             assert result.get("type") is FlowResultType.FORM
             assert result.get("step_id") == "reconfigure_confirm"
             result = await hass.config_entries.flow.async_configure(  # pyright: ignore[reportUnknownMemberType]
@@ -920,8 +919,8 @@ async def test_advanced_options(
         options = copy.deepcopy(DEFAULT_INPUT1)
         options[GET_ACTUALS] = False
         entry = await async_init_integration(hass, options)
-        coodinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-        solcast: SolcastApi = coodinator.solcast
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = coordinator.solcast
         advanced_options_with_aliases, _ = solcast.advanced_opt.advanced_options_with_aliases()
 
         async def wait():
@@ -973,7 +972,7 @@ async def test_advanced_options(
             ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS: 7,
             ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: 0.90,
             ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY: DEFAULT_DAMPENING_SUPPRESSION_ENTITY,
-            ADVANCED_ENTITY_LOGGING: True,  # The odd-man-out, detected as removed later and set to default
+            ADVANCED_ENTITY_LOGGING: True,  # Inconsistent with the rest, detected as removed and reset to default
             ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY: 0,
             ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES: [50],
             ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN: False,
@@ -1133,10 +1132,10 @@ async def test_advanced_options(
         assert "Advanced option set history_max_days: 365" in caplog.text
         assert "Granular dampening delta adjustment requires estimated actuals" in caplog.text
         assert "Advanced option forecast_history_max_days is deprecated, please use history_max_days" in caplog.text
-        # assert (
-        #    "Advanced option granular_dampening_delta_adjustment: True can not be set with automated_dampening_no_delta_adjustment: True"
-        #    in caplog.text
-        # )
+        assert (
+            "Advanced option granular_dampening_delta_adjustment: True can not be set with automated_dampening_no_delta_adjustment: True"
+            in caplog.text
+        )
         caplog.clear()
 
         _LOGGER.debug("Testing advanced options configuration file removal")

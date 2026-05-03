@@ -260,7 +260,7 @@ def frozen_time() -> None:
     instead of the regular datetime helpers.
 
     The date is the real date, but the time is spoofed to always be around midday
-    for forecast and sensor updates giving predicable responses. Logged time is realtime,
+    for forecast and sensor updates giving predictable responses. Logged time is real time,
     allowing analysis of performance and waiting for asyncio tasks to complete normally.
     """
 
@@ -386,7 +386,7 @@ async def _wait_for_update(hass: HomeAssistant, caplog: pytest.LogCaptureFixture
 
 
 async def _wait_for_abort(caplog: pytest.LogCaptureFixture) -> None:
-    """Wait for forecast update completion."""
+    """Wait for forecast update abort."""
 
     async with asyncio.timeout(10):
         while (
@@ -396,10 +396,10 @@ async def _wait_for_abort(caplog: pytest.LogCaptureFixture) -> None:
 
 
 async def _wait_for(caplog: pytest.LogCaptureFixture, wait_text: str) -> None:
-    """Wait for forecast update completion."""
+    """Wait for a log message to appear."""
 
     async with asyncio.timeout(10):
-        while wait_text not in caplog.text:  # Wait for task to abort
+        while wait_text not in caplog.text:  # Wait for expected log message
             await asyncio.sleep(0.01)
 
 
@@ -914,7 +914,7 @@ async def test_integration(  # noqa: C901
                 for test in scenario:
                     if first:
                         first = False
-                        # Fiddle with estimated actual data cache
+                        # Adjust estimated actual data cache
                         actuals = json.loads(Path(f"{config_dir}/solcast-actuals.json").read_text(encoding="utf-8"), cls=JSONDecoder)
                         for site in actuals[SITE_INFO].values():
                             for forecast in site[FORECASTS]:
@@ -1047,7 +1047,7 @@ async def test_remaining_actions(
         caplog.clear()
 
         # Switch to one API key and two sites to assert the initial clean-up
-        _LOGGER.debug("Swithching to one API key and two sites")
+        _LOGGER.debug("Switching to one API key and two sites")
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
         assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
@@ -1700,7 +1700,7 @@ async def test_actuals_api_limit_issue_raised_and_cleared(
         assert issue.translation_placeholders[CONFIGURED_VALUE] == configured_value
         assert issue.translation_placeholders[SUGGESTED_VALUE] == suggested_value
 
-        # User resolves by disabling estimated actuals acquisition.
+        # User resolves by disabling estimated actuals acquisition
         new_options = {**entry.options, GET_ACTUALS: False}
         hass.config_entries.async_update_entry(entry, options=new_options)
         await hass.async_block_till_done()
@@ -1961,7 +1961,7 @@ async def test_scenarios(
         await coordinator._update_integration_listeners()
         assert_state_assertions("post-update")
 
-        # Diagnostic should report a missed auto-update interval in this scenario.
+        # Diagnostic should report a missed auto-update interval in this scenario
         interval_just_passed = dt.now(datetime.UTC).replace(second=0, microsecond=0) - timedelta(minutes=10)
         coordinator._updater.interval_just_passed = interval_just_passed
         solcast.data[LAST_UPDATED] = interval_just_passed + timedelta(minutes=1)
@@ -2110,7 +2110,7 @@ async def test_scenarios(
         sites_file = Path(f"{config_dir}/solcast-sites.json")
         sites = json.loads(sites_file.read_text(encoding="utf-8"))
 
-        # Test no sites call on start when in a presumed dead state, then an allowed call after sixty minutes.
+        # Test no sites call on start when in a presumed dead state, then an allowed call after sixty minutes
         session_set(MOCK_BUSY)
 
         hass.data[DOMAIN][PRESUMED_DEAD] = True  # Set presumption of death
@@ -2222,8 +2222,8 @@ async def test_scenarios(
         assert f"Raise issue `{issue.issue_id}`" in caplog.text
         caplog.clear()
 
-        # Corrupt solcast.json with a non-convertable ISO datetime string (e.g. year out of Python range).
-        _LOGGER.debug("Testing non-convertable period_start: solcast.json")
+        # Corrupt solcast.json with a non-convertible ISO datetime string (e.g. year out of Python range)
+        _LOGGER.debug("Testing non-convertible period_start: solcast.json")
         nc_data = json.loads(data_file.read_text(encoding="utf-8"))
         first_site = next(iter(nc_data[SITE_INFO]))
         nc_data[SITE_INFO][first_site][FORECASTS].insert(
@@ -2398,7 +2398,7 @@ async def test_service_supports_response(
     recorder_mock: Recorder,
     hass: HomeAssistant,
 ) -> None:
-    """Test that response-returning service actions are registered with SupportsResponse.OPTIONAL."""
+    """Test that response-returning service actions are registered with SupportsResponse.ONLY."""
 
     try:
         await async_init_integration(hass, DEFAULT_INPUT1)
