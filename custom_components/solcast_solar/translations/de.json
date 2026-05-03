@@ -35,7 +35,7 @@
         "data_description": {
           "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
           "api_limit": "API-Kontingent (mehrere Werte durch Kommas trennen)",
-          "auto_update": "Automatische Aktualisierung"
+          "auto_update": "Wenn Sie keine automatische Aktualisierung verwenden, erstellen Sie eine Automatisierung, die die Aktion \"solcast_solar.update_forecasts\" regelmäßig aufruft, und halten Sie dabei das von Solcast empfohlene maximale Gesamtlimit ein (in der Regel insgesamt zehnmal pro Tag für einen Dachstandort oder bei zwei Standorten fünfmal pro Tag)"
         }
       },
       "user": {
@@ -48,7 +48,7 @@
         "data_description": {
           "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
           "api_limit": "API-Kontingent (mehrere Werte durch Kommas trennen)",
-          "auto_update": "Automatische Aktualisierung"
+          "auto_update": "Wenn Sie keine automatische Aktualisierung verwenden, erstellen Sie eine Automatisierung, die die Aktion \"solcast_solar.update_forecasts\" regelmäßig aufruft, und halten Sie dabei das von Solcast empfohlene maximale Gesamtlimit ein (in der Regel insgesamt zehnmal pro Tag für einen Dachstandort oder bei zwei Standorten fünfmal pro Tag)"
         }
       }
     }

@@ -35,7 +35,7 @@
         "data_description": {
           "api_key": "APIキー（複数の場合はコンマで区切る）",
           "api_limit": "APIリミット（オプションで複数のキーの場合コンマで区切る）",
-          "auto_update": "自動更新"
+          "auto_update": "自動更新を使用しない場合は、アクション \"solcast_solar.update_forecasts\" を定期的に呼び出すオートメーションを作成し、Solcast が推奨する最大合計上限を守ってください（通常は屋根上サイト 1 つで 1 日合計 10 回、2 サイトの場合は 1 日 5 回）"
         }
       },
       "user": {
@@ -48,7 +48,7 @@
         "data_description": {
           "api_key": "APIキー（複数の場合はコンマで区切る）",
           "api_limit": "APIリミット（オプションで複数のキーの場合コンマで区切る）",
-          "auto_update": "自動更新"
+          "auto_update": "自動更新を使用しない場合は、アクション \"solcast_solar.update_forecasts\" を定期的に呼び出すオートメーションを作成し、Solcast が推奨する最大合計上限を守ってください（通常は屋根上サイト 1 つで 1 日合計 10 回、2 サイトの場合は 1 日 5 回）"
         }
       }
     }

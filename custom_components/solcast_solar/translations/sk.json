@@ -35,7 +35,7 @@
         "data_description": {
           "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
           "api_limit": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",
-          "auto_update": "Automatická aktualizácia"
+          "auto_update": "Ak nepoužívate automatickú aktualizáciu, vytvorte automatizáciu, ktorá pravidelne volá akciu \"solcast_solar.update_forecasts\", pričom dodržujte Solcastom odporúčaný maximálny celkový limit (zvyčajne spolu desaťkrát denne pre jedno strešné miesto, alebo pri dvoch miestach päťkrát denne)"
         }
       },
       "user": {
@@ -48,7 +48,7 @@
         "data_description": {
           "api_key": "Kľúč API (viac hodnôt oddelených čiarkou)",
           "api_limit": "Kvóta rozhrania API (voliteľne čiarkou oddelené viaceré hodnoty pre každý kľúč)",
-          "auto_update": "Automatická aktualizácia"
+          "auto_update": "Ak nepoužívate automatickú aktualizáciu, vytvorte automatizáciu, ktorá pravidelne volá akciu \"solcast_solar.update_forecasts\", pričom dodržujte Solcastom odporúčaný maximálny celkový limit (zvyčajne spolu desaťkrát denne pre jedno strešné miesto, alebo pri dvoch miestach päťkrát denne)"
         }
       }
     }

@@ -35,7 +35,7 @@
         "data_description": {
           "api_key": "API-sleutel (komma scheid meerdere waarden)",
           "api_limit": "API-limiet (optioneel zijn meerdere waarden gescheiden door een komma voor elke sleutel)",
-          "auto_update": "Auto-update"
+          "auto_update": "Als u geen automatische update gebruikt, maak dan een automatisering die de actie \"solcast_solar.update_forecasts\" periodiek aanroept, en houd u daarbij aan de door Solcast geadviseerde maximale totale limiet (meestal in totaal tien keer per dag voor één daksite, of bij twee sites vijf keer per dag)"
         }
       },
       "user": {
@@ -48,7 +48,7 @@
         "data_description": {
           "api_key": "API-sleutel (komma scheid meerdere waarden)",
           "api_limit": "API-limiet (optioneel zijn meerdere waarden gescheiden door een komma voor elke sleutel)",
-          "auto_update": "Auto-update"
+          "auto_update": "Als u geen automatische update gebruikt, maak dan een automatisering die de actie \"solcast_solar.update_forecasts\" periodiek aanroept, en houd u daarbij aan de door Solcast geadviseerde maximale totale limiet (meestal in totaal tien keer per dag voor één daksite, of bij twee sites vijf keer per dag)"
         }
       }
     }

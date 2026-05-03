@@ -34,7 +34,7 @@
         "data_description": {
           "api_key": "Enter one or more Solcast API keys, separated by commas",
           "api_limit": "Enter a limit per key, separated by commas when using multiple keys",
-          "auto_update": "Choose when Home Assistant should request forecast updates"
+          "auto_update": "If not using auto-update, create an automation that calls the action \"solcast_solar.update_forecasts\" periodically, while adhering to your Solcast advised maximum total limit (usually ten times total per day for one rooftop site, or with two sites five times per day)"
         },
         "description": "Solcast Account Details\n\n(If not using auto-update then an automation is required - see the integration documentation)"
       },
@@ -47,7 +47,7 @@
         "data_description": {
           "api_key": "Enter one or more Solcast API keys, separated by commas",
           "api_limit": "Enter a limit per key, separated by commas when using multiple keys",
-          "auto_update": "Choose when Home Assistant should request forecast updates"
+          "auto_update": "If not using auto-update, create an automation that calls the action \"solcast_solar.update_forecasts\" periodically, while adhering to your Solcast advised maximum total limit (usually ten times total per day for one rooftop site, or with two sites five times per day)"
         },
         "description": "Solcast Account Details\n\n(If not using auto-update then an automation is required - see the integration documentation)\n\nThe Solcast API must be available to initially configure this integration. If you receive a status message '429 / Try again later' then the API is unavailable and configuration cannot be completed. You need to wait. Note that the API status page at status.solcast.com will almost certainly not show any API issues. The cause most likely lies with a single bad API user who is affecting availability for all hobbyists."
       }
@@ -476,17 +476,17 @@
           "attr_brk_halfhourly": "",
           "attr_brk_hourly": "",
           "attr_brk_site": "",
-          "auto_dampen": "Requires estimated actuals and a PV generation entity \u2014 see the integration documentation",
+          "auto_dampen": "Requires estimated actuals and a PV generation entity — see the integration documentation",
           "auto_update": "If not using auto-update, create an automation that calls the action \"solcast_solar.update_forecasts\" periodically, while adhering to your Solcast advised maximum total limit (usually ten times total per day for one rooftop site, or with two sites five times per day)",
           "config_damp": "Click submit to proceed to the dampening factor editor",
           "custom_hours": "Number of hours for the custom sensor (minimum 1, maximum 144)",
           "exclude_sites": "Site(s) to exclude from the Energy dashboard and sensor totals when adding local and remote site API keys for a single Home Assistant local/remote deployment",
           "generation_entities": "For automated dampening: energy (Wh/kWh/MWh, total increasing) or power (W/kW/MW, instantaneous)",
-          "get_actuals": "Uses one API call per site per day \u2014 see the integration documentation; a reduced API limit is recommended",
+          "get_actuals": "Uses one API call per site per day — see the integration documentation; a reduced API limit is recommended",
           "hard_limit_api": "See the integration documentation; comma separate multiple values for each key",
           "key_estimate": "",
-          "site_damp": "Granular dampening is set \u2014 clear to revert to overall hourly dampening",
-          "site_export_entity": "Optional \u2014 for automated dampening (Wh/kWh/MWh, total increasing)",
+          "site_damp": "Granular dampening is set — clear to revert to overall hourly dampening",
+          "site_export_entity": "Optional — for automated dampening (Wh/kWh/MWh, total increasing)",
           "site_export_limit": "Required if a site export entity is specified",
           "use_actuals": ""
         },

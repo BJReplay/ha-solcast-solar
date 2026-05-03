@@ -35,7 +35,7 @@
         "data_description": {
           "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
           "api_limit": "Quota d'API (plusieurs valeurs séparées par des virgules)",
-          "auto_update": "Mise à jour automatique"
+          "auto_update": "Si vous n'utilisez pas la mise à jour automatique, créez une automatisation qui appelle périodiquement l'action \"solcast_solar.update_forecasts\", tout en respectant la limite totale maximale conseillée par Solcast (généralement dix fois au total par jour pour un site sur toit, ou avec deux sites cinq fois par jour)"
         }
       },
       "user": {
@@ -48,7 +48,7 @@
         "data_description": {
           "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
           "api_limit": "Quota d'API (plusieurs valeurs séparées par des virgules)",
-          "auto_update": "Mise à jour automatique"
+          "auto_update": "Si vous n'utilisez pas la mise à jour automatique, créez une automatisation qui appelle périodiquement l'action \"solcast_solar.update_forecasts\", tout en respectant la limite totale maximale conseillée par Solcast (généralement dix fois au total par jour pour un site sur toit, ou avec deux sites cinq fois par jour)"
         }
       }
     }

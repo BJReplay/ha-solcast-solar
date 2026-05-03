@@ -35,7 +35,7 @@
         "data_description": {
           "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
           "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
-          "auto_update": "Automatyczna aktualizacja"
+          "auto_update": "Jeśli nie używasz automatycznej aktualizacji, utwórz automatyzację, która okresowo wywołuje akcję \"solcast_solar.update_forecasts\", przestrzegając zalecanego przez Solcast maksymalnego łącznego limitu (zwykle łącznie dziesięć razy dziennie dla jednego miejsca dachowego, a przy dwóch miejscach pięć razy dziennie)"
         }
       },
       "user": {
@@ -48,7 +48,7 @@
         "data_description": {
           "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
           "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
-          "auto_update": "Automatyczna aktualizacja"
+          "auto_update": "Jeśli nie używasz automatycznej aktualizacji, utwórz automatyzację, która okresowo wywołuje akcję \"solcast_solar.update_forecasts\", przestrzegając zalecanego przez Solcast maksymalnego łącznego limitu (zwykle łącznie dziesięć razy dziennie dla jednego miejsca dachowego, a przy dwóch miejscach pięć razy dziennie)"
         }
       }
     }
