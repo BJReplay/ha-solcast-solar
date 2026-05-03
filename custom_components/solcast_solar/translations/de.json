@@ -18,36 +18,36 @@
     "step": {
       "reauth_confirm": {
         "data": {
-          "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)"
+          "api_key": "API-Schlüssel"
         },
         "description": "API-Schlüssel für das Solcast-Konto",
         "data_description": {
-          "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)"
+          "api_key": "Geben Sie einen oder mehrere Solcast-API-Schlüssel ein, durch Kommas getrennt"
         }
       },
       "reconfigure_confirm": {
         "data": {
-          "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
-          "api_limit": "API-Kontingent (mehrere Werte durch Kommas trennen)",
+          "api_key": "API-Schlüssel",
+          "api_limit": "API-Kontingent",
           "auto_update": "Automatische Aktualisierung"
         },
         "description": "Solcast-Kontodaten\n\n(Wenn keine automatische Aktualisierung erfolgt, ist eine Automatisierung erforderlich – siehe Integrationsdokumentation)",
         "data_description": {
-          "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
-          "api_limit": "API-Kontingent (mehrere Werte durch Kommas trennen)",
+          "api_key": "Geben Sie einen oder mehrere Solcast-API-Schlüssel ein, durch Kommas getrennt",
+          "api_limit": "Geben Sie ein Limit pro Schlüssel ein, durch Kommas getrennt bei mehreren Schlüsseln",
           "auto_update": "Wenn Sie keine automatische Aktualisierung verwenden, erstellen Sie eine Automatisierung, die die Aktion \"solcast_solar.update_forecasts\" regelmäßig aufruft, und halten Sie dabei das von Solcast empfohlene maximale Gesamtlimit ein (in der Regel insgesamt zehnmal pro Tag für einen Dachstandort oder bei zwei Standorten fünfmal pro Tag)"
         }
       },
       "user": {
         "data": {
-          "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
-          "api_limit": "API-Kontingent (mehrere Werte durch Kommas trennen)",
+          "api_key": "API-Schlüssel",
+          "api_limit": "API-Kontingent",
           "auto_update": "Automatische Aktualisierung"
         },
         "description": "Solcast-Kontodaten\n\n(Wenn keine automatische Aktualisierung erfolgt, ist eine Automatisierung erforderlich – siehe Integrationsdokumentation)\n\nDie Solcast-API muss verfügbar sein, um diese Integration erstmalig konfigurieren zu können. Wenn Sie die Statusmeldung '429 / Try again later' erhalten, ist die API nicht verfügbar und die Konfiguration kann nicht abgeschlossen werden. Sie müssen warten. Beachten Sie, dass die API-Statusseite unter status.solcast.com höchstwahrscheinlich keine API-Probleme anzeigt. Die Ursache liegt höchstwahrscheinlich bei einem einzelnen schlechten API-Nutzer, der die Verfügbarkeit für alle Hobbyanwender beeinträchtigt.",
         "data_description": {
-          "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
-          "api_limit": "API-Kontingent (mehrere Werte durch Kommas trennen)",
+          "api_key": "Geben Sie einen oder mehrere Solcast-API-Schlüssel ein, durch Kommas getrennt",
+          "api_limit": "Geben Sie ein Limit pro Schlüssel ein, durch Kommas getrennt bei mehreren Schlüsseln",
           "auto_update": "Wenn Sie keine automatische Aktualisierung verwenden, erstellen Sie eine Automatisierung, die die Aktion \"solcast_solar.update_forecasts\" regelmäßig aufruft, und halten Sie dabei das von Solcast empfohlene maximale Gesamtlimit ein (in der Regel insgesamt zehnmal pro Tag für einen Dachstandort oder bei zwei Standorten fünfmal pro Tag)"
         }
       }
@@ -412,7 +412,7 @@
         },
         "description": "Ändern Sie den stündlichen Dämpfungsfaktor",
         "data_description": {
-          "damp00": "Enter a value between 0.0 (no production counted) and 1.0 (full production counted)",
+          "damp00": "Geben Sie einen Wert zwischen 0,0 (keine Produktion gezählt) und 1,0 (volle Produktion gezählt) ein",
           "damp01": "",
           "damp02": "",
           "damp03": "",
@@ -440,52 +440,52 @@
       },
       "init": {
         "data": {
-          "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
-          "api_limit": "API-Kontingent (mehrere Werte durch Kommas trennen)",
-          "attr_brk_detailed": "Aktivieren Sie die Site-Aufschlüsselung für halbstündliche/stündliche Detailattribute (diese werden nicht in Datenbankstatusattributen gespeichert)",
+          "api_key": "API-Schlüssel",
+          "api_limit": "API-Kontingent",
+          "attr_brk_detailed": "Detailattribut-Standortaufschlüsselung aktivieren",
           "attr_brk_estimate": "Aktivieren Sie die Schätzung von 50 Sensorattributen",
           "attr_brk_estimate10": "Aktivieren Sie die Schätzung von 10 Sensorattributen",
           "attr_brk_estimate90": "Aktivieren Sie die Schätzung von 90 Sensorattributen",
           "attr_brk_halfhourly": "Aktivieren Sie prognostizierte halbstündliche Detailattribute",
           "attr_brk_hourly": "Aktivieren Sie prognostizierte stündliche Detailattribute",
           "attr_brk_site": "Aktivieren Sie die Attribute des Site-Aufschlüsselungssensors",
-          "auto_dampen": "Automatische Dämpfung (erfordert geschätzte Istwerte und PV-Erzeugungseinheit, siehe Integrationsdokumentation)",
+          "auto_dampen": "Automatische Dämpfung",
           "auto_update": "Automatische Aktualisierung (wenn keine automatische Aktualisierung vorhanden ist, muss stattdessen eine Automatisierung verwendet werden)",
-          "config_damp": "Ändern Sie die stündlichen Dämpfungsfaktoren (nachdem Sie auf „Senden“ geklickt haben)",
-          "custom_hours": "Nächster X-Stunden-Sensor (min=1, max=144)",
+          "config_damp": "Stündliche Dämpfungsfaktoren ändern",
+          "custom_hours": "Benutzerdefinierter nächster-X-Stunden-Sensor",
           "exclude_sites": "Vom Energie-Dashboard und den Sensorgesamtwerten auszuschließende Site(s)",
-          "generation_entities": "PV-Erzeugungseinheit(en) für automatisierte Dämpfung (Wh/kWh/MWh, Gesamterhöhung)",
-          "get_actuals": "Geschätzte Istwerte werden um Mitternacht aktualisiert (siehe Integrationsdokumentation, verwendet einen API-Aufruf pro Standort und Tag, daher ist ein reduzierter API-Limit erforderlich, wenn diese Option aktiviert ist)",
-          "hard_limit_api": "Fester Grenzwert des Wechselrichters in kW (siehe Integrationsdokumentation)",
+          "generation_entities": "PV-Erzeugungseinheit/-einheiten",
+          "get_actuals": "Geschätzte Istwerte werden um Mitternacht aktualisiert",
+          "hard_limit_api": "Fester Grenzwert des Wechselrichters (kW)",
           "key_estimate": "Bevorzugte Prognosewahrscheinlichkeit für Sensoren",
-          "site_damp": "Die granulare Dämpfung ist eingestellt: Löschen, um zur stündlichen Gesamtdämpfung zurückzukehren",
-          "site_export_entity": "Optionale Site-Export-Einheit für automatisierte Dämpfung (Wh/kWh/MWh, Gesamterhöhung)",
-          "site_export_limit": "Site-Export-Limit, wenn der Site-Export angegeben ist (kW)",
+          "site_damp": "Granulare Dämpfung ist eingestellt",
+          "site_export_entity": "Standort-Export-Einheit",
+          "site_export_limit": "Standort-Export-Limit (kW)",
           "use_actuals": "Prognosehistorie, die im Energiedashboard angezeigt werden soll"
         },
         "description": "Dein Solcast-API-Kontoschlüssel",
         "data_description": {
-          "api_key": "API-Schlüssel (mehrere Werte durch Kommas trennen)",
-          "api_limit": "API-Kontingent (mehrere Werte durch Kommas trennen)",
-          "attr_brk_detailed": "Aktivieren Sie die Site-Aufschlüsselung für halbstündliche/stündliche Detailattribute (diese werden nicht in Datenbankstatusattributen gespeichert)",
+          "api_key": "Geben Sie einen oder mehrere Solcast-API-Schlüssel ein, durch Kommas getrennt",
+          "api_limit": "Geben Sie ein Limit pro Schlüssel ein, durch Kommas getrennt bei mehreren Schlüsseln",
+          "attr_brk_detailed": "Standortaufschlüsselung für halbstündliche/stündliche Detailattribute (diese werden nicht in Datenbankstatusattributen gespeichert)",
           "attr_brk_estimate": "",
           "attr_brk_estimate10": "",
           "attr_brk_estimate90": "",
           "attr_brk_halfhourly": "",
           "attr_brk_hourly": "",
           "attr_brk_site": "",
-          "auto_dampen": "Automatische Dämpfung (erfordert geschätzte Istwerte und PV-Erzeugungseinheit, siehe Integrationsdokumentation)",
+          "auto_dampen": "Erfordert geschätzte Istwerte und eine PV-Erzeugungseinheit — siehe Integrationsdokumentation",
           "auto_update": "Wenn Sie keine automatische Aktualisierung verwenden, erstellen Sie eine Automatisierung, die die Aktion \"solcast_solar.update_forecasts\" regelmäßig aufruft, und halten Sie dabei das von Solcast empfohlene maximale Gesamtlimit ein (in der Regel insgesamt zehnmal pro Tag für einen Dachstandort oder bei zwei Standorten fünfmal pro Tag)",
-          "config_damp": "Ändern Sie die stündlichen Dämpfungsfaktoren (nachdem Sie auf „Senden“ geklickt haben)",
-          "custom_hours": "Nächster X-Stunden-Sensor (min=1, max=144)",
+          "config_damp": "Auf „Senden“ klicken, um zum Dämpfungsfaktor-Editor zu gelangen",
+          "custom_hours": "Anzahl der Stunden für den benutzerdefinierten Sensor (Minimum 1, Maximum 144)",
           "exclude_sites": "Standort(e), die vom Energie-Dashboard und den Sensorgesamtwerten ausgeschlossen werden sollen, wenn lokale und Remote-API-Schlüssel für eine einzelne lokale/Remote-Home-Assistant-Bereitstellung hinzugefügt werden",
-          "generation_entities": "PV-Erzeugungseinheit(en) für automatisierte Dämpfung (Wh/kWh/MWh, Gesamterhöhung)",
-          "get_actuals": "Geschätzte Istwerte werden um Mitternacht aktualisiert (siehe Integrationsdokumentation, verwendet einen API-Aufruf pro Standort und Tag, daher ist ein reduzierter API-Limit erforderlich, wenn diese Option aktiviert ist)",
-          "hard_limit_api": "Fester Grenzwert des Wechselrichters in kW (siehe Integrationsdokumentation)",
+          "generation_entities": "Für automatische Dämpfung: Energie (Wh/kWh/MWh, Gesamtzunahme) oder Leistung (W/kW/MW, augenblicklich)",
+          "get_actuals": "Verwendet einen API-Aufruf pro Standort und Tag — siehe Integrationsdokumentation; ein reduziertes API-Kontingent wird empfohlen",
+          "hard_limit_api": "Siehe Integrationsdokumentation; mehrere Werte für jeden Schlüssel durch Kommas trennen",
           "key_estimate": "",
-          "site_damp": "Die granulare Dämpfung ist eingestellt: Löschen, um zur stündlichen Gesamtdämpfung zurückzukehren",
-          "site_export_entity": "Optionale Site-Export-Einheit für automatisierte Dämpfung (Wh/kWh/MWh, Gesamterhöhung)",
-          "site_export_limit": "Site-Export-Limit, wenn der Site-Export angegeben ist (kW)",
+          "site_damp": "Granulare Dämpfung ist eingestellt — löschen, um zur allgemeinen stündlichen Dämpfung zurückzukehren",
+          "site_export_entity": "Optional — für automatische Dämpfung (Wh/kWh/MWh, Gesamtzunahme)",
+          "site_export_limit": "Erforderlich, wenn eine Standort-Export-Einheit angegeben ist",
           "use_actuals": ""
         }
       }
