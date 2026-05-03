@@ -203,17 +203,21 @@ class FileWatcher:
             try:
                 while not coordinator.hass.is_stopping and coordinator.tasks and self.watchdog[task][EVENT] != FileEvent.DELETE:
                     await asyncio.sleep(0.5)
-                    if (
-                        self.watchdog[task][EVENT] == FileEvent.UPDATE
-                        and coordinator.solcast.dampening.factors_mtime != Path(coordinator.file_dampening).stat().st_mtime
-                    ):
-                        self.watchdog[task][EVENT] = FileEvent.NO_EVENT
-                        _LOGGER.debug("Granular dampening mtime changed")
-                        await coordinator.solcast.dampening.refresh_granular_data()
-                        await coordinator.solcast.dampening.apply_forward()
-                        _LOGGER.debug("Recalculate forecasts and refresh sensors")
-                        await coordinator.solcast.build_forecast_data()
-                        await coordinator.update_integration_listeners()
+                    if self.watchdog[task][EVENT] == FileEvent.UPDATE:
+                        try:
+                            dampening_mtime = Path(coordinator.file_dampening).stat().st_mtime
+                        except FileNotFoundError:
+                            self.watchdog[task][EVENT] = FileEvent.NO_EVENT
+                            continue
+
+                        if coordinator.solcast.dampening.factors_mtime != dampening_mtime:
+                            self.watchdog[task][EVENT] = FileEvent.NO_EVENT
+                            _LOGGER.debug("Granular dampening mtime changed")
+                            await coordinator.solcast.dampening.refresh_granular_data()
+                            await coordinator.solcast.dampening.apply_forward()
+                            _LOGGER.debug("Recalculate forecasts and refresh sensors")
+                            await coordinator.solcast.build_forecast_data()
+                            await coordinator.update_integration_listeners()
                 if self.watchdog[task][EVENT] == FileEvent.DELETE:
                     _LOGGER.debug("Granular dampening file deleted, no longer monitoring %s for changes", coordinator.file_dampening)
                     coordinator.solcast.dampening.factors = {}

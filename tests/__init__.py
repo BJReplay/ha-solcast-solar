@@ -55,7 +55,7 @@ from homeassistant.components.solcast_solar.const import (
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -984,6 +984,15 @@ async def async_cleanup_integration_tests(hass: HomeAssistant, **kwargs: Any) ->
 
     try:
         leave_dir = False
+
+        loaded_entries = [entry for entry in hass.config_entries.async_entries(DOMAIN) if entry.state is ConfigEntryState.LOADED]
+        for entry in loaded_entries:
+            _LOGGER.debug("Unloading config entry during Solcast test cleanup: %s", entry.entry_id)
+            if not await hass.config_entries.async_unload(entry.entry_id):
+                _LOGGER.error("Error unloading Solcast config entry during test cleanup: %s", entry.entry_id)
+                return False
+        if loaded_entries:
+            await hass.async_block_till_done()
 
         for s in mock_session_default:  # Reset mock session settings
             if s != "aioresponses":

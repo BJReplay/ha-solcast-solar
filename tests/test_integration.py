@@ -141,6 +141,7 @@ from homeassistant.components.solcast_solar.util import (
     get_solcast_base_url,
     sync_actuals_api_limit_issue,
 )
+from homeassistant.components.solcast_solar.watch import FileEvent, FileWatcher
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, SupportsResponse
@@ -3291,3 +3292,46 @@ async def test_forecast_accuracy_sensor_no_data(
 def test_get_solcast_base_url(url: str, port: int, expected: str) -> None:
     """Test get_solcast_base_url covers all branches."""
     assert get_solcast_base_url(url, port) == expected
+
+
+@pytest.mark.asyncio
+async def test_watch_dampening_file_missing() -> None:
+    """Ignore a missing dampening file while processing an update event."""
+
+    cancel = unittest.mock.Mock()
+    observer = unittest.mock.MagicMock()
+    coordinator = unittest.mock.MagicMock()
+    coordinator.file_dampening = "/missing/solcast-dampening.json"
+    coordinator.hass = unittest.mock.MagicMock(is_stopping=False)
+    coordinator.tasks = {"watchdog_dampening": cancel}
+    coordinator.solcast = unittest.mock.MagicMock()
+    coordinator.solcast.dampening.factors_mtime = 1.0
+    coordinator.solcast.dampening.refresh_granular_data = unittest.mock.AsyncMock()
+    coordinator.solcast.dampening.apply_forward = unittest.mock.AsyncMock()
+    coordinator.solcast.build_forecast_data = unittest.mock.AsyncMock()
+    coordinator.update_integration_listeners = unittest.mock.AsyncMock()
+
+    watcher = FileWatcher(coordinator)
+    watcher.watchdog["watchdog_dampening"]["event"] = FileEvent.UPDATE
+
+    async def stop_after_first_poll(_: float) -> None:
+        coordinator.hass.is_stopping = True
+
+    with (
+        unittest.mock.patch("homeassistant.components.solcast_solar.watch.Observer", return_value=observer),
+        unittest.mock.patch("homeassistant.components.solcast_solar.watch.Path.stat", side_effect=FileNotFoundError),
+        unittest.mock.patch("homeassistant.components.solcast_solar.watch.asyncio.sleep", side_effect=stop_after_first_poll),
+    ):
+        await watcher.watch_dampening_file()
+
+    observer.schedule.assert_called_once()
+    observer.start.assert_called_once()
+    observer.stop.assert_called_once()
+    observer.join.assert_called_once()
+    cancel.assert_called_once()
+    assert "watchdog_dampening" not in coordinator.tasks
+    assert watcher.watchdog["watchdog_dampening"]["event"] is FileEvent.NO_EVENT
+    coordinator.solcast.dampening.refresh_granular_data.assert_not_awaited()
+    coordinator.solcast.dampening.apply_forward.assert_not_awaited()
+    coordinator.solcast.build_forecast_data.assert_not_awaited()
+    coordinator.update_integration_listeners.assert_not_awaited()
