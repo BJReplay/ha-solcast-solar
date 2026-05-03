@@ -10,11 +10,11 @@ from homeassistant.components.select import SelectEntity, SelectEntityDescriptio
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN, ESTIMATE_MODE, INTEGRATION, KEY_ESTIMATE, MANUFACTURER
+from .const import ESTIMATE_MODE, KEY_ESTIMATE
 from .coordinator import SolcastUpdateCoordinator
+from .entity import build_service_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -107,15 +107,7 @@ class EstimateModeEntity(SelectEntity):
         self._attr_current_option = current_option
         self._attr_entity_category = EntityCategory.CONFIG
         self._attr_extra_state_attributes: dict[str, Any] = {}
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=INTEGRATION,
-            manufacturer=MANUFACTURER,
-            model=INTEGRATION,
-            entry_type=DeviceEntryType.SERVICE,
-            sw_version=coordinator.version,
-            configuration_url="https://toolkit.solcast.com.au/",
-        )
+        self._attr_device_info = build_service_device_info(entry, coordinator.version)
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option.

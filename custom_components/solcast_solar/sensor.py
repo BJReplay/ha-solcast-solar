@@ -20,7 +20,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY, EntityCategory, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -32,11 +31,9 @@ from .const import (
     AUTO_UPDATE_DIVISIONS,
     AUTO_UPDATE_NEXT,
     AUTO_UPDATE_QUEUE,
-    CONFIGURATION_URL,
     DESCRIPTION,
     DETAILED_FORECAST,
     DETAILED_HOURLY,
-    DOMAIN,
     ENABLED_BY_DEFAULT,
     ENTITY_ACCURACY,
     ENTITY_API_COUNTER,
@@ -62,14 +59,13 @@ from .const import (
     FACTORS,
     HARD_LIMIT,
     HARD_LIMIT_API,
-    INTEGRATION,
-    MANUFACTURER,
     NAME,
     RESOURCE_ID,
     SITES_DATA,
     UNRECORDED_ATTRIBUTES,
 )
 from .coordinator import SolcastUpdateCoordinator
+from .entity import build_service_device_info
 from .util import api_key_last_six, format_site_key, redact_api_key
 
 _LOGGER = logging.getLogger(__name__)
@@ -471,15 +467,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
         self._attr_available = self._sensor_data is not None
 
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=INTEGRATION,
-            manufacturer=MANUFACTURER,
-            model=INTEGRATION,
-            entry_type=DeviceEntryType.SERVICE,
-            sw_version=coordinator.version,
-            configuration_url=CONFIGURATION_URL,
-        )
+        self._attr_device_info = build_service_device_info(entry, coordinator.version)
 
     async def async_added_to_hass(self) -> None:
         """Entity about to be added to hass, so set recorder excluded attributes."""
@@ -591,15 +579,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
 
         self._attr_available = self._sensor_data is not None
 
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name=INTEGRATION,
-            manufacturer=MANUFACTURER,
-            model=INTEGRATION,
-            entry_type=DeviceEntryType.SERVICE,
-            sw_version=coordinator.version,
-            configuration_url=CONFIGURATION_URL,
-        )
+        self._attr_device_info = build_service_device_info(entry, coordinator.version)
 
         self._unique_id = f"solcast_api_{sensor[DESCRIPTION].name}"
 

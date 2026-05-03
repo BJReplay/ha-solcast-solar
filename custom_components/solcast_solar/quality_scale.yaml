@@ -83,4 +83,9 @@ rules:
   # Platinum
   async-dependency: done
   inject-websession: done
-  strict-typing: done
+  strict-typing:
+    status: exempt
+    comment: |
+      This project is maintained as a custom integration. Core mypy.ini strict
+      sections are not a meaningful compliance signal for this integration.
+      Strict typing is adhered to, and is expected for any new code contributions.

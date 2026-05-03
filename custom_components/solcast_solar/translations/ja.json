@@ -113,9 +113,11 @@
       },
       "power_now_30m": {
         "name": "30分後の電力"
-      },      "site_data": {
+      },
+      "site_data": {
         "name": "サイトデータ"
-      },      "total_kwh_forecast_d10": {
+      },
+      "total_kwh_forecast_d10": {
         "name": "予報 10日目"
       },
       "total_kwh_forecast_d11": {

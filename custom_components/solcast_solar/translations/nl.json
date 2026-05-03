@@ -113,9 +113,11 @@
       },
       "power_now_30m": {
         "name": "Vermogen in 30 Minuten"
-      },      "site_data": {
+      },
+      "site_data": {
         "name": "Sitegegevens"
-      },      "total_kwh_forecast_d10": {
+      },
+      "total_kwh_forecast_d10": {
         "name": "Voorspelling Dag 10"
       },
       "total_kwh_forecast_d11": {
