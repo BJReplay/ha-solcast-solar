@@ -114,6 +114,9 @@
       "power_now_30m": {
         "name": "Puissance en 30 minutes"
       },
+      "site_data": {
+        "name": "Données du site"
+      },
       "total_kwh_forecast_d10": {
         "name": "Prévision jour 10"
       },

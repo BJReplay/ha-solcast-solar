@@ -114,6 +114,9 @@
       "power_now_30m": {
         "name": "Výkon za 30 minút"
       },
+      "site_data": {
+        "name": "Údaje o lokalite"
+      },
       "total_kwh_forecast_d10": {
         "name": "Predpoveď deň 10"
       },

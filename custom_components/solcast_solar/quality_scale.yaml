@@ -19,7 +19,12 @@ rules:
     comment: |
       Entity events are not used by this integration, so there is nothing to set up.
   entity-unique-id: done
-  has-entity-name: done
+  has-entity-name:
+    status: exempt
+    comment: |
+      RooftopSensor uses a site name directly as the entity name to preserve
+      stable entity IDs. Changing this would break existing automations and
+      entity registry entries for all users.
   runtime-data: done
   test-before-configure: done
   test-before-setup: done

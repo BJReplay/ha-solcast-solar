@@ -4,14 +4,18 @@
             "estimate_mode": {"default": "mdi:sun-angle"}
         },
         "sensor": {
+            "accuracy": {"default": "mdi:percent"},
             "api_counter": {"default": "mdi:web-check"},
             "api_limit": {"default": "mdi:web-check"},
+            "dampen": {"default": "mdi:format-align-middle"},
             "forecast_custom_hours": {"default": "mdi:solar-power"},
             "forecast_next_hour": {"default": "mdi:solar-power"},
+            "forecast_remaining_today": {"default": "mdi:solar-power"},
             "forecast_this_hour": {"default": "mdi:solar-power"},
             "get_remaining_today": {"default": "mdi:solar-power"},
             "hard_limit": {"default": "mdi:speedometer"},
             "hard_limit_api": {"default": "mdi:speedometer"},
+            "last_updated": {"default": "mdi:clock"},
             "lastupdated": {"default": "mdi:clock"},
             "peak_w_time_today": {"default": "mdi:clock"},
             "peak_w_today": {"default": "mdi:solar-power"},

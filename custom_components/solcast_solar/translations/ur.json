@@ -114,6 +114,9 @@
       "power_now_30m": {
         "name": "پاور اگلا 30 منٹ"
       },
+      "site_data": {
+        "name": "سائٹ ڈیٹا"
+      },
       "total_kwh_forecast_d10": {
         "name": "دن 10 کی پیشن گوئی"
       },
