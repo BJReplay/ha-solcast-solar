@@ -33,6 +33,7 @@ from .const import (
     AUTO_UPDATE_QUEUE,
     DESCRIPTION,
     DETAILED_FORECAST,
+    DOMAIN,
     DETAILED_HOURLY,
     ENABLED_BY_DEFAULT,
     ENTITY_ACCURACY,
@@ -406,6 +407,16 @@ async def async_setup_entry(
                 entity_registry.async_remove(entity.entity_id)
                 _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
 
+    # Migrate RooftopSensor unique IDs from site display name to stable resource ID.
+    # Existing entity IDs are preserved; only the registry unique_id changes.
+    for site in coordinator.solcast.sites:
+        old_unique_id = f"solcast_solcast_api_{site[NAME]}"
+        new_unique_id = f"solcast_solcast_api_{site[RESOURCE_ID]}"
+        if old_unique_id != new_unique_id:
+            if entity_id := entity_registry.async_get_entity_id("sensor", DOMAIN, old_unique_id):
+                entity_registry.async_update_entity(entity_id, new_unique_id=new_unique_id)
+                _LOGGER.debug("Migrated RooftopSensor unique ID for site '%s' to resource ID", site[NAME])
+
     # Site sensors
     for site in coordinator.solcast.sites:
         k = {
@@ -581,7 +592,7 @@ class RooftopSensor(CoordinatorEntity, SensorEntity):
 
         self._attr_device_info = build_service_device_info(entry, coordinator.version)
 
-        self._unique_id = f"solcast_api_{sensor[DESCRIPTION].name}"
+        self._unique_id = f"solcast_api_{self._rooftop_id}"
 
     @property
     def available(self) -> bool:  # type: ignore[explicit-override]  # Explicitly overridden because parent is a cached property

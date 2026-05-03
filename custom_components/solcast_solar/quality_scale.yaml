@@ -22,9 +22,9 @@ rules:
   has-entity-name:
     status: exempt
     comment: |
-      RooftopSensor uses a site name directly as the entity name to preserve
-      stable entity IDs. Changing this would break existing automations and
-      entity registry entries for all users.
+      RooftopSensor uses the Solcast site name directly as the entity name.
+      Changing this to use `has_entity_name` would rename existing entities and
+      break user expectations around long-standing entity names.
   runtime-data: done
   test-before-configure: done
   test-before-setup: done
