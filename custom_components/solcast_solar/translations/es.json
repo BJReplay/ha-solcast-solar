@@ -20,7 +20,10 @@
         "data": {
           "api_key": "Clave API (varios valores separados por comas)"
         },
-        "description": "Clave API de cuenta Solcast"
+        "description": "Clave API de cuenta Solcast",
+        "data_description": {
+          "api_key": "Clave API (varios valores separados por comas)"
+        }
       },
       "reconfigure_confirm": {
         "data": {
@@ -28,7 +31,12 @@
           "api_limit": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
           "auto_update": "Actualización automática"
         },
-        "description": "Detalles de la cuenta Solcast\n\n(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)"
+        "description": "Detalles de la cuenta Solcast\n\n(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)",
+        "data_description": {
+          "api_key": "Clave API (varios valores separados por comas)",
+          "api_limit": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
+          "auto_update": "Actualización automática"
+        }
       },
       "user": {
         "data": {
@@ -36,7 +44,12 @@
           "api_limit": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
           "auto_update": "Actualización automática"
         },
-        "description": "Detalles de la cuenta Solcast\n\n(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)\n\nLa API de Solcast debe estar disponible para configurar esta integración por primera vez. Si recibe el mensaje de estado '429 / Try again later', significa que la API no está disponible y la configuración no puede completarse. Debe esperar. Tenga en cuenta que la página de estado de la API en status.solcast.com casi con certeza no mostrará ningún problema de API. La causa más probable es un único usuario problemático de la API que afecta la disponibilidad para todos los aficionados."
+        "description": "Detalles de la cuenta Solcast\n\n(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)\n\nLa API de Solcast debe estar disponible para configurar esta integración por primera vez. Si recibe el mensaje de estado '429 / Try again later', significa que la API no está disponible y la configuración no puede completarse. Debe esperar. Tenga en cuenta que la página de estado de la API en status.solcast.com casi con certeza no mostrará ningún problema de API. La causa más probable es un único usuario problemático de la API que afecta la disponibilidad para todos los aficionados.",
+        "data_description": {
+          "api_key": "Clave API (varios valores separados por comas)",
+          "api_limit": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
+          "auto_update": "Actualización automática"
+        }
       }
     }
   },
@@ -397,7 +410,33 @@
           "damp22": "22:00",
           "damp23": "23:00"
         },
-        "description": "Modificar el factor de amortiguación horario"
+        "description": "Modificar el factor de amortiguación horario",
+        "data_description": {
+          "damp00": "Enter a value between 0.0 (no production counted) and 1.0 (full production counted)",
+          "damp01": "",
+          "damp02": "",
+          "damp03": "",
+          "damp04": "",
+          "damp05": "",
+          "damp06": "",
+          "damp07": "",
+          "damp08": "",
+          "damp09": "",
+          "damp10": "",
+          "damp11": "",
+          "damp12": "",
+          "damp13": "",
+          "damp14": "",
+          "damp15": "",
+          "damp16": "",
+          "damp17": "",
+          "damp18": "",
+          "damp19": "",
+          "damp20": "",
+          "damp21": "",
+          "damp22": "",
+          "damp23": ""
+        }
       },
       "init": {
         "data": {
@@ -424,7 +463,31 @@
           "site_export_limit": "Límite de exportación de sitio si se especifica la exportación de sitio (kW)",
           "use_actuals": "Historial de pronósticos para mostrar en el panel de energía"
         },
-        "description": "Opciones de configuración de Solcast"
+        "description": "Opciones de configuración de Solcast",
+        "data_description": {
+          "api_key": "Clave API (varios valores separados por comas)",
+          "api_limit": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
+          "attr_brk_detailed": "Habilitar el desglose del sitio para los atributos de detalle por media hora o por hora (estos no se guardarán en los atributos de estado de la base de datos)",
+          "attr_brk_estimate": "",
+          "attr_brk_estimate10": "",
+          "attr_brk_estimate90": "",
+          "attr_brk_halfhourly": "",
+          "attr_brk_hourly": "",
+          "attr_brk_site": "",
+          "auto_dampen": "Auto-dampen (requiere valores reales estimados y una entidad de generación PV, ver documentación de integración)",
+          "auto_update": "Si no usa la actualización automática, cree una automatización que llame periódicamente a la acción \"solcast_solar.update_forecasts\", respetando el límite total máximo recomendado por Solcast (normalmente diez veces en total por día para un sitio de azotea, o con dos sitios cinco veces por día)",
+          "config_damp": "Modificar los factores de amortiguación por hora (después de hacer clic en enviar)",
+          "custom_hours": "Sensor personalizado para las próximas X horas (mín.=1, máx.=144)",
+          "exclude_sites": "Sitio(s) a excluir del panel de Energía y de los totales de sensores al añadir claves API de sitios locales y remotos para una única implementación local/remota de Home Assistant",
+          "generation_entities": "Entidad/entidades de generación fotovoltaica para amortiguación automatizada (energía: Wh/kWh/MWh total creciente, o potencia: W/kW/MW instantánea)",
+          "get_actuals": "Valores reales estimados actualizados a medianoche (ver documentación de integración, utiliza una llamada API por sitio por día, por lo que se necesita un límite API reducido con esta opción habilitada)",
+          "hard_limit_api": "Límite máximo del inversor en kW (consulte la documentación de integración)",
+          "key_estimate": "",
+          "site_damp": "La amortiguación granular está configurada: desmarque para volver a la amortiguación horaria general",
+          "site_export_entity": "Entidad de exportación de sitio opcional para amortiguación automatizada (Wh/kWh/MWh, aumento total)",
+          "site_export_limit": "Límite de exportación de sitio si se especifica la exportación de sitio (kW)",
+          "use_actuals": ""
+        }
       }
     }
   },

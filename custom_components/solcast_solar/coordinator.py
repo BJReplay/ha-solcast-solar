@@ -179,7 +179,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         return self.solcast.data
 
     async def setup(self) -> bool:
-        """Set up time change tracking and file watchdogs."""
+        """Set up time change tracking and file watchers."""
 
         await self._updater.setup()
 

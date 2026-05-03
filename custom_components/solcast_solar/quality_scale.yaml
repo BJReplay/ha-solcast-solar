@@ -76,6 +76,6 @@ rules:
     comment: |
       A single device is created for the integration instance. There can only be one instance.
   # Platinum
-  async-dependency: todo
+  async-dependency: done
   inject-websession: done
   strict-typing: done

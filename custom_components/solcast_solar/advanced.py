@@ -114,7 +114,7 @@ class AdvancedOptions:
         """Read advanced JSON file options, validate and set them."""
 
         if self.api.suppress_advanced_watchdog_reload:
-            self.api.suppress_advanced_watchdog_reload = False  # File has just been written so reset flag but do not reload
+            self.api.suppress_advanced_watchdog_reload = False  # File was just written locally, so skip one reload
             return False
 
         advanced_options_proposal: dict[str, Any] = copy.deepcopy(self.api.advanced_options)

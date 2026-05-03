@@ -976,7 +976,7 @@ class DampeningAdaptive:
                 data[option] = self.dampening.api.extant_advanced_options[option]  # write back non-amendable options unchanged
 
         payload = json.dumps(data, ensure_ascii=False, cls=NoIndentEncoder, indent=2, above_level=2)
-        self.dampening.api.suppress_advanced_watchdog_reload = True  # Turn off watchdog for this change
+        self.dampening.api.suppress_advanced_watchdog_reload = True  # Suppress reload for this file write
 
         async with self.dampening.api.serialise_lock, aiofiles.open(self.dampening.api.filename_advanced, "w") as file:
             await file.write(payload)

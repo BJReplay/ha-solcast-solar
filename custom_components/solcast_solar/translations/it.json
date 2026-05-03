@@ -20,7 +20,10 @@
         "data": {
           "api_key": "Chiave API (opzionale: valori multipli separati da virgole)"
         },
-        "description": "Chiave API dell'account Solcast"
+        "description": "Chiave API dell'account Solcast",
+        "data_description": {
+          "api_key": "Chiave API (opzionale: valori multipli separati da virgole)"
+        }
       },
       "reconfigure_confirm": {
         "data": {
@@ -28,7 +31,12 @@
           "api_limit": "Limite API (opzionale: valori multipli separati da virgola per ciascuna chiave)",
           "auto_update": "Aggiornamento automatico"
         },
-        "description": "Dettagli dell'account Solcast\n\n(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)"
+        "description": "Dettagli dell'account Solcast\n\n(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)",
+        "data_description": {
+          "api_key": "Chiave API (opzionale: valori multipli separati da virgole)",
+          "api_limit": "Limite API (opzionale: valori multipli separati da virgola per ciascuna chiave)",
+          "auto_update": "Aggiornamento automatico"
+        }
       },
       "user": {
         "data": {
@@ -36,7 +44,12 @@
           "api_limit": "Limite API (opzionale: valori multipli separati da virgola per ciascuna chiave)",
           "auto_update": "Aggiornamento automatico"
         },
-        "description": "Dettagli dell'account Solcast\n\n(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)\n\nL'API Solcast deve essere disponibile per configurare inizialmente questa integrazione. Se ricevi il messaggio di stato '429 / Try again later', l'API non è disponibile e la configurazione non può essere completata. Devi attendere. Tieni presente che la pagina di stato dell'API su status.solcast.com quasi certamente non mostrerà alcun problema API. La causa risiede molto probabilmente in un singolo utente problematico dell'API che sta influenzando la disponibilità per tutti gli appassionati."
+        "description": "Dettagli dell'account Solcast\n\n(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)\n\nL'API Solcast deve essere disponibile per configurare inizialmente questa integrazione. Se ricevi il messaggio di stato '429 / Try again later', l'API non è disponibile e la configurazione non può essere completata. Devi attendere. Tieni presente che la pagina di stato dell'API su status.solcast.com quasi certamente non mostrerà alcun problema API. La causa risiede molto probabilmente in un singolo utente problematico dell'API che sta influenzando la disponibilità per tutti gli appassionati.",
+        "data_description": {
+          "api_key": "Chiave API (opzionale: valori multipli separati da virgole)",
+          "api_limit": "Limite API (opzionale: valori multipli separati da virgola per ciascuna chiave)",
+          "auto_update": "Aggiornamento automatico"
+        }
       }
     }
   },
@@ -397,7 +410,33 @@
           "damp22": "22:00",
           "damp23": "23:00"
         },
-        "description": "Modifica il fattore di smorzamento orario"
+        "description": "Modifica il fattore di smorzamento orario",
+        "data_description": {
+          "damp00": "Enter a value between 0.0 (no production counted) and 1.0 (full production counted)",
+          "damp01": "",
+          "damp02": "",
+          "damp03": "",
+          "damp04": "",
+          "damp05": "",
+          "damp06": "",
+          "damp07": "",
+          "damp08": "",
+          "damp09": "",
+          "damp10": "",
+          "damp11": "",
+          "damp12": "",
+          "damp13": "",
+          "damp14": "",
+          "damp15": "",
+          "damp16": "",
+          "damp17": "",
+          "damp18": "",
+          "damp19": "",
+          "damp20": "",
+          "damp21": "",
+          "damp22": "",
+          "damp23": ""
+        }
       },
       "init": {
         "data": {
@@ -424,7 +463,31 @@
           "site_export_limit": "Limite di esportazione del sito se l'esportazione del sito è specificata (kW)",
           "use_actuals": "Storia delle previsioni da mostrare sul dashboard Energia"
         },
-        "description": "Opzioni di configurazione di Solcast"
+        "description": "Opzioni di configurazione di Solcast",
+        "data_description": {
+          "api_key": "Chiave API (valori multipli separati da virgola)",
+          "api_limit": "Limite API (opzionalmente valori multipli separati da virgola per ciascuna chiave)",
+          "attr_brk_detailed": "Abilita la suddivisione del sito per gli attributi di dettaglio semiorari/orari (questi non verranno salvati negli attributi di stato del database)",
+          "attr_brk_estimate": "",
+          "attr_brk_estimate10": "",
+          "attr_brk_estimate90": "",
+          "attr_brk_halfhourly": "",
+          "attr_brk_hourly": "",
+          "attr_brk_site": "",
+          "auto_dampen": "Auto-dampen (richiede valori reali stimati e entità di generazione fotovoltaica, vedere la documentazione dell'integrazione)",
+          "auto_update": "Se non si usa l'aggiornamento automatico, creare un'automazione che richiami periodicamente l'azione \"solcast_solar.update_forecasts\", rispettando il limite massimo totale consigliato da Solcast (di solito dieci volte totali al giorno per un singolo sito su tetto, oppure con due siti cinque volte al giorno)",
+          "config_damp": "Modifica i fattori di smorzamento orari (dopo aver cliccato su invia)",
+          "custom_hours": "Sensore personalizzato per le prossime X ore (min=1, max=144)",
+          "exclude_sites": "Sito/i da escludere dalla dashboard Energia e dai totali dei sensori quando si aggiungono chiavi API di siti locali e remoti per una singola distribuzione locale/remota di Home Assistant",
+          "generation_entities": "Entità di generazione fotovoltaica per smorzamento automatizzato (energia: Wh/kWh/MWh totale crescente, o potenza: W/kW/MW istantaneo)",
+          "get_actuals": "Valori reali stimati aggiornati a mezzanotte (vedere la documentazione dell'integrazione, utilizza una chiamata API per sito al giorno, quindi è necessario un limite API ridotto con questa opzione abilitata)",
+          "hard_limit_api": "Limite rigido dell'inverter in kW (vedere la documentazione dell'integrazione)",
+          "key_estimate": "",
+          "site_damp": "Lo smorzamento granulare è impostato: Cancella per ripristinare lo smorzamento orario generale",
+          "site_export_entity": "Entità di esportazione del sito opzionale per smorzamento automatico (Wh/kWh/MWh, aumento totale)",
+          "site_export_limit": "Limite di esportazione del sito se l'esportazione del sito è specificata (kW)",
+          "use_actuals": ""
+        }
       }
     }
   },

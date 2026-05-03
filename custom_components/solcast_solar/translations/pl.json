@@ -20,7 +20,10 @@
         "data": {
           "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)"
         },
-        "description": "Klucz API konta Solcast"
+        "description": "Klucz API konta Solcast",
+        "data_description": {
+          "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)"
+        }
       },
       "reconfigure_confirm": {
         "data": {
@@ -28,7 +31,12 @@
           "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
           "auto_update": "Automatyczna aktualizacja"
         },
-        "description": "Dane konta Solcast\n\n(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)"
+        "description": "Dane konta Solcast\n\n(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)",
+        "data_description": {
+          "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
+          "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
+          "auto_update": "Automatyczna aktualizacja"
+        }
       },
       "user": {
         "data": {
@@ -36,7 +44,12 @@
           "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
           "auto_update": "Automatyczna aktualizacja"
         },
-        "description": "Dane konta Solcast\n\n(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)\n\nAPI Solcast musi być dostępne, aby wstępnie skonfigurować tę integrację. Jeśli otrzymasz komunikat o stanie '429 / Try again later', API jest niedostępne i konfiguracja nie może zostać ukończona. Musisz poczekać. Należy pamiętać, że strona stanu API pod adresem status.solcast.com prawie na pewno nie pokaże żadnych problemów z API. Przyczyną jest najprawdopodobniej pojedynczy nieodpowiedzialny użytkownik API, który wpływa na dostępność dla wszystkich hobbystów."
+        "description": "Dane konta Solcast\n\n(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)\n\nAPI Solcast musi być dostępne, aby wstępnie skonfigurować tę integrację. Jeśli otrzymasz komunikat o stanie '429 / Try again later', API jest niedostępne i konfiguracja nie może zostać ukończona. Musisz poczekać. Należy pamiętać, że strona stanu API pod adresem status.solcast.com prawie na pewno nie pokaże żadnych problemów z API. Przyczyną jest najprawdopodobniej pojedynczy nieodpowiedzialny użytkownik API, który wpływa na dostępność dla wszystkich hobbystów.",
+        "data_description": {
+          "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
+          "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
+          "auto_update": "Automatyczna aktualizacja"
+        }
       }
     }
   },
@@ -397,7 +410,33 @@
           "damp22": "22:00",
           "damp23": "23:00"
         },
-        "description": "Zmodyfikuj godzinowy współczynnik tłumienia"
+        "description": "Zmodyfikuj godzinowy współczynnik tłumienia",
+        "data_description": {
+          "damp00": "Enter a value between 0.0 (no production counted) and 1.0 (full production counted)",
+          "damp01": "",
+          "damp02": "",
+          "damp03": "",
+          "damp04": "",
+          "damp05": "",
+          "damp06": "",
+          "damp07": "",
+          "damp08": "",
+          "damp09": "",
+          "damp10": "",
+          "damp11": "",
+          "damp12": "",
+          "damp13": "",
+          "damp14": "",
+          "damp15": "",
+          "damp16": "",
+          "damp17": "",
+          "damp18": "",
+          "damp19": "",
+          "damp20": "",
+          "damp21": "",
+          "damp22": "",
+          "damp23": ""
+        }
       },
       "init": {
         "data": {
@@ -424,7 +463,31 @@
           "site_export_limit": "Limit eksportu witryny, jeśli eksport witryny jest określony (kW)",
           "use_actuals": "Historia prognoz do wyświetlenia na pulpicie nawigacyjnym Energy"
         },
-        "description": "Opcje konfiguracji Solcast"
+        "description": "Opcje konfiguracji Solcast",
+        "data_description": {
+          "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
+          "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
+          "attr_brk_detailed": "Włącz podział witryny dla atrybutów szczegółów półgodzinnych/godzinnych (nie zostaną one zapisane w atrybutach stanu bazy danych)",
+          "attr_brk_estimate": "",
+          "attr_brk_estimate10": "",
+          "attr_brk_estimate90": "",
+          "attr_brk_halfhourly": "",
+          "attr_brk_hourly": "",
+          "attr_brk_site": "",
+          "auto_dampen": "Automatyczne tłumienie (wymaga szacowanych wartości rzeczywistych i jednostki generacji fotowoltaicznej, patrz dokumentacja integracji)",
+          "auto_update": "Jeśli nie używasz automatycznej aktualizacji, utwórz automatyzację, która okresowo wywołuje akcję \"solcast_solar.update_forecasts\", przestrzegając zalecanego przez Solcast maksymalnego łącznego limitu (zwykle łącznie dziesięć razy dziennie dla jednego miejsca dachowego, a przy dwóch miejscach pięć razy dziennie)",
+          "config_damp": "Zmodyfikuj godzinowe współczynniki tłumienia (po kliknięciu przycisku „ZATWIERDŹ”)",
+          "custom_hours": "Niestandardowy czujnik następnej godziny X (min.=1, maks.=144)",
+          "exclude_sites": "Witryna(-y) do wykluczenia z panelu Energii i sum czujników podczas dodawania lokalnych i zdalnych kluczy API witryn dla pojedynczego lokalnego/zdalnego wdrożenia Home Assistant",
+          "generation_entities": "Jednostka/jednostki generacji fotowoltaicznej do automatycznego tłumienia (energia: Wh/kWh/MWh łącznie wzrasta lub moc: W/kW/MW chwilowo)",
+          "get_actuals": "Szacowane wartości rzeczywiste aktualizowane o północy (patrz dokumentacja integracji, używa jednego wywołania API na stronę dziennie, więc zredukowany limit API jest potrzebny z tą opcją włączoną)",
+          "hard_limit_api": "Sztywny limit falownika w kW (patrz dokumentacja integracji, wiele wartości należy oddzielić przecinkiem dla każdego klucza)",
+          "key_estimate": "",
+          "site_damp": "Ustawiono tłumienie szczegółowe: Wyczyść, aby powrócić do ogólnego tłumienia godzinowego",
+          "site_export_entity": "Opcjonalna jednostka eksportu witryny do automatycznego tłumienia (Wh/kWh/MWh, całkowity wzrost)",
+          "site_export_limit": "Limit eksportu witryny, jeśli eksport witryny jest określony (kW)",
+          "use_actuals": ""
+        }
       }
     }
   },

@@ -20,7 +20,10 @@
         "data": {
           "api_key": "APIキー（複数の場合はコンマで区切る）"
         },
-        "description": "SolcastアカウントのAPIキー"
+        "description": "SolcastアカウントのAPIキー",
+        "data_description": {
+          "api_key": "APIキー（複数の場合はコンマで区切る）"
+        }
       },
       "reconfigure_confirm": {
         "data": {
@@ -28,7 +31,12 @@
           "api_limit": "APIリミット（オプションで複数のキーの場合コンマで区切る）",
           "auto_update": "自動更新"
         },
-        "description": "Solcastアカウント情報\n\n（自動更新を使用しない場合は、オートメーションが必要です。統合ドキュメントを参照してください）"
+        "description": "Solcastアカウント情報\n\n（自動更新を使用しない場合は、オートメーションが必要です。統合ドキュメントを参照してください）",
+        "data_description": {
+          "api_key": "APIキー（複数の場合はコンマで区切る）",
+          "api_limit": "APIリミット（オプションで複数のキーの場合コンマで区切る）",
+          "auto_update": "自動更新"
+        }
       },
       "user": {
         "data": {
@@ -36,7 +44,12 @@
           "api_limit": "APIリミット（オプションで複数のキーの場合コンマで区切る）",
           "auto_update": "自動更新"
         },
-        "description": "Solcastアカウント情報\n\n（自動更新を使用しない場合は、オートメーションが必要です。統合ドキュメントを参照してください）\n\nこの統合を初期設定するには、Solcast APIが利用可能である必要があります。ステータスメッセージとして「429 / しばらく待ってください」が表示される場合、APIは一時的に利用できず、設定を完了できません。しばらく待ってから再試行してください。status.solcast.com のAPIステータスページには、ほぼ確実に問題は表示されません。原因は、特定のAPIユーザーによる過剰利用が、すべてのホビイスト向けアカウントの利用可能性に影響しているためと考えられます。"
+        "description": "Solcastアカウント情報\n\n（自動更新を使用しない場合は、オートメーションが必要です。統合ドキュメントを参照してください）\n\nこの統合を初期設定するには、Solcast APIが利用可能である必要があります。ステータスメッセージとして「429 / しばらく待ってください」が表示される場合、APIは一時的に利用できず、設定を完了できません。しばらく待ってから再試行してください。status.solcast.com のAPIステータスページには、ほぼ確実に問題は表示されません。原因は、特定のAPIユーザーによる過剰利用が、すべてのホビイスト向けアカウントの利用可能性に影響しているためと考えられます。",
+        "data_description": {
+          "api_key": "APIキー（複数の場合はコンマで区切る）",
+          "api_limit": "APIリミット（オプションで複数のキーの場合コンマで区切る）",
+          "auto_update": "自動更新"
+        }
       }
     }
   },
@@ -397,7 +410,33 @@
           "damp22": "22:00",
           "damp23": "23:00"
         },
-        "description": "時間別ダンペニングファクターを変更"
+        "description": "時間別ダンペニングファクターを変更",
+        "data_description": {
+          "damp00": "Enter a value between 0.0 (no production counted) and 1.0 (full production counted)",
+          "damp01": "",
+          "damp02": "",
+          "damp03": "",
+          "damp04": "",
+          "damp05": "",
+          "damp06": "",
+          "damp07": "",
+          "damp08": "",
+          "damp09": "",
+          "damp10": "",
+          "damp11": "",
+          "damp12": "",
+          "damp13": "",
+          "damp14": "",
+          "damp15": "",
+          "damp16": "",
+          "damp17": "",
+          "damp18": "",
+          "damp19": "",
+          "damp20": "",
+          "damp21": "",
+          "damp22": "",
+          "damp23": ""
+        }
       },
       "init": {
         "data": {
@@ -424,7 +463,31 @@
           "site_export_limit": "サイトエクスポートが指定されている場合のサイトエクスポート制限（kW）",
           "use_actuals": "エネルギーダッシュボードに表示する履歴データ"
         },
-        "description": "Solcastの設定オプション"
+        "description": "Solcastの設定オプション",
+        "data_description": {
+          "api_key": "APIキー（複数の場合はコンマで区切る）",
+          "api_limit": "APIリミット（オプションで複数のキーの場合コンマで区切る）",
+          "attr_brk_detailed": "半時間ごと/時間ごとの詳細属性にサイト別の内訳を含める（これらはデータベースの状態属性には保存されません）",
+          "attr_brk_estimate": "",
+          "attr_brk_estimate10": "",
+          "attr_brk_estimate90": "",
+          "attr_brk_halfhourly": "",
+          "attr_brk_hourly": "",
+          "attr_brk_site": "",
+          "auto_dampen": "自動ダンペニング（推定実績値の取得とPV発電エンティティが必要です。統合ドキュメントを参照してください）",
+          "auto_update": "自動更新を使用しない場合は、アクション \"solcast_solar.update_forecasts\" を定期的に呼び出すオートメーションを作成し、Solcast が推奨する最大合計上限を守ってください（通常は屋根上サイト 1 つで 1 日合計 10 回、2 サイトの場合は 1 日 5 回）",
+          "config_damp": "時間別ダンペニングファクターを変更（送信後）",
+          "custom_hours": "今後X時間のカスタムセンサー（最小=1、最大=144）",
+          "exclude_sites": "単一の Home Assistant ローカル/リモート環境にローカルおよびリモートサイトの API キーを追加する際に、エネルギーダッシュボードとセンサー合計から除外するサイト",
+          "generation_entities": "自動ダンペニングに使用するPV発電エンティティ（エネルギー: Wh/kWh/MWh の積算値、または電力: W/kW/MW の瞬時値）",
+          "get_actuals": "深夜に取得される推定実績値（統合ドキュメントを参照。このオプションを有効にすると、サイトごとに1日1回API呼び出しを行うため、APIリミットを低めに設定する必要があります）",
+          "hard_limit_api": "インバーターのハードリミット（kW）（統合ドキュメントを参照。複数キーの場合はコンマ区切り）",
+          "key_estimate": "",
+          "site_damp": "サイト別ダンペニングが設定されています。全体の時間別ダンペニングに戻すにはクリアしてください。",
+          "site_export_entity": "自動ダンペニング用のオプションサイトエクスポートエンティティ（Wh/kWh/MWh、合計増加）",
+          "site_export_limit": "サイトエクスポートが指定されている場合のサイトエクスポート制限（kW）",
+          "use_actuals": ""
+        }
       }
     }
   },

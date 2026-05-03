@@ -20,7 +20,10 @@
         "data": {
           "api_key": "Clé API (plusieurs valeurs séparées par des virgules)"
         },
-        "description": "Clé API du compte Solcast"
+        "description": "Clé API du compte Solcast",
+        "data_description": {
+          "api_key": "Clé API (plusieurs valeurs séparées par des virgules)"
+        }
       },
       "reconfigure_confirm": {
         "data": {
@@ -28,7 +31,12 @@
           "api_limit": "Quota d'API (plusieurs valeurs séparées par des virgules)",
           "auto_update": "Mise à jour automatique"
         },
-        "description": "Détails du compte Solcast\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)"
+        "description": "Détails du compte Solcast\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)",
+        "data_description": {
+          "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
+          "api_limit": "Quota d'API (plusieurs valeurs séparées par des virgules)",
+          "auto_update": "Mise à jour automatique"
+        }
       },
       "user": {
         "data": {
@@ -36,7 +44,12 @@
           "api_limit": "Quota d'API (plusieurs valeurs séparées par des virgules)",
           "auto_update": "Mise à jour automatique"
         },
-        "description": "Détails du compte Solcast\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)\n\nL'API Solcast doit être disponible pour configurer cette intégration pour la première fois. Si vous recevez le message de statut '429 / Try again later', l'API est indisponible et la configuration ne peut pas être complétée. Vous devez patienter. Notez que la page de statut de l'API sur status.solcast.com n'indiquera presque certainement aucun problème d'API. La cause réside très probablement dans un seul mauvais utilisateur de l'API qui affecte la disponibilité pour tous les amateurs."
+        "description": "Détails du compte Solcast\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)\n\nL'API Solcast doit être disponible pour configurer cette intégration pour la première fois. Si vous recevez le message de statut '429 / Try again later', l'API est indisponible et la configuration ne peut pas être complétée. Vous devez patienter. Notez que la page de statut de l'API sur status.solcast.com n'indiquera presque certainement aucun problème d'API. La cause réside très probablement dans un seul mauvais utilisateur de l'API qui affecte la disponibilité pour tous les amateurs.",
+        "data_description": {
+          "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
+          "api_limit": "Quota d'API (plusieurs valeurs séparées par des virgules)",
+          "auto_update": "Mise à jour automatique"
+        }
       }
     }
   },
@@ -397,7 +410,33 @@
           "damp22": "22:00",
           "damp23": "23:00"
         },
-        "description": "Modifier le coefficient d'amortissement horaire"
+        "description": "Modifier le coefficient d'amortissement horaire",
+        "data_description": {
+          "damp00": "Enter a value between 0.0 (no production counted) and 1.0 (full production counted)",
+          "damp01": "",
+          "damp02": "",
+          "damp03": "",
+          "damp04": "",
+          "damp05": "",
+          "damp06": "",
+          "damp07": "",
+          "damp08": "",
+          "damp09": "",
+          "damp10": "",
+          "damp11": "",
+          "damp12": "",
+          "damp13": "",
+          "damp14": "",
+          "damp15": "",
+          "damp16": "",
+          "damp17": "",
+          "damp18": "",
+          "damp19": "",
+          "damp20": "",
+          "damp21": "",
+          "damp22": "",
+          "damp23": ""
+        }
       },
       "init": {
         "data": {
@@ -424,7 +463,31 @@
           "site_export_limit": "Limite d'exportation de site si l'exportation de site est spécifiée (kW)",
           "use_actuals": "Historique des prévisions à afficher sur le tableau de bord Énergie"
         },
-        "description": "Options de configuration Solcast"
+        "description": "Options de configuration Solcast",
+        "data_description": {
+          "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
+          "api_limit": "Quota d'API (plusieurs valeurs séparées par des virgules)",
+          "attr_brk_detailed": "Activer la répartition du site pour les attributs de détail demi-horaires/horaires (ceux-ci ne seront pas enregistrés dans les attributs d'état de la base de données)",
+          "attr_brk_estimate": "",
+          "attr_brk_estimate10": "",
+          "attr_brk_estimate90": "",
+          "attr_brk_halfhourly": "",
+          "attr_brk_hourly": "",
+          "attr_brk_site": "",
+          "auto_dampen": "Auto-dampen (requiert des valeurs réelles estimées et une entité de génération PV, voir la documentation d'intégration)",
+          "auto_update": "Si vous n'utilisez pas la mise à jour automatique, créez une automatisation qui appelle périodiquement l'action \"solcast_solar.update_forecasts\", tout en respectant la limite totale maximale conseillée par Solcast (généralement dix fois au total par jour pour un site sur toit, ou avec deux sites cinq fois par jour)",
+          "config_damp": "Modifier les facteurs d'amortissement horaires (après avoir cliqué sur soumettre)",
+          "custom_hours": "Capteur personnalisé des X prochaines heures (min=1, max=144)",
+          "exclude_sites": "Site(s) à exclure du tableau de bord Énergie et des totaux des capteurs lors de l'ajout de clés API de sites locaux et distants pour un déploiement local/distant unique de Home Assistant",
+          "generation_entities": "Entité(s) de production PV pour l'amortissement automatisé (énergie : Wh/kWh/MWh total croissant, ou puissance : W/kW/MW instantanée)",
+          "get_actuals": "Valeurs réelles estimées mises à jour à minuit (voir la documentation d'intégration, utilise un appel API par site et par jour, donc un quota API réduit est nécessaire avec cette option activée)",
+          "hard_limit_api": "Limite stricte de l'onduleur en kW (voir la documentation d'intégration)",
+          "key_estimate": "",
+          "site_damp": "L'amortissement granulaire est défini : Effacer pour revenir à l'amortissement horaire global",
+          "site_export_entity": "Entité d'exportation de site optionnelle pour amortissement automatisé (Wh/kWh/MWh, augmentation totale)",
+          "site_export_limit": "Limite d'exportation de site si l'exportation de site est spécifiée (kW)",
+          "use_actuals": ""
+        }
       }
     }
   },

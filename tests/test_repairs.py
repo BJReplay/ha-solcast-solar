@@ -31,10 +31,10 @@ from homeassistant.components.solcast_solar.const import (
     PROPOSAL,
     SERVICE_CLEAR_DATA,
     SERVICE_UPDATE,
-    SITES,
     SITE_ATTRIBUTE_AZIMUTH,
     SITE_ATTRIBUTE_LATITUDE,
     SITE_INFO,
+    SITES,
 )
 from homeassistant.components.solcast_solar.repairs import async_create_fix_flow
 from homeassistant.components.solcast_solar.util import (

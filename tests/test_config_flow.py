@@ -106,7 +106,7 @@ from homeassistant.components.solcast_solar.const import (
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
-    TASK_WATCHDOG_ADVANCED_FILE_CHANGE,
+    TASK_WATCH_ADVANCED_FILE_CHANGE,
     TITLE,
     USE_ACTUALS,
 )
@@ -988,7 +988,7 @@ async def test_advanced_options(
         caplog.clear()
         data_file.write_text(json.dumps(data_file_1), encoding="utf-8")
         await wait()
-        assert "Running task watchdog_advanced" in caplog.text
+        assert "Running task watch_advanced" in caplog.text
         assert "Monitoring" in caplog.text
         for option, value in data_file_1.items():
             if value == advanced_options_with_aliases[option]["default"]:
@@ -1146,7 +1146,7 @@ async def test_advanced_options(
         caplog.clear()
         data_file = data_file.rename(f"{config_dir}/solcast-advanced.json")
         await wait()
-        assert "Running task watchdog_advanced" in caplog.text
+        assert "Running task watch_advanced" in caplog.text
 
         caplog.clear()
 
@@ -1191,7 +1191,7 @@ async def test_advanced_options(
 
         await hass.config_entries.async_unload(entry.entry_id)
         await wait()
-        assert f"Cancelling coordinator task {TASK_WATCHDOG_ADVANCED_FILE_CHANGE}" in caplog.text
+        assert f"Cancelling coordinator task {TASK_WATCH_ADVANCED_FILE_CHANGE}" in caplog.text
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

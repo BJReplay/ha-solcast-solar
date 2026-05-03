@@ -20,6 +20,7 @@ from aiohttp import ClientConnectionError
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 from voluptuous.error import MultipleInvalid
+from watchfiles import Change
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
@@ -141,7 +142,7 @@ from homeassistant.components.solcast_solar.util import (
     get_solcast_base_url,
     sync_actuals_api_limit_issue,
 )
-from homeassistant.components.solcast_solar.watch import FileEvent, FileWatcher
+from homeassistant.components.solcast_solar.watch import FileWatcher
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, SupportsResponse
@@ -858,7 +859,7 @@ async def test_integration(  # noqa: C901
         else:
             granular_dampening_file.write_text(json.dumps(granular_dampening), encoding="utf-8")
             _LOGGER.debug("Write dampening file %s for test", granular_dampening_file)
-        await _wait_for(caplog, "Running task watchdog_dampening")
+        await _wait_for(caplog, "Running task watch_dampening")
         assert granular_dampening_file.is_file(), f"File {granular_dampening_file} should exist"
         if CONFIG_FOLDER_DISCRETE:
             if options == DEFAULT_INPUT1 and dt.now(solcast.options.tz) < dt(2026, 6, 1, tzinfo=solcast.options.tz):
@@ -930,7 +931,7 @@ async def test_integration(  # noqa: C901
                         coordinator, solcast = await _reload(hass, entry)
                         if coordinator is None or solcast is None:
                             pytest.fail("Reload failed")
-                        await _wait_for(caplog, "Running task watchdog_advanced")
+                        await _wait_for(caplog, "Running task watch_advanced")
                     granular_dampening_file.write_text(json.dumps(test["factors"]), encoding="utf-8")
                     await _wait_for(caplog, "Updating sensor Forecast Tomorrow")
                     assert "Granular dampening mtime changed" in caplog.text
@@ -3299,11 +3300,9 @@ async def test_watch_dampening_file_missing() -> None:
     """Ignore a missing dampening file while processing an update event."""
 
     cancel = unittest.mock.Mock()
-    observer = unittest.mock.MagicMock()
     coordinator = unittest.mock.MagicMock()
-    coordinator.file_dampening = "/missing/solcast-dampening.json"
-    coordinator.hass = unittest.mock.MagicMock(is_stopping=False)
-    coordinator.tasks = {"watchdog_dampening": cancel}
+    coordinator.file_dampening = "/config/solcast_solar/solcast-dampening.json"
+    coordinator.tasks = {"watch_dampening": cancel}
     coordinator.solcast = unittest.mock.MagicMock()
     coordinator.solcast.dampening.factors_mtime = 1.0
     coordinator.solcast.dampening.refresh_granular_data = unittest.mock.AsyncMock()
@@ -3312,26 +3311,152 @@ async def test_watch_dampening_file_missing() -> None:
     coordinator.update_integration_listeners = unittest.mock.AsyncMock()
 
     watcher = FileWatcher(coordinator)
-    watcher.watchdog["watchdog_dampening"]["event"] = FileEvent.UPDATE
 
-    async def stop_after_first_poll(_: float) -> None:
-        coordinator.hass.is_stopping = True
+    async def mock_awatch(*args: Any, **kwargs: Any) -> Any:
+        """Yield a modify event (with missing file) then a delete event."""
+        yield {(Change.modified, "/config/solcast_solar/solcast-dampening.json")}
+        yield {(Change.deleted, "/config/solcast_solar/solcast-dampening.json")}
 
     with (
-        unittest.mock.patch("homeassistant.components.solcast_solar.watch.Observer", return_value=observer),
+        unittest.mock.patch("homeassistant.components.solcast_solar.watch.awatch", mock_awatch),
         unittest.mock.patch("homeassistant.components.solcast_solar.watch.Path.stat", side_effect=FileNotFoundError),
-        unittest.mock.patch("homeassistant.components.solcast_solar.watch.asyncio.sleep", side_effect=stop_after_first_poll),
     ):
         await watcher.watch_dampening_file()
 
-    observer.schedule.assert_called_once()
-    observer.start.assert_called_once()
-    observer.stop.assert_called_once()
-    observer.join.assert_called_once()
     cancel.assert_called_once()
-    assert "watchdog_dampening" not in coordinator.tasks
-    assert watcher.watchdog["watchdog_dampening"]["event"] is FileEvent.NO_EVENT
+    assert "watch_dampening" not in coordinator.tasks
     coordinator.solcast.dampening.refresh_granular_data.assert_not_awaited()
     coordinator.solcast.dampening.apply_forward.assert_not_awaited()
     coordinator.solcast.build_forecast_data.assert_not_awaited()
     coordinator.update_integration_listeners.assert_not_awaited()
+
+
+def test_watch_dir_non_discrete() -> None:
+    """Return parent directory when discrete config folder mode is disabled."""
+
+    coordinator = unittest.mock.MagicMock()
+    coordinator.hass.config.config_dir = "/config"
+    watcher = FileWatcher(coordinator)
+
+    with unittest.mock.patch("homeassistant.components.solcast_solar.watch.CONFIG_FOLDER_DISCRETE", False):
+        assert watcher._watch_dir("/config/solcast_solar/solcast-dampening.json") == "/config/solcast_solar"
+
+
+@pytest.mark.asyncio
+async def test_watch_dampening_file_initial_change() -> None:
+    """Process initial file change when watch starts with initial_change enabled."""
+
+    cancel = unittest.mock.Mock()
+    coordinator = unittest.mock.MagicMock()
+    coordinator.file_dampening = "/config/solcast_solar/solcast-dampening.json"
+    coordinator.tasks = {"watch_dampening": cancel}
+
+    watcher = FileWatcher(coordinator)
+    watcher._handle_dampening_update = unittest.mock.AsyncMock()
+
+    async def mock_awatch(*args: Any, **kwargs: Any) -> Any:
+        """Yield one delete event to terminate the watcher quickly."""
+        yield {(Change.deleted, "/config/solcast_solar/solcast-dampening.json")}
+
+    with (
+        unittest.mock.patch("homeassistant.components.solcast_solar.watch.awatch", mock_awatch),
+        unittest.mock.patch.object(watcher, "_path_exists", return_value=False),
+    ):
+        await watcher.watch_dampening_file(initial_change=True)
+
+    watcher._handle_dampening_update.assert_awaited_once_with("/config/solcast_solar/solcast-dampening.json")
+
+
+@pytest.mark.asyncio
+async def test_watch_dampening_file_recreated_then_deleted() -> None:
+    """Continue monitoring when file is recreated, then stop on actual delete."""
+
+    cancel = unittest.mock.Mock()
+    coordinator = unittest.mock.MagicMock()
+    coordinator.file_dampening = "/config/solcast_solar/solcast-dampening.json"
+    coordinator.tasks = {"watch_dampening": cancel}
+    coordinator.solcast = unittest.mock.MagicMock()
+    coordinator.solcast.entry = None
+    coordinator.solcast.entry_options = {}
+    coordinator.solcast.damp = {}
+    coordinator.solcast.dampening = unittest.mock.MagicMock()
+
+    watcher = FileWatcher(coordinator)
+
+    async def mock_awatch(*args: Any, **kwargs: Any) -> Any:
+        """Yield two delete events: first with recreation, second final deletion."""
+        yield {(Change.deleted, "/config/solcast_solar/solcast-dampening.json")}
+        yield {(Change.deleted, "/config/solcast_solar/solcast-dampening.json")}
+
+    with (
+        unittest.mock.patch("homeassistant.components.solcast_solar.watch.awatch", mock_awatch),
+        unittest.mock.patch.object(watcher, "_path_exists", side_effect=[True, False]),
+    ):
+        await watcher.watch_dampening_file()
+
+    cancel.assert_called_once()
+    coordinator.solcast.dampening.set_allow_granular_reset.assert_called_once_with(True)
+
+
+@pytest.mark.asyncio
+async def test_watch_advanced_file_calls_task_cancel_without_stop_event() -> None:
+    """Cancel callback is called when advanced watcher exits without stop_event."""
+
+    cancel = unittest.mock.Mock()
+    coordinator = unittest.mock.MagicMock()
+    coordinator.file_advanced = "/config/solcast_solar/solcast-advanced.json"
+    coordinator.tasks = {"watch_advanced": cancel}
+    coordinator.solcast = unittest.mock.MagicMock()
+    coordinator.solcast.advanced_opt = unittest.mock.MagicMock()
+    coordinator.solcast.advanced_opt.set_default_advanced_options = unittest.mock.Mock()
+
+    watcher = FileWatcher(coordinator)
+
+    async def mock_awatch(*args: Any, **kwargs: Any) -> Any:
+        """Yield delete event so watcher exits and finally block runs."""
+        yield {(Change.deleted, "/config/solcast_solar/solcast-advanced.json")}
+
+    with unittest.mock.patch("homeassistant.components.solcast_solar.watch.awatch", mock_awatch):
+        await watcher.watch_advanced_file()
+
+    cancel.assert_called_once()
+    assert "watch_advanced" not in coordinator.tasks
+
+
+@pytest.mark.asyncio
+async def test_watch_dampening_legacy_date_break_and_task_pop() -> None:
+    """Break legacy watcher loop on end date and pop legacy task during cleanup."""
+
+    class _FakeDateTime(datetime.datetime):
+        """Return a pre-end date once, then return end-date-or-later."""
+
+        _calls = 0
+
+        @classmethod
+        def now(cls, tz=None):
+            cls._calls += 1
+            if cls._calls == 1:
+                return datetime.datetime(2026, 5, 31, 23, 59, tzinfo=tz)
+            return datetime.datetime(2026, 6, 1, 0, 0, tzinfo=tz)
+
+    coordinator = unittest.mock.MagicMock()
+    coordinator.file_dampening = "/config/solcast_solar/solcast-dampening.json"
+    coordinator.hass.config.config_dir = "/config"
+    coordinator.tasks = {"watch_dampening_legacy": unittest.mock.Mock()}
+    coordinator.solcast = unittest.mock.MagicMock()
+    coordinator.solcast.options = unittest.mock.MagicMock()
+    coordinator.solcast.options.tz = ZoneInfo("UTC")
+
+    watcher = FileWatcher(coordinator)
+
+    async def mock_awatch(*args: Any, **kwargs: Any) -> Any:
+        """Yield one add event; loop should break on date check."""
+        yield {(Change.added, "/config/solcast-dampening.json")}
+
+    with (
+        unittest.mock.patch("homeassistant.components.solcast_solar.watch.awatch", mock_awatch),
+        unittest.mock.patch("datetime.datetime", _FakeDateTime),
+    ):
+        await watcher.watch_for_dampening_legacy_location()
+
+    assert "watch_dampening_legacy" not in coordinator.tasks

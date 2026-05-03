@@ -20,7 +20,10 @@
         "data": {
           "api_key": "API-sleutel (komma scheid meerdere waarden)"
         },
-        "description": "Solcast-account API-sleutel"
+        "description": "Solcast-account API-sleutel",
+        "data_description": {
+          "api_key": "API-sleutel (komma scheid meerdere waarden)"
+        }
       },
       "reconfigure_confirm": {
         "data": {
@@ -28,7 +31,12 @@
           "api_limit": "API-limiet (optioneel zijn meerdere waarden gescheiden door een komma voor elke sleutel)",
           "auto_update": "Auto-update"
         },
-        "description": "Solcast accountgegevens\n\n(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)"
+        "description": "Solcast accountgegevens\n\n(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)",
+        "data_description": {
+          "api_key": "API-sleutel (komma scheid meerdere waarden)",
+          "api_limit": "API-limiet (optioneel zijn meerdere waarden gescheiden door een komma voor elke sleutel)",
+          "auto_update": "Auto-update"
+        }
       },
       "user": {
         "data": {
@@ -36,7 +44,12 @@
           "api_limit": "API-limiet (optioneel zijn meerdere waarden gescheiden door een komma voor elke sleutel)",
           "auto_update": "Auto-update"
         },
-        "description": "Solcast accountgegevens\n\n(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)\n\nDe Solcast API moet beschikbaar zijn om deze integratie in eerste instantie te configureren. Als u de statusmelding '429 / Probeer het later opnieuw' ontvangt, is de API niet beschikbaar en kan de configuratie niet worden voltooid. U moet wachten. Houd er rekening mee dat de API-statuspagina op status.solcast.com vrijwel zeker geen API-problemen zal tonen. De meest waarschijnlijke oorzaak is een slechte API-gebruiker die de beschikbaarheid voor alle hobbyisten beïnvloedt."
+        "description": "Solcast accountgegevens\n\n(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)\n\nDe Solcast API moet beschikbaar zijn om deze integratie in eerste instantie te configureren. Als u de statusmelding '429 / Probeer het later opnieuw' ontvangt, is de API niet beschikbaar en kan de configuratie niet worden voltooid. U moet wachten. Houd er rekening mee dat de API-statuspagina op status.solcast.com vrijwel zeker geen API-problemen zal tonen. De meest waarschijnlijke oorzaak is een slechte API-gebruiker die de beschikbaarheid voor alle hobbyisten beïnvloedt.",
+        "data_description": {
+          "api_key": "API-sleutel (komma scheid meerdere waarden)",
+          "api_limit": "API-limiet (optioneel zijn meerdere waarden gescheiden door een komma voor elke sleutel)",
+          "auto_update": "Auto-update"
+        }
       }
     }
   },
@@ -397,7 +410,33 @@
           "damp22": "22:00",
           "damp23": "23:00"
         },
-        "description": "De dempingsfactor per uur wijzigen"
+        "description": "De dempingsfactor per uur wijzigen",
+        "data_description": {
+          "damp00": "Enter a value between 0.0 (no production counted) and 1.0 (full production counted)",
+          "damp01": "",
+          "damp02": "",
+          "damp03": "",
+          "damp04": "",
+          "damp05": "",
+          "damp06": "",
+          "damp07": "",
+          "damp08": "",
+          "damp09": "",
+          "damp10": "",
+          "damp11": "",
+          "damp12": "",
+          "damp13": "",
+          "damp14": "",
+          "damp15": "",
+          "damp16": "",
+          "damp17": "",
+          "damp18": "",
+          "damp19": "",
+          "damp20": "",
+          "damp21": "",
+          "damp22": "",
+          "damp23": ""
+        }
       },
       "init": {
         "data": {
@@ -424,7 +463,31 @@
           "site_export_limit": "Limiet voor site export indien site export is opgegeven (kW)",
           "use_actuals": "Voospellings historiek om te tonen in het energiedashboard"
         },
-        "description": "Configuratieopties voor Solcast"
+        "description": "Configuratieopties voor Solcast",
+        "data_description": {
+          "api_key": "API-sleutel (meerdere waarden gescheiden door komma's)",
+          "api_limit": "API limiet (optioneel meerdere waarden per sleutel gescheiden door komma's)",
+          "attr_brk_detailed": "Schakel siteuitsplitsing in voor attributen met details per half uur/uur (deze worden niet opgeslagen in database statusattributen)",
+          "attr_brk_estimate": "",
+          "attr_brk_estimate10": "",
+          "attr_brk_estimate90": "",
+          "attr_brk_halfhourly": "",
+          "attr_brk_hourly": "",
+          "attr_brk_site": "",
+          "auto_dampen": "Automatische demping (hiervoor zijn geschatte werkelijke waarden en een PV-productie-entiteit vereist, zie de integratiedocumentatie)",
+          "auto_update": "Als u geen automatische update gebruikt, maak dan een automatisering die de actie \"solcast_solar.update_forecasts\" periodiek aanroept, en houd u daarbij aan de door Solcast geadviseerde maximale totale limiet (meestal in totaal tien keer per dag voor één daksite, of bij twee sites vijf keer per dag)",
+          "config_damp": "Pas de dempingsfactoren per uur aan (na het klikken op ‘Verzenden’)",
+          "custom_hours": "Aangepaste sensor voor de komende X uur (min. = 1, max. = 144)",
+          "exclude_sites": "Site(s) die moeten worden uitgesloten van het Energie-dashboard en sensortotalen bij het toevoegen van lokale en externe site-API-sleutels voor een enkele lokale/externe Home Assistant-implementatie",
+          "generation_entities": "PV opwekking entiteit(en) voor automatische demping (energie: Wh/kWh/MWh totaal stijgend, of vermogen: W/kW/MW momentaan)",
+          "get_actuals": "Geschatte werkelijke cijfers worden om middernacht bijgewerkt (zie de integratiedocumentatie; er wordt één API-aanroep per site per dag gebruikt, dus als deze optie is ingeschakeld, is een lagere API-limiet nodig)",
+          "hard_limit_api": "Maximale vermogenslimiet van de omvormer in kW (zie de documentatie bij de integratie; scheid meerdere waarden voor elke API-sleutel met een komma)",
+          "key_estimate": "",
+          "site_damp": "De gedetailleerde demping is ingesteld: Verwijder om terug te keren naar de algemene demping per uur",
+          "site_export_entity": "Optionele entiteit voor het exporteren van gegevens ter automatische afvlakking (Wh/kWh/MWh, totaal stijgend)",
+          "site_export_limit": "Limiet voor site export indien site export is opgegeven (kW)",
+          "use_actuals": ""
+        }
       }
     }
   },

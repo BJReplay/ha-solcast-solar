@@ -63,6 +63,7 @@ from .const import (
     EXCEPTION_EXPORT_NO_ENTITY,
     EXCEPTION_INIT_KEY_INVALID,
     EXCEPTION_INTEGRATION_NOT_LOADED,
+    EXCEPTION_INVALID_QUERY_RANGE,
     EXCEPTION_NOT_A_SITE,
     EXCEPTION_SET_OPTIONS_EMPTY,
     EXCLUDE_SITES,
@@ -402,7 +403,10 @@ class ServiceActions:
                 call.data.get(UNDAMPENED, False),
             )
         except ValueError as e:
-            raise ServiceValidationError(f"{e}") from e
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key=EXCEPTION_INVALID_QUERY_RANGE,
+            ) from e
 
         return {"data": data}
 
@@ -425,7 +429,10 @@ class ServiceActions:
                 call.data.get(UNDAMPENED, True),
             )
         except ValueError as e:
-            raise ServiceValidationError(f"{e}") from e
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key=EXCEPTION_INVALID_QUERY_RANGE,
+            ) from e
 
         return {"data": data}
 
