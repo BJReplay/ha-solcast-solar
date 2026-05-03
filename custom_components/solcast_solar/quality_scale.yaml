@@ -1,0 +1,81 @@
+rules:
+  # Bronze
+  action-setup: done
+  appropriate-polling: done
+  brands: done
+  common-modules: done
+  config-flow-test-coverage: done
+  config-flow: done
+  dependency-transparency:
+    status: exempt
+    comment: |
+      This integration does not utilise an externally hosted dependency.
+  docs-actions: done
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal-instructions: done
+  entity-event-setup:
+    status: exempt
+    comment: |
+      Entity events are not used by this integration, so there is nothing to set up.
+  entity-unique-id: done
+  has-entity-name: done
+  runtime-data: done
+  test-before-configure: done
+  test-before-setup: done
+  unique-config-entry: done
+  # Silver
+  action-exceptions: done
+  config-entry-unloading: done
+  docs-configuration-parameters: done
+  docs-installation-parameters: done
+  entity-unavailable: done
+  integration-owner: done
+  log-when-unavailable:
+    status: exempt
+    comment: |
+      It is not desirable to log once when the Solcast REST API is unavailable and then once more when re-connected. Each interaction is atomic, and a connection is not held open.
+  parallel-updates: done
+  reauthentication-flow: done
+  test-coverage: done
+  # Gold
+  devices: done
+  diagnostics: done
+  discovery-update-info:
+    status: exempt
+    comment: |
+      Local devices are not used, so updating network information is irrelevant.
+  discovery:
+    status: exempt
+    comment: |
+      Local devices are not used, so discovery of any is irrelevant.
+  docs-data-update: done
+  docs-examples: done
+  docs-known-limitations: done
+  docs-supported-devices:
+    status: exempt
+    comment: |
+      Local devices are not used, and API variability is irrelevant.
+  docs-supported-functions: done
+  docs-troubleshooting: done
+  docs-use-cases: done
+  dynamic-devices:
+    status: exempt
+    comment: |
+      A single device is created for the integration instance. There can only be one instance.
+  entity-category: done
+  entity-device-class: done
+  entity-disabled-by-default: done
+  entity-translations: done
+  exception-translations: done
+  icon-translations: done
+  reconfiguration-flow: done
+  repair-issues: done
+  stale-devices:
+    status: exempt
+    comment: |
+      A single device is created for the integration instance. There can only be one instance.
+  # Platinum
+  async-dependency: todo
+  inject-websession: done
+  strict-typing: done

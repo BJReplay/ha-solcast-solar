@@ -74,6 +74,8 @@ from .util import api_key_last_six, format_site_key, redact_api_key
 
 _LOGGER = logging.getLogger(__name__)
 
+PARALLEL_UPDATES = 0
+
 NAMES: Final[dict[str, str]] = {
     ENTITY_API_COUNTER: "API Used",
     ENTITY_API_LIMIT: "API Limit",

@@ -213,7 +213,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self._data_updated = False
 
     async def _update_integration_listeners(self, _: dt | None = None) -> None:
-        """Updated sensor values time change callback."""
+        """Update sensor values on time change."""
 
         current_day = dt.now(self.solcast.options.tz).day
         self._date_changed = current_day != self._last_day

@@ -1,4 +1,4 @@
-"""Selector to allow users to select the pv_ data field to use for calculations."""
+"""Solcast select platform."""
 
 from __future__ import annotations
 
@@ -13,10 +13,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN, KEY_ESTIMATE, MANUFACTURER
+from .const import DOMAIN, ESTIMATE_MODE, INTEGRATION, KEY_ESTIMATE, MANUFACTURER
 from .coordinator import SolcastUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+PARALLEL_UPDATES = 0
 
 
 class PVEstimateMode(IntEnum):
@@ -38,11 +40,11 @@ _MODE_TO_OPTION: dict[PVEstimateMode, str] = {
     PVEstimateMode.ESTIMATE90: "estimate90",
 }
 
-ESTIMATE_MODE = SelectEntityDescription(
-    key="estimate_mode",
+_ESTIMATE_MODE = SelectEntityDescription(
+    key=ESTIMATE_MODE,
     icon="mdi:sun-angle",
     entity_category=EntityCategory.CONFIG,
-    translation_key="estimate_mode",
+    translation_key=ESTIMATE_MODE,
 )
 
 
@@ -63,7 +65,7 @@ async def async_setup_entry(
 
     entity = EstimateModeEntity(
         coordinator,
-        ESTIMATE_MODE,
+        _ESTIMATE_MODE,
         list(_MODE_TO_OPTION.values()),
         coordinator.solcast.options.key_estimate,
         entry,
@@ -85,11 +87,11 @@ class EstimateModeEntity(SelectEntity):
         current_option: str,
         entry: ConfigEntry,
     ) -> None:
-        """Initialise the sensor.
+        """Initialise the select entity.
 
         Arguments:
             coordinator (SolcastUpdateCoordinator): The integration coordinator instance.
-            entity_description (SensorEntityDescription): The details of the entity.
+            entity_description (SelectEntityDescription): The details of the entity.
             supported_options (list[str]): All select options available.
             current_option (str): The currently selected option.
             entry (ConfigEntry): The integration entry instance, contains the configuration.
@@ -107,9 +109,9 @@ class EstimateModeEntity(SelectEntity):
         self._attr_extra_state_attributes: dict[str, Any] = {}
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, entry.entry_id)},
-            name="Solcast PV Forecast",
+            name=INTEGRATION,
             manufacturer=MANUFACTURER,
-            model="Solcast PV Forecast",
+            model=INTEGRATION,
             entry_type=DeviceEntryType.SERVICE,
             sw_version=coordinator.version,
             configuration_url="https://toolkit.solcast.com.au/",
