@@ -1,0 +1,44 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Solcast PV SimCity",
+        "data": {
+          "api_key": "Simulator API key",
+          "timezone": "Local timezone",
+          "export_factor": "Grid export efficiency (0–1)",
+          "export_limit_kw": "Grid export cap (kW)",
+          "battery_capacity_kwh": "Battery total capacity (kWh)",
+          "battery_initial_soc": "Battery starting charge (%)",
+          "battery_max_charge_kw": "Battery max charge rate (kW)",
+          "battery_max_discharge_kw": "Battery max discharge rate (kW)",
+          "house_load_kw": "Simulated house draw (kW)",
+          "free_charge_kw": "Free-period charge rate (kW)",
+          "free_charge_start": "Free power window — start",
+          "free_charge_end": "Free power window — end"
+        }
+      }
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Solcast PV SimCity — tweak the sim",
+        "data": {
+          "api_key": "Simulator API key",
+          "timezone": "Local timezone",
+          "export_factor": "Grid export efficiency (0–1)",
+          "export_limit_kw": "Grid export cap (kW)",
+          "battery_capacity_kwh": "Battery total capacity (kWh)",
+          "battery_initial_soc": "Battery starting charge (%)",
+          "battery_max_charge_kw": "Battery max charge rate (kW)",
+          "battery_max_discharge_kw": "Battery max discharge rate (kW)",
+          "house_load_kw": "Simulated house draw (kW)",
+          "free_charge_kw": "Free-period charge rate (kW)",
+          "free_charge_start": "Free power window — start",
+          "free_charge_end": "Free power window — end"
+        }
+      }
+    }
+  }
+}
