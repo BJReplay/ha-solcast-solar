@@ -59,6 +59,7 @@ _SPLINE_X: list[int] = [i * 1800 for i in range(len(GENERATION_FACTOR))]
 UPDATE_INTERVAL = timedelta(seconds=5)
 BATTERY_ENERGY_UNIQUE_ID = "solcast_sim_battery_energy"
 
+
 def _time_str_to_seconds(t: str) -> int:
     """Convert a 'HH:MM:SS' or 'HH:MM' string to seconds since midnight."""
     parts = t.split(":")
@@ -93,9 +94,7 @@ async def _recorder_sensor_value(
     if "recorder" not in hass.config.components:
         return None
 
-    recorder_states = await get_instance(hass).async_add_executor_job(
-        partial(history.get_last_state_changes, hass, 1, entity_id=entity_id)
-    )
+    recorder_states = await get_instance(hass).async_add_executor_job(partial(history.get_last_state_changes, hass, 1, entity_id=entity_id))
     if not (states := recorder_states.get(entity_id)):
         return None
 

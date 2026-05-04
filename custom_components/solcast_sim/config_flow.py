@@ -52,10 +52,7 @@ def _build_schema(current: dict[str, Any] | None = None) -> vol.Schema:
     """Build config/options schema from shared field definitions."""
     values = current or {}
     return vol.Schema(
-        {
-            vol.Required(key, default=values.get(key, default)): _FIELD_VALIDATORS[key]
-            for key, default in _FIELD_DEFAULTS.items()
-        }
+        {vol.Required(key, default=values.get(key, default)): _FIELD_VALIDATORS[key] for key, default in _FIELD_DEFAULTS.items()}
     )
 
 
@@ -64,9 +61,7 @@ class SolcastSimConfigFlow(ConfigFlow, domain=DOMAIN):
 
     VERSION = 1
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle the initial step."""
         if user_input is not None:
             await self.async_set_unique_id(user_input["api_key"])
@@ -95,9 +90,7 @@ class SolcastSimOptionsFlow(OptionsFlow):
         """Initialize options flow."""
         self._config_entry = config_entry
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Handle options."""
         current = {**self._config_entry.data, **self._config_entry.options}
 
