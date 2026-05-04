@@ -855,3 +855,48 @@ async def test_sensor_unavailable_exception(
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_rooftop_unique_id_mig(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that RooftopSensor unique IDs are migrated to resource ID."""
+
+    entity_registry = er.async_get(hass)
+    entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_First Site",
+        suggested_object_id="first_site_old",
+    )
+    entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_Second Site",
+        suggested_object_id="second_site_old",
+    )
+
+    try:
+        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        await async_init_integration(hass, DEFAULT_INPUT1)
+        await hass.async_block_till_done()
+
+        assert "Migrated RooftopSensor unique ID for site 'First Site' to resource ID" in caplog.text, (
+            "Expected migration log for 'First Site' not found"
+        )
+        assert "Migrated RooftopSensor unique ID for site 'Second Site' to resource ID" in caplog.text, (
+            "Expected migration log for 'Second Site' not found"
+        )
+
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_First Site") is None
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_Second Site") is None
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111") is not None
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_2222-2222-2222-2222") is not None
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

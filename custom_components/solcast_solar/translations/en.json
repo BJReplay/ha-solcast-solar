@@ -10,10 +10,10 @@
       "api_duplicate": "Duplicate API key specified",
       "api_key_empty": "API key must not be empty",
       "api_looks_like_site": "API key looks like a site ID",
+      "limit_exceeds_maximum": "API limit cannot exceed 50 (and likely should be 10 or less).",
       "limit_not_number": "API limit is not a number",
       "limit_one_or_greater": "API limit must be one or greater",
-      "limit_too_many": "There are more API limit counts entered than keys",
-      "limit_exceeds_maximum": "API limit cannot exceed 50 (and likely should be 10 or less)."
+      "limit_too_many": "There are more API limit counts entered than keys"
     },
     "step": {
       "reauth_confirm": {
@@ -204,9 +204,6 @@
     "damp_not_for_site": {
       "message": "Site dampening is not set for {site}."
     },
-    "not_a_site": {
-      "message": "Not a configured site."
-    },
     "damp_outside_range": {
       "message": "Dampening factor value present that is not between 0.0 and 1.0."
     },
@@ -282,6 +279,9 @@
     "invalid_use_actuals": {
       "message": "The use actuals value must be 0, 1, or 2."
     },
+    "limit_exceeds_maximum": {
+      "message": "API limit cannot exceed 50 (and likely should be 10 or less)."
+    },
     "limit_not_number": {
       "message": "API limit is not a number."
     },
@@ -291,8 +291,8 @@
     "limit_too_many": {
       "message": "There are more API limit counts entered than keys."
     },
-    "limit_exceeds_maximum": {
-      "message": "API limit cannot exceed 50 (and likely should be 10 or less)."
+    "not_a_site": {
+      "message": "Not a configured site."
     },
     "remove_cache_failed": {
       "message": "Clear all Solcast data failed."
@@ -306,6 +306,10 @@
       "description": "The `{deprecated_action}` action is deprecated and will be removed in a future release. Use the `{new_action}` action instead.",
       "title": "Deprecated action"
     },
+    "actuals_api_limit": {
+      "description": "Auto-update and estimated actuals are enabled while API limit is configured at hobbyist maximum value (`{configured_value}`). Estimated actuals are collected just after midnight and use one API call per rooftop site for each configured API key. Reduce your API limit to `{suggested_value}` to reserve calls for estimated actuals.",
+      "title": "Adjust API limit for estimated actuals"
+    },
     "advanced_deprecated": {
       "description": "Advanced configuration option(s) `{option}` changed to `{new_option}`. Please update your advanced configuration options to use the new option name.{stops_working}",
       "title": "Advanced option deprecated"
@@ -317,10 +321,6 @@
     "api_unavailable": {
       "description": "The Solcast API has reported `429 / Try again later` status repeatedly during an update. This means that the Solcast API is busy and is actively blocking requests for hobbyist accounts.\n\n* The solcast.com website is unaffected, but the API is temporarily unavailable to you.\n* The API status page at status.solcast.com will almost certainly indicate no issue.\n* Do not attempt to fix this situation.\n* Do not change your API key.\n* Do not attempt an integration upgrade.\n* Avoid restarting the integration.\n* The integration will continue providing the last solar forecast it retrieved from Solcast.\n* This is not an integration issue and will resolve itself. Change nothing.\n\n(To suppress this issue, create an advanced configuration option api_raise_issue and set it to false.)",
       "title": "Solcast API temporarily unavailable"
-    },
-    "actuals_api_limit": {
-      "description": "Auto-update and estimated actuals are enabled while API limit is configured at hobbyist maximum value (`{configured_value}`). Estimated actuals are collected just after midnight and use one API call per rooftop site for each configured API key. Reduce your API limit to `{suggested_value}` to reserve calls for estimated actuals.",
-      "title": "Adjust API limit for estimated actuals"
     },
     "corrupt_file": {
       "description": "The cached data file(s) `{files}` is corrupted. The integration will attempt to recover by deleting the file(s) and re-fetching data from Solcast. Expect increased API usage and potential API failures, and loss of forecast history due to this situation. Possibly recover the files from backup, but still expect API call failures.",
@@ -383,10 +383,10 @@
       "generation_mixed_types": "PV generation entities must all be the same type (all energy or all power, not a mix)",
       "hard_not_positive_number": "Hard limit is not a positive number",
       "hard_too_many": "There are more hard limits entered than keys",
+      "limit_exceeds_maximum": "API limit cannot exceed 50 (and likely should be 10 or less).",
       "limit_not_number": "API limit is not a number",
       "limit_one_or_greater": "API limit must be one or greater",
-      "limit_too_many": "There are more API limit counts entered than keys",
-      "limit_exceeds_maximum": "API limit cannot exceed 50 (and likely should be 10 or less)."
+      "limit_too_many": "There are more API limit counts entered than keys"
     },
     "step": {
       "dampen": {
@@ -416,7 +416,6 @@
           "damp22": "22:00",
           "damp23": "23:00"
         },
-        "description": "Modify the hourly dampening factor",
         "data_description": {
           "damp00": "Enter a value between 0.0 (no production counted) and 1.0 (full production counted)",
           "damp01": "",
@@ -442,7 +441,8 @@
           "damp21": "",
           "damp22": "",
           "damp23": ""
-        }
+        },
+        "description": "Modify the hourly dampening factor"
       },
       "init": {
         "data": {
@@ -469,7 +469,6 @@
           "site_export_limit": "Site export limit (kW)",
           "use_actuals": "Forecast history to show on the Energy dashboard"
         },
-        "description": "Solcast configuration options",
         "data_description": {
           "api_key": "Enter one or more Solcast API keys, separated by commas",
           "api_limit": "Enter a limit per key, separated by commas when using multiple keys",
@@ -480,20 +479,21 @@
           "attr_brk_halfhourly": "",
           "attr_brk_hourly": "",
           "attr_brk_site": "",
-          "auto_dampen": "Requires estimated actuals and a PV generation entity — see the integration documentation",
+          "auto_dampen": "Requires estimated actuals and a PV generation entity \u2014 see the integration documentation",
           "auto_update": "If not using auto-update, create an automation that calls the action \"solcast_solar.update_forecasts\" periodically, while adhering to your Solcast advised maximum total limit (usually ten times total per day for one rooftop site, or with two sites five times per day)",
           "config_damp": "Click submit to proceed to the dampening factor editor",
           "custom_hours": "Number of hours for the custom sensor (minimum 1, maximum 144)",
           "exclude_sites": "Site(s) to exclude from the Energy dashboard and sensor totals when adding local and remote site API keys for a single Home Assistant local/remote deployment",
           "generation_entities": "For automated dampening: energy (Wh/kWh/MWh, total increasing) or power (W/kW/MW, instantaneous)",
-          "get_actuals": "Uses one API call per site per day — see the integration documentation; a reduced API limit is recommended",
+          "get_actuals": "Uses one API call per site per day \u2014 see the integration documentation; a reduced API limit is recommended",
           "hard_limit_api": "See the integration documentation; comma separate multiple values for each key",
           "key_estimate": "",
-          "site_damp": "Granular dampening is set — clear to revert to overall hourly dampening",
-          "site_export_entity": "Optional — for automated dampening (Wh/kWh/MWh, total increasing)",
+          "site_damp": "Granular dampening is set \u2014 clear to revert to overall hourly dampening",
+          "site_export_entity": "Optional \u2014 for automated dampening (Wh/kWh/MWh, total increasing)",
           "site_export_limit": "Required if a site export entity is specified",
           "use_actuals": ""
-        }
+        },
+        "description": "Solcast configuration options"
       }
     }
   },
