@@ -47,10 +47,12 @@ _spec.loader.exec_module(_sim_module)  # type: ignore[union-attr]
 
 API_KEY_SITES: dict[str, Any] = _sim_module.API_KEY_SITES
 GENERATION_FACTOR: list[float] = _sim_module.GENERATION_FACTOR
+FORECAST: float = _sim_module.FORECAST
 
-# Half-hourly x-axis for the spline: seconds from midnight, one per
-# GENERATION_FACTOR entry (48 entries → 0 … 47 × 1800).
-_SPLINE_X: list[int] = [i * 1800 for i in range(len(GENERATION_FACTOR))]
+# Half-hourly x-axis for the spline: each GENERATION_FACTOR entry is the
+# average power for the coming 30-minute interval, so the representative
+# (midpoint) time is i×1800 + 900 seconds.
+_SPLINE_X: list[int] = [i * 1800 + 900 for i in range(len(GENERATION_FACTOR))]
 
 # ---------------------------------------------------------------------------
 # Platform constants
@@ -141,11 +143,6 @@ async def _prime_model_from_restore_state(
         model.restore_battery_energy(battery_energy)
 
 
-# ---------------------------------------------------------------------------
-# Cubic spline helpers
-# ---------------------------------------------------------------------------
-
-
 def _diff(lst: Sequence[float]) -> list[float]:
     """Return successive differences (numpy-like diff, no non-negative clamp)."""
     return [lst[i + 1] - lst[i] for i in range(len(lst) - 1)]
@@ -208,9 +205,9 @@ def _splined_power_kw(second_of_day: float, capacity_kw: float) -> float:
 
     Clamps to [0, capacity_kw] to avoid cubic overshoot at tails.
     """
-    t = min(second_of_day, float(_SPLINE_X[-1]))
-    y = [gf * capacity_kw for gf in GENERATION_FACTOR]
-    return max(0.0, min(capacity_kw, _cubic_interp([t], _SPLINE_X, y)[0]))
+    t = min(second_of_day + 1800, float(_SPLINE_X[-1]))
+    y = [gf * capacity_kw * FORECAST for gf in GENERATION_FACTOR]
+    return max(0.0, min(capacity_kw * FORECAST, _cubic_interp([t], _SPLINE_X, y)[0]))
 
 
 def _seconds_since_midnight(tz: ZoneInfo) -> float:
@@ -222,6 +219,10 @@ def _seconds_since_midnight(tz: ZoneInfo) -> float:
 
 class SolcastSimBatteryModel:
     """Shared state model for battery/export simulation."""
+
+    _CHARGE_TAPER_START_SOC = 0.85
+    _CHARGE_TAPER_MIN_KW = 2.0
+    _CHARGE_TAPER_MIN_FACTOR = 0.4
 
     def __init__(
         self,
@@ -267,6 +268,30 @@ class SolcastSimBatteryModel:
         self.free_grid_charge_energy_kwh = 0.0
         self.last_t: float | None = None
 
+    def _charge_power_limit_kw(self) -> float:
+        """Return max charge power after SOC taper near full."""
+        if self.battery_capacity_kwh <= 0:
+            return 0.0
+
+        soc = self.battery_energy_kwh / self.battery_capacity_kwh
+        taper_min_kw = min(
+            self.battery_max_charge_kw,
+            max(
+                self._CHARGE_TAPER_MIN_KW,
+                self.battery_max_charge_kw * self._CHARGE_TAPER_MIN_FACTOR,
+            ),
+        )
+
+        if soc <= self._CHARGE_TAPER_START_SOC:
+            return self.battery_max_charge_kw
+        if soc >= 1.0:
+            return taper_min_kw
+
+        taper_window = 1.0 - self._CHARGE_TAPER_START_SOC
+        taper_factor = (1.0 - soc) / taper_window
+        taper_factor = max(0.0, min(1.0, taper_factor))
+        return taper_min_kw + (self.battery_max_charge_kw - taper_min_kw) * taper_factor
+
     def prime_power_state(self, t: float) -> None:
         """Populate instantaneous power flows without advancing energy totals."""
         total_power_kw = sum(_splined_power_kw(t, site["capacity"]) for site in self.sites)
@@ -279,7 +304,7 @@ class SolcastSimBatteryModel:
         free_charge_kw = 0.0
 
         if self.battery_capacity_kwh > 0 and self.battery_energy_kwh < self.battery_capacity_kwh and surplus_kw > 0:
-            charge_kw = min(surplus_kw, self.battery_max_charge_kw)
+            charge_kw = min(surplus_kw, self._charge_power_limit_kw())
             surplus_kw -= charge_kw
 
         if (
@@ -288,7 +313,7 @@ class SolcastSimBatteryModel:
             and self.battery_energy_kwh < self.battery_capacity_kwh
             and self.free_charge_kw > 0
         ):
-            available_charge_kw = max(0.0, self.battery_max_charge_kw - charge_kw)
+            available_charge_kw = max(0.0, self._charge_power_limit_kw() - charge_kw)
             free_charge_kw = min(available_charge_kw, self.free_charge_kw)
 
         if self.battery_capacity_kwh > 0 and self.battery_energy_kwh > 0 and deficit_kw > 0:
@@ -364,7 +389,7 @@ class SolcastSimBatteryModel:
         if self.battery_capacity_kwh > 0 and surplus_kw > 0:
             remaining_kwh = max(0.0, self.battery_capacity_kwh - self.battery_energy_kwh)
             max_charge_by_capacity_kw = remaining_kwh / dt_h if dt_h > 0 else 0.0
-            charge_kw = min(surplus_kw, self.battery_max_charge_kw, max_charge_by_capacity_kw)
+            charge_kw = min(surplus_kw, self._charge_power_limit_kw(), max_charge_by_capacity_kw)
             self.battery_energy_kwh += charge_kw * dt_h
             surplus_kw -= charge_kw
 
@@ -373,7 +398,7 @@ class SolcastSimBatteryModel:
         if self.free_charge_start_s <= t < self.free_charge_end_s and self.battery_capacity_kwh > 0 and self.free_charge_kw > 0:
             remaining_kwh = max(0.0, self.battery_capacity_kwh - self.battery_energy_kwh)
             max_charge_by_capacity_kw = remaining_kwh / dt_h if dt_h > 0 else 0.0
-            available_charge_kw = max(0.0, self.battery_max_charge_kw - charge_kw)
+            available_charge_kw = max(0.0, self._charge_power_limit_kw() - charge_kw)
             free_charge_kw = min(available_charge_kw, self.free_charge_kw, max_charge_by_capacity_kw)
             self.battery_energy_kwh += free_charge_kw * dt_h
 
@@ -423,8 +448,6 @@ class _ModelSensorDesc:
     unit: str
     value_fn: Callable[[SolcastSimBatteryModel], float]
     restore_fn: Callable[[SolcastSimBatteryModel, float], None] | None = None
-    # restore_display=True: use RestoreEntity to show the last known value on
-    # restart even though the model state is managed by a different sensor.
     restore_display: bool = False
     # When True the sensor sets model.last_t on first add to kick off the sim.
     set_last_t: bool = False
