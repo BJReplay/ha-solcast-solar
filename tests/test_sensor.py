@@ -44,6 +44,8 @@ from homeassistant.components.solcast_solar.const import (
     SITE_ATTRIBUTE_AZIMUTH,
     SITE_ATTRIBUTE_CAPACITY,
     SITE_ATTRIBUTE_CAPACITY_DC,
+    SITE_ATTRIBUTE_COMPASS_DEGREES,
+    SITE_ATTRIBUTE_COMPASS_DIRECTION,
     SITE_ATTRIBUTE_INSTALL_DATE,
     SITE_ATTRIBUTE_LATITUDE,
     SITE_ATTRIBUTE_LONGITUDE,
@@ -555,6 +557,8 @@ async def test_sensor_states(  # noqa: C901
             assert attribs.get(SITE_ATTRIBUTE_CAPACITY)
             assert attribs.get(SITE_ATTRIBUTE_CAPACITY_DC)
             assert attribs.get(SITE_ATTRIBUTE_AZIMUTH)
+            assert attribs.get(SITE_ATTRIBUTE_COMPASS_DEGREES) is not None
+            assert attribs.get(SITE_ATTRIBUTE_COMPASS_DIRECTION)
             assert attribs.get(SITE_ATTRIBUTE_TILT)
             assert attribs.get(SITE_ATTRIBUTE_LOSS_FACTOR)
             assert attribs.get(SITE_ATTRIBUTE_TAGS)

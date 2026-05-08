@@ -27,6 +27,8 @@ from .const import (
     SITE_ATTRIBUTE_AZIMUTH,
     SITE_ATTRIBUTE_CAPACITY,
     SITE_ATTRIBUTE_CAPACITY_DC,
+    SITE_ATTRIBUTE_COMPASS_DEGREES,
+    SITE_ATTRIBUTE_COMPASS_DIRECTION,
     SITE_ATTRIBUTE_INSTALL_DATE,
     SITE_ATTRIBUTE_LATITUDE,
     SITE_ATTRIBUTE_LONGITUDE,
@@ -34,7 +36,13 @@ from .const import (
     SITE_ATTRIBUTE_TAGS,
     SITE_ATTRIBUTE_TILT,
 )
-from .util import HistoryType, cubic_interp, format_site_key
+from .util import (
+    HistoryType,
+    azimuth_to_compass_degrees,
+    azimuth_to_compass_direction,
+    cubic_interp,
+    format_site_key,
+)
 
 if TYPE_CHECKING:
     from .solcastapi import SolcastApi
@@ -123,6 +131,9 @@ class ForecastQuery:
         """
         target_site = tuple(_site for _site in self.api.sites if _site[RESOURCE_ID] == site)
         _site: dict[str, Any] = target_site[0]
+        azimuth = _site.get(SITE_ATTRIBUTE_AZIMUTH)
+        compass_degrees = azimuth_to_compass_degrees(azimuth)
+        compass_direction = azimuth_to_compass_direction(azimuth)
         result = {
             NAME: _site.get(NAME),
             RESOURCE_ID: _site.get(RESOURCE_ID),
@@ -131,6 +142,8 @@ class ForecastQuery:
             SITE_ATTRIBUTE_LONGITUDE: _site.get(SITE_ATTRIBUTE_LONGITUDE),
             SITE_ATTRIBUTE_LATITUDE: _site.get(SITE_ATTRIBUTE_LATITUDE),
             SITE_ATTRIBUTE_AZIMUTH: _site.get(SITE_ATTRIBUTE_AZIMUTH),
+            SITE_ATTRIBUTE_COMPASS_DEGREES: compass_degrees,
+            SITE_ATTRIBUTE_COMPASS_DIRECTION: compass_direction,
             SITE_ATTRIBUTE_TILT: _site.get(SITE_ATTRIBUTE_TILT),
             SITE_ATTRIBUTE_INSTALL_DATE: _site.get(SITE_ATTRIBUTE_INSTALL_DATE),
             SITE_ATTRIBUTE_LOSS_FACTOR: _site.get(SITE_ATTRIBUTE_LOSS_FACTOR),

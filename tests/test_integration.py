@@ -110,6 +110,8 @@ from homeassistant.components.solcast_solar.const import (
     SERVICE_SET_OPTIONS,
     SERVICE_UPDATE,
     SITE,
+    SITE_ATTRIBUTE_COMPASS_DEGREES,
+    SITE_ATTRIBUTE_COMPASS_DIRECTION,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
     SITE_INFO,
@@ -2515,6 +2517,9 @@ async def test_diagnostic(
         assert len(data[SITES]) > 0  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
         for site in data[SITES]:  # type: ignore # pyright: ignorereportOptionalIterable, [reportArgumentType, reportCallIssue]  # noqa: PGH003
             assert RESOURCE_ID in site
+            assert "solcast_azimuth" in site
+            assert SITE_ATTRIBUTE_COMPASS_DEGREES in site
+            assert SITE_ATTRIBUTE_COMPASS_DIRECTION in site
 
         # Verify cache files section.
         assert isinstance(data["cache_files"][DATA_SET_FORECAST], bool)  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]

@@ -530,6 +530,44 @@ def check_unusual_azimuth(latitude: float, azimuth: float) -> tuple[bool, str, i
     return unusual, issue_key, proposal
 
 
+def azimuth_to_compass_degrees(azimuth: Any) -> float | None:
+    """Convert Solcast azimuth to compass degrees in the range [0, 360).
+
+    Solcast azimuth uses N=0, W=+90, E=-90, S=+/-180.
+    Standard compass bearings use N=0, E=90, S=180, W=270.
+    """
+    try:
+        return (-float(azimuth)) % 360.0
+    except (TypeError, ValueError):
+        return None
+
+
+def azimuth_to_compass_direction(azimuth: Any) -> str | None:
+    """Convert an azimuth value to a 16-point cardinal compass direction."""
+    if (compass_degrees := azimuth_to_compass_degrees(azimuth)) is None:
+        return None
+
+    directions = (
+        "N",
+        "NNE",
+        "NE",
+        "ENE",
+        "E",
+        "ESE",
+        "SE",
+        "SSE",
+        "S",
+        "SSW",
+        "SW",
+        "WSW",
+        "W",
+        "WNW",
+        "NW",
+        "NNW",
+    )
+    return directions[int((compass_degrees + 11.25) // 22.5) % len(directions)]
+
+
 class SchemaIncompatibleError(Exception):
     """Raised when cache data cannot be upgraded due to incompatible structure."""
 

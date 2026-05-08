@@ -627,7 +627,7 @@ async def test_select_comparison_interval_prefers_persistent_error(
     recorder_mock: Recorder,
     hass: HomeAssistant,
 ) -> None:
-    """Test comparison interval selection favors persistently bad current intervals."""
+    """Test comparison interval selection favours persistently bad current intervals."""
 
     assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
@@ -693,7 +693,7 @@ async def test_select_comparison_interval_current_factors_fallback(
     10% of peak generation.
 
     Critically, this must NOT be weighted by generation. A generation-weighted
-    formula (normalized_gen × (1 − factor)) biases toward the peak-energy interval
+    formula (normalised_gen × (1 − factor)) biases toward the peak-energy interval
     even when it has weak dampening, producing a poor comparison discriminator.
     The correct choice is the interval where the model applies the most aggressive
     dampening among those with adequate daylight generation.

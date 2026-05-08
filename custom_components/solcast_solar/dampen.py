@@ -1300,7 +1300,7 @@ class Dampening:
     ) -> list[float]:
         """Applies selected dampening_model to passed data to calculate list of dampening factors."""
 
-        dampening = [1.0] * INTERVALS_PER_DAY  # Initialize dampening factors
+        dampening = [1.0] * INTERVALS_PER_DAY  # Initialise dampening factors
 
         apply_elevation_adjustment = bool(self.api.advanced_options.get(ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT, False))
         if apply_elevation_adjustment and target_day is None:

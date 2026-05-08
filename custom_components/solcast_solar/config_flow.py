@@ -379,7 +379,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
     """Handle options."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:
-        """Initialize options flow.
+        """Initialise options flow.
 
         Arguments:
             config_entry (ConfigEntry): The integration entry instance, contains the configuration.

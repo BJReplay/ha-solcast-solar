@@ -14,6 +14,8 @@ from homeassistant.components.solcast_solar.const import (
     FORECASTS,
     HARD_LIMIT,
     SERVICE_SET_HARD_LIMIT,
+    SITE_ATTRIBUTE_COMPASS_DEGREES,
+    SITE_ATTRIBUTE_COMPASS_DIRECTION,
     SITE_INFO,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
@@ -67,6 +69,10 @@ async def test_diagnostics(
         assert diagnostics["health_check"]["overall_status"] == "ok"  # type: ignore[call-overload, index]
         assert diagnostics["health_check"]["api"][API_KEYS_CONFIGURED] == 1  # type: ignore[call-overload, index]
         assert CONF_API_KEY not in diagnostics["health_check"]  # type: ignore[operator]
+        for site in diagnostics["health_check"]["sites"]:  # type: ignore[index]
+            assert "solcast_azimuth" in site
+            assert SITE_ATTRIBUTE_COMPASS_DEGREES in site
+            assert SITE_ATTRIBUTE_COMPASS_DIRECTION in site
         for site, data in diagnostics["data"][SITE_INFO].items():  # type: ignore[call-overload, index, union-attr] # pyright: ignore[reportArgumentType, reportIndexIssue, reportOptionalSubscript, reportUnknownMemberType]
             assert site in ["1111-1111-1111-1111", "2222-2222-2222-2222"], f"Unexpected site ID: {site}"
             assert len(data[FORECASTS]) > 300, f"Site {site}: expected > 300 forecasts, got {len(data[FORECASTS])}"  # type: ignore[arg-type, call-overload, index] # pyright: ignore[reportArgumentType, reportIndexIssue, reportOptionalSubscript, reportUnknownMemberType]

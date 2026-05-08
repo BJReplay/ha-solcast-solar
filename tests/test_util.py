@@ -19,6 +19,8 @@ from homeassistant.components.solcast_solar.const import (
     SITE_ATTRIBUTE_LONGITUDE,
 )
 from homeassistant.components.solcast_solar.util import (
+    azimuth_to_compass_degrees,
+    azimuth_to_compass_direction,
     check_unusual_azimuth,
     cubic_interp,
     diff,
@@ -209,6 +211,31 @@ class TestCheckUnusualAzimuth:
         unusual, issue_key, _ = check_unusual_azimuth(51.5, -45)
         assert unusual, "North-hemisphere site facing -45° (northwest) should be flagged as unusual"
         assert issue_key == ISSUE_UNUSUAL_AZIMUTH_NORTHERN, f"Expected northern issue key, got {issue_key!r}"
+
+
+class TestAzimuthToCompass:
+    """Tests for Solcast azimuth to compass conversion helpers."""
+
+    @pytest.mark.parametrize(
+        ("solcast_azimuth", "compass_degrees", "compass_direction"),
+        [
+            (0, 0.0, "N"),
+            (90, 270.0, "W"),
+            (-90, 90.0, "E"),
+            (180, 180.0, "S"),
+            (-180, 180.0, "S"),
+            (66, 294.0, "WNW"),
+        ],
+    )
+    def test_solcast_azimuth_maps_to_expected_compass(self, solcast_azimuth: float, compass_degrees: float, compass_direction: str) -> None:
+        """Solcast azimuth values should map to expected compass bearings and directions."""
+        assert azimuth_to_compass_degrees(solcast_azimuth) == compass_degrees
+        assert azimuth_to_compass_direction(solcast_azimuth) == compass_direction
+
+    def test_invalid_azimuth_returns_none(self) -> None:
+        """Invalid azimuth input should produce None for both helpers."""
+        assert azimuth_to_compass_degrees("not-a-number") is None
+        assert azimuth_to_compass_direction("not-a-number") is None
 
 
 class TestSyncLegacyKeys:

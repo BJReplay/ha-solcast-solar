@@ -12,6 +12,7 @@ Optional run arguments:
 * --bomb429 w-x,y,z  The minute(s) of the hour to return API too busy, comma separated, example --bomb429 0-5,15,30-35,45
 * --bombkey w-x,y,z  The minute(s) of the hour to change the API key, comma separated, example --bombkey 0-5,15,30-35,45
 * --teapot           Return '418/I'm a teapot' status occasionally.
+* --use-guidance     Enable guidance from config/solcast_sim/guidance.json.
 * --port PORT        Set the listening port, example --port 8443, default 443
 * --debug            Enable debug mode.
 
@@ -60,6 +61,19 @@ from simulator import API_KEY_SITES, SimulatedSolcast
 
 simulate = SimulatedSolcast()
 DEFAULT_PORT = 443
+GUIDANCE_DIRNAME = "solcast_sim"
+GUIDANCE_FILENAME = "guidance.json"
+GUIDANCE_FILE: str | None = None
+GUIDANCE_MTIME: float | None = None
+
+
+def _path_from_config(path: Path) -> str:
+    """Return display path starting at config/ when present."""
+    parts = path.parts
+    if "config" not in parts:
+        return str(path)
+    config_idx = parts.index("config")
+    return str(Path(*parts[config_idx:]))
 
 
 def restart():
@@ -229,6 +243,30 @@ def validate_call(api_key: str, site_id: str | None = None, counter: bool = True
     return 200, None, site
 
 
+def _refresh_guidance(force: bool = False) -> None:
+    """Reload guidance file when changed on disk."""
+    global GUIDANCE_MTIME  # noqa: PLW0603 pylint: disable=global-statement
+
+    if GUIDANCE_FILE is None:
+        return
+
+    path = Path(GUIDANCE_FILE)
+    if not path.exists():
+        return
+
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return
+
+    if not force and GUIDANCE_MTIME is not None and mtime <= GUIDANCE_MTIME:
+        return
+
+    simulate.load_forecast_guidance_file(str(path))
+    GUIDANCE_MTIME = mtime
+    _LOGGER.info("Guidance refreshed from %s", _path_from_config(path))
+
+
 @app.route("/rooftop_sites", methods=["GET"])
 def get_sites() -> tuple[Any, int]:
     """Return sites for an API key."""
@@ -277,6 +315,7 @@ def get_site_forecasts(site_id: str) -> tuple[Any, int]:
         return jsonify(issue) if issue != "" else "", response_code
     if request.args.get("hours") is None:
         return "{}", 500
+    _refresh_guidance()
     return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, int(request.args["hours"]))), 200
 
 
@@ -325,12 +364,16 @@ def get_site_forecasts_advanced() -> tuple[Any, int]:
 
     api_key = request.args.get("api_key")
     site_id = request.args.get("resource_id")
-    _hours = int(request.args.get("hours"))  # type:ignore[arg-type]
+    hours_arg = request.args.get("hours")
+    if api_key is None or site_id is None or hours_arg is None:
+        return "{}", 500
+    _hours = int(hours_arg)
     period_end = simulate.get_period(dt.now(datetime.UTC), timedelta(minutes=30))
-    response_code, issue, _ = validate_call(api_key, site_id)  # type:ignore[arg-type]
+    response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue) if issue != "" else "", response_code
 
+    _refresh_guidance()
     return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200  # pyright:ignore[reportCallIssue]
 
 
@@ -363,6 +406,13 @@ def build_parser() -> argparse.ArgumentParser:
         help="The minute(s) of the hour to use a different API key, comma separated, example --bombkey 0-5,15,30,45",
         type=str,
         required=False,
+    )
+    parser.add_argument(
+        "--use-guidance",
+        help="Enable guidance from config/solcast_sim/guidance.json",
+        action="store_true",
+        required=False,
+        default=False,
     )
     parser.add_argument("--port", help="Set the HTTPS listening port, example --port 8443", type=int, default=DEFAULT_PORT, required=False)
     parser.add_argument("--debug", help="Set Flask debug mode on", action="store_true", required=False, default=False)
@@ -407,6 +457,14 @@ def _apply_args(args: argparse.Namespace) -> dict[str, int | bool | list[int]]:
     if args.teapot:
         bomb_418 = True
         _LOGGER.info("I'm a teapot status will be returned occasionally")
+    if args.use_guidance:
+        global GUIDANCE_FILE  # noqa: PLW0603 pylint: disable=global-statement
+        GUIDANCE_FILE = str(Path(Path.cwd(), "../../../config", GUIDANCE_DIRNAME, GUIDANCE_FILENAME))
+        try:
+            _refresh_guidance(force=True)
+            _LOGGER.info("Loaded forecast guidance file: %s", _path_from_config(Path(GUIDANCE_FILE)))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as err:
+            _LOGGER.error("Failed to load guidance file %s: %s", _path_from_config(Path(GUIDANCE_FILE)), err)
 
     return {
         "API_LIMIT": api_limit,

@@ -395,7 +395,7 @@ async def test_apply_forward_on_spring_forward_day(
 
     try:
         # Sydney clocks spring forward on 2025-10-05 at 02:00 AEST → 03:00 AEDT
-        # Initialize a day before and run through
+        # Initialise a day before and run through
         freezer.move_to("2025-10-04T14:00:00+10:00")
 
         options = copy.deepcopy(DEFAULT_INPUT2)

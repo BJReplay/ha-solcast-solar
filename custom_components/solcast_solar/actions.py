@@ -100,6 +100,9 @@ from .const import (
     SERVICE_SET_OPTIONS,
     SERVICE_UPDATE,
     SITE,
+    SITE_ATTRIBUTE_AZIMUTH,
+    SITE_ATTRIBUTE_COMPASS_DEGREES,
+    SITE_ATTRIBUTE_COMPASS_DIRECTION,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
@@ -121,6 +124,8 @@ from .util import (
     AutoUpdate,
     UsageStatus,
     async_is_allow_exceed_api_limit,
+    azimuth_to_compass_degrees,
+    azimuth_to_compass_direction,
     split_and_strip,
     sync_legacy_keys,
 )
@@ -962,11 +967,15 @@ def build_health_check_report(hass: HomeAssistant, coordinator: SolcastUpdateCoo
     sites_info: list[dict[str, Any]] = []
     configured_site_ids: set[str] = set()
     for site in solcast.sites:
+        azimuth = site.get(SITE_ATTRIBUTE_AZIMUTH)
         configured_site_ids.add(site.get(RESOURCE_ID, "unknown"))
         sites_info.append(
             {
                 "resource_id": site.get(RESOURCE_ID, "unknown"),
                 "name": site.get("name", ""),
+                "solcast_azimuth": azimuth,
+                SITE_ATTRIBUTE_COMPASS_DEGREES: azimuth_to_compass_degrees(azimuth),
+                SITE_ATTRIBUTE_COMPASS_DIRECTION: azimuth_to_compass_direction(azimuth),
             }
         )
     if not solcast.sites:
