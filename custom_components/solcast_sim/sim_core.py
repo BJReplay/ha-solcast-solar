@@ -687,8 +687,9 @@ class SolcastSimBatteryModel:
         """Advance simulation state to second-of-day *t*."""
         current_day = datetime.now(self._tz).date()
         if self.last_day != current_day:
-            self.export_today_energy_kwh = 0.0
-            self.grid_import_today_energy_kwh = 0.0
+            if self.last_day is not None:
+                self.export_today_energy_kwh = 0.0
+                self.grid_import_today_energy_kwh = 0.0
             self.last_day = current_day
 
         if self.last_t is None:
