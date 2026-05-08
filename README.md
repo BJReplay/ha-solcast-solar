@@ -118,7 +118,7 @@ Note the importance of getting your Solcast site configuration correct. Use the 
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_tilt.png" width="600">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_tilt.png)
 
-Azimuth is _not_ set as a 0-359 degree value, but rather as 0-180 for westerly facing, or zero to _minus_ 179 for easterly facing. This value is the number of degrees angled away from North, with the sign being West or East. If you're not sure, then do some quick research.
+Azimuth is _not_ set as a 0-359 degree value, but rather as 0-180 for westerly facing, or zero to _minus_ 179 for easterly facing. This value is the number of degrees angled away from North, with the sign being westerly (positive) or easterly (negative). If you're not sure, then do some quick research.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth.png" width="300">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth.png)
 
@@ -127,6 +127,8 @@ An old-school method that can work is to get a North-oriented Google Maps satell
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_house.png" width="300">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_house.png)
 
 Using Google Earth or ChatGPT are other alternatives.
+
+Once set up, the integration provides azimuth values as compass degrees and direction in the rooftop site sensor attributes, as well as in diagnostic dump and service action for a self-diagnostic. These values can be used to double-check your azimuth setting in the Solcast toolkit at https://toolkit.solcast.com.au/.
 
 > [!NOTE]
 >
@@ -137,7 +139,7 @@ Using Google Earth or ChatGPT are other alternatives.
 >
 > On start-up, the integration will validate your Solcast azimuth setting in order to highlight a potential misconfiguration and will issue a warning message in the Home Assistant log and raise an issue if it detects an unusual roof alignment. If you receive this warning and have confirmed your Solcast settings are correct then the warning message can simply be ignored. The warning is there to try to catch configuration mistakes.
 >
-> There are always outlier installations, like two rooftops that face both West and East with panels installed on both faces, 180 degrees from each other. One rooftop is going to be considered "unusual". Check the azimuth according to Solcast, and fix or ignore the warning as appropriate. Remember, 0° = NORTH according to Solcast, with orientations being relative to this.
+> There are always outlier installations, like two rooftops that face both West and East with panels installed on both faces, 180 degrees from each other. One rooftop is going to be considered "unusual". Check the azimuth according to Solcast plus the diagnostic data available, and fix or ignore the warning as appropriate. Remember, 0° = NORTH according to Solcast, with orientations being relative to this.
 
 ## Installation
 
@@ -636,7 +638,7 @@ The response contains a `data` object with the following fields:
 | `overall_status` | string | `"ok"` when no issues are found, otherwise `"issues_found"` |
 | `issues` | list | Description of every problem detected. Empty when status is `"ok"` |
 | `api` | object | API state summary (`api_keys_configured`, `api_used`, `api_limit`, `api_remaining`, `api_force_used`, `last_updated`, `last_attempt`, `actuals_updated`, `actuals_attempt`, `failures_last_24h`, `failures_last_7d`, `status`, `sites_status`, `usage_status`) |
-| `sites` | list | One entry per configured rooftop site (`resource_id`, `name`) |
+| `sites` | list | One entry per configured rooftop site (`resource_id`, `name`, `compass_degrees`, `compass_direction`) |
 | `cache_files` | object | Whether each data cache file exists on disk (`forecast`, `undampened`, `actuals`, `actuals_dampened`, `dampening`, `dampening_history`, `generation`, `advanced`) |
 | `configuration` | object | Active configuration summary (`auto_update`, `key_estimate`, `get_actuals`, `use_actuals`, `auto_dampen`, `hard_limit`, `excluded_sites`) |
 | `dampening` | object | Dampening feature state (`enabled`, `auto_dampening`, `has_granular_factors`, `dampening_file_exists`) |
@@ -787,6 +789,7 @@ undampened_p90_ape: 14.72
 `Rooftop site name` attributes include:
 
 * `azimuth` / `tilt`: Panel orientation.
+* `compass_degrees` / `compass_direction`: The Solcast azimuth 'translated' as a compass degree value and direction (e.g. SW/NNW/ENE)
 * `capacity`: Site capacity in AC power.
 * `capacity_dc`: Site capacity in DC power.
 * `install_date`: Configured installation date.
