@@ -13,7 +13,7 @@ force_update_estimates:
 
 clear_all_solcast_data:
   name: Clear saved Solcast site data
-  description: Deletes the solcast.json file to remove all current solcast site data
+  description: Deletes cached Solcast forecast and estimated actual data files, then reloads integration data
 
 diagnostic:
   name: Diagnostic
@@ -38,7 +38,7 @@ query_forecast_data:
 
 query_estimate_data:
   name: Query estimates
-  description: List of estimated actuals between start date/time and end date/time
+  description: List of estimated actuals between optional start and end date/time values; defaults to yesterday when omitted
   fields:
     start_date_time:
       example: "2024-10-06T00:00:00Z"
@@ -55,7 +55,7 @@ query_estimate_data:
 
 set_custom_hours:
   name: Set custom hours sensor
-  description: Set the custom hours sensor number of hours
+  description: Deprecated; use the set_options action with the custom_hours option instead
   fields:
     hours:
       example: "6"
@@ -82,15 +82,15 @@ get_options:
 
 set_hard_limit:
   name: Set inverter forecast hard limit in kW
-  description: Prevent forecast values being higher than the inverter can produce
+  description: Deprecated; use the set_options action with the hard_limit option instead
   fields:
     hard_limit:
-      description: Set the max value in Watts that the inverter can produce. Use 0 to disable the hard limit.
+      description: Set the max value in kW that the inverter can produce. Use 0 to disable the hard limit.
       example: "6.0"
 
 remove_hard_limit:
   name: Remove inverter forecast hard limit
-  description: Remove set limit
+  description: Deprecated; use the set_options action with the hard_limit option set to 0 instead
 
 set_options:
   name: Set options
