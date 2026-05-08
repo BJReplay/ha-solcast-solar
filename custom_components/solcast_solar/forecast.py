@@ -13,6 +13,7 @@ from .const import (
     ADVANCED_HISTORY_MAX_DAYS,
     ALL,
     ANALYSIS,
+    DAMPENING_FACTOR,
     DATA_CORRECT,
     DAY_NAME,
     DETAILED_FORECAST,
@@ -21,6 +22,7 @@ from .const import (
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
+    FORECASTS,
     NAME,
     PERIOD_START,
     RESOURCE_ID,
@@ -35,6 +37,7 @@ from .const import (
     SITE_ATTRIBUTE_LOSS_FACTOR,
     SITE_ATTRIBUTE_TAGS,
     SITE_ATTRIBUTE_TILT,
+    SITE_INFO,
 )
 from .util import (
     HistoryType,
@@ -101,24 +104,78 @@ class ForecastQuery:
 
         return tuple({**data, PERIOD_START: data[PERIOD_START].astimezone(self.api.tz)} for data in forecast_slice)
 
-    async def get_estimate_list(self, *args: Any) -> tuple[dict[str, Any], ...]:
+    async def get_estimate_list(
+        self,
+        start: dt,
+        end: dt,
+        site: str = ALL,
+        undampened: bool = True,
+    ) -> tuple[dict[str, Any], ...]:
         """Get estimated actuals.
 
         Arguments:
-            args (tuple): [0] (dt) = from timestamp, [1] (dt) = to timestamp, [2] (bool) = dampened or un-dampened (default undampened).
+            start: From timestamp.
+            end: To timestamp.
+            site: Optional site, or `all` for combined.
+            undampened: Whether to return undampened estimated actuals.
 
         Returns:
             tuple(dict[str, Any], ...): Estimated actuals representing the range specified.
         """
 
-        data = self.api.data_estimated_actuals if args[2] else self.api.data_estimated_actuals_dampened
-        start_index, end_index = self.get_list_slice(data, args[0], args[1], search_past=True)
-        if start_index == 0 and end_index == 0:
-            # Range could not be found
-            raise ValueError("Range is invalid")
-        estimate_slice = data[start_index:end_index]
+        if site == ALL:
+            source_undampened = self.api.data_estimated_actuals
+            data = self.api.data_estimated_actuals if undampened else self.api.data_estimated_actuals_dampened
+        else:
+            source_undampened = self.api.data_actuals[SITE_INFO][site][FORECASTS]
+            data = (
+                source_undampened
+                if undampened
+                else self.api.data_actuals_dampened.get(SITE_INFO, {})
+                .get(site, {})
+                .get(FORECASTS, [])
+            )
 
-        return tuple({**data, PERIOD_START: data[PERIOD_START].astimezone(self.api.tz)} for data in estimate_slice)
+        start_index, end_index = self.get_list_slice(data, start, end, search_past=True)
+        if start_index == 0 and end_index == 0:
+            if undampened:
+                # Range could not be found
+                raise ValueError("Range is invalid")
+
+            # Fall back to undampened estimated actuals if dampened data for the
+            # requested range is unavailable.
+            start_index, end_index = self.get_list_slice(source_undampened, start, end, search_past=True)
+            if start_index == 0 and end_index == 0:
+                # Range could not be found
+                raise ValueError("Range is invalid")
+            estimate_slice = source_undampened[start_index:end_index]
+        else:
+            estimate_slice = data[start_index:end_index]
+
+        include_dampening_factor = not undampened and site == ALL
+
+        dampening_factors: dict[dt, float] = {}
+        if include_dampening_factor:
+            undampened_slice_start, undampened_slice_end = self.get_list_slice(source_undampened, start, end, search_past=True)
+            undampened_slice = source_undampened[undampened_slice_start:undampened_slice_end]
+            undampened_by_period = {estimate[PERIOD_START]: estimate[ESTIMATE] for estimate in undampened_slice}
+            for estimate in estimate_slice:
+                period_start = estimate[PERIOD_START]
+                dampened_estimate = estimate[ESTIMATE]
+                undampened_estimate = undampened_by_period.get(period_start, 0.0)
+                if undampened_estimate <= 0:
+                    dampening_factors[period_start] = 1.0
+                else:
+                    dampening_factors[period_start] = round(dampened_estimate / undampened_estimate, 4)
+
+        return tuple(
+            {
+                **data,
+                PERIOD_START: data[PERIOD_START].astimezone(self.api.tz),
+            }
+            | ({DAMPENING_FACTOR: dampening_factors[data[PERIOD_START]]} if include_dampening_factor else {})
+            for data in estimate_slice
+        )
 
     def get_rooftop_site_extra_data(self, site: str = "") -> dict[str, Any]:
         """Return information about a site.

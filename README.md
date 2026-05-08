@@ -598,6 +598,8 @@ action: solcast_solar.query_estimate_data
 data:
   start_date_time: 2024-10-06T00:00:00.000Z
   end_date_time: 2024-10-06T10:00:00.000Z
+  dampened: false (optional)
+  site: 1234-5678-9012-3456 (optional)
 ```
 
 ```yaml
@@ -1080,13 +1082,19 @@ Un-dampened forecast history is retained for just 14 days.
 
 When calculating dampening using an automation it may be beneficial to use estimated actual past values as input.
 
-This is possible by using the action `solcast_solar.query_estimate_data`. The site may not be included in the action parameters presently. (If a site breakdown is desired, then raise an issue or a discussion topic.)
+This is possible by using the action `solcast_solar.query_estimate_data`. The optional `site` parameter may be included to return a single-site breakdown, and the optional `dampened` parameter may be used to return dampened estimated actuals.
+
+If `start_date_time` and `end_date_time` are omitted, the action defaults to returning all intervals for yesterday (from UTC day start - 1 day to UTC day start).
+
+If estimated actuals for that default range are not available yet (for example, estimated actuals are disabled or no data has been fetched for yesterday), the action returns: "The requested data range is not available."
 
 ```yaml
 action: solcast_solar.query_estimate_data
 data:
   start_date_time: 2024-10-08T12:00:00+11:00
   end_date_time: 2024-10-08T19:00:00+11:00
+  dampened: true
+  site: 1111-aaaa-bbbb-2222
 ```
 
 Estimated actual data is retained for 730 days.
@@ -1444,7 +1452,9 @@ v4.5.3
 * Add sun elevation adjustment for automated dampening by @autoSteve
 * Expanded diagnostic self-test service action by @autoSteve
 * Add undampened total forecast attributes when dampening is enabled by @autoSteve
+* Enable return of per-site and un-dampened estimated actuals by @autoSteve
 * Include health check detail in diagnostic download by @autoSteve
+* Add per-site compass degree and direction attributes and diagnostics by @autoSteve
 * Code refactoring by @autoSteve
 * Add tests to suite to ensure runtime reliability by @autoSteve
 * API simulator improvements by @autoSteve

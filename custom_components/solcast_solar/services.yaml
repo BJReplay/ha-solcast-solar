@@ -48,8 +48,10 @@ query_estimate_data:
       example: "2024-10-06T10:00:00Z"
       selector:
         datetime:
-    undampened:
+    dampened:
       example: "false"
+    site:
+      example: "1234-5678-9012-3456"
 
 set_custom_hours:
   name: Set custom hours sensor

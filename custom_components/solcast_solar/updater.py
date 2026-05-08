@@ -18,6 +18,7 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.sun import get_astral_event_next
 
 from .const import (
+    ALL,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
     ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS,
@@ -438,11 +439,13 @@ class Updater:
                 self._coordinator.solcast.query.get_estimate_list(
                     earliest_dampened_start,
                     day_start_minus_30,
+                    ALL,
                     False,  # Undampened = False
                 ),
                 self._coordinator.solcast.query.get_estimate_list(
                     earliest_undampened_start,
                     day_start_minus_30,
+                    ALL,
                     True,  # Undampened = True
                 ),
             )
@@ -482,6 +485,7 @@ class Updater:
                 await self._coordinator.solcast.query.get_estimate_list(
                     earliest_undampened_start,
                     day_start_minus_30,
+                    ALL,
                     True,  # Undampened = True
                 ),
                 percentiles_to_calculate,

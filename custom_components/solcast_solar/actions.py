@@ -45,6 +45,7 @@ from .const import (
     COMPLETION,
     CUSTOM_HOURS,
     DAMP_FACTOR,
+    DAMPENED,
     DOMAIN,
     EVENT_END_DATETIME,
     EVENT_START_DATETIME,
@@ -146,6 +147,14 @@ SERVICE_DAMP_SCHEMA: Final = vol.All(
         vol.Optional(SITE): cv.string,
     }
 )
+SERVICE_QUERY_ESTIMATE_SCHEMA: Final = vol.All(
+    {
+        vol.Optional(EVENT_START_DATETIME): cv.datetime,
+        vol.Optional(EVENT_END_DATETIME): cv.datetime,
+        vol.Optional(DAMPENED): cv.boolean,
+        vol.Optional(SITE): cv.string,
+    }
+)
 SERVICE_DAMP_GET_SCHEMA: Final = vol.All(
     {
         vol.Optional(SITE): cv.string,
@@ -157,12 +166,6 @@ SERVICE_QUERY_SCHEMA: Final = vol.All(
         vol.Required(EVENT_END_DATETIME): cv.datetime,
         vol.Optional(UNDAMPENED): cv.boolean,
         vol.Optional(SITE): cv.string,
-    }
-)
-SERVICE_QUERY_ESTIMATE_SCHEMA: Final = vol.All(
-    {
-        vol.Optional(EVENT_START_DATETIME): cv.datetime,
-        vol.Optional(EVENT_END_DATETIME): cv.datetime,
     }
 )
 SERVICE_SET_OPTIONS_SCHEMA: Final = vol.All(
@@ -419,7 +422,7 @@ class ServiceActions:
         """Handle query estimate data action.
 
         Arguments:
-            call: The data to act on: an optional start and end date/time (defaults to all of yesterday).
+            call: The data to act on: an optional start and end date/time, optional dampened, optional site.
 
         Returns:
             The Solcast data from start to end date/times.
@@ -427,11 +430,16 @@ class ServiceActions:
         """
         try:
             _LOGGER.info("Action: Query estimate data")
+            site = call.data.get(SITE, "all").replace("_", "-")
+            if site != "all" and site not in [s[RESOURCE_ID] for s in self._solcast.sites]:
+                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_NOT_A_SITE)
+
             day_start = self._solcast.dt_helper.day_start_utc()
             data = await self._solcast.query.get_estimate_list(
                 dt_util.as_utc(call.data.get(EVENT_START_DATETIME, day_start - timedelta(days=1))),
                 dt_util.as_utc(call.data.get(EVENT_END_DATETIME, day_start)),
-                call.data.get(UNDAMPENED, True),
+                site,
+                not call.data.get(DAMPENED, False),
             )
         except ValueError as e:
             raise ServiceValidationError(

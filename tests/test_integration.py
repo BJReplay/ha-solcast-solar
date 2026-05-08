@@ -54,10 +54,12 @@ from homeassistant.components.solcast_solar.const import (
     DAILY_LIMIT,
     DAILY_LIMIT_CONSUMED,
     DAMP_FACTOR,
+    DAMPENED,
     DAMPENED_APE_BREAKDOWN,
     DAMPENED_DAILY,
     DAMPENED_MAPE,
     DAMPENED_PERCENTILES,
+    DAMPENING_FACTOR,
     DATA_SET_FORECAST,
     DEFAULT_FORECAST_DAYS,
     DEFAULT_SOLCAST_HTTPS_URL,
@@ -2314,6 +2316,12 @@ async def test_estimated_actuals(
                 "query": {},
                 "expect": 48,
             },
+            {
+                "query": {
+                    SITE: solcast.sites[0][RESOURCE_ID],
+                },
+                "expect": 48,
+            },
         ]
         for query in queries:
             _LOGGER.debug("Testing query estimated data: %s", query["query"])
@@ -2326,6 +2334,50 @@ async def test_estimated_actuals(
             )
             assert len(estimate_data.get("data", [])) == query["expect"]  # type: ignore[arg-type, union-attr]
 
+        # Query dampened estimated actuals and ensure returned intervals include dampening factors.
+        dampened_estimate_data = await hass.services.async_call(
+            DOMAIN,
+            SERVICE_QUERY_ESTIMATE_DATA,
+            {
+                DAMPENED: True,
+            },
+            blocking=True,
+            return_response=True,
+        )
+        assert dampened_estimate_data is not None
+        dampened_estimates = dampened_estimate_data.get("data", [])
+        assert isinstance(dampened_estimates, tuple | list)
+        dampened_estimate_intervals = [
+            interval for interval in dampened_estimates if isinstance(interval, dict)
+        ]
+        assert dampened_estimate_intervals
+        assert all(
+            DAMPENING_FACTOR in interval for interval in dampened_estimate_intervals
+        )
+
+        # Query dampened estimated actuals for one site.
+        dampened_site_estimate_data = await hass.services.async_call(
+            DOMAIN,
+            SERVICE_QUERY_ESTIMATE_DATA,
+            {
+                SITE: solcast.sites[0][RESOURCE_ID],
+                DAMPENED: True,
+            },
+            blocking=True,
+            return_response=True,
+        )
+        assert dampened_site_estimate_data is not None
+        dampened_site_estimates = dampened_site_estimate_data.get("data", [])
+        assert isinstance(dampened_site_estimates, tuple | list)
+        dampened_site_estimate_intervals = [
+            interval for interval in dampened_site_estimates if isinstance(interval, dict)
+        ]
+        assert dampened_site_estimate_intervals
+        assert all(
+            DAMPENING_FACTOR not in interval
+            for interval in dampened_site_estimate_intervals
+        )
+
         # Test invalid query range
         _LOGGER.debug("Testing invalid estimated actual query range")
         with pytest.raises(ServiceValidationError):
@@ -2336,6 +2388,31 @@ async def test_estimated_actuals(
                     EVENT_START_DATETIME: solcast.dt_helper.day_start_utc(future=-50).isoformat(),
                     EVENT_END_DATETIME: solcast.dt_helper.day_start_utc(future=-40).isoformat(),
                 },
+                blocking=True,
+                return_response=True,
+            )
+
+        _LOGGER.debug("Testing invalid dampened estimated actual query range")
+        with pytest.raises(ServiceValidationError):
+            estimate_data = await hass.services.async_call(
+                DOMAIN,
+                SERVICE_QUERY_ESTIMATE_DATA,
+                {
+                    EVENT_START_DATETIME: solcast.dt_helper.day_start_utc(future=-50).isoformat(),
+                    EVENT_END_DATETIME: solcast.dt_helper.day_start_utc(future=-40).isoformat(),
+                    DAMPENED: True,
+                },
+                blocking=True,
+                return_response=True,
+            )
+
+        # Test invalid site.
+        _LOGGER.debug("Testing invalid estimated actual query site")
+        with pytest.raises(ServiceValidationError):
+            await hass.services.async_call(
+                DOMAIN,
+                SERVICE_QUERY_ESTIMATE_DATA,
+                {SITE: "not-a-real-site"},
                 blocking=True,
                 return_response=True,
             )
