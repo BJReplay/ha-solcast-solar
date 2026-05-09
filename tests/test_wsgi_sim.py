@@ -9,6 +9,7 @@ from types import ModuleType
 from unittest.mock import patch
 
 import pytest
+
 from homeassistant.components.solcast_solar.const import (
     ESTIMATED_ACTUALS,
     FORECASTS,

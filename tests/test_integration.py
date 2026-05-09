@@ -27,7 +27,11 @@ from homeassistant.components.solcast_solar.const import (
     ACTUALS_ATTEMPT,
     ACTUALS_UPDATED,
     ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
+    ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
     ADVANCED_ENTITY_LOGGING,
+    ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY,
+    ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES,
+    ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN,
     ADVANCED_FORECAST_DAY_ENTITIES,
     ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT,
     ADVANCED_SOLCAST_PORT,
@@ -124,6 +128,7 @@ from homeassistant.components.solcast_solar.const import (
     TASK_LISTENERS,
     TASK_MIDNIGHT_UPDATE,
     TASK_NEW_DAY_ACTUALS,
+    TASK_NEW_DAY_GENERATION,
     UNDAMPENED,
     UNDAMPENED_APE_BREAKDOWN,
     UNDAMPENED_DAILY,
@@ -206,55 +211,6 @@ ACTIONS = [
 
 ZONE = ZoneInfo(ZONE_RAW)
 NOW = dt.now(ZONE)
-
-
-@pytest.mark.asyncio
-async def test_advanced_solcast_port_applied_runtime(
-    recorder_mock: Recorder,
-    hass: HomeAssistant,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Apply an advanced Solcast port override without reloading the integration."""
-
-    try:
-        entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT1))
-        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-        solcast: SolcastApi = coordinator.solcast
-
-        assert solcast.advanced_options[ADVANCED_SOLCAST_PORT] == 0
-
-        advanced_file = get_advanced_options_file(hass.config.config_dir, create=True)
-        caplog.clear()
-        advanced_file.write_text(json.dumps({ADVANCED_SOLCAST_PORT: 8443}), encoding="utf-8")
-        async with asyncio.timeout(10):
-            while solcast.advanced_options[ADVANCED_SOLCAST_PORT] != 8443:
-                await hass.async_block_till_done()
-                await asyncio.sleep(0.01)
-
-        assert solcast.advanced_options[ADVANCED_SOLCAST_PORT] == 8443
-
-        caplog.clear()
-        assert solcast.sites
-        site_id = solcast.sites[0][RESOURCE_ID]
-        api_key = solcast.sites[0][API_KEY]
-        payload = simulated.raw_get_site_forecasts(site_id, api_key, 320)
-        response = unittest.mock.MagicMock(status=200, url=f"https://api.solcast.com.au:8443/rooftop_sites/{site_id}/forecasts")
-        response.text = unittest.mock.AsyncMock(return_value=json.dumps(payload))
-        original_session = solcast.aiohttp_session
-        mock_session = unittest.mock.MagicMock()
-        mock_session.get = unittest.mock.AsyncMock(return_value=response)
-        solcast.aiohttp_session = mock_session
-        try:
-            await solcast.fetcher.fetch_data(hours=320, path=FORECASTS, site=site_id, api_key=api_key, force=True)
-        finally:
-            solcast.aiohttp_session = original_session
-
-        mock_session.get.assert_awaited_once()
-        assert mock_session.get.await_args.kwargs["url"].startswith("https://api.solcast.com.au:8443/rooftop_sites/")
-
-        no_error_or_exception(caplog)
-    finally:
-        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
 @pytest.fixture(autouse=True)
@@ -2347,13 +2303,9 @@ async def test_estimated_actuals(
         assert dampened_estimate_data is not None
         dampened_estimates = dampened_estimate_data.get("data", [])
         assert isinstance(dampened_estimates, tuple | list)
-        dampened_estimate_intervals = [
-            interval for interval in dampened_estimates if isinstance(interval, dict)
-        ]
+        dampened_estimate_intervals = [interval for interval in dampened_estimates if isinstance(interval, dict)]
         assert dampened_estimate_intervals
-        assert all(
-            DAMPENING_FACTOR in interval for interval in dampened_estimate_intervals
-        )
+        assert all(DAMPENING_FACTOR in interval for interval in dampened_estimate_intervals)
 
         # Query dampened estimated actuals for one site.
         dampened_site_estimate_data = await hass.services.async_call(
@@ -2369,14 +2321,9 @@ async def test_estimated_actuals(
         assert dampened_site_estimate_data is not None
         dampened_site_estimates = dampened_site_estimate_data.get("data", [])
         assert isinstance(dampened_site_estimates, tuple | list)
-        dampened_site_estimate_intervals = [
-            interval for interval in dampened_site_estimates if isinstance(interval, dict)
-        ]
+        dampened_site_estimate_intervals = [interval for interval in dampened_site_estimates if isinstance(interval, dict)]
         assert dampened_site_estimate_intervals
-        assert all(
-            DAMPENING_FACTOR not in interval
-            for interval in dampened_site_estimate_intervals
-        )
+        assert all(DAMPENING_FACTOR not in interval for interval in dampened_site_estimate_intervals)
 
         # Test invalid query range
         _LOGGER.debug("Testing invalid estimated actual query range")
@@ -2470,6 +2417,179 @@ async def test_estimated_actuals(
             await _exec_update_actuals(hass, coordinator, solcast, caplog, SERVICE_FORCE_UPDATE_ESTIMATES)
         assert "Estimated actuals not enabled" in caplog.text
 
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+@pytest.mark.asyncio
+async def test_updater_scheduler_catch_up_and_duplicate_guards(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Cover catch-up scheduling and duplicate-task guards in one setup."""
+
+    try:
+        entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT1))
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
+
+        solcast.data_actuals[LAST_UPDATED] = dt.now(datetime.UTC) - timedelta(days=1)
+        solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY] = 0
+        solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY] = 0
+
+        now_local = dt.now(solcast.options.tz).replace(minute=1, second=0, microsecond=0)
+        with (
+            unittest.mock.patch("homeassistant.components.solcast_solar.updater.dt") as dt_mock,
+            unittest.mock.patch("homeassistant.components.solcast_solar.updater.randint", return_value=5),
+            unittest.mock.patch(
+                "homeassistant.components.solcast_solar.updater.async_track_point_in_utc_time",
+                return_value=unittest.mock.Mock(),
+            ) as mock_track_point,
+        ):
+            dt_mock.now.return_value = now_local
+            generation_scheduled = await coordinator.updater.check_generation_fetch()
+            estimated_actuals_scheduled = await coordinator.updater.check_estimated_actuals_fetch()
+
+        assert generation_scheduled
+        assert estimated_actuals_scheduled
+        assert TASK_NEW_DAY_GENERATION in coordinator.tasks
+        assert TASK_NEW_DAY_ACTUALS in coordinator.tasks
+        assert mock_track_point.call_count == 2
+        assert "Generation update window was missed, scheduling at" in caplog.text
+        assert "Estimated actuals update window was missed, scheduling at" in caplog.text
+
+        coordinator.tasks[TASK_NEW_DAY_GENERATION] = unittest.mock.Mock()
+        assert await coordinator.updater.check_generation_fetch()
+
+        coordinator.tasks[TASK_NEW_DAY_ACTUALS] = unittest.mock.Mock()
+        assert await coordinator.updater.check_estimated_actuals_fetch()
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+@pytest.mark.asyncio
+async def test_updater_estimated_actuals_skip_paths_and_undampened_accuracy(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Cover estimated-actuals skip branches and undampened-only accuracy path."""
+    try:
+        entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT1))
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
+
+        solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY] = 0
+        # Already-updated path should not schedule anything.
+        solcast.data_actuals[LAST_UPDATED] = dt.now(datetime.UTC)
+        now_local = dt.now(solcast.options.tz).replace(minute=0, second=0, microsecond=0)
+
+        with unittest.mock.patch("homeassistant.components.solcast_solar.updater.dt") as dt_mock:
+            dt_mock.now.return_value = now_local
+            scheduled = await coordinator.updater.check_estimated_actuals_fetch()
+
+        assert not scheduled
+        assert TASK_NEW_DAY_ACTUALS not in coordinator.tasks
+
+        # A single pre-scheduling check should be sufficient and still schedule.
+        solcast.data_actuals[LAST_UPDATED] = dt.now(datetime.UTC) - timedelta(days=1)
+        caplog.clear()
+        with (
+            unittest.mock.patch("homeassistant.components.solcast_solar.updater.dt") as dt_mock,
+            unittest.mock.patch.object(
+                SolcastApi,
+                "estimated_actuals_updated_today",
+                new_callable=unittest.mock.PropertyMock,
+                side_effect=[False, True],
+            ),
+            unittest.mock.patch.object(
+                coordinator.updater,
+                "update_estimated_actuals_history",
+                new=unittest.mock.AsyncMock(return_value=None),
+            ),
+            unittest.mock.patch(
+                "homeassistant.components.solcast_solar.updater.async_track_point_in_utc_time",
+                return_value=unittest.mock.Mock(),
+            ),
+        ):
+            dt_mock.now.return_value = now_local
+            scheduled = await coordinator.updater.check_estimated_actuals_fetch()
+
+        assert scheduled
+        assert TASK_NEW_DAY_ACTUALS in coordinator.tasks
+        coordinator.tasks.pop(TASK_NEW_DAY_ACTUALS, None)
+
+        # Cover undampened-only accuracy branch without creating a second setup.
+        solcast.options.auto_dampen = False
+        solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN] = True
+        solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES] = [50, 90]
+
+        earliest = solcast.dt_helper.day_start_utc() - timedelta(days=2)
+        solcast.dampening.get_earliest_estimate_after_undampened = unittest.mock.Mock(return_value=earliest)
+        solcast.dampening.prepare_generation_data = unittest.mock.AsyncMock(return_value=({}, {}))
+        solcast.query.get_estimate_list = unittest.mock.AsyncMock(return_value=[])
+        solcast.dampening.calculate_error = unittest.mock.AsyncMock(return_value=(False, 12.34, [10.0, 20.0], {"2026-05-01": 12.34}))
+
+        await coordinator.updater.calculate_accuracy_metrics()
+
+        assert solcast.query.get_estimate_list.await_count == 1
+        assert solcast.dampening.calculate_error.await_count == 1
+        assert coordinator.updater.accuracy_data[DAMPENED_MAPE] is None
+        assert coordinator.updater.accuracy_data[UNDAMPENED_MAPE] == 12.34
+        assert coordinator.updater.accuracy_data[DAMPENED_PERCENTILES] == {}
+        assert coordinator.updater.accuracy_data[UNDAMPENED_PERCENTILES] == {50: 10.0, 90: 20.0}
+        no_error_or_exception(caplog)
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+@pytest.mark.asyncio
+async def test_advanced_solcast_port_applied_runtime(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Apply an advanced Solcast port override without reloading the integration."""
+
+    try:
+        entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT1))
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = coordinator.solcast
+
+        assert solcast.advanced_options[ADVANCED_SOLCAST_PORT] == 0
+
+        advanced_file = get_advanced_options_file(hass.config.config_dir, create=True)
+        caplog.clear()
+        advanced_file.write_text(json.dumps({ADVANCED_SOLCAST_PORT: 8443}), encoding="utf-8")
+        async with asyncio.timeout(10):
+            while solcast.advanced_options[ADVANCED_SOLCAST_PORT] != 8443:
+                await hass.async_block_till_done()
+                await asyncio.sleep(0.01)
+
+        assert solcast.advanced_options[ADVANCED_SOLCAST_PORT] == 8443
+
+        caplog.clear()
+        assert solcast.sites
+        site_id = solcast.sites[0][RESOURCE_ID]
+        api_key = solcast.sites[0][API_KEY]
+        payload = simulated.raw_get_site_forecasts(site_id, api_key, 320)
+        response = unittest.mock.MagicMock(status=200, url=f"https://api.solcast.com.au:8443/rooftop_sites/{site_id}/forecasts")
+        response.text = unittest.mock.AsyncMock(return_value=json.dumps(payload))
+        original_session = solcast.aiohttp_session
+        mock_session = unittest.mock.MagicMock()
+        mock_session.get = unittest.mock.AsyncMock(return_value=response)
+        solcast.aiohttp_session = mock_session
+        try:
+            await solcast.fetcher.fetch_data(hours=320, path=FORECASTS, site=site_id, api_key=api_key, force=True)
+        finally:
+            solcast.aiohttp_session = original_session
+
+        mock_session.get.assert_awaited_once()
+        assert mock_session.get.await_args.kwargs["url"].startswith("https://api.solcast.com.au:8443/rooftop_sites/")
+
+        no_error_or_exception(caplog)
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 

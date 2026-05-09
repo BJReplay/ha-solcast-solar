@@ -18,13 +18,13 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.sun import get_astral_event_next
 
 from .const import (
-    ALL,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
     ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS,
     ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY,
     ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES,
     ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN,
+    ALL,
     DOMAIN,
     DT_DATE_FORMAT,
     DT_DATE_ONLY_FORMAT,
@@ -293,34 +293,49 @@ class Updater:
 
         return time_point.hour * 60 + time_point.minute
 
-    async def check_generation_fetch(self) -> None:
+    async def check_generation_fetch(self) -> bool:
         """Check if generation fetch was missed and schedule it."""
 
+        scheduled = False
         if self._coordinator.solcast.options.get_actuals:
             if not self._coordinator.solcast.estimated_actuals_updated_today:
+                if TASK_NEW_DAY_GENERATION in self._coordinator.tasks:
+                    return True
+
                 tz = self._coordinator.solcast.options.tz
                 now_minute = self._get_minute_of_day(dt.now(tz))
-                if now_minute <= self._coordinator.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY]:
+                generation_fetch_delay = self._coordinator.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY]
+
+                if now_minute <= generation_fetch_delay:
                     update_at = (
                         dt.now(tz).replace(
                             hour=0,
                             minute=0,
-                            second=5
-                            if self._coordinator.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY] == 0
-                            else 0,
+                            second=5 if generation_fetch_delay == 0 else 0,
                             microsecond=0,
                         )  # i.e. just past midnight local
-                        + timedelta(minutes=self._coordinator.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY])
+                        + timedelta(minutes=generation_fetch_delay)
                     )
                     _LOGGER.debug(
                         "Scheduling generation update at %s",
                         update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
                     )
-                    self._coordinator.tasks[TASK_NEW_DAY_GENERATION] = async_track_point_in_utc_time(
-                        self._coordinator.hass,
-                        self._generation,
-                        update_at,
+                else:
+                    # If startup/reload happened after the scheduled window then the timer was likely cancelled and not recreated. Schedule it again.
+                    update_at = dt.now(tz).replace(microsecond=0) + timedelta(seconds=30 + randint(0, 29))
+                    _LOGGER.info(
+                        "Generation update window was missed, scheduling at %s",
+                        update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
                     )
+
+                self._coordinator.tasks[TASK_NEW_DAY_GENERATION] = async_track_point_in_utc_time(
+                    self._coordinator.hass,
+                    self._generation,
+                    update_at,
+                )
+                scheduled = True
+
+        return scheduled
 
     async def check_estimated_actuals_fetch(self) -> bool:
         """Check if estimated actuals fetch was missed and schedule it."""
@@ -328,26 +343,37 @@ class Updater:
         scheduled = False
         if self._coordinator.solcast.options.get_actuals:
             if not self._coordinator.solcast.estimated_actuals_updated_today:
+                if TASK_NEW_DAY_ACTUALS in self._coordinator.tasks:
+                    return True
+
                 tz = self._coordinator.solcast.options.tz
                 now_minute = self._get_minute_of_day(dt.now(tz))
-                if now_minute <= self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY]:
+                estimated_actuals_fetch_delay = self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY]
+
+                if now_minute <= estimated_actuals_fetch_delay:
                     update_at = (
                         dt.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)  # i.e. midnight local
-                        + timedelta(
-                            minutes=max(now_minute, self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY])
-                        )
+                        + timedelta(minutes=max(now_minute, estimated_actuals_fetch_delay))
                         + timedelta(minutes=randint(1, 14), seconds=randint(0, 59))
                     )
                     _LOGGER.debug(
                         "Scheduling estimated actuals update at %s",
                         update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
                     )
-                    self._coordinator.tasks[TASK_NEW_DAY_ACTUALS] = async_track_point_in_utc_time(
-                        self._coordinator.hass,
-                        self._actuals,
-                        update_at,
+                else:
+                    # If startup/reload happened after the scheduled window then the timer was likely cancelled and not recreated. Schedule it again.
+                    update_at = dt.now(tz).replace(microsecond=0) + timedelta(seconds=30 + randint(0, 29))
+                    _LOGGER.info(
+                        "Estimated actuals update window was missed, scheduling at %s",
+                        update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
                     )
-                    scheduled = True
+
+                self._coordinator.tasks[TASK_NEW_DAY_ACTUALS] = async_track_point_in_utc_time(
+                    self._coordinator.hass,
+                    self._actuals,
+                    update_at,
+                )
+                scheduled = True
         return scheduled
 
     async def _actuals(self, _: dt | None = None) -> None:

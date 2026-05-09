@@ -470,6 +470,10 @@ class SolcastSimTodayEnergySensor(RestoreEntity, SensorEntity):
     _attr_native_unit_of_measurement = UnitOfEnergy.KILO_WATT_HOUR
     _attr_should_poll = False
 
+    def _midnight(self, day: date) -> datetime:
+        """Return local midnight for a given day."""
+        return datetime.combine(day, datetime.min.time(), self._tz)
+
     def __init__(self, sites: list[dict[str, Any]], tz: ZoneInfo, profile: SimulationProfile) -> None:
         """Initialise the daily PV energy sensor."""
         self._sites = sites
@@ -478,18 +482,32 @@ class SolcastSimTodayEnergySensor(RestoreEntity, SensorEntity):
         self._attr_unique_id = "solcast_sim_today_generation_energy"
         self._attr_name = _prefixed_display_name("PV Today")
         self._attr_native_value: float = 0.0
+        self._attr_last_reset: datetime | None = None
         self._last_t: float | None = None
         self._last_day: date | None = None
 
     async def async_added_to_hass(self) -> None:
         """Restore same-day accumulated value."""
         today = datetime.now(self._tz).date()
+        cache_state: tuple[float, datetime] | None = None
         if (last_state := await self.async_get_last_state()) is not None:
             last_updated = last_state.last_updated or last_state.last_changed
             if last_updated is not None and last_updated.astimezone(self._tz).date() == today:
                 with contextlib.suppress(ValueError, TypeError):
-                    self._attr_native_value = float(last_state.state)
+                    cache_state = (float(last_state.state), last_updated)
 
+        recorder_state: tuple[float, datetime] | None = None
+        if self.entity_id is not None:
+            recorder_state = await recorder_sensor_value(self.hass, self.entity_id)
+            if recorder_state is not None and recorder_state[1].astimezone(self._tz).date() != today:
+                recorder_state = None
+
+        if cache_state is not None or recorder_state is not None:
+            restored_value = select_measurement_restore_value(cache_state, recorder_state)
+            if restored_value is not None:
+                self._attr_native_value = restored_value
+
+        self._attr_last_reset = self._midnight(today)
         self._last_day = today
         self._last_t = seconds_since_midnight(self._tz)
         self.async_on_remove(async_track_time_interval(self.hass, self._handle_interval, UPDATE_INTERVAL))
@@ -506,6 +524,7 @@ class SolcastSimTodayEnergySensor(RestoreEntity, SensorEntity):
 
         if self._last_day != current_day:
             self._attr_native_value = 0.0
+            self._attr_last_reset = self._midnight(current_day)
             self._last_day = current_day
             self._last_t = t
             return
@@ -514,6 +533,7 @@ class SolcastSimTodayEnergySensor(RestoreEntity, SensorEntity):
             dt_s = t - self._last_t
             if dt_s < 0:
                 self._attr_native_value = 0.0
+                self._attr_last_reset = self._midnight(current_day)
                 self._last_day = current_day
                 self._last_t = t
                 return
