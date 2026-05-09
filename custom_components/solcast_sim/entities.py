@@ -16,7 +16,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
 from homeassistant.core import callback
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers.event import async_track_point_in_utc_time, async_track_time_interval
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .restore_helpers import recorder_sensor_value, select_measurement_restore_value
@@ -86,7 +86,7 @@ _SENSORS: list[ModelSensorDesc] = [
         unique_id="solcast_sim_battery_energy",
         name="Battery Stored Energy",
         device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.MEASUREMENT,
+        state_class=None,
         unit=UnitOfEnergy.KILO_WATT_HOUR,
         value_fn=lambda m: round(m.battery_energy_kwh, 6),
         restore_fn=lambda m, v: m.restore_battery_energy(v),
@@ -511,6 +511,24 @@ class SolcastSimTodayEnergySensor(RestoreEntity, SensorEntity):
         self._last_day = today
         self._last_t = seconds_since_midnight(self._tz)
         self.async_on_remove(async_track_time_interval(self.hass, self._handle_interval, UPDATE_INTERVAL))
+        # Track midnight in local timezone to capture reset exactly at day boundary
+        self._schedule_next_midnight()
+
+    def _schedule_next_midnight(self) -> None:
+        """Schedule the next midnight trigger in local timezone."""
+        now_local = datetime.now(self._tz)
+        tomorrow_local = now_local.date() + timedelta(days=1)
+        next_midnight_local = self._midnight(tomorrow_local)
+        # Convert to UTC for async_track_point_in_utc_time
+        next_midnight_utc = next_midnight_local.astimezone(ZoneInfo("UTC"))
+        self.async_on_remove(async_track_point_in_utc_time(self.hass, self._handle_midnight, next_midnight_utc))
+
+    async def _handle_midnight(self, now: datetime) -> None:
+        """Handle midnight: force update to capture reset in statistics."""
+        self._accumulate()
+        self.async_write_ha_state()
+        # Reschedule for next midnight
+        self._schedule_next_midnight()
 
     @callback
     def _handle_interval(self, _now: datetime) -> None:
