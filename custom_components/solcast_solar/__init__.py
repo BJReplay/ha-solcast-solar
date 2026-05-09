@@ -23,7 +23,7 @@ from homeassistant.exceptions import (
     ConfigEntryError,
     ConfigEntryNotReady,
 )
-from homeassistant.helpers import aiohttp_client, entity_registry as er
+from homeassistant.helpers import config_validation as cv, aiohttp_client, entity_registry as er
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
@@ -105,6 +105,8 @@ PLATFORMS: Final = [
 ]
 
 _LOGGER = logging.getLogger(__name__)
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 def __log_init_message(entry: ConfigEntry, version: str, solcast: SolcastApi) -> None:

@@ -1,12 +1,16 @@
 {
   "domain": "solcast_sim",
   "name": "Solcast PV SimCity",
-  "documentation": "https://github.com/BJReplay/ha-solcast-solar/blob/main/DEVELOPERS.md",
   "codeowners": [
     "@BJReplay",
     "@autoSteve"
   ],
   "config_flow": true,
-  "version": "1.0.0",
-  "iot_class": "local_polling"
+  "dependencies": [
+    "recorder"
+  ],
+  "documentation": "https://github.com/BJReplay/ha-solcast-solar/blob/main/DEVELOPERS.md",
+  "integration_type": "service",
+  "iot_class": "local_polling",
+  "version": "1.0.0"
 }

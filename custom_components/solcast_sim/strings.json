@@ -8,7 +8,8 @@
     },
     "step": {
       "user": {
-        "title": "Solcast PV SimCity",
+        "title": "Solcast PV SimCity simulator",
+        "description": "Configure the simulator to model PV generation with realistic weather patterns",
         "data": {
           "api_key": "Simulator API key",
           "season": "Season profile",
@@ -104,11 +105,12 @@
   },
   "issues": {
     "api_key_mismatch": {
+      "title": "SimCity API key list does not match Solcast",
       "fix_flow": {
         "step": {
           "init": {
             "title": "Resolve SimCity API key mismatch",
-            "description": "SimCity API keys currently differ from Solcast (`{simcity_api_keys}` vs `{solcast_api_keys}`). To keep forecast source data and simulator output in sync, you should usually use the same API key list in both integrations. Choose `Recommended: Synchronise with Solcast` to apply the recommended setup now, or choose `Advanced: Keep mismatch` only if you intentionally want different API key lists.",
+            "description": "Your SimCity API key list ({simcity_api_keys}) does not match your Solcast integration API key list ({solcast_api_keys}). To fix this issue: Choose 'Recommended: Synchronise with Solcast' to apply the recommended setup, or choose 'Advanced: Keep mismatch' only if you intentionally want different API key lists.",
             "data": {
               "repair_action": "Action"
             }
@@ -118,9 +120,7 @@
           "entry_not_found": "The SimCity configuration entry was not found.",
           "missing_solcast": "No Solcast integration entry was found to copy API keys from."
         }
-      },
-      "title": "SimCity API key list does not match Solcast",
-      "description": "Your SimCity API key list ({simcity_api_keys}) does not match your Solcast integration API key list ({solcast_api_keys}). To fix this issue: 1) Open the SimCity integration options, 2) Set `Simulator API key` to exactly match the Solcast API key list, 3) Save options, and 4) Reload the SimCity integration."
+      }
     }
   }
 }
