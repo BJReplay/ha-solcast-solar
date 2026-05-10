@@ -16,13 +16,17 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import PERCENTAGE, UnitOfEnergy, UnitOfPower
 from homeassistant.core import callback
-from homeassistant.helpers.event import async_track_point_in_utc_time, async_track_time_interval
+from homeassistant.helpers.event import (
+    async_track_point_in_utc_time,
+    async_track_time_interval,
+)
 from homeassistant.helpers.restore_state import RestoreEntity
 
 from .restore_helpers import recorder_sensor_value, select_measurement_restore_value
 from .sim_core import (
     SimulationProfile,
     SolcastSimBatteryModel,
+    clip,
     seconds_since_midnight,
     shade_attenuation_factor,
     simulated_power_kw,
@@ -364,6 +368,76 @@ class SolcastSimTotalPowerSensor(SensorEntity):
         }
 
 
+class SolcastSimShadeBlockedSensor(SensorEntity):
+    """Current shading blocked percentage."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_native_unit_of_measurement = PERCENTAGE
+    _attr_should_poll = False
+
+    def __init__(self, tz: ZoneInfo, profile: SimulationProfile) -> None:
+        """Initialise shade blocked percentage sensor."""
+        self._tz = tz
+        self._profile = profile
+        self._attr_unique_id = "solcast_sim_shade_blocked_percent"
+        self._attr_name = _prefixed_display_name("Shade Blocked")
+        self._attr_native_value: float = 0.0
+
+    async def async_added_to_hass(self) -> None:
+        """Compute initial state and register for periodic updates."""
+        self._refresh()
+        self.async_on_remove(async_track_time_interval(self.hass, self._handle_interval, UPDATE_INTERVAL))
+
+    @callback
+    def _handle_interval(self, _now: datetime) -> None:
+        self._refresh()
+        self.async_write_ha_state()
+
+    def _refresh(self) -> None:
+        now_local = datetime.now(self._tz)
+        shade_factor = shade_attenuation_factor(now_local, self._profile)
+        blocked_pct = (1.0 - shade_factor) * 100.0
+        self._attr_native_value = round(clip(blocked_pct, 0.0, 100.0), 2)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, float | bool]:
+        """Expose raw attenuation and activity flag for dashboard conditions."""
+        blocked = float(self._attr_native_value or 0.0)
+        return {
+            "shade_active": blocked > 0.0,
+            "shade_attenuation_factor": round(1.0 - blocked / 100.0, 4),
+        }
+
+
+class SolcastSimShadeAttenuationSensor(SensorEntity):
+    """Current shading attenuation factor (1.0=no shading)."""
+
+    _attr_state_class = SensorStateClass.MEASUREMENT
+    _attr_should_poll = False
+
+    def __init__(self, tz: ZoneInfo, profile: SimulationProfile) -> None:
+        """Initialise shade attenuation factor sensor."""
+        self._tz = tz
+        self._profile = profile
+        self._attr_unique_id = "solcast_sim_shade_attenuation_factor"
+        self._attr_name = _prefixed_display_name("Shade Attenuation Factor")
+        self._attr_native_value: float = 1.0
+
+    async def async_added_to_hass(self) -> None:
+        """Compute initial state and register for periodic updates."""
+        self._refresh()
+        self.async_on_remove(async_track_time_interval(self.hass, self._handle_interval, UPDATE_INTERVAL))
+
+    @callback
+    def _handle_interval(self, _now: datetime) -> None:
+        self._refresh()
+        self.async_write_ha_state()
+
+    def _refresh(self) -> None:
+        now_local = datetime.now(self._tz)
+        self._attr_native_value = round(shade_attenuation_factor(now_local, self._profile), 4)
+
+
 class SolcastSimEnergySensor(RestoreEntity, SensorEntity):
     """Cumulative energy sensor (total_increasing, kWh) for a simulated PV site."""
 
@@ -591,6 +665,8 @@ def build_entities(
         entities.append(SolcastSimPowerSensor(site, tz, profile))
         entities.append(SolcastSimEnergySensor(site, tz, profile))
     entities.append(SolcastSimTotalPowerSensor(sites, tz, profile))
+    entities.append(SolcastSimShadeBlockedSensor(tz, profile))
+    entities.append(SolcastSimShadeAttenuationSensor(tz, profile))
     entities.append(SolcastSimTotalEnergySensor(sites, tz, profile))
     entities.append(SolcastSimTodayEnergySensor(sites, tz, profile))
     entities.append(SolcastSimBatteryCapacitySensor(model))

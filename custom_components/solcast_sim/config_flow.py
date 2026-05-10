@@ -19,7 +19,7 @@ from homeassistant.helpers import selector
 
 from .sim_core import API_KEY_SITES, canonicalise_api_keys, parse_api_keys
 
-_ENTRY_VERSION = 4
+_ENTRY_VERSION = 5
 DOMAIN = "solcast_sim"
 ADJACENT_SOLCAST_DOMAIN = "solcast_solar"
 
@@ -94,6 +94,7 @@ _DEFAULTS: Mapping[str, Any] = MappingProxyType(
         "api_key": "1",
         "season": "auto",
         "cloudiness_profile": "0.0, 0.7",
+        "estimated_actuals_uncertainty_pct": 2.2,
         "shade_dimensions": "12.0, 8.0, 15.0",
         "shade_azimuth_deg": 0.0,
         "shade_opacity": 0.0,
@@ -120,6 +121,7 @@ _FIELD_VALIDATORS: dict[str, Any] = {
         )
     ),
     "cloudiness_profile": str,
+    "estimated_actuals_uncertainty_pct": vol.All(vol.Coerce(float), vol.Range(min=0.0, max=10.0)),
     "shade_dimensions": str,
     "shade_azimuth_deg": vol.All(vol.Coerce(float), vol.Range(min=-180.0, max=180.0)),
     "shade_opacity": vol.Coerce(float),

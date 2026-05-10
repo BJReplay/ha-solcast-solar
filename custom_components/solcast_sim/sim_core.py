@@ -86,8 +86,23 @@ CLOUD_TREND_INNOVATION_SCALE = 0.45
 CLOUD_ATTENUATION_EXPONENT = 1.2
 CLOUD_ATTENUATION_SCALE = 0.90
 CLOUD_ATTENUATION_MIN = 0.05
+CLOUD_ATTENUATION_MAX = 1.35
 CLOUD_SMOOTHING_CENTRE_WEIGHT = 2.0
 CLEAR_SKY_SHAPE_EXPONENT = 1.7
+
+BURN_OFF_PATTERN_PROB_COOL_SEASONS = 0.75
+BURN_OFF_PATTERN_PROB_WARM_SEASONS = 0.35
+BURN_OFF_CLOUD_BIAS_MAX = 0.35
+BURN_OFF_CLEARING_WEIGHT = 0.65
+
+CLOUD_EDGE_MIXED_PEAK = 0.55
+CLOUD_EDGE_MIXED_SPAN = 0.30
+CLOUD_EDGE_SPIKE_DECAY = 0.56
+CLOUD_EDGE_SPIKE_PROB_BASE = 0.008
+CLOUD_EDGE_SPIKE_PROB_GAIN = 0.16
+CLOUD_EDGE_SPIKE_MAX = 0.45
+
+SIMULATED_POWER_CAP_FACTOR = 1.12
 
 COOL_SEASONS = {"winter", "autumn", "spring"}
 SPELL_CLEAR_TARGET_COOL = 0.08
@@ -159,6 +174,7 @@ class SimulationProfile:
     longitude: float
     cloudiness_bias: float
     cloud_variability: float
+    estimated_actuals_uncertainty_pct: float
     shade_height_m: float
     shade_width_m: float
     shade_distance_m: float
@@ -178,9 +194,9 @@ def time_str_to_seconds(t: str) -> int:
     return h * SECONDS_PER_HOUR + m * SECONDS_PER_MINUTE + s
 
 
-def derived_random_seed(api_key: str, latitude: float, longitude: float, tz_name: str) -> str:
-    """Return a stable internal seed derived from core simulation identity."""
-    return f"simcity|{api_key}|{latitude:.6f}|{longitude:.6f}|{tz_name}"
+def derived_random_seed(api_key: str, latitude: float, longitude: float) -> str:
+    """Return a stable internal seed derived from simulation identity."""
+    return f"simcity|{api_key}|{latitude:.6f}|{longitude:.6f}"
 
 
 def is_high_variability_locale(latitude: float, longitude: float) -> bool:
@@ -354,6 +370,29 @@ def base_cloudiness_for_day(day: date, season: str, profile: SimulationProfile) 
     return base, 0.18
 
 
+def _intraday_cloud_bias(
+    day_phase: float,
+    burnoff_enabled: bool,
+    burnoff_amplitude: float,
+    mixed_shape_gain: float,
+) -> float:
+    """Return deterministic intraday cloudiness bias.
+
+    Produces realistic day-shape weather patterns, including burn-off days where
+    overcast mornings clear toward a hazy or partly cloudy afternoon.
+    """
+    if burnoff_enabled:
+        # Morning overcast/drizzle loading tapers through the day.
+        morning_overcast = clip((0.62 - day_phase) / 0.62, 0.0, 1.0)
+        afternoon_clearing = clip((day_phase - 0.52) / 0.48, 0.0, 1.0)
+        return burnoff_amplitude * (morning_overcast - BURN_OFF_CLEARING_WEIGHT * afternoon_clearing)
+
+    # Mixed/partly-cloudy fallback keeps some shape without strongly biasing the day.
+    noon_dip = -0.06 * math.exp(-((day_phase - 0.50) ** 2) / 0.02)
+    afternoon_variability = 0.05 * math.exp(-((day_phase - 0.72) ** 2) / 0.03)
+    return mixed_shape_gain * (noon_dip + afternoon_variability)
+
+
 def cloud_profile(profile: SimulationProfile, day: date, season: str) -> list[float]:
     """Return deterministic 5-minute cloud attenuation factors for one day."""
     base_cloudiness, cloud_std = base_cloudiness_for_day(day, season, profile)
@@ -383,22 +422,53 @@ def cloud_profile(profile: SimulationProfile, day: date, season: str) -> list[fl
         * intraday_variability_weight
     )
 
+    in_cool_season = season in COOL_SEASONS
+    burnoff_prob = BURN_OFF_PATTERN_PROB_COOL_SEASONS if in_cool_season else BURN_OFF_PATTERN_PROB_WARM_SEASONS
+    cloudiness_gate = clip((daily_cloud - 0.30) / 0.60, 0.0, 1.0)
+    burnoff_enabled = day_rng.random() < burnoff_prob * cloudiness_gate
+    burnoff_amplitude = BURN_OFF_CLOUD_BIAS_MAX * clip(0.45 + daily_cloud, 0.0, 1.0) * day_rng.uniform(0.85, 1.15)
+    mixed_shape_gain = day_rng.uniform(0.85, 1.20)
+
     # Use a correlated cloud anomaly so adjacent intervals trend smoothly.
     trend_anomaly = 0.0
+    cloud_edge_spike = 0.0
     raw: list[float] = []
     for idx in range(bins):
         bin_rng = random.Random(seed_to_int(f"{day_seed}|bin:{idx}"))
+        day_phase = (idx + 0.5) / bins
         innovation = (bin_rng.random() - LOCAL_CLOUD_VARIATION_CENTRE) * variability_scale
         trend_anomaly = trend_anomaly * CLOUD_TREND_PERSISTENCE + innovation * CLOUD_TREND_INNOVATION_SCALE
+        local_day_bias = _intraday_cloud_bias(day_phase, burnoff_enabled, burnoff_amplitude, mixed_shape_gain)
         local_cloud = clip(
-            daily_cloud + trend_anomaly,
+            daily_cloud + trend_anomaly + local_day_bias,
             0.0,
             1.0,
         )
+
         attenuation = clip(
             1.0 - (local_cloud**CLOUD_ATTENUATION_EXPONENT) * CLOUD_ATTENUATION_SCALE,
             CLOUD_ATTENUATION_MIN,
             1.0,
+        )
+
+        # Cloud-edge enhancement: brief irradiance spikes on mixed-cloud days,
+        # strongest near solar peak and in convective/partly-cloudy conditions.
+        mixed_distance = abs(local_cloud - CLOUD_EDGE_MIXED_PEAK)
+        mixed_weight = clip(1.0 - (mixed_distance / CLOUD_EDGE_MIXED_SPAN), 0.0, 1.0)
+        daytime_weight = math.sin(math.pi * day_phase) ** 1.8
+        variability_weight = clip(profile.cloud_variability / PROFILE_CLOUD_VARIABILITY_MAX, 0.0, 1.0)
+        spike_prob = CLOUD_EDGE_SPIKE_PROB_BASE + CLOUD_EDGE_SPIKE_PROB_GAIN * mixed_weight * daytime_weight * variability_weight
+
+        if bin_rng.random() < spike_prob:
+            pulse = CLOUD_EDGE_SPIKE_MAX * (0.35 + 0.65 * bin_rng.random()) * mixed_weight * daytime_weight
+            cloud_edge_spike = max(cloud_edge_spike, pulse)
+        else:
+            cloud_edge_spike *= CLOUD_EDGE_SPIKE_DECAY
+
+        attenuation = clip(
+            attenuation * (1.0 + cloud_edge_spike),
+            CLOUD_ATTENUATION_MIN,
+            CLOUD_ATTENUATION_MAX,
         )
         raw.append(attenuation)
 
@@ -513,7 +583,7 @@ def simulated_power_kw(second_of_day: float, capacity_kw: float, tz: ZoneInfo, p
 
     shade_factor = shade_attenuation_factor(now_local, profile)
     power_kw = capacity_kw * BASE_FORECAST_SCALE * season_gain * clear_sky_shape * cloud_factor * shade_factor
-    return clip(power_kw, 0.0, capacity_kw * BASE_FORECAST_SCALE)
+    return clip(power_kw, 0.0, capacity_kw * SIMULATED_POWER_CAP_FACTOR)
 
 
 def seconds_since_midnight(tz: ZoneInfo) -> float:

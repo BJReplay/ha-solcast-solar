@@ -52,6 +52,7 @@ from logging.config import dictConfig
 import os
 from pathlib import Path
 import random
+import re
 import subprocess
 import sys
 from typing import Any
@@ -299,6 +300,7 @@ def get_site_estimated_actuals(site_id: str) -> tuple[Any, int]:
 
     if request.args.get("hours") is None:
         return "{}", 500
+    _refresh_guidance()
     return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, int(request.args["hours"]))), 200
 
 
@@ -355,6 +357,7 @@ def get_site_estimated_actuals_advanced() -> tuple[Any, int]:
     if response_code != 200:
         return jsonify(issue) if issue != "" else "", response_code
 
+    _refresh_guidance()
     return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200  # pyright:ignore[reportCallIssue]
 
 
@@ -380,13 +383,47 @@ def get_site_forecasts_advanced() -> tuple[Any, int]:
 def get_time_zone():
     """Attempt to read time zone from Home Assistant config."""
 
+    def _read_storage_timezone() -> str | None:
+        config_path = Path(Path.cwd(), "../../../.storage/core.config")
+        if not config_path.exists():
+            return None
+        try:
+            with config_path.open(encoding="utf-8") as f:
+                config = json.loads(f.read())
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            return None
+
+        timezone = config.get("data", {}).get("time_zone")
+        if isinstance(timezone, str) and timezone.strip():
+            return timezone.strip()
+        return None
+
+    def _read_yaml_timezone() -> str | None:
+        config_path = Path(Path.cwd(), "../../../config/configuration.yaml")
+        if not config_path.exists():
+            return None
+        try:
+            content = config_path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+
+        # Keep this parser intentionally simple to avoid extra dependencies.
+        match = re.search(r"^\s*time_zone\s*:\s*([^#\n]+)", content, flags=re.MULTILINE)
+        if not match:
+            return None
+        timezone = match.group(1).strip().strip('"').strip("'")
+        return timezone or None
+
+    timezone = _read_storage_timezone() or _read_yaml_timezone()
+    if timezone is None:
+        _LOGGER.info("Time zone not configured in Home Assistant config, using simulator default: %s", simulate.timezone)
+        return
+
     try:
-        with Path.open(Path(Path.cwd(), "../../../.storage/core.config")) as f:
-            config = json.loads(f.read())
-            simulate.set_time_zone(ZoneInfo(config["data"]["time_zone"]))
-            _LOGGER.info("Time zone: %s", config["data"]["time_zone"])
-    except:  # noqa: E722
-        pass
+        simulate.set_time_zone(ZoneInfo(timezone))
+        _LOGGER.info("Time zone: %s", timezone)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.warning("Invalid configured time zone '%s', using simulator default %s (%s)", timezone, simulate.timezone, err)
 
 
 def build_parser() -> argparse.ArgumentParser:

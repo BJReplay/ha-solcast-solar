@@ -77,6 +77,7 @@ async def async_setup_entry(
     _cloud_profile_parts = [p.strip() for p in _cloud_profile_raw.split(",")]
     cloudiness_bias: float = float(_cloud_profile_parts[0])
     cloud_variability: float = float(_cloud_profile_parts[1])
+    estimated_actuals_uncertainty_pct: float = float(config.get("estimated_actuals_uncertainty_pct", 2.2))
     _shade_dims_raw: str = str(config.get("shade_dimensions", "12.0, 8.0, 15.0"))
     _shade_parts = [p.strip() for p in str(_shade_dims_raw).split(",")]
     shade_height_m: float = max(0.0, float(_shade_parts[0]))
@@ -84,7 +85,7 @@ async def async_setup_entry(
     shade_distance_m: float = max(0.0, float(_shade_parts[2]))
     shade_azimuth_deg: float = _parse_shade_azimuth_to_compass(float(config.get("shade_azimuth_deg", 0.0)))
     shade_opacity: float = _clip(float(config.get("shade_opacity", 0.0)), 0.0, 1.0)
-    random_seed: str = _derived_random_seed(api_keys_csv, latitude, longitude, str(tz))
+    random_seed: str = _derived_random_seed(api_keys_csv, latitude, longitude)
     battery_capacity_kwh: float = float(config.get("battery_capacity_kwh", 13.5))
     _battery_limits_raw: str = str(config.get("battery_power_limits_kw", "5.0, 5.0"))
     _battery_limits_parts = [p.strip() for p in _battery_limits_raw.split(",")]
@@ -141,6 +142,7 @@ async def async_setup_entry(
         longitude=longitude,
         cloudiness_bias=cloudiness_bias,
         cloud_variability=cloud_variability,
+        estimated_actuals_uncertainty_pct=estimated_actuals_uncertainty_pct,
         shade_height_m=shade_height_m,
         shade_width_m=shade_width_m,
         shade_distance_m=shade_distance_m,

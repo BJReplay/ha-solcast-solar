@@ -1,5 +1,6 @@
 """Simulated data for Solcast Solar integration."""
 
+import contextlib
 import datetime
 from datetime import datetime as dt, timedelta
 import json
@@ -339,6 +340,7 @@ MIN_DOWN_SEPARATION_BASE = 0.015
 MIN_DOWN_SEPARATION_UNCERTAINTY_FACTOR = 0.18
 SUNRISE_DEFAULT_HOUR = 6.0
 SUNSET_DEFAULT_HOUR = 18.0
+DEFAULT_ACTUALS_UNCERTAINTY_PCT = 2.2
 
 
 class SimulatedSolcast:
@@ -352,6 +354,11 @@ class SimulatedSolcast:
         self.cached_forecasts: dict[str, Any] = {}
         self.forecast_guidance: dict[str, dict[str, float]] = {}
         self.interval_guidance: dict[str, list[float]] = {}
+        self.actuals_uncertainty_pct: float = DEFAULT_ACTUALS_UNCERTAINTY_PCT
+
+    def set_actuals_uncertainty(self, uncertainty_pct: float) -> None:
+        """Set the estimated actuals jitter percentage."""
+        self.actuals_uncertainty_pct = max(0.0, float(uncertainty_pct))
 
     def set_forecast_guidance(self, guidance: dict[str, dict[str, float]]) -> None:
         """Set in-memory forecast guidance keyed by local date (YYYY-MM-DD)."""
@@ -365,8 +372,20 @@ class SimulatedSolcast:
 
         if not isinstance(payload, dict):
             self.interval_guidance = {}
+            self.set_actuals_uncertainty(DEFAULT_ACTUALS_UNCERTAINTY_PCT)
             self.set_forecast_guidance({})
             return
+
+        uncertainty_pct = payload.get("estimated_actuals_uncertainty_pct", DEFAULT_ACTUALS_UNCERTAINTY_PCT)
+        if isinstance(uncertainty_pct, (float, int)):
+            self.set_actuals_uncertainty(float(uncertainty_pct))
+        else:
+            self.set_actuals_uncertainty(DEFAULT_ACTUALS_UNCERTAINTY_PCT)
+
+        timezone_name = payload.get("timezone")
+        if isinstance(timezone_name, str) and timezone_name:
+            with contextlib.suppress(Exception):
+                self.set_time_zone(ZoneInfo(timezone_name))
 
         days = payload.get("days", {})
         if isinstance(days, dict):
@@ -384,6 +403,7 @@ class SimulatedSolcast:
             return
 
         self.interval_guidance = {}
+        self.set_actuals_uncertainty(DEFAULT_ACTUALS_UNCERTAINTY_PCT)
         self.set_forecast_guidance({})
 
     @staticmethod
@@ -733,21 +753,23 @@ class SimulatedSolcast:
             ],
         }
 
-    @staticmethod
-    def _actuals_jitter(local_day: str, slot: int) -> float:
-        """Return a deterministic ±4% gaussian jitter for estimated actuals.
+    def _actuals_jitter(self, local_day: str, slot: int) -> float:
+        """Return deterministic gaussian jitter for estimated actuals.
 
         Keyed on day+slot so the same interval always returns the same noise,
         simulating satellite-derived estimation error that is consistent within
-        a polling cycle but varies across intervals.
+        a polling cycle but varies across intervals. The 1σ scale is
+        ``actuals_uncertainty_pct / 100`` and is loaded from guidance.
         """
+        if self.actuals_uncertainty_pct <= 0.0:
+            return 0.0
         seed = (sum(ord(c) for c in local_day) * 31 + slot * 7919) & 0xFFFFFF
         # Box-Muller using two cheap pseudo-random values derived from the seed.
         u1 = ((seed * 1664525 + 1013904223) & 0xFFFFFF) / 0xFFFFFF
         u2 = ((seed * 22695477 + 1) & 0xFFFFFF) / 0xFFFFFF
         u1 = max(1e-9, u1)
         z = math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
-        return z * 0.022  # ~1σ = 2.2%, so ~95% of values within ±4.4%
+        return z * (self.actuals_uncertainty_pct / 100.0)
 
     def _estimated_actual_value(self, site_capacity: float, period_end: dt, minute: int) -> float:
         """Return estimated actual value for a site interval."""

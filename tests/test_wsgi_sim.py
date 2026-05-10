@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import sys
 from types import ModuleType
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -85,6 +87,7 @@ def test_apply_args_defaults() -> None:
     assert result["BOMB_418"] is False
     assert result["BOMB_429"] == []
     assert result["BOMB_KEY"] == []
+    assert module.simulate.actuals_uncertainty_pct == 2.2
 
 
 def test_apply_args_limit() -> None:
@@ -92,6 +95,46 @@ def test_apply_args_limit() -> None:
     module = _load_wsgi_sim_module()
     result = module._apply_args(module.build_parser().parse_args(["--limit", "100"]))
     assert result["API_LIMIT"] == 100
+
+
+def test_load_forecast_guidance_file_updates_actuals_uncertainty(tmp_path: Path) -> None:
+    """Guidance reload updates the simulator jitter scale dynamically."""
+    module = _load_wsgi_sim_module()
+    guidance_path = tmp_path / "guidance.json"
+    guidance_path.write_text(
+        json.dumps(
+            {
+                "estimated_actuals_uncertainty_pct": 4.4,
+                "days": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    module.simulate.set_actuals_uncertainty(1.1)
+    module.simulate.load_forecast_guidance_file(str(guidance_path))
+
+    assert module.simulate.actuals_uncertainty_pct == 4.4
+
+
+def test_load_forecast_guidance_file_updates_timezone(tmp_path: Path) -> None:
+    """Guidance reload updates simulator timezone for day/slot indexing."""
+    module = _load_wsgi_sim_module()
+    guidance_path = tmp_path / "guidance.json"
+    guidance_path.write_text(
+        json.dumps(
+            {
+                "timezone": "UTC",
+                "days": {},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    module.simulate.set_time_zone(ZoneInfo("Australia/Melbourne"))
+    module.simulate.load_forecast_guidance_file(str(guidance_path))
+
+    assert module.simulate.timezone.key == "UTC"
 
 
 def test_apply_args_teapot() -> None:
@@ -168,6 +211,18 @@ def test_route_estimated_actuals_valid() -> None:
     response = client.get("/rooftop_sites/1111-1111-1111-1111/estimated_actuals?api_key=1&hours=8")
     assert response.status_code == 200
     assert ESTIMATED_ACTUALS in response.get_json()
+
+
+def test_route_estimated_actuals_refreshes_guidance() -> None:
+    """The estimated actuals route refreshes guidance before responding."""
+    module = _load_wsgi_sim_module()
+    client = _test_client(module)
+
+    with patch.object(module, "_refresh_guidance") as mock_refresh:
+        response = client.get("/rooftop_sites/1111-1111-1111-1111/estimated_actuals?api_key=1&hours=8")
+
+    assert response.status_code == 200
+    mock_refresh.assert_called_once()
 
 
 def test_route_estimated_actuals_missing_hours() -> None:

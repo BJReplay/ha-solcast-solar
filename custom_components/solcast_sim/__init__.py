@@ -101,8 +101,9 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     v2: Group shade fields into shade_dimensions
     v3: Group related comma-separated fields for location, cloudiness, and battery limits
     v4: Remove entry-specific location/timezone fields in favour of Home Assistant core config
+    v5: Add estimated actuals uncertainty with the current default
     """
-    if entry.version > 4:
+    if entry.version > 5:
         _LOGGER.error("Cannot migrate entry version %s", entry.version)
         return False
 
@@ -156,6 +157,12 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         new_values.pop("longitude", None)
         return new_values
 
+    def __v5(values: dict[str, Any]) -> dict[str, Any]:
+        """v5 migration: backfill estimated actuals uncertainty."""
+        new_values = dict(values)
+        new_values["estimated_actuals_uncertainty_pct"] = 2.2
+        return new_values
+
     def upgrade_to(version: int, upgrade_function: Callable[[dict[str, Any]], dict[str, Any]]) -> None:
         """Apply migration step and report the version bump."""
         if entry.version < version:
@@ -171,6 +178,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         (2, __v2),
         (3, __v3),
         (4, __v4),
+        (5, __v5),
     ]
     for version, upgrade_function in upgrades:
         upgrade_to(version, upgrade_function)

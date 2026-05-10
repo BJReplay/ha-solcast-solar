@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from enum import IntEnum
 import json
 import logging
@@ -41,6 +41,7 @@ class GuidanceCloudWindowMode(IntEnum):
 
 GUIDANCE_UPDATE_INTERVAL = timedelta(hours=1)
 GUIDANCE_DAYS = 14
+GUIDANCE_LOOKBACK_DAYS = 7
 STORAGE_DIRNAME = "solcast_sim"
 GUIDANCE_FILENAME = "guidance.json"
 CLIMATE_CACHE_FILENAME = "climate_cache.json"
@@ -100,6 +101,7 @@ GUIDANCE_INTERVALS_PER_DAY = 48
 GUIDANCE_INTERVAL_SECONDS = 1800
 GUIDANCE_INTERVAL_MIDPOINT_SECONDS = 900
 CLOUD_FACTOR_BUCKET_SECONDS = 300
+GUIDANCE_SUBSAMPLES_PER_INTERVAL = 6
 CLEAR_SKY_SHAPE_EXPONENT = 1.7
 
 BIAS_TOWARDS_P10_SCALE = 1.05
@@ -230,6 +232,36 @@ async def async_fetch_climate_normals(hass: HomeAssistant, lat: float, lon: floa
     return result
 
 
+def _interval_generation_fraction(
+    profile: SimulationProfile,
+    day: date,
+    minute: int,
+    season_gain: float,
+) -> float:
+    """Return a Solcast-style estimated-actuals fraction for a 30-minute interval."""
+    effective_day, season = effective_season_day(day, profile.season, profile.latitude)
+    cloud_factors = cloud_profile(profile, effective_day, season)
+    daylight_s = daylight_seconds(effective_day, profile.latitude, season)
+    sunrise_s = (24 * 3600 - daylight_s) / 2
+    sunset_s = sunrise_s + daylight_s
+    interval_start_sod = minute * GUIDANCE_INTERVAL_SECONDS
+    samples: list[float] = []
+    for idx in range(GUIDANCE_SUBSAMPLES_PER_INTERVAL):
+        sample_sod = interval_start_sod + (idx + 0.5) * (GUIDANCE_INTERVAL_SECONDS / GUIDANCE_SUBSAMPLES_PER_INTERVAL)
+        if sample_sod <= sunrise_s or sample_sod >= sunset_s:
+            samples.append(0.0)
+            continue
+
+        phase = (sample_sod - sunrise_s) / max(1.0, daylight_s)
+        clear_sky = math.sin(math.pi * phase) ** CLEAR_SKY_SHAPE_EXPONENT
+        ci = int(clip(float(sample_sod // CLOUD_FACTOR_BUCKET_SECONDS), 0.0, float(len(cloud_factors) - 1)))
+        samples.append(BASE_FORECAST_SCALE * season_gain * clear_sky * cloud_factors[ci])
+
+    if not samples:
+        return 0.0
+    return clip(sum(samples) / len(samples), 0.0, BASE_FORECAST_SCALE)
+
+
 def build_guidance_payload(profile: SimulationProfile, tz: ZoneInfo, days: int = GUIDANCE_DAYS) -> dict[str, Any]:
     """Build a rolling day-level guidance payload used by the WSGI simulator."""
     mode = GUIDANCE_CLOUD_WINDOW_MODE
@@ -251,7 +283,7 @@ def build_guidance_payload(profile: SimulationProfile, tz: ZoneInfo, days: int =
             "winter": 0.70,
         }
 
-    for idx in range(days):
+    for idx in range(-GUIDANCE_LOOKBACK_DAYS, days):
         day = local_today + timedelta(days=idx)
         effective_day, season = effective_season_day(day, profile.season, profile.latitude)
         base_cloudiness = daily_cloudiness(profile, effective_day, season)
@@ -339,20 +371,9 @@ def build_guidance_payload(profile: SimulationProfile, tz: ZoneInfo, days: int =
         weather_difficulty = clip((cloudiness + (1.0 - forecast_confidence)) / 2.0, 0.0, 1.0)
         weather_badness = clip(cloudiness * 0.65 + (1.0 - forecast_confidence) * 0.35, 0.0, 1.0)
 
-        intervals: list[float] = []
-        for slot in range(GUIDANCE_INTERVALS_PER_DAY):
-            midpoint_sod = slot * GUIDANCE_INTERVAL_SECONDS + GUIDANCE_INTERVAL_MIDPOINT_SECONDS
-            if midpoint_sod <= sunrise_s or midpoint_sod >= sunset_s:
-                intervals.append(0.0)
-            else:
-                phase = (midpoint_sod - sunrise_s) / max(1.0, daylight_s)
-                clear_sky = math.sin(math.pi * phase) ** CLEAR_SKY_SHAPE_EXPONENT
-                ci = int(clip(float(midpoint_sod // CLOUD_FACTOR_BUCKET_SECONDS), 0.0, float(len(cloud_factors) - 1)))
-                frac = round(
-                    clip(BASE_FORECAST_SCALE * season_gain * clear_sky * cloud_factors[ci], 0.0, BASE_FORECAST_SCALE),
-                    5,
-                )
-                intervals.append(frac)
+        intervals: list[float] = [
+            round(_interval_generation_fraction(profile, day, slot, season_gain), 5) for slot in range(GUIDANCE_INTERVALS_PER_DAY)
+        ]
 
         payload_days[day.isoformat()] = {
             "cloudiness": round(cloudiness, 4),
@@ -403,6 +424,7 @@ def build_guidance_payload(profile: SimulationProfile, tz: ZoneInfo, days: int =
         "timezone": str(tz),
         "season_mode": profile.season,
         "cloud_window_mode": mode.name.lower(),
+        "estimated_actuals_uncertainty_pct": round(profile.estimated_actuals_uncertainty_pct, 4),
         "latitude": round(profile.latitude, 6),
         "longitude": round(profile.longitude, 6),
         "days": payload_days,
