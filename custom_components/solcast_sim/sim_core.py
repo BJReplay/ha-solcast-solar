@@ -91,8 +91,9 @@ CLOUD_ATTENUATION_MAX = 1.35
 CLOUD_SMOOTHING_CENTRE_WEIGHT = 2.0
 CLEAR_SKY_SHAPE_EXPONENT = 1.7
 
-BURN_OFF_PATTERN_PROB_COOL_SEASONS = 0.75
-BURN_OFF_PATTERN_PROB_WARM_SEASONS = 0.35
+BURN_OFF_PATTERN_PROB_WINTER = 0.25
+BURN_OFF_PATTERN_PROB_SHOULDER = 0.75
+BURN_OFF_PATTERN_PROB_SUMMER = 0.35
 BURN_OFF_CLOUD_BIAS_MAX = 0.35
 BURN_OFF_CLEARING_WEIGHT = 0.65
 
@@ -102,6 +103,19 @@ CLOUD_EDGE_SPIKE_DECAY = 0.56
 CLOUD_EDGE_SPIKE_PROB_BASE = 0.008
 CLOUD_EDGE_SPIKE_PROB_GAIN = 0.16
 CLOUD_EDGE_SPIKE_MAX = 0.45
+
+# Cloud transit events: sudden deep dips from discrete clouds passing across the sun.
+# Triggered probabilistically, scaled by cloud_variability.
+CLOUD_TRANSIT_PROB_BASE = 0.10  # per-bin base trigger probability at max variability + mixed conditions
+CLOUD_TRANSIT_DURATION_MIN = 1  # minimum transit length (5 min)
+CLOUD_TRANSIT_DURATION_MAX = 4  # maximum transit length (20 min, 4x5 min)
+CLOUD_TRANSIT_FLOOR_MIN = 0.03  # deepest permitted attenuation (thick cloud, near-zero sun)
+CLOUD_TRANSIT_FLOOR_MAX = 0.28  # shallowest transit floor (thin/partial cloud)
+CLOUD_TRANSIT_LENSING_FACTOR = 1.22  # cloud-edge lensing boost on the bin just before/after a transit
+CLOUD_TRANSIT_MIXED_PEAK = 0.42  # background cloud fraction at peak transit probability
+CLOUD_TRANSIT_MIXED_SPAN = 0.38  # width of the mixed-cloud probability window
+CLOUD_TRANSIT_COOLDOWN = 2  # minimum gap between the end of one transit and the start of the next
+CLOUD_TRANSIT_WINTER_FACTOR = 0.35  # suppress discrete transit events under broad winter overcast
 
 CANOPY_DENSITY_DEPTH_20 = 0.20
 CANOPY_DENSITY_DEPTH_50 = 0.50
@@ -113,16 +127,30 @@ DEFAULT_SHADE_DENSITY_PROFILE = (
 )
 
 SIMULATED_POWER_CAP_FACTOR = 1.12
+SEASON_BLEND_EDGE_FRACTION = 0.30
+TROPICAL_LATITUDE_DEG = 23.5
 
-COOL_SEASONS = {"winter", "autumn", "spring"}
+# Equatorial meteorology differs fundamentally from temperate: convection-driven
+# cloud dominance, minimal seasonal variation, daily thermal cycles. These factors
+# scale temperate assumptions toward tropical reality as latitude approaches equator.
+EQUATORIAL_CLOUDINESS_BOOST = 0.12  # Additional baseline cloud cover at equator
+EQUATORIAL_BURN_OFF_CONVERGENCE = 0.50  # Target burn-off probability at equator (all seasons blend here)
+EQUATORIAL_SPELL_AMPLITUDE_FACTOR = 0.65  # Reduce spell swings near equator (persistent convection)
+
+WINTER_SEASONS = {"winter"}
+SHOULDER_SEASONS = {"autumn", "spring"}
 SPELL_CLEAR_TARGET_COOL = 0.08
 SPELL_CLOUDY_TARGET_COOL = 0.88
 SPELL_CLEAR_TARGET_SUMMER = 0.12
 SPELL_CLOUDY_TARGET_SUMMER = 0.82
+SPELL_CLEAR_TARGET_SHOULDER = 0.18
+SPELL_CLOUDY_TARGET_SHOULDER = 0.85
 SPELL_CLEAR_TARGET_DEFAULT = 0.15
 SPELL_CLOUDY_TARGET_DEFAULT = 0.90
 SPELL_CLOUDY_THRESHOLD_COOL = 0.24
 SPELL_CLEAR_THRESHOLD_COOL = 0.15
+SPELL_CLOUDY_THRESHOLD_SHOULDER = 0.23
+SPELL_CLEAR_THRESHOLD_SHOULDER = 0.16
 SPELL_CLOUDY_THRESHOLD_DEFAULT = 0.22
 SPELL_CLEAR_THRESHOLD_DEFAULT = 0.18
 SPELL_CLEAR_CAP_BASE_COOL = 0.28
@@ -131,11 +159,25 @@ SPELL_CLEAR_CAP_REDUCTION_COOL = 0.20
 SPELL_SIGNAL_WAVE_WEIGHT_PRIMARY = 0.75
 SPELL_SIGNAL_WAVE_WEIGHT_SECONDARY = 0.45
 SPELL_SIGNAL_WAVE_WEIGHT_TERTIARY = 0.25
+# Temperate extratropical periods: synoptic-scale frontal systems and blocking patterns.
 SPELL_SIGNAL_WAVE_PERIOD_PRIMARY_DAYS = 9.0
 SPELL_SIGNAL_WAVE_PERIOD_SECONDARY_DAYS = 17.0
 SPELL_SIGNAL_WAVE_PERIOD_TERTIARY_DAYS = 31.0
+# Tropical oscillation periods: quasi-biweekly oscillation (QBWO), Madden-Julian
+# Oscillation (MJO), and broad monsoon seasonal phase. These replace temperate
+# synoptic periods at low latitudes where large-scale convective systems dominate.
+SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_PRIMARY_DAYS = 14.0   # QBWO: ~14-day tropical wave disturbances
+SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_SECONDARY_DAYS = 30.0  # MJO: ~30-day active/suppressed convection cycle
+SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_TERTIARY_DAYS = 90.0  # Monsoon onset/withdrawal phase
 SPELL_SIGNAL_NORMALISATION_FACTOR = 1.45
 SPELL_CLEAR_STRENGTH_EXPONENT = 0.65
+
+SEASON_GAIN_BY_SEASON: dict[str, float] = {
+    "spring": 0.95,
+    "summer": 1.00,
+    "autumn": 0.85,
+    "winter": 0.70,
+}
 
 SOLAR_ANGLE_EPSILON = 1e-6
 BATTERY_FULL_EPSILON_KWH = 1e-6
@@ -337,6 +379,60 @@ def effective_season_day(day: date, configured_season: str, latitude: float) -> 
     return mapped_day, configured_season
 
 
+def _season_cycle(latitude: float) -> tuple[str, str, str, str]:
+    """Return season order for hemisphere."""
+    if latitude >= 0:
+        return ("spring", "summer", "autumn", "winter")
+    return ("autumn", "winter", "spring", "summer")
+
+
+def _smoothstep(x: float) -> float:
+    """Return smooth interpolation from 0 to 1."""
+    x = clip(x, 0.0, 1.0)
+    return x * x * (3.0 - 2.0 * x)  # Intentional easing.
+
+
+def seasonal_blend_weights(day: date, latitude: float) -> dict[str, float]:
+    """Return season weights."""
+    season, start, next_start = season_span_for_date(day, latitude)
+    span_days = max(1.0, float((next_start - start).days))
+    edge_days = max(1.0, span_days * SEASON_BLEND_EDGE_FRACTION)
+    day_pos = clip(float((day - start).days) + 0.5, 0.0, span_days)
+
+    cycle = _season_cycle(latitude)
+    idx = cycle.index(season)
+    prev_season = cycle[(idx - 1) % len(cycle)]
+    next_season = cycle[(idx + 1) % len(cycle)]
+
+    if day_pos < edge_days:
+        current_weight = _smoothstep(day_pos / edge_days)
+        base_weights = {prev_season: 1.0 - current_weight, season: current_weight}
+    elif day_pos > (span_days - edge_days):
+        next_weight = _smoothstep((day_pos - (span_days - edge_days)) / edge_days)
+        base_weights = {season: 1.0 - next_weight, next_season: next_weight}
+    else:
+        base_weights = {season: 1.0}
+
+    # Near the equator, seasonal contrasts are weaker. Blend toward uniform
+    # all-season weights so transitions are softer and less binary.
+    seasonality_factor = clip(abs(latitude) / TROPICAL_LATITUDE_DEG, 0.0, 1.0)
+    if seasonality_factor >= 1.0:
+        return base_weights
+
+    uniform_weight = 1.0 / len(cycle)
+    blended = {
+        season_name: base_weights.get(season_name, 0.0) * seasonality_factor + uniform_weight * (1.0 - seasonality_factor)
+        for season_name in cycle
+    }
+    total_weight = sum(blended.values())
+    return {name: weight / total_weight for name, weight in blended.items() if weight > 0.0}
+
+
+def _weighted_season_value(weights: dict[str, float], values: dict[str, float], default: float) -> float:
+    """Return weighted seasonal value from per-season constants."""
+    return sum(values.get(season, default) * weight for season, weight in weights.items())
+
+
 def daylight_seconds(day: date, latitude: float, season: str) -> float:
     """Estimate daylight duration from latitude/day-of-year and season profile."""
     del season
@@ -461,14 +557,131 @@ def _intraday_cloud_bias(
     return mixed_shape_gain * (noon_dip + afternoon_variability)
 
 
+def _seasonality_factor(latitude: float) -> float:
+    """Return latitude-based factor: 1.0 (high lat, full seasonality) → 0.0 (equator, no seasonality).
+
+    This weights the transition from temperate seasonal patterns toward equatorial
+    convection-dominated meteorology.
+    """
+    return clip(abs(latitude) / TROPICAL_LATITUDE_DEG, 0.0, 1.0)
+
+
+def _burnoff_probability_for_season(season: str, latitude: float = 45.0) -> float:
+    """Return burn-off probability tuned by season bucket and latitude.
+
+    At high latitudes, probability varies significantly by season (winter clearing rare).
+    At equator, all seasons converge to a tropical median (convection dominates, not season).
+    """
+    if season in WINTER_SEASONS:
+        base_prob = BURN_OFF_PATTERN_PROB_WINTER
+    elif season in SHOULDER_SEASONS:
+        base_prob = BURN_OFF_PATTERN_PROB_SHOULDER
+    else:
+        base_prob = BURN_OFF_PATTERN_PROB_SUMMER
+
+    # Blend toward equatorial median as latitude → 0.
+    seasonality = _seasonality_factor(latitude)
+    return base_prob * seasonality + EQUATORIAL_BURN_OFF_CONVERGENCE * (1.0 - seasonality)
+
+
+def _spell_targets_for_season(season: str) -> tuple[float, float]:
+    """Return (clear_target, cloudy_target) tuned for season."""
+    if season in WINTER_SEASONS:
+        return SPELL_CLEAR_TARGET_COOL, SPELL_CLOUDY_TARGET_COOL
+    if season in SHOULDER_SEASONS:
+        return SPELL_CLEAR_TARGET_SHOULDER, SPELL_CLOUDY_TARGET_SHOULDER
+    if season == "summer":
+        return SPELL_CLEAR_TARGET_SUMMER, SPELL_CLOUDY_TARGET_SUMMER
+    return SPELL_CLEAR_TARGET_DEFAULT, SPELL_CLOUDY_TARGET_DEFAULT
+
+
+def _spell_thresholds_for_season(season: str) -> tuple[float, float]:
+    """Return (cloudy_threshold, clear_threshold) tuned for season."""
+    if season in WINTER_SEASONS:
+        return SPELL_CLOUDY_THRESHOLD_COOL, SPELL_CLEAR_THRESHOLD_COOL
+    if season in SHOULDER_SEASONS:
+        return SPELL_CLOUDY_THRESHOLD_SHOULDER, SPELL_CLEAR_THRESHOLD_SHOULDER
+    if season == "summer":
+        return SPELL_CLOUDY_THRESHOLD_DEFAULT, SPELL_CLEAR_THRESHOLD_DEFAULT
+    return SPELL_CLOUDY_THRESHOLD_DEFAULT, SPELL_CLEAR_THRESHOLD_DEFAULT
+
+
+def _apply_cloud_transits(
+    smoothed: list[float],
+    profile: SimulationProfile,
+    winter_weight: float,
+    day_seed: str,
+    bins: int,
+) -> list[float]:
+    """Overlay discrete cloud transit events on the smoothed attenuation profile.
+
+    Transits model individual clouds passing in front of the sun: a sharp dip in irradiance
+    lasting for a while, with brief cloud-edge boosts on either side. Probability and depth
+    both scale with cloud_variability.
+    """
+    variability_scale = clip(profile.cloud_variability / PROFILE_CLOUD_VARIABILITY_MAX, 0.0, 1.0)
+    if variability_scale <= 0.0:
+        return smoothed
+
+    transit_rng = random.Random(seed_to_int(f"{day_seed}|transits"))
+    result = list(smoothed)
+
+    bin_idx = 0
+    while bin_idx < bins:
+        day_phase = (bin_idx + 0.5) / bins
+        daytime_weight = math.sin(math.pi * day_phase) ** 1.5
+
+        # Transits are most likely on mixed-cloud days where broken cumulus is present.
+        # Estimate cloud fraction from the smoothed background attenuation.
+        background_cloud = clip(1.0 - smoothed[bin_idx], 0.0, 1.0)
+        mixed_distance = abs(background_cloud - CLOUD_TRANSIT_MIXED_PEAK)
+        mixed_weight = clip(1.0 - (mixed_distance / CLOUD_TRANSIT_MIXED_SPAN), 0.0, 1.0)
+
+        trigger_prob = CLOUD_TRANSIT_PROB_BASE * variability_scale * mixed_weight * daytime_weight
+        winter_suppression = 1.0 - (1.0 - CLOUD_TRANSIT_WINTER_FACTOR) * clip(winter_weight, 0.0, 1.0)
+        trigger_prob *= winter_suppression
+
+        if transit_rng.random() < trigger_prob:
+            duration = transit_rng.randint(CLOUD_TRANSIT_DURATION_MIN, CLOUD_TRANSIT_DURATION_MAX)
+            # Deeper transits are more likely at higher variability.
+            floor_max = CLOUD_TRANSIT_FLOOR_MIN + (CLOUD_TRANSIT_FLOOR_MAX - CLOUD_TRANSIT_FLOOR_MIN) * (1.0 - variability_scale)
+            transit_floor = transit_rng.uniform(CLOUD_TRANSIT_FLOOR_MIN, floor_max)
+
+            # Leading lensing: cloud edge brightens the sun just before blockage.
+            if bin_idx > 0:
+                result[bin_idx - 1] = min(result[bin_idx - 1] * CLOUD_TRANSIT_LENSING_FACTOR, CLOUD_ATTENUATION_MAX)
+
+            # Deep irradiance dip during the transit.
+            for offset in range(duration):
+                if bin_idx + offset < bins:
+                    result[bin_idx + offset] = transit_floor
+
+            # Trailing lensing: cloud edge brightens the sun just after it clears.
+            trail_idx = bin_idx + duration
+            if trail_idx < bins:
+                result[trail_idx] = min(smoothed[trail_idx] * CLOUD_TRANSIT_LENSING_FACTOR, CLOUD_ATTENUATION_MAX)
+
+            # Skip past the transit plus a cooldown gap before considering another.
+            bin_idx += duration + CLOUD_TRANSIT_COOLDOWN
+        else:
+            bin_idx += 1
+
+    return result
+
+
 def cloud_profile(profile: SimulationProfile, day: date, season: str) -> list[float]:
     """Return deterministic 5-minute cloud attenuation factors for one day."""
     base_cloudiness, cloud_std = base_cloudiness_for_day(day, season, profile)
     day_seed = f"{profile.random_seed}|{day.isoformat()}|{profile.latitude:.4f}|{profile.longitude:.4f}|{season}"
     day_rng = random.Random(seed_to_int(day_seed))
+    # Equatorial boost: tropical convection drives higher baseline cloud cover year-round.
+    seasonality = _seasonality_factor(profile.latitude)
+    equatorial_cloud_boost = EQUATORIAL_CLOUDINESS_BOOST * (1.0 - seasonality)
+
     daily_cloud = clip(
         base_cloudiness
         + profile.cloudiness_bias
+        + equatorial_cloud_boost
         + day_rng.gauss(0.0, max(cloud_std * DAY_CLOUD_GAUSS_STD_FACTOR, DAY_CLOUD_GAUSS_STD_MIN)),
         0.0,
         DAILY_CLOUD_MAX,
@@ -490,8 +703,8 @@ def cloud_profile(profile: SimulationProfile, day: date, season: str) -> list[fl
         * intraday_variability_weight
     )
 
-    in_cool_season = season in COOL_SEASONS
-    burnoff_prob = BURN_OFF_PATTERN_PROB_COOL_SEASONS if in_cool_season else BURN_OFF_PATTERN_PROB_WARM_SEASONS
+    season_weights = seasonal_blend_weights(day, profile.latitude)
+    burnoff_prob = sum(_burnoff_probability_for_season(weighted_season, profile.latitude) * weight for weighted_season, weight in season_weights.items())
     cloudiness_gate = clip((daily_cloud - 0.30) / 0.60, 0.0, 1.0)
     burnoff_enabled = day_rng.random() < burnoff_prob * cloudiness_gate
     burnoff_amplitude = BURN_OFF_CLOUD_BIAS_MAX * clip(0.45 + daily_cloud, 0.0, 1.0) * day_rng.uniform(0.85, 1.15)
@@ -545,7 +758,8 @@ def cloud_profile(profile: SimulationProfile, day: date, season: str) -> list[fl
         prev_val = raw[idx - 1] if idx > 0 else raw[idx]
         next_val = raw[idx + 1] if idx < bins - 1 else raw[idx]
         smoothed.append((prev_val + CLOUD_SMOOTHING_CENTRE_WEIGHT * raw[idx] + next_val) / (2.0 + CLOUD_SMOOTHING_CENTRE_WEIGHT))
-    return smoothed
+    winter_weight = season_weights.get("winter", 0.0)
+    return _apply_cloud_transits(smoothed, profile, winter_weight, day_seed, bins)
 
 
 def daily_cloudiness(profile: SimulationProfile, day: date, season: str) -> float:
@@ -576,47 +790,58 @@ def persistent_spell_adjustment(
     phase_3 = phase_rng.uniform(0.0, 2.0 * math.pi)
 
     day_idx = day.toordinal()
+
+    # Blend wave periods by latitude: temperate synoptic timescales → tropical MJO/monsoon timescales.
+    # At equator, the 9/17/31-day frontal patterns make no physical sense; MJO/QBWO/monsoon do.
+    seasonality = _seasonality_factor(profile.latitude)
+    period_primary = SPELL_SIGNAL_WAVE_PERIOD_PRIMARY_DAYS * seasonality + SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_PRIMARY_DAYS * (1.0 - seasonality)
+    period_secondary = SPELL_SIGNAL_WAVE_PERIOD_SECONDARY_DAYS * seasonality + SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_SECONDARY_DAYS * (1.0 - seasonality)
+    period_tertiary = SPELL_SIGNAL_WAVE_PERIOD_TERTIARY_DAYS * seasonality + SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_TERTIARY_DAYS * (1.0 - seasonality)
+
     low_frequency_signal = (
-        SPELL_SIGNAL_WAVE_WEIGHT_PRIMARY * math.sin((2.0 * math.pi * day_idx / SPELL_SIGNAL_WAVE_PERIOD_PRIMARY_DAYS) + phase_1)
-        + SPELL_SIGNAL_WAVE_WEIGHT_SECONDARY * math.sin((2.0 * math.pi * day_idx / SPELL_SIGNAL_WAVE_PERIOD_SECONDARY_DAYS) + phase_2)
-        + SPELL_SIGNAL_WAVE_WEIGHT_TERTIARY * math.sin((2.0 * math.pi * day_idx / SPELL_SIGNAL_WAVE_PERIOD_TERTIARY_DAYS) + phase_3)
+        SPELL_SIGNAL_WAVE_WEIGHT_PRIMARY * math.sin((2.0 * math.pi * day_idx / period_primary) + phase_1)
+        + SPELL_SIGNAL_WAVE_WEIGHT_SECONDARY * math.sin((2.0 * math.pi * day_idx / period_secondary) + phase_2)
+        + SPELL_SIGNAL_WAVE_WEIGHT_TERTIARY * math.sin((2.0 * math.pi * day_idx / period_tertiary) + phase_3)
     )
     spell_signal = clip(low_frequency_signal / SPELL_SIGNAL_NORMALISATION_FACTOR, -1.0, 1.0)
 
-    southern_hemisphere = profile.latitude < 0
+    season_weights = seasonal_blend_weights(day, profile.latitude)
 
-    if southern_hemisphere and season in COOL_SEASONS:
-        clear_target = SPELL_CLEAR_TARGET_COOL
-        cloudy_target = SPELL_CLOUDY_TARGET_COOL
-    elif season == "summer":
-        clear_target = SPELL_CLEAR_TARGET_SUMMER
-        cloudy_target = SPELL_CLOUDY_TARGET_SUMMER
-    else:
-        clear_target = SPELL_CLEAR_TARGET_DEFAULT
-        cloudy_target = SPELL_CLOUDY_TARGET_DEFAULT
-
-    if southern_hemisphere and season in COOL_SEASONS:
-        cloudy_threshold = SPELL_CLOUDY_THRESHOLD_COOL
-        clear_threshold = SPELL_CLEAR_THRESHOLD_COOL
-    else:
-        cloudy_threshold = SPELL_CLOUDY_THRESHOLD_DEFAULT
-        clear_threshold = SPELL_CLEAR_THRESHOLD_DEFAULT
+    clear_target = 0.0
+    cloudy_target = 0.0
+    cloudy_threshold = 0.0
+    clear_threshold = 0.0
+    for weighted_season, weight in season_weights.items():
+        season_clear, season_cloudy = _spell_targets_for_season(weighted_season)
+        season_cloudy_threshold, season_clear_threshold = _spell_thresholds_for_season(weighted_season)
+        clear_target += season_clear * weight
+        cloudy_target += season_cloudy * weight
+        cloudy_threshold += season_cloudy_threshold * weight
+        clear_threshold += season_clear_threshold * weight
 
     if spell_signal >= cloudy_threshold:
         strength = (spell_signal - cloudy_threshold) / (1.0 - cloudy_threshold)
         target_cloud = base_cloudiness + (cloudy_target - base_cloudiness) * strength
-        return target_cloud - base_cloudiness, "cloudy_spell"
+        # Damp spell amplitude at equator: persistent convection, not dramatic swings.
+        seasonality = _seasonality_factor(profile.latitude)
+        equatorial_damping = seasonality + EQUATORIAL_SPELL_AMPLITUDE_FACTOR * (1.0 - seasonality)
+        adjustment = (target_cloud - base_cloudiness) * equatorial_damping
+        return adjustment, "wet_spell"
 
     if spell_signal <= -clear_threshold:
         strength = (-spell_signal - clear_threshold) / (1.0 - clear_threshold)
         clear_strength = strength**SPELL_CLEAR_STRENGTH_EXPONENT
         target_cloud = base_cloudiness + (clear_target - base_cloudiness) * clear_strength
-        if southern_hemisphere and season in COOL_SEASONS:
-            target_cloud = min(
-                target_cloud,
-                SPELL_CLEAR_CAP_BASE_COOL - SPELL_CLEAR_CAP_REDUCTION_COOL * clear_strength,
-            )
-        return target_cloud - base_cloudiness, "clear_spell"
+        winter_weight = season_weights.get("winter", 0.0)
+        if winter_weight > 0.0:
+            winter_cap = SPELL_CLEAR_CAP_BASE_COOL - SPELL_CLEAR_CAP_REDUCTION_COOL * clear_strength
+            blended_cap = target_cloud * (1.0 - winter_weight) + winter_cap * winter_weight
+            target_cloud = min(target_cloud, blended_cap)
+        # Damp spell amplitude at equator: persistent convection, not dramatic swings.
+        seasonality = _seasonality_factor(profile.latitude)
+        equatorial_damping = seasonality + EQUATORIAL_SPELL_AMPLITUDE_FACTOR * (1.0 - seasonality)
+        adjustment = (target_cloud - base_cloudiness) * equatorial_damping
+        return adjustment, "clear_spell"
 
     return 0.0, "mixed"
 
@@ -642,12 +867,11 @@ def simulated_power_kw(second_of_day: float, capacity_kw: float, tz: ZoneInfo, p
     cloud_idx = int(clip(float(cloud_idx), 0.0, float(len(cloud_factors) - 1)))
     cloud_factor = cloud_factors[cloud_idx]
 
-    season_gain = {
-        "spring": 0.95,
-        "summer": 1.00,
-        "autumn": 0.85,
-        "winter": 0.70,
-    }.get(season, 0.90)
+    season_gain = _weighted_season_value(
+        seasonal_blend_weights(effective_day, profile.latitude),
+        SEASON_GAIN_BY_SEASON,
+        0.90,
+    )
 
     shade_factor = shade_attenuation_factor(now_local, profile)
     power_kw = capacity_kw * BASE_FORECAST_SCALE * season_gain * clear_sky_shape * cloud_factor * shade_factor
