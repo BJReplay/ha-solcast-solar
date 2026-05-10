@@ -36,6 +36,7 @@ from .sim_core import (
     derived_random_seed as _derived_random_seed,
     parse_api_keys as _parse_api_keys,
     parse_shade_azimuth_to_compass as _parse_shade_azimuth_to_compass,
+    parse_shade_density_profile as _parse_shade_density_profile,
     seconds_since_midnight as _seconds_since_midnight,
     time_str_to_seconds as _time_str_to_seconds,
 )
@@ -85,6 +86,7 @@ async def async_setup_entry(
     shade_distance_m: float = max(0.0, float(_shade_parts[2]))
     shade_azimuth_deg: float = _parse_shade_azimuth_to_compass(float(config.get("shade_azimuth_deg", 0.0)))
     shade_opacity: float = _clip(float(config.get("shade_opacity", 0.0)), 0.0, 1.0)
+    shade_density_profile = _parse_shade_density_profile(str(config.get("shade_density_profile", "0.3, 0.8, 1.0")))
     random_seed: str = _derived_random_seed(api_keys_csv, latitude, longitude)
     battery_capacity_kwh: float = float(config.get("battery_capacity_kwh", 13.5))
     _battery_limits_raw: str = str(config.get("battery_power_limits_kw", "5.0, 5.0"))
@@ -148,6 +150,7 @@ async def async_setup_entry(
         shade_distance_m=shade_distance_m,
         shade_azimuth_deg=shade_azimuth_deg,
         shade_opacity=shade_opacity,
+        shade_density_profile=shade_density_profile,
         astral_location=astral_location,
         astral_elevation=astral_elevation,
         random_seed=random_seed,

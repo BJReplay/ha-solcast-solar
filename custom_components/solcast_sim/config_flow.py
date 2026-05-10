@@ -17,9 +17,14 @@ from homeassistant.config_entries import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import selector
 
-from .sim_core import API_KEY_SITES, canonicalise_api_keys, parse_api_keys
+from .sim_core import (
+    API_KEY_SITES,
+    canonicalise_api_keys,
+    normalise_shade_density_profile,
+    parse_api_keys,
+)
 
-_ENTRY_VERSION = 5
+_ENTRY_VERSION = 6
 DOMAIN = "solcast_sim"
 ADJACENT_SOLCAST_DOMAIN = "solcast_solar"
 
@@ -98,6 +103,7 @@ _DEFAULTS: Mapping[str, Any] = MappingProxyType(
         "shade_dimensions": "12.0, 8.0, 15.0",
         "shade_azimuth_deg": 0.0,
         "shade_opacity": 0.0,
+        "shade_density_profile": "0.3, 0.8, 1.0",
         "export_factor": 1.0,
         "export_limit_kw": 5.0,
         "battery_capacity_kwh": 13.5,
@@ -125,6 +131,7 @@ _FIELD_VALIDATORS: dict[str, Any] = {
     "shade_dimensions": str,
     "shade_azimuth_deg": vol.All(vol.Coerce(float), vol.Range(min=-180.0, max=180.0)),
     "shade_opacity": vol.Coerce(float),
+    "shade_density_profile": str,
     "export_factor": vol.Coerce(float),
     "export_limit_kw": vol.Coerce(float),
     "battery_capacity_kwh": vol.Coerce(float),
@@ -166,6 +173,11 @@ class SolcastSimConfigFlow(ConfigFlow, domain=DOMAIN):
                 user_input["shade_dimensions"] = _normalise_shade_dimensions(user_input["shade_dimensions"])
             except ValueError:
                 errors["shade_dimensions"] = "invalid_shade_dimensions"
+
+            try:
+                user_input["shade_density_profile"] = normalise_shade_density_profile(user_input["shade_density_profile"])
+            except ValueError:
+                errors["shade_density_profile"] = "invalid_shade_density_profile"
 
             try:
                 user_input["battery_power_limits_kw"] = _normalise_battery_power_limits(user_input["battery_power_limits_kw"])
@@ -224,6 +236,11 @@ class SolcastSimOptionsFlow(OptionsFlow):
                 user_input["shade_dimensions"] = _normalise_shade_dimensions(user_input["shade_dimensions"])
             except ValueError:
                 errors["shade_dimensions"] = "invalid_shade_dimensions"
+
+            try:
+                user_input["shade_density_profile"] = normalise_shade_density_profile(user_input["shade_density_profile"])
+            except ValueError:
+                errors["shade_density_profile"] = "invalid_shade_density_profile"
 
             try:
                 user_input["battery_power_limits_kw"] = _normalise_battery_power_limits(user_input["battery_power_limits_kw"])

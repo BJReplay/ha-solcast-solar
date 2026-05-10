@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 import hashlib
+from itertools import pairwise
 import math
 import random
 from typing import Any
@@ -102,6 +103,15 @@ CLOUD_EDGE_SPIKE_PROB_BASE = 0.008
 CLOUD_EDGE_SPIKE_PROB_GAIN = 0.16
 CLOUD_EDGE_SPIKE_MAX = 0.45
 
+CANOPY_DENSITY_DEPTH_20 = 0.20
+CANOPY_DENSITY_DEPTH_50 = 0.50
+CANOPY_DENSITY_DEPTH_80 = 0.80
+DEFAULT_SHADE_DENSITY_PROFILE = (
+    0.30,
+    0.80,
+    1.00,
+)
+
 SIMULATED_POWER_CAP_FACTOR = 1.12
 
 COOL_SEASONS = {"winter", "autumn", "spring"}
@@ -183,8 +193,63 @@ class SimulationProfile:
     astral_location: Any
     astral_elevation: Any
     random_seed: str
+    shade_density_profile: tuple[float, float, float] = DEFAULT_SHADE_DENSITY_PROFILE
     climate_monthly_cloud: tuple[float, ...] | None = None
     climate_monthly_cloud_std: tuple[float, ...] | None = None
+
+
+def parse_shade_density_profile(value: str) -> tuple[float, float, float]:
+    """Parse canopy edge density profile as three ascending values in [0, 1]."""
+    parts = [part.strip() for part in str(value).split(",")]
+    if len(parts) != 3:
+        raise ValueError("shade_density_profile must contain three values")
+
+    try:
+        density_20 = float(parts[0])
+        density_50 = float(parts[1])
+        density_80 = float(parts[2])
+    except (TypeError, ValueError) as err:
+        raise ValueError("shade_density_profile values must be numeric") from err
+    if not (0.0 <= density_20 <= 1.0 and 0.0 <= density_50 <= 1.0 and 0.0 <= density_80 <= 1.0):
+        raise ValueError("shade_density_profile values must be in range [0, 1]")
+    if density_20 > density_50 or density_50 > density_80:
+        raise ValueError("shade_density_profile values must be ascending")
+    return density_20, density_50, density_80
+
+
+def normalise_shade_density_profile(value: str) -> str:
+    """Validate and normalise canopy edge density profile CSV."""
+    density_20, density_50, density_80 = parse_shade_density_profile(value)
+    return f"{density_20}, {density_50}, {density_80}"
+
+
+def _interpolate_piecewise(points: tuple[tuple[float, float], ...], x: float) -> float:
+    """Return piecewise-linear interpolation for monotonic knot points."""
+    x = clip(x, points[0][0], points[-1][0])
+    for (x0, y0), (x1, y1) in pairwise(points):
+        if x <= x1:
+            if abs(x1 - x0) < SOLAR_ANGLE_EPSILON:
+                return y1
+            blend = (x - x0) / (x1 - x0)
+            return y0 + (y1 - y0) * blend
+    return points[-1][1]
+
+
+def canopy_density_ratio(depth_ratio: float, density_profile: tuple[float, float, float]) -> float:
+    """Return relative canopy density from edge depth ratio.
+
+    The profile specifies relative density at 20%, 50%, and 80% depth through
+    the canopy. Density is interpolated and anchored at 0% -> 0 and 100% -> 1.
+    """
+    density_20, density_50, density_80 = density_profile
+    knots = (
+        (0.0, 0.0),
+        (CANOPY_DENSITY_DEPTH_20, density_20),
+        (CANOPY_DENSITY_DEPTH_50, density_50),
+        (CANOPY_DENSITY_DEPTH_80, density_80),
+        (1.0, 1.0),
+    )
+    return clip(_interpolate_piecewise(knots, depth_ratio), 0.0, 1.0)
 
 
 def time_str_to_seconds(t: str) -> int:
@@ -347,9 +412,12 @@ def shade_attenuation_factor(now_local: datetime, profile: SimulationProfile) ->
     if az_delta >= shade_half_width_deg:
         return 1.0
 
-    az_factor = (1.0 - az_delta / max(shade_half_width_deg, 0.01)) ** 2
-    elev_factor = clip(1.0 - (elevation_deg / max(tree_top_angle_deg, 0.1)), 0.0, 1.0)
-    blocked_fraction = clip(shade_opacity * az_factor * elev_factor, 0.0, 1.0)
+    az_ratio = clip(1.0 - az_delta / max(shade_half_width_deg, 0.01), 0.0, 1.0)
+    elev_ratio = clip(1.0 - (elevation_deg / max(tree_top_angle_deg, 0.1)), 0.0, 1.0)
+    depth_ratio = min(az_ratio, elev_ratio)
+    geometric_overlap = az_ratio * elev_ratio
+    density_ratio = canopy_density_ratio(depth_ratio, profile.shade_density_profile)
+    blocked_fraction = clip(shade_opacity * geometric_overlap * density_ratio, 0.0, 1.0)
     return 1.0 - blocked_fraction
 
 

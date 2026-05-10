@@ -4,6 +4,7 @@
       "invalid_api_key": "Enter simulator API key(s) exactly as configured for the Solcast integration in this dev container (for example: 1,2)",
       "invalid_cloudiness_profile": "Enter two numbers as cloudiness bias, cloud variability (for example: 0.0, 0.7)",
       "invalid_shade_dimensions": "Enter three positive numbers as height, width, distance (for example: 12, 8, 15)",
+      "invalid_shade_density_profile": "Enter three ascending values from 0 to 1 for canopy density at 20%, 50%, and 80% sun-path depth through the shade object (for example: 0.3, 0.8, 1.0)",
       "invalid_battery_power_limits": "Enter two non-negative numbers as max charge, max discharge (for example: 5, 5)"
     },
     "step": {
@@ -18,6 +19,7 @@
           "shade_dimensions": "Shade object dimensions (m)",
           "shade_azimuth_deg": "Shade object azimuth (Solcast deg)",
           "shade_opacity": "Shade object opacity (0-1)",
+          "shade_density_profile": "Shade object canopy density profile (sun-path depth factor: 20/50/80)",
           "export_factor": "Grid export efficiency (0-1)",
           "export_limit_kw": "Grid export cap (kW)",
           "battery_capacity_kwh": "Battery total capacity (kWh)",
@@ -34,6 +36,7 @@
           "shade_dimensions": "Comma-separated height, width, distance of the simulated shade object in metres — for example: 12, 8, 15. The angular width seen by the sun is calculated from the physical width and distance.",
           "shade_azimuth_deg": "Direction of the tree from the array using Solcast azimuth: 0=N, +90=W, -90=E, +/-180=S.",
           "shade_opacity": "Fraction of direct sunlight blocked when the sun is behind the tree. Set to 0 to disable shade.",
+          "shade_density_profile": "Comma-separated relative shade density at 20%, 50%, and 80% penetration. 0.0 is least influence (where the sun path first intersects) and 1.0 is deepest penetration toward the core (typically near centerline). Values must be ascending in the 0-1 range. Lower early values produce softer edges; higher late values produce a denser core. For a hard-edged solid object, use 1.0, 1.0, 1.0.",
           "export_factor": "Fraction of surplus generation that can be exported to grid.",
           "export_limit_kw": "Hard cap for grid export power.",
           "battery_capacity_kwh": "Total battery storage capacity.",
@@ -50,6 +53,7 @@
       "invalid_api_key": "Enter simulator API key(s) exactly as configured for the Solcast integration in this dev container (for example: 1,2)",
       "invalid_cloudiness_profile": "Enter two numbers as cloudiness bias, cloud variability (for example: 0.0, 0.7)",
       "invalid_shade_dimensions": "Enter three positive numbers as height, width, distance (for example: 12, 8, 15)",
+      "invalid_shade_density_profile": "Enter three ascending values from 0 to 1 for canopy density at 20%, 50%, and 80% sun-path depth through the shade object (for example: 0.3, 0.8, 1.0)",
       "invalid_battery_power_limits": "Enter two non-negative numbers as max charge, max discharge (for example: 5, 5)"
     },
     "step": {
@@ -63,6 +67,7 @@
           "shade_dimensions": "Shade object dimensions (m)",
           "shade_azimuth_deg": "Shade object azimuth (Solcast deg)",
           "shade_opacity": "Shade object opacity (0-1)",
+          "shade_density_profile": "Shade object canopy density profile (sun-path depth factor: 20/50/80)",
           "export_factor": "Grid export efficiency (0-1)",
           "export_limit_kw": "Grid export cap (kW)",
           "battery_capacity_kwh": "Battery total capacity (kWh)",
@@ -79,6 +84,7 @@
           "shade_dimensions": "Comma-separated height, width, distance of the simulated shade object in metres — for example: 12, 8, 15. The angular width seen by the sun is calculated from the physical width and distance.",
           "shade_azimuth_deg": "Direction of the tree from the array using Solcast azimuth: 0=N, +90=W, -90=E, +/-180=S.",
           "shade_opacity": "Fraction of direct sunlight blocked when the sun is behind the tree. Set to 0 to disable shade.",
+          "shade_density_profile": "Comma-separated relative shade density at 20%, 50%, and 80% penetration. 0.0 is least influence (where the sun path first intersects) and 1.0 is deepest penetration toward the core (typically near centerline). Values must be ascending in the 0-1 range. Lower early values produce softer edges; higher late values produce a denser core. For a hard-edged solid object, use 1.0, 1.0, 1.0.",
           "export_factor": "Fraction of surplus generation that can be exported to grid.",
           "export_limit_kw": "Hard cap for grid export power.",
           "battery_capacity_kwh": "Total battery storage capacity.",
