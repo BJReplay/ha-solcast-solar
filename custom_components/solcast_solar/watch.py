@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 
 from watchfiles import Change, awatch
 
+from homeassistant.core import CALLBACK_TYPE
 from homeassistant.helpers.event import async_call_later
 
 from .const import (
@@ -43,6 +44,7 @@ class FileWatcher:
 
         """
         self.coordinator = coordinator
+        self._pending_restart: CALLBACK_TYPE | None = None
 
     def _awatch_kwargs(self, stop_event: Event | None) -> dict[str, Any]:
         """Return common watchfiles arguments for responsive shutdown."""
@@ -103,8 +105,9 @@ class FileWatcher:
         else:
             _LOGGER.debug("Not monitoring dampening file, auto-dampening is enabled")
 
-    async def _restart(self, called_at: dt | None = None) -> None:
+    async def _restart(self, _called_at: dt | None = None) -> None:
         """Restart the integration to apply advanced configuration changes."""
+        self._pending_restart = None
         coordinator = self.coordinator
         await coordinator.solcast.tasks_cancel()
         await coordinator.tasks_cancel()
@@ -218,7 +221,9 @@ class FileWatcher:
         change = await coordinator.solcast.advanced_opt.read_advanced_options()
         if change and coordinator.solcast.advanced_options.get(ADVANCED_RELOAD_ON_ADVANCED_CHANGE, False):
             _LOGGER.debug("Advanced options changed, restarting")
-            async_call_later(coordinator.hass, 1, self._restart)
+            if self._pending_restart is not None:
+                self._pending_restart()
+            self._pending_restart = async_call_later(coordinator.hass, 1, self._restart)
 
     async def watch_advanced_file(
         self,

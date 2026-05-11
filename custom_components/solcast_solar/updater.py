@@ -220,7 +220,7 @@ class Updater:
             }
         return base
 
-    async def check_forecast_fetch(self, _: dt | None = None) -> None:
+    async def check_forecast_fetch(self, _called_at: dt | None = None) -> None:
         """Check for an auto forecast update event."""
 
         if self._coordinator.solcast.options.auto_update != AutoUpdate.NONE:
@@ -251,7 +251,7 @@ class Updater:
                     self._intervals = [interval for i, interval in enumerate(self._intervals) if i not in pop_expired]
                     self.set_next_update()
 
-    async def _fetch(self, _: dt | None = None) -> None:
+    async def _fetch(self, _called_at: dt | None = None) -> None:
         """Handle a scheduled auto forecast update."""
 
         if len(self._update_sequence) > 0:
@@ -376,11 +376,11 @@ class Updater:
                 scheduled = True
         return scheduled
 
-    async def _actuals(self, _: dt | None = None) -> None:
+    async def _actuals(self, _called_at: dt | None = None) -> None:
         _LOGGER.info("Update estimated actuals")
         await self.update_estimated_actuals_history(new_day=True, dampen_yesterday=True)
 
-    async def _generation(self, _: dt | None = None) -> None:
+    async def _generation(self, _called_at: dt | None = None) -> None:
         _LOGGER.info("Update generation data")
         await self._update_generation_history()
 

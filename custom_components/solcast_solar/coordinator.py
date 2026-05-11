@@ -212,7 +212,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         await self._update_integration_listeners()
         self._data_updated = False
 
-    async def _update_integration_listeners(self, _: dt | None = None) -> None:
+    async def _update_integration_listeners(self, _called_at: dt | None = None) -> None:
         """Update sensor values on time change."""
 
         current_day = dt.now(self.solcast.options.tz).day
@@ -248,7 +248,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         )
         _LOGGER.debug("Started task midnight_update")
 
-    async def _update_utc_midnight_usage_sensor_data(self, _: dt | None = None) -> None:
+    async def _update_utc_midnight_usage_sensor_data(self, _called_at: dt | None = None) -> None:
         """Reset tracked API usage and failure statistics at midnight UTC."""
         await self.solcast.sites_cache.reset_api_usage()
         await self.solcast.fetcher.reset_failure_stats()
