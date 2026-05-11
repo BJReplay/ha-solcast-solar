@@ -759,7 +759,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             forecasts[period_start][DAMPENING_FACTOR] = round(self.dampening.auto_factors[period_start], 4)
 
                             # Prevent blocking
-                            if forecast_count % 200 == 0:
+                            if forecast_count % 50 == 0:
                                 await asyncio.sleep(0)
 
                         site_data_forecasts[resource_id] = sorted(site_forecasts.values(), key=itemgetter(PERIOD_START))

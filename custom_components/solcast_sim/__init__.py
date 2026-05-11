@@ -161,7 +161,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     def __v5(values: dict[str, Any]) -> dict[str, Any]:
         """v5 migration: backfill estimated actuals uncertainty."""
         new_values = dict(values)
-        new_values.setdefault("estimated_actuals_uncertainty_pct", 2.2)
+        new_values.setdefault("estimated_actuals_uncertainty_pct", 15.0)
         return new_values
 
     def __v6(values: dict[str, Any]) -> dict[str, Any]:

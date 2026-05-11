@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import date, datetime, timedelta
+import bisect
+from datetime import UTC, date, datetime, time, timedelta
 from enum import IntEnum
+from functools import partial
 import json
 import logging
 import math
@@ -13,10 +15,13 @@ import random
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from homeassistant.components.recorder import get_instance, history
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .sim_core import (
+    API_KEY_SITES,
     BASE_FORECAST_SCALE,
     SimulationProfile,
     clip,
@@ -27,6 +32,7 @@ from .sim_core import (
     is_high_variability_locale,
     persistent_spell_adjustment,
     seed_to_int,
+    shade_attenuation_factor,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -115,6 +121,8 @@ ESTIMATE_SCALE_MIN = 0.25
 ESTIMATE_SCALE_MAX = 1.1
 BAD_WEATHER_P10_BIAS_WEIGHT = 0.85
 BAD_WEATHER_ESTIMATE_TRIM_WEIGHT = 0.14
+PV_TODAY_ENERGY_UNIQUE_ID = "solcast_sim_today_generation_energy"
+SHADE_ATTENUATION_UNIQUE_ID = "solcast_sim_shade_attenuation_factor"
 
 
 def _period_cloudiness(cloud_factors: list[float], default_cloudiness: float, start_hour: float, end_hour: float) -> float:
@@ -262,7 +270,234 @@ def _interval_generation_fraction(
     return clip(sum(samples) / len(samples), 0.0, BASE_FORECAST_SCALE)
 
 
-def build_guidance_payload(profile: SimulationProfile, tz: ZoneInfo, days: int = GUIDANCE_DAYS) -> dict[str, Any]:
+def _compute_actuals_jitter(day_str: str, slot: int, uncertainty_pct: float) -> float:
+    """Return deterministic jitter for estimated actuals."""
+    if uncertainty_pct <= 0.0:
+        return 0.0
+    seed = (sum(ord(c) for c in day_str) * 31 + slot * 7919) & 0xFFFFFF
+    # Box-Muller using two cheap pseudo-random values derived from the seed.
+    u1 = ((seed * 1664525 + 1013904223) & 0xFFFFFF) / 0xFFFFFF
+    u2 = ((seed * 22695477 + 1) & 0xFFFFFF) / 0xFFFFFF
+    u1 = max(1e-9, u1)
+    z = math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
+    return z * (uncertainty_pct / 100.0)
+
+
+def _apply_estimated_actuals_jitter(value: float, day_str: str, slot: int, uncertainty_pct: float) -> float:
+    """Apply jitter to a generation value."""
+    if value <= 0.0:
+        return 0.0
+    jitter = _compute_actuals_jitter(day_str, slot, uncertainty_pct)
+    return clip(value * (1.0 + jitter), 0.0, BASE_FORECAST_SCALE)
+
+
+def _compute_estimated_actuals(intervals: list[float], day_str: str, uncertainty_pct: float) -> list[float]:
+    """Compute pre-jittered estimated actuals from interval generation."""
+    estimated_actuals: list[float] = []
+    for slot, interval_value in enumerate(intervals):
+        jittered = _apply_estimated_actuals_jitter(interval_value, day_str, slot, uncertainty_pct)
+        estimated_actuals.append(round(jittered, 5))
+    return estimated_actuals
+
+
+def _merge_estimated_actuals(
+    day_str: str,
+    uncertainty_pct: float,
+    synthetic: list[float],
+    recorder_values: list[float | None] | None,
+) -> list[float]:
+    """Overlay recorder baseline values."""
+    if recorder_values is None or len(recorder_values) != GUIDANCE_INTERVALS_PER_DAY:
+        return synthetic
+
+    merged: list[float] = []
+    for slot, synthetic_value in enumerate(synthetic):
+        recorder_value = recorder_values[slot]
+        if recorder_value is None:
+            merged.append(synthetic_value)
+            continue
+        jittered = _apply_estimated_actuals_jitter(recorder_value, day_str, slot, uncertainty_pct)
+        merged.append(round(jittered, 5))
+    return merged
+
+
+async def _async_recorder_shade_timeline(
+    hass: HomeAssistant,
+    start_utc: datetime,
+    end_utc: datetime,
+) -> tuple[list[float], list[float]]:
+    """Fetch recorded shade attenuation history."""
+    registry = er.async_get(hass)
+    shade_entity_id = registry.async_get_entity_id("sensor", "solcast_sim", SHADE_ATTENUATION_UNIQUE_ID)
+    if shade_entity_id is None:
+        return [], []
+
+    shade_rows_map = await get_instance(hass).async_add_executor_job(
+        partial(
+            history.state_changes_during_period,
+            hass,
+            start_utc,
+            end_utc,
+            shade_entity_id,
+            True,
+            False,
+            None,
+            True,
+        )
+    )
+    shade_rows = shade_rows_map.get(shade_entity_id)
+    if not shade_rows:
+        return [], []
+
+    timestamps: list[float] = []
+    values: list[float] = []
+    for row in shade_rows:
+        try:
+            row_value = float(row.state)
+        except (ValueError, TypeError):
+            continue
+        row_time = row.last_updated
+        if row_time is None:
+            continue
+        timestamps.append(row_time.timestamp())
+        values.append(row_value)
+
+    return timestamps, values
+
+
+def _nearest_shade_factor(
+    ts: float,
+    shade_timestamps: list[float],
+    shade_values: list[float],
+) -> float | None:
+    """Return the shade attenuation value closest in time to ts, or None if unavailable."""
+    if not shade_timestamps:
+        return None
+    idx = bisect.bisect_left(shade_timestamps, ts)
+    if idx == 0:
+        return shade_values[0]
+    if idx >= len(shade_timestamps):
+        return shade_values[-1]
+    # Pick whichever neighbour is closer.
+    before = shade_timestamps[idx - 1]
+    after = shade_timestamps[idx]
+    return shade_values[idx - 1] if (ts - before) <= (after - ts) else shade_values[idx]
+
+
+async def _async_recorder_historic_estimated_actuals(
+    hass: HomeAssistant,
+    tz: ZoneInfo,
+    total_site_capacity_kw: float,
+    profile: SimulationProfile | None = None,
+) -> dict[str, list[float | None]]:
+    """Build historic 30-minute estimated actuals from recorder energy statistics."""
+    if total_site_capacity_kw <= 0.0 or "recorder" not in hass.config.components:
+        return {}
+
+    registry = er.async_get(hass)
+    entity_id = registry.async_get_entity_id("sensor", "solcast_sim", PV_TODAY_ENERGY_UNIQUE_ID)
+    if entity_id is None:
+        return {}
+
+    local_today = datetime.now(tz).date()
+    start_local = datetime.combine(local_today - timedelta(days=GUIDANCE_LOOKBACK_DAYS), time.min, tzinfo=tz)
+    end_local = datetime.combine(local_today + timedelta(days=1), time.min, tzinfo=tz)
+    start_utc = start_local.astimezone(UTC)
+    end_utc = end_local.astimezone(UTC)
+
+    history_rows_map, (shade_timestamps, shade_values) = await asyncio.gather(
+        get_instance(hass).async_add_executor_job(
+            partial(
+                history.state_changes_during_period,
+                hass,
+                start_utc,
+                end_utc,
+                entity_id,
+                True,
+                False,
+                None,
+                True,
+            )
+        ),
+        _async_recorder_shade_timeline(hass, start_utc, end_utc),
+    )
+
+    rows = history_rows_map.get(entity_id)
+    if not rows:
+        return {}
+
+    slot_energy_by_day: dict[str, list[float | None]] = {}
+    previous_value: float | None = None
+    previous_ts: float | None = None
+    for row in rows:
+        try:
+            row_value = float(row.state)
+        except (ValueError, TypeError):
+            continue
+        row_time = row.last_updated
+        if row_time is None:
+            continue
+        row_ts = row_time.timestamp()
+
+        if previous_value is None:
+            previous_value = row_value
+            previous_ts = row_ts
+            continue
+
+        if row_value < previous_value:
+            # Daily total sensor reset; treat new value as post-reset accumulation.
+            delta_kwh = row_value
+        else:
+            delta_kwh = row_value - previous_value
+        previous_value = row_value
+
+        if delta_kwh <= 0.0:
+            previous_ts = row_ts
+            continue
+
+        # Un-shade the delta.
+        delta_mid_ts = (previous_ts + row_ts) / 2.0 if previous_ts is not None else row_ts
+        shade_factor = _nearest_shade_factor(delta_mid_ts, shade_timestamps, shade_values)
+        if shade_factor is None and profile is not None:
+            # Fall back to recomputing from the current profile at the midpoint.
+            mid_local = datetime.fromtimestamp(delta_mid_ts, tz=tz)
+            shade_factor = shade_attenuation_factor(mid_local, profile)
+        if shade_factor is not None and 0.0 < shade_factor < 1.0:
+            delta_kwh = delta_kwh / shade_factor
+        previous_ts = row_ts
+
+        local_time = row_time.astimezone(tz)
+        day_key = local_time.date().isoformat()
+        slot = int((local_time.hour * 60 + local_time.minute) / 30)
+        if slot < 0 or slot >= GUIDANCE_INTERVALS_PER_DAY:
+            continue
+
+        day_slots = slot_energy_by_day.setdefault(day_key, [None] * GUIDANCE_INTERVALS_PER_DAY)
+        existing = day_slots[slot]
+        day_slots[slot] = delta_kwh if existing is None else (existing + delta_kwh)
+
+    recorder_actuals: dict[str, list[float | None]] = {}
+    for day_key, slot_energies in slot_energy_by_day.items():
+        slot_values: list[float | None] = []
+        for slot_energy in slot_energies:
+            if slot_energy is None:
+                slot_values.append(None)
+                continue
+            # 30-minute slot energy to average kW.
+            avg_power_kw = slot_energy * 2.0
+            fraction = clip(avg_power_kw / total_site_capacity_kw, 0.0, BASE_FORECAST_SCALE)
+            slot_values.append(round(fraction, 5))
+        recorder_actuals[day_key] = slot_values
+
+    return recorder_actuals
+
+
+def build_guidance_payload(
+    profile: SimulationProfile,
+    tz: ZoneInfo,
+    days: int = GUIDANCE_DAYS,
+    recorder_historic_actuals: dict[str, list[float | None]] | None = None,
+) -> dict[str, Any]:
     """Build a rolling day-level guidance payload used by the WSGI simulator."""
     mode = GUIDANCE_CLOUD_WINDOW_MODE
     local_today = datetime.now(tz).date()
@@ -375,6 +610,14 @@ def build_guidance_payload(profile: SimulationProfile, tz: ZoneInfo, days: int =
             round(_interval_generation_fraction(profile, day, slot, season_gain), 5) for slot in range(GUIDANCE_INTERVALS_PER_DAY)
         ]
 
+        synthetic_estimated_actuals = _compute_estimated_actuals(intervals, day.isoformat(), profile.estimated_actuals_uncertainty_pct)
+        estimated_actuals = _merge_estimated_actuals(
+            day.isoformat(),
+            profile.estimated_actuals_uncertainty_pct,
+            synthetic_estimated_actuals,
+            recorder_historic_actuals.get(day.isoformat()) if recorder_historic_actuals else None,
+        )
+
         payload_days[day.isoformat()] = {
             "cloudiness": round(cloudiness, 4),
             "spell_regime": spell_regime,
@@ -417,6 +660,7 @@ def build_guidance_payload(profile: SimulationProfile, tz: ZoneInfo, days: int =
             "effective_day": effective_day.isoformat(),
             "effective_season": season,
             "intervals": intervals,
+            "estimated_actuals": estimated_actuals,
         }
 
     return {
@@ -444,8 +688,23 @@ def build_storage_path(config_dir: Path, filename: str) -> Path:
     return config_dir / STORAGE_DIRNAME / filename
 
 
-async def async_write_guidance_file(hass: HomeAssistant, profile: SimulationProfile, tz: ZoneInfo) -> None:
+async def async_write_guidance_file(
+    hass: HomeAssistant,
+    profile: SimulationProfile,
+    tz: ZoneInfo,
+    sites: list[dict[str, Any]] | None = None,
+) -> None:
     """Generate and persist rolling guidance JSON for the WSGI simulator."""
-    payload = build_guidance_payload(profile, tz)
+    sites_in_use = sites if sites is not None else [site for api_data in API_KEY_SITES.values() for site in api_data["sites"]]
+    total_site_capacity_kw = sum(float(site.get("capacity", 0.0)) for site in sites_in_use)
+    recorder_historic_actuals = await _async_recorder_historic_estimated_actuals(
+        hass,
+        tz,
+        total_site_capacity_kw,
+        profile,
+    )
+    payload = await hass.async_add_executor_job(
+        partial(build_guidance_payload, profile, tz, recorder_historic_actuals=recorder_historic_actuals)
+    )
     guidance_path = build_storage_path(Path(hass.config.config_dir), GUIDANCE_FILENAME)
     await hass.async_add_executor_job(write_guidance_payload_to_file, guidance_path, payload)

@@ -78,7 +78,7 @@ async def async_setup_entry(
     _cloud_profile_parts = [p.strip() for p in _cloud_profile_raw.split(",")]
     cloudiness_bias: float = float(_cloud_profile_parts[0])
     cloud_variability: float = float(_cloud_profile_parts[1])
-    estimated_actuals_uncertainty_pct: float = float(config.get("estimated_actuals_uncertainty_pct", 2.2))
+    estimated_actuals_uncertainty_pct: float = float(config.get("estimated_actuals_uncertainty_pct", 15.0))
     _shade_dims_raw: str = str(config.get("shade_dimensions", "12.0, 8.0, 15.0"))
     _shade_parts = [p.strip() for p in str(_shade_dims_raw).split(",")]
     shade_height_m: float = max(0.0, float(_shade_parts[0]))
@@ -158,12 +158,12 @@ async def async_setup_entry(
         climate_monthly_cloud_std=climate_cloud_stds,
     )
 
-    await _async_write_guidance_file(hass, profile, tz)
+    await _async_write_guidance_file(hass, profile, tz, sites)
     _LOGGER.debug("Guidance file generated for timezone %s", tz)
 
     @callback
     def _handle_guidance_refresh(_now: datetime) -> None:
-        hass.async_create_task(_async_write_guidance_file(hass, profile, tz))
+        hass.async_create_task(_async_write_guidance_file(hass, profile, tz, sites))
 
     entry.async_on_unload(async_track_time_interval(hass, _handle_guidance_refresh, GUIDANCE_UPDATE_INTERVAL))
     _LOGGER.debug("Guidance refresh scheduled %s", _describe_interval(GUIDANCE_UPDATE_INTERVAL))

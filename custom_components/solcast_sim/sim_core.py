@@ -111,7 +111,7 @@ CLOUD_TRANSIT_DURATION_MIN = 1  # minimum transit length (5 min)
 CLOUD_TRANSIT_DURATION_MAX = 4  # maximum transit length (20 min, 4x5 min)
 CLOUD_TRANSIT_FLOOR_MIN = 0.03  # deepest permitted attenuation (thick cloud, near-zero sun)
 CLOUD_TRANSIT_FLOOR_MAX = 0.28  # shallowest transit floor (thin/partial cloud)
-CLOUD_TRANSIT_LENSING_FACTOR = 1.22  # cloud-edge lensing boost on the bin just before/after a transit
+CLOUD_TRANSIT_LENSING_FACTOR = 1.05  # cloud-edge lensing boost trailing a transit
 CLOUD_TRANSIT_MIXED_PEAK = 0.42  # background cloud fraction at peak transit probability
 CLOUD_TRANSIT_MIXED_SPAN = 0.38  # width of the mixed-cloud probability window
 CLOUD_TRANSIT_COOLDOWN = 2  # minimum gap between the end of one transit and the start of the next
@@ -166,7 +166,7 @@ SPELL_SIGNAL_WAVE_PERIOD_TERTIARY_DAYS = 31.0
 # Tropical oscillation periods: quasi-biweekly oscillation (QBWO), Madden-Julian
 # Oscillation (MJO), and broad monsoon seasonal phase. These replace temperate
 # synoptic periods at low latitudes where large-scale convective systems dominate.
-SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_PRIMARY_DAYS = 14.0   # QBWO: ~14-day tropical wave disturbances
+SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_PRIMARY_DAYS = 14.0  # QBWO: ~14-day tropical wave disturbances
 SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_SECONDARY_DAYS = 30.0  # MJO: ~30-day active/suppressed convection cycle
 SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_TERTIARY_DAYS = 90.0  # Monsoon onset/withdrawal phase
 SPELL_SIGNAL_NORMALISATION_FACTOR = 1.45
@@ -508,8 +508,8 @@ def shade_attenuation_factor(now_local: datetime, profile: SimulationProfile) ->
     if az_delta >= shade_half_width_deg:
         return 1.0
 
-    az_ratio = clip(1.0 - az_delta / max(shade_half_width_deg, 0.01), 0.0, 1.0)
-    elev_ratio = clip(1.0 - (elevation_deg / max(tree_top_angle_deg, 0.1)), 0.0, 1.0)
+    az_ratio = _smoothstep(clip(1.0 - az_delta / max(shade_half_width_deg, 0.01), 0.0, 1.0))
+    elev_ratio = _smoothstep(clip(1.0 - (elevation_deg / max(tree_top_angle_deg, 0.1)), 0.0, 1.0))
     depth_ratio = min(az_ratio, elev_ratio)
     geometric_overlap = az_ratio * elev_ratio
     density_ratio = canopy_density_ratio(depth_ratio, profile.shade_density_profile)
@@ -612,12 +612,15 @@ def _apply_cloud_transits(
     winter_weight: float,
     day_seed: str,
     bins: int,
+    coarse_bin_scale: int = 1,
 ) -> list[float]:
     """Overlay discrete cloud transit events on the smoothed attenuation profile.
 
     Transits model individual clouds passing in front of the sun: a sharp dip in irradiance
     lasting for a while, with brief cloud-edge boosts on either side. Probability and depth
     both scale with cloud_variability.
+
+    coarse_bin_scale: Ratio of fine bins to coarse (5-minute) bins.
     """
     variability_scale = clip(profile.cloud_variability / PROFILE_CLOUD_VARIABILITY_MAX, 0.0, 1.0)
     if variability_scale <= 0.0:
@@ -637,24 +640,34 @@ def _apply_cloud_transits(
         mixed_distance = abs(background_cloud - CLOUD_TRANSIT_MIXED_PEAK)
         mixed_weight = clip(1.0 - (mixed_distance / CLOUD_TRANSIT_MIXED_SPAN), 0.0, 1.0)
 
-        trigger_prob = CLOUD_TRANSIT_PROB_BASE * variability_scale * mixed_weight * daytime_weight
+        # Divide trigger probability by coarse_bin_scale
+        trigger_prob = CLOUD_TRANSIT_PROB_BASE * variability_scale * mixed_weight * daytime_weight / coarse_bin_scale
         winter_suppression = 1.0 - (1.0 - CLOUD_TRANSIT_WINTER_FACTOR) * clip(winter_weight, 0.0, 1.0)
         trigger_prob *= winter_suppression
 
         if transit_rng.random() < trigger_prob:
-            duration = transit_rng.randint(CLOUD_TRANSIT_DURATION_MIN, CLOUD_TRANSIT_DURATION_MAX)
+            duration = transit_rng.randint(CLOUD_TRANSIT_DURATION_MIN, CLOUD_TRANSIT_DURATION_MAX) * coarse_bin_scale
             # Deeper transits are more likely at higher variability.
             floor_max = CLOUD_TRANSIT_FLOOR_MIN + (CLOUD_TRANSIT_FLOOR_MAX - CLOUD_TRANSIT_FLOOR_MIN) * (1.0 - variability_scale)
             transit_floor = transit_rng.uniform(CLOUD_TRANSIT_FLOOR_MIN, floor_max)
 
-            # Leading lensing: cloud edge brightens the sun just before blockage.
-            if bin_idx > 0:
-                result[bin_idx - 1] = min(result[bin_idx - 1] * CLOUD_TRANSIT_LENSING_FACTOR, CLOUD_ATTENUATION_MAX)
-
-            # Deep irradiance dip during the transit.
+            # Deep irradiance dip during the transit with smooth Gaussian profile.
+            transit_center = bin_idx + duration / 2.0
+            transit_sigma = duration / 3.0  # Controls width of the dip profile
             for offset in range(duration):
                 if bin_idx + offset < bins:
-                    result[bin_idx + offset] = transit_floor
+                    dist_from_center = abs((bin_idx + offset + 0.5) - transit_center)
+                    gaussian_profile = math.exp(
+                        -(dist_from_center**2) / (2 * transit_sigma**2)
+                    )  # Gaussian falloff from center to edges, centre transit
+                    # Interpolate between smoothed value and transit floor
+                    center_depth = transit_floor
+                    edge_depth = smoothed[bin_idx + offset]
+                    result[bin_idx + offset] = clip(
+                        edge_depth + (center_depth - edge_depth) * gaussian_profile,
+                        CLOUD_ATTENUATION_MIN,
+                        smoothed[bin_idx + offset],
+                    )
 
             # Trailing lensing: cloud edge brightens the sun just after it clears.
             trail_idx = bin_idx + duration
@@ -662,7 +675,7 @@ def _apply_cloud_transits(
                 result[trail_idx] = min(smoothed[trail_idx] * CLOUD_TRANSIT_LENSING_FACTOR, CLOUD_ATTENUATION_MAX)
 
             # Skip past the transit plus a cooldown gap before considering another.
-            bin_idx += duration + CLOUD_TRANSIT_COOLDOWN
+            bin_idx += duration + CLOUD_TRANSIT_COOLDOWN * coarse_bin_scale
         else:
             bin_idx += 1
 
@@ -704,7 +717,9 @@ def cloud_profile(profile: SimulationProfile, day: date, season: str) -> list[fl
     )
 
     season_weights = seasonal_blend_weights(day, profile.latitude)
-    burnoff_prob = sum(_burnoff_probability_for_season(weighted_season, profile.latitude) * weight for weighted_season, weight in season_weights.items())
+    burnoff_prob = sum(
+        _burnoff_probability_for_season(weighted_season, profile.latitude) * weight for weighted_season, weight in season_weights.items()
+    )
     cloudiness_gate = clip((daily_cloud - 0.30) / 0.60, 0.0, 1.0)
     burnoff_enabled = day_rng.random() < burnoff_prob * cloudiness_gate
     burnoff_amplitude = BURN_OFF_CLOUD_BIAS_MAX * clip(0.45 + daily_cloud, 0.0, 1.0) * day_rng.uniform(0.85, 1.15)
@@ -758,8 +773,19 @@ def cloud_profile(profile: SimulationProfile, day: date, season: str) -> list[fl
         prev_val = raw[idx - 1] if idx > 0 else raw[idx]
         next_val = raw[idx + 1] if idx < bins - 1 else raw[idx]
         smoothed.append((prev_val + CLOUD_SMOOTHING_CENTRE_WEIGHT * raw[idx] + next_val) / (2.0 + CLOUD_SMOOTHING_CENTRE_WEIGHT))
+    # Upsample 288 5-minute background bins to 1440 1-minute bins via cosine interpolation.
+    _FINE_SCALE = 5
+    fine_bins = bins * _FINE_SCALE
+    fine_smoothed: list[float] = []
+    for i in range(bins):
+        next_i = min(i + 1, bins - 1)
+        for j in range(_FINE_SCALE):
+            t_frac = (j + 0.5) / _FINE_SCALE
+            t_cos = (1.0 - math.cos(math.pi * t_frac)) / 2.0
+            fine_smoothed.append(smoothed[i] * (1.0 - t_cos) + smoothed[next_i] * t_cos)
+
     winter_weight = season_weights.get("winter", 0.0)
-    return _apply_cloud_transits(smoothed, profile, winter_weight, day_seed, bins)
+    return _apply_cloud_transits(fine_smoothed, profile, winter_weight, day_seed, fine_bins, coarse_bin_scale=_FINE_SCALE)
 
 
 def daily_cloudiness(profile: SimulationProfile, day: date, season: str) -> float:
@@ -794,9 +820,15 @@ def persistent_spell_adjustment(
     # Blend wave periods by latitude: temperate synoptic timescales → tropical MJO/monsoon timescales.
     # At equator, the 9/17/31-day frontal patterns make no physical sense; MJO/QBWO/monsoon do.
     seasonality = _seasonality_factor(profile.latitude)
-    period_primary = SPELL_SIGNAL_WAVE_PERIOD_PRIMARY_DAYS * seasonality + SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_PRIMARY_DAYS * (1.0 - seasonality)
-    period_secondary = SPELL_SIGNAL_WAVE_PERIOD_SECONDARY_DAYS * seasonality + SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_SECONDARY_DAYS * (1.0 - seasonality)
-    period_tertiary = SPELL_SIGNAL_WAVE_PERIOD_TERTIARY_DAYS * seasonality + SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_TERTIARY_DAYS * (1.0 - seasonality)
+    period_primary = SPELL_SIGNAL_WAVE_PERIOD_PRIMARY_DAYS * seasonality + SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_PRIMARY_DAYS * (
+        1.0 - seasonality
+    )
+    period_secondary = SPELL_SIGNAL_WAVE_PERIOD_SECONDARY_DAYS * seasonality + SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_SECONDARY_DAYS * (
+        1.0 - seasonality
+    )
+    period_tertiary = SPELL_SIGNAL_WAVE_PERIOD_TERTIARY_DAYS * seasonality + SPELL_SIGNAL_WAVE_PERIOD_TROPICAL_TERTIARY_DAYS * (
+        1.0 - seasonality
+    )
 
     low_frequency_signal = (
         SPELL_SIGNAL_WAVE_WEIGHT_PRIMARY * math.sin((2.0 * math.pi * day_idx / period_primary) + phase_1)
@@ -863,9 +895,11 @@ def simulated_power_kw(second_of_day: float, capacity_kw: float, tz: ZoneInfo, p
     clear_sky_shape = math.sin(math.pi * phase) ** CLEAR_SKY_SHAPE_EXPONENT
 
     cloud_factors = cloud_profile(profile, effective_day, season)
-    cloud_idx = int(t // SECONDS_PER_5_MINUTES)
+    cloud_idx = int(t // SECONDS_PER_MINUTE)
     cloud_idx = int(clip(float(cloud_idx), 0.0, float(len(cloud_factors) - 1)))
-    cloud_factor = cloud_factors[cloud_idx]
+    next_cloud_idx = min(cloud_idx + 1, len(cloud_factors) - 1)
+    t_in_bin = (t % SECONDS_PER_MINUTE) / SECONDS_PER_MINUTE
+    cloud_factor = cloud_factors[cloud_idx] * (1.0 - t_in_bin) + cloud_factors[next_cloud_idx] * t_in_bin
 
     season_gain = _weighted_season_value(
         seasonal_blend_weights(effective_day, profile.latitude),

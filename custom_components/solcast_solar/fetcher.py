@@ -707,8 +707,7 @@ class Fetcher:
                                 await self.api.sites_cache.serialise_usage(api_key)
                             else:
                                 _LOGGER.debug("API returned data")
-                            response_json = response_text
-                            response_json = json.loads(response_json)
+                            response_json = await self.api.hass.async_add_executor_job(json.loads, response_text)
                             if issue_registry.async_get_issue(DOMAIN, ISSUE_API_UNAVAILABLE) is not None:
                                 _LOGGER.debug("Remove issue for %s", ISSUE_API_UNAVAILABLE)
                                 ir.async_delete_issue(self.api.hass, DOMAIN, ISSUE_API_UNAVAILABLE)
