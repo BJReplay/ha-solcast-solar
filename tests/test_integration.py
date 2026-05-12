@@ -270,7 +270,7 @@ async def _exec_update(
     if last_update_delta == 0:
         last_updated = dt(year=2020, month=1, day=1, hour=1, minute=1, second=1, tzinfo=datetime.UTC)
     else:
-        last_updated = solcast.data[LAST_UPDATED] - timedelta(seconds=last_update_delta)
+        last_updated = dt.now(datetime.UTC) - timedelta(seconds=last_update_delta)
         _LOGGER.info("Mock last updated: %s", last_updated)
     solcast.data[LAST_UPDATED] = last_updated
     await hass.services.async_call(DOMAIN, action, {}, blocking=True)
@@ -308,7 +308,7 @@ async def _exec_update_actuals(
     if last_update_delta == 0:
         last_updated = dt(year=2020, month=1, day=1, hour=1, minute=1, second=1, tzinfo=datetime.UTC)
     else:
-        last_updated = solcast.data_actuals[LAST_UPDATED] - timedelta(seconds=last_update_delta)
+        last_updated = dt.now(datetime.UTC) - timedelta(seconds=last_update_delta)
         _LOGGER.info("Mock last updated: %s", last_updated)
     solcast.data_actuals[LAST_UPDATED] = last_updated
     await hass.services.async_call(DOMAIN, action, {}, blocking=True)
@@ -892,18 +892,29 @@ async def test_integration(  # noqa: C901
                         if coordinator is None or solcast is None:
                             pytest.fail("Reload failed")
                         await _wait_for(caplog, "Running task watch_advanced")
+                        caplog.clear()  # Clear startup logs (including any stale "Updating sensor" messages) before scenario loop
+                        await solcast.dampening.model_automated()  # Ensure peak_intervals populated for delta adjustment testing
                     granular_dampening_file.write_text(json.dumps(test["factors"]), encoding="utf-8")
                     await _wait_for(caplog, "Updating sensor Forecast Tomorrow")
                     assert "Granular dampening mtime changed" in caplog.text
                     assert "Granular dampening loaded" in caplog.text
                     sensor = hass.states.get("sensor.solcast_pv_forecast_forecast_tomorrow")
                     if sensor is not None:
-                        assert sensor.state == test["result"]
+                        assert sensor.state == test["result"], (
+                            f"peak_intervals[24]={solcast.peak_intervals.get(24)}, "
+                            f"DELTA_ADJUSTMENT={solcast.advanced_options.get('granular_dampening_delta_adjustment')}, "
+                            f"get_actuals={solcast.options.get_actuals}"
+                        )
                         if test.get("factors", {}).get("all") is not None:
                             assert (
                                 re.search(r"Adjusted granular dampening factor for .+ 12:00:00, 0\.597 \(was 0\.550", caplog.text)
                                 is not None
-                            ), "Expected adjusted dampening factor log entry"
+                            ), (
+                                f"Expected adjusted dampening factor log entry. "
+                                f"peak_intervals[24]={solcast.peak_intervals.get(24)}, "
+                                f"DELTA_ADJUSTMENT={solcast.advanced_options.get('granular_dampening_delta_adjustment')}, "
+                                f"get_actuals={solcast.options.get_actuals}"
+                            )
                     else:
                         pytest.fail("Test dampened: State of forecast_tomorrow is None")
                     caplog.clear()
@@ -3662,3 +3673,33 @@ async def test_watch_dampening_legacy_date_break_and_task_pop() -> None:
         await watcher.watch_for_dampening_legacy_location()
 
     assert "watch_dampening_legacy" not in coordinator.tasks
+
+
+@pytest.mark.asyncio
+async def test_handle_advanced_update_cancels_pending_restart() -> None:
+    """Cancel and replace a pending restart when advanced options change twice before restart fires."""
+
+    coordinator = unittest.mock.MagicMock()
+    coordinator.solcast = unittest.mock.MagicMock()
+    coordinator.solcast.advanced_options = {"reload_on_advanced_change": True}
+    coordinator.solcast.advanced_opt.read_advanced_options = unittest.mock.AsyncMock(return_value=True)
+
+    cancel_first = unittest.mock.Mock()
+    cancel_second = unittest.mock.Mock()
+    call_later_returns = iter([cancel_first, cancel_second])
+
+    watcher = FileWatcher(coordinator)
+
+    with unittest.mock.patch(
+        "homeassistant.components.solcast_solar.watch.async_call_later",
+        side_effect=lambda *a, **kw: next(call_later_returns),
+    ):
+        # First change: _pending_restart is None, so no cancel; schedules cancel_first
+        await watcher._handle_advanced_update()
+        assert watcher._pending_restart is cancel_first
+        cancel_first.assert_not_called()
+
+        # Second change before restart fires: cancels cancel_first, schedules cancel_second
+        await watcher._handle_advanced_update()
+        cancel_first.assert_called_once()
+        assert watcher._pending_restart is cancel_second

@@ -6,6 +6,7 @@ from datetime import datetime as dt, timedelta
 import json
 import math
 from pathlib import Path
+import random
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -354,16 +355,24 @@ class SimulatedSolcast:
         self.cached_forecasts: dict[str, Any] = {}
         self.forecast_guidance: dict[str, dict[str, float]] = {}
         self.interval_guidance: dict[str, list[float]] = {}
+        self.actuals_guidance: dict[str, list[float]] = {}
+        self.recorder_backed_days: set[str] = set()
         self.actuals_uncertainty_pct: float = DEFAULT_ACTUALS_UNCERTAINTY_PCT
+        self._guidance_file_loaded: bool = False
 
     def set_actuals_uncertainty(self, uncertainty_pct: float) -> None:
         """Set the estimated actuals jitter percentage."""
         self.actuals_uncertainty_pct = max(0.0, float(uncertainty_pct))
 
-    def set_forecast_guidance(self, guidance: dict[str, dict[str, float]]) -> None:
+    def set_forecast_guidance(self, guidance: dict[str, dict[str, float]], recorder_backed_days: set[str] | None = None) -> None:
         """Set in-memory forecast guidance keyed by local date (YYYY-MM-DD)."""
         self.forecast_guidance = guidance
+        self.recorder_backed_days = recorder_backed_days if recorder_backed_days is not None else set()
         self.cached_forecasts.clear()
+
+    def set_actuals_guidance(self, actuals: dict[str, list[float]]) -> None:
+        """Set in-memory estimated actuals guidance keyed by local date (YYYY-MM-DD)."""
+        self.actuals_guidance = actuals
 
     def load_forecast_guidance_file(self, file_path: str) -> None:
         """Load forecast guidance from JSON and clear cached forecast responses."""
@@ -391,6 +400,8 @@ class SimulatedSolcast:
         if isinstance(days, dict):
             normalised: dict[str, dict[str, float]] = {}
             intervals: dict[str, list[float]] = {}
+            actuals: dict[str, list[float]] = {}
+            recorder_backed: set[str] = set()
             for day, values in days.items():
                 if not isinstance(day, str) or not isinstance(values, dict):
                     continue
@@ -398,13 +409,23 @@ class SimulatedSolcast:
                 raw_ivs = values.get("intervals")
                 if isinstance(raw_ivs, list) and len(raw_ivs) == INTERVALS_PER_DAY:
                     intervals[day] = [float(v) for v in raw_ivs]
+                raw_ea = values.get("estimated_actuals")
+                if isinstance(raw_ea, list) and len(raw_ea) == INTERVALS_PER_DAY:
+                    actuals[day] = [float(v) for v in raw_ea]
+                    # Only admit day to recorder_backed if actuals are present;
+                    # otherwise the fallback path would serve shaded synthetic values.
+                    if values.get("recorder_backed") is True:
+                        recorder_backed.add(day)
             self.interval_guidance = intervals
-            self.set_forecast_guidance(normalised)
+            self.set_actuals_guidance(actuals)
+            self.set_forecast_guidance(normalised, recorder_backed)
+            self._guidance_file_loaded = True
             return
 
         self.interval_guidance = {}
         self.set_actuals_uncertainty(DEFAULT_ACTUALS_UNCERTAINTY_PCT)
         self.set_forecast_guidance({})
+        self._guidance_file_loaded = True
 
     @staticmethod
     def _clamp(value: float, lower: float, upper: float) -> float:
@@ -742,38 +763,49 @@ class SimulatedSolcast:
         period_end = self.get_period(dt.now(datetime.UTC), timedelta(hours=hours) * -1) if period_end is None else period_end
 
         output_key = key or prefix
-        return {
-            "estimated_actuals": [
+        results: list[dict[str, Any]] = []
+        for minute in range((hours + 1) * HALF_HOURS_PER_HOUR):
+            interval_dt = period_end + timedelta(minutes=minute * INTERVAL_MINUTES)
+            local_day = interval_dt.astimezone(self.timezone).date().isoformat()
+            if self._guidance_file_loaded and local_day not in self.recorder_backed_days:
+                continue
+            results.append(
                 {
-                    "period_end": (period_end + timedelta(minutes=minute * INTERVAL_MINUTES)).isoformat(),
+                    "period_end": interval_dt.isoformat(),
                     "period": INTERVAL_ISO_PERIOD,
                     output_key: self._estimated_actual_value(site["capacity"], period_end, minute),
                 }
-                for minute in range((hours + 1) * HALF_HOURS_PER_HOUR)
-            ],
-        }
+            )
+        return {"estimated_actuals": results}
 
     def _actuals_jitter(self, local_day: str, slot: int) -> float:
-        """Return deterministic gaussian jitter for estimated actuals.
+        """Return deterministic, unbiased jitter for estimated actuals.
 
-        Keyed on day+slot so the same interval always returns the same noise,
-        simulating satellite-derived estimation error that is consistent within
-        a polling cycle but varies across intervals. The 1σ scale is
-        ``actuals_uncertainty_pct / 100`` and is loaded from guidance.
+        Keyed on day+slot so the same interval always returns the same noise.
         """
         if self.actuals_uncertainty_pct <= 0.0:
             return 0.0
-        seed = (sum(ord(c) for c in local_day) * 31 + slot * 7919) & 0xFFFFFF
-        # Box-Muller using two cheap pseudo-random values derived from the seed.
-        u1 = ((seed * 1664525 + 1013904223) & 0xFFFFFF) / 0xFFFFFF
-        u2 = ((seed * 22695477 + 1) & 0xFFFFFF) / 0xFFFFFF
-        u1 = max(1e-9, u1)
+        seed = (sum(ord(c) for c in local_day) * 31 + slot * 7919) & 0xFFFFFFFF
+        rng = random.Random(seed)
+        u1 = max(1e-9, rng.random())
+        u2 = rng.random()
         z = math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
         return z * (self.actuals_uncertainty_pct / 100.0)
 
     def _estimated_actual_value(self, site_capacity: float, period_end: dt, minute: int) -> float:
         """Return estimated actual value for a site interval."""
         local_day, slot, midpoint_hour = self._interval_slot(period_end, minute)
+
+        # Use recorder-backed actuals guidance if available for this day.
+        ea_ivs = self.actuals_guidance.get(local_day)
+        if ea_ivs is not None and 0 <= slot < len(ea_ivs):
+            value = round(site_capacity * ea_ivs[slot], 4)
+            if not self.modified_actuals:
+                return value
+            multiplier = MODIFIED_LATE_DAY_MULTIPLIER if midpoint_hour >= MODIFIED_OUTPUT_START_HOUR else 1.0
+            return round(value * multiplier, 4)
+
+        # Fall back to synthetic truth for non-recorder-backed days.
         truth = self._interval_truth_value(site_capacity, local_day, slot)
         apply_jitter = truth is not None or local_day in self.forecast_guidance
         if truth is not None:

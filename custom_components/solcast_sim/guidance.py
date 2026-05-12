@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import bisect
 from datetime import UTC, date, datetime, time, timedelta
 from enum import IntEnum
 from functools import partial
@@ -106,7 +105,7 @@ FORECAST_CONFIDENCE_MAX = 0.90
 GUIDANCE_INTERVALS_PER_DAY = 48
 GUIDANCE_INTERVAL_SECONDS = 1800
 GUIDANCE_INTERVAL_MIDPOINT_SECONDS = 900
-CLOUD_FACTOR_BUCKET_SECONDS = 300
+CLOUD_FACTOR_BUCKET_SECONDS = 60
 GUIDANCE_SUBSAMPLES_PER_INTERVAL = 6
 CLEAR_SKY_SHAPE_EXPONENT = 1.7
 
@@ -122,7 +121,6 @@ ESTIMATE_SCALE_MAX = 1.1
 BAD_WEATHER_P10_BIAS_WEIGHT = 0.85
 BAD_WEATHER_ESTIMATE_TRIM_WEIGHT = 0.14
 PV_TODAY_ENERGY_UNIQUE_ID = "solcast_sim_today_generation_energy"
-SHADE_ATTENUATION_UNIQUE_ID = "solcast_sim_shade_attenuation_factor"
 
 
 def _period_cloudiness(cloud_factors: list[float], default_cloudiness: float, start_hour: float, end_hour: float) -> float:
@@ -271,117 +269,39 @@ def _interval_generation_fraction(
 
 
 def _compute_actuals_jitter(day_str: str, slot: int, uncertainty_pct: float) -> float:
-    """Return deterministic jitter for estimated actuals."""
+    """Return deterministic, unbiased jitter for estimated actuals."""
     if uncertainty_pct <= 0.0:
         return 0.0
-    seed = (sum(ord(c) for c in day_str) * 31 + slot * 7919) & 0xFFFFFF
-    # Box-Muller using two cheap pseudo-random values derived from the seed.
-    u1 = ((seed * 1664525 + 1013904223) & 0xFFFFFF) / 0xFFFFFF
-    u2 = ((seed * 22695477 + 1) & 0xFFFFFF) / 0xFFFFFF
-    u1 = max(1e-9, u1)
+    seed = (sum(ord(c) for c in day_str) * 31 + slot * 7919) & 0xFFFFFFFF
+    rng = random.Random(seed)
+    u1 = max(1e-9, rng.random())
+    u2 = rng.random()
     z = math.sqrt(-2.0 * math.log(u1)) * math.cos(2.0 * math.pi * u2)
     return z * (uncertainty_pct / 100.0)
 
 
 def _apply_estimated_actuals_jitter(value: float, day_str: str, slot: int, uncertainty_pct: float) -> float:
-    """Apply jitter to a generation value."""
+    """Apply jitter to a generation fraction."""
     if value <= 0.0:
         return 0.0
     jitter = _compute_actuals_jitter(day_str, slot, uncertainty_pct)
     return clip(value * (1.0 + jitter), 0.0, BASE_FORECAST_SCALE)
 
 
-def _compute_estimated_actuals(intervals: list[float], day_str: str, uncertainty_pct: float) -> list[float]:
-    """Compute pre-jittered estimated actuals from interval generation."""
-    estimated_actuals: list[float] = []
-    for slot, interval_value in enumerate(intervals):
-        jittered = _apply_estimated_actuals_jitter(interval_value, day_str, slot, uncertainty_pct)
-        estimated_actuals.append(round(jittered, 5))
-    return estimated_actuals
-
-
-def _merge_estimated_actuals(
+def _estimated_actuals_from_recorder(
     day_str: str,
     uncertainty_pct: float,
-    synthetic: list[float],
-    recorder_values: list[float | None] | None,
+    recorder_values: list[float | None],
 ) -> list[float]:
-    """Overlay recorder baseline values."""
-    if recorder_values is None or len(recorder_values) != GUIDANCE_INTERVALS_PER_DAY:
-        return synthetic
-
-    merged: list[float] = []
-    for slot, synthetic_value in enumerate(synthetic):
-        recorder_value = recorder_values[slot]
-        if recorder_value is None:
-            merged.append(synthetic_value)
+    """Build estimated actuals from recorder values with jitter."""
+    result: list[float] = []
+    for slot, recorder_value in enumerate(recorder_values):
+        if recorder_value is None or recorder_value <= 0.0:
+            result.append(0.0)
             continue
         jittered = _apply_estimated_actuals_jitter(recorder_value, day_str, slot, uncertainty_pct)
-        merged.append(round(jittered, 5))
-    return merged
-
-
-async def _async_recorder_shade_timeline(
-    hass: HomeAssistant,
-    start_utc: datetime,
-    end_utc: datetime,
-) -> tuple[list[float], list[float]]:
-    """Fetch recorded shade attenuation history."""
-    registry = er.async_get(hass)
-    shade_entity_id = registry.async_get_entity_id("sensor", "solcast_sim", SHADE_ATTENUATION_UNIQUE_ID)
-    if shade_entity_id is None:
-        return [], []
-
-    shade_rows_map = await get_instance(hass).async_add_executor_job(
-        partial(
-            history.state_changes_during_period,
-            hass,
-            start_utc,
-            end_utc,
-            shade_entity_id,
-            True,
-            False,
-            None,
-            True,
-        )
-    )
-    shade_rows = shade_rows_map.get(shade_entity_id)
-    if not shade_rows:
-        return [], []
-
-    timestamps: list[float] = []
-    values: list[float] = []
-    for row in shade_rows:
-        try:
-            row_value = float(row.state)
-        except (ValueError, TypeError):
-            continue
-        row_time = row.last_updated
-        if row_time is None:
-            continue
-        timestamps.append(row_time.timestamp())
-        values.append(row_value)
-
-    return timestamps, values
-
-
-def _nearest_shade_factor(
-    ts: float,
-    shade_timestamps: list[float],
-    shade_values: list[float],
-) -> float | None:
-    """Return the shade attenuation value closest in time to ts, or None if unavailable."""
-    if not shade_timestamps:
-        return None
-    idx = bisect.bisect_left(shade_timestamps, ts)
-    if idx == 0:
-        return shade_values[0]
-    if idx >= len(shade_timestamps):
-        return shade_values[-1]
-    # Pick whichever neighbour is closer.
-    before = shade_timestamps[idx - 1]
-    after = shade_timestamps[idx]
-    return shade_values[idx - 1] if (ts - before) <= (after - ts) else shade_values[idx]
+        result.append(round(jittered, 5))
+    return result
 
 
 async def _async_recorder_historic_estimated_actuals(
@@ -405,21 +325,18 @@ async def _async_recorder_historic_estimated_actuals(
     start_utc = start_local.astimezone(UTC)
     end_utc = end_local.astimezone(UTC)
 
-    history_rows_map, (shade_timestamps, shade_values) = await asyncio.gather(
-        get_instance(hass).async_add_executor_job(
-            partial(
-                history.state_changes_during_period,
-                hass,
-                start_utc,
-                end_utc,
-                entity_id,
-                True,
-                False,
-                None,
-                True,
-            )
-        ),
-        _async_recorder_shade_timeline(hass, start_utc, end_utc),
+    history_rows_map = await get_instance(hass).async_add_executor_job(
+        partial(
+            history.state_changes_during_period,
+            hass,
+            start_utc,
+            end_utc,
+            entity_id,
+            True,
+            False,
+            None,
+            True,
+        )
     )
 
     rows = history_rows_map.get(entity_id)
@@ -455,15 +372,15 @@ async def _async_recorder_historic_estimated_actuals(
             previous_ts = row_ts
             continue
 
-        # Un-shade the delta.
-        delta_mid_ts = (previous_ts + row_ts) / 2.0 if previous_ts is not None else row_ts
-        shade_factor = _nearest_shade_factor(delta_mid_ts, shade_timestamps, shade_values)
-        if shade_factor is None and profile is not None:
-            # Fall back to recomputing from the current profile at the midpoint.
+        # Un-shade: Reverse the local shade attenuation.
+        if profile is not None:
+            delta_mid_ts = (previous_ts + row_ts) / 2.0 if previous_ts is not None else row_ts
             mid_local = datetime.fromtimestamp(delta_mid_ts, tz=tz)
             shade_factor = shade_attenuation_factor(mid_local, profile)
-        if shade_factor is not None and 0.0 < shade_factor < 1.0:
-            delta_kwh = delta_kwh / shade_factor
+            # Clamp to a minimum to prevent division issues at very low sun angles.
+            shade_factor = max(shade_factor, 0.05)
+            if shade_factor < 1.0:
+                delta_kwh = delta_kwh / shade_factor
         previous_ts = row_ts
 
         local_time = row_time.astimezone(tz)
@@ -610,12 +527,11 @@ def build_guidance_payload(
             round(_interval_generation_fraction(profile, day, slot, season_gain), 5) for slot in range(GUIDANCE_INTERVALS_PER_DAY)
         ]
 
-        synthetic_estimated_actuals = _compute_estimated_actuals(intervals, day.isoformat(), profile.estimated_actuals_uncertainty_pct)
-        estimated_actuals = _merge_estimated_actuals(
-            day.isoformat(),
-            profile.estimated_actuals_uncertainty_pct,
-            synthetic_estimated_actuals,
-            recorder_historic_actuals.get(day.isoformat()) if recorder_historic_actuals else None,
+        recorder_day_values = recorder_historic_actuals.get(day.isoformat()) if recorder_historic_actuals else None
+        estimated_actuals = (
+            _estimated_actuals_from_recorder(day.isoformat(), profile.estimated_actuals_uncertainty_pct, recorder_day_values)
+            if recorder_day_values is not None
+            else []
         )
 
         payload_days[day.isoformat()] = {
@@ -661,6 +577,7 @@ def build_guidance_payload(
             "effective_season": season,
             "intervals": intervals,
             "estimated_actuals": estimated_actuals,
+            "recorder_backed": recorder_day_values is not None,
         }
 
     return {

@@ -128,13 +128,7 @@ class ForecastQuery:
             data = self.api.data_estimated_actuals if undampened else self.api.data_estimated_actuals_dampened
         else:
             source_undampened = self.api.data_actuals[SITE_INFO][site][FORECASTS]
-            data = (
-                source_undampened
-                if undampened
-                else self.api.data_actuals_dampened.get(SITE_INFO, {})
-                .get(site, {})
-                .get(FORECASTS, [])
-            )
+            data = source_undampened if undampened else self.api.data_actuals_dampened.get(SITE_INFO, {}).get(site, {}).get(FORECASTS, [])
 
         start_index, end_index = self.get_list_slice(data, start, end, search_past=True)
         if start_index == 0 and end_index == 0:
@@ -713,7 +707,8 @@ class ForecastQuery:
         offset = (
             (len(self._spline_period) * 6 - len(variant)) + 3 if variant is not None else 0
         )  # To cater for less intervals than the spline period
-        return variant[int(n_min / 300) - offset] if variant and len(variant) > 0 else None
+        idx = int(n_min / 300) - offset
+        return variant[idx] if variant and 0 <= idx < len(variant) else None
 
     def _get_remaining(self, site: str | None, forecast_confidence: str | None, n_min: float) -> float | None:
         """Get a remaining value at a given five-minute point from a reducing spline.
@@ -732,7 +727,8 @@ class ForecastQuery:
         offset = (
             (len(self._spline_period) * 6 - len(variant)) + 3 if variant is not None else 0
         )  # To cater for less intervals than the spline period
-        return variant[int(n_min / 300) - offset] if variant and len(variant) > 0 else None
+        idx = int(n_min / 300) - offset
+        return variant[idx] if variant and 0 <= idx < len(variant) else None
 
     def _get_forecast_pv_remaining(
         self,

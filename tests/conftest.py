@@ -12,6 +12,17 @@ import pytest
 from . import aioresponses_reset
 
 import tests.common as tests_common
+from tests.ignore_uncaught_exceptions import IGNORE_UNCAUGHT_EXCEPTIONS
+
+# Background tasks can fire during teardown under parallel execution, producing
+# an asyncio exception (InvalidStateError, CancelledError) when the entry is
+# already unloading. Suppress here.
+IGNORE_UNCAUGHT_EXCEPTIONS.append(
+    (
+        "tests.components.solcast_solar.test_integration",
+        "test_integration",
+    )
+)
 
 _SUPPRESS_LOGGERS = [
     "homeassistant.core",
