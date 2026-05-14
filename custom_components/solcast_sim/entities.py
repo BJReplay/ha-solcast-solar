@@ -205,6 +205,9 @@ class ModelSensorMixin(SensorEntity):
         self._attr_device_class = desc.device_class
         self._attr_state_class = desc.state_class
         self._attr_native_unit_of_measurement = desc.unit
+        if desc.state_class is SensorStateClass.TOTAL:
+            today = datetime.now(tz).date()
+            self._attr_last_reset = datetime.combine(today, datetime.min.time(), tz)
         if desc.restore_fn is not None or desc.restore_display:
             self._attr_native_value = None
         else:
@@ -212,7 +215,10 @@ class ModelSensorMixin(SensorEntity):
 
     @callback
     def _handle_interval(self, _now: datetime) -> None:
+        prev_day = self._model.last_day
         self._model.advance(seconds_since_midnight(self._tz))
+        if self._desc.state_class is SensorStateClass.TOTAL and self._model.last_day != prev_day and self._model.last_day is not None:
+            self._attr_last_reset = datetime.combine(self._model.last_day, datetime.min.time(), self._tz)
         self._attr_native_value = self._desc.value_fn(self._model)
         self.async_write_ha_state()
 
