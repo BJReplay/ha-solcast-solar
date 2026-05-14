@@ -1449,6 +1449,7 @@ Latest minor/patch releases.
 
 v4.5.3
 
+* Fix enable estimated actuals skips a day (caution: enabling may exhaust API calls available for a day) by @autoSteve
 * Add sun elevation adjustment for automated dampening by @autoSteve
 * Expanded diagnostic self-test service action by @autoSteve
 * Add undampened total forecast attributes when dampening is enabled by @autoSteve
