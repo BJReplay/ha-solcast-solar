@@ -6,6 +6,7 @@ from collections.abc import Callable
 import contextlib
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from random import uniform
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -34,6 +35,13 @@ from .sim_core import (
 
 UPDATE_INTERVAL = timedelta(seconds=5)
 DISPLAY_NAME_PREFIX = "Solcast Sim "
+
+_JITTER_W = 0.05  # ±0.05 W — invisible on any chart scale, forces recorder writes
+
+
+def _jitter(value: float) -> float:
+    """Return value with imperceptible noise so the recorder sees a state change."""
+    return round(value + uniform(-_JITTER_W, _JITTER_W), 1)
 
 
 def _prefixed_display_name(name: str) -> str:
@@ -66,7 +74,7 @@ _SENSORS: list[ModelSensorDesc] = [
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfPower.WATT,
-        value_fn=lambda m: round(m.export_power_kw * 1000, 1),
+        value_fn=lambda m: _jitter(round(m.export_power_kw * 1000, 1)),
     ),
     ModelSensorDesc(
         unique_id="solcast_sim_export_energy",
@@ -84,7 +92,7 @@ _SENSORS: list[ModelSensorDesc] = [
         device_class=SensorDeviceClass.BATTERY,
         state_class=SensorStateClass.MEASUREMENT,
         unit=PERCENTAGE,
-        value_fn=lambda m: round(m.battery_soc, 2),
+        value_fn=lambda m: _jitter(round(m.battery_soc, 2)),
     ),
     ModelSensorDesc(
         unique_id="solcast_sim_battery_energy",
@@ -101,7 +109,7 @@ _SENSORS: list[ModelSensorDesc] = [
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfPower.WATT,
-        value_fn=lambda m: round(m.battery_power_kw * 1000, 1),
+        value_fn=lambda m: _jitter(round(m.battery_power_kw * 1000, 1)),
     ),
     ModelSensorDesc(
         unique_id="solcast_sim_battery_charge_energy",
@@ -127,7 +135,7 @@ _SENSORS: list[ModelSensorDesc] = [
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfPower.WATT,
-        value_fn=lambda m: round(m.grid_import_power_kw * 1000, 1),
+        value_fn=lambda m: _jitter(round(m.grid_import_power_kw * 1000, 1)),
     ),
     ModelSensorDesc(
         unique_id="solcast_sim_grid_consumption_energy",
@@ -164,7 +172,7 @@ _SENSORS: list[ModelSensorDesc] = [
         device_class=SensorDeviceClass.POWER,
         state_class=SensorStateClass.MEASUREMENT,
         unit=UnitOfPower.WATT,
-        value_fn=lambda m: round(m.free_grid_charge_power_kw * 1000, 1),
+        value_fn=lambda m: _jitter(round(m.free_grid_charge_power_kw * 1000, 1)),
     ),
     ModelSensorDesc(
         unique_id="solcast_sim_free_charge_energy",
@@ -321,7 +329,7 @@ class SolcastSimPowerSensor(SensorEntity):
     def _refresh(self) -> None:
         t = seconds_since_midnight(self._tz)
         power_kw = simulated_power_kw(t, self._site["capacity"], self._tz, self._profile)
-        self._attr_native_value = round(power_kw * 1000, 1)
+        self._attr_native_value = _jitter(round(power_kw * 1000, 1))
 
 
 class SolcastSimTotalPowerSensor(SensorEntity):
@@ -357,7 +365,7 @@ class SolcastSimTotalPowerSensor(SensorEntity):
         now_local = datetime.now(self._tz)
         self._shade_attenuation_factor = shade_attenuation_factor(now_local, self._profile)
         total_power_kw = sum(simulated_power_kw(t, site["capacity"], self._tz, self._profile) for site in self._sites)
-        self._attr_native_value = round(total_power_kw * 1000, 1)
+        self._attr_native_value = _jitter(round(total_power_kw * 1000, 1))
 
     @property
     def extra_state_attributes(self) -> dict[str, float]:
