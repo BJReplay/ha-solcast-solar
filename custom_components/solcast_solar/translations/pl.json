@@ -319,6 +319,10 @@
       "description": "Automatyczna aktualizacja i szacowane wartości rzeczywiste są włączone, podczas gdy limit API jest skonfigurowany na maksymalną wartość dla hobbystów (`{configured_value}`). Szacowane wartości rzeczywiste są zbierane tuż po północy i wykorzystują jedno wywołanie API na każdą instalację dachową dla każdego skonfigurowanego klucza API. Zmniejsz limit API do `{suggested_value}`, aby zarezerwować wywołania dla szacowanych wartości rzeczywistych.",
       "title": "Dostosuj limit API dla szacowanych wartości rzeczywistych"
     },
+    "actuals_quota_today": {
+      "title": "Pobieranie szacowanych wartości rzeczywistych może przekroczyć dzisiejszy limit API",
+      "description": "Pobieranie szacowanych wartości rzeczywistych zostało włączone. Na podstawie bieżącego użycia API ({api_used} z {api_limit} wywołań użytych dziś) i dziennego limitu {api_limit} wywołań, może nie wystarczyć pozostałego limitu, aby ukończyć {actuals_cost} wywołanie/wywołania potrzebne do pobrania szacowanych wartości rzeczywistych. Pobieranie zostanie mimo to podjęte tuż po północy, ale ono (lub kolejna aktualizacja prognozy) może zakończyć się niepowodzeniem z odpowiedzią `429 Too Many Requests`.\n\nJest to oczekiwane, gdy ustawienie zostanie po raz pierwszy włączone w trakcie dnia — limit API jest resetowany o północy UTC, więc to ostrzeżenie zniknie automatycznie w tym momencie."
+    },
     "corrupt_file": {
       "description": "Plik(i) danych w pamięci podręcznej `{files}` jest(są) uszkodzony(e). Integracja spróbuje się odzyskać, usuwając plik(i) i ponownie pobierając dane z Solcast. Spodziewaj się zwiększonego wykorzystania API i potencjalnych awarii API oraz utraty historii prognoz z powodu tej sytuacji. Możliwe jest odzyskanie plików z kopii zapasowej, ale nadal spodziewaj się awarii wywołań API.",
       "title": "Uszkodzone dane w pamięci podręcznej"

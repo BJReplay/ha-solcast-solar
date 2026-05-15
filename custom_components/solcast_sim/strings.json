@@ -46,6 +46,9 @@
           "free_charge_end": "Local end time for free charging from the grid. Set start and end to the same time to disable the feature."
         }
       }
+    },
+    "abort": {
+      "already_configured": "This SimCity simulator is already configured."
     }
   },
   "options": {

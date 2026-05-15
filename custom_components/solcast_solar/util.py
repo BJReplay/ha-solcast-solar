@@ -22,8 +22,10 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
+    ACTUALS_COST,
     ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     API_LIMIT,
+    API_USED,
     AUTO_UPDATE,
     AUTO_UPDATED,
     CONFIG_DISCRETE_NAME,
@@ -40,6 +42,7 @@ from .const import (
     GET_ACTUALS,
     INTEGRATION_VERSION,
     ISSUE_ACTUALS_API_LIMIT,
+    ISSUE_ACTUALS_QUOTA_TODAY,
     ISSUE_ADVANCED_DEPRECATED,
     ISSUE_ADVANCED_PROBLEM,
     ISSUE_UNUSUAL_AZIMUTH_NORTHERN,
@@ -309,6 +312,73 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
             SUGGESTED_VALUE: suggested_value,
         },
     )
+
+
+def clear_actuals_quota_risk_issue(hass: HomeAssistant) -> None:
+    """Remove the actuals quota risk issue unconditionally, e.g. when a quota-exceeded 429 is confirmed."""
+
+    issue_registry = ir.async_get(hass)
+    if issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None:
+        _LOGGER.debug("Remove issue for %s (quota exhaustion confirmed)", ISSUE_ACTUALS_QUOTA_TODAY)
+        ir.async_delete_issue(hass, DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY)
+
+
+def sync_actuals_quota_risk_issue(
+    hass: HomeAssistant,
+    sites: list[dict[str, Any]],
+    api_used: dict[str, int],
+    api_limit: int,
+    remaining_intervals_today: int,
+    get_actuals: bool,
+) -> None:
+    """Raise or remove warning issue when API quota today may be exhausted before the estimated actuals fetch."""
+
+    issue_registry = ir.async_get(hass)
+
+    def _remove_issue() -> None:
+        if issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None:
+            _LOGGER.debug("Remove issue for %s", ISSUE_ACTUALS_QUOTA_TODAY)
+            ir.async_delete_issue(hass, DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY)
+
+    if not get_actuals or api_limit == 0:
+        _remove_issue()
+        return
+
+    # Count sites per API key — actuals fetch uses one call per site per key
+    sites_per_key: dict[str, int] = {}
+    for site in sites:
+        if (key := site.get(CONF_API_KEY)) is not None:
+            sites_per_key[key] = sites_per_key.get(key, 0) + 1
+
+    at_risk = any(api_used.get(key, 0) + remaining_intervals_today + count > api_limit for key, count in sites_per_key.items())
+    if at_risk:
+        actuals_cost = sum(sites_per_key.values())
+        used = max((api_used.get(key, 0) for key in sites_per_key), default=0)
+        _LOGGER.debug(
+            "Raise issue `%s`: %d used + %d remaining + %d actuals > %d limit",
+            ISSUE_ACTUALS_QUOTA_TODAY,
+            used,
+            remaining_intervals_today,
+            actuals_cost,
+            api_limit,
+        )
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            ISSUE_ACTUALS_QUOTA_TODAY,
+            is_fixable=False,
+            is_persistent=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=ISSUE_ACTUALS_QUOTA_TODAY,
+            translation_placeholders={
+                API_USED: str(used),
+                API_LIMIT: str(api_limit),
+                ACTUALS_COST: str(actuals_cost),
+            },
+        )
+        return
+
+    _remove_issue()
 
 
 def sync_legacy_keys(data: dict[str, Any]) -> None:

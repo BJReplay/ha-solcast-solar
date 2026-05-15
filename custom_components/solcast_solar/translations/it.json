@@ -319,6 +319,10 @@
       "description": "L'aggiornamento automatico e i valori effettivi stimati sono abilitati mentre il limite API è configurato al valore massimo per hobbisti (`{configured_value}`). I valori effettivi stimati vengono raccolti subito dopo la mezzanotte e utilizzano una chiamata API per ogni impianto sul tetto per ciascuna chiave API configurata. Riduci il limite API a `{suggested_value}` per riservare le chiamate ai valori effettivi stimati.",
       "title": "Regola il limite API per i valori effettivi stimati"
     },
+    "actuals_quota_today": {
+      "title": "Il recupero dei valori effettivi stimati potrebbe superare la quota API odierna",
+      "description": "Il recupero dei valori effettivi stimati è stato abilitato. In base all'utilizzo attuale dell'API ({api_used} di {api_limit} chiamate utilizzate oggi) e al limite giornaliero di {api_limit} chiamate, potrebbe non esserci abbastanza quota rimanente per completare le {actuals_cost} chiamata/e necessarie per il recupero dei valori effettivi stimati. Il recupero verrà comunque tentato subito dopo mezzanotte, ma potrebbe fallire (o un successivo aggiornamento delle previsioni) con una risposta `429 Too Many Requests`.\n\nCiò è previsto quando l'impostazione viene abilitata per la prima volta nel corso della giornata — la quota API si azzera a mezzanotte UTC, quindi questo avviso si cancellerà automaticamente in quel momento."
+    },
     "corrupt_file": {
       "description": "Il/i file di dati memorizzati nella cache `{files}` è/sono danneggiato/i. L'integrazione tenterà di recuperare eliminando il/i file e recuperando nuovamente i dati da Solcast. Prevedere un aumento dell'utilizzo dell'API e potenziali errori dell'API e la perdita della cronologia delle previsioni a causa di questa situazione. È possibile recuperare i file dal backup, ma prevedere comunque errori nelle chiamate API.",
       "title": "Dati memorizzati nella cache danneggiati"

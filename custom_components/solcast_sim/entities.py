@@ -41,7 +41,7 @@ _JITTER_W = 0.05  # ±0.05 W — invisible on any chart scale, forces recorder w
 
 def _jitter(value: float) -> float:
     """Return value with imperceptible noise so the recorder sees a state change."""
-    return round(value + uniform(-_JITTER_W, _JITTER_W), 1)
+    return round(value + uniform(-_JITTER_W, _JITTER_W), 2)
 
 
 def _prefixed_display_name(name: str) -> str:

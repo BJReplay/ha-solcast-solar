@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from datetime import datetime as dt, timedelta
+from datetime import UTC, datetime as dt, timedelta
 import logging
 import math
 from random import randint
@@ -38,7 +38,7 @@ from .const import (
     TASK_NEW_DAY_ACTUALS,
     TASK_NEW_DAY_GENERATION,
 )
-from .util import AutoUpdate, ordinal
+from .util import AutoUpdate, ordinal, sync_actuals_quota_risk_issue
 
 if TYPE_CHECKING:
     from .coordinator import SolcastUpdateCoordinator
@@ -338,11 +338,25 @@ class Updater:
         return scheduled
 
     async def check_estimated_actuals_fetch(self) -> bool:
-        """Check if estimated actuals fetch was missed and schedule it."""
+        """Schedule estimated actuals fetch if needed."""
+
+        get_actuals = self._coordinator.solcast.options.get_actuals
+
+        tomorrow_midnight_utc = dt.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        remaining_today = sum(1 for i in self._intervals if i < tomorrow_midnight_utc)
+        sync_actuals_quota_risk_issue(
+            self._coordinator.hass,
+            self._coordinator.solcast.sites,
+            self._coordinator.solcast.api_used,
+            self._coordinator.solcast.api_limit,
+            remaining_today,
+            get_actuals,
+        )
 
         scheduled = False
-        if self._coordinator.solcast.options.get_actuals:
-            if not self._coordinator.solcast.estimated_actuals_updated_today:
+        if get_actuals:
+            actuals_updated_today = self._coordinator.solcast.estimated_actuals_updated_today
+            if not actuals_updated_today:
                 if TASK_NEW_DAY_ACTUALS in self._coordinator.tasks:
                     return True
 

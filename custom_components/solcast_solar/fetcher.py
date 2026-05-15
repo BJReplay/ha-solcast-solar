@@ -74,6 +74,7 @@ from .util import (
     UpdateOutcome,
     UpdateResult,
     async_trigger_automation_by_name,
+    clear_actuals_quota_risk_issue,
     forecast_entry_update,
     get_solcast_base_url,
     http_status_translate,
@@ -179,6 +180,9 @@ class Fetcher:
                 _LOGGER.debug("API did not return a json object, returned `%s`", act_response)
                 status = DataCallStatus.FAIL
                 reason = "No valid json returned"
+                # If failure was quota exhaustion (429 TooManyRequests), the warning was correct: clear it.
+                if self.api.api_used.get(api_key, 0) >= self.api.api_limits.get(api_key, 1):
+                    clear_actuals_quota_risk_issue(self.api.hass)
                 break
 
             estimate_actuals: list[dict[str, Any]] = act_response.get(ESTIMATED_ACTUALS, [])
@@ -481,6 +485,9 @@ class Fetcher:
             if not isinstance(response, dict):
                 failure = True
                 _LOGGER.debug("API did not return a json object. Returned %s", response)
+                # If failure was quota exhaustion (429 TooManyRequests), the warning was correct: clear it.
+                if api_key is not None and self.api.api_used.get(api_key, 0) >= self.api.api_limits.get(api_key, 1):
+                    clear_actuals_quota_risk_issue(self.api.hass)
                 if isinstance(response, str) and response:
                     return DataCallStatus.FAIL, response
                 return DataCallStatus.FAIL, "No valid json returned"

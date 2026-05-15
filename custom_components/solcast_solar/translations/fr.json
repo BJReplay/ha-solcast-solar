@@ -319,6 +319,10 @@
       "description": "La mise à jour automatique et les valeurs réelles estimées sont activées alors que la limite d'API est configurée à la valeur maximale pour les amateurs (`{configured_value}`). Les valeurs réelles estimées sont collectées juste après minuit et utilisent un appel API par installation en toiture pour chaque clé API configurée. Réduisez votre limite d'API à `{suggested_value}` pour réserver des appels pour les valeurs réelles estimées.",
       "title": "Ajuster la limite d'API pour les valeurs réelles estimées"
     },
+    "actuals_quota_today": {
+      "title": "La récupération des valeurs réelles estimées peut dépasser le quota API d'aujourd'hui",
+      "description": "La récupération des valeurs réelles estimées a été activée. Sur la base de l'utilisation actuelle de l'API ({api_used} des {api_limit} appels utilisés aujourd'hui) et de la limite quotidienne de {api_limit} appels, il se peut qu'il ne reste pas assez de quota pour effectuer les {actuals_cost} appel(s) nécessaires à la récupération des valeurs réelles estimées. La récupération sera tout de même tentée juste après minuit, mais elle (ou une mise à jour ultérieure des prévisions) peut échouer avec une réponse `429 Too Many Requests`.\n\nCela est attendu lorsque le paramètre est activé pour la première fois en cours de journée — le quota API se réinitialise à minuit UTC, donc cet avertissement disparaîtra automatiquement à ce moment-là."
+    },
     "corrupt_file": {
       "description": "Le ou les fichiers de données mis en cache `{files}` sont corrompus. L'intégration tentera de les récupérer en supprimant le ou les fichiers et en récupérant à nouveau les données depuis Solcast. Prévoyez une augmentation de l'utilisation de l'API, des défaillances potentielles et une perte de l'historique des prévisions. Il est possible de récupérer les fichiers à partir d'une sauvegarde, mais des échecs d'appels API restent à prévoir.",
       "title": "Données mises en cache corrompues"

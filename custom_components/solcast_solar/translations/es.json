@@ -319,6 +319,10 @@
       "description": "La actualización automática y los valores reales estimados están habilitados, mientras que el límite de API está configurado en el valor máximo para aficionados (`{configured_value}`). Los valores reales estimados se recopilan justo después de la medianoche y utilizan una llamada a la API por instalación en tejado para cada clave de API configurada. Reduzca su límite de API a `{suggested_value}` para reservar llamadas para los valores reales estimados.",
       "title": "Ajustar el límite de API para valores reales estimados"
     },
+    "actuals_quota_today": {
+      "title": "La obtención de valores reales estimados puede superar la cuota de API de hoy",
+      "description": "Se ha activado la obtención de valores reales estimados. Según el uso actual de la API ({api_used} de {api_limit} llamadas utilizadas hoy) y el límite diario de {api_limit} llamadas, puede que no quede suficiente cuota para completar las {actuals_cost} llamada(s) necesarias para la obtención de valores reales estimados. La obtención se intentará igualmente justo después de medianoche, pero puede fallar (o una posterior actualización de pronóstico) con una respuesta `429 Too Many Requests`.\n\nEsto es esperado cuando la configuración se activa por primera vez a mitad del día — la cuota de API se restablece a medianoche UTC, por lo que esta advertencia desaparecerá automáticamente en ese momento."
+    },
     "corrupt_file": {
       "description": "El/los archivo(s) de datos en caché `{files}` está(n) corrupto(s). La integración intentará recuperarse eliminando el/los archivo(s) y volviendo a obtener los datos de Solcast. Espere un mayor uso de la API y posibles fallos de la API, y la pérdida del historial de pronósticos debido a esta situación. Posiblemente recupere los archivos desde una copia de seguridad, pero aún así espere fallos en las llamadas a la API.",
       "title": "Datos en caché corruptos"

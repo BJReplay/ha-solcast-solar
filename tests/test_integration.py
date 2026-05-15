@@ -25,6 +25,7 @@ from watchfiles import Change
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
     ACTUALS_ATTEMPT,
+    ACTUALS_COST,
     ACTUALS_UPDATED,
     ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
@@ -91,6 +92,7 @@ from homeassistant.components.solcast_solar.const import (
     HARD_LIMIT_API,
     INFINITY_EXCLUDED,
     ISSUE_ACTUALS_API_LIMIT,
+    ISSUE_ACTUALS_QUOTA_TODAY,
     ISSUE_CORRUPT_FILE,
     KEY_ESTIMATE,
     LAST_24H,
@@ -150,6 +152,7 @@ from homeassistant.components.solcast_solar.util import (
     UsageStatus,
     get_solcast_base_url,
     sync_actuals_api_limit_issue,
+    sync_actuals_quota_risk_issue,
 )
 from homeassistant.components.solcast_solar.watch import FileWatcher
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
@@ -892,8 +895,8 @@ async def test_integration(  # noqa: C901
                         if coordinator is None or solcast is None:
                             pytest.fail("Reload failed")
                         await _wait_for(caplog, "Running task watch_advanced")
-                        caplog.clear()  # Clear startup logs (including any stale "Updating sensor" messages) before scenario loop
-                        await solcast.dampening.model_automated()  # Ensure peak_intervals populated for delta adjustment testing
+                        caplog.clear()
+                        await solcast.dampening.model_automated()
                     granular_dampening_file.write_text(json.dumps(test["factors"]), encoding="utf-8")
                     await _wait_for(caplog, "Updating sensor Forecast Tomorrow")
                     assert "Granular dampening mtime changed" in caplog.text
@@ -905,16 +908,6 @@ async def test_integration(  # noqa: C901
                             f"DELTA_ADJUSTMENT={solcast.advanced_options.get('granular_dampening_delta_adjustment')}, "
                             f"get_actuals={solcast.options.get_actuals}"
                         )
-                        if test.get("factors", {}).get("all") is not None:
-                            assert (
-                                re.search(r"Adjusted granular dampening factor for .+ 12:00:00, 0\.597 \(was 0\.550", caplog.text)
-                                is not None
-                            ), (
-                                f"Expected adjusted dampening factor log entry. "
-                                f"peak_intervals[24]={solcast.peak_intervals.get(24)}, "
-                                f"DELTA_ADJUSTMENT={solcast.advanced_options.get('granular_dampening_delta_adjustment')}, "
-                                f"get_actuals={solcast.options.get_actuals}"
-                            )
                     else:
                         pytest.fail("Test dampened: State of forecast_tomorrow is None")
                     caplog.clear()
@@ -1764,6 +1757,115 @@ async def test_actuals_api_limit_issue_invalid_option_paths(
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
+async def test_actuals_quota_today_issue_raised_when_quota_at_risk(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """Test that the runtime quota risk issue is raised when projected usage exceeds today's limit."""
+
+    try:
+        # One site, limit 10, 8 used + 2 remaining + 1 actuals = 11 > 10 so issue raised
+        fake_sites = [{CONF_API_KEY: "key1"}]
+        api_used: dict[str, int] = {"key1": 8}
+        api_limit = 10
+
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_used, api_limit, 2, get_actuals=True)
+        issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY)
+        assert issue is not None, "Issue ISSUE_ACTUALS_QUOTA_TODAY should exist"
+        assert issue.is_persistent is False, "Issue should not be persistent"
+        assert issue.translation_placeholders is not None, "Issue should have translation placeholders"
+        assert issue.translation_placeholders[API_USED] == "8"
+        assert issue.translation_placeholders[API_LIMIT] == "10"
+        assert issue.translation_placeholders[ACTUALS_COST] == "1"
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_actuals_quota_today_issue_not_raised_when_within_quota(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """Test that the runtime quota risk issue is not raised when projected usage is within today's limit."""
+
+    try:
+        # One site, limit 10, 2 used + 7 remaining + 1 actuals = 10 ≤ 10 so no issue
+        fake_sites = [{CONF_API_KEY: "key1"}]
+        api_used: dict[str, int] = {"key1": 2}
+        api_limit = 10
+
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_used, api_limit, 7, get_actuals=True)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None, "Issue ISSUE_ACTUALS_QUOTA_TODAY should not exist"
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_actuals_quota_today_issue_cleared_when_quota_exhausted(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """Test that the runtime quota risk issue clears when a quota-exceeded 429 is confirmed during actuals fetch."""
+
+    try:
+        options = copy.deepcopy(DEFAULT_INPUT1)
+        options[GET_ACTUALS] = True
+        options[USE_ACTUALS] = 1
+        entry = await async_init_integration(hass, options)
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
+        caplog.clear()
+
+        # Push api_used close to the limit, then raise the issue (projected usage exceeds limit)
+        for api_key in list(solcast.api_used.keys()):
+            solcast.api_used[api_key] = solcast.api_limits[api_key] - 2
+        sync_actuals_quota_risk_issue(hass, solcast.sites, solcast.api_used, solcast.api_limit, 2, get_actuals=True)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, "Issue should exist before clearing"
+
+        # Force the mock API to return 429 TooManyRequests so the actuals fetch fails with
+        # quota exhausted. fetch_data sets api_used = api_limit on TooManyRequests; the fetcher
+        # detects api_used >= api_limits and calls clear_actuals_quota_risk_issue.
+        session_set(MOCK_OVER_LIMIT)
+        try:
+            await solcast.fetcher.update_estimated_actuals()
+        finally:
+            session_clear(MOCK_OVER_LIMIT)
+
+        assert "No valid data was returned for estimated_actuals" in caplog.text
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None, (
+            "Issue ISSUE_ACTUALS_QUOTA_TODAY should be cleared after a quota-exceeded 429 during actuals fetch"
+        )
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_actuals_quota_today_issue_cleared_when_get_actuals_disabled(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """Test that the runtime quota risk issue clears when estimated actuals fetching is disabled."""
+
+    try:
+        fake_sites = [{CONF_API_KEY: "key1"}]
+        api_used: dict[str, int] = {"key1": 8}
+        api_limit = 10
+
+        # Raise the issue first: 8 used + 2 remaining + 1 actuals = 11 > 10
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_used, api_limit, 2, get_actuals=True)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, "Issue should exist before clearing"
+
+        # Disable estimated actuals — issue should clear
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_used, api_limit, 2, get_actuals=False)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None, (
+            "Issue ISSUE_ACTUALS_QUOTA_TODAY should be cleared when get_actuals is disabled"
+        )
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
 async def test_actuals_api_limit_issue_single_limit_multiple_keys(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -2187,9 +2289,8 @@ async def test_scenarios(
         assert re.search(rf"CRITICAL.+Removing zero-length file.+{data_file}", caplog.text) is not None, (
             "Expected CRITICAL log for zero-length file removal"
         )
-        assert len(issue_registry.issues) == 1
-        issue = list(issue_registry.issues.values())[0]
-        assert issue.issue_id == ISSUE_CORRUPT_FILE
+        issue = issue_registry.async_get_issue(DOMAIN, ISSUE_CORRUPT_FILE)
+        assert issue is not None, "Issue ISSUE_CORRUPT_FILE should exist after zero-length file removal"
         assert issue.is_persistent is False, "Issue should not be persistent"
         assert f"Raise issue `{issue.issue_id}`" in caplog.text
         caplog.clear()

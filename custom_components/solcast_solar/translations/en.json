@@ -310,6 +310,10 @@
       "description": "Auto-update and estimated actuals are enabled while API limit is configured at hobbyist maximum value (`{configured_value}`). Estimated actuals are collected just after midnight and use one API call per rooftop site for each configured API key. Reduce your API limit to `{suggested_value}` to reserve calls for estimated actuals.",
       "title": "Adjust API limit for estimated actuals"
     },
+    "actuals_quota_today": {
+      "description": "Estimated actuals fetching has been enabled. Based on current API usage ({api_used} of {api_limit} calls used today) and the {api_limit} call daily limit, there may not be enough quota left to complete the {actuals_cost} call(s) needed for the estimated actuals fetch. The fetch will still be attempted just after midnight, but it (or a subsequent forecast update) may fail with a `429 Too Many Requests` response.\n\nThis is expected when the setting is first enabled partway through the day \u2014 the API quota resets at midnight UTC, so this warning will clear itself automatically when that happens.",
+      "title": "Estimated actuals fetch may exceed today's API quota"
+    },
     "advanced_deprecated": {
       "description": "Advanced configuration option(s) `{option}` changed to `{new_option}`. Please update your advanced configuration options to use the new option name.{stops_working}",
       "title": "Advanced option deprecated"
