@@ -275,12 +275,12 @@ async def test_adaptive_auto_dampen(  # noqa: C901
         # This exercises:
         #   line 256 – contiguous_days = len(dates) - i  (gap detected in loop)
         #   line 257 – break
-        #   line 259 – if contiguous_days * records_per_day >= expected_records  (True → debug "Gaps tolerated")
+        #   line 259 – if contiguous_days * records_per_day >= expected_records  (True: debug "Gaps tolerated")
         #
         # Setup: remove the 2nd-oldest day from every model/delta combo so the dates stored in the
         # file are [day0, day2, day3] – a gap of two days between day0 and day2.
-        # With model_days=2: expected_records=24, loaded_count=36 (3 days × 12 combos) → 36≠24 triggers
-        # the gap-detection block. Contiguous tail = {day2, day3} → contiguous_days=2; 2×12=24 ≥ 24 → debug.
+        # With model_days=2: expected_records=24, loaded_count=36 (3 days x 12 combos), 36!=24 triggers
+        # the gap-detection block. Contiguous tail = {day2, day3}, contiguous_days=2; 2x12=24 >= 24, so debug.
         full_history = copy.deepcopy(solcast.dampening.auto_factors_history)
         gaped_history = {
             model_key: {delta_key: [e for idx, e in enumerate(entries) if idx != 1] for delta_key, entries in deltas.items()}
@@ -755,9 +755,9 @@ async def test_build_dampened_actuals_gap_tolerance(
     """Test _build_dampened_actuals_for_model tolerates missing actuals days.
 
     Verifies:
-    - Partial match: history entry for one day, actuals for two days → non-None result
+    - Partial match: history entry for one day, actuals for two days: non-None result
       with only the matched day, and a debug skip message.
-    - Zero match: earliest_common after all history entries → None with log message.
+    - Zero match: earliest_common after all history entries: None with log message.
     - _find_earliest_common_history direct tests for non-uniform continuity failure
       and empty intersection, both should return None.
     """
@@ -797,7 +797,7 @@ async def test_build_dampened_actuals_gap_tolerance(
         assert day2 not in result, f"{day2} should not be in result"
         assert "skipping missing actuals" in caplog.text
 
-        # Zero match: earliest_common after all history entries → None.
+        # Zero match: earliest_common after all history entries, so None.
         caplog.clear()
         result = solcast.dampening.adaptive._build_dampened_actuals_for_model(0, 0, day2 + timedelta(days=1), actuals)
         assert result is None, "Result should be None"
@@ -822,7 +822,7 @@ async def test_build_dampened_actuals_gap_tolerance(
 
         # Non-uniform with continuity failure: model 0 has a gap, others are continuous.
         # Intersection with models 1-3 is {day0, day0+1}, earliest=day0.
-        # Continuity check for model 0 trips on day0+1 → day0+3 (skips day0+2) → None.
+        # Continuity check for model 0 trips on day0+1 to day0+3 (skips day0+2), returning None.
         gap_entries = [
             {PERIOD_START: day0, "factors": [1.0] * 48},
             {PERIOD_START: day0 + timedelta(days=1), "factors": [1.0] * 48},
@@ -840,7 +840,7 @@ async def test_build_dampened_actuals_gap_tolerance(
             "Gap history should return None for earliest common history"
         )
 
-        # Empty intersection: models 0-1 and models 2-3 have completely disjoint dates → None.
+        # Empty intersection: models 0-1 and models 2-3 have completely disjoint dates, returning None.
         early_entries = [
             {PERIOD_START: day0, "factors": [1.0] * 48},
             {PERIOD_START: day0 + timedelta(days=1), "factors": [1.0] * 48},
@@ -904,11 +904,11 @@ async def test_determine_best_settings_all_combos_skip(
         caplog.clear()
         await solcast.dampening.adaptive.determine_best_settings()
 
-        # All combos skipped → "Skipping evaluation" logged for each.
+        # All combos skipped: "Skipping evaluation" logged for each.
         assert "Skipping evaluation for model" in caplog.text
-        # Empty daily_ranks → _log_model_rankings short-circuits.
+        # Empty daily_ranks: _log_model_rankings short-circuits.
         assert "No ranking data available" in caplog.text
-        # No winner selected → _apply_best_settings short-circuits.
+        # No winner selected: _apply_best_settings short-circuits.
         assert "Could not determine best automated dampening settings" in caplog.text
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

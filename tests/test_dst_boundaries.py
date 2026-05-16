@@ -172,15 +172,15 @@ def test_hour0_dst_clamp_merges_with_hour1() -> None:
 @pytest.mark.parametrize(
     ("timezone", "date_str", "utc_offset", "is_shifted", "expected_unique"),
     [
-        # Sydney AEDT (DST): 48 half-hours → 46 unique indices
+        # Sydney AEDT (DST): 48 half-hours give 46 unique indices
         ("Australia/Sydney", "2025-11-15", "+11:00", True, 46),
-        # Sydney AEST (no DST): 48 half-hours → 48 unique indices
+        # Sydney AEST (no DST): 48 half-hours give 48 unique indices
         ("Australia/Sydney", "2025-07-15", "+10:00", False, 48),
-        # Brisbane (never DST): 48 → 48 unique
+        # Brisbane (never DST): 48 give 48 unique
         ("Australia/Brisbane", "2025-07-15", "+10:00", False, 48),
-        # Dublin summer (IST, offset=1): 48 → 46 unique
+        # Dublin summer (IST, offset=1): 48 give 46 unique
         ("Europe/Dublin", "2025-07-15", "+01:00", True, 46),
-        # Dublin winter (GMT, offset=0): 48 → 48 unique
+        # Dublin winter (GMT, offset=0): 48 give 48 unique
         ("Europe/Dublin", "2025-12-15", "+00:00", False, 48),
     ],
 )
@@ -290,16 +290,16 @@ def test_adjusted_interval_always_in_range(
 @pytest.mark.parametrize(
     ("timezone", "freeze_date", "expected_transition", "expected_msg"),
     [
-        # Australia/Sydney: standard→summer on first Sunday of October
+        # Australia/Sydney: standard to summer on first Sunday of October
         # 2025-10-05 is the day clocks spring forward (lose an hour)
         ("Australia/Sydney", "2025-10-04T12:00:00+10:00", True, "standard to summer"),
-        # Australia/Sydney: summer→standard on first Sunday of April
+        # Australia/Sydney: summer to standard on first Sunday of April
         # 2025-04-06 is the day clocks fall back (gain an hour)
         ("Australia/Sydney", "2025-04-05T12:00:00+11:00", True, "summer to standard"),
-        # Europe/Dublin: standard→summer on last Sunday of March
+        # Europe/Dublin: standard to summer on last Sunday of March
         # 2025-03-30 is the day clocks spring forward
         ("Europe/Dublin", "2025-03-29T12:00:00+00:00", True, "winter to summer"),
-        # Europe/Dublin: summer→standard on last Sunday of October
+        # Europe/Dublin: summer to standard on last Sunday of October
         # 2025-10-26 is the day clocks fall back
         ("Europe/Dublin", "2025-10-25T12:00:00+01:00", True, "summer to winter"),
         # No transition: mid-summer Sydney
@@ -394,7 +394,7 @@ async def test_apply_forward_on_spring_forward_day(
     """Test apply_forward on a spring-forward (46 interval) day doesn't error."""
 
     try:
-        # Sydney clocks spring forward on 2025-10-05 at 02:00 AEST → 03:00 AEDT
+        # Sydney clocks spring forward on 2025-10-05 at 02:00 AEST, jumping to 03:00 AEDT
         # Initialise a day before and run through
         freezer.move_to("2025-10-04T14:00:00+10:00")
 
@@ -435,7 +435,7 @@ async def test_apply_forward_on_fall_back_day(
     """Test apply_forward on a fall-back (50 interval) day doesn't error."""
 
     try:
-        # Sydney clocks fall back on 2025-04-06 at 03:00 AEDT → 02:00 AEST
+        # Sydney clocks fall back on 2025-04-06 at 03:00 AEDT, falling to 02:00 AEST
         freezer.move_to("2025-04-05T14:00:00+11:00")
 
         options = copy.deepcopy(DEFAULT_INPUT2)

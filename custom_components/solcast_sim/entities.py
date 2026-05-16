@@ -33,7 +33,7 @@ from .sim_core import (
     simulated_power_kw,
 )
 
-UPDATE_INTERVAL = timedelta(seconds=5)
+UPDATE_INTERVAL = timedelta(seconds=30)
 DISPLAY_NAME_PREFIX = "Solcast Sim "
 
 _JITTER_W = 0.05  # ±0.05 W — invisible on any chart scale, forces recorder writes

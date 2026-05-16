@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from datetime import UTC, datetime as dt, timedelta
+from datetime import datetime as dt, timedelta
 import logging
 import math
 from random import randint
@@ -18,6 +18,7 @@ from homeassistant.helpers.event import (
 from homeassistant.helpers.sun import get_astral_event_next
 
 from .const import (
+    ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
     ADVANCED_AUTOMATED_DAMPENING_MODEL_DAYS,
@@ -342,15 +343,15 @@ class Updater:
 
         get_actuals = self._coordinator.solcast.options.get_actuals
 
-        tomorrow_midnight_utc = dt.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
-        remaining_today = sum(1 for i in self._intervals if i < tomorrow_midnight_utc)
         sync_actuals_quota_risk_issue(
             self._coordinator.hass,
             self._coordinator.solcast.sites,
+            self._coordinator.solcast.api_typical,
             self._coordinator.solcast.api_used,
+            self._coordinator.solcast.api_forced,
             self._coordinator.solcast.api_limit,
-            remaining_today,
             get_actuals,
+            allow_exceed_api_limit_maximum=self._coordinator.solcast.advanced_options.get(ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM, False),
         )
 
         scheduled = False

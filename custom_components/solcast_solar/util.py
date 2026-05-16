@@ -326,12 +326,14 @@ def clear_actuals_quota_risk_issue(hass: HomeAssistant) -> None:
 def sync_actuals_quota_risk_issue(
     hass: HomeAssistant,
     sites: list[dict[str, Any]],
+    api_typical: dict[str, int],
     api_used: dict[str, int],
+    api_forced: dict[str, int],
     api_limit: int,
-    remaining_intervals_today: int,
     get_actuals: bool,
+    allow_exceed_api_limit_maximum: bool = False,
 ) -> None:
-    """Raise or remove warning issue when API quota today may be exhausted before the estimated actuals fetch."""
+    """Raise or remove warning issue when typical daily API usage may exhaust quota if actuals are fetched."""
 
     issue_registry = ir.async_get(hass)
 
@@ -344,23 +346,42 @@ def sync_actuals_quota_risk_issue(
         _remove_issue()
         return
 
-    # Count sites per API key — actuals fetch uses one call per site per key
+    if allow_exceed_api_limit_maximum and api_limit > 50:
+        _remove_issue()
+        return
+
+    inferred_quota = api_limit if allow_exceed_api_limit_maximum else (10 if api_limit <= 10 else 50)
+
+    if not allow_exceed_api_limit_maximum and api_limit == inferred_quota:
+        _remove_issue()
+        return
+
+    # Count sites per API key — actuals fetch uses one call per site per key.
     sites_per_key: dict[str, int] = {}
     for site in sites:
         if (key := site.get(CONF_API_KEY)) is not None:
             sites_per_key[key] = sites_per_key.get(key, 0) + 1
 
-    at_risk = any(api_used.get(key, 0) + remaining_intervals_today + count > api_limit for key, count in sites_per_key.items())
-    if at_risk:
-        actuals_cost = sum(sites_per_key.values())
-        used = max((api_used.get(key, 0) for key in sites_per_key), default=0)
+    def _effective_typical(key: str) -> int:
+        """Return today's running total or the persisted typical, whichever is higher."""
+        return max(
+            api_typical.get(key, inferred_quota),
+            api_used.get(key, 0) + api_forced.get(key, 0),
+        )
+
+    at_risk_items = [
+        (key, count, _effective_typical(key)) for key, count in sites_per_key.items() if _effective_typical(key) + count > inferred_quota
+    ]
+    if at_risk_items:
+        # Pick the key with the worst overage to populate the issue message.
+        # Each key has its own independent quota, so describe the single key at risk.
+        _, actuals_cost, effective = max(at_risk_items, key=lambda t: t[2] + t[1] - inferred_quota)
         _LOGGER.debug(
-            "Raise issue `%s`: %d used + %d remaining + %d actuals > %d limit",
+            "Raise issue `%s`: effective typical %d + %d actuals > %d inferred quota",
             ISSUE_ACTUALS_QUOTA_TODAY,
-            used,
-            remaining_intervals_today,
+            effective,
             actuals_cost,
-            api_limit,
+            inferred_quota,
         )
         ir.async_create_issue(
             hass,
@@ -371,8 +392,8 @@ def sync_actuals_quota_risk_issue(
             severity=ir.IssueSeverity.WARNING,
             translation_key=ISSUE_ACTUALS_QUOTA_TODAY,
             translation_placeholders={
-                API_USED: str(used),
-                API_LIMIT: str(api_limit),
+                API_USED: str(effective),
+                API_LIMIT: str(inferred_quota),
                 ACTUALS_COST: str(actuals_cost),
             },
         )

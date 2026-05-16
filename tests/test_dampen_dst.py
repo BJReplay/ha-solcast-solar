@@ -198,7 +198,7 @@ class TestCalculateDSTLabels:
     async def test_summer_time_label_shift(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test label shows +1 hour during AEDT (summer time).
 
-        Interval 20 = 10:00 standard. During AEDT, dst_offset=1 → label "11:00".
+        Interval 20 = 10:00 standard. During AEDT, dst_offset=1, so label is "11:00".
         """
         tz = ZoneInfo("Australia/Sydney")
         api = _make_mock_api(tz)
@@ -220,7 +220,7 @@ class TestCalculateDSTLabels:
     async def test_standard_time_label_no_shift(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test label shows no shift during AEST (standard time).
 
-        Interval 20 = 10:00 standard. During AEST, dst_offset=0 → label "10:00".
+        Interval 20 = 10:00 standard. During AEST, dst_offset=0, so label is "10:00".
         """
         tz = ZoneInfo("Australia/Sydney")
         api = _make_mock_api(tz)
@@ -242,7 +242,7 @@ class TestCalculateDSTLabels:
     async def test_label_before_spring_forward(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test label before Sydney spring-forward (first Sunday in October).
 
-        Oct 2 is still AEST → dst_offset=0, interval 20 → "10:00".
+        Oct 2 is still AEST, dst_offset=0, interval 20, label "10:00".
         """
         tz = ZoneInfo("Australia/Sydney")
         api = _make_mock_api(tz)
@@ -264,7 +264,7 @@ class TestCalculateDSTLabels:
     async def test_label_after_spring_forward(self, caplog: pytest.LogCaptureFixture) -> None:
         """Test label after Sydney spring-forward.
 
-        Oct 5 is AEDT → dst_offset=1, interval 20 → "11:00".
+        Oct 5 is AEDT, dst_offset=1, interval 20, label "11:00".
         """
         tz = ZoneInfo("Australia/Sydney")
         api = _make_mock_api(tz)
@@ -290,7 +290,7 @@ class TestAttributeBuilderDSTLabels:
     def test_standard_time_labels(self) -> None:
         """Test attribute labels during standard time (AEST).
 
-        Interval 20 → hour 10, no DST offset → label "10:00".
+        Interval 20 gives hour 10, no DST offset, so label is "10:00".
         """
         tz = ZoneInfo("Australia/Sydney")
         factors_list = [1.0] * 48
@@ -308,7 +308,7 @@ class TestAttributeBuilderDSTLabels:
     def test_summer_time_labels(self) -> None:
         """Test attribute labels during summer time (AEDT).
 
-        Interval 20 → hour 10 + 1 DST offset → label "11:00".
+        Interval 20 gives hour 10 + 1 DST offset, so label is "11:00".
         """
         tz = ZoneInfo("Australia/Sydney")
         factors_list = [1.0] * 48
@@ -326,7 +326,7 @@ class TestAttributeBuilderDSTLabels:
         """Test factor stored at raw index 20 appears at label "11:00" during AEDT.
 
         This is the core of the DST test: the underlying storage index
-        stays at 20, but the display label shifts from "10:00" → "11:00".
+        stays at 20, but the display label shifts from "10:00" to "11:00".
         """
         tz = ZoneInfo("Australia/Sydney")
         factors_list = [1.0] * 48
@@ -366,7 +366,7 @@ class TestDSTTransitionScenarios:
     @pytest.mark.parametrize(
         ("frozen_before", "frozen_after", "interval", "label_before", "label_after"),
         [
-            # Spring-forward (Oct 5 2025): AEST→AEDT
+            # Spring-forward (Oct 5 2025): AEST to AEDT
             (
                 "2025-10-02T14:00:00+10:00",
                 "2025-10-05T14:00:00+11:00",
@@ -374,7 +374,7 @@ class TestDSTTransitionScenarios:
                 "10:00",
                 "11:00",
             ),
-            # Fall-back (Apr 6 2026): AEDT→AEST
+            # Fall-back (Apr 6 2026): AEDT to AEST
             (
                 "2026-04-02T14:00:00+11:00",
                 "2026-04-06T14:00:00+10:00",
@@ -425,7 +425,7 @@ class TestDSTTransitionScenarios:
     @pytest.mark.parametrize(
         ("frozen_before", "frozen_after", "interval", "dampening_model", "label_before", "label_after"),
         [
-            # Spring-forward: _calculate log label shifts 10:00 → 11:00
+            # Spring-forward: _calculate log label shifts 10:00 to 11:00
             (
                 "2025-10-02T14:00:00+10:00",
                 "2025-10-05T14:00:00+11:00",
@@ -434,7 +434,7 @@ class TestDSTTransitionScenarios:
                 "10:00",
                 "11:00",
             ),
-            # Fall-back: _calculate log label shifts 11:00 → 10:00
+            # Fall-back: _calculate log label shifts 11:00 to 10:00
             (
                 "2026-04-02T14:00:00+11:00",
                 "2026-04-06T14:00:00+10:00",
@@ -606,7 +606,7 @@ class TestWinterTimeDSTLabels:
         with caplog.at_level("DEBUG"):
             await dampening_obj.calculate(matching_intervals, generation, actuals, [], 0)
 
-        # Dublin summer: IST, dst() helper returns True → offset 1 → label "11:00"
+        # Dublin summer: IST, dst() helper returns True, offset 1, label "11:00"
         assert "Auto-dampen factor for 11:00 is 0.819" in caplog.text
 
     @freeze_time("2025-01-15T14:00:00+00:00")  # GMT (winter)
@@ -626,7 +626,7 @@ class TestWinterTimeDSTLabels:
         with caplog.at_level("DEBUG"):
             await dampening_obj.calculate(matching_intervals, generation, actuals, [], 0)
 
-        # Dublin winter: GMT, dst() helper returns False → offset 0 → label "10:00"
+        # Dublin winter: GMT, dst() helper returns False, offset 0, label "10:00"
         assert "Auto-dampen factor for 10:00 is 0.819" in caplog.text
 
 
@@ -662,12 +662,12 @@ class TestCoordinatorAttributeBuilder:
         entry_0030 = next(e for e in factors if e[INTERVAL] == "00:30")
         assert entry_0030[FACTOR] == 1, f"Full DST: 00:30 fill-in should have factor 1, got {entry_0030[FACTOR]}"
 
-    @freeze_time("2025-10-05T14:00:00+11:00")  # Transition day (AEST→AEDT)
+    @freeze_time("2025-10-05T14:00:00+11:00")  # Transition day (AEST to AEDT)
     def test_fill_in_03_entries_on_transition_day(self) -> None:
         """Test that 03:00/03:30 entries are filled in on the transition day.
 
         On the transition day (Oct 5), hours 0-2 are still AEST (no shift),
-        but hour 3 jumps to AEDT (shift +1 → "04:00"). So "03:00"/"03:30"
+        but hour 3 jumps to AEDT (shift +1, label "04:00"). So "03:00"/"03:30"
         are missing and need fill-in.
         """
         tz = ZoneInfo("Australia/Sydney")

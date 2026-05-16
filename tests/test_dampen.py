@@ -536,7 +536,7 @@ async def test_apply_recovered_history_no_actuals_match() -> None:
     )
     dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.8  # pyright: ignore[reportAttributeAccessIssue]
 
-    # Recovered timestamp doesn't match any actual in data_actuals → actuals_undampened is empty → continue.
+    # Recovered timestamp doesn't match any actual in data_actuals, so actuals_undampened is empty and we continue.
     await dampening.apply_recovered_history({site_id: {recovered_period.timestamp()}})
 
     assert dampening.api.data_actuals_dampened[SITE_INFO] == {}
@@ -560,13 +560,13 @@ async def test_apply_actuals_range_early_return_and_no_actuals() -> None:
     )
     dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.8  # pyright: ignore[reportAttributeAccessIssue]
 
-    # start == end → early return.
+    # start == end: early return.
     await dampening._apply_actuals_range(base, base)
 
-    # start > end → early return.
+    # start > end: early return.
     await dampening._apply_actuals_range(base + timedelta(hours=1), base)
 
-    # start < end but the only actual (at base) falls outside [base+1h, base+2h) → continue.
+    # start < end but the only actual (at base) falls outside [base+1h, base+2h), so we continue.
     await dampening._apply_actuals_range(base + timedelta(hours=1), base + timedelta(hours=2))
 
     # sort_and_prune was None and never called — confirms no dampening was written.
@@ -588,9 +588,9 @@ def test_compute_power_intervals_time_weighted_averaging() -> None:
     intervals = _make_intervals(period_start)
 
     # Interval 1 (00:00-00:30): 4.0 kW for 15 min, then 0.0 kW for 15 min.
-    #   weighted avg = (4.0*900 + 0.0*900) / 1800 = 2.0 kW → 2.0 * 0.5 = 1.0 kWh
+    #   weighted avg = (4.0*900 + 0.0*900) / 1800 = 2.0 kW, giving 2.0 * 0.5 = 1.0 kWh
     # Interval 2 (00:30-01:00): constant 6.0 kW.
-    #   weighted avg = 6.0 kW → 6.0 * 0.5 = 3.0 kWh
+    #   weighted avg = 6.0 kW, giving 6.0 * 0.5 = 3.0 kWh
     power_readings: list[tuple[dt, float]] = [
         (period_start, 4.0),
         (period_start + timedelta(minutes=15), 0.0),
@@ -610,12 +610,12 @@ def test_compute_power_intervals_time_weighted_averaging() -> None:
 
 
 def test_compute_power_intervals_watt_conversion() -> None:
-    """Test power intervals with pre-converted W→kW values (factor 0.001)."""
+    """Test power intervals with pre-converted W to kW values (factor 0.001)."""
 
     period_start = dt(2026, 2, 8, 0, 0, tzinfo=datetime.UTC)
     intervals = _make_intervals(period_start)
 
-    # 2000 W * 0.001 = 2.0 kW constant for 30 min → 2.0 * 0.5 = 1.0 kWh
+    # 2000 W * 0.001 = 2.0 kW constant for 30 min, giving 2.0 * 0.5 = 1.0 kWh
     conversion_factor = 0.001
     power_readings: list[tuple[dt, float]] = [
         (period_start, 2000.0 * conversion_factor),
@@ -627,8 +627,8 @@ def test_compute_power_intervals_watt_conversion() -> None:
 
     result = compute_power_intervals(power_readings, intervals)
 
-    assert result is True, "W→kW conversion should return True"
-    assert abs(intervals[period_start] - 1.0) < 0.01, f"W→kW interval: expected ~1.0 kWh, got {intervals[period_start]}"
+    assert result is True, "W to kW conversion should return True"
+    assert abs(intervals[period_start] - 1.0) < 0.01, f"W to kW interval: expected ~1.0 kWh, got {intervals[period_start]}"
 
 
 def test_compute_power_intervals_insufficient_readings() -> None:
@@ -923,7 +923,7 @@ def test_elevation_adjustment_ratio_uses_site_geometry(monkeypatch: pytest.Monke
     #     past_gain  = sin(35) x cos(30) + cos(35) x sin(30) x cos(90-270)  ≈ 0.0872
     #     target_gain= sin(55) x cos(30) + cos(55) x sin(30) x cos(240-270) ≈ 0.9578
     #     ratio_west ≈ 10.99
-    #   average ≈ 5.75 → clamped to 2.0
+    #   average ~= 5.75, clamped to 2.0
     assert ratio == pytest.approx(2.0)
     assert ratio > base_ratio
 

@@ -308,8 +308,8 @@
       "title": "Pas de API-limiet aan voor geschatte werkelijke waarden"
     },
     "actuals_quota_today": {
-      "title": "Ophalen van geschatte werkelijke waarden kan het API-quotum van vandaag overschrijden",
-      "description": "Het ophalen van geschatte werkelijke waarden is ingeschakeld. Op basis van het huidige API-gebruik ({api_used} van {api_limit} aanroepen vandaag gebruikt) en het dagelijkse limiet van {api_limit} aanroepen, is er mogelijk onvoldoende quotum over om de {actuals_cost} aanroep(en) voor het ophalen van geschatte werkelijke waarden te voltooien. Het ophalen wordt toch geprobeerd direct na middernacht, maar dit (of een volgende prognose-update) kan mislukken met een `429 Too Many Requests`-respons.\n\nDit is te verwachten wanneer de instelling voor het eerst midden op de dag wordt ingeschakeld — het API-quotum wordt om middernacht UTC gereset, zodat deze waarschuwing dan automatisch verdwijnt."
+      "title": "Ophalen van geschatte werkelijke waarden kan het dagelijkse API-quotum overschrijden",
+      "description": "Het ophalen van geschatte werkelijke waarden is ingeschakeld. Op basis van het typische dagelijkse API-gebruik ({api_used} aanroepen) en het afgeleid accountquotum van {api_limit} aanroepen, zou het toevoegen van de {actuals_cost} aanroep(en) voor het ophalen van geschatte werkelijke waarden het quotum op een gemiddelde dag overschrijden. Het ophalen wordt toch geprobeerd direct na middernacht, maar dit (of een volgende prognose-update) kan mislukken met een `429 Too Many Requests`-respons.\n\nDeze waarschuwing kan verschijnen terwijl de typische gebruiksteller nog gevoed wordt met echte gegevens. Gedwongen (niet-bijgehouden) API-aanroepen van automatiseringen zijn opgenomen in het typische aantal. Controleer uw geconfigureerde API-limiet en eventuele automatiseringen voor geforceerde updates als u geschatte werkelijke waarden wilt gebruiken."
     },
     "advanced_deprecated": {
       "description": "Geavanceerde configuratieoptie(s) `{option}` gewijzigd in `{new_option}`. Werk uw geavanceerde configuratieopties bij om de nieuwe optienaam te gebruiken.{stops_working}",

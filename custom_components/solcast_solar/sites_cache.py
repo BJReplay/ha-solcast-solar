@@ -21,6 +21,7 @@ from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
 
 from .const import (
+    ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_SOLCAST_PORT,
     ADVANCED_SOLCAST_URL,
@@ -28,6 +29,7 @@ from .const import (
     AUTO_UPDATED,
     DAILY_LIMIT,
     DAILY_LIMIT_CONSUMED,
+    DAILY_TYPICAL,
     DISMISSAL,
     DOMAIN,
     DT_DATE_FORMAT,
@@ -628,7 +630,18 @@ class SitesCache:
         if force or self.stale_usage_cache:
             _LOGGER.debug("Reset API usage")
             for api_key in self.api.api_used:
+                yesterday_total = self.api.api_used[api_key] + self.api.api_forced.get(api_key, 0)
+                if yesterday_total > 0:
+                    self.api.api_typical[api_key] = yesterday_total
+                    _LOGGER.debug(
+                        "Typical daily API usage for %s updated to %d (tracked %d + forced %d)",
+                        redact_api_key(api_key),
+                        yesterday_total,
+                        self.api.api_used[api_key],
+                        self.api.api_forced.get(api_key, 0),
+                    )
                 self.api.api_used[api_key] = 0
+                self.api.api_forced[api_key] = 0
                 await self.serialise_usage(api_key, reset=True)
         else:
             _LOGGER.debug("Usage cache is fresh, so not resetting")
@@ -688,6 +701,7 @@ class SitesCache:
         json_content: dict[str, Any] = {
             DAILY_LIMIT: self.api.api_limits[api_key],
             DAILY_LIMIT_CONSUMED: self.api.api_used[api_key],
+            DAILY_TYPICAL: self.api.api_typical.get(api_key, 0),
             RESET: self._api_used_reset[api_key],
         }
         payload = json.dumps(json_content, ensure_ascii=False, cls=DateTimeEncoder)
@@ -976,6 +990,16 @@ class SitesCache:
                 assert isinstance(self.api.api_limits[api_key], int), "daily_limit is not an integer"
                 self.api.api_used[api_key] = usage.get(DAILY_LIMIT_CONSUMED, 0)
                 assert isinstance(self.api.api_used[api_key], int), "daily_limit_consumed is not an integer"
+                self.api.api_forced[api_key] = 0  # Transient — starts at zero each session.
+                configured_limit = quota.get(api_key, 10)
+                allow_exceed = self.api.advanced_options.get(ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM, False)
+                # Seed from the configured limit.  Auto-update can never consume more.
+                loaded_typical = usage.get(DAILY_TYPICAL, configured_limit)
+                # Cap stale values.
+                if not allow_exceed:
+                    loaded_typical = min(loaded_typical, configured_limit)
+                self.api.api_typical[api_key] = loaded_typical
+                assert isinstance(self.api.api_typical[api_key], int), "daily_typical is not an integer"
                 self._api_used_reset[api_key] = usage.get(RESET, self.api.dt_helper.utc_previous_midnight())
                 assert isinstance(self._api_used_reset[api_key], dt), "reset is not a datetime"
                 if (used_reset := self._api_used_reset[api_key]) is not None:
@@ -986,6 +1010,8 @@ class SitesCache:
                     )
                 if usage[DAILY_LIMIT] != quota[api_key]:  # Limit has been adjusted, so rewrite the cache.
                     self.api.api_limits[api_key] = quota[api_key]
+                    # Reset typical to the new limit.
+                    self.api.api_typical[api_key] = quota[api_key]
                     await self.serialise_usage(api_key)
                     _LOGGER.info("Usage loaded and cache updated with new limit")
                 else:
@@ -1048,6 +1074,8 @@ class SitesCache:
                         _LOGGER.warning("Creating usage cache for %s, assuming zero API used", redact_api_key(api_key))
                         self.api.api_limits[api_key] = quota[api_key]
                         self.api.api_used[api_key] = 0
+                        self.api.api_forced[api_key] = 0
+                        self.api.api_typical[api_key] = quota[api_key]
                         self._api_used_reset[api_key] = self.api.dt_helper.utc_previous_midnight()
                     await self.serialise_usage(api_key, reset=True)
                 _LOGGER.debug(

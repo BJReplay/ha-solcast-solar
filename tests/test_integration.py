@@ -1762,22 +1762,66 @@ async def test_actuals_quota_today_issue_raised_when_quota_at_risk(
     hass: HomeAssistant,
     issue_registry: ir.IssueRegistry,
 ) -> None:
-    """Test that the runtime quota risk issue is raised when projected usage exceeds today's limit."""
+    """Test that the quota risk issue is raised when typical usage plus actuals cost exceeds the inferred quota."""
 
     try:
-        # One site, limit 10, 8 used + 2 remaining + 1 actuals = 11 > 10 so issue raised
+        # One site, configured limit 9 (below the 10-call hobbyist maximum), so inferred quota 10.
+        # The user has reserved one slot for actuals. Typical daily usage of 10 + 1 actuals = 11 > 10,
+        # so the issue should be raised.
+        # (At the maximum of 10 the actuals_api_limit issue covers this instead.)
         fake_sites = [{CONF_API_KEY: "key1"}]
-        api_used: dict[str, int] = {"key1": 8}
-        api_limit = 10
+        api_typical: dict[str, int] = {"key1": 10}
+        api_limit = 9
 
-        sync_actuals_quota_risk_issue(hass, fake_sites, api_used, api_limit, 2, get_actuals=True)
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_typical, {}, {}, api_limit, get_actuals=True)
         issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY)
         assert issue is not None, "Issue ISSUE_ACTUALS_QUOTA_TODAY should exist"
         assert issue.is_persistent is False, "Issue should not be persistent"
         assert issue.translation_placeholders is not None, "Issue should have translation placeholders"
-        assert issue.translation_placeholders[API_USED] == "8"
+        assert issue.translation_placeholders[API_USED] == "10"
         assert issue.translation_placeholders[API_LIMIT] == "10"
         assert issue.translation_placeholders[ACTUALS_COST] == "1"
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_actuals_quota_today_issue_per_key_math(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """Test that the quota risk issue uses per-key site counts, not the total across all keys."""
+
+    try:
+        fake_sites = [
+            {CONF_API_KEY: "key1"},
+            {CONF_API_KEY: "key1"},
+            {CONF_API_KEY: "key2"},
+        ]
+        api_typical: dict[str, int] = {"key1": 9, "key2": 9}
+        api_limit = 9  # below hobbyist max of 10, so inferred quota is 10
+
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_typical, {}, {}, api_limit, get_actuals=True)
+        issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY)
+        assert issue is not None, "Issue should be raised: key1 typical 9 + 2 actuals = 11 > 10"
+        assert issue.translation_placeholders is not None
+        # key1 is the at-risk key: 2 sites, typical 9
+        assert issue.translation_placeholders[API_USED] == "9"
+        assert issue.translation_placeholders[API_LIMIT] == "10"  # inferred quota
+        assert issue.translation_placeholders[ACTUALS_COST] == "2", (
+            "actuals_cost must be key1's site count (2), not total sites across both keys (3)"
+        )
+
+        # key2 is NOT at risk alone: typical 9 + 1 = 10, not > 10.
+        # Verify: if key1 is within quota but key2 is at risk, we get key2's count.
+        ir.async_delete_issue(hass, DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY)
+        api_typical2: dict[str, int] = {"key1": 7, "key2": 10}
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_typical2, {}, {}, api_limit, get_actuals=True)
+        issue2 = issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY)
+        assert issue2 is not None, "Issue should be raised: key2 typical 10 + 1 = 11 > 10"
+        assert issue2.translation_placeholders is not None
+        assert issue2.translation_placeholders[API_USED] == "10"
+        assert issue2.translation_placeholders[ACTUALS_COST] == "1"
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
@@ -1787,16 +1831,29 @@ async def test_actuals_quota_today_issue_not_raised_when_within_quota(
     hass: HomeAssistant,
     issue_registry: ir.IssueRegistry,
 ) -> None:
-    """Test that the runtime quota risk issue is not raised when projected usage is within today's limit."""
+    """Test that the quota risk issue is not raised when typical usage plus actuals cost is within the inferred quota."""
 
     try:
-        # One site, limit 10, 2 used + 7 remaining + 1 actuals = 10 ≤ 10 so no issue
         fake_sites = [{CONF_API_KEY: "key1"}]
-        api_used: dict[str, int] = {"key1": 2}
-        api_limit = 10
+        api_limit = 9  # below hobbyist max of 10, so inferred quota is 10
 
-        sync_actuals_quota_risk_issue(hass, fake_sites, api_used, api_limit, 7, get_actuals=True)
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None, "Issue ISSUE_ACTUALS_QUOTA_TODAY should not exist"
+        # Sub-maximum limit: 8 typical + 1 actuals = 9, which is NOT > 10, so no issue.
+        api_typical: dict[str, int] = {"key1": 8}
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_typical, {}, {}, api_limit, get_actuals=True)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None, (
+            "Issue should not exist: typical 8 + 1 actuals = 9, not > inferred quota 10"
+        )
+
+        # At the hobbyist maximum (10 or 50), the actuals_api_limit issue covers this instead;
+        # the quota-risk issue must not fire regardless of typical usage.
+        sync_actuals_quota_risk_issue(hass, fake_sites, {"key1": 10}, {}, {}, 10, get_actuals=True)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None, (
+            "Issue should not exist at the hobbyist maximum (actuals_api_limit covers this case)"
+        )
+        sync_actuals_quota_risk_issue(hass, fake_sites, {"key1": 50}, {}, {}, 50, get_actuals=True)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None, (
+            "Issue should not exist at the hobbyist maximum of 50"
+        )
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
@@ -1818,10 +1875,16 @@ async def test_actuals_quota_today_issue_cleared_when_quota_exhausted(
         solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
         caplog.clear()
 
-        # Push api_used close to the limit, then raise the issue (projected usage exceeds limit)
-        for api_key in list(solcast.api_used.keys()):
-            solcast.api_used[api_key] = solcast.api_limits[api_key] - 2
-        sync_actuals_quota_risk_issue(hass, solcast.sites, solcast.api_used, solcast.api_limit, 2, get_actuals=True)
+        # DEFAULT_INPUT1 uses API_LIMIT="20", so inferred_quota=50.  api_typical is now seeded
+        # from configured_limit (20), not the tier, so 20 + 1 actuals = 21 <= 50 — no issue.
+        # Override api_typical to 50 (the inferred quota) so that typical(50) + actuals(1) = 51
+        # which exceeds inferred_quota(50), exercising the issue-then-clear flow.
+        # (api_limit=20 is below the max of 50, so actuals_api_limit does not fire.)
+        for key in solcast.api_typical:
+            solcast.api_typical[key] = 50
+        sync_actuals_quota_risk_issue(
+            hass, solcast.sites, solcast.api_typical, solcast.api_used, solcast.api_forced, solcast.api_limit, get_actuals=True
+        )
         assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, "Issue should exist before clearing"
 
         # Force the mock API to return 429 TooManyRequests so the actuals fetch fails with
@@ -1850,17 +1913,128 @@ async def test_actuals_quota_today_issue_cleared_when_get_actuals_disabled(
 
     try:
         fake_sites = [{CONF_API_KEY: "key1"}]
-        api_used: dict[str, int] = {"key1": 8}
-        api_limit = 10
+        api_typical: dict[str, int] = {"key1": 10}
+        api_limit = 9  # below hobbyist max of 10, so inferred quota is 10
 
-        # Raise the issue first: 8 used + 2 remaining + 1 actuals = 11 > 10
-        sync_actuals_quota_risk_issue(hass, fake_sites, api_used, api_limit, 2, get_actuals=True)
+        # Raise the issue first: typical 10 + 1 actuals = 11 > inferred quota 10.
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_typical, {}, {}, api_limit, get_actuals=True)
         assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, "Issue should exist before clearing"
 
-        # Disable estimated actuals — issue should clear
-        sync_actuals_quota_risk_issue(hass, fake_sites, api_used, api_limit, 2, get_actuals=False)
+        # Disable estimated actuals — issue should clear.
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_typical, {}, {}, api_limit, get_actuals=False)
         assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None, (
             "Issue ISSUE_ACTUALS_QUOTA_TODAY should be cleared when get_actuals is disabled"
+        )
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_actuals_quota_today_issue_raised_by_todays_usage_exceeding_typical(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """Test that today's running total serves as a floor when it exceeds the persisted typical.
+
+    Even if api_typical is low (e.g. from a light previous day), if today the user has already
+    made enough calls that adding actuals would exceed the inferred quota, the issue must fire.
+    """
+
+    try:
+        # One site, configured limit 9 (below hobbyist max of 10), so inferred quota is 10.
+        # Typical from yesterday is only 5 (light day), but today the user has already made
+        # 9 tracked calls and 0 forced calls.  5 (typical) < 9 (today), so effective = 9.
+        # 9 + 1 actuals = 10, NOT > 10, so no issue yet.
+        fake_sites = [{CONF_API_KEY: "key1"}]
+        api_typical: dict[str, int] = {"key1": 5}
+        api_used: dict[str, int] = {"key1": 9}
+        api_limit = 9  # below hobbyist max of 10, so inferred_quota = 10
+
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_typical, api_used, {}, api_limit, get_actuals=True)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None, (
+            "Issue should NOT exist: effective 9 + 1 actuals = 10, not > inferred quota 10"
+        )
+
+        # Now push today's usage to 10 (e.g. one more tracked call).  10 + 1 = 11 > 10, so issue fires.
+        api_used["key1"] = 10
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_typical, api_used, {}, api_limit, get_actuals=True)
+        issue = issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY)
+        assert issue is not None, "Issue should be raised: today's 10 calls + 1 actuals = 11 > inferred quota 10"
+        assert issue.translation_placeholders is not None
+        assert issue.translation_placeholders[API_USED] == "10"
+        assert issue.translation_placeholders[API_LIMIT] == "10"  # inferred quota
+        assert issue.translation_placeholders[ACTUALS_COST] == "1"
+
+        # Verify forced calls are also included.  Reset api_used to 5, add 5 forced.
+        # typical(5) vs used(5)+forced(5)=10, effective=10.  10 + 1 = 11 > 10, so issue still raised.
+        api_used["key1"] = 5
+        api_forced: dict[str, int] = {"key1": 5}
+        sync_actuals_quota_risk_issue(hass, fake_sites, api_typical, api_used, api_forced, api_limit, get_actuals=True)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, (
+            "Issue should be raised: today's 5 tracked + 5 forced + 1 actuals = 11 > inferred quota 10"
+        )
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_actuals_quota_today_issue_suppressed_when_allow_exceed_and_high_limit(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """Test that the quota risk issue is never raised when allow_exceed_api_limit_maximum is set and api_limit > 50."""
+
+    try:
+        fake_sites = [{CONF_API_KEY: "key1"}]
+        api_limit = 4000  # Dev/test scenario with a high limit.
+
+        # Even with typical = api_limit (every quota slot filled), no issue should appear.
+        api_typical: dict[str, int] = {"key1": api_limit}
+        sync_actuals_quota_risk_issue(
+            hass,
+            fake_sites,
+            api_typical,
+            {"key1": api_limit},
+            {},
+            api_limit,
+            get_actuals=True,
+            allow_exceed_api_limit_maximum=True,
+        )
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None, (
+            "Issue should NOT be raised when allow_exceed_api_limit_maximum=True and api_limit > 50"
+        )
+
+        # When allow_exceed_api_limit_maximum=True and api_limit <= 50, the configured limit IS
+        # the effective quota.  Typical(10) + 1 actuals > quota(9), so issue is raised.
+        sync_actuals_quota_risk_issue(
+            hass,
+            fake_sites,
+            {"key1": 10},
+            {},
+            {},
+            9,
+            get_actuals=True,
+            allow_exceed_api_limit_maximum=True,
+        )
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, (
+            "Issue should be raised when allow_exceed=True but api_limit=9 (quota=9) and typical 10 + 1 > 9"
+        )
+        ir.async_delete_issue(hass, DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY)
+
+        # Confirm the issue IS raised for a sub-maximum limit without allow_exceed.
+        # api_limit=9 gives inferred_quota=10; typical(10) + 1 actuals = 11 > 10, so issue raised.
+        sync_actuals_quota_risk_issue(
+            hass,
+            fake_sites,
+            {"key1": 10},
+            {},
+            {},
+            9,
+            get_actuals=True,
+            allow_exceed_api_limit_maximum=False,
+        )
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, (
+            "Issue should be raised for a sub-maximum limit without allow_exceed_api_limit_maximum"
         )
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
@@ -3587,14 +3761,14 @@ async def test_forecast_accuracy_sensor_no_data(
 @pytest.mark.parametrize(
     ("url", "port", "expected"),
     [
-        # port <= 0 → URL returned unchanged (trailing slash stripped)
+        # port <= 0: URL returned unchanged (trailing slash stripped)
         pytest.param(DEFAULT_SOLCAST_HTTPS_URL, 0, DEFAULT_SOLCAST_HTTPS_URL, id="port=0 no-op"),
         pytest.param("https://api.solcast.com.au/", -1, DEFAULT_SOLCAST_HTTPS_URL, id="port=-1 no-op trailing slash"),
         # Normal host with positive port
         pytest.param(DEFAULT_SOLCAST_HTTPS_URL, 8443, "https://api.solcast.com.au:8443", id="normal host port override"),
         # URL with a path component
         pytest.param("https://api.solcast.com.au/v1", 9000, "https://api.solcast.com.au:9000/v1", id="host with path"),
-        # No netloc (bare path) → returned as-is even with positive port
+        # No netloc (bare path): returned as-is even with positive port
         pytest.param("/just/a/path", 8443, "/just/a/path", id="bare path no netloc"),
         # IPv6 host: urlsplit strips brackets from hostname, code re-wraps them
         pytest.param("https://[2001:db8::1]", 8443, "https://[2001:db8::1]:8443", id="IPv6 host re-wrapped"),

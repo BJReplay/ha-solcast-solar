@@ -320,8 +320,8 @@
       "title": "Upraviť limit API pre odhadované skutočné hodnoty"
     },
     "actuals_quota_today": {
-      "title": "Načítanie odhadovaných skutočných hodnôt môže prekročiť dnešný limit API",
-      "description": "Načítanie odhadovaných skutočných hodnôt bolo povolené. Na základe aktuálneho využitia API ({api_used} z {api_limit} volaní použitých dnes) a denného limitu {api_limit} volaní, nemusí zostatok kvóty postačovať na dokončenie {actuals_cost} volania/volaní potrebných na načítanie odhadovaných skutočných hodnôt. Načítanie bude napriek tomu pokúsené tesne po polnoci, ale môže zlyhať (alebo následná aktualizácia predpovede) s odpoveďou `429 Too Many Requests`.\n\nToto je očakávané, keď je nastavenie prvýkrát povolené uprostred dňa — limit API sa resetuje o polnoci UTC, takže toto upozornenie sa automaticky vymaže v tom čase."
+      "title": "Načítanie odhadovaných skutočných hodnôt môže prekročiť denný limit API",
+      "description": "Načítanie odhadovaných skutočných hodnôt bolo povolené. Na základe typického denného využitia API ({api_used} volaní) a odvodeného limitu účtu {api_limit} volaní, pridanie {actuals_cost} volania/volaní potrebných na načítanie odhadovaných skutočných hodnôt by v typický deň prekročilo kvótu. Načítanie bude napriek tomu pokúsené tesne po polnoci, ale môže zlyhať (alebo následná aktualizácia predpovede) s odpoveďou `429 Too Many Requests`.\n\nToto upozornenie sa môže objaviť, kým sa počítadlo typického využitia ešte inicializuje skutočnými údajmi. Vynútené (nesledované) volania API z automatizácií sú zahrnuté v typickom počte. Skontrolujte nakonfigurovaný limit API a všetky automatizácie vynútenej aktualizácie, ak chcete používať odhadované skutočné hodnoty."
     },
     "corrupt_file": {
       "description": "Súbor(y) s údajmi vo vyrovnávacej pamäti `{files}` je poškodený. ​​Integrácia sa pokúsi o obnovenie odstránením súboru(ov) a opätovným načítaním údajov zo Solcastu. V dôsledku tejto situácie očakávajte zvýšené využívanie rozhrania API a možné zlyhania rozhrania API a stratu histórie predpovedí. Súbory je možné obnoviť zo zálohy, ale stále očakávajte zlyhania volaní rozhrania API.",

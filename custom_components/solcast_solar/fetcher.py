@@ -577,6 +577,7 @@ class Fetcher:
         """
         key = md5(api_key[-6:].encode()).hexdigest()
         if force:
+            self.api.api_forced[api_key] = self.api.api_forced.get(api_key, 0) + 1
             forced = self.api.data[SUCCESS][SUCCESS_FORCED]
             forced[key] = forced.get(key, 0) + 1
             _LOGGER.debug("Forced API counter for %s incremented from %d to %d", redact_api_key(api_key), forced[key] - 1, forced[key])
