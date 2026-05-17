@@ -314,15 +314,6 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
     )
 
 
-def clear_actuals_quota_risk_issue(hass: HomeAssistant) -> None:
-    """Remove the actuals quota risk issue unconditionally, e.g. when a quota-exceeded 429 is confirmed."""
-
-    issue_registry = ir.async_get(hass)
-    if issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None:
-        _LOGGER.debug("Remove issue for %s (quota exhaustion confirmed)", ISSUE_ACTUALS_QUOTA_TODAY)
-        ir.async_delete_issue(hass, DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY)
-
-
 def sync_actuals_quota_risk_issue(
     hass: HomeAssistant,
     sites: list[dict[str, Any]],

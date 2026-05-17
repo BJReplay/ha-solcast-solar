@@ -1898,13 +1898,13 @@ async def test_actuals_quota_today_issue_persists_until_config_reduced(
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
-async def test_actuals_quota_today_issue_cleared_when_quota_exhausted(
+async def test_actuals_quota_today_issue_persists_after_429(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     caplog: pytest.LogCaptureFixture,
     issue_registry: ir.IssueRegistry,
 ) -> None:
-    """Test that the runtime quota risk issue clears when a quota-exceeded 429 is confirmed during actuals fetch."""
+    """Test that the quota risk issue is not cleared by a 429 quota-exceeded response."""
 
     try:
         options = copy.deepcopy(DEFAULT_INPUT1)
@@ -1915,21 +1915,16 @@ async def test_actuals_quota_today_issue_cleared_when_quota_exhausted(
         solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
         caplog.clear()
 
-        # DEFAULT_INPUT1 uses API_LIMIT="20", so inferred_quota=50.  api_typical is now seeded
-        # from configured_limit (20), not the tier, so 20 + 1 actuals = 21 <= 50 — no issue.
-        # Override api_typical to 50 (the inferred quota) so that typical(50) + actuals(1) = 51
-        # which exceeds inferred_quota(50), exercising the issue-then-clear flow.
-        # (api_limit=20 is below the max of 50, so actuals_api_limit does not fire.)
+        # DEFAULT_INPUT1 uses API_LIMIT="20", so inferred_quota=50. Override api_typical to 50
+        # so that typical(50) + actuals(1) = 51 > 50 and the issue is raised.
         for key in solcast.api_typical:
             solcast.api_typical[key] = 50
         sync_actuals_quota_risk_issue(
             hass, solcast.sites, solcast.api_typical, solcast.api_used, solcast.api_forced, solcast.api_limit, get_actuals=True
         )
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, "Issue should exist before clearing"
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, "Issue should exist before 429"
 
-        # Force the mock API to return 429 TooManyRequests so the actuals fetch fails with
-        # quota exhausted. fetch_data sets api_used = api_limit on TooManyRequests; the fetcher
-        # detects api_used >= api_limits and calls clear_actuals_quota_risk_issue.
+        # Force the mock API to return 429 TooManyRequests during the actuals fetch.
         session_set(MOCK_OVER_LIMIT)
         try:
             await solcast.fetcher.update_estimated_actuals()
@@ -1937,8 +1932,9 @@ async def test_actuals_quota_today_issue_cleared_when_quota_exhausted(
             session_clear(MOCK_OVER_LIMIT)
 
         assert "No valid data was returned for estimated_actuals" in caplog.text
-        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None, (
-            "Issue ISSUE_ACTUALS_QUOTA_TODAY should be cleared after a quota-exceeded 429 during actuals fetch"
+        # A 429 confirms the risk was real, and it must not be cleared by quota exhaustion.
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, (
+            "Issue ISSUE_ACTUALS_QUOTA_TODAY should persist after a 429: the configuration is still risky"
         )
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
