@@ -100,7 +100,6 @@ from homeassistant.components.solcast_solar.const import (
     ISSUE_ADVANCED_DEPRECATED,
     ISSUE_ADVANCED_PROBLEM,
     KEY_ESTIMATE,
-    PRESUMED_DEAD,
     PROBLEMS,
     RESET,
     SITE_DAMP,
@@ -113,6 +112,7 @@ from homeassistant.components.solcast_solar.const import (
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SitesStatus, SolcastApi
 from homeassistant.components.solcast_solar.util import HistoryType
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
@@ -134,6 +134,7 @@ from . import (
     async_setup_aioresponses,
     session_clear,
     session_set,
+    set_presumed_dead,
     simulator,
 )
 
@@ -333,7 +334,7 @@ async def test_reauth_api_key(
         REASON = 1
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         for test in TEST_REAUTH_API_KEY:
             result = await entry.start_reauth_flow(hass)
@@ -418,7 +419,7 @@ async def test_reconfigure_api_key1(
         REASON = 1
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         for test in TEST_API_KEY:
             result = await hass.config_entries.flow.async_init(
@@ -440,7 +441,7 @@ async def test_reconfigure_api_key1(
         await hass.async_block_till_done()
 
         # Test start after reconfigure when presumed dead...
-        hass.data[DOMAIN][PRESUMED_DEAD] = True
+        await set_presumed_dead(hass, entry, True)
         simulator.API_KEY_SITES["4"] = simulator.API_KEY_SITES.pop("1")  # Change the key
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id}, data=entry.data
@@ -472,7 +473,7 @@ async def test_reconfigure_api_key2(
 
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         if set == MOCK_EXCEPTION:
             await async_cleanup_integration_caches(hass)
@@ -527,7 +528,7 @@ async def test_reconfigure_api_quota(
         _input = None
         for test in TEST_API_LIMIT:
             entry = await async_init_integration(hass, test[OPTIONS])  # type: ignore[arg-type]
-            assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+            assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
             if _input is None or test[OPTIONS] != _input:
                 _input = copy.deepcopy(test[OPTIONS])
             result = await hass.config_entries.flow.async_init(
@@ -786,7 +787,7 @@ async def test_entry_options_upgrade(
     try:
         config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
         entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         assert entry.version == FINAL_VERSION
         # V4
@@ -834,7 +835,7 @@ async def test_entry_options_upgrade(
         data_file = Path(f"{config_dir}/solcast-usage.json")
         data_file.write_text(json.dumps({DAILY_LIMIT: 50, DAILY_LIMIT_CONSUMED: 34, RESET: "2024-01-01T00:00:00+00:00"}), encoding="utf-8")
         entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
         assert entry.options.get("api_quota") == "50"
 
         assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
@@ -857,11 +858,11 @@ async def test_presumed_dead_and_full_flow(
 
         # Test presumed dead
         caplog.clear()
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         option: dict[str, Any] = {BRK_ESTIMATE: False, USE_ACTUALS: "0", SITE_EXPORT_ENTITY: []}
         user_input = DEFAULT_INPUT1_NO_DAMP | option
-        hass.data[DOMAIN][PRESUMED_DEAD] = True
+        await set_presumed_dead(hass, entry, True)
         result = await hass.config_entries.options.async_init(entry.entry_id)
         await hass.async_block_till_done()
         result = await hass.config_entries.options.async_configure(  # pyright: ignore[reportUnknownMemberType]

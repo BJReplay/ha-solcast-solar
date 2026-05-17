@@ -1,6 +1,5 @@
 """Solcast API fetch and update orchestration."""
 
-
 import asyncio
 import copy
 from datetime import UTC, datetime as dt, timedelta
@@ -121,13 +120,13 @@ class Fetcher:
                 success = False
                 self._log_failure("Failed to build forecast data")
                 if raise_exc:
-                    raise_and_record(self.api.hass, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_FORECASTS)
+                    await raise_and_record(self.api.hass, self.api.entry, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_FORECASTS)
             if self.api.status == SolcastApiStatus.OK and self.api.options.get_actuals and not await self.api.build_actual_data():
                 self.api.status = SolcastApiStatus.BUILD_FAILED_ACTUALS
                 success = False
                 self._log_failure("Failed to build estimated actuals data")
                 if raise_exc:
-                    raise_and_record(self.api.hass, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_ACTUALS)
+                    await raise_and_record(self.api.hass, self.api.entry, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_ACTUALS)
         return success
 
     async def reset_failure_stats(self) -> None:

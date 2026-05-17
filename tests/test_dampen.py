@@ -52,7 +52,6 @@ from homeassistant.components.solcast_solar.const import (
     GET_ACTUALS,
     INTEGRATION,
     PERIOD_START,
-    PRESUMED_DEAD,
     RESOURCE_ID,
     SERVICE_FORCE_UPDATE_ESTIMATES,
     SERVICE_SET_DAMPENING,
@@ -72,6 +71,7 @@ from homeassistant.components.solcast_solar.util import (
     compute_energy_intervals,
     compute_power_intervals,
 )
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
@@ -173,7 +173,7 @@ async def test_auto_dampen(
         for _ in range(30):  # Extra time needed for reload to complete
             await hass.async_block_till_done()
             freezer.tick(0.1)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
         no_exception(caplog)
 
         assert "Auto-dampening suppressed: Excluded site for 3333-3333-3333-3333" in caplog.text
@@ -391,7 +391,7 @@ async def test_auto_dampen_issues(
         for _ in range(30):  # Extra time needed for reload to complete
             freezer.tick(0.1)
             await hass.async_block_till_done()
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
         no_exception(caplog)
         assert "Calculating dampened estimated actual MAPE" not in caplog.text
         assert "Estimated actual mean APE" in caplog.text

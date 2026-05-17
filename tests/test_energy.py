@@ -71,3 +71,19 @@ async def test_energy_data(
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_energy_data_not_ready_entry_returns_none(hass: HomeAssistant) -> None:
+    """Return None when entry exists but setup has not populated runtime_data."""
+
+    entry = MockConfigEntry(
+        domain=DOMAIN,
+        unique_id="solcast_pv_solar_not_ready",
+        title=INTEGRATION,
+        data={},
+        options=DEFAULT_INPUT1,
+        version=CONFIG_VERSION,
+    )
+    entry.add_to_hass(hass)
+
+    assert await async_get_solar_forecast(hass, entry.entry_id) is None

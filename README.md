@@ -688,7 +688,7 @@ The `actuals_health.status` field is one of:
 
 ### Diagnostic
 
-All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Rooftop site name`.
+All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Rooftop site name` (the rooftop entity names are prepended with `solcast_pv_solar` for new installs).
 
 | Name | Type | Attributes | Unit | Description |
 | ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |

@@ -27,6 +27,7 @@ from homeassistant.components.recorder.db_schema import (
     StatesMeta,
 )
 from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.components.solcast_solar import crash_state as _cs
 from homeassistant.components.solcast_solar.const import (
     API_LIMIT,
     AUTO_DAMPEN,
@@ -878,13 +879,37 @@ def no_error_or_exception(caplog: pytest.LogCaptureFixture) -> None:
     assert "Exception" not in caplog.text
 
 
+async def get_crash_state(hass: HomeAssistant, entry: ConfigEntry):
+    """Return the current crash-state object for a config entry (test helper)."""
+    return (await _cs.async_get(hass, entry.entry_id)).state
+
+
+async def set_presumed_dead(hass: HomeAssistant, entry: ConfigEntry, value: bool) -> None:
+    """Set or clear the presumed-dead flag on the persisted crash state (test helper)."""
+    store = await _cs.async_get(hass, entry.entry_id)
+    store.state.presumed_dead = value
+    await store.async_save()
+
+
+async def set_crash_time(hass: HomeAssistant, entry: ConfigEntry, time) -> None:
+    """Set the persisted crash time on the crash state (test helper)."""
+    store = await _cs.async_get(hass, entry.entry_id)
+    store.state.crash_time = time
+    await store.async_save()
+
+
+async def clear_crash_state(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Clear all persisted crash state (test helper)."""
+    await (await _cs.async_get(hass, entry.entry_id)).async_clear()
+
+
 async def reload_integration(hass: HomeAssistant, entry: ConfigEntry) -> tuple[SolcastUpdateCoordinator | None, SolcastApi | None]:
     """Reload the integration."""
 
     _LOGGER.warning("Reloading integration")
     await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
-    if hass.data[DOMAIN].get(entry.entry_id):
+    if entry.state is ConfigEntryState.LOADED:
         try:
             return entry.runtime_data.coordinator, entry.runtime_data.coordinator.solcast
         except:  # noqa: E722

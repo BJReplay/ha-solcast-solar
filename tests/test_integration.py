@@ -100,8 +100,6 @@ from homeassistant.components.solcast_solar.const import (
     LAST_UPDATED,
     MODEL_PERIOD_DAYS,
     PERIOD_START,
-    PRESUMED_DEAD,
-    PRIOR_CRASH_TIME,
     RESOURCE_ID,
     SERVICE_CLEAR_DATA,
     SERVICE_DIAGNOSTIC,
@@ -183,12 +181,15 @@ from . import (
     ZONE_RAW,
     async_cleanup_integration_tests,
     async_init_integration,
+    clear_crash_state,
     get_advanced_options_file,
     get_config_dir,
     no_error_or_exception,
     session_clear,
     session_reset_usage,
     session_set,
+    set_crash_time,
+    set_presumed_dead,
     simulated,
     verify_data_schema,
     write_advanced_options,
@@ -407,7 +408,7 @@ async def _reload(hass: HomeAssistant, entry: ConfigEntry) -> tuple[SolcastUpdat
     await hass.config_entries.async_reload(entry.entry_id)
     for _ in range(10):
         await hass.async_block_till_done()
-    if hass.data[DOMAIN].get(entry.entry_id):
+    if entry.state is ConfigEntryState.LOADED:
         try:
             coordinator = entry.runtime_data.coordinator
             return coordinator, patch_solcast_api(coordinator.solcast)
@@ -472,7 +473,7 @@ async def test_api_failure(
                 await hass.config_entries.async_remove(entry.entry_id)
                 await hass.async_block_till_done()
             session_clear(MOCK_BUSY)
-            hass.data[DOMAIN][PRESUMED_DEAD] = False
+            await set_presumed_dead(hass, entry, False)
 
         async def bad_response(assertions: Callable[[ConfigEntry], None]):
             for returned in [MOCK_CORRUPT_SITES, MOCK_CORRUPT_ACTUALS, MOCK_CORRUPT_FORECAST]:
@@ -483,7 +484,7 @@ async def test_api_failure(
                     await hass.config_entries.async_remove(entry.entry_id)
                     await hass.async_block_till_done()
                 session_clear(returned)
-                hass.data[DOMAIN][PRESUMED_DEAD] = False
+                await set_presumed_dead(hass, entry, False)
 
         async def exceptions(assertions: Callable[[ConfigEntry], None]):
             session_set(MOCK_EXCEPTION, exception=ConnectionRefusedError)
@@ -492,14 +493,14 @@ async def test_api_failure(
             if entry.state in (ConfigEntryState.SETUP_ERROR, ConfigEntryState.SETUP_RETRY):
                 await hass.config_entries.async_remove(entry.entry_id)
                 await hass.async_block_till_done()
-            hass.data[DOMAIN][PRESUMED_DEAD] = False
+            await set_presumed_dead(hass, entry, False)
             session_set(MOCK_EXCEPTION, exception=TimeoutError)
             entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
             if entry.state in (ConfigEntryState.SETUP_ERROR, ConfigEntryState.SETUP_RETRY):
                 await hass.config_entries.async_remove(entry.entry_id)
                 await hass.async_block_till_done()
-            hass.data[DOMAIN][PRESUMED_DEAD] = False
+            await set_presumed_dead(hass, entry, False)
             session_set(MOCK_EXCEPTION, exception=ClientConnectionError)
             entry = await async_init_integration(hass, DEFAULT_INPUT2)
             assertions(entry)
@@ -507,7 +508,7 @@ async def test_api_failure(
                 await hass.config_entries.async_remove(entry.entry_id)
                 await hass.async_block_till_done()
             session_clear(MOCK_EXCEPTION)
-            hass.data[DOMAIN][PRESUMED_DEAD] = False
+            await set_presumed_dead(hass, entry, False)
 
         async def exceptions_update():
             tests: list[dict[str, Any]] = [
@@ -530,7 +531,7 @@ async def test_api_failure(
                 coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
                 solcast: SolcastApi = patch_solcast_api(coordinator.solcast)
                 solcast.options.auto_update = AutoUpdate.NONE
-                hass.data[DOMAIN][PRESUMED_DEAD] = False
+                await set_presumed_dead(hass, entry, False)
                 caplog.clear()
 
                 if isinstance(test["exception"], str):
@@ -669,7 +670,7 @@ async def test_integration(  # noqa: C901
 
         if options == BAD_INPUT:
             assert entry.state is ConfigEntryState.SETUP_ERROR, f"Expected entry state ConfigEntryState.SETUP_ERROR, got {entry.state}"
-            assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is True, "Integration should be presumed dead"
+            assert entry.state is not ConfigEntryState.LOADED, "Integration should be presumed dead"
             assert "Dampening factors corrupt or not found, setting to 1.0" in caplog.text
             assert "Get sites failed, last call result: 403/Forbidden" in caplog.text
             assert "API key is invalid" in caplog.text
@@ -683,7 +684,7 @@ async def test_integration(  # noqa: C901
             return
 
         assert entry.state is ConfigEntryState.LOADED, f"Expected entry state ConfigEntryState.LOADED, got {entry.state}"
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         # Enable the dampening entity
         dampening_entity = "sensor.solcast_pv_forecast_dampening"
@@ -1001,7 +1002,7 @@ async def test_remaining_actions(
         # Start with two API keys and three sites
         entry = await async_init_integration(hass, DEFAULT_INPUT2)
         await _wait_for_startup_tasks(hass, caplog)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
         assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
         await hass.async_block_till_done()
         no_error_or_exception(caplog)
@@ -1016,7 +1017,7 @@ async def test_remaining_actions(
         _LOGGER.debug("Switching to one API key and two sites")
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         def occurs_in_log(text: str, occurrences: int) -> None:
             occurs = 0
@@ -1246,6 +1247,12 @@ async def test_remaining_actions(
         assert re.search("Build hard limit processing took.+seconds for undampened forecast", caplog.text) is None, (
             "Hard limit processing log should not appear for undampened forecast"
         )
+
+        caplog.clear()
+        _LOGGER.debug("Test set hard limit back to multi after single (single to multi transition)")
+        solcast = await _set_hard_limit("5.0,5.0")
+        assert solcast.hard_limit == "5.0,5.0"
+        assert "Hard limit changed from single to multi" in caplog.text
 
         # Test set custom hours sensor
         _LOGGER.debug("Test set custom hours sensor with invalid inputs")
@@ -2170,7 +2177,7 @@ async def test_scenarios(
 
         # Assert good start
         _LOGGER.debug("Testing good start happened")
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
         assert "Hard limit is set to limit peak forecast values" in caplog.text
         no_error_or_exception(caplog)
         caplog.clear()
@@ -2380,7 +2387,7 @@ async def test_scenarios(
         assert "has changed and sites are different invalidating the cache" in caplog.text
         session_clear(MOCK_BUSY)
         caplog.clear()
-        hass.data[DOMAIN][PRESUMED_DEAD] = False  # Clear presumption of death
+        await set_presumed_dead(hass, entry, False)  # Clear presumption of death
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
@@ -2398,45 +2405,42 @@ async def test_scenarios(
         # Test no sites call on start when in a presumed dead state, then an allowed call after sixty minutes
         session_set(MOCK_BUSY)
 
-        hass.data[DOMAIN][PRESUMED_DEAD] = True  # Set presumption of death
+        await set_presumed_dead(hass, entry, True)  # Set presumption of death
         coordinator, solcast = await _reload(hass, entry)
         if coordinator is None or solcast is None:
             pytest.fail("Reload failed")
         assert "Get sites failed, last call result: 999/Prior crash" in caplog.text
         assert "Connecting to https://api.solcast.com.au/rooftop_sites" not in caplog.text
         caplog.clear()
-        hass.data[DOMAIN][PRESUMED_DEAD] = True  # Set presumption of death
-        hass.data[DOMAIN][PRIOR_CRASH_TIME] = dt_util.now(dt_util.UTC) - timedelta(
-            minutes=DELAYED_RESTART_ON_CRASH - DELAYED_RESTART_ON_CRASH / 2
+        await set_presumed_dead(hass, entry, True)  # Set presumption of death
+        await set_crash_time(
+            hass,
+            entry,
+            dt_util.now(dt_util.UTC) - timedelta(minutes=DELAYED_RESTART_ON_CRASH - DELAYED_RESTART_ON_CRASH / 2),
         )
         coordinator, solcast = await _reload(hass, entry)
         assert re.search(r"Prior crash detected.+, skipping load for \d+ minutes", caplog.text)
         assert "Integration failed to load previously" in caplog.text
         assert "Connecting to https://api.solcast.com.au/rooftop_sites" not in caplog.text
-        hass.data[DOMAIN][PRIOR_CRASH_TIME] = dt_util.now(dt_util.UTC) - timedelta(minutes=DELAYED_RESTART_ON_CRASH + 1)
+        await set_crash_time(hass, entry, dt_util.now(dt_util.UTC) - timedelta(minutes=DELAYED_RESTART_ON_CRASH + 1))
         coordinator, solcast = await _reload(hass, entry)
         assert "Prior crash detected" in caplog.text
         assert f"Prior crash was more than {DELAYED_RESTART_ON_CRASH} minutes ago" in caplog.text
         assert "Connecting to https://api.solcast.com.au/rooftop_sites" in caplog.text
-        hass.data[DOMAIN].pop(PRESUMED_DEAD, None)
-        hass.data[DOMAIN].pop(PRIOR_CRASH_TIME, None)
+        await clear_crash_state(hass, entry)
 
         caplog.clear()
         _LOGGER.debug("Unlinking sites cache files")
         for f in ["solcast-sites.json", "solcast-sites-1.json", "solcast-sites-2.json"]:
             Path(f"{config_dir}/{f}").unlink(missing_ok=True)  # Remove sites cache file
-        hass.data[DOMAIN]["prior_crash_allow_sites"] = dt_util.now(dt_util.UTC) - timedelta(
-            minutes=DELAYED_RESTART_ON_CRASH - DELAYED_RESTART_ON_CRASH / 2
-        )
         coordinator, solcast = await _reload(hass, entry)
         assert "Sites data could not be retrieved" in caplog.text
-        assert hass.data[DOMAIN].get("prior_crash_allow_sites")
         assert "Connecting to https://api.solcast.com.au/rooftop_sites" in caplog.text
         assert "HTTP session returned status 429/Try again later" in caplog.text
         assert "At least one successful API 'get sites' call is needed" in caplog.text
         caplog.clear()
 
-        hass.data[DOMAIN][PRESUMED_DEAD] = False  # Clear presumption of death
+        await set_presumed_dead(hass, entry, False)  # Clear presumption of death
         session_clear(MOCK_BUSY)
 
         # Test corrupt cache start, integration will mostly not load, and will not attempt reload
@@ -2471,8 +2475,7 @@ async def test_scenarios(
         caplog.clear()
 
         # Corrupt usage.json
-        hass.data[DOMAIN].pop(PRESUMED_DEAD, None)
-        hass.data[DOMAIN].pop("prior_crash_allow_sites", None)
+        await clear_crash_state(hass, entry)
         usage_corruption: list[dict[str, Any]] = [
             {DAILY_LIMIT: "10", DAILY_LIMIT_CONSUMED: 8, "reset": "2025-01-05T00:00:00+00:00"},
             {DAILY_LIMIT: 10, DAILY_LIMIT_CONSUMED: "8", "reset": "2025-01-05T00:00:00+00:00"},
@@ -2483,10 +2486,8 @@ async def test_scenarios(
             usage_file.write_text(json.dumps(test), encoding="utf-8")
             await _reload(hass, entry)
             assert entry.state is ConfigEntryState.SETUP_ERROR, f"Expected entry state ConfigEntryState.SETUP_ERROR, got {entry.state}"
-            assert hass.data[DOMAIN].get(PRESUMED_DEAD) is True, "Integration should be presumed dead after corruption"
-            assert hass.data[DOMAIN].get("prior_crash_allow_sites") is None, "prior_crash_allow_sites should be None"
-            hass.data[DOMAIN].pop(PRESUMED_DEAD, None)  # Clear presumption of death
-            hass.data[DOMAIN].pop("prior_crash_allow_sites", None)
+            assert entry.state is not ConfigEntryState.LOADED, "Integration should be presumed dead after corruption"
+            await clear_crash_state(hass, entry)  # Clear presumption of death
         usage_file.write_text(corrupt, encoding="utf-8")
         await _reload(hass, entry)
         assert "corrupt, re-creating cache with zero usage" in caplog.text
@@ -2516,14 +2517,14 @@ async def test_scenarios(
         data_file.write_text(json.dumps(nc_data), encoding="utf-8")
         await _reload(hass, entry)
         assert "Dropping 1 entry(s) with non-datetime period_start" in caplog.text
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
         caplog.clear()
 
         # Corrupt solcast.json
         _LOGGER.debug("Testing corruption: solcast.json")
         _corrupt_data()
         await _reload(hass, entry)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is True, "Integration should be presumed dead"
+        assert entry.state is not ConfigEntryState.LOADED, "Integration should be presumed dead"
         caplog.clear()
 
         _LOGGER.debug("Testing extreme corruption: solcast.json")
@@ -2531,16 +2532,16 @@ async def test_scenarios(
         await _reload(hass, entry)
         assert "is corrupt in load_saved_data" in caplog.text
         assert "integration not ready yet" in caplog.text
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is True, "Integration should be presumed dead"
+        assert entry.state is not ConfigEntryState.LOADED, "Integration should be presumed dead"
 
         _LOGGER.debug("Testing extreme corruption as acceptable (but unacceptable) JSON list: solcast.json")
-        hass.data[DOMAIN].pop(PRESUMED_DEAD)
+        await clear_crash_state(hass, entry)
         _really_corrupt_data_2()
         await _reload(hass, entry)
         assert "cache appears corrupt" in caplog.text
         assert "is corrupt in load_saved_data" in caplog.text
         assert "integration not ready yet" in caplog.text
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is True, "Integration should be presumed dead"
+        assert entry.state is not ConfigEntryState.LOADED, "Integration should be presumed dead"
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
@@ -2566,7 +2567,7 @@ async def test_estimated_actuals(
 
         # Assert good start, that actuals are enabled, and that the cache is saved
         _LOGGER.debug("Testing good start happened")
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
         no_error_or_exception(caplog)
         assert Path(f"{config_dir}/solcast-actuals.json").is_file(), f"File {Path(f'{config_dir}/solcast-actuals.json')} should exist"
         caplog.clear()
@@ -2997,7 +2998,7 @@ async def test_diagnostic(
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         # Run the self-test action.
         result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
@@ -3097,7 +3098,7 @@ async def test_diagnostic_with_issues(
         options[GENERATION_ENTITIES] = ["sensor.nonexistent_entity"]
         entry = await async_init_integration(hass, options)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         assert result is not None, "Result should not be None"
@@ -3133,7 +3134,7 @@ async def test_diagnostic_disabled_entity(
         options[GENERATION_ENTITIES] = [entity_id]
         entry = await async_init_integration(hass, options)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         # Create the entity in registry, then disable it.
         entity_registry = er.async_get(hass)
@@ -3174,7 +3175,7 @@ async def test_diagnostic_unavailable_entity(
         options[GENERATION_ENTITIES] = [entity_id]
         entry = await async_init_integration(hass, options)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         # Create entity in registry (enabled) but set its state to unavailable.
         entity_registry = er.async_get(hass)
@@ -3214,7 +3215,7 @@ async def test_diagnostic_auto_dampen_no_entities(
         options[GENERATION_ENTITIES] = []
         entry = await async_init_integration(hass, options)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -3240,7 +3241,7 @@ async def test_diagnostic_export_entity_not_found(
         options[SITE_EXPORT_ENTITY] = "sensor.nonexistent_export"
         entry = await async_init_integration(hass, options)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -3269,7 +3270,7 @@ async def test_diagnostic_export_entity_disabled(
         options[SITE_EXPORT_ENTITY] = entity_id
         entry = await async_init_integration(hass, options)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         entity_registry = er.async_get(hass)
         entity_registry.async_get_or_create(
@@ -3307,7 +3308,7 @@ async def test_diagnostic_export_entity_unavailable(
         options[SITE_EXPORT_ENTITY] = entity_id
         entry = await async_init_integration(hass, options)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         entity_registry = er.async_get(hass)
         entity_registry.async_get_or_create(
@@ -3342,7 +3343,7 @@ async def test_diagnostic_api_and_cache_issues(
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         # Simulate API quota exhausted and failures.
         original_used = solcast.api_used.copy()
@@ -3383,7 +3384,7 @@ async def test_diagnostic_no_sites(
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         original_sites = solcast.sites
         solcast.sites = []
@@ -3413,7 +3414,7 @@ async def test_forecast_update_no_sites(
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         entity_registry = er.async_get(hass)
         for entity_id in ("sensor.solcast_pv_forecast_first_site", "sensor.solcast_pv_forecast_second_site"):
@@ -3453,7 +3454,7 @@ async def test_diagnostic_generation_entity_ok(
         options[GENERATION_ENTITIES] = [entity_id]
         entry = await async_init_integration(hass, options)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         entity_registry = er.async_get(hass)
         entity_registry.async_get_or_create(
@@ -3490,7 +3491,7 @@ async def test_diagnostic_export_entity_ok(
         options[SITE_EXPORT_ENTITY] = entity_id
         entry = await async_init_integration(hass, options)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         entity_registry = er.async_get(hass)
         entity_registry.async_get_or_create(
@@ -3527,7 +3528,7 @@ async def test_diagnostic_recorder_unavailable(
         options[GENERATION_ENTITIES] = []
         entry = await async_init_integration(hass, options)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         # Mock the component check to simulate recorder being unavailable.
         original_contains = hass.config.components.__contains__
@@ -3561,7 +3562,7 @@ async def test_diagnostic_stale_forecast_and_actuals_health(
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         stale_time = solcast.dt_helper.day_start_utc(future=-2)
         solcast.data[LAST_UPDATED] = stale_time
@@ -3645,7 +3646,7 @@ async def test_diagnostic_usage_status_and_excluded_sites(
         entry = await async_init_integration(hass, options)
         solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
         solcast.usage_status = UsageStatus.ERROR
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)
         data = result["data"]  # pyright: ignore[reportOptionalSubscript, reportIndexIssue, reportArgumentType, reportCallIssue]
@@ -3673,7 +3674,7 @@ async def test_forecast_accuracy_sensor_with_actuals(
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
@@ -3728,7 +3729,7 @@ async def test_forecast_accuracy_sensor_no_dampening(
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
@@ -3775,7 +3776,7 @@ async def test_forecast_accuracy_sensor_no_data(
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
@@ -3980,7 +3981,7 @@ async def test_watch_dampening_legacy_date_break_and_task_pop() -> None:
 
     with (
         unittest.mock.patch("homeassistant.components.solcast_solar.watch.awatch", mock_awatch),
-        unittest.mock.patch("datetime.datetime", _FakeDateTime),
+        unittest.mock.patch("homeassistant.components.solcast_solar.watch.dt", _FakeDateTime),
     ):
         await watcher.watch_for_dampening_legacy_location()
 

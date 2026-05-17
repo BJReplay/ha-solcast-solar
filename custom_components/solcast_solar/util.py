@@ -13,12 +13,14 @@ import re
 from typing import TYPE_CHECKING, Any, NamedTuple
 from urllib.parse import urlsplit, urlunsplit
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import IntegrationError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
+from . import crash_state
 from .const import (
     ACTUALS_COST,
     ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
@@ -54,9 +56,6 @@ from .const import (
     NEW_OPTION,
     OPTION,
     PERIOD_START,
-    PRIOR_CRASH_EXCEPTION,
-    PRIOR_CRASH_PLACEHOLDERS,
-    PRIOR_CRASH_TRANSLATION_KEY,
     PROBLEMS,
     SITE_INFO,
     STOPS_WORKING,
@@ -763,13 +762,23 @@ def forecast_entry_update(forecasts: dict[dt, Any], period_start: dt, pv: float,
         }
 
 
-def raise_and_record(
-    hass: HomeAssistant, exception: type[IntegrationError], translation_key: str, translation_placeholders: dict | None = None
+async def raise_and_record(
+    hass: HomeAssistant,
+    entry: ConfigEntry | None,
+    exception: type[IntegrationError],
+    translation_key: str,
+    translation_placeholders: dict | None = None,
 ) -> None:
-    """Raise and record an exception during initialisation."""
-    hass.data[DOMAIN][PRIOR_CRASH_EXCEPTION] = exception  # pylint: disable=home-assistant-use-runtime-data
-    hass.data[DOMAIN][PRIOR_CRASH_TRANSLATION_KEY] = translation_key  # pylint: disable=home-assistant-use-runtime-data
-    hass.data[DOMAIN][PRIOR_CRASH_PLACEHOLDERS] = translation_placeholders  # pylint: disable=home-assistant-use-runtime-data
+    """Record the exception details on the crash-state store and raise.
+
+    When entry is None (only possible in tests) the crash is still raised but no state is persisted.
+    """
+    if entry is not None:
+        store = await crash_state.async_get(hass, entry.entry_id)
+        store.state.exception_class = exception
+        store.state.translation_key = translation_key
+        store.state.translation_placeholders = translation_placeholders
+        await store.async_save()
     raise exception(translation_domain=DOMAIN, translation_key=translation_key, translation_placeholders=translation_placeholders)
 
 

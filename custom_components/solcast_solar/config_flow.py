@@ -1,6 +1,5 @@
 """Solcast config flow."""
 
-
 from collections.abc import Mapping
 from datetime import timezone
 import logging
@@ -16,6 +15,7 @@ from homeassistant import config_entries
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.config_entries import (
     ConfigEntry,
+    ConfigEntryState,
     ConfigFlow,
     ConfigFlowResult,
     OptionsFlow,
@@ -32,7 +32,7 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.util import dt as dt_util
 
-from . import get_session_headers, get_version
+from . import crash_state, entry_state, get_session_headers, get_version
 from .const import (
     AFFIRMATION_REAUTH_SUCCESSFUL,
     AFFIRMATION_RECONFIGURED,
@@ -70,13 +70,10 @@ from .const import (
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     NAME,
-    PRESUMED_DEAD,
-    RESET_OLD_KEY,
     RESOURCE_ID,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
-    SOLCAST,
     SUGGESTED_VALUE,
     TITLE,
     UNKNOWN,
@@ -177,6 +174,11 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
 
     entry: ConfigEntry | None = None
 
+    def _mark_reset_old_key(self) -> None:
+        """Signal next options update to treat the API key as freshly reconfigured."""
+        assert self.entry is not None
+        entry_state.get(self.entry.entry_id).reset_old_key = True
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> SolcastSolarOptionFlowHandler:
@@ -213,15 +215,15 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 if status != 200:
                     errors[BASE] = message
             if not errors:
-                self.hass.data[DOMAIN][RESET_OLD_KEY] = True
                 result = self.async_abort(reason=EXCEPTION_INTERNAL_ERROR)
                 if self.entry is not None:
+                    self._mark_reset_old_key()
                     data = {**self.entry.data, **all_config_data}
                     sync_legacy_keys(data)
                     self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
-                    if self.hass.data[DOMAIN].get(PRESUMED_DEAD, True):
+                    if self.entry.state is not ConfigEntryState.LOADED:
                         _LOGGER.debug("Loading presumed dead integration")
-                        self.hass.data[DOMAIN].pop(PRESUMED_DEAD)
+                        await (await crash_state.async_get(self.hass, self.entry.entry_id)).async_clear()
                         self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
                     result = self.async_abort(reason=AFFIRMATION_REAUTH_SUCCESSFUL)
                 return result
@@ -267,15 +269,15 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 if status != 200:
                     errors[BASE] = message
             if not errors:
-                self.hass.data[DOMAIN][RESET_OLD_KEY] = True
                 result = self.async_abort(reason=EXCEPTION_INTERNAL_ERROR)
                 if self.entry is not None:
+                    self._mark_reset_old_key()
                     data = {**self.entry.data, **all_config_data}
                     sync_legacy_keys(data)
                     self.hass.config_entries.async_update_entry(self.entry, title=TITLE, options=data)
-                    if self.hass.data[DOMAIN].get(PRESUMED_DEAD, True):
+                    if self.entry.state is not ConfigEntryState.LOADED:
                         _LOGGER.debug("Loading presumed dead integration")
-                        self.hass.data[DOMAIN].pop(PRESUMED_DEAD)
+                        await (await crash_state.async_get(self.hass, self.entry.entry_id)).async_clear()
                         self.hass.config_entries.async_schedule_reload(self.entry.entry_id)
                     result = self.async_abort(reason=AFFIRMATION_RECONFIGURED)
                 return result
@@ -391,9 +393,9 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
     async def check_dead(self) -> None:
         """Check if the integration is presumed dead and reload if so."""
 
-        if self.hass.data.get(DOMAIN, {}).get(PRESUMED_DEAD, True):
+        if self._entry.state is not ConfigEntryState.LOADED:
             _LOGGER.warning("Integration presumed dead, reloading")
-            self.hass.data[DOMAIN].pop(PRESUMED_DEAD)
+            await (await crash_state.async_get(self.hass, self._entry.entry_id)).async_clear()
             await self.hass.config_entries.async_reload(self._entry.entry_id)
 
     def _build_sensor_options(self) -> tuple[list[SelectOptionDict], list[SelectOptionDict]]:
@@ -597,7 +599,11 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             SelectOptionDict(label="estimate90", value="estimate90"),
         ]
 
-        solcast = self.hass.data.get(DOMAIN, {}).get(SOLCAST)
+        solcast = None
+        if self._entry is not None:
+            runtime_data = getattr(self._entry, "runtime_data", None)
+            if runtime_data is not None:
+                solcast = runtime_data.coordinator.solcast
         exclude: list[SelectOptionDict] = [SelectOptionDict(label="not_loaded", value="")]
         if solcast is not None:
             exclude = [

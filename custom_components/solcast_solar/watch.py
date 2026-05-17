@@ -1,7 +1,7 @@
 """Solcast file monitoring."""
 
-
 import asyncio
+from datetime import datetime as dt
 import logging
 from pathlib import Path
 from threading import Event
@@ -25,8 +25,6 @@ from .const import (
 )
 
 if TYPE_CHECKING:
-    from datetime import datetime as dt
-
     from .coordinator import SolcastUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -265,7 +263,6 @@ class FileWatcher:
     async def watch_for_dampening_legacy_location(self, stop_event: Event | None = None) -> None:
         """Watch for dampening file modification in the legacy config location."""
         coordinator = self.coordinator
-        from datetime import datetime as dt  # noqa: PLC0415
 
         end_date = dt(2026, 6, 1, tzinfo=coordinator.solcast.options.tz)
         if dt.now(coordinator.solcast.options.tz) < end_date:
@@ -294,6 +291,5 @@ class FileWatcher:
                     if dt.now(coordinator.solcast.options.tz) >= end_date:
                         break
             finally:
-                if coordinator.tasks.get(task) is not None:
-                    coordinator.tasks.pop(task)
+                coordinator.tasks.pop(task, None)
                 _LOGGER.debug("Cancelled task %s", task)

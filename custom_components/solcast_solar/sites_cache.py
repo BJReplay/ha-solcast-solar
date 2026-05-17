@@ -18,6 +18,7 @@ from aiohttp.client_reqrep import ClientResponse
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
 
+from . import entry_state
 from .const import (
     ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
@@ -31,7 +32,6 @@ from .const import (
     DISMISSAL,
     DOMAIN,
     DT_DATE_FORMAT,
-    ENTRY_OPTIONS,
     EXCEPTION_INIT_CORRUPT,
     EXCEPTION_INIT_INCOMPATIBLE,
     EXTANT,
@@ -51,7 +51,6 @@ from .const import (
     LAST_UPDATED,
     LEARN_MORE,
     LEARN_MORE_UNUSUAL_AZIMUTH,
-    OLD_API_KEY,
     PERIOD_START,
     PROPOSAL,
     RESET,
@@ -128,6 +127,22 @@ class SitesCache:
         self._extant_usage: defaultdict[str, dict[str, Any]] = defaultdict(dict[str, Any])
         self._rekey: dict[str, Any] = {}
         self._site_latitude: defaultdict[str, dict[str, bool | float | int | None]] = defaultdict(dict[str, bool | float | int | None])
+
+    def _clear_old_api_key(self) -> None:
+        """Clear the prior API key tracked for entry state, if any."""
+        if self.api.entry is not None:
+            entry_state.get(self.api.entry.entry_id).old_api_key = None
+
+    def _old_api_key_for_comparison(self) -> str:
+        """Return the API key(s) used to detect new sites since the last reconfigure.
+
+        Returns the configured API key when no prior key is tracked for fresh setup.
+        """
+        if self.api.entry is not None:
+            old = entry_state.get(self.api.entry.entry_id).old_api_key
+            if old is not None:
+                return old
+        return self.api.entry_options.get(API_KEY, "")
 
     # Properties (alphabetical).
 
@@ -416,7 +431,9 @@ class SitesCache:
                             json_data: dict[str, Any] = json.loads(await data_file.read(), cls=JSONDecoder)
                             if not isinstance(json_data, dict):
                                 _LOGGER.error("The %s cache appears corrupt", filename)
-                                raise_and_record(self.api.hass, ConfigEntryNotReady, EXCEPTION_INIT_CORRUPT, {"file": file})
+                                await raise_and_record(
+                                    self.api.hass, self.api.entry, ConfigEntryNotReady, EXCEPTION_INIT_CORRUPT, {"file": file}
+                                )
                             json_version = json_data.get(VERSION, 1)
                             _LOGGER.debug(
                                 "Data cache %s exists, file type is %s",
@@ -465,7 +482,9 @@ class SitesCache:
                                 except SchemaIncompatibleError:
                                     self.api.status = SolcastApiStatus.DATA_INCOMPATIBLE
                                     _LOGGER.critical("The %s appears incompatible, so cannot upgrade it", filename)
-                                    raise_and_record(self.api.hass, ConfigEntryError, EXCEPTION_INIT_INCOMPATIBLE, {"file": file})
+                                    await raise_and_record(
+                                        self.api.hass, self.api.entry, ConfigEntryError, EXCEPTION_INIT_INCOMPATIBLE, {"file": file}
+                                    )
 
                                 if json_version > current_version:
                                     await self.serialise_data(data, filename)
@@ -480,9 +499,7 @@ class SitesCache:
                     reset_usage = False
                     new_sites: dict[str, str] = {}
                     cache_sites = list(self.api.data[SITE_INFO].keys())
-                    old_api_keys = (
-                        self.api.hass.data[DOMAIN].get(OLD_API_KEY, self.api.hass.data[DOMAIN][ENTRY_OPTIONS].get(API_KEY, "")).split(",")
-                    )
+                    old_api_keys = self._old_api_key_for_comparison().split(",")
                     for site in self.api.sites:
                         api_key = site[API_KEY]
                         site = site[RESOURCE_ID]
@@ -493,7 +510,7 @@ class SitesCache:
                             ):  # If a new site is seen in conjunction with an API key change then reset the usage.
                                 reset_usage = True
                     with contextlib.suppress(Exception):
-                        del self.api.hass.data[DOMAIN][OLD_API_KEY]
+                        self._clear_old_api_key()
 
                     if reset_usage:
                         _LOGGER.info("An API key has changed with a new site added, resetting usage")
@@ -615,7 +632,7 @@ class SitesCache:
         except json.decoder.JSONDecodeError:
             _LOGGER.error("The cached data in %s is corrupt in load_saved_data()", file)
             self.api.status = SolcastApiStatus.DATA_CORRUPT
-            raise_and_record(self.api.hass, ConfigEntryNotReady, EXCEPTION_INIT_CORRUPT, {"file": file})
+            await raise_and_record(self.api.hass, self.api.entry, ConfigEntryNotReady, EXCEPTION_INIT_CORRUPT, {"file": file})
         return True
 
     async def reset_api_usage(self, force: bool = False) -> None:
