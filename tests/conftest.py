@@ -3,7 +3,6 @@
 from collections.abc import Generator
 from datetime import datetime as dt
 import logging
-from pathlib import Path
 
 import freezegun
 from freezegun.api import FrozenDateTimeFactory
@@ -11,7 +10,6 @@ import pytest
 
 from . import aioresponses_reset
 
-import tests.common as tests_common
 from tests.ignore_uncaught_exceptions import IGNORE_UNCAUGHT_EXCEPTIONS
 
 # Background tasks can fire during teardown under parallel execution, producing
@@ -63,10 +61,6 @@ def frozen_time() -> Generator[FrozenDateTimeFactory]:
 
 
 @pytest.fixture(autouse=True)
-def isolate_test_config_dir(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def hass_config_dir(hass_tmp_config_dir: str) -> str:
     """Use a per-test config directory so xdist workers do not share files."""
-
-    def _get_test_config_dir(*add_path: str) -> str:
-        return str(tmp_path.joinpath(*add_path))
-
-    monkeypatch.setattr(tests_common, "get_test_config_dir", _get_test_config_dir)
+    return hass_tmp_config_dir

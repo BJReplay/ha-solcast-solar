@@ -1,7 +1,5 @@
 """Solcast utilities."""
 
-from __future__ import annotations
-
 # pylint: disable=consider-using-enumerate
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
@@ -231,7 +229,7 @@ async def async_is_allow_exceed_api_limit(hass: HomeAssistant) -> bool:
 
     try:
         return await hass.async_add_executor_job(_read_advanced_setting)
-    except (OSError, json.JSONDecodeError, ValueError):
+    except OSError, json.JSONDecodeError, ValueError:
         return False
 
 
@@ -247,7 +245,7 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
 
     try:
         auto_update = int(options.get(AUTO_UPDATE, AutoUpdate.NONE))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         _remove_issue()
         return
 
@@ -525,7 +523,7 @@ class JSONDecoder(json.JSONDecoder):
         for key, value in o.items():
             try:
                 result[key] = dt.fromisoformat(value)
-            except (TypeError, ValueError):
+            except TypeError, ValueError:
                 result[key] = value
         return result
 
@@ -622,7 +620,7 @@ def azimuth_to_compass_degrees(azimuth: Any) -> float | None:
     """
     try:
         return (-float(azimuth)) % 360.0
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -769,9 +767,9 @@ def raise_and_record(
     hass: HomeAssistant, exception: type[IntegrationError], translation_key: str, translation_placeholders: dict | None = None
 ) -> None:
     """Raise and record an exception during initialisation."""
-    hass.data[DOMAIN][PRIOR_CRASH_EXCEPTION] = exception
-    hass.data[DOMAIN][PRIOR_CRASH_TRANSLATION_KEY] = translation_key
-    hass.data[DOMAIN][PRIOR_CRASH_PLACEHOLDERS] = translation_placeholders
+    hass.data[DOMAIN][PRIOR_CRASH_EXCEPTION] = exception  # pylint: disable=home-assistant-use-runtime-data
+    hass.data[DOMAIN][PRIOR_CRASH_TRANSLATION_KEY] = translation_key  # pylint: disable=home-assistant-use-runtime-data
+    hass.data[DOMAIN][PRIOR_CRASH_PLACEHOLDERS] = translation_placeholders  # pylint: disable=home-assistant-use-runtime-data
     raise exception(translation_domain=DOMAIN, translation_key=translation_key, translation_placeholders=translation_placeholders)
 
 
@@ -869,9 +867,9 @@ async def clear_cache(filename: str, warn: bool = True):
     """Deletes filename if it exists."""
     if Path(filename).is_file():
         Path(filename).unlink()
-        _LOGGER.debug("Deleted cache file %s", filename.split("/")[-1])
+        _LOGGER.debug("Deleted cache file %s", Path(filename).name)
     elif warn:
-        _LOGGER.warning("There is no %s to delete", filename.split("/")[-1])
+        _LOGGER.warning("There is no %s to delete", Path(filename).name)
 
 
 def percentile(data: list[Any], _percentile: float) -> float | int:

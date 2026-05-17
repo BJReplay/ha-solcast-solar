@@ -140,6 +140,7 @@ from homeassistant.components.solcast_solar.const import (
     USE_ACTUALS,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from homeassistant.components.solcast_solar.forecast import ForecastQuery
 from homeassistant.components.solcast_solar.solcastapi import (
     ConnectionOptions,
     SitesStatus,
@@ -3415,7 +3416,7 @@ async def test_forecast_update_no_sites(
         assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
 
         entity_registry = er.async_get(hass)
-        for entity_id in ("sensor.first_site", "sensor.second_site"):
+        for entity_id in ("sensor.solcast_pv_forecast_first_site", "sensor.solcast_pv_forecast_second_site"):
             if entity_registry.async_get(entity_id):
                 entity_registry.async_remove(entity_id)
         await hass.async_block_till_done()
@@ -4014,3 +4015,23 @@ async def test_handle_advanced_update_cancels_pending_restart() -> None:
         await watcher._handle_advanced_update()
         cancel_first.assert_called_once()
         assert watcher._pending_restart is cancel_second
+
+
+def test_path_exists_oserror_returns_false() -> None:
+    """Return False when Path.exists() raises OSError (e.g. a transient filesystem race)."""
+
+    coordinator = unittest.mock.MagicMock()
+    coordinator.hass.config.config_dir = "/config"
+    watcher = FileWatcher(coordinator)
+
+    with unittest.mock.patch("homeassistant.components.solcast_solar.watch.Path.exists", side_effect=OSError):
+        assert watcher._path_exists("/config/solcast_solar/solcast-dampening.json") is False
+
+
+def test_get_rooftop_site_extra_data_unknown_site_returns_none() -> None:
+    """Return None when the requested site ID is not in the sites list."""
+
+    api = unittest.mock.MagicMock()
+    api.sites = []
+    query = ForecastQuery(api)
+    assert query.get_rooftop_site_extra_data("unknown-site-id") is None

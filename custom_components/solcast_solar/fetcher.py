@@ -1,6 +1,5 @@
 """Solcast API fetch and update orchestration."""
 
-from __future__ import annotations
 
 import asyncio
 import copy

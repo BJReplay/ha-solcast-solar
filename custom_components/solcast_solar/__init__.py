@@ -1,7 +1,5 @@
 """Solcast initialisation."""
 
-from __future__ import annotations
-
 from collections.abc import Awaitable, Callable
 import contextlib
 from datetime import datetime as dt, timedelta
@@ -126,7 +124,7 @@ async def get_version(hass: HomeAssistant) -> str:
 
 def __setup_storage(hass: HomeAssistant) -> None:
     if not hass.data.get(DOMAIN):
-        hass.data[DOMAIN] = {}
+        hass.data[DOMAIN] = {}  # pylint: disable=home-assistant-use-runtime-data
 
 
 async def __get_time_zone(hass: HomeAssistant) -> zoneinfo.ZoneInfo:
@@ -321,16 +319,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     options = await __get_options(hass, entry)
     __setup_storage(hass)
 
-    prior_crash = hass.data[DOMAIN].get(PRESUMED_DEAD, False)
-    prior_crash_time: dt | None = hass.data[DOMAIN].get(PRIOR_CRASH_TIME)
+    prior_crash = hass.data[DOMAIN].get(PRESUMED_DEAD, False)  # pylint: disable=home-assistant-use-runtime-data
+    prior_crash_time: dt | None = hass.data[DOMAIN].get(PRIOR_CRASH_TIME)  # pylint: disable=home-assistant-use-runtime-data
     deny_startup: bool = prior_crash_time is not None
     if prior_crash:
         if not deny_startup:
             _LOGGER.debug("Prior crash detected, set the time of crash")
-            hass.data[DOMAIN][PRIOR_CRASH_TIME] = dt_util.now(dt_util.UTC)  # Set the time of the crash.
+            hass.data[DOMAIN][PRIOR_CRASH_TIME] = dt_util.now(dt_util.UTC)  # pylint: disable=home-assistant-use-runtime-data
         elif prior_crash_time < dt_util.now(dt_util.UTC) - timedelta(minutes=DELAYED_RESTART_ON_CRASH):
             _LOGGER.info("Prior crash was more than %d minutes ago, allowing sites to be reloaded", DELAYED_RESTART_ON_CRASH)
-            hass.data[DOMAIN][PRIOR_CRASH_TIME] = dt_util.now(dt_util.UTC)
+            hass.data[DOMAIN][PRIOR_CRASH_TIME] = dt_util.now(dt_util.UTC)  # pylint: disable=home-assistant-use-runtime-data
             prior_crash = False
     if prior_crash and deny_startup:
         _LOGGER.warning(
@@ -338,19 +336,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             dt.strftime(prior_crash_time, DT_DATE_FORMAT),
             DELAYED_RESTART_ON_CRASH,
         )
-        if hass.data[DOMAIN].get(PRIOR_CRASH_EXCEPTION) is not None:
+        if hass.data[DOMAIN].get(PRIOR_CRASH_EXCEPTION) is not None:  # pylint: disable=home-assistant-use-runtime-data
             _LOGGER.debug(
                 "Raising prior exception: %s(%s)",
-                hass.data[DOMAIN].get(PRIOR_CRASH_EXCEPTION),
-                hass.data[DOMAIN].get(PRIOR_CRASH_TRANSLATION_KEY),
+                hass.data[DOMAIN].get(PRIOR_CRASH_EXCEPTION),  # pylint: disable=home-assistant-use-runtime-data
+                hass.data[DOMAIN].get(PRIOR_CRASH_TRANSLATION_KEY),  # pylint: disable=home-assistant-use-runtime-data
             )
-            raise hass.data[DOMAIN][PRIOR_CRASH_EXCEPTION](  # Re-raise prior exception
+            raise hass.data[DOMAIN][PRIOR_CRASH_EXCEPTION](  # pylint: disable=home-assistant-use-runtime-data
                 translation_domain=DOMAIN,
-                translation_key=hass.data[DOMAIN].get(PRIOR_CRASH_TRANSLATION_KEY, EXCEPTION_INTEGRATION_PRIOR_CRASH),
-                translation_placeholders=hass.data[DOMAIN].get(PRIOR_CRASH_PLACEHOLDERS),
+                translation_key=hass.data[DOMAIN].get(PRIOR_CRASH_TRANSLATION_KEY, EXCEPTION_INTEGRATION_PRIOR_CRASH),  # pylint: disable=home-assistant-use-runtime-data
+                translation_placeholders=hass.data[DOMAIN].get(PRIOR_CRASH_PLACEHOLDERS),  # pylint: disable=home-assistant-use-runtime-data
             )
 
-    hass.data[DOMAIN][PRESUMED_DEAD] = True  # Presumption that init will not be successful.
+    hass.data[DOMAIN][PRESUMED_DEAD] = True  # pylint: disable=home-assistant-use-runtime-data
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options, hass, entry)
     await solcast.async_migrate_config_files()
     await solcast.advanced_opt.read_advanced_options()
@@ -382,8 +380,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     sync_actuals_api_limit_issue(hass, entry.options, solcast.sites)
 
     await __get_granular_dampening(hass, entry, solcast)
-    hass.data[DOMAIN][SOLCAST] = solcast
-    hass.data[DOMAIN][ENTRY_OPTIONS] = {**entry.options}
+    hass.data[DOMAIN][SOLCAST] = solcast  # pylint: disable=home-assistant-use-runtime-data
+    hass.data[DOMAIN][ENTRY_OPTIONS] = {**entry.options}  # pylint: disable=home-assistant-use-runtime-data
 
     if await solcast.sites_cache.load_saved_data():
         await solcast.dampening.model_automated()
@@ -403,7 +401,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     __log_hard_limit_set(solcast)
 
     _LOGGER.debug("Clear presumed dead flag")
-    hass.data[DOMAIN][PRESUMED_DEAD] = False  # Initialisation was successful, so we're not dead.
+    hass.data[DOMAIN][PRESUMED_DEAD] = False  # pylint: disable=home-assistant-use-runtime-data
     hass.data[DOMAIN].pop(PRIOR_CRASH_TIME, None)
     hass.data[DOMAIN].pop(PRIOR_CRASH_TRANSLATION_KEY, None)
     hass.data[DOMAIN].pop(PRIOR_CRASH_PLACEHOLDERS, None)
@@ -499,19 +497,19 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     recalculate_splines = False
 
     def changed(config: str) -> bool:
-        return hass.data[DOMAIN][ENTRY_OPTIONS].get(config) != entry.options.get(config)
+        return coordinator.solcast.entry_options.get(config) != entry.options.get(config)
 
     # Old API key tracking.
     if changed(CONF_API_KEY):
-        if hass.data[DOMAIN].get(RESET_OLD_KEY):
-            hass.data[DOMAIN].pop(RESET_OLD_KEY)
-            hass.data[DOMAIN][OLD_API_KEY] = entry.options.get(CONF_API_KEY)
+        if hass.data[DOMAIN].get(RESET_OLD_KEY):  # pylint: disable=home-assistant-use-runtime-data
+            hass.data[DOMAIN].pop(RESET_OLD_KEY)  # pylint: disable=home-assistant-use-runtime-data
+            hass.data[DOMAIN][OLD_API_KEY] = entry.options.get(CONF_API_KEY)  # pylint: disable=home-assistant-use-runtime-data
         else:
-            hass.data[DOMAIN][OLD_API_KEY] = hass.data[DOMAIN][ENTRY_OPTIONS].get(CONF_API_KEY)
+            hass.data[DOMAIN][OLD_API_KEY] = coordinator.solcast.entry_options.get(CONF_API_KEY)  # pylint: disable=home-assistant-use-runtime-data
 
     # Multi-API key hard limit tracking and clean up.
-    if hass.data[DOMAIN].get(OLD_HARD_LIMIT, coordinator.solcast.hard_limit) != entry.options[HARD_LIMIT_API]:
-        old_multi_key = len(hass.data[DOMAIN].get(OLD_HARD_LIMIT, coordinator.solcast.hard_limit).split(",")) > 1
+    if hass.data[DOMAIN].get(OLD_HARD_LIMIT, coordinator.solcast.hard_limit) != entry.options[HARD_LIMIT_API]:  # pylint: disable=home-assistant-use-runtime-data
+        old_multi_key = len(hass.data[DOMAIN].get(OLD_HARD_LIMIT, coordinator.solcast.hard_limit).split(",")) > 1  # pylint: disable=home-assistant-use-runtime-data
         new_multi_key = len(entry.options[HARD_LIMIT_API].split(",")) > 1
         if old_multi_key != new_multi_key:  # Changing from single to multi or vice versa
             entity_registry = er.async_get(hass)
@@ -526,7 +524,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
                 if entity.unique_id in clean_up:
                     _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
                     entity_registry.async_remove(entity.entity_id)
-    hass.data[DOMAIN][OLD_HARD_LIMIT] = entry.options[HARD_LIMIT_API]
+    hass.data[DOMAIN][OLD_HARD_LIMIT] = entry.options[HARD_LIMIT_API]  # pylint: disable=home-assistant-use-runtime-data
 
     # Config changes, which when changed will cause a reload.
     reload = (
@@ -564,12 +562,12 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
         if changed(AUTO_DAMPEN):
             reload = True
-            if hass.data[DOMAIN][ENTRY_OPTIONS].get(AUTO_DAMPEN, False):
-                # Turning auto-dampening off, so reset the granular dampening file content.
-                path = Path(coordinator.solcast.dampening.get_filename())
-                _LOGGER.debug("Unlink %s", path)
-                if path.exists():
-                    path.unlink()
+        if coordinator.solcast.entry_options.get(AUTO_DAMPEN, False):
+            # Turning auto-dampening off, so reset the granular dampening file content.
+            path = Path(coordinator.solcast.dampening.get_filename())
+            _LOGGER.debug("Unlink %s", path)
+            if path.exists():
+                path.unlink()
 
         if changed(SITE_DAMP):
             damp_changed = True
@@ -602,7 +600,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
             await coordinator.solcast.query.recalculate_splines()
         await coordinator.update_integration_listeners()
 
-        hass.data[DOMAIN][ENTRY_OPTIONS] = {**entry.options}
+        hass.data[DOMAIN][ENTRY_OPTIONS] = {**entry.options}  # pylint: disable=home-assistant-use-runtime-data
         coordinator.solcast.entry_options = {**entry.options}
     else:
         # Reload.

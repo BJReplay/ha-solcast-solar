@@ -1,7 +1,5 @@
 """Solcast sites, usage and cache management."""
 
-from __future__ import annotations
-
 from collections import defaultdict
 import contextlib
 import copy
@@ -332,15 +330,13 @@ class SitesCache:
                         )
                         Path(file).unlink()
 
-        def list_all_files() -> tuple[list[str], list[str]]:
-            sites = [str(sites) for sites in Path(self.api.config_dir).glob("solcast-sites*.json")]
-            usage = [str(usage) for usage in Path(self.api.config_dir).glob("solcast-usage*.json")]
-            return sorted(sites), sorted(usage)
-
-        def list_multi_key_files() -> tuple[list[str], list[str]]:
-            sites = [str(sites) for sites in Path(self.api.config_dir).glob("solcast-sites-*.json")]
-            usage = [str(usage) for usage in Path(self.api.config_dir).glob("solcast-usage-*.json")]
-            return sorted(sites), sorted(usage)
+        def list_all_and_multi_key_files() -> tuple[tuple[list[str], list[str]], tuple[list[str], list[str]]]:
+            config_dir = Path(self.api.config_dir)
+            all_sites = sorted(str(s) for s in config_dir.glob("solcast-sites*.json"))
+            all_usage = sorted(str(u) for u in config_dir.glob("solcast-usage*.json"))
+            multi_sites = sorted(str(s) for s in config_dir.glob("solcast-sites-*.json"))
+            multi_usage = sorted(str(u) for u in config_dir.glob("solcast-usage-*.json"))
+            return (all_sites, all_usage), (multi_sites, multi_usage)
 
         async def load_extant_sites_and_usage(sites: list[str], usages: list[str]):
             extant_sites: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -384,8 +380,9 @@ class SitesCache:
         multi_sites = [f"{self.api.config_dir}/solcast-sites-{api_key}.json" for api_key in api_keys]
         multi_usage = [f"{self.api.config_dir}/solcast-usage-{api_key}.json" for api_key in api_keys]
 
-        all_sites, all_usage = await self.api.hass.async_add_executor_job(list_all_files)
-        multi_key_sites, multi_key_usage = await self.api.hass.async_add_executor_job(list_multi_key_files)
+        (all_sites, all_usage), (multi_key_sites, multi_key_usage) = await self.api.hass.async_add_executor_job(
+            list_all_and_multi_key_files
+        )
         self._extant_sites, self._extant_usage = await load_extant_sites_and_usage(all_sites, all_usage)
         remove_orphans(multi_key_sites, multi_sites)
         remove_orphans(multi_key_usage, multi_usage)

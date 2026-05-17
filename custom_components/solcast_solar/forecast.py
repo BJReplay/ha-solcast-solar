@@ -1,7 +1,5 @@
 """Solcast forecast query and spline interpolation engine."""
 
-from __future__ import annotations
-
 from collections import OrderedDict
 from datetime import datetime as dt, timedelta
 import logging
@@ -171,7 +169,7 @@ class ForecastQuery:
             for data in estimate_slice
         )
 
-    def get_rooftop_site_extra_data(self, site: str = "") -> dict[str, Any]:
+    def get_rooftop_site_extra_data(self, site: str = "") -> dict[str, Any] | None:
         """Return information about a site.
 
         Arguments:
@@ -181,6 +179,8 @@ class ForecastQuery:
             dict: Site attributes that have been configured at solcast.com.
         """
         target_site = tuple(_site for _site in self.api.sites if _site[RESOURCE_ID] == site)
+        if not target_site:
+            return None
         _site: dict[str, Any] = target_site[0]
         azimuth = _site.get(SITE_ATTRIBUTE_AZIMUTH)
         compass_degrees = azimuth_to_compass_degrees(azimuth)
@@ -413,7 +413,7 @@ class ForecastQuery:
         start_utc = self.api.dt_helper.day_start_utc(future=n_day)
         end_utc = self.api.dt_helper.day_start_utc(future=n_day + 1)
         result = self._get_max_forecast_pv_estimate(start_utc, end_utc, site=site, forecast_confidence=forecast_confidence)
-        return int(round(1000 * result[forecast_confidence])) if result is not None else None
+        return round(1000 * result[forecast_confidence]) if result is not None else None
 
     def get_peak_time_day(
         self,
@@ -612,7 +612,7 @@ class ForecastQuery:
                 ):
                     spline[forecast_confidence][spline_index + 1] = spline[forecast_confidence][spline_index]
             else:
-                y_index = int(math.floor(interval / 1800))  # Every half hour
+                y_index = math.floor(interval / 1800)  # Every half hour
                 if y_index + 1 <= len(y) - 1 and y[y_index] == 0 and y[y_index + 1] == 0:
                     spline[forecast_confidence][spline_index] = 0.0
         # Shift right by fifteen minutes because 30-minute averages, padding as appropriate.

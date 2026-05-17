@@ -1,6 +1,5 @@
 """Solcast information for system health."""
 
-from __future__ import annotations
 
 from typing import Any
 

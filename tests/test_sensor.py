@@ -534,9 +534,9 @@ async def test_sensor_states(  # noqa: C901
         caplog.clear()
 
         if key == "1":
-            assert hass.states.get("sensor.first_site").state == "26.595"  # type: ignore[union-attr]
-            assert hass.states.get("sensor.second_site").state == "15.957"  # type: ignore[union-attr]
-            assert hass.states.get("sensor.third_site").state == "15.957"  # type: ignore[union-attr]
+            assert hass.states.get("sensor.solcast_pv_forecast_first_site").state == "26.595"  # type: ignore[union-attr]
+            assert hass.states.get("sensor.solcast_pv_forecast_second_site").state == "15.957"  # type: ignore[union-attr]
+            assert hass.states.get("sensor.solcast_pv_forecast_third_site").state == "15.957"  # type: ignore[union-attr]
             assert hass.states.get("sensor.solcast_pv_forecast_api_limit").state == "20"  # type: ignore[union-attr]
             assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "12.0 kW"  # type: ignore[union-attr]
             assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "6.0 kW"  # type: ignore[union-attr]
@@ -546,7 +546,7 @@ async def test_sensor_states(  # noqa: C901
                 "Overall hard limit sensor should not exist when per-site limits are specified"
             )
 
-            attribs: ReadOnlyDict[str, Any] = hass.states.get("sensor.first_site").attributes  # type: ignore[union-attr]
+            attribs: ReadOnlyDict[str, Any] = hass.states.get("sensor.solcast_pv_forecast_first_site").attributes  # type: ignore[union-attr]
             assert attribs, "first_site sensor attributes should exist"
             assert attribs.get(RESOURCE_ID)
             assert attribs.get("name")
@@ -762,7 +762,7 @@ async def test_sensor_unavailable(
                 assert state, f"Sensor {sensor} state should exist"
                 assert state.state == STATE_UNAVAILABLE
 
-        for site in ("first_site", "second_site"):
+        for site in ("solcast_pv_forecast_first_site", "solcast_pv_forecast_second_site"):
             state = hass.states.get(f"sensor.{site}")
             assert state, f"Site sensor {site} state should exist"
             assert state.state == STATE_UNAVAILABLE
@@ -851,7 +851,7 @@ async def test_sensor_unavailable_exception(
             assert state, f"Sensor {sensor} state should exist"
             assert state.state == STATE_UNAVAILABLE
 
-        for site in ("first_site", "second_site"):
+        for site in ("solcast_pv_forecast_first_site", "solcast_pv_forecast_second_site"):
             state = hass.states.get(f"sensor.{site}")
             _ = state.attributes  # type: ignore[union-attr]
             assert state, f"Site sensor {site} state should exist"
