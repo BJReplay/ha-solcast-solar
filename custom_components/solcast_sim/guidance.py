@@ -1,7 +1,5 @@
 """Climate normals and guidance payload generation for Solcast PV SimCity."""
 
-from __future__ import annotations
-
 import asyncio
 from datetime import UTC, date, datetime, time, timedelta
 from enum import IntEnum

@@ -1,7 +1,5 @@
 """Solcast PV SimCity sensor platform."""
 
-from __future__ import annotations
-
 from datetime import datetime, timedelta
 import logging
 from pathlib import Path

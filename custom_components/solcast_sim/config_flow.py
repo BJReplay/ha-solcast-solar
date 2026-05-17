@@ -1,7 +1,5 @@
 """Config and options flow for Solcast PV SimCity."""
 
-from __future__ import annotations
-
 from collections.abc import Mapping
 from types import MappingProxyType
 from typing import Any
