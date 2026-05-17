@@ -347,7 +347,7 @@ async def _async_recorder_historic_estimated_actuals(
     for row in rows:
         try:
             row_value = float(row.state)
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             continue
         row_time = row.last_updated
         if row_time is None:

@@ -17,7 +17,7 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 async def test_async_load_restores_state_from_disk(hass: HomeAssistant) -> None:
     """A fresh store should rehydrate every field saved by a prior instance."""
     entry_id = "crash_state_load_test"
-    crash_state._STORES.pop(entry_id, None)  # noqa: SLF001
+    crash_state._STORES.pop(entry_id, None)
     saved = CrashStateStore(hass, entry_id)
     saved.state.presumed_dead = True
     saved.state.crash_time = dt(2025, 6, 1, 12, 30, tzinfo=UTC)
@@ -26,7 +26,7 @@ async def test_async_load_restores_state_from_disk(hass: HomeAssistant) -> None:
     saved.state.translation_placeholders = {"reason": "bad_key"}
     await saved.async_save()
 
-    crash_state._STORES.pop(entry_id, None)  # noqa: SLF001
+    crash_state._STORES.pop(entry_id, None)
     loaded = await async_get(hass, entry_id)
     assert loaded.state.presumed_dead is True
     assert loaded.state.crash_time == dt(2025, 6, 1, 12, 30, tzinfo=UTC)
@@ -35,4 +35,4 @@ async def test_async_load_restores_state_from_disk(hass: HomeAssistant) -> None:
     assert loaded.state.translation_placeholders == {"reason": "bad_key"}
 
     await loaded.async_clear()
-    crash_state._STORES.pop(entry_id, None)  # noqa: SLF001
+    crash_state._STORES.pop(entry_id, None)

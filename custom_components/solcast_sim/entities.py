@@ -473,7 +473,7 @@ class SolcastSimEnergySensor(RestoreEntity, SensorEntity):
         if (last_state := await self.async_get_last_state()) is not None:
             try:
                 self._attr_native_value = float(last_state.state)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 self._attr_native_value = 0.0
 
         self._last_t = seconds_since_midnight(self._tz)
@@ -522,7 +522,7 @@ class SolcastSimTotalEnergySensor(RestoreEntity, SensorEntity):
         if (last_state := await self.async_get_last_state()) is not None:
             try:
                 self._attr_native_value = float(last_state.state)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 self._attr_native_value = 0.0
 
         self._last_t = seconds_since_midnight(self._tz)
