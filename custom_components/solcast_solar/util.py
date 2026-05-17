@@ -399,7 +399,9 @@ def sync_actuals_quota_risk_issue(
         )
         return
 
-    _remove_issue()
+    # Only clear the issue when the configured API limit guarantees headroom for actuals.
+    if all(api_limit + count <= inferred_quota for count in sites_per_key.values()):
+        _remove_issue()
 
 
 def sync_legacy_keys(data: dict[str, Any]) -> None:

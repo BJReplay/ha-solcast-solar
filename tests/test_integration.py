@@ -1858,6 +1858,46 @@ async def test_actuals_quota_today_issue_not_raised_when_within_quota(
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
+async def test_actuals_quota_today_issue_persists_until_config_reduced(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """Test that a raised quota risk issue is not auto-cleared by a transient drop in typical usage.
+
+    The issue must persist until the configured API limit is lowered.
+    """
+
+    try:
+        # Two sites on the same key: actuals cost = 2.
+        # api_limit=9 (inferred quota 10): 9+2=11 > 10, so config is inherently risky.
+        fake_sites = [{CONF_API_KEY: "key1"}, {CONF_API_KEY: "key1"}]
+        api_limit = 9  # below hobbyist max of 10, so inferred_quota = 10
+
+        # Raise the issue: typical(9) + 2 actuals = 11 > 10.
+        sync_actuals_quota_risk_issue(hass, fake_sites, {"key1": 9}, {}, {}, api_limit, get_actuals=True)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, (
+            "Issue should be raised: typical 9 + 2 actuals = 11 > inferred quota 10"
+        )
+
+        # Simulate a midnight reset: typical drops to 5 (light previous day).
+        # effective(5) + 2 actuals = 7 <= 10 so at_risk_items is empty, but api_limit(9)+2=11 > 10
+        # means the configuration is still risky — the issue must NOT be auto-cleared.
+        sync_actuals_quota_risk_issue(hass, fake_sites, {"key1": 5}, {}, {}, api_limit, get_actuals=True)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, (
+            "Issue should persist: configuration api_limit(9)+2 actuals=11 > inferred quota 10, regardless of the current typical being low"
+        )
+
+        # User reduces api_limit to 8: 8+2=10 <= inferred_quota(10) — configuration is now safe.
+        # The issue should clear even though typical is still 5 (well below quota).
+        sync_actuals_quota_risk_issue(hass, fake_sites, {"key1": 5}, {}, {}, 8, get_actuals=True)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None, (
+            "Issue should be cleared once api_limit(8)+2 actuals=10 <= inferred quota 10"
+        )
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
 async def test_actuals_quota_today_issue_cleared_when_quota_exhausted(
     recorder_mock: Recorder,
     hass: HomeAssistant,
