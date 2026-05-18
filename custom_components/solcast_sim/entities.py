@@ -23,9 +23,12 @@ from homeassistant.helpers.restore_state import RestoreEntity
 
 from .restore_helpers import recorder_sensor_value, select_measurement_restore_value
 from .sim_core import (
+    SHADE_DIFFUSE_SKY_VIEW_FRACTION,
     SimulationProfile,
     SolcastSimBatteryModel,
     clip,
+    cloud_profile,
+    effective_season_day,
     seconds_since_midnight,
     shade_attenuation_factor,
     simulated_power_kw,
@@ -394,6 +397,7 @@ class SolcastSimShadeBlockedSensor(SensorEntity):
         self._attr_unique_id = "solcast_sim_shade_blocked_percent"
         self._attr_name = _prefixed_display_name("Shade Blocked")
         self._attr_native_value: float = 0.0
+        self._geo_blocked_pct: float = 0.0
 
     async def async_added_to_hass(self) -> None:
         """Compute initial state and register for periodic updates."""
@@ -407,17 +411,29 @@ class SolcastSimShadeBlockedSensor(SensorEntity):
 
     def _refresh(self) -> None:
         now_local = datetime.now(self._tz)
-        shade_factor = shade_attenuation_factor(now_local, self._profile)
-        blocked_pct = (1.0 - shade_factor) * 100.0
-        self._attr_native_value = round(clip(blocked_pct, 0.0, 100.0), 2)
+        geo_factor = shade_attenuation_factor(now_local, self._profile)
+        self._geo_blocked_pct = round(clip((1.0 - geo_factor) * 100.0, 0.0, 100.0), 2)
+        if geo_factor < 1.0:
+            t = seconds_since_midnight(self._tz)
+            eff_day, season = effective_season_day(now_local.date(), self._profile.season, self._profile.latitude)
+            factors = cloud_profile(self._profile, eff_day, season)
+            cloud_idx = min(int(t // 60), len(factors) - 1)
+            cloud_f = factors[cloud_idx]
+            direct_frac = clip(cloud_f, 0.0, 1.0)
+            blocked = 1.0 - geo_factor
+            eff_blocked = blocked * (direct_frac + SHADE_DIFFUSE_SKY_VIEW_FRACTION * (1.0 - direct_frac))
+            self._attr_native_value = round(clip(eff_blocked * 100.0, 0.0, 100.0), 2)
+        else:
+            self._attr_native_value = 0.0
 
     @property
     def extra_state_attributes(self) -> dict[str, float | bool]:
-        """Expose raw attenuation and activity flag for dashboard conditions."""
-        blocked = float(self._attr_native_value or 0.0)
+        """Expose geometric and cloud-modulated shade diagnostics."""
+        effective = float(self._attr_native_value or 0.0)
         return {
-            "shade_active": blocked > 0.0,
-            "shade_attenuation_factor": round(1.0 - blocked / 100.0, 4),
+            "shade_active": effective > 0.0,
+            "shade_attenuation_factor": round(1.0 - effective / 100.0, 4),
+            "geometric_blocked_pct": self._geo_blocked_pct,
         }
 
 

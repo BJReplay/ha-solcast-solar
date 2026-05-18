@@ -118,6 +118,9 @@ CLOUD_TRANSIT_WINTER_FACTOR = 0.35  # suppress discrete transit events under bro
 CANOPY_DENSITY_DEPTH_20 = 0.20
 CANOPY_DENSITY_DEPTH_50 = 0.50
 CANOPY_DENSITY_DEPTH_80 = 0.80
+SHADE_DIFFUSE_SKY_VIEW_FRACTION = (
+    0.10  # Generation is dominated by diffuse irradiance when overcast. This represents the residual shading impact under full overcast.
+)
 DEFAULT_SHADE_DENSITY_PROFILE = (
     0.30,
     0.80,
@@ -906,6 +909,11 @@ def simulated_power_kw(second_of_day: float, capacity_kw: float, tz: ZoneInfo, p
     )
 
     shade_factor = shade_attenuation_factor(now_local, profile)
+    if shade_factor < 1.0:
+        # Soften shade under overcast conditions.
+        direct_frac = clip(cloud_factor, 0.0, 1.0)
+        blocked = 1.0 - shade_factor
+        shade_factor = 1.0 - blocked * (direct_frac + SHADE_DIFFUSE_SKY_VIEW_FRACTION * (1.0 - direct_frac))
     power_kw = capacity_kw * BASE_FORECAST_SCALE * season_gain * clear_sky_shape * cloud_factor * shade_factor
     return clip(power_kw, 0.0, capacity_kw * SIMULATED_POWER_CAP_FACTOR)
 

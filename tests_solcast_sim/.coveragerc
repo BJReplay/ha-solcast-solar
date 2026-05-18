@@ -1,0 +1,11 @@
+[run]
+source = /workspaces/homeAssistant-core/config/custom_components/solcast_sim
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if TYPE_CHECKING:
+    @overload
