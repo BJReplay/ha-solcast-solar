@@ -347,8 +347,7 @@ def season_span_for_date(day: date, latitude: float) -> tuple[str, date, date]:
         if start <= day < next_start:
             return season, start, next_start
 
-    season, start = boundaries[-1][1], boundaries[-1][0]
-    return season, start, start + timedelta(days=APPROX_SEASON_SPAN_DAYS)
+    raise AssertionError(f"season_span_for_date: no boundary matched for {day} at latitude {latitude}")
 
 
 def effective_season_day(day: date, configured_season: str, latitude: float) -> tuple[date, str]:

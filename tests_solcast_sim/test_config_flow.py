@@ -311,3 +311,32 @@ async def test_options_flow_shows_error_for_invalid_api_key(hass: HomeAssistant)
     options_errors = result["errors"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
     assert options_errors is not None
     assert "api_key" in options_errors
+
+
+@pytest.mark.parametrize(
+    ("field", "bad_value", "expected_error_field"),
+    [
+        pytest.param("shade_dimensions", "bad, data", "shade_dimensions", id="shade_dimensions"),
+        pytest.param("cloudiness_profile", "only_one", "cloudiness_profile", id="cloudiness_profile"),
+        pytest.param("battery_power_limits_kw", "-1.0, 5.0", "battery_power_limits_kw", id="battery_limits"),
+        pytest.param("shade_density_profile", "0.9, 0.5, 1.0", "shade_density_profile", id="shade_density"),
+    ],
+)
+async def test_options_flow_shows_error_for_invalid_fields(
+    hass: HomeAssistant,
+    field: str,
+    bad_value: str,
+    expected_error_field: str,
+) -> None:
+    """Show field-specific error when options input is invalid."""
+    entry = MockConfigEntry(domain="solcast_sim", data=_VALID_USER_INPUT, options={}, version=6)
+    entry.add_to_hass(hass)
+
+    result = await hass.config_entries.options.async_init(entry.entry_id)
+    bad_input = {**_VALID_USER_INPUT, field: bad_value}
+    result = await hass.config_entries.options.async_configure(result["flow_id"], user_input=bad_input)
+
+    assert result["type"] == FlowResultType.FORM  # pyright: ignore[reportTypedDictNotRequiredAccess]
+    errors = result["errors"]  # pyright: ignore[reportTypedDictNotRequiredAccess]
+    assert errors is not None
+    assert expected_error_field in errors

@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from custom_components.solcast_sim.repairs import (  # pyright: ignore[reportMissingImports]
     REPAIR_ACTION,
@@ -19,14 +20,14 @@ from homeassistant.core import HomeAssistant
 from tests.common import MockConfigEntry
 
 
-def test_get_api_key_from_entry_data_only() -> None:
+def test_get_api_key_data_only() -> None:
     """Return canonical key from entry.data when options is empty."""
     entry = MockConfigEntry(domain="solcast_sim", data={"api_key": " 1 "}, options={})
     result = _get_api_key_from_entry(entry)
     assert result == "1"
 
 
-def test_get_api_key_from_entry_options_override_data() -> None:
+def test_get_api_key_options_override() -> None:
     """Prefer entry.options value over entry.data."""
     entry = MockConfigEntry(
         domain="solcast_sim",
@@ -37,7 +38,7 @@ def test_get_api_key_from_entry_options_override_data() -> None:
     assert result == "2"
 
 
-def test_get_api_key_from_entry_missing_key() -> None:
+def test_get_api_key_missing() -> None:
     """Return empty string when api_key is absent."""
     entry = MockConfigEntry(domain="solcast_sim", data={}, options={})
     result = _get_api_key_from_entry(entry)
@@ -196,3 +197,46 @@ async def test_repair_flow_sync_removes_suppress_pair(hass: HomeAssistant) -> No
     updated_entry = hass.config_entries.async_get_entry("sim-abc")
     assert updated_entry is not None
     assert "api_key_mismatch_suppress_pair" not in updated_entry.options
+
+
+async def test_repair_flow_invalid_action_reshows_form(hass: HomeAssistant) -> None:
+    """Re-show form when user_input contains an unrecognised action value."""
+    solar_entry = MockConfigEntry(domain="solcast_solar", data={"api_key": "2"}, options={})
+    solar_entry.add_to_hass(hass)
+    sim_entry = MockConfigEntry(
+        domain="solcast_sim",
+        data={"api_key": "1"},
+        options={},
+        entry_id="sim-abc",
+        version=6,
+    )
+    sim_entry.add_to_hass(hass)
+    flow = _make_repair_flow(hass, "sim-abc")
+    result = await flow.async_step_init({REPAIR_ACTION: "not_a_valid_action"})
+    assert result["type"] == "form"  # pyright: ignore[reportTypedDictNotRequiredAccess]
+    assert result["step_id"] == "init"  # pyright: ignore[reportTypedDictNotRequiredAccess]
+
+
+async def test_repair_flow_uses_issue_translation_placeholders(hass: HomeAssistant) -> None:
+    """Use translation_placeholders from issue registry when issue exists."""
+    solar_entry = MockConfigEntry(domain="solcast_solar", data={"api_key": "2"}, options={})
+    solar_entry.add_to_hass(hass)
+    sim_entry = MockConfigEntry(
+        domain="solcast_sim",
+        data={"api_key": "1"},
+        options={},
+        entry_id="sim-abc",
+        version=6,
+    )
+    sim_entry.add_to_hass(hass)
+    fake_issue = SimpleNamespace(translation_placeholders={"sim_key": "1", "solar_key": "2"})
+    mock_registry = MagicMock()
+    mock_registry.async_get_issue = MagicMock(return_value=fake_issue)
+    flow = _make_repair_flow(hass, "sim-abc")
+    with patch(
+        "custom_components.solcast_sim.repairs.ir.async_get",
+        return_value=mock_registry,
+    ):
+        result = await flow.async_step_init(None)
+    assert result["type"] == "form"  # pyright: ignore[reportTypedDictNotRequiredAccess]
+    assert result.get("description_placeholders") == {"sim_key": "1", "solar_key": "2"}  # pyright: ignore[reportTypedDictNotRequiredAccess]

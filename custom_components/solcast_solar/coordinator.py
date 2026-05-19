@@ -1,6 +1,5 @@
 """Solcast update coordinator."""
 
-
 from datetime import datetime as dt, timedelta
 import logging
 from operator import itemgetter

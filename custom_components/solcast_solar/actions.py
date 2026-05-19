@@ -1,6 +1,5 @@
 """Solcast service actions."""
 
-
 import asyncio
 from collections.abc import Callable
 from datetime import datetime, timedelta

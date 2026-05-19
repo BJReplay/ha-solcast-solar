@@ -1,6 +1,5 @@
 """Solcast API."""
 
-
 import asyncio
 from collections import OrderedDict, defaultdict
 import contextlib

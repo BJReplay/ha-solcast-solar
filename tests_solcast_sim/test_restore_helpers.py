@@ -20,17 +20,17 @@ _T1 = datetime(2025, 1, 1, 12, 0, tzinfo=UTC)
 _T2 = datetime(2025, 1, 1, 13, 0, tzinfo=UTC)
 
 
-def test_select_both_none_returns_none() -> None:
+def test_select_both_none() -> None:
     """Return None when both sources are unavailable."""
     assert select_measurement_restore_value(None, None) is None
 
 
-def test_select_cache_none_returns_recorder() -> None:
+def test_select_cache_none() -> None:
     """Return recorder value when cache is absent."""
     assert select_measurement_restore_value(None, (5.0, _T1)) == 5.0
 
 
-def test_select_recorder_none_returns_cache() -> None:
+def test_select_recorder_none() -> None:
     """Return cache value when recorder is absent."""
     assert select_measurement_restore_value((3.0, _T1), None) == 3.0
 
@@ -45,7 +45,7 @@ def test_select_prefers_newer_recorder() -> None:
     assert select_measurement_restore_value((3.0, _T1), (5.0, _T2)) == 5.0
 
 
-def test_select_equal_timestamps_prefers_cache() -> None:
+def test_select_equal_timestamps() -> None:
     """Return cache value when both timestamps are equal."""
     assert select_measurement_restore_value((3.0, _T1), (5.0, _T1)) == 3.0
 
@@ -134,7 +134,7 @@ async def test_restored_sensor_value_returns_none_when_no_restore_state(hass: Ho
     assert result is None
 
 
-async def test_prime_model_restores_from_battery_energy(hass: HomeAssistant) -> None:
+async def test_prime_model_battery_energy(hass: HomeAssistant) -> None:
     """Prime model from battery energy when that value is available."""
     model = MagicMock()
 
@@ -158,7 +158,7 @@ async def test_prime_model_restores_from_battery_energy(hass: HomeAssistant) -> 
     model.restore_battery_soc.assert_not_called()
 
 
-async def test_prime_model_falls_back_to_battery_soc(hass: HomeAssistant) -> None:
+async def test_prime_model_battery_soc(hass: HomeAssistant) -> None:
     """Fall back to battery SOC when energy state is unavailable."""
     model = MagicMock()
 
@@ -228,3 +228,63 @@ async def test_prime_model_does_nothing_when_no_state_available(hass: HomeAssist
 
     model.restore_battery_energy.assert_not_called()
     model.restore_battery_soc.assert_not_called()
+
+
+async def test_restored_sensor_value_returns_float_and_timestamp(hass: HomeAssistant) -> None:
+    """Return (float, timestamp) from a valid restore state."""
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        domain="sensor",
+        platform="solcast_sim",
+        unique_id="solcast_sim_battery_energy",
+    )
+    ts = datetime(2025, 6, 1, 10, 0, tzinfo=UTC)
+    fake_stored = SimpleNamespace(
+        state=SimpleNamespace(state="42.5", last_updated=ts, last_changed=None),
+        last_seen=None,
+    )
+    mock_restore = MagicMock()
+    mock_restore.last_states = {"sensor.solcast_sim_solcast_sim_battery_energy": fake_stored}
+    with patch(
+        "custom_components.solcast_sim.restore_helpers.async_get_restore_state",
+        return_value=mock_restore,
+    ):
+        result = restored_sensor_value(hass, "solcast_sim", "solcast_sim_battery_energy")
+    assert result == (42.5, ts)
+
+
+async def test_restored_sensor_value_returns_none_on_invalid_state(hass: HomeAssistant) -> None:
+    """Return None when stored state is not a valid float."""
+    registry = er.async_get(hass)
+    registry.async_get_or_create(
+        domain="sensor",
+        platform="solcast_sim",
+        unique_id="solcast_sim_battery_energy",
+    )
+    fake_stored = SimpleNamespace(
+        state=SimpleNamespace(state="unavailable", last_updated=None, last_changed=None),
+        last_seen=None,
+    )
+    mock_restore = MagicMock()
+    mock_restore.last_states = {"sensor.solcast_sim_solcast_sim_battery_energy": fake_stored}
+    with patch(
+        "custom_components.solcast_sim.restore_helpers.async_get_restore_state",
+        return_value=mock_restore,
+    ):
+        result = restored_sensor_value(hass, "solcast_sim", "solcast_sim_battery_energy")
+    assert result is None
+
+
+async def test_recorder_sensor_value_returns_none_when_ts_is_none(hass: HomeAssistant) -> None:
+    """Return None when recorder state has no timestamp."""
+    hass.config.components.add("recorder")
+    fake_state = SimpleNamespace(state="42.5", last_updated=None, last_changed=None)
+    mock_recorder = MagicMock()
+    mock_recorder.async_add_executor_job = AsyncMock(return_value={"sensor.test": [fake_state]})
+    with patch(
+        "custom_components.solcast_sim.restore_helpers.get_instance",
+        return_value=mock_recorder,
+    ):
+        result = await recorder_sensor_value(hass, "sensor.test")
+    assert result is None
+    hass.config.components.remove("recorder")

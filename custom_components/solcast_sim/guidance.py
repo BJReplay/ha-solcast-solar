@@ -261,8 +261,6 @@ def _interval_generation_fraction(
         ci = int(clip(float(sample_sod // CLOUD_FACTOR_BUCKET_SECONDS), 0.0, float(len(cloud_factors) - 1)))
         samples.append(BASE_FORECAST_SCALE * season_gain * clear_sky * cloud_factors[ci])
 
-    if not samples:
-        return 0.0
     return clip(sum(samples) / len(samples), 0.0, BASE_FORECAST_SCALE)
 
 
@@ -384,8 +382,6 @@ async def _async_recorder_historic_estimated_actuals(
         local_time = row_time.astimezone(tz)
         day_key = local_time.date().isoformat()
         slot = int((local_time.hour * 60 + local_time.minute) / 30)
-        if slot < 0 or slot >= GUIDANCE_INTERVALS_PER_DAY:
-            continue
 
         day_slots = slot_energy_by_day.setdefault(day_key, [None] * GUIDANCE_INTERVALS_PER_DAY)
         existing = day_slots[slot]

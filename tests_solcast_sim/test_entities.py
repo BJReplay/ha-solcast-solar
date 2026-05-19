@@ -1,6 +1,6 @@
 """Tests for Solcast PV SimCity entity restore behaviour."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
@@ -37,7 +37,7 @@ from homeassistant.core import HomeAssistant
 
 
 @pytest.mark.asyncio
-async def test_today_energy_sensor_restores_freshest_same_day_value(hass: HomeAssistant) -> None:
+async def test_today_energy_sensor_restore(hass: HomeAssistant) -> None:
     """Restore today's total from the freshest same-day source after restart."""
     sensor = SolcastSimTodayEnergySensor([], ZoneInfo("UTC"), _simple_profile())
     sensor.hass = hass
@@ -76,7 +76,7 @@ async def test_today_energy_sensor_restores_freshest_same_day_value(hass: HomeAs
         monkeypatch.undo()
 
 
-def test_today_energy_sensor_sets_last_reset_on_day_rollover() -> None:
+def test_today_energy_sensor_day_rollover() -> None:
     """Reset daily total and last_reset when the local day changes."""
     sensor = SolcastSimTodayEnergySensor([{"capacity": 5.0}], ZoneInfo("UTC"), _simple_profile())
     sensor._attr_native_value = 3.7
@@ -100,26 +100,26 @@ def test_today_energy_sensor_sets_last_reset_on_day_rollover() -> None:
         monkeypatch.undo()
 
 
-def test_jitter_returns_float_near_input() -> None:
+def test_jitter_near_input() -> None:
     """Jitter stays within ±0.05 W of input."""
     for _ in range(50):
         result = _jitter(100.0)
         assert abs(result - 100.0) <= 0.05 + 1e-9
 
 
-def test_jitter_rounds_to_two_decimal_places() -> None:
+def test_jitter_precision() -> None:
     """Jitter output has at most two decimal places."""
     for _ in range(50):
         result = _jitter(300.0)
         assert round(result, 2) == result
 
 
-def test_prefixed_display_name_adds_prefix() -> None:
+def test_prefixed_display_name() -> None:
     """Add 'Solcast Sim ' prefix when not already present."""
     assert _prefixed_display_name("PV Today") == "Solcast Sim PV Today"
 
 
-def test_prefixed_display_name_no_double_prefix() -> None:
+def test_prefixed_display_name_no_double() -> None:
     """Do not add prefix when already present."""
     assert _prefixed_display_name("Solcast Sim PV Today") == "Solcast Sim PV Today"
 
@@ -162,7 +162,7 @@ def test_model_sensor_initial_value_set() -> None:
     assert sensor._attr_native_value == 1000.0
 
 
-def test_model_sensor_restore_fn_sets_none_initially() -> None:
+def test_model_sensor_restore_fn_none() -> None:
     """ModelSensor with restore_fn sets native_value to None initially."""
     model = _make_model()
     desc = _simple_desc(restore_fn=lambda m, v: None)
@@ -170,7 +170,7 @@ def test_model_sensor_restore_fn_sets_none_initially() -> None:
     assert sensor._attr_native_value is None
 
 
-def test_model_sensor_with_total_state_class_sets_last_reset() -> None:
+def test_model_sensor_total_state_class() -> None:
     """ModelSensor with TOTAL state class sets _attr_last_reset at midnight."""
     model = _make_model()
     desc = _simple_desc(
@@ -183,7 +183,7 @@ def test_model_sensor_with_total_state_class_sets_last_reset() -> None:
     assert sensor._attr_last_reset.minute == 0
 
 
-async def test_model_sensor_added_to_hass_registers_interval(hass: HomeAssistant) -> None:
+async def test_model_sensor_registers_interval(hass: HomeAssistant) -> None:
     """ModelSensor registers interval timer when added to hass."""
     model = _make_model()
     desc = _simple_desc()
@@ -207,7 +207,7 @@ async def test_model_sensor_added_to_hass_registers_interval(hass: HomeAssistant
         monkeypatch.undo()
 
 
-async def test_model_sensor_added_to_hass_with_set_last_t(hass: HomeAssistant) -> None:
+async def test_model_sensor_set_last_t(hass: HomeAssistant) -> None:
     """ModelSensor with set_last_t=True sets model.last_t when added to hass."""
     model = _make_model()
     desc = _simple_desc(set_last_t=True)
@@ -224,7 +224,7 @@ async def test_model_sensor_added_to_hass_with_set_last_t(hass: HomeAssistant) -
         monkeypatch.undo()
 
 
-def test_model_sensor_handle_interval_updates_value() -> None:
+def test_model_sensor_interval_update() -> None:
     """ModelSensor._handle_interval updates native value from model."""
     model = _make_model()
     desc = _simple_desc()
@@ -242,7 +242,7 @@ def test_model_sensor_handle_interval_updates_value() -> None:
     monkeypatch.undo()
 
 
-def test_model_sensor_handle_interval_updates_last_reset_on_new_day() -> None:
+def test_model_sensor_interval_day_rollover() -> None:
     """ModelSensor._handle_interval updates last_reset when the day changes."""
     model = _make_model()
     model.last_day = date(2026, 5, 9)
@@ -290,7 +290,7 @@ def test_model_sensor_handle_interval_updates_last_reset_on_new_day() -> None:
     monkeypatch.undo()
 
 
-async def test_restore_model_sensor_restores_value(hass: HomeAssistant) -> None:
+async def test_restore_model_sensor(hass: HomeAssistant) -> None:
     """RestoreModelSensor restores its value from last state."""
     model = _make_model()
     restore_called = []
@@ -327,7 +327,7 @@ async def test_restore_model_sensor_restores_value(hass: HomeAssistant) -> None:
         monkeypatch.undo()
 
 
-async def test_restore_model_sensor_uses_model_value_when_no_state(hass: HomeAssistant) -> None:
+async def test_restore_model_sensor_no_state(hass: HomeAssistant) -> None:
     """RestoreModelSensor falls back to model value when no state to restore."""
     model = _make_model()
     model.export_power_kw = 0.5
@@ -403,7 +403,7 @@ def _simple_profile() -> SimulationProfile:
     )
 
 
-def test_power_sensor_refresh_sets_native_value() -> None:
+def test_power_sensor_refresh() -> None:
     """SolcastSimPowerSensor._refresh sets a float native value."""
     site = {"resource_id": "abc123", "name": "Test Site", "capacity": 5.0}
     sensor = SolcastSimPowerSensor(site, ZoneInfo("UTC"), _simple_profile())
@@ -411,7 +411,7 @@ def test_power_sensor_refresh_sets_native_value() -> None:
     assert isinstance(sensor._attr_native_value, float)
 
 
-def test_total_power_sensor_refresh_sets_native_value() -> None:
+def test_total_power_sensor_refresh() -> None:
     """SolcastSimTotalPowerSensor._refresh sums all site powers."""
     sites = [
         {"resource_id": "a", "name": "Site A", "capacity": 3.0},
@@ -446,7 +446,7 @@ def test_shade_blocked_sensor_extra_attributes() -> None:
     assert 0.0 <= attrs["shade_attenuation_factor"] <= 1.0
 
 
-def test_shade_blocked_sensor_not_active_at_zero() -> None:
+def test_shade_blocked_at_zero() -> None:
     """Shade is not active when blocked percentage is zero."""
     sensor = SolcastSimShadeBlockedSensor(ZoneInfo("UTC"), _simple_profile())
     sensor._attr_native_value = 0.0
@@ -461,7 +461,7 @@ def test_shade_attenuation_sensor_refresh() -> None:
     assert 0.0 <= sensor._attr_native_value <= 1.0
 
 
-def test_energy_sensor_accumulate_negative_dt_skips() -> None:
+def test_energy_accumulate_negative_dt() -> None:
     """SolcastSimEnergySensor._accumulate skips when dt_s is negative (day rollover)."""
     site = {"resource_id": "x", "name": "X", "capacity": 5.0}
     sensor = SolcastSimEnergySensor(site, ZoneInfo("UTC"), _simple_profile())
@@ -488,7 +488,7 @@ def test_energy_sensor_accumulate_negative_dt_skips() -> None:
         monkeypatch.undo()
 
 
-def test_energy_sensor_accumulate_positive_dt_adds_energy() -> None:
+def test_energy_accumulate_positive_dt() -> None:
     """SolcastSimEnergySensor._accumulate adds positive energy on each tick."""
     site = {"resource_id": "x", "name": "X", "capacity": 5.0}
     sensor = SolcastSimEnergySensor(site, ZoneInfo("UTC"), _simple_profile())
@@ -508,7 +508,7 @@ def test_energy_sensor_accumulate_positive_dt_adds_energy() -> None:
         monkeypatch.undo()
 
 
-def test_total_energy_sensor_accumulate_sums_sites() -> None:
+def test_total_energy_accumulate() -> None:
     """SolcastSimTotalEnergySensor._accumulate sums power across sites."""
     sites = [
         {"resource_id": "a", "name": "A", "capacity": 5.0},
@@ -540,7 +540,7 @@ def test_battery_capacity_sensor_init() -> None:
     assert sensor._attr_unique_id == "solcast_sim_battery_capacity"
 
 
-def test_build_entities_returns_list() -> None:
+def test_build_entities() -> None:
     """build_entities returns a non-empty list of sensor entities."""
     model = MagicMock()
     model.battery_capacity_kwh = 13.5
@@ -569,3 +569,605 @@ def test_build_entities_returns_list() -> None:
     result = build_entities(sites, tz, profile, model)
     assert isinstance(result, list)
     assert len(result) > 0
+
+
+def test_model_sensor_handle_interval_total_day_change() -> None:
+    """ModelSensor._handle_interval updates last_reset when day changes for TOTAL class."""
+    today = date.today()
+    yesterday = today - timedelta(days=1)
+
+    model = _make_model()
+    model.last_day = yesterday
+
+    def _fake_advance(t: float) -> None:
+        model.last_day = today
+
+    model.advance = _fake_advance
+
+    desc = _simple_desc(state_class=SensorStateClass.TOTAL, restore_fn=lambda m, v: None)
+    sensor = ModelSensor(desc, model, ZoneInfo("UTC"))
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+    monkeypatch.setattr(entities, "seconds_since_midnight", lambda tz: 3600.0)
+
+    try:
+        sensor._handle_interval(datetime.now(UTC))
+        assert sensor._attr_last_reset is not None
+        assert sensor._attr_last_reset.date() == today
+    finally:
+        monkeypatch.undo()
+
+
+async def test_power_sensor_added_to_hass(hass: HomeAssistant) -> None:
+    """SolcastSimPowerSensor async_added_to_hass refreshes initial state."""
+    site = {"resource_id": "r1", "name": "Site A", "capacity": 5.0}
+    sensor = SolcastSimPowerSensor(site, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+    monkeypatch.setattr(entities, "simulated_power_kw", lambda *_: 2.0)
+
+    try:
+        await sensor.async_added_to_hass()
+        assert isinstance(sensor._attr_native_value, float)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_power_sensor_handle_interval(hass: HomeAssistant) -> None:
+    """SolcastSimPowerSensor _handle_interval refreshes state and writes."""
+    site = {"resource_id": "r1", "name": "Site A", "capacity": 5.0}
+    sensor = SolcastSimPowerSensor(site, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+    monkeypatch.setattr(entities, "simulated_power_kw", lambda *_: 1.5)
+
+    try:
+        await sensor.async_added_to_hass()
+        sensor._handle_interval(datetime.now(UTC))
+        assert mock_write.call_count >= 1
+    finally:
+        monkeypatch.undo()
+
+
+async def test_total_power_sensor_added_to_hass(hass: HomeAssistant) -> None:
+    """SolcastSimTotalPowerSensor async_added_to_hass refreshes initial state."""
+    sites = [{"resource_id": "a", "name": "A", "capacity": 3.0}]
+    sensor = SolcastSimTotalPowerSensor(sites, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+    monkeypatch.setattr(entities, "simulated_power_kw", lambda *_: 1.0)
+    monkeypatch.setattr(entities, "shade_attenuation_factor", lambda *_: 1.0)
+
+    try:
+        await sensor.async_added_to_hass()
+        assert isinstance(sensor._attr_native_value, float)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_total_power_sensor_handle_interval(hass: HomeAssistant) -> None:
+    """SolcastSimTotalPowerSensor _handle_interval refreshes and writes state."""
+    sites = [{"resource_id": "a", "name": "A", "capacity": 3.0}]
+    sensor = SolcastSimTotalPowerSensor(sites, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+    monkeypatch.setattr(entities, "simulated_power_kw", lambda *_: 1.0)
+    monkeypatch.setattr(entities, "shade_attenuation_factor", lambda *_: 1.0)
+
+    try:
+        await sensor.async_added_to_hass()
+        sensor._handle_interval(datetime.now(UTC))
+        assert mock_write.call_count >= 1
+    finally:
+        monkeypatch.undo()
+
+
+async def test_shade_blocked_sensor_added_to_hass(hass: HomeAssistant) -> None:
+    """SolcastSimShadeBlockedSensor async_added_to_hass refreshes initial state."""
+    sensor = SolcastSimShadeBlockedSensor(ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+    monkeypatch.setattr(entities, "shade_attenuation_factor", lambda *_: 1.0)
+
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._attr_native_value == pytest.approx(0.0)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_shade_blocked_sensor_handle_interval(hass: HomeAssistant) -> None:
+    """SolcastSimShadeBlockedSensor _handle_interval calls _refresh and writes."""
+    sensor = SolcastSimShadeBlockedSensor(ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+    monkeypatch.setattr(entities, "shade_attenuation_factor", lambda *_: 1.0)
+
+    try:
+        await sensor.async_added_to_hass()
+        sensor._handle_interval(datetime.now(UTC))
+        assert mock_write.call_count >= 1
+    finally:
+        monkeypatch.undo()
+
+
+def test_shade_blocked_sensor_refresh_shade_active() -> None:
+    """SolcastSimShadeBlockedSensor._refresh covers shade-active computation path."""
+    sensor = SolcastSimShadeBlockedSensor(ZoneInfo("UTC"), _simple_profile())
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(entities, "shade_attenuation_factor", lambda *_: 0.5)
+    monkeypatch.setattr(entities, "cloud_profile", lambda *_: [0.6] * 1440)
+
+    try:
+        sensor._refresh()
+        assert sensor._attr_native_value > 0.0
+    finally:
+        monkeypatch.undo()
+
+
+async def test_shade_attenuation_sensor_added_to_hass(hass: HomeAssistant) -> None:
+    """SolcastSimShadeAttenuationSensor async_added_to_hass refreshes initial state."""
+    sensor = SolcastSimShadeAttenuationSensor(ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+    monkeypatch.setattr(entities, "shade_attenuation_factor", lambda *_: 0.8)
+
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._attr_native_value == pytest.approx(0.8)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_shade_attenuation_sensor_handle_interval(hass: HomeAssistant) -> None:
+    """SolcastSimShadeAttenuationSensor _handle_interval calls _refresh and writes."""
+    sensor = SolcastSimShadeAttenuationSensor(ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+    monkeypatch.setattr(entities, "shade_attenuation_factor", lambda *_: 1.0)
+
+    try:
+        await sensor.async_added_to_hass()
+        sensor._handle_interval(datetime.now(UTC))
+        assert mock_write.call_count >= 1
+    finally:
+        monkeypatch.undo()
+
+
+async def test_energy_sensor_added_to_hass_no_prior_state(hass: HomeAssistant) -> None:
+    """SolcastSimEnergySensor async_added_to_hass with no prior state."""
+    site = {"resource_id": "e1", "name": "E Site", "capacity": 5.0}
+    sensor = SolcastSimEnergySensor(site, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(sensor, "async_write_ha_state", MagicMock())
+
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._last_t is not None
+        assert sensor._attr_native_value == pytest.approx(0.0)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_energy_sensor_added_to_hass_valid_state(hass: HomeAssistant) -> None:
+    """SolcastSimEnergySensor async_added_to_hass restores prior float value."""
+    site = {"resource_id": "e1", "name": "E Site", "capacity": 5.0}
+    sensor = SolcastSimEnergySensor(site, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    prior = SimpleNamespace(state="7.5")
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=prior))
+    monkeypatch.setattr(sensor, "async_write_ha_state", MagicMock())
+
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._attr_native_value == pytest.approx(7.5)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_energy_sensor_added_to_hass_invalid_state(hass: HomeAssistant) -> None:
+    """SolcastSimEnergySensor async_added_to_hass falls back to 0.0 on bad state."""
+    site = {"resource_id": "e1", "name": "E Site", "capacity": 5.0}
+    sensor = SolcastSimEnergySensor(site, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    prior = SimpleNamespace(state="not_a_number")
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=prior))
+    monkeypatch.setattr(sensor, "async_write_ha_state", MagicMock())
+
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._attr_native_value == pytest.approx(0.0)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_energy_sensor_handle_interval(hass: HomeAssistant) -> None:
+    """SolcastSimEnergySensor _handle_interval accumulates and writes state."""
+    site = {"resource_id": "e1", "name": "E Site", "capacity": 5.0}
+    sensor = SolcastSimEnergySensor(site, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+
+    try:
+        await sensor.async_added_to_hass()
+        sensor._handle_interval(datetime.now(UTC))
+        assert mock_write.call_count >= 1
+    finally:
+        monkeypatch.undo()
+
+
+async def test_total_energy_sensor_added_to_hass_no_state(hass: HomeAssistant) -> None:
+    """SolcastSimTotalEnergySensor async_added_to_hass with no prior state."""
+    sites = [{"resource_id": "te", "name": "TE", "capacity": 5.0}]
+    sensor = SolcastSimTotalEnergySensor(sites, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(sensor, "async_write_ha_state", MagicMock())
+
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._last_t is not None
+        assert sensor._attr_native_value == pytest.approx(0.0)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_total_energy_sensor_added_to_hass_valid_state(hass: HomeAssistant) -> None:
+    """SolcastSimTotalEnergySensor async_added_to_hass restores prior value."""
+    sites = [{"resource_id": "te", "name": "TE", "capacity": 5.0}]
+    sensor = SolcastSimTotalEnergySensor(sites, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    prior = SimpleNamespace(state="12.3")
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=prior))
+    monkeypatch.setattr(sensor, "async_write_ha_state", MagicMock())
+
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._attr_native_value == pytest.approx(12.3)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_total_energy_sensor_added_to_hass_invalid_state(hass: HomeAssistant) -> None:
+    """SolcastSimTotalEnergySensor async_added_to_hass falls back to 0.0 on bad state."""
+    sites = [{"resource_id": "te", "name": "TE", "capacity": 5.0}]
+    sensor = SolcastSimTotalEnergySensor(sites, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    prior = SimpleNamespace(state="bad")
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=prior))
+    monkeypatch.setattr(sensor, "async_write_ha_state", MagicMock())
+
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._attr_native_value == pytest.approx(0.0)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_total_energy_sensor_handle_interval(hass: HomeAssistant) -> None:
+    """SolcastSimTotalEnergySensor _handle_interval accumulates and writes state."""
+    sites = [{"resource_id": "te", "name": "TE", "capacity": 5.0}]
+    sensor = SolcastSimTotalEnergySensor(sites, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+
+    try:
+        await sensor.async_added_to_hass()
+        sensor._handle_interval(datetime.now(UTC))
+        assert mock_write.call_count >= 1
+    finally:
+        monkeypatch.undo()
+
+
+def test_total_energy_accumulate_negative_dt() -> None:
+    """SolcastSimTotalEnergySensor._accumulate resets last_t on negative dt."""
+    sites = [{"resource_id": "te", "name": "TE", "capacity": 5.0}]
+    sensor = SolcastSimTotalEnergySensor(sites, ZoneInfo("UTC"), _simple_profile())
+    sensor._attr_native_value = 2.0
+    sensor._last_t = 86399.0  # near-midnight value forces negative dt
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(entities, "seconds_since_midnight", lambda tz: 1.0)
+
+    try:
+        sensor._accumulate()
+        assert sensor._last_t == pytest.approx(1.0)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_today_energy_sensor_added_to_hass_no_state(hass: HomeAssistant) -> None:
+    """SolcastSimTodayEnergySensor async_added_to_hass initialises tracking."""
+    sites = [{"resource_id": "t1", "name": "T1", "capacity": 5.0}]
+    sensor = SolcastSimTodayEnergySensor(sites, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+    sensor.entity_id = None  # skip recorder lookup
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(sensor, "async_write_ha_state", MagicMock())
+    monkeypatch.setattr(entities, "async_track_time_interval", lambda *a, **kw: None)
+    monkeypatch.setattr(entities, "async_track_point_in_utc_time", lambda *a, **kw: None)
+
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._last_t is not None
+        assert sensor._last_day == date.today()
+    finally:
+        monkeypatch.undo()
+
+
+async def test_today_energy_sensor_handle_midnight(hass: HomeAssistant) -> None:
+    """SolcastSimTodayEnergySensor _handle_midnight accumulates and reschedules."""
+    sites = [{"resource_id": "t1", "name": "T1", "capacity": 5.0}]
+    sensor = SolcastSimTodayEnergySensor(sites, ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+    sensor._last_day = date.today()
+    sensor._last_t = 0.0
+    sensor._attr_native_value = 0.0
+    sensor._attr_last_reset = datetime.combine(date.today(), datetime.min.time(), ZoneInfo("UTC"))
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+    monkeypatch.setattr(entities, "async_track_point_in_utc_time", lambda *a, **kw: None)
+
+    try:
+        await sensor._handle_midnight(datetime.now(UTC))
+        mock_write.assert_called()
+    finally:
+        monkeypatch.undo()
+
+
+def test_today_energy_accumulate_same_day_positive_dt() -> None:
+    """SolcastSimTodayEnergySensor._accumulate adds energy within same day."""
+    sites = [{"resource_id": "t1", "name": "T1", "capacity": 5.0}]
+    sensor = SolcastSimTodayEnergySensor(sites, ZoneInfo("UTC"), _simple_profile())
+    sensor._attr_native_value = 0.0
+    sensor._last_day = date.today()
+    sensor._last_t = 0.0
+    sensor._attr_last_reset = datetime.combine(date.today(), datetime.min.time(), ZoneInfo("UTC"))
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(entities, "seconds_since_midnight", lambda tz: 5.0)
+    monkeypatch.setattr(entities, "simulated_power_kw", lambda *_: 1.0)
+
+    try:
+        sensor._accumulate()
+        assert sensor._attr_native_value > 0.0
+        assert sensor._last_t == pytest.approx(5.0)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_today_energy_sensor_handle_interval(hass: HomeAssistant) -> None:
+    """SolcastSimTodayEnergySensor._handle_interval accumulates and writes state."""
+    sensor = SolcastSimTodayEnergySensor([], ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+    sensor._last_day = date.today()
+    sensor._last_t = 0.0
+    sensor._attr_native_value = 0.0
+    sensor._attr_last_reset = None
+
+    monkeypatch = pytest.MonkeyPatch()
+    mock_write = MagicMock()
+    monkeypatch.setattr(sensor, "async_write_ha_state", mock_write)
+
+    try:
+        sensor._handle_interval(datetime.now(UTC))
+        mock_write.assert_called_once()
+    finally:
+        monkeypatch.undo()
+
+
+def test_today_energy_accumulate_same_day_negative_dt() -> None:
+    """SolcastSimTodayEnergySensor._accumulate resets on negative dt in same-day path."""
+    sites = [{"resource_id": "t1", "name": "T1", "capacity": 5.0}]
+    sensor = SolcastSimTodayEnergySensor(sites, ZoneInfo("UTC"), _simple_profile())
+    sensor._attr_native_value = 3.0
+    sensor._last_day = date.today()
+    sensor._last_t = 86399.0  # near-midnight - forces negative dt
+    sensor._attr_last_reset = datetime.combine(date.today(), datetime.min.time(), ZoneInfo("UTC"))
+
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(entities, "seconds_since_midnight", lambda tz: 1.0)
+
+    try:
+        sensor._accumulate()
+        assert sensor._attr_native_value == pytest.approx(0.0)
+        assert sensor._last_t == pytest.approx(1.0)
+    finally:
+        monkeypatch.undo()
+
+
+async def test_restore_model_sensor_recorder_only(hass: HomeAssistant) -> None:
+    """TOTAL_INCREASING restore uses recorder when cache is absent."""
+    model = _make_model()
+    restore_called: list[float] = []
+    desc = _simple_desc(
+        restore_fn=lambda m, v: restore_called.append(v),
+        state_class=SensorStateClass.TOTAL_INCREASING,
+    )
+    sensor = RestoreModelSensor(desc, model, ZoneInfo("UTC"))
+    sensor.hass = hass
+    sensor.entity_id = "sensor.test_export"
+    ts = datetime(2026, 5, 9, 10, 0, tzinfo=UTC)
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_on_remove", lambda func: None)
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(entities, "recorder_sensor_value", AsyncMock(return_value=(8.0, ts)))
+    monkeypatch.setattr(entities, "async_track_time_interval", lambda *a, **kw: lambda: None)
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._attr_native_value == 8.0
+        assert restore_called == [8.0]
+    finally:
+        monkeypatch.undo()
+
+
+async def test_restore_model_sensor_max_of_cache_and_recorder(hass: HomeAssistant) -> None:
+    """TOTAL_INCREASING restore uses max(cache, recorder) when both present."""
+    model = _make_model()
+    restore_called: list[float] = []
+    desc = _simple_desc(
+        restore_fn=lambda m, v: restore_called.append(v),
+        state_class=SensorStateClass.TOTAL_INCREASING,
+    )
+    sensor = RestoreModelSensor(desc, model, ZoneInfo("UTC"))
+    sensor.hass = hass
+    sensor.entity_id = "sensor.test_export"
+    ts = datetime(2026, 5, 9, 10, 0, tzinfo=UTC)
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_on_remove", lambda func: None)
+    monkeypatch.setattr(
+        sensor,
+        "async_get_last_state",
+        AsyncMock(return_value=SimpleNamespace(last_updated=ts, last_changed=None, state="5.0")),
+    )
+    monkeypatch.setattr(entities, "recorder_sensor_value", AsyncMock(return_value=(8.0, ts)))
+    monkeypatch.setattr(entities, "async_track_time_interval", lambda *a, **kw: lambda: None)
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._attr_native_value == 8.0
+        assert restore_called == [8.0]
+    finally:
+        monkeypatch.undo()
+
+
+async def test_restore_model_sensor_measurement_branch(hass: HomeAssistant) -> None:
+    """Non-TOTAL_INCREASING restore calls select_measurement_restore_value."""
+    model = _make_model()
+    desc = _simple_desc(
+        restore_fn=lambda m, v: None,
+        state_class=None,
+    )
+    sensor = RestoreModelSensor(desc, model, ZoneInfo("UTC"))
+    sensor.hass = hass
+    sensor.entity_id = "sensor.test_export"
+    ts = datetime(2026, 5, 9, 10, 0, tzinfo=UTC)
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_on_remove", lambda func: None)
+    monkeypatch.setattr(
+        sensor,
+        "async_get_last_state",
+        AsyncMock(return_value=SimpleNamespace(last_updated=ts, last_changed=None, state="7.5")),
+    )
+    monkeypatch.setattr(entities, "recorder_sensor_value", AsyncMock(return_value=None))
+    monkeypatch.setattr(entities, "async_track_time_interval", lambda *a, **kw: lambda: None)
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._attr_native_value == 7.5
+    finally:
+        monkeypatch.undo()
+
+
+async def test_restore_model_sensor_same_day_stale_recorder(hass: HomeAssistant) -> None:
+    """restore_same_day=True discards stale recorder state."""
+    model = _make_model()
+    desc = _simple_desc(
+        restore_fn=lambda m, v: None,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        restore_same_day=True,
+    )
+    sensor = RestoreModelSensor(desc, model, ZoneInfo("UTC"))
+    sensor.hass = hass
+    sensor.entity_id = "sensor.test_export"
+    stale_ts = datetime.now(UTC) - timedelta(days=2)
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_on_remove", lambda func: None)
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(entities, "recorder_sensor_value", AsyncMock(return_value=(3.0, stale_ts)))
+    monkeypatch.setattr(entities, "async_track_time_interval", lambda *a, **kw: lambda: None)
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._attr_native_value == 1000.0
+    finally:
+        monkeypatch.undo()
+
+
+async def test_restore_model_sensor_set_last_t(hass: HomeAssistant) -> None:
+    """set_last_t=True updates model.last_t."""
+    model = _make_model()
+    desc = _simple_desc(
+        restore_fn=lambda m, v: None,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        set_last_t=True,
+    )
+    sensor = RestoreModelSensor(desc, model, ZoneInfo("UTC"))
+    sensor.hass = hass
+    sensor.entity_id = "sensor.test_export"
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_on_remove", lambda func: None)
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(entities, "recorder_sensor_value", AsyncMock(return_value=None))
+    monkeypatch.setattr(entities, "async_track_time_interval", lambda *a, **kw: lambda: None)
+    try:
+        await sensor.async_added_to_hass()
+        assert model.last_t is not None
+    finally:
+        monkeypatch.undo()
+
+
+async def test_today_energy_sensor_stale_recorder_discarded(hass: HomeAssistant) -> None:
+    """Stale recorder state is discarded."""
+    sensor = SolcastSimTodayEnergySensor([], ZoneInfo("UTC"), _simple_profile())
+    sensor.hass = hass
+    sensor.entity_id = "sensor.solcast_sim_today_generation_energy"
+    stale_ts = datetime.now(UTC) - timedelta(days=2)
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(sensor, "async_get_last_state", AsyncMock(return_value=None))
+    monkeypatch.setattr(entities, "recorder_sensor_value", AsyncMock(return_value=(3.5, stale_ts)))
+    monkeypatch.setattr(entities, "async_track_time_interval", lambda *args, **kwargs: None)
+    try:
+        await sensor.async_added_to_hass()
+        assert sensor._attr_native_value == pytest.approx(0.0)
+    finally:
+        monkeypatch.undo()
