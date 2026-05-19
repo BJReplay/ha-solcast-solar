@@ -752,7 +752,14 @@ async def test_integration(  # noqa: C901
             await hass.services.async_call(DOMAIN, "update_forecasts", {}, blocking=True)
 
         # Test forced update and clear data actions
-        await _exec_update(hass, solcast, caplog, SERVICE_FORCE_UPDATE_FORECASTS)
+        caplog.clear()
+        _watchfiles_logger = logging.getLogger("watchfiles")
+        _watchfiles_level = _watchfiles_logger.level
+        _watchfiles_logger.setLevel(logging.WARNING)
+        try:
+            await _exec_update(hass, solcast, caplog, SERVICE_FORCE_UPDATE_FORECASTS)
+        finally:
+            _watchfiles_logger.setLevel(_watchfiles_level)
 
         # Test for API key redaction
         for api_key in options[API_KEY].split(","):

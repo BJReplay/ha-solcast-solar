@@ -26,6 +26,7 @@ from .const import (
     ADVANCED_SOLCAST_URL,
     API_KEY,
     AUTO_UPDATED,
+    DAILY_FORCED_CONSUMED,
     DAILY_LIMIT,
     DAILY_LIMIT_CONSUMED,
     DAILY_TYPICAL,
@@ -717,6 +718,7 @@ class SitesCache:
         )
         json_content: dict[str, Any] = {
             DAILY_LIMIT: self.api.api_limits[api_key],
+            DAILY_FORCED_CONSUMED: self.api.api_forced.get(api_key, 0),
             DAILY_LIMIT_CONSUMED: self.api.api_used[api_key],
             DAILY_TYPICAL: self.api.api_typical.get(api_key, 0),
             RESET: self._api_used_reset[api_key],
@@ -1007,7 +1009,8 @@ class SitesCache:
                 assert isinstance(self.api.api_limits[api_key], int), "daily_limit is not an integer"
                 self.api.api_used[api_key] = usage.get(DAILY_LIMIT_CONSUMED, 0)
                 assert isinstance(self.api.api_used[api_key], int), "daily_limit_consumed is not an integer"
-                self.api.api_forced[api_key] = 0  # Transient — starts at zero each session.
+                self.api.api_forced[api_key] = usage.get(DAILY_FORCED_CONSUMED, 0)
+                assert isinstance(self.api.api_forced[api_key], int), "daily_forced_consumed is not an integer"
                 self.api.api_actuals[api_key] = 0  # Transient — starts at zero each session.
                 configured_limit = quota.get(api_key, 10)
                 allow_exceed = self.api.advanced_options.get(ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM, False)

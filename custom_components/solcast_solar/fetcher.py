@@ -277,6 +277,7 @@ class Fetcher:
         failure = False
         sites_attempted = 0
         sites_succeeded = 0
+        forced_keys: set[str] = set()
         reason = "Unknown"
         for site in self.api.sites:
             sites_attempted += 1
@@ -307,6 +308,11 @@ class Fetcher:
             if result == DataCallStatus.SUCCESS:
                 sites_succeeded += 1
                 self.increment_success_count(force, site[API_KEY])
+                if force:
+                    forced_keys.add(site[API_KEY])
+
+        for api_key in forced_keys:
+            await self.api.sites_cache.serialise_usage(api_key)
 
         if sites_attempted > 0 and not failure:
             await self.api.dampening.apply_forward(do_past_hours=do_past_hours)

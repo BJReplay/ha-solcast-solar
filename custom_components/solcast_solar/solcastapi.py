@@ -249,7 +249,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 file.unlink()
                 unlinked.append(str(file.name))
             else:
-                _LOGGER.debug("File %s has length %d", file.resolve(), file.stat().st_size)
+                filename = str(file.resolve())
+                for api_key in self.options.api_key.split(","):
+                    filename = filename.replace("usage-" + api_key.strip(), "usage-" + redact_api_key(api_key.strip()))
+                    filename = filename.replace("sites-" + api_key.strip(), "sites-" + redact_api_key(api_key.strip()))
+                _LOGGER.debug("File %s has length %d", filename, file.stat().st_size)
 
         with contextlib.suppress(OSError):
             ((Path(self.config_dir) / "solcast_solar").rmdir()) if not CONFIG_FOLDER_DISCRETE else None
