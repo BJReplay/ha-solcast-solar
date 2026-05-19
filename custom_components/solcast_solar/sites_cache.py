@@ -1035,6 +1035,9 @@ class SitesCache:
                     self.api.api_typical[api_key] = quota[api_key]
                     await self.serialise_usage(api_key)
                     _LOGGER.info("Usage loaded and cache updated with new limit")
+                elif DAILY_FORCED_CONSUMED not in usage:  # Schema upgraded, rewrite to persist new field.
+                    await self.serialise_usage(api_key)
+                    _LOGGER.debug("Usage loaded and cache updated with new schema")
                 else:
                     _LOGGER.debug(
                         "Usage loaded%s",
