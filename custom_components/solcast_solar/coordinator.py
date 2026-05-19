@@ -17,6 +17,7 @@ from .const import (
     ADVANCED_ENTITY_LOGGING,
     ADVANCED_FORECAST_DAY_ENTITIES,
     ALL,
+    API_ACTUALS_USED,
     API_FORCE_USED,
     CUSTOM_HOURS,
     DAMPENED_APE_BREAKDOWN,
@@ -423,6 +424,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         if key == ENTITY_API_COUNTER:
             ret[API_FORCE_USED] = self.solcast.successes_forced_24h
+            ret[API_ACTUALS_USED] = self.solcast.successes_actuals_24h
 
         return ret
 

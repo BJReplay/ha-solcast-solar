@@ -81,6 +81,7 @@ from .const import (
     SITE_EXPORT_LIMIT,
     SITE_INFO,
     SUCCESS,
+    SUCCESS_ACTUALS,
     SUCCESS_FORCED,
     UNKNOWN,
     USE_ACTUALS,
@@ -158,6 +159,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.advanced_options: dict[str, Any] = {}
         self.aiohttp_session = aiohttp_session
         self.api_limits: dict[str, int] = {}
+        self.api_actuals: dict[str, int] = {}
         self.api_forced: dict[str, int] = {}
         self.api_typical: dict[str, int] = {}
         self.api_used: dict[str, int] = {}
@@ -361,6 +363,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             bool: True if updated today, False otherwise.
         """
         return self.data_actuals[LAST_UPDATED].astimezone(self.tz).date() == dt.now(self.tz).date()
+
+    @property
+    def successes_actuals_24h(self) -> int:
+        """Number of successful estimated actuals fetches today.
+
+        Uses the maximum across all API keys.
+
+        Returns:
+            int: The maximum per-key count of successful estimated actuals site API calls since midnight.
+        """
+        actuals = self.data[SUCCESS].get(SUCCESS_ACTUALS, {})
+        return max(actuals.values()) if actuals else 0
 
     @property
     def successes_forced_24h(self) -> int:

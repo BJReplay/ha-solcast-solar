@@ -62,6 +62,7 @@ from .const import (
     SITE_INFO,
     SITES,
     SUCCESS,
+    SUCCESS_ACTUALS,
     SUCCESS_FORCED,
     SUCCESS_TRACKED,
     TOTAL_RECORDS,
@@ -100,7 +101,7 @@ FRESH_DATA: Final[dict[str, Any]] = {
     LAST_ATTEMPT: dt.fromtimestamp(0, UTC),
     AUTO_UPDATED: 0,
     FAILURE: {LAST_24H: 0, LAST_7D: [0] * 7, LAST_14D: [0] * 14},
-    SUCCESS: {SUCCESS_TRACKED: {}, SUCCESS_FORCED: {}},
+    SUCCESS: {SUCCESS_TRACKED: {}, SUCCESS_FORCED: {}, SUCCESS_ACTUALS: {}},
     INTEGRATION_VERSION: "",
     VERSION: JSON_VERSION,
 }
@@ -648,14 +649,16 @@ class SitesCache:
                 if yesterday_total > 0:
                     self.api.api_typical[api_key] = yesterday_total
                     _LOGGER.debug(
-                        "Typical daily API usage for %s updated to %d (tracked %d + forced %d)",
+                        "Typical daily API usage for %s updated to %d (tracked %d + forced %d, actuals excluded %d)",
                         redact_api_key(api_key),
                         yesterday_total,
                         self.api.api_used[api_key],
                         self.api.api_forced.get(api_key, 0),
+                        self.api.api_actuals.get(api_key, 0),
                     )
                 self.api.api_used[api_key] = 0
                 self.api.api_forced[api_key] = 0
+                self.api.api_actuals[api_key] = 0
                 await self.serialise_usage(api_key, reset=True)
         else:
             _LOGGER.debug("Usage cache is fresh, so not resetting")
@@ -1005,6 +1008,7 @@ class SitesCache:
                 self.api.api_used[api_key] = usage.get(DAILY_LIMIT_CONSUMED, 0)
                 assert isinstance(self.api.api_used[api_key], int), "daily_limit_consumed is not an integer"
                 self.api.api_forced[api_key] = 0  # Transient — starts at zero each session.
+                self.api.api_actuals[api_key] = 0  # Transient — starts at zero each session.
                 configured_limit = quota.get(api_key, 10)
                 allow_exceed = self.api.advanced_options.get(ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM, False)
                 # Seed from the configured limit.  Auto-update can never consume more.
@@ -1089,6 +1093,7 @@ class SitesCache:
                         self.api.api_limits[api_key] = quota[api_key]
                         self.api.api_used[api_key] = 0
                         self.api.api_forced[api_key] = 0
+                        self.api.api_actuals[api_key] = 0
                         self.api.api_typical[api_key] = quota[api_key]
                         self._api_used_reset[api_key] = self.api.dt_helper.utc_previous_midnight()
                     await self.serialise_usage(api_key, reset=True)

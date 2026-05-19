@@ -323,7 +323,7 @@
       "title": "Adjust API limit for estimated actuals"
     },
     "actuals_quota_today": {
-      "description": "Estimated actuals fetching has been enabled. Based on typical daily API usage ({api_used} calls) and the inferred {api_limit} call account quota, adding the {actuals_cost} call(s) needed for the estimated actuals fetch would exceed the quota on a typical day. The fetch will still be attempted just after midnight, but it (or a subsequent forecast update) may fail with a `429 Too Many Requests` response.\n\nThis warning may appear while the typical usage counter is still being seeded from real data. Forced (untracked) API calls from automations are included in the typical count. Review your configured API limit and any force-update automations if you want to use estimated actuals.",
+      "description": "Estimated actuals fetching has been enabled. Based on typical daily forecast update API usage ({api_used} calls) and the inferred {api_limit} call account quota, adding the {actuals_cost} call(s) needed for the estimated actuals fetch would exceed the quota on a typical day. The fetch will still be attempted just after midnight, but it (or a subsequent forecast update) may fail with a `429 Too Many Requests` response.\n\nThis warning may appear while the typical usage counter is still being seeded from real data. The typical count reflects auto-update/automation update and forced forecast calls only. Review your configured API limit and any force-update automations if you want to use estimated actuals.",
       "title": "Estimated actuals fetch may exceed daily API quota"
     },
     "corrupt_file": {

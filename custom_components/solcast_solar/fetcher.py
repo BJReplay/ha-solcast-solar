@@ -58,6 +58,7 @@ from .const import (
     RESPONSE_STATUS,
     SITE_INFO,
     SUCCESS,
+    SUCCESS_ACTUALS,
     SUCCESS_FORCED,
     SUCCESS_TRACKED,
     TASK_ACTUALS_FETCH,
@@ -138,6 +139,7 @@ class Fetcher:
         self.api.data[FAILURE][LAST_14D] = [0, *self.api.data[FAILURE][LAST_14D][:-1]]
         self.api.data[SUCCESS][SUCCESS_TRACKED] = {}
         self.api.data[SUCCESS][SUCCESS_FORCED] = {}
+        self.api.data[SUCCESS][SUCCESS_ACTUALS] = {}
         await self.api.sites_cache.serialise_data(self.api.data, self.api.filename)
 
     async def update_estimated_actuals(self, dampen_yesterday: bool = False) -> None:
@@ -220,7 +222,7 @@ class Fetcher:
                 site[RESOURCE_ID], self.api.data_actuals, self.api.advanced_options[ADVANCED_HISTORY_MAX_DAYS], actuals
             )
             _LOGGER.debug("Estimated actuals dictionary for site %s length %s", site[RESOURCE_ID], len(actuals))
-            self.increment_success_count(force=True, api_key=api_key)
+            self.increment_success_count(force=False, api_key=api_key, actuals=True)
 
         if status == DataCallStatus.SUCCESS and dampen_yesterday:
             # Backfill recovered historical actuals with the latest dampening factors if needed, then
@@ -559,15 +561,21 @@ class Fetcher:
         self.api.data[FAILURE][LAST_7D][0] = self.api.data[FAILURE][LAST_24H]
         self.api.data[FAILURE][LAST_14D][0] = self.api.data[FAILURE][LAST_24H]
 
-    def increment_success_count(self, force: bool, api_key: str) -> None:
+    def increment_success_count(self, force: bool, api_key: str, actuals: bool = False) -> None:
         """Increment the appropriate success counter once per successful site API call.
 
         Arguments:
-            force (bool): True if the update was a forced update (quota not consumed).
+            force (bool): True if the update was a forced forecast update (quota not consumed).
             api_key (str): The API key used for the site fetch.
+            actuals (bool): True if the call was an estimated actuals fetch (tracked separately from forced forecast updates).
         """
         key = md5(api_key[-6:].encode()).hexdigest()
-        if force:
+        if actuals:
+            self.api.api_actuals[api_key] = self.api.api_actuals.get(api_key, 0) + 1
+            actuals_data = self.api.data[SUCCESS].setdefault(SUCCESS_ACTUALS, {})
+            actuals_data[key] = actuals_data.get(key, 0) + 1
+            _LOGGER.debug("Actuals API counter for %s incremented to %d", redact_api_key(api_key), actuals_data[key])
+        elif force:
             self.api.api_forced[api_key] = self.api.api_forced.get(api_key, 0) + 1
             forced = self.api.data[SUCCESS][SUCCESS_FORCED]
             forced[key] = forced.get(key, 0) + 1
