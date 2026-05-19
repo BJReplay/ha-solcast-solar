@@ -639,7 +639,7 @@ The response contains a `data` object with the following fields:
 | --- | --- | --- |
 | `overall_status` | string | `"ok"` when no issues are found, otherwise `"issues_found"` |
 | `issues` | list | Description of every problem detected. Empty when status is `"ok"` |
-| `api` | object | API state summary (`api_keys_configured`, `api_used`, `api_limit`, `api_remaining`, `api_force_used`, `last_updated`, `last_attempt`, `actuals_updated`, `actuals_attempt`, `failures_last_24h`, `failures_last_7d`, `status`, `sites_status`, `usage_status`) |
+| `api` | object | API state summary (`api_keys_configured`, `api_used`, `api_limit`, `api_remaining`, `api_force_used`, `api_actuals_used`, `last_updated`, `last_attempt`, `actuals_updated`, `actuals_attempt`, `failures_last_24h`, `failures_last_7d`, `status`, `sites_status`, `usage_status`) |
 | `sites` | list | One entry per configured rooftop site (`resource_id`, `name`, `compass_degrees`, `compass_direction`) |
 | `cache_files` | object | Whether each data cache file exists on disk (`forecast`, `undampened`, `actuals`, `actuals_dampened`, `dampening`, `dampening_history`, `generation`, `advanced`) |
 | `configuration` | object | Active configuration summary (`auto_update`, `key_estimate`, `get_actuals`, `use_actuals`, `auto_dampen`, `hard_limit`, `excluded_sites`) |
@@ -703,6 +703,7 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 
 `API Used` attributes include the following:
 
+* `api_actuals_used`: The count of successful estimated actuals API calls today (always untracked)
 * `api_force_used`: The count of successful forced API calls today (those that bypassed the API limit tracked).
 
 `API Last Polled` attributes include the following:
@@ -1450,12 +1451,14 @@ Latest minor/patch releases.
 v4.5.3
 
 * Fix enable estimated actuals skips a day (caution: enabling may exhaust API calls available for a day) by @autoSteve
+* Add `api_actuals_used` attribute to API Used Total entity by @autoSteve
 * Add sun elevation adjustment for automated dampening by @autoSteve
 * Expanded diagnostic self-test service action by @autoSteve
 * Add undampened total forecast attributes when dampening is enabled by @autoSteve
 * Enable return of per-site and un-dampened estimated actuals by @autoSteve
 * Include health check detail in diagnostic download by @autoSteve
 * Add per-site compass degree and direction attributes and diagnostics by @autoSteve
+* Expand scope for raised issue when actuals enabled and API limit is too high by @autoSteve
 * Code refactoring by @autoSteve
 * Add tests to suite to ensure runtime reliability by @autoSteve
 * API simulator improvements by @autoSteve
