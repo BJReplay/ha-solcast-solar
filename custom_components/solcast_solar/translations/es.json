@@ -18,25 +18,38 @@
     "step": {
       "reauth_confirm": {
         "data": {
-          "api_key": "Clave API (varios valores separados por comas)"
+          "api_key": "Clave API"
         },
-        "description": "Clave API de cuenta Solcast"
+        "description": "Clave API de cuenta Solcast",
+        "data_description": {
+          "api_key": "Ingrese una o más claves API de Solcast, separadas por comas"
+        }
       },
       "reconfigure_confirm": {
         "data": {
-          "api_key": "Clave API (varios valores separados por comas)",
-          "api_limit": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
+          "api_key": "Clave API",
+          "api_limit": "Límite de API",
           "auto_update": "Actualización automática"
         },
-        "description": "Detalles de la cuenta Solcast\n\n(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)"
+        "description": "Detalles de la cuenta Solcast\n\n(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)",
+        "data_description": {
+          "api_key": "Ingrese una o más claves API de Solcast, separadas por comas",
+          "api_limit": "Ingrese un límite por clave, separado por comas al usar múltiples claves",
+          "auto_update": "Si no usa la actualización automática, cree una automatización que llame periódicamente a la acción \"solcast_solar.update_forecasts\", respetando el límite total máximo recomendado por Solcast (normalmente diez veces en total por día para un sitio de azotea, o con dos sitios cinco veces por día)"
+        }
       },
       "user": {
         "data": {
-          "api_key": "Clave API (varios valores separados por comas)",
-          "api_limit": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
+          "api_key": "Clave API",
+          "api_limit": "Límite de API",
           "auto_update": "Actualización automática"
         },
-        "description": "Detalles de la cuenta Solcast\n\n(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)\n\nLa API de Solcast debe estar disponible para configurar esta integración por primera vez. Si recibe el mensaje de estado '429 / Try again later', significa que la API no está disponible y la configuración no puede completarse. Debe esperar. Tenga en cuenta que la página de estado de la API en status.solcast.com casi con certeza no mostrará ningún problema de API. La causa más probable es un único usuario problemático de la API que afecta la disponibilidad para todos los aficionados."
+        "description": "Detalles de la cuenta Solcast\n\n(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)\n\nLa API de Solcast debe estar disponible para configurar esta integración por primera vez. Si recibe el mensaje de estado '429 / Try again later', significa que la API no está disponible y la configuración no puede completarse. Debe esperar. Tenga en cuenta que la página de estado de la API en status.solcast.com casi con certeza no mostrará ningún problema de API. La causa más probable es un único usuario problemático de la API que afecta la disponibilidad para todos los aficionados.",
+        "data_description": {
+          "api_key": "Ingrese una o más claves API de Solcast, separadas por comas",
+          "api_limit": "Ingrese un límite por clave, separado por comas al usar múltiples claves",
+          "auto_update": "Si no usa la actualización automática, cree una automatización que llame periódicamente a la acción \"solcast_solar.update_forecasts\", respetando el límite total máximo recomendado por Solcast (normalmente diez veces en total por día para un sitio de azotea, o con dos sitios cinco veces por día)"
+        }
       }
     }
   },
@@ -100,6 +113,9 @@
       },
       "power_now_30m": {
         "name": "Energía en 30 minutos"
+      },
+      "site_data": {
+        "name": "Datos del sitio"
       },
       "total_kwh_forecast_d10": {
         "name": "Pronóstico día 10"
@@ -188,7 +204,7 @@
     "damp_not_for_site": {
       "message": "La amortiguación del sitio no está configurada para {site}."
     },
-    "damp_not_site": {
+    "not_a_site": {
       "message": "No es un sitio configurado."
     },
     "damp_outside_range": {
@@ -303,6 +319,10 @@
       "description": "La actualización automática y los valores reales estimados están habilitados, mientras que el límite de API está configurado en el valor máximo para aficionados (`{configured_value}`). Los valores reales estimados se recopilan justo después de la medianoche y utilizan una llamada a la API por instalación en tejado para cada clave de API configurada. Reduzca su límite de API a `{suggested_value}` para reservar llamadas para los valores reales estimados.",
       "title": "Ajustar el límite de API para valores reales estimados"
     },
+    "actuals_quota_today": {
+      "title": "La obtención de valores reales estimados puede superar la cuota diaria de API",
+      "description": "Se ha activado la obtención de valores reales estimados. Según el uso diario típico de la API para actualizaciones de pronóstico ({api_used} llamadas) y la cuota de cuenta inferida de {api_limit} llamadas, añadir las {actuals_cost} llamada(s) necesarias para la obtención de valores reales estimados superaría la cuota en un día típico. La obtención se intentará igualmente justo después de medianoche, pero puede fallar (o una posterior actualización de pronóstico) con una respuesta `429 Too Many Requests`.\n\nEsta advertencia puede aparecer mientras el contador de uso típico aún se está inicializando con datos reales. El recuento típico solo refleja las llamadas de actualización automática/actualización por automatización y de pronóstico forzado. Revise su límite de API configurado y cualquier automatización de actualización forzada si desea utilizar valores reales estimados."
+    },
     "corrupt_file": {
       "description": "El/los archivo(s) de datos en caché `{files}` está(n) corrupto(s). La integración intentará recuperarse eliminando el/los archivo(s) y volviendo a obtener los datos de Solcast. Espere un mayor uso de la API y posibles fallos de la API, y la pérdida del historial de pronósticos debido a esta situación. Posiblemente recupere los archivos desde una copia de seguridad, pero aún así espere fallos en las llamadas a la API.",
       "title": "Datos en caché corruptos"
@@ -397,34 +417,84 @@
           "damp22": "22:00",
           "damp23": "23:00"
         },
-        "description": "Modificar el factor de amortiguación horario"
+        "description": "Modificar el factor de amortiguación horario",
+        "data_description": {
+          "damp00": "Ingrese un valor entre 0,0 (sin producción contada) y 1,0 (producción completa contada)",
+          "damp01": "",
+          "damp02": "",
+          "damp03": "",
+          "damp04": "",
+          "damp05": "",
+          "damp06": "",
+          "damp07": "",
+          "damp08": "",
+          "damp09": "",
+          "damp10": "",
+          "damp11": "",
+          "damp12": "",
+          "damp13": "",
+          "damp14": "",
+          "damp15": "",
+          "damp16": "",
+          "damp17": "",
+          "damp18": "",
+          "damp19": "",
+          "damp20": "",
+          "damp21": "",
+          "damp22": "",
+          "damp23": ""
+        }
       },
       "init": {
         "data": {
-          "api_key": "Clave API (varios valores separados por comas)",
-          "api_limit": "Límite de API (opcionalmente, separe con comas varios valores para cada clave)",
-          "attr_brk_detailed": "Habilitar el desglose del sitio para los atributos de detalle por media hora o por hora (estos no se guardarán en los atributos de estado de la base de datos)",
+          "api_key": "Clave API",
+          "api_limit": "Límite de API",
+          "attr_brk_detailed": "Habilitar desglose del sitio para atributos de detalle",
           "attr_brk_estimate": "Habilitar la estimación de 50 atributos de sensor",
           "attr_brk_estimate10": "Habilitar la estimación de 10 atributos de sensor",
           "attr_brk_estimate90": "Habilitar la estimación de 90 atributos de sensor",
           "attr_brk_halfhourly": "Habilitar atributos de detalle de pronóstico cada media hora",
           "attr_brk_hourly": "Habilitar atributos de detalle por hora del pronóstico",
           "attr_brk_site": "Habilitar atributos de sensor de avería del sitio",
-          "auto_dampen": "Auto-dampen (requiere valores reales estimados y una entidad de generación PV, ver documentación de integración)",
+          "auto_dampen": "Amortiguación automática",
           "auto_update": "Actualización automática (si no hay actualización automática, se debe utilizar una automatización en su lugar)",
-          "config_damp": "Modificar los factores de amortiguación por hora (después de hacer clic en enviar)",
-          "custom_hours": "Sensor personalizado para las próximas X horas (mín.=1, máx.=144)",
+          "config_damp": "Modificar los factores de amortiguación por hora",
+          "custom_hours": "Sensor personalizado de las próximas X horas",
           "exclude_sites": "Sitio(s) a excluir del panel de energía y de los totales de los sensores",
-          "generation_entities": "Entidad/entidades de generación fotovoltaica para amortiguación automatizada (energía: Wh/kWh/MWh total creciente, o potencia: W/kW/MW instantánea)",
-          "get_actuals": "Valores reales estimados actualizados a medianoche (ver documentación de integración, utiliza una llamada API por sitio por día, por lo que se necesita un límite API reducido con esta opción habilitada)",
-          "hard_limit_api": "Límite máximo del inversor en kW (consulte la documentación de integración)",
+          "generation_entities": "Entidad/entidades de generación fotovoltaica",
+          "get_actuals": "Valores reales estimados actualizados a medianoche",
+          "hard_limit_api": "Límite máximo del inversor (kW)",
           "key_estimate": "Probabilidad de pronóstico preferida para usar con sensores",
-          "site_damp": "La amortiguación granular está configurada: desmarque para volver a la amortiguación horaria general",
-          "site_export_entity": "Entidad de exportación de sitio opcional para amortiguación automatizada (Wh/kWh/MWh, aumento total)",
-          "site_export_limit": "Límite de exportación de sitio si se especifica la exportación de sitio (kW)",
+          "site_damp": "Amortiguación granular configurada",
+          "site_export_entity": "Entidad de exportación de sitio",
+          "site_export_limit": "Límite de exportación de sitio (kW)",
           "use_actuals": "Historial de pronósticos para mostrar en el panel de energía"
         },
-        "description": "Opciones de configuración de Solcast"
+        "description": "Opciones de configuración de Solcast",
+        "data_description": {
+          "api_key": "Ingrese una o más claves API de Solcast, separadas por comas",
+          "api_limit": "Ingrese un límite por clave, separado por comas al usar múltiples claves",
+          "attr_brk_detailed": "Desglose del sitio para atributos de detalle por media hora/hora (estos no se guardarán en los atributos de estado de la base de datos)",
+          "attr_brk_estimate": "",
+          "attr_brk_estimate10": "",
+          "attr_brk_estimate90": "",
+          "attr_brk_halfhourly": "",
+          "attr_brk_hourly": "",
+          "attr_brk_site": "",
+          "auto_dampen": "Requiere valores reales estimados y una entidad de generación FV — consulte la documentación de integración",
+          "auto_update": "Si no usa la actualización automática, cree una automatización que llame periódicamente a la acción \"solcast_solar.update_forecasts\", respetando el límite total máximo recomendado por Solcast (normalmente diez veces en total por día para un sitio de azotea, o con dos sitios cinco veces por día)",
+          "config_damp": "Haga clic en enviar para continuar al editor de factores de amortiguación",
+          "custom_hours": "Número de horas para el sensor personalizado (mínimo 1, máximo 144)",
+          "exclude_sites": "Sitio(s) a excluir del panel de Energía y de los totales de sensores al añadir claves API de sitios locales y remotos para una única implementación local/remota de Home Assistant",
+          "generation_entities": "Para amortiguación automatizada: energía (Wh/kWh/MWh, total creciente) o potencia (W/kW/MW, instantánea)",
+          "get_actuals": "Utiliza una llamada API por sitio por día — consulte la documentación de integración; se recomienda un límite de API reducido",
+          "hard_limit_api": "Consulte la documentación de integración; separe múltiples valores para cada clave con comas",
+          "key_estimate": "",
+          "site_damp": "Amortiguación granular configurada — borrar para volver a la amortiguación horaria general",
+          "site_export_entity": "Opcional — para amortiguación automatizada (Wh/kWh/MWh, total creciente)",
+          "site_export_limit": "Obligatorio si se especifica una entidad de exportación de sitio",
+          "use_actuals": ""
+        }
       }
     }
   },

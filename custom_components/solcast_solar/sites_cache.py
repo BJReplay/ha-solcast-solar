@@ -1,9 +1,5 @@
 """Solcast sites, usage and cache management."""
 
-# pylint: disable=pointless-string-statement
-
-from __future__ import annotations
-
 from collections import defaultdict
 import contextlib
 import copy
@@ -22,17 +18,21 @@ from aiohttp.client_reqrep import ClientResponse
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
 
+from . import entry_state
 from .const import (
+    ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
+    ADVANCED_SOLCAST_PORT,
     ADVANCED_SOLCAST_URL,
     API_KEY,
     AUTO_UPDATED,
+    DAILY_FORCED_CONSUMED,
     DAILY_LIMIT,
     DAILY_LIMIT_CONSUMED,
+    DAILY_TYPICAL,
     DISMISSAL,
     DOMAIN,
     DT_DATE_FORMAT,
-    ENTRY_OPTIONS,
     EXCEPTION_INIT_CORRUPT,
     EXCEPTION_INIT_INCOMPATIBLE,
     EXTANT,
@@ -52,7 +52,6 @@ from .const import (
     LAST_UPDATED,
     LEARN_MORE,
     LEARN_MORE_UNUSUAL_AZIMUTH,
-    OLD_API_KEY,
     PERIOD_START,
     PROPOSAL,
     RESET,
@@ -64,6 +63,7 @@ from .const import (
     SITE_INFO,
     SITES,
     SUCCESS,
+    SUCCESS_ACTUALS,
     SUCCESS_FORCED,
     SUCCESS_TRACKED,
     TOTAL_RECORDS,
@@ -82,12 +82,14 @@ from .util import (
     UsageStatus,
     check_unusual_azimuth,
     clear_cache,
+    get_solcast_base_url,
     http_status_translate,
     raise_and_record,
     redact_api_key,
     redact_lat_lon,
     redact_lat_lon_simple,
     redact_msg_api_key,
+    split_and_strip,
     upgrade_cache_schema,
 )
 
@@ -100,7 +102,7 @@ FRESH_DATA: Final[dict[str, Any]] = {
     LAST_ATTEMPT: dt.fromtimestamp(0, UTC),
     AUTO_UPDATED: 0,
     FAILURE: {LAST_24H: 0, LAST_7D: [0] * 7, LAST_14D: [0] * 14},
-    SUCCESS: {SUCCESS_TRACKED: {}, SUCCESS_FORCED: {}},
+    SUCCESS: {SUCCESS_TRACKED: {}, SUCCESS_FORCED: {}, SUCCESS_ACTUALS: {}},
     INTEGRATION_VERSION: "",
     VERSION: JSON_VERSION,
 }
@@ -127,6 +129,22 @@ class SitesCache:
         self._extant_usage: defaultdict[str, dict[str, Any]] = defaultdict(dict[str, Any])
         self._rekey: dict[str, Any] = {}
         self._site_latitude: defaultdict[str, dict[str, bool | float | int | None]] = defaultdict(dict[str, bool | float | int | None])
+
+    def _clear_old_api_key(self) -> None:
+        """Clear the prior API key tracked for entry state, if any."""
+        if self.api.entry is not None:
+            entry_state.get(self.api.entry.entry_id).old_api_key = None
+
+    def _old_api_key_for_comparison(self) -> str:
+        """Return the API key(s) used to detect new sites since the last reconfigure.
+
+        Returns the configured API key when no prior key is tracked for fresh setup.
+        """
+        if self.api.entry is not None:
+            old = entry_state.get(self.api.entry.entry_id).old_api_key
+            if old is not None:
+                return old
+        return self.api.entry_options.get(API_KEY, "")
 
     # Properties (alphabetical).
 
@@ -329,15 +347,13 @@ class SitesCache:
                         )
                         Path(file).unlink()
 
-        def list_all_files() -> tuple[list[str], list[str]]:
-            sites = [str(sites) for sites in Path(self.api.config_dir).glob("solcast-sites*.json")]
-            usage = [str(usage) for usage in Path(self.api.config_dir).glob("solcast-usage*.json")]
-            return sorted(sites), sorted(usage)
-
-        def list_multi_key_files() -> tuple[list[str], list[str]]:
-            sites = [str(sites) for sites in Path(self.api.config_dir).glob("solcast-sites-*.json")]
-            usage = [str(usage) for usage in Path(self.api.config_dir).glob("solcast-usage-*.json")]
-            return sorted(sites), sorted(usage)
+        def list_all_and_multi_key_files() -> tuple[tuple[list[str], list[str]], tuple[list[str], list[str]]]:
+            config_dir = Path(self.api.config_dir)
+            all_sites = sorted(str(s) for s in config_dir.glob("solcast-sites*.json"))
+            all_usage = sorted(str(u) for u in config_dir.glob("solcast-usage*.json"))
+            multi_sites = sorted(str(s) for s in config_dir.glob("solcast-sites-*.json"))
+            multi_usage = sorted(str(u) for u in config_dir.glob("solcast-usage-*.json"))
+            return (all_sites, all_usage), (multi_sites, multi_usage)
 
         async def load_extant_sites_and_usage(sites: list[str], usages: list[str]):
             extant_sites: dict[str, list[dict[str, Any]]] = defaultdict(list)
@@ -373,7 +389,7 @@ class SitesCache:
                         extant_usage[UNKNOWN] = response_json
             return extant_sites, extant_usage
 
-        api_keys = [api_key.strip() for api_key in self.api.options.api_key.split(",")]
+        api_keys = split_and_strip(self.api.options.api_key)
         if self.multi_key:
             await from_single_site_to_multi(api_keys)
         else:
@@ -381,8 +397,9 @@ class SitesCache:
         multi_sites = [f"{self.api.config_dir}/solcast-sites-{api_key}.json" for api_key in api_keys]
         multi_usage = [f"{self.api.config_dir}/solcast-usage-{api_key}.json" for api_key in api_keys]
 
-        all_sites, all_usage = await self.api.hass.async_add_executor_job(list_all_files)
-        multi_key_sites, multi_key_usage = await self.api.hass.async_add_executor_job(list_multi_key_files)
+        (all_sites, all_usage), (multi_key_sites, multi_key_usage) = await self.api.hass.async_add_executor_job(
+            list_all_and_multi_key_files
+        )
         self._extant_sites, self._extant_usage = await load_extant_sites_and_usage(all_sites, all_usage)
         remove_orphans(multi_key_sites, multi_sites)
         remove_orphans(multi_key_usage, multi_usage)
@@ -416,7 +433,9 @@ class SitesCache:
                             json_data: dict[str, Any] = json.loads(await data_file.read(), cls=JSONDecoder)
                             if not isinstance(json_data, dict):
                                 _LOGGER.error("The %s cache appears corrupt", filename)
-                                raise_and_record(self.api.hass, ConfigEntryNotReady, EXCEPTION_INIT_CORRUPT, {"file": file})
+                                await raise_and_record(
+                                    self.api.hass, self.api.entry, ConfigEntryNotReady, EXCEPTION_INIT_CORRUPT, {"file": file}
+                                )
                             json_version = json_data.get(VERSION, 1)
                             _LOGGER.debug(
                                 "Data cache %s exists, file type is %s",
@@ -465,7 +484,9 @@ class SitesCache:
                                 except SchemaIncompatibleError:
                                     self.api.status = SolcastApiStatus.DATA_INCOMPATIBLE
                                     _LOGGER.critical("The %s appears incompatible, so cannot upgrade it", filename)
-                                    raise_and_record(self.api.hass, ConfigEntryError, EXCEPTION_INIT_INCOMPATIBLE, {"file": file})
+                                    await raise_and_record(
+                                        self.api.hass, self.api.entry, ConfigEntryError, EXCEPTION_INIT_INCOMPATIBLE, {"file": file}
+                                    )
 
                                 if json_version > current_version:
                                     await self.serialise_data(data, filename)
@@ -480,9 +501,7 @@ class SitesCache:
                     reset_usage = False
                     new_sites: dict[str, str] = {}
                     cache_sites = list(self.api.data[SITE_INFO].keys())
-                    old_api_keys = (
-                        self.api.hass.data[DOMAIN].get(OLD_API_KEY, self.api.hass.data[DOMAIN][ENTRY_OPTIONS].get(API_KEY, "")).split(",")
-                    )
+                    old_api_keys = self._old_api_key_for_comparison().split(",")
                     for site in self.api.sites:
                         api_key = site[API_KEY]
                         site = site[RESOURCE_ID]
@@ -493,7 +512,7 @@ class SitesCache:
                             ):  # If a new site is seen in conjunction with an API key change then reset the usage.
                                 reset_usage = True
                     with contextlib.suppress(Exception):
-                        del self.api.hass.data[DOMAIN][OLD_API_KEY]
+                        self._clear_old_api_key()
 
                     if reset_usage:
                         _LOGGER.info("An API key has changed with a new site added, resetting usage")
@@ -615,7 +634,7 @@ class SitesCache:
         except json.decoder.JSONDecodeError:
             _LOGGER.error("The cached data in %s is corrupt in load_saved_data()", file)
             self.api.status = SolcastApiStatus.DATA_CORRUPT
-            raise_and_record(self.api.hass, ConfigEntryNotReady, EXCEPTION_INIT_CORRUPT, {"file": file})
+            await raise_and_record(self.api.hass, self.api.entry, ConfigEntryNotReady, EXCEPTION_INIT_CORRUPT, {"file": file})
         return True
 
     async def reset_api_usage(self, force: bool = False) -> None:
@@ -627,7 +646,20 @@ class SitesCache:
         if force or self.stale_usage_cache:
             _LOGGER.debug("Reset API usage")
             for api_key in self.api.api_used:
+                yesterday_total = self.api.api_used[api_key] + self.api.api_forced.get(api_key, 0)
+                if yesterday_total > 0:
+                    self.api.api_typical[api_key] = yesterday_total
+                    _LOGGER.debug(
+                        "Typical daily API usage for %s updated to %d (tracked %d + forced %d, actuals excluded %d)",
+                        redact_api_key(api_key),
+                        yesterday_total,
+                        self.api.api_used[api_key],
+                        self.api.api_forced.get(api_key, 0),
+                        self.api.api_actuals.get(api_key, 0),
+                    )
                 self.api.api_used[api_key] = 0
+                self.api.api_forced[api_key] = 0
+                self.api.api_actuals[api_key] = 0
                 await self.serialise_usage(api_key, reset=True)
         else:
             _LOGGER.debug("Usage cache is fresh, so not resetting")
@@ -686,7 +718,9 @@ class SitesCache:
         )
         json_content: dict[str, Any] = {
             DAILY_LIMIT: self.api.api_limits[api_key],
+            DAILY_FORCED_CONSUMED: self.api.api_forced.get(api_key, 0),
             DAILY_LIMIT_CONSUMED: self.api.api_used[api_key],
+            DAILY_TYPICAL: self.api.api_typical.get(api_key, 0),
             RESET: self._api_used_reset[api_key],
         }
         payload = json.dumps(json_content, ensure_ascii=False, cls=DateTimeEncoder)
@@ -825,7 +859,10 @@ class SitesCache:
                 success = False
 
                 if not prior_crash:
-                    url = f"{self.api.advanced_options[ADVANCED_SOLCAST_URL]}/rooftop_sites"
+                    url = (
+                        f"{get_solcast_base_url(self.api.advanced_options[ADVANCED_SOLCAST_URL], self.api.advanced_options[ADVANCED_SOLCAST_PORT])}"
+                        "/rooftop_sites"
+                    )
                     params = {FORMAT: JSON, API_KEY: api_key}
                     _LOGGER.debug("Connecting to %s?format=json&api_key=%s", url, redact_api_key(api_key))
                     response: ClientResponse = await self.api.aiohttp_session.get(
@@ -972,6 +1009,18 @@ class SitesCache:
                 assert isinstance(self.api.api_limits[api_key], int), "daily_limit is not an integer"
                 self.api.api_used[api_key] = usage.get(DAILY_LIMIT_CONSUMED, 0)
                 assert isinstance(self.api.api_used[api_key], int), "daily_limit_consumed is not an integer"
+                self.api.api_forced[api_key] = usage.get(DAILY_FORCED_CONSUMED, 0)
+                assert isinstance(self.api.api_forced[api_key], int), "daily_forced_consumed is not an integer"
+                self.api.api_actuals[api_key] = 0  # Transient — starts at zero each session.
+                configured_limit = quota.get(api_key, 10)
+                allow_exceed = self.api.advanced_options.get(ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM, False)
+                # Seed from the configured limit.  Auto-update can never consume more.
+                loaded_typical = usage.get(DAILY_TYPICAL, configured_limit)
+                # Cap stale values.
+                if not allow_exceed:
+                    loaded_typical = min(loaded_typical, configured_limit)
+                self.api.api_typical[api_key] = loaded_typical
+                assert isinstance(self.api.api_typical[api_key], int), "daily_typical is not an integer"
                 self._api_used_reset[api_key] = usage.get(RESET, self.api.dt_helper.utc_previous_midnight())
                 assert isinstance(self._api_used_reset[api_key], dt), "reset is not a datetime"
                 if (used_reset := self._api_used_reset[api_key]) is not None:
@@ -982,8 +1031,13 @@ class SitesCache:
                     )
                 if usage[DAILY_LIMIT] != quota[api_key]:  # Limit has been adjusted, so rewrite the cache.
                     self.api.api_limits[api_key] = quota[api_key]
+                    # Reset typical to the new limit.
+                    self.api.api_typical[api_key] = quota[api_key]
                     await self.serialise_usage(api_key)
                     _LOGGER.info("Usage loaded and cache updated with new limit")
+                elif DAILY_FORCED_CONSUMED not in usage:  # Schema upgraded, rewrite to persist new field.
+                    await self.serialise_usage(api_key)
+                    _LOGGER.debug("Usage loaded and cache updated with new schema")
                 else:
                     _LOGGER.debug(
                         "Usage loaded%s",
@@ -1004,7 +1058,8 @@ class SitesCache:
             for index in range(len(api_keys)):  # If only one limit value is present, yet there are multiple sites then use the same limit.
                 if len(api_limit_values) < index + 1:
                     api_limit_values.append(api_limit_values[index - 1])
-            quota = {api_keys[index].strip(): int(api_limit_values[index].strip()) for index in range(len(api_limit_values))}
+            api_limit_values = api_limit_values[: len(api_keys)]
+            quota = {k.strip(): int(v.strip()) for k, v in zip(api_keys, api_limit_values, strict=True)}
 
             for api_key in api_keys:
                 api_key = api_key.strip()
@@ -1043,6 +1098,9 @@ class SitesCache:
                         _LOGGER.warning("Creating usage cache for %s, assuming zero API used", redact_api_key(api_key))
                         self.api.api_limits[api_key] = quota[api_key]
                         self.api.api_used[api_key] = 0
+                        self.api.api_forced[api_key] = 0
+                        self.api.api_actuals[api_key] = 0
+                        self.api.api_typical[api_key] = quota[api_key]
                         self._api_used_reset[api_key] = self.api.dt_helper.utc_previous_midnight()
                     await self.serialise_usage(api_key, reset=True)
                 _LOGGER.debug(

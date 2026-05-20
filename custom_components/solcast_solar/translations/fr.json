@@ -18,25 +18,38 @@
     "step": {
       "reauth_confirm": {
         "data": {
-          "api_key": "Clé API (plusieurs valeurs séparées par des virgules)"
+          "api_key": "Clé API"
         },
-        "description": "Clé API du compte Solcast"
+        "description": "Clé API du compte Solcast",
+        "data_description": {
+          "api_key": "Entrez une ou plusieurs clés API Solcast, séparées par des virgules"
+        }
       },
       "reconfigure_confirm": {
         "data": {
-          "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
-          "api_limit": "Quota d'API (plusieurs valeurs séparées par des virgules)",
+          "api_key": "Clé API",
+          "api_limit": "Quota d'API",
           "auto_update": "Mise à jour automatique"
         },
-        "description": "Détails du compte Solcast\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)"
+        "description": "Détails du compte Solcast\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)",
+        "data_description": {
+          "api_key": "Entrez une ou plusieurs clés API Solcast, séparées par des virgules",
+          "api_limit": "Entrez une limite par clé, séparées par des virgules en cas de clés multiples",
+          "auto_update": "Si vous n'utilisez pas la mise à jour automatique, créez une automatisation qui appelle périodiquement l'action \"solcast_solar.update_forecasts\", tout en respectant la limite totale maximale conseillée par Solcast (généralement dix fois au total par jour pour un site sur toit, ou avec deux sites cinq fois par jour)"
+        }
       },
       "user": {
         "data": {
-          "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
-          "api_limit": "Quota d'API (plusieurs valeurs séparées par des virgules)",
+          "api_key": "Clé API",
+          "api_limit": "Quota d'API",
           "auto_update": "Mise à jour automatique"
         },
-        "description": "Détails du compte Solcast\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)\n\nL'API Solcast doit être disponible pour configurer cette intégration pour la première fois. Si vous recevez le message de statut '429 / Try again later', l'API est indisponible et la configuration ne peut pas être complétée. Vous devez patienter. Notez que la page de statut de l'API sur status.solcast.com n'indiquera presque certainement aucun problème d'API. La cause réside très probablement dans un seul mauvais utilisateur de l'API qui affecte la disponibilité pour tous les amateurs."
+        "description": "Détails du compte Solcast\n\n(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)\n\nL'API Solcast doit être disponible pour configurer cette intégration pour la première fois. Si vous recevez le message de statut '429 / Try again later', l'API est indisponible et la configuration ne peut pas être complétée. Vous devez patienter. Notez que la page de statut de l'API sur status.solcast.com n'indiquera presque certainement aucun problème d'API. La cause réside très probablement dans un seul mauvais utilisateur de l'API qui affecte la disponibilité pour tous les amateurs.",
+        "data_description": {
+          "api_key": "Entrez une ou plusieurs clés API Solcast, séparées par des virgules",
+          "api_limit": "Entrez une limite par clé, séparées par des virgules en cas de clés multiples",
+          "auto_update": "Si vous n'utilisez pas la mise à jour automatique, créez une automatisation qui appelle périodiquement l'action \"solcast_solar.update_forecasts\", tout en respectant la limite totale maximale conseillée par Solcast (généralement dix fois au total par jour pour un site sur toit, ou avec deux sites cinq fois par jour)"
+        }
       }
     }
   },
@@ -100,6 +113,9 @@
       },
       "power_now_30m": {
         "name": "Puissance en 30 minutes"
+      },
+      "site_data": {
+        "name": "Données du site"
       },
       "total_kwh_forecast_d10": {
         "name": "Prévision jour 10"
@@ -188,7 +204,7 @@
     "damp_not_for_site": {
       "message": "L'amortissement du site n'est pas défini pour {site}."
     },
-    "damp_not_site": {
+    "not_a_site": {
       "message": "Pas un site configuré."
     },
     "damp_outside_range": {
@@ -303,6 +319,10 @@
       "description": "La mise à jour automatique et les valeurs réelles estimées sont activées alors que la limite d'API est configurée à la valeur maximale pour les amateurs (`{configured_value}`). Les valeurs réelles estimées sont collectées juste après minuit et utilisent un appel API par installation en toiture pour chaque clé API configurée. Réduisez votre limite d'API à `{suggested_value}` pour réserver des appels pour les valeurs réelles estimées.",
       "title": "Ajuster la limite d'API pour les valeurs réelles estimées"
     },
+    "actuals_quota_today": {
+      "title": "La récupération des valeurs réelles estimées peut dépasser le quota API quotidien",
+      "description": "La récupération des valeurs réelles estimées a été activée. Sur la base de l'utilisation quotidienne typique de l'API pour les mises à jour de prévisions ({api_used} appels) et du quota de compte déduit de {api_limit} appels, l'ajout des {actuals_cost} appel(s) nécessaires à la récupération des valeurs réelles estimées dépasserait le quota lors d'une journée typique. La récupération sera tout de même tentée juste après minuit, mais elle (ou une mise à jour ultérieure des prévisions) peut échouer avec une réponse `429 Too Many Requests`.\n\nCet avertissement peut apparaître pendant que le compteur d'utilisation typique est encore initialisé avec des données réelles. Le compteur typique reflète uniquement les mises à jour automatiques/mises à jour d'automatisation et les appels de prévision forcés. Vérifiez votre limite API configurée et toutes les automatisations de mise à jour forcée si vous souhaitez utiliser les valeurs réelles estimées."
+    },
     "corrupt_file": {
       "description": "Le ou les fichiers de données mis en cache `{files}` sont corrompus. L'intégration tentera de les récupérer en supprimant le ou les fichiers et en récupérant à nouveau les données depuis Solcast. Prévoyez une augmentation de l'utilisation de l'API, des défaillances potentielles et une perte de l'historique des prévisions. Il est possible de récupérer les fichiers à partir d'une sauvegarde, mais des échecs d'appels API restent à prévoir.",
       "title": "Données mises en cache corrompues"
@@ -397,34 +417,84 @@
           "damp22": "22:00",
           "damp23": "23:00"
         },
-        "description": "Modifier le coefficient d'amortissement horaire"
+        "description": "Modifier le coefficient d'amortissement horaire",
+        "data_description": {
+          "damp00": "Entrez une valeur comprise entre 0,0 (aucune production comptée) et 1,0 (production complète comptée)",
+          "damp01": "",
+          "damp02": "",
+          "damp03": "",
+          "damp04": "",
+          "damp05": "",
+          "damp06": "",
+          "damp07": "",
+          "damp08": "",
+          "damp09": "",
+          "damp10": "",
+          "damp11": "",
+          "damp12": "",
+          "damp13": "",
+          "damp14": "",
+          "damp15": "",
+          "damp16": "",
+          "damp17": "",
+          "damp18": "",
+          "damp19": "",
+          "damp20": "",
+          "damp21": "",
+          "damp22": "",
+          "damp23": ""
+        }
       },
       "init": {
         "data": {
-          "api_key": "Clé API (plusieurs valeurs séparées par des virgules)",
-          "api_limit": "Quota d'API (plusieurs valeurs séparées par des virgules)",
-          "attr_brk_detailed": "Activer la répartition du site pour les attributs de détail demi-horaires/horaires (ceux-ci ne seront pas enregistrés dans les attributs d'état de la base de données)",
+          "api_key": "Clé API",
+          "api_limit": "Quota d'API",
+          "attr_brk_detailed": "Activer la répartition du site pour les attributs de détail",
           "attr_brk_estimate": "Activer l'estimation de 50 attributs de capteur",
           "attr_brk_estimate10": "Activer l'estimation de 10 attributs de capteur",
           "attr_brk_estimate90": "Activer l'estimation de 90 attributs de capteur",
           "attr_brk_halfhourly": "Activer les attributs de détail des prévisions demi-horaires",
           "attr_brk_hourly": "Activer les attributs de détail horaire des prévisions",
           "attr_brk_site": "Activer les attributs du capteur de panne de site",
-          "auto_dampen": "Auto-dampen (requiert des valeurs réelles estimées et une entité de génération PV, voir la documentation d'intégration)",
+          "auto_dampen": "Amortissement automatique",
           "auto_update": "Mise à jour automatique (s'il n'y a pas de mise à jour automatique, une automatisation doit être utilisée à la place)",
-          "config_damp": "Modifier les facteurs d'amortissement horaires (après avoir cliqué sur soumettre)",
-          "custom_hours": "Capteur personnalisé des X prochaines heures (min=1, max=144)",
+          "config_damp": "Modifier les facteurs d'amortissement horaires",
+          "custom_hours": "Capteur personnalisé des X prochaines heures",
           "exclude_sites": "Site(s) à exclure du tableau de bord Énergie et des totaux des capteurs",
-          "generation_entities": "Entité(s) de production PV pour l'amortissement automatisé (énergie : Wh/kWh/MWh total croissant, ou puissance : W/kW/MW instantanée)",
-          "get_actuals": "Valeurs réelles estimées mises à jour à minuit (voir la documentation d'intégration, utilise un appel API par site et par jour, donc un quota API réduit est nécessaire avec cette option activée)",
-          "hard_limit_api": "Limite stricte de l'onduleur en kW (voir la documentation d'intégration)",
+          "generation_entities": "Entité(s) de production PV",
+          "get_actuals": "Valeurs réelles estimées mises à jour à minuit",
+          "hard_limit_api": "Limite stricte de l'onduleur (kW)",
           "key_estimate": "Probabilité de prévision préférée à utiliser pour les capteurs",
-          "site_damp": "L'amortissement granulaire est défini : Effacer pour revenir à l'amortissement horaire global",
-          "site_export_entity": "Entité d'exportation de site optionnelle pour amortissement automatisé (Wh/kWh/MWh, augmentation totale)",
-          "site_export_limit": "Limite d'exportation de site si l'exportation de site est spécifiée (kW)",
+          "site_damp": "Amortissement granulaire défini",
+          "site_export_entity": "Entité d'exportation du site",
+          "site_export_limit": "Limite d'exportation du site (kW)",
           "use_actuals": "Historique des prévisions à afficher sur le tableau de bord Énergie"
         },
-        "description": "Options de configuration Solcast"
+        "description": "Options de configuration Solcast",
+        "data_description": {
+          "api_key": "Entrez une ou plusieurs clés API Solcast, séparées par des virgules",
+          "api_limit": "Entrez une limite par clé, séparées par des virgules en cas de clés multiples",
+          "attr_brk_detailed": "Répartition du site pour les attributs de détail demi-horaires/horaires (ceux-ci ne seront pas enregistrés dans les attributs d'état de la base de données)",
+          "attr_brk_estimate": "",
+          "attr_brk_estimate10": "",
+          "attr_brk_estimate90": "",
+          "attr_brk_halfhourly": "",
+          "attr_brk_hourly": "",
+          "attr_brk_site": "",
+          "auto_dampen": "Nécessite des valeurs réelles estimées et une entité de production PV — voir la documentation d'intégration",
+          "auto_update": "Si vous n'utilisez pas la mise à jour automatique, créez une automatisation qui appelle périodiquement l'action \"solcast_solar.update_forecasts\", tout en respectant la limite totale maximale conseillée par Solcast (généralement dix fois au total par jour pour un site sur toit, ou avec deux sites cinq fois par jour)",
+          "config_damp": "Cliquez sur soumettre pour accéder à l'éditeur de facteurs d'amortissement",
+          "custom_hours": "Nombre d'heures pour le capteur personnalisé (minimum 1, maximum 144)",
+          "exclude_sites": "Site(s) à exclure du tableau de bord Énergie et des totaux des capteurs lors de l'ajout de clés API de sites locaux et distants pour un déploiement local/distant unique de Home Assistant",
+          "generation_entities": "Pour l'amortissement automatisé : énergie (Wh/kWh/MWh, total croissant) ou puissance (W/kW/MW, instantanée)",
+          "get_actuals": "Utilise un appel API par site par jour — voir la documentation d'intégration ; une limite d'API réduite est recommandée",
+          "hard_limit_api": "Voir la documentation d'intégration ; séparez plusieurs valeurs pour chaque clé par des virgules",
+          "key_estimate": "",
+          "site_damp": "Amortissement granulaire défini — effacer pour revenir à l'amortissement horaire global",
+          "site_export_entity": "Facultatif — pour l'amortissement automatisé (Wh/kWh/MWh, total croissant)",
+          "site_export_limit": "Obligatoire si une entité d'exportation de site est spécifiée",
+          "use_actuals": ""
+        }
       }
     }
   },

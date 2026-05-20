@@ -35,6 +35,7 @@ You are free to raise an issue should a code exception occur after setting an ad
 1. [Forecasts](#forecasts)
 1. [Granular dampening](#granular-dampening)
 1. [General](#general)
+1. [Developer](#developer)
 
 ## Automated dampening
 
@@ -47,16 +48,28 @@ Allows the selection of different calculations to nudge the base dampening facto
 Option `0` selects an adjustment based on the logarithmic difference between peak and forecast:
 
     adjusted_factor = base_factor + ((1 - base_factor) * (ln(interval_peak) - ln(interval_forecast)))
-   
+
 Option `1` selects an adjustment based on the squared ratio of forecast and peak:
 
     adjusted_factor = base_factor + ((1 - base_factor) * ((1-(interval_forecast/interval_peak))^2))
-   
-Adjusted dampening factors are constrained to lie within the range 0 to 1.  The chart below illustrates the behaviour of the two different adjustment calculations for base factors of 0.5 and 0.9.  
+
+Adjusted dampening factors are constrained to lie within the range 0 to 1.  The chart below illustrates the behaviour of the two different adjustment calculations for base factors of 0.5 and 0.9.
 
 <img width="675"  alt="Dampening comparison" src=".github/SCREENSHOTS/Dampeningcomparison.png" />
 
 As the forecast generation decreases in relation to the recent generation peak the logarithmic difference calculation tends to give a higher adjusted factors than the squared ratio calculation.  The logarithmic difference calculation will give an adjusted factor of 1.0 for any forecast below around 36% of the peak whereas the adjusted factor from the squared ratio calculation only approaches 1.0 as forecast generation approaches 0.
+
+**Key: "automated_dampening_elevation_adjustment"**
+
+Possible values: boolean `true`/`false` (default `true`)
+
+Adjusts historical generation and estimated actual values for changing sun geometry before they are compared when modelling dampening factors.
+
+Past data used to model dampening for today was recorded on days when the sun tracked a different arc across the sky. In spring and autumn in particular, a half-hour interval fourteen days ago may have seen a noticeably different solar elevation than the same half-hour today, which biases the "peak" and per-pair ratios used by the various dampening models. This bias is strongest around sunrise and sunset, and for sites further from the equator.
+
+When this option is enabled the integration computes a geometry-normalised ratio between past and present timestamps for every past half-hour sample used in modelling. This normalises historical PV generation samples from a prior day to the expected solar contribution on the present day, compensating for solar-geometry drift. Said another way, your given panel tilt and azimuth will subtly change generation over time based on where the sun would be, so this mechanism compensates for that in automated dampening computations to improve peak interval comparison.
+
+Each historical estimated actual and generation pair for dampening models 1/2/3 has an appropriate ratio applied, and the peak estimated actual used by the default model is likewise normalised to today's sun geometry.
 
 **Key: "automated_dampening_generation_fetch_delay"**
 
@@ -124,13 +137,13 @@ Selects the algorithm to be used to determine automated dampening factors.
 
 Option `0` is the default model described in the documentation.  This compares the recent peak estimated actual with the recent peak generation for each interval to calculate a dampening factor.  In this model it is possible that the peak estimated actual and peak generation occur on different days.
 
-Options `1` to `3` follow a similar approach to the above, but calculate a list of candidate factors from the paired generation and estimated actual data in each interval, so each candidate factor is calculated from a single day.  
+Options `1` to `3` follow a similar approach to the above, but calculate a list of candidate factors from the paired generation and estimated actual data in each interval, so each candidate factor is calculated from a single day.
 
 - Option `1` returns the maximum of the candidate factors.
 - Option `2` returns the mean of the candidate factors.
 - Option `3` returns the minimum of the candidate factors.
 
-Option `1` can be thought of as a most optimistic scenario which will tend to give a higher forecast than Option `2`, with Option `3` as the most pessimistic scenario giving the lowest forecast.      
+Option `1` can be thought of as a most optimistic scenario which will tend to give a higher forecast than Option `2`, with Option `3` as the most pessimistic scenario giving the lowest forecast.
 
 **Key: "automated_dampening_model_days"**
 
@@ -182,13 +195,13 @@ A templated suppression entity in the `sensor`, `binary_sensor` or `switch` plat
 
 Possible values: boolean `true`/`false` (default `false`)
 
-Setting this option to `true` will (in time) choose the combination of dampening model and delta adjustment that resulted in the lowest error between generation and dampened estimated actuals over previous days.  The minimum number of days history required is defined by the setting `automated_dampening_adaptive_model_minimum_history_days` and the maximum number of days is defined by `automated_dampening_model_days`.  
+Setting this option to `true` will (in time) choose the combination of dampening model and delta adjustment that resulted in the lowest error between generation and dampened estimated actuals over previous days.  The minimum number of days history required is defined by the setting `automated_dampening_adaptive_model_minimum_history_days` and the maximum number of days is defined by `automated_dampening_model_days`.
 
 At the end of each day the integration calculates dampening factors for all possible dampening model and delta adjustment combinations and records the results to `solcast-dampening-history.json`.  After updated estimated actuals are retrieved from Solcast the error between generation and dampened estimated actuals is calculated for every allowed combination of dampening model and delta adjustment, as well as for each model with no delta adjustment applied. The most consistently "accurate" configuration of dampening model and delta adjustment is then selected.  "Accurate" here means the lowest error rather than a precise match.
 
 This selected dampening configuration is then applied to the forecast and the settings for `automated_dampening_model` and `automated_dampening_delta_adjustment_model` are updated in `solcast-advanced.json`.  No other values in `solcast-advanced.json` are affected, and entries for `automated_dampening_model` and `automated_dampening_delta_adjustment_model` will be added if they are not already defined in this file.  When first enabling this option you do not need to amend your current settings for `automated_dampening_model` and `automated_dampening_delta_adjustment_model`.
 
-When `automated_dampening_no_delta_adjustment` is true, the algorithm selects the most consistently accurate dampening model from the configurations that do not use delta adjustment.  When it is false, the algorithm selects the combination of dampening model and delta adjustment option that are most consistently accurate. 
+When `automated_dampening_no_delta_adjustment` is true, the algorithm selects the most consistently accurate dampening model from the configurations that do not use delta adjustment.  When it is false, the algorithm selects the combination of dampening model and delta adjustment option that are most consistently accurate.
 
 A debug message will be logged whenever the `automated_dampening_no_delta_adjustment` setting disagrees with the overall best error results. This happens if `automated_dampening_no_delta_adjustment` is `true` but a delta adjusted model performs better, or if it is `false` but a model without delta adjustment achieves a lower error.
 
@@ -216,7 +229,7 @@ Can only be defined when `automated_dampening_adaptive_model_configuration` is `
 
 Possible values: integer `1`..`21` (default `3`)
 
-Defines the minimum number of days of dampening history required before adaptive model configuration will set values for `automated_dampening_model` and `automated_dampening_delta_adjustment_model`.  
+Defines the minimum number of days of dampening history required before adaptive model configuration will set values for `automated_dampening_model` and `automated_dampening_delta_adjustment_model`.
 
 Must not be greater than `automated_dampening_model_days`, and can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
 
@@ -282,14 +295,6 @@ The adjustment will only apply to `ALL` factors, and not individual per-site dam
 
 ## General
 
-**Key: "allow_exceed_api_limit_maximum"**
-
-Possible values: boolean `true`/`false` (default `false`)
-
-The maximum configurable API limit is 50 by default. This value represents the maximum number of metered API calls that any Solcast hobbyist user has ever been able to make.
-
-Do not set this option unless you are a developer and want to utilise the Solcast API Simulator, where a much larger available limit is possible.
-
 **Key: "api_raise_issues"**
 
 Possible values: boolean `true`/`false` (default `true`)
@@ -326,28 +331,45 @@ Possible values: boolean `true`/`false` (default `false`)
 
 Setting this option to `true` will cause the integration to reload whenever any advanced option is added or changed.
 
-**Key: "solcast_url"**
-
-Possible values: string URL (default `"https://api.solcast.com.au"`)
-
-Do not set this option unless you are a developer and want to utilise the Solcast API Simulator.
-
-Do not add a trailing `/`. An integration reload is required.
-
 **Key: "trigger_on_api_available"**
 
 Possible values: string (default `""`)
 
-When API availability has been determined (after a period of unavailability) then trigger the friendly name of an automation.
+When API availability has been determined (after a period of unavailability) then trigger the entity ID or friendly name of an automation.
 
 **Key: "trigger_on_api_unavailable"**
 
 Possible values: string (default `""`)
 
-When API unavailability has been determined then trigger the friendly name of an automation.
+When API unavailability has been determined then trigger the entity ID or friendly name of an automation.
 
 **Key: "user_agent"**
 
 Possible values: string (default `"default"`)
 
 The HTTP header User-Agent is set to "ha-solcast-solar-integration/x.x.x" by default. This advanced option allows it to be set to another user agent string.
+
+## Developer
+
+These advanced options are intended only for developers to use.
+
+**Key: "allow_exceed_api_limit_maximum"**
+
+Possible values: boolean `true`/`false` (default `false`)
+
+The maximum configurable API limit is 50 by default. This value represents the maximum number of metered API calls that any Solcast hobbyist user has ever been able to make.
+
+If not specified, then this option is set to `true` when `solcast_url` is non-default. In that case this option is used to force `allow_exceed_api_limit_maximum` to `false` if required.
+
+Do not set this option unless you are a developer and want to utilise the Solcast API Simulator in a dev container, plus you want to enable config/options flow adherence to a max. 50 limit by forcing it to be `false`.
+
+**Key: "solcast_url" / "solcast_port"**
+
+Possible values for `solcast_url`: string (default `"https://api.solcast.com.au"`)
+Possible values for `solcast_port`: integer (default `0`)
+
+Do not set these options unless you are a developer and want to utilise the Solcast API Simulator in a dev container.
+
+A trailing `/` is optional for the URL.
+
+Specifying the TCP port to connect to the Solcast API end-points may either be by using the option `solcast_port`, or by embedding the TCP port in the `solcast_url` option (example, `https://localhost:8443/`). If `solcast_port` is used then it will override any URL-embedded port specified.

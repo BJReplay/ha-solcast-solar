@@ -1,4 +1,4 @@
-"""Solcast PV forecast, initialisation."""
+"""Solcast initialisation."""
 
 from collections.abc import Awaitable, Callable
 import contextlib
@@ -21,10 +21,15 @@ from homeassistant.exceptions import (
     ConfigEntryError,
     ConfigEntryNotReady,
 )
-from homeassistant.helpers import aiohttp_client, entity_registry as er
+from homeassistant.helpers import (
+    aiohttp_client,
+    config_validation as cv,
+    entity_registry as er,
+)
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.util import dt as dt_util
 
+from . import crash_state, entry_state
 from .actions import ServiceActions, register_stub_actions, unregister_actions
 from .const import (
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
@@ -49,7 +54,6 @@ from .const import (
     DELAYED_RESTART_ON_CRASH,
     DOMAIN,
     DT_DATE_FORMAT,
-    ENTRY_OPTIONS,
     EXCEPTION_INIT_CANNOT_GET_SITES,
     EXCEPTION_INIT_CANNOT_GET_SITES_CACHE_INVALID,
     EXCEPTION_INIT_KEY_INVALID,
@@ -66,18 +70,9 @@ from .const import (
     HEADERS_USER_AGENT,
     KEY_ESTIMATE,
     LAST_ATTEMPT,
-    OLD_API_KEY,
-    OLD_HARD_LIMIT,
-    PRESUMED_DEAD,
-    PRIOR_CRASH_EXCEPTION,
-    PRIOR_CRASH_PLACEHOLDERS,
-    PRIOR_CRASH_TIME,
-    PRIOR_CRASH_TRANSLATION_KEY,
-    RESET_OLD_KEY,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
-    SOLCAST,
     UPGRADE_FUNCTION,
     USE_ACTUALS,
     VERSION,
@@ -104,6 +99,8 @@ PLATFORMS: Final = [
 
 _LOGGER = logging.getLogger(__name__)
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 
 def __log_init_message(entry: ConfigEntry, version: str, solcast: SolcastApi) -> None:
     _LOGGER.debug("UTC times are converted to %s", solcast.options.tz)
@@ -114,11 +111,6 @@ def __log_init_message(entry: ConfigEntry, version: str, solcast: SolcastApi) ->
 async def get_version(hass: HomeAssistant) -> str:
     """Get the version of the integration."""
     return str((await loader.async_get_integration(hass, DOMAIN)).version)
-
-
-def __setup_storage(hass: HomeAssistant) -> None:
-    if not hass.data.get(DOMAIN):
-        hass.data[DOMAIN] = {}
 
 
 async def __get_time_zone(hass: HomeAssistant) -> zoneinfo.ZoneInfo:
@@ -231,7 +223,7 @@ def __need_history_hours(coordinator: SolcastUpdateCoordinator) -> int:
     return need_history_hours
 
 
-async def __check_stale_start(coordinator: SolcastUpdateCoordinator) -> bool:
+async def __check_stale_start(coordinator: SolcastUpdateCoordinator, service_actions: ServiceActions) -> bool:
     """Check whether the integration has been failed for some time and then is restarted, and if so update forecast."""
     _LOGGER.debug("Checking for stale start")
     stale = False
@@ -242,14 +234,14 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator) -> bool:
             "completion": "Completed task stale_update",
             "need_history_hours": __need_history_hours(coordinator),
         }
-        await coordinator.service_event_update(**kwargs)
+        await service_actions.async_update_forecast(**kwargs)
         stale = True
     else:
         _LOGGER.debug("Start is not stale")
     return stale
 
 
-async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> bool:
+async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator, service_actions: ServiceActions) -> bool:
     """Check whether an auto-update has been missed, and if so update forecast."""
     stale = False
     if coordinator.solcast.options.auto_update != AutoUpdate.NONE:
@@ -270,7 +262,7 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator) -> b
                     "completion": "Completed task update_missed",
                     "need_history_hours": __need_history_hours(coordinator),
                 }
-                await coordinator.service_event_update(**kwargs)
+                await service_actions.async_update_forecast(**kwargs)
                 stale = True
             else:
                 _LOGGER.debug("Auto update forecast is fresh")
@@ -311,18 +303,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     version = await get_version(hass)
     options = await __get_options(hass, entry)
-    __setup_storage(hass)
 
-    prior_crash = hass.data[DOMAIN].get(PRESUMED_DEAD, False)
-    prior_crash_time: dt | None = hass.data[DOMAIN].get(PRIOR_CRASH_TIME)
+    crash_store = await crash_state.async_get(hass, entry.entry_id)
+    prior_crash = crash_store.state.presumed_dead
+    prior_crash_time = crash_store.state.crash_time
     deny_startup: bool = prior_crash_time is not None
     if prior_crash:
         if not deny_startup:
             _LOGGER.debug("Prior crash detected, set the time of crash")
-            hass.data[DOMAIN][PRIOR_CRASH_TIME] = dt_util.now(dt_util.UTC)  # Set the time of the crash.
+            crash_store.state.crash_time = dt_util.now(dt_util.UTC)
+            await crash_store.async_save()
         elif prior_crash_time < dt_util.now(dt_util.UTC) - timedelta(minutes=DELAYED_RESTART_ON_CRASH):
             _LOGGER.info("Prior crash was more than %d minutes ago, allowing sites to be reloaded", DELAYED_RESTART_ON_CRASH)
-            hass.data[DOMAIN][PRIOR_CRASH_TIME] = dt_util.now(dt_util.UTC)
+            crash_store.state.crash_time = dt_util.now(dt_util.UTC)
+            await crash_store.async_save()
             prior_crash = False
     if prior_crash and deny_startup:
         _LOGGER.warning(
@@ -330,19 +324,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             dt.strftime(prior_crash_time, DT_DATE_FORMAT),
             DELAYED_RESTART_ON_CRASH,
         )
-        if hass.data[DOMAIN].get(PRIOR_CRASH_EXCEPTION) is not None:
+        prior_exception = crash_store.state.exception_class
+        if prior_exception is not None:
             _LOGGER.debug(
                 "Raising prior exception: %s(%s)",
-                hass.data[DOMAIN].get(PRIOR_CRASH_EXCEPTION),
-                hass.data[DOMAIN].get(PRIOR_CRASH_TRANSLATION_KEY),
+                prior_exception,
+                crash_store.state.translation_key,
             )
-            raise hass.data[DOMAIN][PRIOR_CRASH_EXCEPTION](  # Re-raise prior exception
+            raise prior_exception(
                 translation_domain=DOMAIN,
-                translation_key=hass.data[DOMAIN].get(PRIOR_CRASH_TRANSLATION_KEY, EXCEPTION_INTEGRATION_PRIOR_CRASH),
-                translation_placeholders=hass.data[DOMAIN].get(PRIOR_CRASH_PLACEHOLDERS),
+                translation_key=crash_store.state.translation_key or EXCEPTION_INTEGRATION_PRIOR_CRASH,
+                translation_placeholders=crash_store.state.translation_placeholders,
             )
 
-    hass.data[DOMAIN][PRESUMED_DEAD] = True  # Presumption that init will not be successful.
+    crash_store.state.presumed_dead = True
+    await crash_store.async_save()
     solcast = SolcastApi(aiohttp_client.async_get_clientsession(hass), options, hass, entry)
     await solcast.async_migrate_config_files()
     await solcast.advanced_opt.read_advanced_options()
@@ -352,30 +348,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await solcast.sites_cache.get_sites_and_usage(prior_crash=prior_crash)
     match solcast.sites_status:
         case SitesStatus.BAD_KEY:
-            raise_and_record(hass, ConfigEntryAuthFailed, EXCEPTION_INIT_KEY_INVALID)
+            await raise_and_record(hass, entry, ConfigEntryAuthFailed, EXCEPTION_INIT_KEY_INVALID)
         case SitesStatus.API_BUSY:
-            raise_and_record(hass, ConfigEntryNotReady, EXCEPTION_INIT_CANNOT_GET_SITES)
+            await raise_and_record(hass, entry, ConfigEntryNotReady, EXCEPTION_INIT_CANNOT_GET_SITES)
         case SitesStatus.ERROR:
-            raise_and_record(hass, ConfigEntryError, EXCEPTION_INIT_CANNOT_GET_SITES)
+            await raise_and_record(hass, entry, ConfigEntryError, EXCEPTION_INIT_CANNOT_GET_SITES)
         case SitesStatus.CACHE_INVALID:
-            raise_and_record(hass, ConfigEntryError, EXCEPTION_INIT_CANNOT_GET_SITES_CACHE_INVALID)
+            await raise_and_record(hass, entry, ConfigEntryError, EXCEPTION_INIT_CANNOT_GET_SITES_CACHE_INVALID)
         case SitesStatus.NO_SITES:
-            raise_and_record(hass, ConfigEntryError, EXCEPTION_INIT_NO_SITES)
+            await raise_and_record(hass, entry, ConfigEntryError, EXCEPTION_INIT_NO_SITES)
         case SitesStatus.UNKNOWN:
-            raise_and_record(hass, ConfigEntryError, EXCEPTION_INIT_UNKNOWN)
+            await raise_and_record(hass, entry, ConfigEntryError, EXCEPTION_INIT_UNKNOWN)
         case SitesStatus.OK:
             pass
     match solcast.usage_status:
         case UsageStatus.ERROR:
-            raise_and_record(hass, ConfigEntryError, EXCEPTION_INIT_USAGE_CORRUPT)
+            await raise_and_record(hass, entry, ConfigEntryError, EXCEPTION_INIT_USAGE_CORRUPT)
         case _:
             pass
 
     sync_actuals_api_limit_issue(hass, entry.options, solcast.sites)
 
     await __get_granular_dampening(hass, entry, solcast)
-    hass.data[DOMAIN][SOLCAST] = solcast
-    hass.data[DOMAIN][ENTRY_OPTIONS] = {**entry.options}
 
     if await solcast.sites_cache.load_saved_data():
         await solcast.dampening.model_automated()
@@ -395,16 +389,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     __log_hard_limit_set(solcast)
 
     _LOGGER.debug("Clear presumed dead flag")
-    hass.data[DOMAIN][PRESUMED_DEAD] = False  # Initialisation was successful, so we're not dead.
-    hass.data[DOMAIN].pop(PRIOR_CRASH_TIME, None)
-    hass.data[DOMAIN].pop(PRIOR_CRASH_TRANSLATION_KEY, None)
-    hass.data[DOMAIN].pop(PRIOR_CRASH_PLACEHOLDERS, None)
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = True
+    await crash_store.async_clear_after_success()
 
-    if not await __check_auto_update_missed(coordinator):
-        await __check_stale_start(coordinator)
+    service_actions = ServiceActions(hass, entry, coordinator, solcast, coordinator.updater)
 
-    ServiceActions(hass, entry, coordinator, solcast)
+    if not await __check_auto_update_missed(coordinator, service_actions):
+        await __check_stale_start(coordinator, service_actions)
 
     if DAMPENING_ADAPTATIONS_DEVELOPMENT:
         if (
@@ -491,19 +481,22 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     recalculate_splines = False
 
     def changed(config: str) -> bool:
-        return hass.data[DOMAIN][ENTRY_OPTIONS].get(config) != entry.options.get(config)
+        return coordinator.solcast.entry_options.get(config) != entry.options.get(config)
+
+    state = entry_state.get(entry.entry_id)
 
     # Old API key tracking.
     if changed(CONF_API_KEY):
-        if hass.data[DOMAIN].get(RESET_OLD_KEY):
-            hass.data[DOMAIN].pop(RESET_OLD_KEY)
-            hass.data[DOMAIN][OLD_API_KEY] = entry.options.get(CONF_API_KEY)
+        if state.reset_old_key:
+            state.reset_old_key = False
+            state.old_api_key = entry.options.get(CONF_API_KEY)
         else:
-            hass.data[DOMAIN][OLD_API_KEY] = hass.data[DOMAIN][ENTRY_OPTIONS].get(CONF_API_KEY)
+            state.old_api_key = coordinator.solcast.entry_options.get(CONF_API_KEY)
 
     # Multi-API key hard limit tracking and clean up.
-    if hass.data[DOMAIN].get(OLD_HARD_LIMIT, coordinator.solcast.hard_limit) != entry.options[HARD_LIMIT_API]:
-        old_multi_key = len(hass.data[DOMAIN].get(OLD_HARD_LIMIT, coordinator.solcast.hard_limit).split(",")) > 1
+    previous_hard_limit = state.old_hard_limit or coordinator.solcast.hard_limit
+    if previous_hard_limit != entry.options[HARD_LIMIT_API]:
+        old_multi_key = len(previous_hard_limit.split(",")) > 1
         new_multi_key = len(entry.options[HARD_LIMIT_API].split(",")) > 1
         if old_multi_key != new_multi_key:  # Changing from single to multi or vice versa
             entity_registry = er.async_get(hass)
@@ -518,7 +511,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
                 if entity.unique_id in clean_up:
                     _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
                     entity_registry.async_remove(entity.entity_id)
-    hass.data[DOMAIN][OLD_HARD_LIMIT] = entry.options[HARD_LIMIT_API]
+    state.old_hard_limit = entry.options[HARD_LIMIT_API]
 
     # Config changes, which when changed will cause a reload.
     reload = (
@@ -528,6 +521,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
         or changed(HARD_LIMIT_API)
         or changed(CUSTOM_HOURS)
         or changed(SITE_EXPORT_ENTITY)
+        or changed(GET_ACTUALS)
     )
 
     # Config changes, which when changed will cause a forecast recalculation only, without reload.
@@ -555,12 +549,12 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
         if changed(AUTO_DAMPEN):
             reload = True
-            if hass.data[DOMAIN][ENTRY_OPTIONS].get(AUTO_DAMPEN, False):
-                # Turning auto-dampening off, so reset the granular dampening file content.
-                path = Path(coordinator.solcast.dampening.get_filename())
-                _LOGGER.debug("Unlink %s", path)
-                if path.exists():
-                    path.unlink()
+        if coordinator.solcast.entry_options.get(AUTO_DAMPEN, False):
+            # Turning auto-dampening off, so reset the granular dampening file content.
+            path = Path(coordinator.solcast.dampening.get_filename())
+            _LOGGER.debug("Unlink %s", path)
+            if path.exists():
+                path.unlink()
 
         if changed(SITE_DAMP):
             damp_changed = True
@@ -591,11 +585,8 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
                 await coordinator.solcast.build_actual_data()
         elif recalculate_splines:
             await coordinator.solcast.query.recalculate_splines()
-        coordinator.set_data_updated(True)
         await coordinator.update_integration_listeners()
-        coordinator.set_data_updated(False)
 
-        hass.data[DOMAIN][ENTRY_OPTIONS] = {**entry.options}
         coordinator.solcast.entry_options = {**entry.options}
     else:
         # Reload.

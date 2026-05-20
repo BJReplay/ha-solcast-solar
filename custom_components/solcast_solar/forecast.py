@@ -1,9 +1,5 @@
 """Solcast forecast query and spline interpolation engine."""
 
-# pylint: disable=pointless-string-statement
-
-from __future__ import annotations
-
 from collections import OrderedDict
 from datetime import datetime as dt, timedelta
 import logging
@@ -15,6 +11,7 @@ from .const import (
     ADVANCED_HISTORY_MAX_DAYS,
     ALL,
     ANALYSIS,
+    DAMPENING_FACTOR,
     DATA_CORRECT,
     DAY_NAME,
     DETAILED_FORECAST,
@@ -23,20 +20,30 @@ from .const import (
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
+    FORECASTS,
     NAME,
     PERIOD_START,
     RESOURCE_ID,
     SITE_ATTRIBUTE_AZIMUTH,
     SITE_ATTRIBUTE_CAPACITY,
     SITE_ATTRIBUTE_CAPACITY_DC,
+    SITE_ATTRIBUTE_COMPASS_DEGREES,
+    SITE_ATTRIBUTE_COMPASS_DIRECTION,
     SITE_ATTRIBUTE_INSTALL_DATE,
     SITE_ATTRIBUTE_LATITUDE,
     SITE_ATTRIBUTE_LONGITUDE,
     SITE_ATTRIBUTE_LOSS_FACTOR,
     SITE_ATTRIBUTE_TAGS,
     SITE_ATTRIBUTE_TILT,
+    SITE_INFO,
 )
-from .util import HistoryType, cubic_interp
+from .util import (
+    HistoryType,
+    azimuth_to_compass_degrees,
+    azimuth_to_compass_direction,
+    cubic_interp,
+    format_site_key,
+)
 
 if TYPE_CHECKING:
     from .solcastapi import SolcastApi
@@ -95,26 +102,74 @@ class ForecastQuery:
 
         return tuple({**data, PERIOD_START: data[PERIOD_START].astimezone(self.api.tz)} for data in forecast_slice)
 
-    async def get_estimate_list(self, *args: Any) -> tuple[dict[str, Any], ...]:
+    async def get_estimate_list(
+        self,
+        start: dt,
+        end: dt,
+        site: str = ALL,
+        undampened: bool = True,
+    ) -> tuple[dict[str, Any], ...]:
         """Get estimated actuals.
 
         Arguments:
-            args (tuple): [0] (dt) = from timestamp, [1] (dt) = to timestamp, [2] (bool) = dampened or un-dampened (default undampened).
+            start: From timestamp.
+            end: To timestamp.
+            site: Optional site, or `all` for combined.
+            undampened: Whether to return undampened estimated actuals.
 
         Returns:
             tuple(dict[str, Any], ...): Estimated actuals representing the range specified.
         """
 
-        data = self.api.data_estimated_actuals if args[2] else self.api.data_estimated_actuals_dampened
-        start_index, end_index = self.get_list_slice(data, args[0], args[1], search_past=True)
+        if site == ALL:
+            source_undampened = self.api.data_estimated_actuals
+            data = self.api.data_estimated_actuals if undampened else self.api.data_estimated_actuals_dampened
+        else:
+            source_undampened = self.api.data_actuals[SITE_INFO][site][FORECASTS]
+            data = source_undampened if undampened else self.api.data_actuals_dampened.get(SITE_INFO, {}).get(site, {}).get(FORECASTS, [])
+
+        start_index, end_index = self.get_list_slice(data, start, end, search_past=True)
         if start_index == 0 and end_index == 0:
-            # Range could not be found
-            raise ValueError("Range is invalid")
-        estimate_slice = data[start_index:end_index]
+            if undampened:
+                # Range could not be found
+                raise ValueError("Range is invalid")
 
-        return tuple({**data, PERIOD_START: data[PERIOD_START].astimezone(self.api.tz)} for data in estimate_slice)
+            # Fall back to undampened estimated actuals if dampened data for the
+            # requested range is unavailable.
+            start_index, end_index = self.get_list_slice(source_undampened, start, end, search_past=True)
+            if start_index == 0 and end_index == 0:
+                # Range could not be found
+                raise ValueError("Range is invalid")
+            estimate_slice = source_undampened[start_index:end_index]
+        else:
+            estimate_slice = data[start_index:end_index]
 
-    def get_rooftop_site_extra_data(self, site: str = "") -> dict[str, Any]:
+        include_dampening_factor = not undampened and site == ALL
+
+        dampening_factors: dict[dt, float] = {}
+        if include_dampening_factor:
+            undampened_slice_start, undampened_slice_end = self.get_list_slice(source_undampened, start, end, search_past=True)
+            undampened_slice = source_undampened[undampened_slice_start:undampened_slice_end]
+            undampened_by_period = {estimate[PERIOD_START]: estimate[ESTIMATE] for estimate in undampened_slice}
+            for estimate in estimate_slice:
+                period_start = estimate[PERIOD_START]
+                dampened_estimate = estimate[ESTIMATE]
+                undampened_estimate = undampened_by_period.get(period_start, 0.0)
+                if undampened_estimate <= 0:
+                    dampening_factors[period_start] = 1.0
+                else:
+                    dampening_factors[period_start] = round(dampened_estimate / undampened_estimate, 4)
+
+        return tuple(
+            {
+                **data,
+                PERIOD_START: data[PERIOD_START].astimezone(self.api.tz),
+            }
+            | ({DAMPENING_FACTOR: dampening_factors[data[PERIOD_START]]} if include_dampening_factor else {})
+            for data in estimate_slice
+        )
+
+    def get_rooftop_site_extra_data(self, site: str = "") -> dict[str, Any] | None:
         """Return information about a site.
 
         Arguments:
@@ -124,7 +179,12 @@ class ForecastQuery:
             dict: Site attributes that have been configured at solcast.com.
         """
         target_site = tuple(_site for _site in self.api.sites if _site[RESOURCE_ID] == site)
+        if not target_site:
+            return None
         _site: dict[str, Any] = target_site[0]
+        azimuth = _site.get(SITE_ATTRIBUTE_AZIMUTH)
+        compass_degrees = azimuth_to_compass_degrees(azimuth)
+        compass_direction = azimuth_to_compass_direction(azimuth)
         result = {
             NAME: _site.get(NAME),
             RESOURCE_ID: _site.get(RESOURCE_ID),
@@ -133,6 +193,8 @@ class ForecastQuery:
             SITE_ATTRIBUTE_LONGITUDE: _site.get(SITE_ATTRIBUTE_LONGITUDE),
             SITE_ATTRIBUTE_LATITUDE: _site.get(SITE_ATTRIBUTE_LATITUDE),
             SITE_ATTRIBUTE_AZIMUTH: _site.get(SITE_ATTRIBUTE_AZIMUTH),
+            SITE_ATTRIBUTE_COMPASS_DEGREES: compass_degrees,
+            SITE_ATTRIBUTE_COMPASS_DIRECTION: compass_direction,
             SITE_ATTRIBUTE_TILT: _site.get(SITE_ATTRIBUTE_TILT),
             SITE_ATTRIBUTE_INSTALL_DATE: _site.get(SITE_ATTRIBUTE_INSTALL_DATE),
             SITE_ATTRIBUTE_LOSS_FACTOR: _site.get(SITE_ATTRIBUTE_LOSS_FACTOR),
@@ -256,12 +318,12 @@ class ForecastQuery:
             result[DETAILED_FORECAST] = _tuple
             if self.api.options.attr_brk_site_detailed:
                 for site in self.api.sites:
-                    result[f"{DETAILED_FORECAST}_{site[RESOURCE_ID].replace('-', '_')}"] = tuples[site[RESOURCE_ID]]
+                    result[f"{DETAILED_FORECAST}_{format_site_key(site[RESOURCE_ID])}"] = tuples[site[RESOURCE_ID]]
         if self.api.options.attr_brk_hourly:
             result[DETAILED_HOURLY] = hourly_tuple
             if self.api.options.attr_brk_site_detailed:
                 for site in self.api.sites:
-                    result[f"{DETAILED_HOURLY}_{site[RESOURCE_ID].replace('-', '_')}"] = hourly_tuples[site[RESOURCE_ID]]
+                    result[f"{DETAILED_HOURLY}_{format_site_key(site[RESOURCE_ID])}"] = hourly_tuples[site[RESOURCE_ID]]
         return result
 
     def get_forecast_n_hour(
@@ -351,7 +413,7 @@ class ForecastQuery:
         start_utc = self.api.dt_helper.day_start_utc(future=n_day)
         end_utc = self.api.dt_helper.day_start_utc(future=n_day + 1)
         result = self._get_max_forecast_pv_estimate(start_utc, end_utc, site=site, forecast_confidence=forecast_confidence)
-        return int(round(1000 * result[forecast_confidence])) if result is not None else None
+        return round(1000 * result[forecast_confidence]) if result is not None else None
 
     def get_peak_time_day(
         self,
@@ -400,6 +462,7 @@ class ForecastQuery:
         n_day: int,
         site: str | None = None,
         forecast_confidence: str | None = None,
+        undampened: bool = False,
     ) -> float | None:
         """Return forecast production total for N days ahead.
 
@@ -407,13 +470,20 @@ class ForecastQuery:
             n_day (int): A day (0 = today, 1 = tomorrow, etc., with a maximum of day FORECAST_DAYS - 1).
             site (str): An optional Solcast site ID, used to build site breakdown attributes.
             forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
+            undampened (bool): Whether to use undampened forecast data.
 
         Returns:
             float | None: The forecast total solar generation for a given day as kWh.
         """
         start_utc = self.api.dt_helper.day_start_utc(future=n_day)
         end_utc = self.api.dt_helper.day_start_utc(future=n_day + 1)
-        estimate = self._get_forecast_pv_estimates(start_utc, end_utc, site=site, forecast_confidence=forecast_confidence)
+        estimate = self._get_forecast_pv_estimates(
+            start_utc,
+            end_utc,
+            site=site,
+            forecast_confidence=forecast_confidence,
+            undampened=undampened,
+        )
         return round(0.5 * estimate, 4) if estimate is not None else None
 
     def get_forecast_attributes(self, get_forecast_value: Any, n: int = 0) -> dict[str, Any]:
@@ -429,9 +499,9 @@ class ForecastQuery:
         result: dict[str, Any] = {}
         if self.api.options.attr_brk_site:
             for site in self.api.sites:
-                result[site[RESOURCE_ID].replace("-", "_")] = get_forecast_value(n, site=site[RESOURCE_ID])
+                result[format_site_key(site[RESOURCE_ID])] = get_forecast_value(n, site=site[RESOURCE_ID])
                 for forecast_confidence in self.api.estimate_set:
-                    result[forecast_confidence.replace("pv_", "") + "_" + site[RESOURCE_ID].replace("-", "_")] = get_forecast_value(
+                    result[forecast_confidence.replace("pv_", "") + "_" + format_site_key(site[RESOURCE_ID])] = get_forecast_value(
                         n,
                         site=site[RESOURCE_ID],
                         forecast_confidence=forecast_confidence,
@@ -542,7 +612,7 @@ class ForecastQuery:
                 ):
                     spline[forecast_confidence][spline_index + 1] = spline[forecast_confidence][spline_index]
             else:
-                y_index = int(math.floor(interval / 1800))  # Every half hour
+                y_index = math.floor(interval / 1800)  # Every half hour
                 if y_index + 1 <= len(y) - 1 and y[y_index] == 0 and y[y_index + 1] == 0:
                     spline[forecast_confidence][spline_index] = 0.0
         # Shift right by fifteen minutes because 30-minute averages, padding as appropriate.
@@ -637,7 +707,8 @@ class ForecastQuery:
         offset = (
             (len(self._spline_period) * 6 - len(variant)) + 3 if variant is not None else 0
         )  # To cater for less intervals than the spline period
-        return variant[int(n_min / 300) - offset] if variant and len(variant) > 0 else None
+        idx = int(n_min / 300) - offset
+        return variant[idx] if variant and 0 <= idx < len(variant) else None
 
     def _get_remaining(self, site: str | None, forecast_confidence: str | None, n_min: float) -> float | None:
         """Get a remaining value at a given five-minute point from a reducing spline.
@@ -656,7 +727,8 @@ class ForecastQuery:
         offset = (
             (len(self._spline_period) * 6 - len(variant)) + 3 if variant is not None else 0
         )  # To cater for less intervals than the spline period
-        return variant[int(n_min / 300) - offset] if variant and len(variant) > 0 else None
+        idx = int(n_min / 300) - offset
+        return variant[idx] if variant and 0 <= idx < len(variant) else None
 
     def _get_forecast_pv_remaining(
         self,
@@ -718,6 +790,7 @@ class ForecastQuery:
         end_utc: dt,
         site: str | None = None,
         forecast_confidence: str | None = None,
+        undampened: bool = False,
     ) -> float | None:
         """Return energy total for a period.
 
@@ -726,11 +799,15 @@ class ForecastQuery:
             end_utc (datetime): End of time period datetime in UTC.
             site (str): Optional Solcast site ID, used to provide site breakdown.
             forecast_confidence (str): A optional forecast type, used to select the pv_estimate, pv_estimate10 or pv_estimate90 returned.
+            undampened (bool): Whether to use undampened forecast data.
 
         Returns:
             float | None: Energy forecast total for a period as kWh.
         """
-        data = self.api.data_forecasts if site is None else self.api.site_data_forecasts[site]
+        if site is None:
+            data = self.api.data_forecasts_undampened if undampened else self.api.data_forecasts
+        else:
+            data = self.api.site_data_forecasts_undampened[site] if undampened else self.api.site_data_forecasts[site]
         forecast_confidence = self.api.use_forecast_confidence if forecast_confidence is None else forecast_confidence
         result = 0
         start_index, end_index = self.get_list_slice(  # Get start and end indexes for the requested range.

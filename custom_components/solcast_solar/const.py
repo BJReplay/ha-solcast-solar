@@ -1,4 +1,4 @@
-"""Constants for the Solcast Solar integration."""
+"""Solcast constants."""
 
 import types
 from typing import Any, Final
@@ -27,6 +27,7 @@ ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: Final[str] = "automat
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: Final[str] = "automated_dampening_adaptive_model_exclude"
 ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[str] = "automated_dampening_adaptive_model_minimum_history_days"
 ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[str] = "automated_dampening_delta_adjustment_model"
+ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: Final[str] = "automated_dampening_elevation_adjustment"
 ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: Final[str] = "automated_dampening_generation_fetch_delay"
 ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS: Final[str] = "automated_dampening_generation_history_load_days"
 ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS: Final[str] = "automated_dampening_ignore_intervals"
@@ -51,6 +52,7 @@ ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: Final[str] = "granular_dampening_d
 ADVANCED_HISTORY_MAX_DAYS: Final[str] = "history_max_days"
 ADVANCED_LOG_UPDATE_FAILURE_ONLY: Final[str] = "log_update_failure_only"
 ADVANCED_RELOAD_ON_ADVANCED_CHANGE: Final[str] = "reload_on_advanced_change"
+ADVANCED_SOLCAST_PORT: Final[str] = "solcast_port"
 ADVANCED_SOLCAST_URL: Final[str] = "solcast_url"
 ADVANCED_TRIGGER_ON_API_AVAILABLE: Final[str] = "trigger_on_api_available"
 ADVANCED_TRIGGER_ON_API_UNAVAILABLE: Final[str] = "trigger_on_api_unavailable"
@@ -61,7 +63,10 @@ ALIASES: Final[str] = "aliases"
 ALL: Final[str] = "all"
 AMENDABLE: Final[str] = "amendable"
 ANALYSIS: Final[str] = "analysis"
+API_ACTUALS_USED: Final[str] = "api_actuals_used"
 API_FORCE_USED: Final[str] = "api_force_used"
+API_KEYS_CONFIGURED: Final[str] = "api_keys_configured"
+API_USED_TOTAL_COMBINED: Final[str] = "api_used_total_combined"
 API_KEY: Final[str] = "api_key"
 API_LIMIT: Final[str] = "api_limit"
 API_REMAINING: Final[str] = "api_remaining"
@@ -87,11 +92,18 @@ CONFIG_DAMP: Final[str] = "config_damp"
 CONFIG_DISCRETE_NAME: Final[str] = "solcast_solar"
 CONFIG_FOLDER_DISCRETE: Final[bool] = True  # Whether to use a sub-folder for config files
 CONFIG_VERSION: Final[int] = 19
+CONFIGURATION_URL: Final[str] = "https://toolkit.solcast.com.au/"
+CONFIGURED_VALUE: Final[str] = "configured_value"
 CURRENT_NAME: Final[str] = "current_name"
 CUSTOM_HOURS: Final[str] = "custom_hours"
+ACTUALS_COST: Final[str] = "actuals_cost"
 DAILY_LIMIT: Final[str] = "daily_limit"
+DAILY_FORCED_CONSUMED: Final[str] = "daily_forced_consumed"
 DAILY_LIMIT_CONSUMED: Final[str] = "daily_limit_consumed"
+DAILY_TYPICAL: Final[str] = "daily_typical"
+DAILY_TYPICAL_FORECAST_UPDATES: Final[str] = "daily_typical_forecast_updates"
 DAMP_FACTOR: Final[str] = "damp_factor"
+DAMPENED: Final[str] = "dampened"
 DAMPENED_APE_BREAKDOWN: Final[str] = "dampened_ape_breakdown"
 DAMPENED_DAILY: Final[str] = "dampened_daily"
 DAMPENED_MAPE: Final[str] = "dampened_mape"
@@ -107,6 +119,7 @@ DEFAULT: Final[str] = "default"
 DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[int] = 3  # Minimum number of days of history for adaptive dampening model
 DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_UNDAMPENED_ACTUAL: Final[float] = 0.0  # Default to accepting all days
 DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[int] = 0  # Logarithmic adjustment is default model
+DEFAULT_DAMPENING_ELEVATION_ADJUSTMENT: Final[bool] = True  # Whether to adjust historical generation by sun elevation ratio
 DEFAULT_DAMPENING_INSIGNIFICANT: Final[float] = 0.95  # Dampening factors considered insignificant for automated dampening
 DEFAULT_DAMPENING_INSIGNIFICANT_ADJ: Final[float] = 0.95  # Adjusted dampening factors considered insignificant for automated dampening
 DEFAULT_DAMPENING_LOG_DELTA_ADJUSTMENT: Final[bool] = True  # Whether to logarithmically adjust applied automated dampening factors
@@ -124,6 +137,7 @@ DEFAULT_GENERATION_FETCH_DELAY: Final[int] = 0  # Minutes to wait after midnight
 DEFAULT_GENERATION_HISTORY_LOAD_DAYS: Final[int] = 7  # Number of days of generation history to load when no data present
 DEFAULT_GRANULAR_DAMPENING_DELTA_ADJUSTMENT: Final[bool] = False  # Whether to use delta adjustment for granular dampening
 DEFAULT_HISTORY_MAX: Final[int] = 730  # Maximum number of history days to keep
+DEFAULT_SOLCAST_PORT: Final[int] = 0  # Preserve the port embedded in the URL unless explicitly overridden
 DEFAULT_KEYS: Final[str] = "default_keys"
 DEFAULT_SOLCAST_HTTPS_URL: Final[str] = "https://api.solcast.com.au"
 DELAYED_RESTART_ON_CRASH: Final[int] = 15  # Minutes to delay restart after crash
@@ -167,12 +181,12 @@ ENTITY_TOTAL_KWH_FORECAST: Final[str] = "total_kwh_forecast"
 ENTITY_TOTAL_KWH_FORECAST_TODAY: Final[str] = "total_kwh_forecast_today"
 ENTITY_TOTAL_KWH_FORECAST_TOMORROW: Final[str] = "total_kwh_forecast_tomorrow"
 ENTRY_ID: Final[str] = "entry_id"
-ENTRY_OPTIONS: Final[str] = "entry_options"
 ENTRY_TYPE_SERVICE: Final[str] = "service"
 ERROR_CODE: Final[str] = "error_code"
 ESTIMATE: Final[str] = "pv_estimate"
 ESTIMATE10: Final[str] = "pv_estimate10"
 ESTIMATE90: Final[str] = "pv_estimate90"
+ESTIMATE_MODE: Final[str] = "estimate_mode"
 ESTIMATED_ACTUALS: Final[str] = "estimated_actuals"
 EVENT: Final[str] = "event"
 EVENT_END_DATETIME: Final[str] = "end_date_time"
@@ -188,6 +202,7 @@ EXCEPTION_INVALID_CUSTOM_HOURS_FORMAT: Final[str] = "invalid_custom_hours_format
 EXCEPTION_INVALID_CUSTOM_HOURS_RANGE: Final[str] = "invalid_custom_hours_range"
 EXCEPTION_INVALID_EXPORT_LIMIT: Final[str] = "invalid_export_limit"
 EXCEPTION_INVALID_KEY_ESTIMATE: Final[str] = "invalid_key_estimate"
+EXCEPTION_INVALID_QUERY_RANGE: Final[str] = "invalid_query_range"
 EXCEPTION_INVALID_USE_ACTUALS: Final[str] = "invalid_use_actuals"
 EXCEPTION_AUTO_USE_NORMAL: Final[str] = "auto_use_normal"
 EXCEPTION_BUILD_FAILED_ACTUALS: Final[str] = "build_failed_actuals"
@@ -196,8 +211,9 @@ EXCEPTION_CUSTOM_INVALID: Final[str] = "custom_invalid"
 EXCEPTION_DAMP_AUTO_ENABLED: Final[str] = "damp_auto_enabled"
 EXCEPTION_DAMP_COUNT_NOT_CORRECT: Final[str] = "damp_count_not_correct"
 EXCEPTION_DAMP_NO_ALL_24: Final[str] = "damp_no_all_24"
-EXCEPTION_DAMP_NOT_SITE: Final[str] = "damp_not_site"
 EXCEPTION_DAMP_ERROR_PARSING: Final[str] = "damp_error_parsing"
+EXCEPTION_DAMP_NOT_FOR_SITE: Final[str] = "damp_not_for_site"
+EXCEPTION_DAMP_USE_ALL: Final[str] = "damp_use_all"
 EXCEPTION_DAMP_OUTSIDE_RANGE: Final[str] = "damp_outside_range"
 EXCEPTION_DAMP_NO_FACTORS: Final[str] = "damp_no_factors"
 EXCEPTION_DAMPEN_WITHOUT_ACTUALS: Final[str] = "dampen_without_actuals"
@@ -222,6 +238,7 @@ EXCEPTION_LIMIT_NOT_NUMBER: Final[str] = "limit_not_number"
 EXCEPTION_LIMIT_ONE_OR_GREATER: Final[str] = "limit_one_or_greater"
 EXCEPTION_LIMIT_TOO_MANY: Final[str] = "limit_too_many"
 EXCEPTION_LIMIT_EXCEEDS_MAXIMUM: Final[str] = "limit_exceeds_maximum"
+EXCEPTION_NOT_A_SITE: Final[str] = "not_a_site"
 EXCEPTION_SET_OPTIONS_EMPTY: Final[str] = "set_options_empty"
 EXCEPTION_SINGLE_INSTANCE_ALLOWED: Final[str] = "single_instance_allowed"
 EXCLUDE_SITES: Final[str] = "exclude_sites"
@@ -233,6 +250,7 @@ FACTOR: Final[str] = "factor"
 FACTORS: Final[str] = "factors"
 FAILURE: Final[str] = "failure"
 SUCCESS: Final[str] = "success"
+SUCCESS_ACTUALS: Final[str] = "actuals"
 SUCCESS_FORCED: Final[str] = "forced"
 SUCCESS_TRACKED: Final[str] = "tracked"
 FILES: Final[str] = "files"
@@ -243,6 +261,8 @@ GENERATION_ENTITIES: Final[str] = "generation_entities"
 GENERATION_VERSION: Final[int] = 1
 GET_ACTUALS: Final[str] = "get_actuals"
 HARD_LIMIT: Final[str] = "hard_limit"
+HALF_HOUR_MINUTES: Final[int] = 30
+HALF_HOUR_SECONDS: Final[int] = 1800
 HARD_LIMIT_API: Final[str] = "hard_limit_api"
 HEADERS_ACCEPT: Final[str] = "Accept"
 HEADERS_USER_AGENT: Final[str] = "User-Agent"
@@ -252,12 +272,14 @@ INFINITY_EXCLUDED: Final[str] = "infinity_excluded"
 INTEGRATION: Final[str] = "Solcast PV Forecast"
 INTEGRATION_AUTOMATED: Final[str] = "integration_automated"
 INTERVAL: Final[str] = "interval"
+INTERVALS_PER_DAY: Final[int] = 48
 ISSUE_API_UNAVAILABLE: Final[str] = "api_unavailable"
 ISSUE_ADVANCED_DEPRECATED: Final[str] = "advanced_deprecated"
 ISSUE_ADVANCED_PROBLEM: Final[str] = "advanced_problem"
 ISSUE_CORRUPT_FILE: Final[str] = "corrupt_file"
 ISSUE_ACTION_DEPRECATED: Final[str] = "action_deprecated"
 ISSUE_ACTUALS_API_LIMIT: Final[str] = "actuals_api_limit"
+ISSUE_ACTUALS_QUOTA_TODAY: Final[str] = "actuals_quota_today"
 ISSUE_DEPRECATED_REMOVE_HARD_LIMIT: Final[str] = "deprecated_remove_hard_limit"
 ISSUE_DEPRECATED_SET_CUSTOM_HOURS: Final[str] = "deprecated_set_custom_hours"
 ISSUE_DEPRECATED_SET_HARD_LIMIT: Final[str] = "deprecated_set_hard_limit"
@@ -292,8 +314,6 @@ MINIMUM: Final[str] = "min"
 MINIMUM_EXTENDED: Final[str] = "min_extended"
 MODEL: Final[str] = "model"
 NEED_HISTORY_HOURS: Final[str] = "need_history_hours"
-OLD_API_KEY: Final[str] = "old_api_key"
-OLD_HARD_LIMIT: Final[str] = "old_hard_limit"
 OPTION: Final[str] = "option"
 OPTION_GREATER_THAN_OR_EQUAL: Final[str] = "greater_than_or_equal"
 OPTION_LESS_THAN_OR_EQUAL: Final[str] = "less_than_or_equal"
@@ -304,16 +324,10 @@ PERIOD_START: Final[str] = "period_start"
 PLATFORM_BINARY_SENSOR: Final[str] = "binary_sensor"
 PLATFORM_SENSOR: Final[str] = "sensor"
 PLATFORM_SWITCH: Final[str] = "switch"
-PRESUMED_DEAD: Final[str] = "presumed_dead"
-PRIOR_CRASH_EXCEPTION: Final[str] = "prior_crash_exception"
-PRIOR_CRASH_PLACEHOLDERS: Final[str] = "prior_crash_placeholders"
-PRIOR_CRASH_TIME: Final[str] = "prior_crash_time"
-PRIOR_CRASH_TRANSLATION_KEY: Final[str] = "prior_crash_translation_key"
 PROBLEMS: Final[str] = "problems"
 PROPOSAL: Final[str] = "proposal"
 REQUIRED_KEYS: Final[str] = "required_keys"
 RESET: Final[str] = "reset"
-RESET_OLD_KEY: Final[str] = "reset_old_key"
 RESOURCE_ID: Final[str] = "resource_id"
 RESPONSE_STATUS: Final[str] = "response_status"
 SCHEMA: Final[str] = "schema"
@@ -336,6 +350,8 @@ SITE: Final[str] = "site"
 SITE_ATTRIBUTE_AZIMUTH: Final[str] = "azimuth"
 SITE_ATTRIBUTE_CAPACITY: Final[str] = "capacity"
 SITE_ATTRIBUTE_CAPACITY_DC: Final[str] = "capacity_dc"
+SITE_ATTRIBUTE_COMPASS_DEGREES: Final[str] = "compass_degrees"
+SITE_ATTRIBUTE_COMPASS_DIRECTION: Final[str] = "compass_direction"
 SITE_ATTRIBUTE_INSTALL_DATE: Final[str] = "install_date"
 SITE_ATTRIBUTE_LATITUDE: Final[str] = "latitude"
 SITE_ATTRIBUTE_LONGITUDE: Final[str] = "longitude"
@@ -349,7 +365,6 @@ SITE_EXPORT_ENTITY: Final[str] = "site_export_entity"
 SITE_EXPORT_LIMIT: Final[str] = "site_export_limit"
 SITE_INFO: Final[str] = "siteinfo"
 SITES_STATUS: Final[str] = "sites_status"
-SOLCAST: Final[str] = "solcast"
 STATUS: Final[str] = "status"
 STOPS_WORKING: Final[str] = "stops_working"
 SUGGESTED_VALUE: Final[str] = "suggested_value"
@@ -362,16 +377,19 @@ TASK_LISTENERS: Final[str] = "listeners"
 TASK_MIDNIGHT_UPDATE: Final[str] = "midnight_update"
 TASK_NEW_DAY_ACTUALS: Final[str] = "new_day_actuals"
 TASK_NEW_DAY_GENERATION: Final[str] = "new_day_generation"
-TASK_WATCHDOG_ADVANCED: Final[str] = "watchdog_advanced"
-TASK_WATCHDOG_ADVANCED_FILE_CHANGE: Final[str] = "watchdog_advanced_file_change"
-TASK_WATCHDOG_DAMPENING: Final[str] = "watchdog_dampening"
-TASK_WATCHDOG_DAMPENING_LEGACY: Final[str] = "watchdog_dampening_legacy"
-TASK_WATCHDOG_DAMPENING_FILE_CHANGE: Final[str] = "watchdog_dampening_file_change"
+TASK_WATCH_ADVANCED: Final[str] = "watch_advanced"
+TASK_WATCH_ADVANCED_FILE_CHANGE: Final[str] = "watch_advanced_file_change"
+TASK_WATCH_DAMPENING: Final[str] = "watch_dampening"
+TASK_WATCH_DAMPENING_LEGACY: Final[str] = "watch_dampening_legacy"
+TASK_WATCH_DAMPENING_FILE_CHANGE: Final[str] = "watch_dampening_file_change"
 TITLE: Final[str] = "Solcast Solar"
 TOTAL_RECORDS: Final[str] = "total_records"
 UNDAMPENED: Final[str] = "undampened"
 UNDAMPENED_APE_BREAKDOWN: Final[str] = "undampened_ape_breakdown"
 UNDAMPENED_DAILY: Final[str] = "undampened_daily"
+UNDAMPENED_ESTIMATE: Final[str] = "undampened_estimate"
+UNDAMPENED_ESTIMATE10: Final[str] = "undampened_estimate10"
+UNDAMPENED_ESTIMATE90: Final[str] = "undampened_estimate90"
 UNDAMPENED_MAPE: Final[str] = "undampened_mape"
 UNDAMPENED_PERCENTILES: Final[str] = "undampened_percentiles"
 UNKNOWN: Final[str] = "unknown"
@@ -380,6 +398,7 @@ UPDATE_BACKOFF: Final[int] = 15
 UPDATE_TRIES: Final[int] = 10
 UPGRADE_FUNCTION: Final[str] = "upgrade_function"
 USE_ACTUALS: Final[str] = "use_actuals"
+USAGE_STATUS: Final[str] = "usage_status"
 VALUE: Final[str] = "value"
 VALUE_ADAPTIVE_DAMPENING_CONFIG_UNCHANGED: Final[int] = -99
 VALUE_ADAPTIVE_DAMPENING_NO_DELTA: Final[int] = -1
@@ -418,6 +437,10 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         MAXIMUM: 1,
         DEFAULT: DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL,
         AMENDABLE: True,
+    },
+    ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: {
+        ADVANCED_TYPE: ADVANCED_OPTION.BOOL,
+        DEFAULT: DEFAULT_DAMPENING_ELEVATION_ADJUSTMENT,
     },
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,
@@ -531,6 +554,7 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         OPTION_NOT_SET_IF: [ADVANCED_AUTOMATED_DAMPENING_NO_DELTA_ADJUSTMENT],
     },
     ADVANCED_RELOAD_ON_ADVANCED_CHANGE: {ADVANCED_TYPE: ADVANCED_OPTION.BOOL, DEFAULT: False},
+    ADVANCED_SOLCAST_PORT: {ADVANCED_TYPE: ADVANCED_OPTION.INT, MINIMUM: 0, MAXIMUM: 65535, DEFAULT: DEFAULT_SOLCAST_PORT},
     ADVANCED_SOLCAST_URL: {ADVANCED_TYPE: ADVANCED_OPTION.STR, DEFAULT: DEFAULT_SOLCAST_HTTPS_URL},
     ADVANCED_TRIGGER_ON_API_AVAILABLE: {ADVANCED_TYPE: ADVANCED_OPTION.STR, DEFAULT: ""},
     ADVANCED_TRIGGER_ON_API_UNAVAILABLE: {ADVANCED_TYPE: ADVANCED_OPTION.STR, DEFAULT: ""},

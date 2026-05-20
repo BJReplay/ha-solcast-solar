@@ -18,25 +18,38 @@
     "step": {
       "reauth_confirm": {
         "data": {
-          "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)"
+          "api_key": "Klucz API"
         },
-        "description": "Klucz API konta Solcast"
+        "description": "Klucz API konta Solcast",
+        "data_description": {
+          "api_key": "Wprowadź jeden lub więcej kluczy API Solcast, oddzielonych przecinkami"
+        }
       },
       "reconfigure_confirm": {
         "data": {
-          "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
-          "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
+          "api_key": "Klucz API",
+          "api_limit": "Limit API",
           "auto_update": "Automatyczna aktualizacja"
         },
-        "description": "Dane konta Solcast\n\n(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)"
+        "description": "Dane konta Solcast\n\n(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)",
+        "data_description": {
+          "api_key": "Wprowadź jeden lub więcej kluczy API Solcast, oddzielonych przecinkami",
+          "api_limit": "Wprowadź limit dla każdego klucza, oddzielone przecinkami przy użyciu wielu kluczy",
+          "auto_update": "Jeśli nie używasz automatycznej aktualizacji, utwórz automatyzację, która okresowo wywołuje akcję \"solcast_solar.update_forecasts\", przestrzegając zalecanego przez Solcast maksymalnego łącznego limitu (zwykle łącznie dziesięć razy dziennie dla jednego miejsca dachowego, a przy dwóch miejscach pięć razy dziennie)"
+        }
       },
       "user": {
         "data": {
-          "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
-          "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
+          "api_key": "Klucz API",
+          "api_limit": "Limit API",
           "auto_update": "Automatyczna aktualizacja"
         },
-        "description": "Dane konta Solcast\n\n(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)\n\nAPI Solcast musi być dostępne, aby wstępnie skonfigurować tę integrację. Jeśli otrzymasz komunikat o stanie '429 / Try again later', API jest niedostępne i konfiguracja nie może zostać ukończona. Musisz poczekać. Należy pamiętać, że strona stanu API pod adresem status.solcast.com prawie na pewno nie pokaże żadnych problemów z API. Przyczyną jest najprawdopodobniej pojedynczy nieodpowiedzialny użytkownik API, który wpływa na dostępność dla wszystkich hobbystów."
+        "description": "Dane konta Solcast\n\n(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)\n\nAPI Solcast musi być dostępne, aby wstępnie skonfigurować tę integrację. Jeśli otrzymasz komunikat o stanie '429 / Try again later', API jest niedostępne i konfiguracja nie może zostać ukończona. Musisz poczekać. Należy pamiętać, że strona stanu API pod adresem status.solcast.com prawie na pewno nie pokaże żadnych problemów z API. Przyczyną jest najprawdopodobniej pojedynczy nieodpowiedzialny użytkownik API, który wpływa na dostępność dla wszystkich hobbystów.",
+        "data_description": {
+          "api_key": "Wprowadź jeden lub więcej kluczy API Solcast, oddzielonych przecinkami",
+          "api_limit": "Wprowadź limit dla każdego klucza, oddzielone przecinkami przy użyciu wielu kluczy",
+          "auto_update": "Jeśli nie używasz automatycznej aktualizacji, utwórz automatyzację, która okresowo wywołuje akcję \"solcast_solar.update_forecasts\", przestrzegając zalecanego przez Solcast maksymalnego łącznego limitu (zwykle łącznie dziesięć razy dziennie dla jednego miejsca dachowego, a przy dwóch miejscach pięć razy dziennie)"
+        }
       }
     }
   },
@@ -100,6 +113,9 @@
       },
       "power_now_30m": {
         "name": "Moc w 30 minut"
+      },
+      "site_data": {
+        "name": "Dane witryny"
       },
       "total_kwh_forecast_d10": {
         "name": "Prognoza na dzień 10"
@@ -188,7 +204,7 @@
     "damp_not_for_site": {
       "message": "Tłumienie witryny nie jest ustawione dla {site}."
     },
-    "damp_not_site": {
+    "not_a_site": {
       "message": "Nie skonfigurowana witryna."
     },
     "damp_outside_range": {
@@ -303,6 +319,10 @@
       "description": "Automatyczna aktualizacja i szacowane wartości rzeczywiste są włączone, podczas gdy limit API jest skonfigurowany na maksymalną wartość dla hobbystów (`{configured_value}`). Szacowane wartości rzeczywiste są zbierane tuż po północy i wykorzystują jedno wywołanie API na każdą instalację dachową dla każdego skonfigurowanego klucza API. Zmniejsz limit API do `{suggested_value}`, aby zarezerwować wywołania dla szacowanych wartości rzeczywistych.",
       "title": "Dostosuj limit API dla szacowanych wartości rzeczywistych"
     },
+    "actuals_quota_today": {
+      "title": "Pobieranie szacowanych wartości rzeczywistych może przekroczyć dzienny limit API",
+      "description": "Pobieranie szacowanych wartości rzeczywistych zostało włączone. Na podstawie typowego dziennego użycia API do aktualizacji prognozy ({api_used} wywołań) i wywnioskowanego limitu konta {api_limit} wywołań, dodanie {actuals_cost} wywołania/wywołań potrzebnych do pobrania szacowanych wartości rzeczywistych przekroczyłoby limit w typowym dniu. Pobieranie zostanie mimo to podjęte tuż po północy, ale ono (lub kolejna aktualizacja prognozy) może zakończyć się niepowodzeniem z odpowiedzią `429 Too Many Requests`.\n\nTo ostrzeżenie może pojawić się, gdy licznik typowego użycia jest jeszcze inicjowany rzeczywistymi danymi. Typowy licznik uwzględnia wyłącznie automatyczne aktualizacje/aktualizacje automatyzacji i wymuszone wywołania prognozy. Sprawdź skonfigurowany limit API i wszelkie automatyzacje wymuszonych aktualizacji, jeśli chcesz korzystać z szacowanych wartości rzeczywistych."
+    },
     "corrupt_file": {
       "description": "Plik(i) danych w pamięci podręcznej `{files}` jest(są) uszkodzony(e). Integracja spróbuje się odzyskać, usuwając plik(i) i ponownie pobierając dane z Solcast. Spodziewaj się zwiększonego wykorzystania API i potencjalnych awarii API oraz utraty historii prognoz z powodu tej sytuacji. Możliwe jest odzyskanie plików z kopii zapasowej, ale nadal spodziewaj się awarii wywołań API.",
       "title": "Uszkodzone dane w pamięci podręcznej"
@@ -397,34 +417,84 @@
           "damp22": "22:00",
           "damp23": "23:00"
         },
-        "description": "Zmodyfikuj godzinowy współczynnik tłumienia"
+        "description": "Zmodyfikuj godzinowy współczynnik tłumienia",
+        "data_description": {
+          "damp00": "Wprowadź wartość między 0,0 (brak produkcji) a 1,0 (pełna produkcja)",
+          "damp01": "",
+          "damp02": "",
+          "damp03": "",
+          "damp04": "",
+          "damp05": "",
+          "damp06": "",
+          "damp07": "",
+          "damp08": "",
+          "damp09": "",
+          "damp10": "",
+          "damp11": "",
+          "damp12": "",
+          "damp13": "",
+          "damp14": "",
+          "damp15": "",
+          "damp16": "",
+          "damp17": "",
+          "damp18": "",
+          "damp19": "",
+          "damp20": "",
+          "damp21": "",
+          "damp22": "",
+          "damp23": ""
+        }
       },
       "init": {
         "data": {
-          "api_key": "Klucz API (wielokrotne wartości oddzielane przecinkiem)",
-          "api_limit": "Limit API (opcjonalnie wielokrotne wartości oddzielane przecinkiem)",
-          "attr_brk_detailed": "Włącz podział witryny dla atrybutów szczegółów półgodzinnych/godzinnych (nie zostaną one zapisane w atrybutach stanu bazy danych)",
+          "api_key": "Klucz API",
+          "api_limit": "Limit API",
+          "attr_brk_detailed": "Włącz podział witryny dla atrybutów szczegółowych",
           "attr_brk_estimate": "Włącz oszacowanie 50 atrybutów czujnika",
           "attr_brk_estimate10": "Włącz oszacowanie 10 atrybutów czujnika",
           "attr_brk_estimate90": "Włącz oszacowanie 90 atrybutów czujnika",
           "attr_brk_halfhourly": "Włącz atrybuty szczegółów prognozy półgodzinnej",
           "attr_brk_hourly": "Włącz atrybuty szczegółów prognozy godzinowej",
           "attr_brk_site": "Włącz atrybuty czujnika podziału witryny",
-          "auto_dampen": "Automatyczne tłumienie (wymaga szacowanych wartości rzeczywistych i jednostki generacji fotowoltaicznej, patrz dokumentacja integracji)",
+          "auto_dampen": "Automatyczne tłumienie",
           "auto_update": "Automatyczna aktualizacja (jeśli nie ma automatycznej aktualizacji, zamiast tego należy zastosować automatyzację)",
-          "config_damp": "Zmodyfikuj godzinowe współczynniki tłumienia (po kliknięciu przycisku „ZATWIERDŹ”)",
-          "custom_hours": "Niestandardowy czujnik następnej godziny X (min.=1, maks.=144)",
+          "config_damp": "Modyfikuj godzinowe współczynniki tłumienia",
+          "custom_hours": "Niestandardowy czujnik kolejnych X godzin",
           "exclude_sites": "Miejsca, które należy wykluczyć z pulpitu nawigacyjnego Energy i sum czujników",
-          "generation_entities": "Jednostka/jednostki generacji fotowoltaicznej do automatycznego tłumienia (energia: Wh/kWh/MWh łącznie wzrasta lub moc: W/kW/MW chwilowo)",
-          "get_actuals": "Szacowane wartości rzeczywiste aktualizowane o północy (patrz dokumentacja integracji, używa jednego wywołania API na stronę dziennie, więc zredukowany limit API jest potrzebny z tą opcją włączoną)",
-          "hard_limit_api": "Sztywny limit falownika w kW (patrz dokumentacja integracji, wiele wartości należy oddzielić przecinkiem dla każdego klucza)",
+          "generation_entities": "Encja/encje generacji PV",
+          "get_actuals": "Szacowane wartości rzeczywiste aktualizowane o północy",
+          "hard_limit_api": "Twardy limit falownika (kW)",
           "key_estimate": "Preferowane prawdopodobieństwo zastosowania prognozy w przypadku czujników",
-          "site_damp": "Ustawiono tłumienie szczegółowe: Wyczyść, aby powrócić do ogólnego tłumienia godzinowego",
-          "site_export_entity": "Opcjonalna jednostka eksportu witryny do automatycznego tłumienia (Wh/kWh/MWh, całkowity wzrost)",
-          "site_export_limit": "Limit eksportu witryny, jeśli eksport witryny jest określony (kW)",
+          "site_damp": "Szczegółowe tłumienie jest ustawione",
+          "site_export_entity": "Encja eksportu witryny",
+          "site_export_limit": "Limit eksportu witryny (kW)",
           "use_actuals": "Historia prognoz do wyświetlenia na pulpicie nawigacyjnym Energy"
         },
-        "description": "Opcje konfiguracji Solcast"
+        "description": "Opcje konfiguracji Solcast",
+        "data_description": {
+          "api_key": "Wprowadź jeden lub więcej kluczy API Solcast, oddzielonych przecinkami",
+          "api_limit": "Wprowadź limit dla każdego klucza, oddzielone przecinkami przy użyciu wielu kluczy",
+          "attr_brk_detailed": "Podział witryny dla półgodzinnych/godzinnych atrybutów szczegółowych (nie będą one zapisywane w atrybutach stanu bazy danych)",
+          "attr_brk_estimate": "",
+          "attr_brk_estimate10": "",
+          "attr_brk_estimate90": "",
+          "attr_brk_halfhourly": "",
+          "attr_brk_hourly": "",
+          "attr_brk_site": "",
+          "auto_dampen": "Wymaga szacowanych wartości rzeczywistych i encji generacji fotowoltaicznej — patrz dokumentacja integracji",
+          "auto_update": "Jeśli nie używasz automatycznej aktualizacji, utwórz automatyzację, która okresowo wywołuje akcję \"solcast_solar.update_forecasts\", przestrzegając zalecanego przez Solcast maksymalnego łącznego limitu (zwykle łącznie dziesięć razy dziennie dla jednego miejsca dachowego, a przy dwóch miejscach pięć razy dziennie)",
+          "config_damp": "Kliknij wyślij, aby przejść do edytora współczynników tłumienia",
+          "custom_hours": "Liczba godzin dla niestandardowego czujnika (minimum 1, maksimum 144)",
+          "exclude_sites": "Witryna(-y) do wykluczenia z panelu Energii i sum czujników podczas dodawania lokalnych i zdalnych kluczy API witryn dla pojedynczego lokalnego/zdalnego wdrożenia Home Assistant",
+          "generation_entities": "Do automatycznego tłumienia: energia (Wh/kWh/MWh, sumarycznie rosnąca) lub moc (W/kW/MW, chwilowa)",
+          "get_actuals": "Używa jednego wywołania API na witrynę dziennie — patrz dokumentacja integracji; zalecany jest obniżony limit API",
+          "hard_limit_api": "Patrz dokumentacja integracji; oddziel przecinkami wiele wartości dla każdego klucza",
+          "key_estimate": "",
+          "site_damp": "Szczegółowe tłumienie jest ustawione — wyczyść, aby powrócić do ogólnego tłumienia godzinowego",
+          "site_export_entity": "Opcjonalne — do automatycznego tłumienia (Wh/kWh/MWh, sumarycznie rosnące)",
+          "site_export_limit": "Wymagane, jeśli podano encję eksportu witryny",
+          "use_actuals": ""
+        }
       }
     }
   },

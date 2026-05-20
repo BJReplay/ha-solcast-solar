@@ -1,4 +1,5 @@
-"""Selector to allow users to select the pv_ data field to use for calculations."""
+"""Solcast select platform."""
+
 
 from enum import IntEnum
 import logging
@@ -8,13 +9,15 @@ from homeassistant.components.select import SelectEntity, SelectEntityDescriptio
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceEntryType, DeviceInfo
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from .const import DOMAIN, KEY_ESTIMATE, MANUFACTURER
+from .const import ESTIMATE_MODE, KEY_ESTIMATE
 from .coordinator import SolcastUpdateCoordinator
+from .entity import build_service_device_info
 
 _LOGGER = logging.getLogger(__name__)
+
+PARALLEL_UPDATES = 0
 
 
 class PVEstimateMode(IntEnum):
@@ -36,11 +39,11 @@ _MODE_TO_OPTION: dict[PVEstimateMode, str] = {
     PVEstimateMode.ESTIMATE90: "estimate90",
 }
 
-ESTIMATE_MODE = SelectEntityDescription(
-    key="estimate_mode",
+_ESTIMATE_MODE = SelectEntityDescription(
+    key=ESTIMATE_MODE,
     icon="mdi:sun-angle",
     entity_category=EntityCategory.CONFIG,
-    translation_key="estimate_mode",
+    translation_key=ESTIMATE_MODE,
 )
 
 
@@ -61,7 +64,7 @@ async def async_setup_entry(
 
     entity = EstimateModeEntity(
         coordinator,
-        ESTIMATE_MODE,
+        _ESTIMATE_MODE,
         list(_MODE_TO_OPTION.values()),
         coordinator.solcast.options.key_estimate,
         entry,
@@ -83,11 +86,11 @@ class EstimateModeEntity(SelectEntity):
         current_option: str,
         entry: ConfigEntry,
     ) -> None:
-        """Initialise the sensor.
+        """Initialise the select entity.
 
         Arguments:
             coordinator (SolcastUpdateCoordinator): The integration coordinator instance.
-            entity_description (SensorEntityDescription): The details of the entity.
+            entity_description (SelectEntityDescription): The details of the entity.
             supported_options (list[str]): All select options available.
             current_option (str): The currently selected option.
             entry (ConfigEntry): The integration entry instance, contains the configuration.
@@ -103,15 +106,7 @@ class EstimateModeEntity(SelectEntity):
         self._attr_current_option = current_option
         self._attr_entity_category = EntityCategory.CONFIG
         self._attr_extra_state_attributes: dict[str, Any] = {}
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, entry.entry_id)},
-            name="Solcast PV Forecast",
-            manufacturer=MANUFACTURER,
-            model="Solcast PV Forecast",
-            entry_type=DeviceEntryType.SERVICE,
-            sw_version=coordinator.version,
-            configuration_url="https://toolkit.solcast.com.au/",
-        )
+        self._attr_device_info = build_service_device_info(entry, coordinator.version)
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option.

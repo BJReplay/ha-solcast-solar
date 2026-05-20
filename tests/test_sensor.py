@@ -4,9 +4,7 @@ import asyncio
 import contextlib
 import copy
 from datetime import datetime as dt, timedelta
-import json
 import logging
-from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -16,18 +14,51 @@ import pytest
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.sensor import SensorStateClass
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_ENTITY_LOGGING,
+    ANALYSIS,
+    API_FORCE_USED,
     API_LIMIT,
+    API_USED,
+    ATTRIBUTION,
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
     BRK_SITE,
-    CONFIG_DISCRETE_NAME,
-    CONFIG_FOLDER_DISCRETE,
     CUSTOM_HOURS,
+    DATA_CORRECT,
     DEFAULT_FORECAST_DAY_SENSORS,
     DEFAULT_FORECAST_DAYS,
+    DETAILED_FORECAST,
+    DETAILED_HOURLY,
+    DT_TIME_FORMAT,
+    ENTITY_FORECAST_NEXT_HOUR,
+    ENTITY_FORECAST_REMAINING_TODAY,
+    ENTITY_FORECAST_THIS_HOUR,
+    ENTITY_POWER_NOW,
+    ESTIMATE,
+    ESTIMATE10,
+    ESTIMATE90,
+    FORECASTS,
+    PERIOD_START,
+    RESOURCE_ID,
+    SITE_ATTRIBUTE_AZIMUTH,
+    SITE_ATTRIBUTE_CAPACITY,
+    SITE_ATTRIBUTE_CAPACITY_DC,
+    SITE_ATTRIBUTE_COMPASS_DEGREES,
+    SITE_ATTRIBUTE_COMPASS_DIRECTION,
+    SITE_ATTRIBUTE_INSTALL_DATE,
+    SITE_ATTRIBUTE_LATITUDE,
+    SITE_ATTRIBUTE_LONGITUDE,
+    SITE_ATTRIBUTE_LOSS_FACTOR,
+    SITE_ATTRIBUTE_TAGS,
+    SITE_ATTRIBUTE_TILT,
+    SITE_INFO,
+    UNDAMPENED_ESTIMATE,
+    UNDAMPENED_ESTIMATE10,
+    UNDAMPENED_ESTIMATE90,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from homeassistant.components.solcast_solar.forecast import ForecastQuery
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.const import STATE_UNAVAILABLE, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
@@ -40,6 +71,7 @@ from . import (
     async_cleanup_integration_tests,
     async_init_integration,
     no_error_or_exception,
+    write_advanced_options,
 )
 
 from tests.common import async_fire_time_changed
@@ -127,7 +159,7 @@ SENSORS: dict[str, dict[str, Any]] = {
         },
         "can_be_unavailable": True,
     },
-    "forecast_this_hour": {
+    ENTITY_FORECAST_THIS_HOUR: {
         "state": {"2": "7200", "1": "9900"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
@@ -150,7 +182,7 @@ SENSORS: dict[str, dict[str, Any]] = {
         },
         "can_be_unavailable": True,
     },
-    "forecast_remaining_today": {
+    ENTITY_FORECAST_REMAINING_TODAY: {
         "state": {"2": "23.6817", "1": "32.5624"},
         "unit_of_measurement": UnitOfEnergy.KILO_WATT_HOUR,
         "attributes": {
@@ -173,7 +205,7 @@ SENSORS: dict[str, dict[str, Any]] = {
         },
         "can_be_unavailable": True,
     },
-    "forecast_next_hour": {
+    ENTITY_FORECAST_NEXT_HOUR: {
         "state": {"2": "6732", "1": "9256"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
@@ -200,8 +232,8 @@ SENSORS: dict[str, dict[str, Any]] = {
         "state": {"2": "13748", "1": "18904"},
         "unit_of_measurement": UnitOfEnergy.WATT_HOUR,
         "attributes": {
-            "2": {"estimate": 13748, "estimate10": 11457, "estimate90": 15276, "custom_hours": 1},
-            "1": {"estimate": 18904, "estimate10": 15753, "estimate90": 21004, "custom_hours": 1},
+            "2": {"estimate": 13748, "estimate10": 11457, "estimate90": 15276, CUSTOM_HOURS: 1},
+            "1": {"estimate": 18904, "estimate10": 15753, "estimate90": 21004, CUSTOM_HOURS: 1},
         },
         "breakdown": {
             "1": {
@@ -273,7 +305,7 @@ SENSORS: dict[str, dict[str, Any]] = {
         },
         "can_be_unavailable": True,
     },
-    "power_now": {
+    ENTITY_POWER_NOW: {
         "state": {"2": "7221", "1": "9928"},
         "unit_of_measurement": UnitOfPower.WATT,
         "state_class": SensorStateClass.MEASUREMENT,
@@ -345,8 +377,8 @@ SENSORS: dict[str, dict[str, Any]] = {
         },
         "can_be_unavailable": True,
     },
-    "api_used": {"state": {"2": "4", "1": "4"}},
-    "api_limit": {"state": {"2": DEFAULT_INPUT1[API_LIMIT], "1": DEFAULT_INPUT1[API_LIMIT]}},
+    API_USED: {"state": {"2": "4", "1": "4"}},
+    API_LIMIT: {"state": {"2": DEFAULT_INPUT1[API_LIMIT], "1": DEFAULT_INPUT1[API_LIMIT]}},
     "api_last_polled": {"state": {"2": "isodate", "1": "isodate"}},
 }
 
@@ -386,10 +418,7 @@ async def test_sensor_states(  # noqa: C901
         return estimate_set
 
     try:
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
-        Path(f"{config_dir}/solcast-advanced.json").write_text(json.dumps({"entity_logging": True}), encoding="utf-8")
+        write_advanced_options(hass.config.config_dir, {ADVANCED_ENTITY_LOGGING: True})
 
         entry = await async_init_integration(hass, settings)
         freezer.move_to(dt.now() + timedelta(minutes=1))
@@ -408,8 +437,8 @@ async def test_sensor_states(  # noqa: C901
         state = hass.states.get("sensor.solcast_pv_forecast_api_used")
         assert state, "api_used sensor state should exist"
         assert state.state != STATE_UNAVAILABLE
-        assert state.state == sensors["api_used"]["state"][key]
-        assert state.attributes.get("api_force_used") == 0
+        assert state.state == sensors[API_USED]["state"][key]
+        assert state.attributes.get(API_FORCE_USED) == 0
 
         freezer.move_to((dt.now(solcast.tz) + timedelta(hours=24)).replace(minute=27, second=27))
         await hass.async_block_till_done()
@@ -466,7 +495,7 @@ async def test_sensor_states(  # noqa: C901
 
         # Test initial sensor values.
         for sensor, attrs in sensors.items():
-            if sensor == "api_used":
+            if sensor == API_USED:
                 continue
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor}")
             assert state, f"Settings {key}: sensor {sensor} not found"
@@ -492,7 +521,7 @@ async def test_sensor_states(  # noqa: C901
                         f"Settings {key}: sensor {sensor} attr {attribute!r} expected {attrs['attributes'][key][attribute]!r}, got {testa!r}"
                     )
             if "api" not in sensor:
-                assert state_attributes["attribution"] == "Data retrieved from Solcast"
+                assert state_attributes["attribution"] == ATTRIBUTION
             if "unit_of_measurement" in attrs:
                 assert state_attributes["unit_of_measurement"] == attrs["unit_of_measurement"], (
                     f"Settings {key}: sensor {sensor} unit expected {attrs['unit_of_measurement']!r}, got {state_attributes['unit_of_measurement']!r}"
@@ -505,9 +534,9 @@ async def test_sensor_states(  # noqa: C901
         caplog.clear()
 
         if key == "1":
-            assert hass.states.get("sensor.first_site").state == "26.595"  # type: ignore[union-attr]
-            assert hass.states.get("sensor.second_site").state == "15.957"  # type: ignore[union-attr]
-            assert hass.states.get("sensor.third_site").state == "15.957"  # type: ignore[union-attr]
+            assert hass.states.get("sensor.solcast_pv_forecast_first_site").state == "26.595"  # type: ignore[union-attr]
+            assert hass.states.get("sensor.solcast_pv_forecast_second_site").state == "15.957"  # type: ignore[union-attr]
+            assert hass.states.get("sensor.solcast_pv_forecast_third_site").state == "15.957"  # type: ignore[union-attr]
             assert hass.states.get("sensor.solcast_pv_forecast_api_limit").state == "20"  # type: ignore[union-attr]
             assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_1").state == "12.0 kW"  # type: ignore[union-attr]
             assert hass.states.get("sensor.solcast_pv_forecast_hard_limit_set_2").state == "6.0 kW"  # type: ignore[union-attr]
@@ -517,33 +546,35 @@ async def test_sensor_states(  # noqa: C901
                 "Overall hard limit sensor should not exist when per-site limits are specified"
             )
 
-            attribs: ReadOnlyDict[str, Any] = hass.states.get("sensor.first_site").attributes  # type: ignore[union-attr]
+            attribs: ReadOnlyDict[str, Any] = hass.states.get("sensor.solcast_pv_forecast_first_site").attributes  # type: ignore[union-attr]
             assert attribs, "first_site sensor attributes should exist"
-            assert attribs.get("resource_id")
+            assert attribs.get(RESOURCE_ID)
             assert attribs.get("name")
             assert attribs.get("friendly_name")
-            assert attribs.get("install_date")
-            assert attribs.get("latitude") is None, "latitude should be redacted (None)"
-            assert attribs.get("longitude") is None, "longitude should be redacted (None)"
-            assert attribs.get("capacity")
-            assert attribs.get("capacity_dc")
-            assert attribs.get("azimuth")
-            assert attribs.get("tilt")
-            assert attribs.get("loss_factor")
-            assert attribs.get("tags")
+            assert attribs.get(SITE_ATTRIBUTE_INSTALL_DATE)
+            assert attribs.get(SITE_ATTRIBUTE_LATITUDE) is None, "latitude should be redacted (None)"
+            assert attribs.get(SITE_ATTRIBUTE_LONGITUDE) is None, "longitude should be redacted (None)"
+            assert attribs.get(SITE_ATTRIBUTE_CAPACITY)
+            assert attribs.get(SITE_ATTRIBUTE_CAPACITY_DC)
+            assert attribs.get(SITE_ATTRIBUTE_AZIMUTH)
+            assert attribs.get(SITE_ATTRIBUTE_COMPASS_DEGREES) is not None
+            assert attribs.get(SITE_ATTRIBUTE_COMPASS_DIRECTION)
+            assert attribs.get(SITE_ATTRIBUTE_TILT)
+            assert attribs.get(SITE_ATTRIBUTE_LOSS_FACTOR)
+            assert attribs.get(SITE_ATTRIBUTE_TAGS)
 
             attribs: ReadOnlyDict[str, Any] = hass.states.get("sensor.solcast_pv_forecast_forecast_today").attributes  # type: ignore[union-attr]
             assert attribs, "forecast_today sensor attributes should exist"
-            assert attribs.get("detailedForecast")
-            assert attribs.get("detailedHourly")
-            assert isinstance(attribs.get("detailedForecast"), list)
-            assert isinstance(attribs.get("detailedHourly"), list)
+            assert attribs.get(DETAILED_FORECAST)
+            assert attribs.get(DETAILED_HOURLY)
+            assert isinstance(attribs.get(DETAILED_FORECAST), list)
+            assert isinstance(attribs.get(DETAILED_HOURLY), list)
 
         # Verify analysis attribute on forecast day sensors.
         for sensor_name in ("forecast_today", "forecast_tomorrow"):
             state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor_name}")
             assert state is not None, f"{sensor_name} sensor state should exist"
-            ci = state.attributes.get("analysis")
+            ci = state.attributes.get(ANALYSIS)
             assert ci is not None, f"analysis missing from {sensor_name}"
             assert isinstance(ci, dict), f"analysis for {sensor_name} should be a dict"
             assert ci.get("confidence") == 0.75, f"{sensor_name}: expected confidence 0.75, got {ci.get('confidence')}"
@@ -562,26 +593,60 @@ async def test_sensor_states(  # noqa: C901
             assert isinstance(ci.get("intervals"), list), f"{sensor_name}: analysis intervals should be a list"
             assert len(ci["intervals"]) > 0, f"{sensor_name}: analysis intervals should not be empty"
             interval_entry = ci["intervals"][0]
-            assert "period_start" in interval_entry
+            assert PERIOD_START in interval_entry
             assert "spread_kwh" in interval_entry
+
+        # Verify undampened day totals are exposed consistently on all day sensors.
+        for sensor_name in sensors:
+            if sensor_name not in ("forecast_today", "forecast_tomorrow") and "forecast_day_" not in sensor_name:
+                continue
+            state = hass.states.get(f"sensor.solcast_pv_forecast_{sensor_name}")
+            assert state is not None, f"{sensor_name} sensor state should exist"
+            attribs = state.attributes
+            if sensor_name == "forecast_today":
+                day = 0
+            elif sensor_name == "forecast_tomorrow":
+                day = 1
+            else:
+                day = int(sensor_name.replace("forecast_day_", "")) - 1
+            if solcast.dampening_enabled:
+                assert attribs.get(UNDAMPENED_ESTIMATE) == solcast.query.get_total_energy_forecast_day(
+                    day,
+                    forecast_confidence=ESTIMATE,
+                    undampened=True,
+                )
+                assert attribs.get(UNDAMPENED_ESTIMATE10) == solcast.query.get_total_energy_forecast_day(
+                    day,
+                    forecast_confidence=ESTIMATE10,
+                    undampened=True,
+                )
+                assert attribs.get(UNDAMPENED_ESTIMATE90) == solcast.query.get_total_energy_forecast_day(
+                    day,
+                    forecast_confidence=ESTIMATE90,
+                    undampened=True,
+                )
+            else:
+                assert UNDAMPENED_ESTIMATE not in attribs
+                assert UNDAMPENED_ESTIMATE10 not in attribs
+                assert UNDAMPENED_ESTIMATE90 not in attribs
 
         # Test last sensor update time.
         freezer.move_to(now.replace(hour=2, minute=30, second=0, microsecond=0))
         async_fire_time_changed(hass)
         await hass.async_block_till_done()
-        coordinator._data_updated = True  # Will trigger all sensor update # pyright: ignore[reportPrivateUsage]
+        coordinator._data_updated = True  # Will trigger all sensor update
 
         assert "Updating sensor" in caplog.text
         state = hass.states.get("sensor.solcast_pv_forecast_power_now")  # A per-five minute sensor
-        assert state.last_updated.strftime("%H:%M:%S") == "02:30:00"  # type: ignore[union-attr]
+        assert state.last_updated.strftime(DT_TIME_FORMAT) == "02:30:00"  # type: ignore[union-attr]
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_remaining_today")  # A per-update/midnight sensor
-        assert state.last_updated.strftime("%H:%M:%S") == "02:30:00"  # type: ignore[union-attr]
+        assert state.last_updated.strftime(DT_TIME_FORMAT) == "02:30:00"  # type: ignore[union-attr]
         no_error_or_exception(caplog)
 
         # Simulate date change
         caplog.clear()
-        coordinator._last_day = (dt.now(solcast.options.tz) - timedelta(days=1)).day  # pyright: ignore[reportPrivateUsage]
-        await coordinator.update_integration_listeners()
+        coordinator._last_day = (dt.now(solcast.options.tz) - timedelta(days=1)).day
+        await coordinator._update_integration_listeners()
         assert "Date has changed, recalculating splines" in caplog.text
         assert "Previous auto update would have been" in caplog.text
         assert "Auto forecast updates for" in caplog.text
@@ -589,8 +654,6 @@ async def test_sensor_states(  # noqa: C901
         # Test get bad key and site.
         assert coordinator.get_sensor_value("badkey") is None, "Bad sensor key should return None"
         assert coordinator.get_sensor_extra_attributes("badkey") is None, "Bad sensor key extra attributes should return None"
-        assert coordinator.get_site_sensor_value("badroof", "badkey") is None, "Bad site/key should return None"
-        assert coordinator.get_site_sensor_extra_attributes("badroof", "badkey") is None, "Bad site/key extra attributes should return None"
         no_error_or_exception(caplog)
 
     finally:
@@ -623,6 +686,45 @@ async def test_sensor_x_hours_long(
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
+async def test_forecast_day_undampened_attributes_with_manual_dampening(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+) -> None:
+    """Test day undampened attributes are exposed when manual dampening is active."""
+
+    settings = copy.deepcopy(DEFAULT_INPUT1)
+    settings["damp12"] = 0.9
+
+    try:
+        entry = await async_init_integration(hass, settings)
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast = coordinator.solcast
+
+        assert solcast.dampening_enabled
+
+        state = hass.states.get("sensor.solcast_pv_forecast_forecast_today")
+        assert state is not None
+        attribs = state.attributes
+
+        assert attribs.get(UNDAMPENED_ESTIMATE) == solcast.query.get_total_energy_forecast_day(
+            0,
+            forecast_confidence=ESTIMATE,
+            undampened=True,
+        )
+        assert attribs.get(UNDAMPENED_ESTIMATE10) == solcast.query.get_total_energy_forecast_day(
+            0,
+            forecast_confidence=ESTIMATE10,
+            undampened=True,
+        )
+        assert attribs.get(UNDAMPENED_ESTIMATE90) == solcast.query.get_total_energy_forecast_day(
+            0,
+            forecast_confidence=ESTIMATE90,
+            undampened=True,
+        )
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
 async def test_sensor_unavailable(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -645,13 +747,13 @@ async def test_sensor_unavailable(
         # Turn SolcastApi to custard.
         old_solcast_data = copy.deepcopy(solcast.data)
         old_solcast_data_undampened = copy.deepcopy(solcast.data_undampened)
-        solcast.data["siteinfo"]["1111-1111-1111-1111"]["forecasts"] = ["blah"]
-        solcast.data["siteinfo"]["2222-2222-2222-2222"]["forecasts"] = []
-        solcast.data_undampened["siteinfo"]["1111-1111-1111-1111"]["forecasts"] = []
-        solcast.data_undampened["siteinfo"]["2222-2222-2222-2222"]["forecasts"] = []
+        solcast.data[SITE_INFO]["1111-1111-1111-1111"][FORECASTS] = ["blah"]
+        solcast.data[SITE_INFO]["2222-2222-2222-2222"][FORECASTS] = []
+        solcast.data_undampened[SITE_INFO]["1111-1111-1111-1111"][FORECASTS] = []
+        solcast.data_undampened[SITE_INFO]["2222-2222-2222-2222"][FORECASTS] = []
 
         await solcast.build_forecast_data()
-        coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
+        coordinator._data_updated = True
         coordinator.async_update_listeners()
 
         for sensor, assertions in SENSORS.items():
@@ -660,7 +762,7 @@ async def test_sensor_unavailable(
                 assert state, f"Sensor {sensor} state should exist"
                 assert state.state == STATE_UNAVAILABLE
 
-        for site in ("first_site", "second_site"):
+        for site in ("solcast_pv_forecast_first_site", "solcast_pv_forecast_second_site"):
             state = hass.states.get(f"sensor.{site}")
             assert state, f"Site sensor {site} state should exist"
             assert state.state == STATE_UNAVAILABLE
@@ -671,11 +773,11 @@ async def test_sensor_unavailable(
         # Test when some future day data is missing (remove D3 onwards).
         solcast.data_undampened = old_solcast_data_undampened
         for site in ("1111-1111-1111-1111", "2222-2222-2222-2222"):
-            solcast.data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][
+            solcast.data[SITE_INFO][site][FORECASTS] = old_solcast_data[SITE_INFO][site][FORECASTS][
                 : -(269 + (DEFAULT_FORECAST_DAYS - 8) * 48)
             ]
         await solcast.build_forecast_data()
-        coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
+        coordinator._data_updated = True
         coordinator.async_update_listeners()
 
         for sensor, assertions in SENSORS.items():
@@ -692,17 +794,17 @@ async def test_sensor_unavailable(
         # Test when 'today' is partial (remove D3 onwards).
         solcast.data_undampened = old_solcast_data_undampened
         for site in ("1111-1111-1111-1111", "2222-2222-2222-2222"):
-            solcast.data["siteinfo"][site]["forecasts"] = old_solcast_data["siteinfo"][site]["forecasts"][
+            solcast.data[SITE_INFO][site][FORECASTS] = old_solcast_data[SITE_INFO][site][FORECASTS][
                 : -(325 + (DEFAULT_FORECAST_DAYS - 8) * 48)
             ]
         await solcast.build_forecast_data()
-        coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
+        coordinator._data_updated = True
         coordinator.async_update_listeners()
 
         state = hass.states.get("sensor.solcast_pv_forecast_forecast_today")
         assert state, "forecast_today sensor state should exist"
         state_attributes: ReadOnlyDict[str, Any] = state.attributes  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-        assert state_attributes["dataCorrect"] is False, "Expected state attribute dataCorrect to be False"
+        assert state_attributes[DATA_CORRECT] is False, "Expected state attribute dataCorrect to be False"
 
         no_error_or_exception(caplog)
 
@@ -726,8 +828,8 @@ async def test_sensor_unavailable_exception(
 
     monkeypatch.setattr(SolcastUpdateCoordinator, "get_sensor_value", _raise_zero_division)
     monkeypatch.setattr(SolcastUpdateCoordinator, "get_sensor_extra_attributes", _raise_zero_division)
-    monkeypatch.setattr(SolcastUpdateCoordinator, "get_site_sensor_value", _raise_zero_division)
-    monkeypatch.setattr(SolcastUpdateCoordinator, "get_site_sensor_extra_attributes", _raise_zero_division)
+    monkeypatch.setattr(ForecastQuery, "get_rooftop_site_total_today", _raise_zero_division)
+    monkeypatch.setattr(ForecastQuery, "get_rooftop_site_extra_data", _raise_zero_division)
 
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
@@ -737,7 +839,7 @@ async def test_sensor_unavailable_exception(
                 await hass.async_block_till_done()
             coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
 
-        coordinator._data_updated = True  # pyright: ignore[reportPrivateUsage]
+        coordinator._data_updated = True
         await coordinator.async_refresh()
         await hass.async_block_till_done()
 
@@ -749,11 +851,56 @@ async def test_sensor_unavailable_exception(
             assert state, f"Sensor {sensor} state should exist"
             assert state.state == STATE_UNAVAILABLE
 
-        for site in ("first_site", "second_site"):
+        for site in ("solcast_pv_forecast_first_site", "solcast_pv_forecast_second_site"):
             state = hass.states.get(f"sensor.{site}")
             _ = state.attributes  # type: ignore[union-attr]
             assert state, f"Site sensor {site} state should exist"
             assert state.state == STATE_UNAVAILABLE
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_rooftop_unique_id_mig(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that RooftopSensor unique IDs are migrated to resource ID."""
+
+    entity_registry = er.async_get(hass)
+    entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_First Site",
+        suggested_object_id="first_site_old",
+    )
+    entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_Second Site",
+        suggested_object_id="second_site_old",
+    )
+
+    try:
+        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        await async_init_integration(hass, DEFAULT_INPUT1)
+        await hass.async_block_till_done()
+
+        assert "Migrated RooftopSensor unique ID for site 'First Site' to resource ID" in caplog.text, (
+            "Expected migration log for 'First Site' not found"
+        )
+        assert "Migrated RooftopSensor unique ID for site 'Second Site' to resource ID" in caplog.text, (
+            "Expected migration log for 'Second Site' not found"
+        )
+
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_First Site") is None
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_Second Site") is None
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111") is not None
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_2222-2222-2222-2222") is not None
+
+        no_error_or_exception(caplog)
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

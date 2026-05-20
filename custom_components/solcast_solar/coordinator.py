@@ -1,8 +1,5 @@
-"""The Solcast Solar coordinator."""
+"""Solcast update coordinator."""
 
-from __future__ import annotations
-
-import asyncio
 from datetime import datetime as dt, timedelta
 import logging
 from operator import itemgetter
@@ -10,7 +7,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ServiceValidationError
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import async_track_utc_time_change
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -19,9 +16,11 @@ from .const import (
     ADVANCED_ENTITY_LOGGING,
     ADVANCED_FORECAST_DAY_ENTITIES,
     ALL,
+    API_ACTUALS_USED,
     API_FORCE_USED,
-    COMPLETION,
+    API_USED_TOTAL_COMBINED,
     CUSTOM_HOURS,
+    DAILY_TYPICAL_FORECAST_UPDATES,
     DAMPENED_APE_BREAKDOWN,
     DAMPENED_DAILY,
     DAMPENED_MAPE,
@@ -47,29 +46,28 @@ from .const import (
     ENTITY_POWER_NOW_30M,
     ENTITY_TOTAL_KWH_FORECAST_TODAY,
     ENTITY_TOTAL_KWH_FORECAST_TOMORROW,
-    EXCEPTION_AUTO_USE_FORCE,
-    EXCEPTION_AUTO_USE_NORMAL,
+    ESTIMATE,
+    ESTIMATE10,
+    ESTIMATE90,
     EXCEPTION_INIT_KEY_INVALID,
     FACTOR,
     FACTORS,
-    GET_ACTUALS,
     INFINITY_EXCLUDED,
     INTEGRATION_AUTOMATED,
     INTERVAL,
     LAST_UPDATED,
     METHOD,
     MODEL_PERIOD_DAYS,
-    NEED_HISTORY_HOURS,
     PERIOD_START,
     SENSOR,
     SITE_DAMP,
-    TASK_ACTUALS_FETCH,
-    TASK_FORECASTS_FETCH,
-    TASK_FORECASTS_FETCH_IMMEDIATE,
     TASK_LISTENERS,
     TASK_MIDNIGHT_UPDATE,
     UNDAMPENED_APE_BREAKDOWN,
     UNDAMPENED_DAILY,
+    UNDAMPENED_ESTIMATE,
+    UNDAMPENED_ESTIMATE10,
+    UNDAMPENED_ESTIMATE90,
     UNDAMPENED_MAPE,
     UNDAMPENED_PERCENTILES,
     VALUE,
@@ -85,12 +83,10 @@ NO_ATTRIBUTES = [ENTITY_API_COUNTER, ENTITY_API_LIMIT, ENTITY_DAMPEN, ENTITY_ACC
 
 
 class SolcastUpdateCoordinator(DataUpdateCoordinator):
-    """Class to manage fetching data."""
+    """Class to manage fetching entry states and attributes, and scheduled tasks."""
 
     def __init__(self, hass: HomeAssistant, config_entry: ConfigEntry, solcast: SolcastApi, version: str) -> None:
         """Initialise the coordinator.
-
-        Public variables at the top, protected variables (those prepended with _ after).
 
         Arguments:
             hass (HomeAssistant): The Home Assistant instance.
@@ -139,6 +135,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         days = [ENTITY_TOTAL_KWH_FORECAST_TODAY, ENTITY_TOTAL_KWH_FORECAST_TOMORROW] + [
             f"total_kwh_forecast_d{r}" for r in range(3, self.advanced_day_entities)
         ]
+        self._forecast_day_keys = set(days)
         self.__get_value |= {
             day: [
                 {METHOD: self.solcast.query.get_total_energy_forecast_day, VALUE: ahead},
@@ -164,6 +161,11 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """Return the most recent auto-update interval that has passed."""
         return self._updater.interval_just_passed
 
+    @property
+    def updater(self) -> Updater:
+        """Return the updater owned by the coordinator."""
+        return self._updater
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Update data via library.
 
@@ -173,12 +175,12 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """
         # Check for re-authentication required
         if self.solcast.reauth_required:
-            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
+            raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key=EXCEPTION_INIT_KEY_INVALID)
 
         return self.solcast.data
 
     async def setup(self) -> bool:
-        """Set up time change tracking and file watchdogs."""
+        """Set up time change tracking and file watchers."""
 
         await self._updater.setup()
 
@@ -186,7 +188,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             self.hass, self._update_utc_midnight_usage_sensor_data, hour=0, minute=0, second=0
         )
         self.tasks[TASK_LISTENERS] = async_track_utc_time_change(
-            self.hass, self.update_integration_listeners, minute=range(0, 60, 5), second=0
+            self.hass, self._update_integration_listeners, minute=range(0, 60, 5), second=0
         )
         self._file_watcher = FileWatcher(self)
         await self._file_watcher.setup()
@@ -205,8 +207,14 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
 
         return True
 
-    async def update_integration_listeners(self, called_at: dt | None = None) -> None:
-        """Get updated sensor values."""
+    async def update_integration_listeners(self) -> None:
+        """Get updated sensor values for all listeners."""
+        self._data_updated = True
+        await self._update_integration_listeners()
+        self._data_updated = False
+
+    async def _update_integration_listeners(self, _called_at: dt | None = None) -> None:
+        """Update sensor values on time change."""
 
         current_day = dt.now(self.solcast.options.tz).day
         self._date_changed = current_day != self._last_day
@@ -231,7 +239,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         self.async_update_listeners()
 
     async def restart_time_track_midnight_update(self) -> None:
-        """Cancel and restart UTC time change tracker."""
+        """Cancel and restart UTC midnight time change tracker."""
         _LOGGER.warning("Restarting midnight UTC timer")
         if self.tasks.get(TASK_MIDNIGHT_UPDATE):
             self.tasks[TASK_MIDNIGHT_UPDATE]()  # Cancel the tracker
@@ -241,115 +249,19 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         )
         _LOGGER.debug("Started task midnight_update")
 
-    async def _update_utc_midnight_usage_sensor_data(self, _: dt | None = None) -> None:
-        """Reset tracked API usage at midnight UTC."""
+    async def _update_utc_midnight_usage_sensor_data(self, _called_at: dt | None = None) -> None:
+        """Reset tracked API usage and failure statistics at midnight UTC."""
         await self.solcast.sites_cache.reset_api_usage()
         await self.solcast.fetcher.reset_failure_stats()
-        self._data_updated = True
         await self.update_integration_listeners()
-        self._data_updated = False
 
     async def _update_midnight_spline_recalculate(self) -> None:
         """Re-calculates splines at midnight local time."""
         await self.solcast.check_data_records()
         await self.solcast.query.recalculate_splines()
 
-    async def service_event_update(self, **kwargs: dict[str, Any]) -> None:
-        """Get updated forecast data when requested by a service call.
-
-        Arguments:
-            kwargs (dict): If a key of "ignore_auto_enabled" exists (regardless of the value), then the API counter will be incremented.
-
-        Raises:
-            ServiceValidationError: Notify Home Assistant that an error has occurred.
-
-        """
-        if self.tasks.get(TASK_FORECASTS_FETCH_IMMEDIATE) is None and self.solcast.tasks.get(TASK_FORECASTS_FETCH) is None:
-            if self.solcast.reauth_required:
-                raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key="init_key_invalid")
-
-            if self.solcast.options.auto_update != AutoUpdate.NONE and "ignore_auto_enabled" not in kwargs:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_AUTO_USE_FORCE)
-            update_kwargs: dict[str, Any] = {
-                COMPLETION: "Completed task update" if not kwargs.get(COMPLETION) else kwargs[COMPLETION],
-                NEED_HISTORY_HOURS: kwargs.get(NEED_HISTORY_HOURS, 0),
-            }
-            task = asyncio.create_task(self._updater.forecast_update(**update_kwargs))
-            self.tasks[TASK_FORECASTS_FETCH_IMMEDIATE] = task.cancel
-        else:
-            _LOGGER.warning("Forecast update already in progress, ignoring")
-
-    async def service_event_force_update(self) -> None:
-        """Force the update of forecast data when requested by a service call. Ignores API usage/limit counts.
-
-        Raises:
-            ServiceValidationError: Notify Home Assistant that an error has occurred.
-
-        """
-        if self.tasks.get(TASK_FORECASTS_FETCH_IMMEDIATE) is None and self.solcast.tasks.get(TASK_FORECASTS_FETCH) is None:
-            if self.solcast.reauth_required:
-                raise ConfigEntryAuthFailed(translation_domain=DOMAIN, translation_key=EXCEPTION_INIT_KEY_INVALID)
-
-            if self.solcast.options.auto_update == AutoUpdate.NONE:
-                raise ServiceValidationError(translation_domain=DOMAIN, translation_key=EXCEPTION_AUTO_USE_NORMAL)
-            task = asyncio.create_task(self._updater.forecast_update(force=True, completion="Completed task force_update"))
-            self.tasks[TASK_FORECASTS_FETCH_IMMEDIATE] = task.cancel
-        else:
-            _LOGGER.warning("Forecast update already in progress, ignoring service action")
-
-    async def service_event_force_update_estimates(self) -> None:
-        """Force the update of estimated actual data when requested by a service call. Ignores API usage/limit counts.
-
-        Raises:
-            ServiceValidationError: Notify Home Assistant that an error has occurred.
-
-        """
-        if not self.solcast.entry_options[GET_ACTUALS]:
-            _LOGGER.debug("Estimated actuals not enabled, ignoring service action")
-            raise ServiceValidationError(translation_domain=DOMAIN, translation_key="actuals_not_enabled")
-        if self.tasks.get(TASK_ACTUALS_FETCH) is None:
-            task = asyncio.create_task(self._updater.update_estimated_actuals_history())
-            self.tasks[TASK_ACTUALS_FETCH] = task.cancel
-        else:
-            _LOGGER.warning("Estimated actuals update already in progress, ignoring service action")
-
-    async def service_event_delete_old_solcast_json_file(self) -> None:
-        """Delete the solcast.json file when requested by a service call."""
-        await self.solcast.tasks_cancel()
-        await self.tasks_cancel_specific(TASK_FORECASTS_FETCH_IMMEDIATE)
-        await self.hass.async_block_till_done()
-        await self.solcast.sites_cache.delete_solcast_file()
-        self._data_updated = True
-        await self.update_integration_listeners()
-        self._data_updated = False
-
-    async def service_query_forecast_data(self, *args: Any) -> tuple[dict[str, Any], ...]:
-        """Return forecast data requested by a service call."""
-        return await self.solcast.query.get_forecast_list(*args)
-
-    async def service_query_estimate_data(self, *args: Any) -> tuple[dict[str, Any], ...]:
-        """Return estimated actual data requested by a service call."""
-        return await self.solcast.query.get_estimate_list(*args)
-
-    def get_solcast_sites(self) -> list[Any]:
-        """Return the active solcast sites.
-
-        Returns:
-            list[Any]: The presently known solcast.com sites.
-
-        """
-        return self.solcast.sites
-
-    def get_energy_tab_data(self) -> dict[str, Any] | None:
-        """Return an energy dictionary.
-
-        Returns:
-            dict: A Home Assistant energy dashboard compatible data set.
-
-        """
-        return self.solcast.query.get_energy_data()
-
-    def get_data_updated(self) -> bool:
+    @property
+    def data_updated(self) -> bool:
         """Whether data has been updated, which will trigger all sensor values to update.
 
         Returns:
@@ -358,16 +270,8 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         """
         return self._data_updated
 
-    def set_data_updated(self, updated: bool) -> None:
-        """Set the state of the data updated flag.
-
-        Arguments:
-            updated (bool): The state to set the _data_updated forecast updated flag to.
-
-        """
-        self._data_updated = updated
-
-    def get_date_changed(self) -> bool:
+    @property
+    def date_changed(self) -> bool:
         """Whether a roll-over to tomorrow has occurred, which will trigger all sensor values to update.
 
         Returns:
@@ -440,10 +344,9 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                 if self.solcast.options.auto_dampen:
                     factors: dict[str, dict[str, Any]] = {}
                     dst = False
+                    now_local = dt.now(self.solcast.options.tz)
                     for i, f in enumerate(self.solcast.dampening.factors.get(ALL, [])):
-                        dst = dt.now(self.solcast.options.tz).replace(
-                            hour=i // 2, minute=i % 2 * 30, second=0, microsecond=0
-                        ).dst() == timedelta(hours=1)
+                        dst = now_local.replace(hour=i // 2, minute=i % 2 * 30, second=0, microsecond=0).dst() == timedelta(hours=1)
                         interval = f"{i // 2 + (1 if dst else 0):02d}:{i % 2 * 30:02d}"
                         factors[interval] = {
                             INTERVAL: interval,
@@ -499,26 +402,36 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     **{f"undampened_p{p}_ape": v for p, v in data.get(UNDAMPENED_PERCENTILES, {}).items()},
                 }
 
+        forecast_day_keys: set[str] = getattr(self, "_forecast_day_keys", set())
+        if key in forecast_day_keys and self.solcast.dampening_enabled:
+            ahead = self.__get_value[key][0][VALUE]
+            ret |= {
+                UNDAMPENED_ESTIMATE: self.solcast.query.get_total_energy_forecast_day(
+                    ahead,
+                    forecast_confidence=ESTIMATE,
+                    undampened=True,
+                ),
+                UNDAMPENED_ESTIMATE10: self.solcast.query.get_total_energy_forecast_day(
+                    ahead,
+                    forecast_confidence=ESTIMATE10,
+                    undampened=True,
+                ),
+                UNDAMPENED_ESTIMATE90: self.solcast.query.get_total_energy_forecast_day(
+                    ahead,
+                    forecast_confidence=ESTIMATE90,
+                    undampened=True,
+                ),
+            }
+
         if key == ENTITY_API_COUNTER:
             ret[API_FORCE_USED] = self.solcast.successes_forced_24h
+            ret[API_ACTUALS_USED] = self.solcast.successes_actuals_24h
+            ret[DAILY_TYPICAL_FORECAST_UPDATES] = self.solcast.api_typical_count
+            ret[API_USED_TOTAL_COMBINED] = (
+                self.solcast.api_used_count + self.solcast.successes_forced_24h + self.solcast.successes_actuals_24h
+            )
 
         return ret
-
-    def get_site_sensor_value(self, roof_id: str, key: str) -> float | None:
-        """Get the site total for today."""
-        match key:
-            case "site_data":
-                return self.solcast.query.get_rooftop_site_total_today(roof_id)
-            case _:
-                return None
-
-    def get_site_sensor_extra_attributes(self, roof_id: str, key: str) -> dict[str, Any] | None:
-        """Get the attributes for a sensor."""
-        match key:
-            case "site_data":
-                return self.solcast.query.get_rooftop_site_extra_data(roof_id)
-            case _:
-                return None
 
     async def tasks_cancel(self) -> None:
         """Cancel all tasks."""

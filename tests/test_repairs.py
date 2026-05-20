@@ -16,12 +16,26 @@ import pytest
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.repairs import ConfirmRepairFlow
 from homeassistant.components.solcast_solar.const import (
+    AFFIRMATION_RECONFIGURED,
     AUTO_UPDATE,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
     DOMAIN,
+    ENTRY_ID,
+    FORECASTS,
+    GET_ACTUALS,
+    ISSUE_RECORDS_MISSING_FIXABLE,
+    ISSUE_RECORDS_MISSING_INITIAL,
+    ISSUE_UNUSUAL_AZIMUTH_NORTHERN,
+    ISSUE_UNUSUAL_AZIMUTH_SOUTHERN,
+    PERIOD_START,
+    PROPOSAL,
     SERVICE_CLEAR_DATA,
     SERVICE_UPDATE,
+    SITE_ATTRIBUTE_AZIMUTH,
+    SITE_ATTRIBUTE_LATITUDE,
+    SITE_INFO,
+    SITES,
 )
 from homeassistant.components.solcast_solar.repairs import async_create_fix_flow
 from homeassistant.components.solcast_solar.util import (
@@ -58,6 +72,7 @@ async def test_missing_data_fixable(
     try:
         options = copy.deepcopy(DEFAULT_INPUT1)
         options[AUTO_UPDATE] = "0"
+        options[GET_ACTUALS] = False  # Don't trigger actuals_quota_today issue in this test.
         entry = await async_init_integration(hass, options)
         config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
 
@@ -66,28 +81,28 @@ async def test_missing_data_fixable(
                 data_file = Path(file_name)
                 data = json.loads(data_file.read_text(encoding="utf-8"))
                 # Remove future forecasts from "now" plus six days
-                for site in data["siteinfo"].values():
-                    site["forecasts"] = [
-                        f for f in site["forecasts"] if f["period_start"] < (dt.now(datetime.UTC) + timedelta(days=4)).isoformat()
+                for site in data[SITE_INFO].values():
+                    site[FORECASTS] = [
+                        f for f in site[FORECASTS] if f[PERIOD_START] < (dt.now(datetime.UTC) + timedelta(days=4)).isoformat()
                     ]
                 data_file.write_text(json.dumps(data), encoding="utf-8")
-                _LOGGER.critical("%s: %s", data_file, len(data["siteinfo"]["1111-1111-1111-1111"]["forecasts"]))
+                _LOGGER.critical("%s: %s", data_file, len(data[SITE_INFO]["1111-1111-1111-1111"][FORECASTS]))
 
         remove_future_forecasts()
         await reload_integration(hass, entry)
 
-        # Assert the issue is present, fixable and non-persistent
-        assert len(issue_registry.issues) == 1, f"Expected 1 issue, got {len(issue_registry.issues)}"
-        issue = list(issue_registry.issues.values())[0]
+        # Assert the issue is present, fixable and non-persistent.
+        # Use async_get_issue to locate it precisely — other issues may also exist.
+        issue = issue_registry.async_get_issue(DOMAIN, ISSUE_RECORDS_MISSING_FIXABLE)
+        assert issue is not None, f"Expected issue {ISSUE_RECORDS_MISSING_FIXABLE}, got {list(issue_registry.issues.keys())}"
         assert issue.domain == DOMAIN, f"Expected domain {DOMAIN}, got {issue.domain}"
-        assert issue.issue_id == "records_missing_fixable", f"Expected issue_id 'records_missing_fixable', got {issue.issue_id}"
         assert issue.is_fixable is True, "Missing data issue should be fixable"
         assert issue.is_persistent is False, "Missing data issue should not be persistent"
 
         flow = await async_create_fix_flow(hass, "not_handled_issue", {})
         assert type(flow) is ConfirmRepairFlow
 
-        flow = await async_create_fix_flow(hass, issue.issue_id, {"contiguous": 8, "entry_id": entry.entry_id})
+        flow = await async_create_fix_flow(hass, issue.issue_id, {"contiguous": 8, ENTRY_ID: entry.entry_id})
         flow.hass = hass
         flow.issue_id = issue.issue_id
 
@@ -101,7 +116,7 @@ async def test_missing_data_fixable(
         assert "Options updated, action: The integration will reload" in caplog.text
         assert "Auto forecast updates" in caplog.text
         assert result["type"] == FlowResultType.ABORT
-        assert result["reason"] == "reconfigured"
+        assert result["reason"] == AFFIRMATION_RECONFIGURED
 
     finally:
         await async_cleanup_integration_tests(hass)
@@ -123,7 +138,7 @@ async def test_missing_data_initial(
             assert len(issue_registry.issues) == 1, f"Expected 1 issue, got {len(issue_registry.issues)}"
             issue = list(issue_registry.issues.values())[0]
             assert issue.domain == DOMAIN, f"Expected domain {DOMAIN}, got {issue.domain}"
-            assert issue.issue_id == "records_missing_initial", f"Expected issue_id 'records_missing_initial', got {issue.issue_id}"
+            assert issue.issue_id == ISSUE_RECORDS_MISSING_INITIAL, f"Expected issue_id ISSUE_RECORDS_MISSING_INITIAL, got {issue.issue_id}"
             assert issue.is_fixable is False, "Initial missing data issue should not be fixable"
             assert issue.is_persistent is True, "Initial missing data issue should be persistent"
 
@@ -140,6 +155,7 @@ async def test_missing_data_initial(
 
         options = copy.deepcopy(DEFAULT_INPUT1)
         options[AUTO_UPDATE] = "0"
+        options[GET_ACTUALS] = False  # Don't trigger actuals_quota_today issue in this test.
         entry = await async_init_integration(hass, options)
         solcast = entry.runtime_data.coordinator.solcast
 
@@ -172,24 +188,24 @@ async def test_missing_data_initial(
 
 
 @pytest.mark.parametrize(
-    ("latitude", "azimuth", "expected_unusual", "expected_issue_key", "expected_proposal"),
+    (SITE_ATTRIBUTE_LATITUDE, SITE_ATTRIBUTE_AZIMUTH, "expected_unusual", "expected_issue_key", "expected_proposal"),
     [
         # Southern hemisphere — normal azimuths (0..90 or -90..0)
-        (-37.8136, 50, False, "unusual_azimuth_southern", 0),
-        (-37.8136, -50, False, "unusual_azimuth_southern", 0),
-        (-37.8136, 0, False, "unusual_azimuth_southern", 0),
-        (-37.8136, -90, False, "unusual_azimuth_southern", 0),
+        (-37.8136, 50, False, ISSUE_UNUSUAL_AZIMUTH_SOUTHERN, 0),
+        (-37.8136, -50, False, ISSUE_UNUSUAL_AZIMUTH_SOUTHERN, 0),
+        (-37.8136, 0, False, ISSUE_UNUSUAL_AZIMUTH_SOUTHERN, 0),
+        (-37.8136, -90, False, ISSUE_UNUSUAL_AZIMUTH_SOUTHERN, 0),
         # Southern hemisphere — unusual azimuths
-        (-37.8136, 150, True, "unusual_azimuth_southern", 30),
-        (-37.8136, -150, True, "unusual_azimuth_southern", -30),
+        (-37.8136, 150, True, ISSUE_UNUSUAL_AZIMUTH_SOUTHERN, 30),
+        (-37.8136, -150, True, ISSUE_UNUSUAL_AZIMUTH_SOUTHERN, -30),
         # Northern hemisphere — normal azimuths (90..180 or -180..-90)
-        (37.8136, 150, False, "unusual_azimuth_northern", 0),
-        (37.8136, -150, False, "unusual_azimuth_northern", 0),
-        (37.8136, 90, False, "unusual_azimuth_northern", 0),
-        (37.8136, 180, False, "unusual_azimuth_northern", 0),
+        (37.8136, 150, False, ISSUE_UNUSUAL_AZIMUTH_NORTHERN, 0),
+        (37.8136, -150, False, ISSUE_UNUSUAL_AZIMUTH_NORTHERN, 0),
+        (37.8136, 90, False, ISSUE_UNUSUAL_AZIMUTH_NORTHERN, 0),
+        (37.8136, 180, False, ISSUE_UNUSUAL_AZIMUTH_NORTHERN, 0),
         # Northern hemisphere — unusual azimuths
-        (37.8136, 50, True, "unusual_azimuth_northern", 130),
-        (37.8136, -50, True, "unusual_azimuth_northern", -130),
+        (37.8136, 50, True, ISSUE_UNUSUAL_AZIMUTH_NORTHERN, 130),
+        (37.8136, -50, True, ISSUE_UNUSUAL_AZIMUTH_NORTHERN, -130),
     ],
 )
 def test_unusual_azimuth(
@@ -234,24 +250,25 @@ async def test_unusual_azimuth_issue_creation_and_cleanup(
 ) -> None:
     """Test unusual azimuth issue creation, dismissal and cleanup paths."""
 
-    old_latitude = API_KEY_SITES["1"]["sites"][0]["latitude"]
-    old_azimuth = API_KEY_SITES["1"]["sites"][0]["azimuth"]
-    API_KEY_SITES["1"]["sites"][0]["latitude"] = 37.8136
-    API_KEY_SITES["1"]["sites"][0]["azimuth"] = 50
+    old_latitude = API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_LATITUDE]
+    old_azimuth = API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_AZIMUTH]
+    API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_LATITUDE] = 37.8136
+    API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_AZIMUTH] = 50
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
 
-        # Assert the issue is present, persistent and has correct placeholders
-        assert len(issue_registry.issues) == 1, f"Expected 1 unusual azimuth issue, got {len(issue_registry.issues)}"
-        issue = list(issue_registry.issues.values())[0]
+        # Assert the issue is present, persistent and has correct placeholders.
+        # Use async_get_issue to locate it precisely — other issues may also exist.
+        issue = issue_registry.async_get_issue(DOMAIN, ISSUE_UNUSUAL_AZIMUTH_NORTHERN)
+        assert issue is not None, f"Expected issue {ISSUE_UNUSUAL_AZIMUTH_NORTHERN}, got {list(issue_registry.issues.keys())}"
         assert f"Raise issue `{issue.issue_id}`" in caplog.text
         assert issue.domain == DOMAIN, f"Expected domain {DOMAIN}, got {issue.domain}"
-        assert issue.issue_id == "unusual_azimuth_northern", f"Expected issue_id 'unusual_azimuth_northern', got {issue.issue_id}"
+        assert issue.issue_id == ISSUE_UNUSUAL_AZIMUTH_NORTHERN, f"Expected issue_id ISSUE_UNUSUAL_AZIMUTH_NORTHERN, got {issue.issue_id}"
         assert issue.is_fixable is False, "Unusual azimuth issue should not be fixable"
         assert issue.is_persistent is True, "Unusual azimuth issue should be persistent"
         assert issue.translation_placeholders is not None, "Unusual azimuth issue should have translation placeholders"
-        assert issue.translation_placeholders.get("proposal") == "130", (
-            f"Expected proposal '130', got {issue.translation_placeholders.get('proposal')!r}"
+        assert issue.translation_placeholders.get(PROPOSAL) == "130", (
+            f"Expected proposal '130', got {issue.translation_placeholders.get(PROPOSAL)!r}"
         )
         assert re.search(r"WARNING.+Unusual azimuth", caplog.text) is not None, "Expected WARNING log for unusual azimuth"
 
@@ -260,7 +277,7 @@ async def test_unusual_azimuth_issue_creation_and_cleanup(
         caplog.clear()
         ir.async_ignore_issue(hass, DOMAIN, issue.issue_id, True)
         await reload_integration(hass, entry)
-        assert len(issue_registry.issues) == 0
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_UNUSUAL_AZIMUTH_NORTHERN) is None
         assert "Remove ignored issue for unusual_azimuth_northern" in caplog.text
         assert f"Raise issue `{issue.issue_id}`" not in caplog.text
 
@@ -270,8 +287,8 @@ async def test_unusual_azimuth_issue_creation_and_cleanup(
         assert re.search(r"DEBUG.+Unusual azimuth", caplog.text) is not None, "Expected DEBUG log for unusual azimuth"
 
     finally:
-        API_KEY_SITES["1"]["sites"][0]["latitude"] = old_latitude
-        API_KEY_SITES["1"]["sites"][0]["azimuth"] = old_azimuth
+        API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_LATITUDE] = old_latitude
+        API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_AZIMUTH] = old_azimuth
         await async_cleanup_integration_tests(hass)
 
 
@@ -283,27 +300,27 @@ async def test_unusual_azimuth_resolved_after_fix(
 ) -> None:
     """Test that fixing the azimuth at Solcast clears the issue on reload."""
 
-    old_latitude = API_KEY_SITES["1"]["sites"][0]["latitude"]
-    old_azimuth = API_KEY_SITES["1"]["sites"][0]["azimuth"]
-    API_KEY_SITES["1"]["sites"][0]["latitude"] = -37.8136
-    API_KEY_SITES["1"]["sites"][0]["azimuth"] = 150
+    old_latitude = API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_LATITUDE]
+    old_azimuth = API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_AZIMUTH]
+    API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_LATITUDE] = -37.8136
+    API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_AZIMUTH] = 150
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
 
-        # Issue should be raised for southern hemisphere unusual azimuth
-        assert len(issue_registry.issues) == 1
-        issue = list(issue_registry.issues.values())[0]
-        assert issue.issue_id == "unusual_azimuth_southern"
+        # Issue should be raised for southern hemisphere unusual azimuth.
+        # Use async_get_issue to locate it precisely — other issues may also exist.
+        issue = issue_registry.async_get_issue(DOMAIN, ISSUE_UNUSUAL_AZIMUTH_SOUTHERN)
+        assert issue is not None, f"Expected issue {ISSUE_UNUSUAL_AZIMUTH_SOUTHERN}, got {list(issue_registry.issues.keys())}"
         assert issue.translation_placeholders is not None, "Issue should have translation placeholders"
-        assert issue.translation_placeholders.get("proposal") == "30"
+        assert issue.translation_placeholders.get(PROPOSAL) == "30"
 
         # Fix the azimuth at Solcast and reload
-        API_KEY_SITES["1"]["sites"][0]["latitude"] = old_latitude
-        API_KEY_SITES["1"]["sites"][0]["azimuth"] = old_azimuth
+        API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_LATITUDE] = old_latitude
+        API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_AZIMUTH] = old_azimuth
         await reload_integration(hass, entry)
-        assert len(issue_registry.issues) == 0
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_UNUSUAL_AZIMUTH_SOUTHERN) is None
 
     finally:
-        API_KEY_SITES["1"]["sites"][0]["latitude"] = old_latitude
-        API_KEY_SITES["1"]["sites"][0]["azimuth"] = old_azimuth
+        API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_LATITUDE] = old_latitude
+        API_KEY_SITES["1"][SITES][0][SITE_ATTRIBUTE_AZIMUTH] = old_azimuth
         await async_cleanup_integration_tests(hass)

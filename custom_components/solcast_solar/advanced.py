@@ -1,8 +1,5 @@
 """Solcast advanced options."""
 
-# pylint: disable=pointless-string-statement
-
-from __future__ import annotations
 
 import asyncio
 import contextlib
@@ -17,17 +14,20 @@ from typing import TYPE_CHECKING, Any
 import aiofiles
 
 from .const import (
+    ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
     ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT,
     ADVANCED_INVALID_JSON_TASK,
     ADVANCED_OPTION,
     ADVANCED_OPTIONS,
+    ADVANCED_SOLCAST_URL,
     ADVANCED_TYPE,
     ALIASES,
     CURRENT_NAME,
     DEFAULT,
     DEFAULT_KEYS,
+    DEFAULT_SOLCAST_HTTPS_URL,
     DEPRECATED,
     DT_DATE_ONLY_FORMAT,
     MAXIMUM,
@@ -113,7 +113,7 @@ class AdvancedOptions:
         """Read advanced JSON file options, validate and set them."""
 
         if self.api.suppress_advanced_watchdog_reload:
-            self.api.suppress_advanced_watchdog_reload = False  # File has just been written so reset flag but do not reload
+            self.api.suppress_advanced_watchdog_reload = False  # File was just written locally, so skip one reload
             return False
 
         advanced_options_proposal: dict[str, Any] = copy.deepcopy(self.api.advanced_options)
@@ -412,6 +412,13 @@ class AdvancedOptions:
                             advanced_options_proposal[option] = default
                             _LOGGER.debug("Advanced option default set %s: %s", option, default)
                             change = True
+                    if (
+                        advanced_options_proposal.get(ADVANCED_SOLCAST_URL) != DEFAULT_SOLCAST_HTTPS_URL
+                        and ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM not in options_present
+                    ):
+                        _LOGGER.debug("Forcing allow_exceed_api_limit_maximum to true because solcast_url is non-default")
+                        advanced_options_proposal[ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM] = True
+                        change = True
                     self.api.advanced_options.update(advanced_options_proposal)
                     if not self.api.advanced_options.get(ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION, False):
                         await clear_cache(self.api.filename_dampening_history, False)  # remove dampening history if necessary

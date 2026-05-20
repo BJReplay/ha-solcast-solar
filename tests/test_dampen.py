@@ -1,15 +1,19 @@
 """Tests for the Solcast Solar automated dampening."""
 
 import asyncio
+from collections import OrderedDict
 import copy
 import datetime
 from datetime import datetime as dt, timedelta
 import json
 import logging
+import math
 from pathlib import Path
 import re
+import tempfile
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
 from freezegun.api import FrozenDateTimeFactory
@@ -21,21 +25,38 @@ from homeassistant.components.solcast_solar.config_flow import (
     SolcastSolarOptionFlowHandler,
 )
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
+    ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT,
+    ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
+    ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS,
+    ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR,
+    ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED,
+    ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION,
+    ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS,
+    ADVANCED_AUTOMATED_DAMPENING_MODEL,
+    ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY,
+    ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS,
+    ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY,
+    ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN,
+    ADVANCED_HISTORY_MAX_DAYS,
     AUTO_DAMPEN,
     AUTO_UPDATE,
-    CONFIG_DISCRETE_NAME,
-    CONFIG_FOLDER_DISCRETE,
+    DAMP_FACTOR,
     DOMAIN,
     ENTITY_ACCURACY,
     ESTIMATE,
+    EXCEPTION_GENERATION_MIXED_TYPES,
     EXCLUDE_SITES,
     FORECASTS,
     GENERATION_ENTITIES,
     GET_ACTUALS,
+    INTEGRATION,
     PERIOD_START,
-    PRESUMED_DEAD,
     RESOURCE_ID,
+    SERVICE_FORCE_UPDATE_ESTIMATES,
     SERVICE_SET_DAMPENING,
+    SITE_ATTRIBUTE_AZIMUTH,
+    SITE_ATTRIBUTE_TILT,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
     SITE_INFO,
@@ -44,12 +65,13 @@ from homeassistant.components.solcast_solar.const import (
 from homeassistant.components.solcast_solar.dampen import Dampening
 from homeassistant.components.solcast_solar.util import (
     DateTimeEncoder,
+    DateTimeHelper,
     JSONDecoder,
     SolcastApiStatus,
     compute_energy_intervals,
     compute_power_intervals,
-    percentile,
 )
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
@@ -63,11 +85,13 @@ from . import (
     async_cleanup_integration_tests,
     async_init_integration,
     exec_update_actuals,
+    get_config_dir,
     no_exception,
     reload_integration,
     session_clear,
     session_set,
     wait_for_it,
+    write_advanced_options,
 )
 
 from tests.common import MockConfigEntry
@@ -89,23 +113,20 @@ async def test_auto_dampen(
     assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
     try:
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
+        config_dir = get_config_dir(hass.config.config_dir, create=True)
 
-        Path(f"{config_dir}/solcast-advanced.json").write_text(
-            json.dumps(
-                {
-                    "automated_dampening_ignore_intervals": ["17:00"],
-                    "automated_dampening_no_limiting_consistency": True,
-                    "automated_dampening_generation_fetch_delay": 5,
-                    "automated_dampening_insignificant_factor": 0.988,
-                    "automated_dampening_insignificant_factor_adjusted": 0.989,
-                    "estimated_actuals_fetch_delay": 5,
-                    "estimated_actuals_log_mape_breakdown": True,
-                }
-            ),
-            encoding="utf-8",
+        write_advanced_options(
+            config_dir,
+            {
+                ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: False,
+                ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS: ["17:00"],
+                ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY: True,
+                ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: 5,
+                ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR: 0.988,
+                ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR_ADJUSTED: 0.989,
+                ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY: 5,
+                ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN: True,
+            },
         )
 
         options = copy.deepcopy(DEFAULT_INPUT2)
@@ -123,22 +144,22 @@ async def test_auto_dampen(
         er.async_get(hass).async_get_or_create("sensor", DOMAIN, ENTITY_ACCURACY)
         entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.YES_WATT_HOUR)
 
-        # Fiddle with undampened data cache
+        # Adjust undampened data cache
         undampened = json.loads(Path(f"{config_dir}/solcast-undampened.json").read_text(encoding="utf-8"), cls=JSONDecoder)
-        for site in undampened["siteinfo"].values():
-            for forecast in site["forecasts"]:
-                forecast["pv_estimate"] *= 0.85
+        for site in undampened[SITE_INFO].values():
+            for forecast in site[FORECASTS]:
+                forecast[ESTIMATE] *= 0.85
         Path(f"{config_dir}/solcast-undampened.json").write_text(json.dumps(undampened, cls=DateTimeEncoder), encoding="utf-8")
 
-        # Fiddle with estimated actual data cache
+        # Adjust estimated actual data cache
         actuals = json.loads(Path(f"{config_dir}/solcast-actuals.json").read_text(encoding="utf-8"), cls=JSONDecoder)
-        for site in actuals["siteinfo"].values():
-            for forecast in site["forecasts"]:
+        for site in actuals[SITE_INFO].values():
+            for forecast in site[FORECASTS]:
                 if (
-                    forecast["period_start"].astimezone(ZoneInfo(ZONE_RAW)).hour == 10
-                    and forecast["period_start"].astimezone(ZoneInfo(ZONE_RAW)).minute == 30
+                    forecast[PERIOD_START].astimezone(ZoneInfo(ZONE_RAW)).hour == 10
+                    and forecast[PERIOD_START].astimezone(ZoneInfo(ZONE_RAW)).minute == 30
                 ):
-                    forecast["pv_estimate"] *= 0.91
+                    forecast[ESTIMATE] *= 0.91
         Path(f"{config_dir}/solcast-actuals.json").write_text(json.dumps(actuals, cls=DateTimeEncoder), encoding="utf-8")
 
         # Reload to load saved data and prime initial generation
@@ -152,14 +173,13 @@ async def test_auto_dampen(
         for _ in range(30):  # Extra time needed for reload to complete
             await hass.async_block_till_done()
             freezer.tick(0.1)
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
         no_exception(caplog)
 
         assert "Auto-dampening suppressed: Excluded site for 3333-3333-3333-3333" in caplog.text
         assert "Interval 08:30 has peak estimated actual 0.936" in caplog.text
         assert "Interval 08:30 max generation: 0.777" in caplog.text
         assert "Auto-dampen factor for 08:30 is 0.830" in caplog.text
-        # assert "Auto-dampen factor for 11:00" not in caplog.text
         assert "Ignoring insignificant factor for 11:00 of 0.993" in caplog.text
         assert "Ignoring excessive PV generation" not in caplog.text
 
@@ -175,12 +195,12 @@ async def test_auto_dampen(
         # Test service action to update dampening manually refused
         caplog.clear()
         with pytest.raises(ServiceValidationError):
-            await hass.services.async_call(DOMAIN, SERVICE_SET_DAMPENING, {"damp_factor": ("1.0," * 24)[:-1]}, blocking=True)
+            await hass.services.async_call(DOMAIN, SERVICE_SET_DAMPENING, {DAMP_FACTOR: ("1.0," * 24)[:-1]}, blocking=True)
 
         # Test service action to force update actuals
         caplog.clear()
         _LOGGER.debug("Testing force update actuals with dampening enabled")
-        await exec_update_actuals(hass, coordinator, solcast, caplog, freezer, "force_update_estimates")
+        await exec_update_actuals(hass, coordinator, solcast, caplog, freezer, SERVICE_FORCE_UPDATE_ESTIMATES)
         await wait_for_it(hass, caplog, freezer, "Estimated actual mean APE", long_time=True)
         assert "Estimated actuals dictionary for site 1111-1111-1111-1111" in caplog.text
         assert "Estimated actuals dictionary for site 2222-2222-2222-2222" in caplog.text
@@ -192,7 +212,7 @@ async def test_auto_dampen(
         _LOGGER.debug("Rolling over to tomorrow")
         caplog.clear()
         removed = -5
-        value_removed = solcast.data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"].pop(removed)
+        value_removed = solcast.data_actuals[SITE_INFO]["1111-1111-1111-1111"][FORECASTS].pop(removed)
         freezer.move_to((dt.now(solcast.tz) + timedelta(hours=12)).replace(minute=0, second=0, microsecond=0))
         await hass.async_block_till_done()
         await wait_for_it(hass, caplog, freezer, "Update generation data", long_time=True)
@@ -201,14 +221,15 @@ async def test_auto_dampen(
         assert "Advanced option set automated_dampening_ignore_intervals: ['17:00']" in caplog.text
         assert "Calculating dampened estimated actual MAPE" in caplog.text
         assert "Calculating undampened estimated actual MAPE" in caplog.text
-        assert "APE calculation for day" in caplog.text
+        assert "Dampened APE calculation for day" in caplog.text
+        assert "Undampened APE calculation for day" in caplog.text
         assert "Estimated actual mean APE" in caplog.text
         assert "Getting estimated actuals update for site" in caplog.text
         assert "Apply dampening to previous day estimated actuals" in caplog.text
         assert "Task dampening model_automated took" in caplog.text
         assert (
-            solcast.data_actuals["siteinfo"]["1111-1111-1111-1111"]["forecasts"][removed - 24]["period_start"]  # pyright: ignore[reportOptionalMemberAccess]
-            == value_removed["period_start"]
+            solcast.data_actuals[SITE_INFO]["1111-1111-1111-1111"][FORECASTS][removed - 24][PERIOD_START]  # pyright: ignore[reportOptionalMemberAccess]
+            == value_removed[PERIOD_START]
         )
         assert "Auto-dampen factor for 08:30 is 0.830" in caplog.text
 
@@ -219,16 +240,16 @@ async def test_auto_dampen(
             3: {"base": 0.296, "adjusted": [0.410, 0.312]},
         }
         for preseve in (False, True):
-            solcast.advanced_options["automated_dampening_preserve_unmatched_factors"] = preseve
+            solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS] = preseve
             for model in (0, 1, 2, 3):
                 caplog.clear()
-                solcast.advanced_options["automated_dampening_model"] = model
+                solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL] = model
                 await solcast.dampening.model_automated()
                 assert "Auto-dampen factor for 08:30 is {:.3f}".format(ADVANCED_CHECKS[model]["base"]) in caplog.text
 
                 for adjustment_model in (0, 1):
                     caplog.clear()
-                    solcast.advanced_options["automated_dampening_delta_adjustment_model"] = adjustment_model
+                    solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL] = adjustment_model
                     await solcast.dampening.apply_forward()
                     _LOGGER.critical("Model %d/%d tested", model, adjustment_model)
                     assert (
@@ -265,7 +286,7 @@ async def test_auto_dampen(
         _LOGGER.debug("Causing an actual build exception")
         caplog.clear()
         old_data = copy.deepcopy(solcast.data_actuals)  # pyright: ignore[reportOptionalMemberAccess]
-        solcast.data_actuals["siteinfo"]["1111-1111-1111-1111"] = None  # pyright: ignore[reportOptionalMemberAccess]
+        solcast.data_actuals[SITE_INFO]["1111-1111-1111-1111"] = None  # pyright: ignore[reportOptionalMemberAccess]
         with pytest.raises(ConfigEntryNotReady):
             await solcast.fetcher.build_forecast_and_actuals(raise_exc=True)  # pyright: ignore[reportOptionalMemberAccess]
         assert solcast.status == SolcastApiStatus.BUILD_FAILED_ACTUALS
@@ -278,7 +299,7 @@ async def test_auto_dampen(
         _LOGGER.debug("Causing a forecast build exception")
         caplog.clear()
         old_data = copy.deepcopy(solcast.data)  # pyright: ignore[reportOptionalMemberAccess]
-        solcast.data["siteinfo"]["1111-1111-1111-1111"] = None  # pyright: ignore[reportOptionalMemberAccess]
+        solcast.data[SITE_INFO]["1111-1111-1111-1111"] = None  # pyright: ignore[reportOptionalMemberAccess]
         with pytest.raises(ConfigEntryNotReady):
             await solcast.fetcher.build_forecast_and_actuals(raise_exc=True)  # pyright: ignore[reportOptionalMemberAccess]
         assert solcast.status == SolcastApiStatus.BUILD_FAILED_FORECASTS
@@ -336,6 +357,7 @@ async def test_auto_dampen_issues(
             options[GENERATION_ENTITIES][0] = "sensor.not_valid"
         if extra_sensors == ExtraSensors.DODGY:
             options[SITE_EXPORT_ENTITY] = "sensor.not_valid"
+            write_advanced_options(hass.config.config_dir, {ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: False})
         er.async_get(hass).async_get_or_create("sensor", DOMAIN, ENTITY_ACCURACY)
         entry = await async_init_integration(hass, options, extra_sensors=extra_sensors)
 
@@ -369,7 +391,7 @@ async def test_auto_dampen_issues(
         for _ in range(30):  # Extra time needed for reload to complete
             freezer.tick(0.1)
             await hass.async_block_till_done()
-        assert hass.data[DOMAIN].get(PRESUMED_DEAD, True) is False, "Integration presumed dead after setup"
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
         no_exception(caplog)
         assert "Calculating dampened estimated actual MAPE" not in caplog.text
         assert "Estimated actual mean APE" in caplog.text
@@ -410,30 +432,6 @@ async def test_auto_dampen_issues(
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
-@pytest.mark.parametrize(
-    ("data", "pct", "expected"),
-    [
-        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 0, 1.0, id="p0 of [1..5]"),
-        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 25, 2.0, id="p25 of [1..5]"),
-        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 50, 3.0, id="p50 of [1..5]"),
-        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 75, 4.0, id="p75 of [1..5]"),
-        pytest.param([1.0, 2.0, 3.0, 4.0, 5.0], 100, 5.0, id="p100 of [1..5]"),
-        pytest.param([5.0], 0, 5.0, id="p0 of [5.0]"),
-        pytest.param([5.0], 25, 5.0, id="p25 of [5.0]"),
-        pytest.param([5.0], 50, 5.0, id="p50 of [5.0]"),
-        pytest.param([5.0], 75, 5.0, id="p75 of [5.0]"),
-        pytest.param([5.0], 100, 5.0, id="p100 of [5.0]"),
-        pytest.param([0.1] * 10 + [0.5], 90, 0.1, id="p90 of 10x0.1+0.5"),
-        pytest.param([0.1] * 8 + [0.5], 90, 0.18, id="p90 of 8x0.1+0.5"),
-        pytest.param([], 50, 0.0, id="p50 of []"),
-    ],
-)
-async def test_percentile(data: list[float], pct: int, expected: float) -> None:
-    """Test percentile function."""
-    result = round(percentile(data, pct), 2)
-    assert result == expected, f"p{pct}: expected {expected}, got {result}"
-
-
 async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.LogCaptureFixture) -> None:
     """Test recovered historical actuals are dampened with delta-adjusted factors."""
 
@@ -460,7 +458,7 @@ async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.
             }
         },
         data_actuals_dampened={SITE_INFO: {site_id: {FORECASTS: []}}},
-        advanced_options={"history_max_days": 30},
+        advanced_options={ADVANCED_HISTORY_MAX_DAYS: 30},
         fetcher=SimpleNamespace(sort_and_prune=sort_and_prune),
     )
     dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.6 if _interval_pv50 == 1.0 else 0.8  # pyright: ignore[reportAttributeAccessIssue]
@@ -501,7 +499,7 @@ async def test_apply_recovered_history_logs_nonconsecutive_date_spans(caplog: py
             }
         },
         data_actuals_dampened={SITE_INFO: {site_id: {FORECASTS: []}}},
-        advanced_options={"history_max_days": 30},
+        advanced_options={ADVANCED_HISTORY_MAX_DAYS: 30},
         fetcher=SimpleNamespace(sort_and_prune=sort_and_prune),
     )
     dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.6 if _interval_pv50 == 1.0 else 0.8  # pyright: ignore[reportAttributeAccessIssue]
@@ -533,12 +531,12 @@ async def test_apply_recovered_history_no_actuals_match() -> None:
         tz=ZoneInfo(ZONE_RAW),
         data_actuals={SITE_INFO: {site_id: {FORECASTS: [{PERIOD_START: actual_period, ESTIMATE: 2.0}]}}},
         data_actuals_dampened={SITE_INFO: {}},
-        advanced_options={"history_max_days": 30},
+        advanced_options={ADVANCED_HISTORY_MAX_DAYS: 30},
         fetcher=SimpleNamespace(sort_and_prune=None),  # Must not be called.
     )
     dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.8  # pyright: ignore[reportAttributeAccessIssue]
 
-    # Recovered timestamp doesn't match any actual in data_actuals → actuals_undampened is empty → continue.
+    # Recovered timestamp doesn't match any actual in data_actuals, so actuals_undampened is empty and we continue.
     await dampening.apply_recovered_history({site_id: {recovered_period.timestamp()}})
 
     assert dampening.api.data_actuals_dampened[SITE_INFO] == {}
@@ -557,18 +555,18 @@ async def test_apply_actuals_range_early_return_and_no_actuals() -> None:
         tz=ZoneInfo(ZONE_RAW),
         data_actuals={SITE_INFO: {site_id: {FORECASTS: [{PERIOD_START: base, ESTIMATE: 1.0}]}}},
         data_actuals_dampened={SITE_INFO: {}},
-        advanced_options={"history_max_days": 30},
+        advanced_options={ADVANCED_HISTORY_MAX_DAYS: 30},
         fetcher=SimpleNamespace(sort_and_prune=None),  # Must not be called.
     )
     dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.8  # pyright: ignore[reportAttributeAccessIssue]
 
-    # start == end → early return.
+    # start == end: early return.
     await dampening._apply_actuals_range(base, base)
 
-    # start > end → early return.
+    # start > end: early return.
     await dampening._apply_actuals_range(base + timedelta(hours=1), base)
 
-    # start < end but the only actual (at base) falls outside [base+1h, base+2h) → continue.
+    # start < end but the only actual (at base) falls outside [base+1h, base+2h), so we continue.
     await dampening._apply_actuals_range(base + timedelta(hours=1), base + timedelta(hours=2))
 
     # sort_and_prune was None and never called — confirms no dampening was written.
@@ -590,9 +588,9 @@ def test_compute_power_intervals_time_weighted_averaging() -> None:
     intervals = _make_intervals(period_start)
 
     # Interval 1 (00:00-00:30): 4.0 kW for 15 min, then 0.0 kW for 15 min.
-    #   weighted avg = (4.0*900 + 0.0*900) / 1800 = 2.0 kW → 2.0 * 0.5 = 1.0 kWh
+    #   weighted avg = (4.0*900 + 0.0*900) / 1800 = 2.0 kW, giving 2.0 * 0.5 = 1.0 kWh
     # Interval 2 (00:30-01:00): constant 6.0 kW.
-    #   weighted avg = 6.0 kW → 6.0 * 0.5 = 3.0 kWh
+    #   weighted avg = 6.0 kW, giving 6.0 * 0.5 = 3.0 kWh
     power_readings: list[tuple[dt, float]] = [
         (period_start, 4.0),
         (period_start + timedelta(minutes=15), 0.0),
@@ -612,12 +610,12 @@ def test_compute_power_intervals_time_weighted_averaging() -> None:
 
 
 def test_compute_power_intervals_watt_conversion() -> None:
-    """Test power intervals with pre-converted W→kW values (factor 0.001)."""
+    """Test power intervals with pre-converted W to kW values (factor 0.001)."""
 
     period_start = dt(2026, 2, 8, 0, 0, tzinfo=datetime.UTC)
     intervals = _make_intervals(period_start)
 
-    # 2000 W * 0.001 = 2.0 kW constant for 30 min → 2.0 * 0.5 = 1.0 kWh
+    # 2000 W * 0.001 = 2.0 kW constant for 30 min, giving 2.0 * 0.5 = 1.0 kWh
     conversion_factor = 0.001
     power_readings: list[tuple[dt, float]] = [
         (period_start, 2000.0 * conversion_factor),
@@ -629,8 +627,8 @@ def test_compute_power_intervals_watt_conversion() -> None:
 
     result = compute_power_intervals(power_readings, intervals)
 
-    assert result is True, "W→kW conversion should return True"
-    assert abs(intervals[period_start] - 1.0) < 0.01, f"W→kW interval: expected ~1.0 kWh, got {intervals[period_start]}"
+    assert result is True, "W to kW conversion should return True"
+    assert abs(intervals[period_start] - 1.0) < 0.01, f"W to kW interval: expected ~1.0 kWh, got {intervals[period_start]}"
 
 
 def test_compute_power_intervals_insufficient_readings() -> None:
@@ -771,7 +769,7 @@ async def test_config_flow_mixed_generation_entity_types(
     entry = MockConfigEntry(
         domain=DOMAIN,
         unique_id="solcast_pv_solar",
-        title="Solcast PV Forecast",
+        title=INTEGRATION,
         data=copy.deepcopy(DEFAULT_INPUT2),
         options=copy.deepcopy(DEFAULT_INPUT2),
     )
@@ -804,4 +802,249 @@ async def test_config_flow_mixed_generation_entity_types(
     user_input[GENERATION_ENTITIES] = ["sensor.energy_sensor", "sensor.power_sensor"]
     user_input[SITE_EXPORT_ENTITY] = []
     result = await flow.async_step_init(user_input)
-    assert result["errors"]["base"] == "generation_mixed_types"  # type: ignore[index]
+    assert result["errors"]["base"] == EXCEPTION_GENERATION_MIXED_TYPES  # type: ignore[index]
+
+
+def test_target_timestamp_shifts_to_target_day() -> None:
+    """_target_timestamp should preserve the UTC time-of-day on the target day."""
+    dampening = Dampening.__new__(Dampening)
+    past_ts = dt(2025, 1, 10, 13, 30, tzinfo=datetime.UTC)
+    target_day = dt(2025, 1, 25, 0, 0, tzinfo=datetime.UTC)
+    result = dampening._target_timestamp(past_ts, target_day)  # type: ignore[attr-defined]
+    assert result == dt(2025, 1, 25, 13, 30, tzinfo=datetime.UTC)
+
+
+def test_elevation_adjustment_ratio_near_horizon_returns_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ratio returns 1.0 when either sun elevation is below 5 degrees."""
+
+    class _Loc:
+        def __init__(self, elev_seq: list[float]) -> None:
+            self._elev_seq = list(elev_seq)
+
+        def solar_elevation(self, _when: dt) -> float:
+            return self._elev_seq.pop(0)
+
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(hass=SimpleNamespace())  # type: ignore[attr-defined]
+
+    # Past below horizon, target above
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc([2.0, 40.0]), 0),
+    )
+    assert dampening.elevation_adjustment_ratio(NOW, NOW) == 1.0
+
+    # Past above, target below horizon
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc([40.0, 2.0]), 0),
+    )
+    assert dampening.elevation_adjustment_ratio(NOW, NOW) == 1.0
+
+
+def test_elevation_adjustment_ratio_clamping_bounds(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ratio is clamped to [0.5, 2.0]."""
+
+    class _Loc:
+        def __init__(self, elev_past: float, elev_target: float) -> None:
+            self.elev_past = elev_past
+            self.elev_target = elev_target
+            self._call = 0
+
+        def solar_elevation(self, _when: dt) -> float:
+            self._call += 1
+            return self.elev_past if self._call == 1 else self.elev_target
+
+        def solar_azimuth(self, _when: dt) -> float:
+            return 180.0
+
+    dampening = Dampening.__new__(Dampening)
+    # No tilt/azimuth metadata on sites, so geometry is skipped and clamp is pure elevation. Simple.
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        hass=SimpleNamespace(),
+        options=SimpleNamespace(exclude_sites=[]),
+        sites=[],
+    )  # type: ignore[attr-defined]
+
+    # High target vs low past would give a large ratio -> clamped to 2.0
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc(10.0, 80.0), 0),
+    )
+    assert dampening.elevation_adjustment_ratio(NOW, NOW) == 2.0
+
+    # Low target vs high past would give a tiny ratio -> clamped to 0.5
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc(80.0, 10.0), 0),
+    )
+    assert dampening.elevation_adjustment_ratio(NOW, NOW) == 0.5
+
+
+def test_elevation_adjustment_ratio_uses_site_geometry(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Tilt and azimuth metadata drive the ratio, diverging from the elevation-only baseline."""
+
+    class _Loc:
+        def solar_elevation(self, when: dt) -> float:
+            return 35.0 if when.day == 1 else 55.0
+
+        def solar_azimuth(self, when: dt) -> float:
+            return 90.0 if when.day == 1 else 240.0
+
+    past_ts = dt(2025, 6, 1, 12, 0, tzinfo=datetime.UTC)
+    target_ts = dt(2025, 6, 2, 12, 0, tzinfo=datetime.UTC)
+
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        hass=SimpleNamespace(),
+        options=SimpleNamespace(exclude_sites=[]),
+        sites=[
+            {RESOURCE_ID: "east", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 90.0},
+            {RESOURCE_ID: "west", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 270.0},
+        ],
+    )  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc(), 0),
+    )
+
+    base_ratio = math.sin(math.radians(55.0)) / math.sin(
+        math.radians(35.0)
+    )  # About 1.428, which is the elevation-only ratio we expect to be adjusted by geometry.
+    ratio = dampening.elevation_adjustment_ratio(past_ts, target_ts)
+
+    # Computed geometry ratios per site:
+    #   east (panel_azimuth=90):
+    #     past_gain  = sin(35) x cos(30) + cos(35) x sin(30) x cos(90-90)   ≈ 0.9063
+    #     target_gain= sin(55) x cos(30) + cos(55) x sin(30) x cos(240-90)  ≈ 0.4610
+    #     ratio_east ≈ 0.509
+    #   west (panel_azimuth=270):
+    #     past_gain  = sin(35) x cos(30) + cos(35) x sin(30) x cos(90-270)  ≈ 0.0872
+    #     target_gain= sin(55) x cos(30) + cos(55) x sin(30) x cos(240-270) ≈ 0.9578
+    #     ratio_west ≈ 10.99
+    #   average ~= 5.75, clamped to 2.0
+    assert ratio == pytest.approx(2.0)
+    assert ratio > base_ratio
+
+
+def test_elevation_adjustment_ratio_falls_back_when_all_sites_face_away(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Ratio falls back to elevation-only when every site's panel faces away (zero gain)."""
+
+    class _Loc:
+        def solar_elevation(self, when: dt) -> float:
+            return 35.0 if when.day == 1 else 55.0
+
+        def solar_azimuth(self, _when: dt) -> float:
+            return 90.0
+
+    past_ts = dt(2025, 6, 1, 12, 0, tzinfo=datetime.UTC)
+    target_ts = dt(2025, 6, 2, 12, 0, tzinfo=datetime.UTC)
+
+    dampening = Dampening.__new__(Dampening)
+    # Tilt=90, panel faces directly away from sun (azimuth delta=180°), so gain <= 0 for both timestamps.
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        hass=SimpleNamespace(),
+        options=SimpleNamespace(exclude_sites=[]),
+        sites=[{RESOURCE_ID: "a", SITE_ATTRIBUTE_TILT: 90, SITE_ATTRIBUTE_AZIMUTH: 270}],
+    )  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc(), 0),
+    )
+
+    base_ratio = math.sin(math.radians(55.0)) / math.sin(
+        math.radians(35.0)
+    )  # About 1.428, we want it to approximately match this time for the "impossible fallback".
+    ratio = dampening.elevation_adjustment_ratio(past_ts, target_ts)
+    assert ratio == pytest.approx(base_ratio)
+
+
+def test_elevation_adjustment_ratio_unclamped_value(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Geometry ratio is returned unchanged when it falls within [0.5, 2.0]."""
+
+    class _Loc:
+        def solar_elevation(self, when: dt) -> float:
+            return 35.0 if when.day == 1 else 55.0
+
+        def solar_azimuth(self, _when: dt) -> float:
+            return 180.0  # Sun due south at both timestamps.
+
+    past_ts = dt(2025, 6, 1, 12, 0, tzinfo=datetime.UTC)
+    target_ts = dt(2025, 6, 2, 12, 0, tzinfo=datetime.UTC)
+
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        hass=SimpleNamespace(),
+        options=SimpleNamespace(exclude_sites=[]),
+        sites=[{RESOURCE_ID: "south", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 180.0}],
+    )  # type: ignore[attr-defined]
+
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc(), 0),
+    )
+
+    # Single south-facing site, sun due south at both timestamps
+    past_gain = math.sin(math.radians(35.0)) * math.cos(math.radians(30.0)) + math.cos(math.radians(35.0)) * math.sin(math.radians(30.0))
+    target_gain = math.sin(math.radians(55.0)) * math.cos(math.radians(30.0)) + math.cos(math.radians(55.0)) * math.sin(math.radians(30.0))
+    expected = target_gain / past_gain
+
+    ratio = dampening.elevation_adjustment_ratio(past_ts, target_ts)  # 1.099 expected
+    assert ratio == pytest.approx(expected)
+    assert 0.5 < ratio < 2.0  # Confirm no clamping occurred.
+
+
+async def test_calculate_elevation_adjustment_applied(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Exercise calculate() with elevation adjustment enabled."""
+
+    tz = ZoneInfo("Australia/Sydney")
+    api = MagicMock()
+    api.tz = tz
+    api.hass = SimpleNamespace()
+    api.dt_helper = DateTimeHelper(tz)
+    api.peak_intervals = [1.0] * 48
+    api.advanced_options = {
+        ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: False,
+        ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS: 2,
+        ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION: 2,
+        ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR: 0.95,
+        ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: True,
+    }
+    api.filename_generation = tempfile.NamedTemporaryFile(delete=False).name
+    api.filename_dampening = tempfile.NamedTemporaryFile(delete=False).name
+
+    dampening = Dampening(api)
+
+    # Stub astral so the ratio is deterministic and non-unity.
+    class _Loc:
+        def solar_elevation(self, _when: dt) -> float:
+            return 60.0 if _when.day % 2 == 0 else 30.0
+
+        def solar_azimuth(self, _when: dt) -> float:
+            return 180.0
+
+    monkeypatch.setattr(
+        "homeassistant.components.solcast_solar.dampen.get_astral_location",
+        lambda _hass: (_Loc(), 0),
+    )
+
+    interval = 20
+    timestamps = [
+        dt(2025, 10, 1, 0, 0, tzinfo=tz),  # elev 30
+        dt(2025, 10, 2, 0, 0, tzinfo=tz),  # elev 60
+        dt(2025, 10, 3, 0, 0, tzinfo=tz),  # elev 30
+    ]
+    # Third sample has act==0.0 -> hits the `act <= 0` short-circuit branch.
+    gen_values = [0.8, 0.7, 0.5]
+    act_values = [1.0, 1.0, 0.0]
+
+    matching_intervals: dict[int, list[dt]] = {interval: timestamps}
+    generation = dict(zip(timestamps, gen_values, strict=True))
+    actuals = OrderedDict(zip(timestamps, act_values, strict=True))
+
+    result = await dampening.calculate(matching_intervals, generation, actuals, [], 1)
+
+    assert len(result) == 48
+    assert result[interval] <= 1.0

@@ -118,7 +118,7 @@ Note the importance of getting your Solcast site configuration correct. Use the 
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_tilt.png" width="600">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_tilt.png)
 
-Azimuth is _not_ set as a 0-359 degree value, but rather as 0-180 for westerly facing, or zero to _minus_ 179 for easterly facing. This value is the number of degrees angled away from North, with the sign being West or East. If you're not sure, then do some quick research.
+Azimuth is _not_ set as a 0-359 degree value, but rather as 0-180 for westerly facing, or zero to _minus_ 179 for easterly facing. This value is the number of degrees angled away from North, with the sign being westerly (positive) or easterly (negative). If you're not sure, then do some quick research.
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth.png" width="300">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth.png)
 
@@ -127,6 +127,8 @@ An old-school method that can work is to get a North-oriented Google Maps satell
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_house.png" width="300">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/azimuth_house.png)
 
 Using Google Earth or ChatGPT are other alternatives.
+
+Once set up, the integration provides azimuth values as compass degrees and direction in the rooftop site sensor attributes, as well as in diagnostic dump and service action for a self-diagnostic. These values can be used to double-check your azimuth setting in the Solcast toolkit at https://toolkit.solcast.com.au/.
 
 > [!NOTE]
 >
@@ -137,7 +139,7 @@ Using Google Earth or ChatGPT are other alternatives.
 >
 > On start-up, the integration will validate your Solcast azimuth setting in order to highlight a potential misconfiguration and will issue a warning message in the Home Assistant log and raise an issue if it detects an unusual roof alignment. If you receive this warning and have confirmed your Solcast settings are correct then the warning message can simply be ignored. The warning is there to try to catch configuration mistakes.
 >
-> There are always outlier installations, like two rooftops that face both West and East with panels installed on both faces, 180 degrees from each other. One rooftop is going to be considered "unusual". Check the azimuth according to Solcast, and fix or ignore the warning as appropriate. Remember, 0° = NORTH according to Solcast, with orientations being relative to this.
+> There are always outlier installations, like two rooftops that face both West and East with panels installed on both faces, 180 degrees from each other. One rooftop is going to be considered "unusual". Check the azimuth according to Solcast plus the diagnostic data available, and fix or ignore the warning as appropriate. Remember, 0° = NORTH according to Solcast, with orientations being relative to this.
 
 ## Installation
 
@@ -492,6 +494,9 @@ For the `Forecast Next X Hours` sensor only:
 For daily forecast sensors only:
 
 * `analysis`: Forecast confidence analysis derived from the spread between `estimate10` and `estimate90` (dict), contains the day totals for `estimate10_kwh` and `estimate90_kwh`, the `spread_kwh` between them, a `confidence` score (0–1, where 1 = quite certain, 0.1 not so much), and an `intervals` list with per-half-hour `period_start`, `spread_kwh` and `confidence` values.
+* `undampened_estimate`: Undampened daily total for the 50th percentile forecast (number, kWh). Only present when dampening is in use.
+* `undampened_estimate10`: Undampened daily total for the 10th percentile forecast (number, kWh). Only present when dampening is in use.
+* `undampened_estimate90`: Undampened daily total for the 90th percentile forecast (number, kWh). Only present when dampening is in use.
 * `detailedForecast`: A half-hourly breakdown of expected average power generation for each interval (list of dicts, units in kW, not kWh), and if automated dampening is active then the factor determined for each interval is also included
 * `detailedHourly`: An hourly breakdown of expected average power generation for each interval (list of dicts, units in kW)
 * `detailedForecast_1234_5678_9012_3456`: A half-hourly site-specific breakdown of expected average power generation for each interval (list of dicts, units in kW)
@@ -593,6 +598,8 @@ action: solcast_solar.query_estimate_data
 data:
   start_date_time: 2024-10-06T00:00:00.000Z
   end_date_time: 2024-10-06T10:00:00.000Z
+  dampened: false (optional)
+  site: 1234-5678-9012-3456 (optional)
 ```
 
 ```yaml
@@ -624,7 +631,7 @@ action: solcast_solar.diagnostic
 response_variable: result
 ```
 
-The `diagnostic` action returns a structured health report. Use it in a script with `response_variable` to inspect the result, or call it from **Developer tools** | **Actions** with **Perform action** to see the output directly.
+The `diagnostic` action returns a structured health report. Use it in a script with `response_variable` to inspect the result, or call it from _Developer tools_ | _Actions_ with _Perform action_ to see the output directly. This health check detail is also included in the integration `Download diagnostics` JSON file, with that dump also including system summary, forecast data and Energy dashboard data.
 
 The response contains a `data` object with the following fields:
 
@@ -632,24 +639,46 @@ The response contains a `data` object with the following fields:
 | --- | --- | --- |
 | `overall_status` | string | `"ok"` when no issues are found, otherwise `"issues_found"` |
 | `issues` | list | Description of every problem detected. Empty when status is `"ok"` |
-| `api` | object | API limit and use, failure counts, forced update use, last update/attempt timestamps, and status names |
-| `sites` | list | One entry per configured rooftop site (`resource_id`, `name`) |
+| `api` | object | API state summary (`api_keys_configured`, `api_used`, `api_limit`, `api_remaining`, `api_force_used`, `api_actuals_used`, `last_updated`, `last_attempt`, `actuals_updated`, `actuals_attempt`, `failures_last_24h`, `failures_last_7d`, `status`, `sites_status`, `usage_status`) |
+| `sites` | list | One entry per configured rooftop site (`resource_id`, `name`, `compass_degrees`, `compass_direction`) |
 | `cache_files` | object | Whether each data cache file exists on disk (`forecast`, `undampened`, `actuals`, `actuals_dampened`, `dampening`, `dampening_history`, `generation`, `advanced`) |
 | `configuration` | object | Active configuration summary (`auto_update`, `key_estimate`, `get_actuals`, `use_actuals`, `auto_dampen`, `hard_limit`, `excluded_sites`) |
 | `dampening` | object | Dampening feature state (`enabled`, `auto_dampening`, `has_granular_factors`, `dampening_file_exists`) |
+| `forecast_health` | object | Evaluated forecast freshness (`status`, `stale_start`, `missed_auto_update`, `expected_interval`, `auto_update_divisions`, `last_updated`, `last_attempt`) |
+| `actuals_health` | object | Evaluated estimated-actuals availability and freshness (`status`, `site_data_present`, `configured_sites`, `sites_with_data`, `missing_sites`, `last_updated`, `last_attempt`) |
+| `excluded_sites` | object | Validation result for configured excluded site IDs (`configured`, `unknown_sites`, `all_valid`) |
+| `usage_health` | object | Evaluated API usage cache health (`status`, `ok`) |
 | `generation_entities` | list | Validation result for each generation entity when auto-dampening is enabled (`entity_id`, `status`: `ok`/`not_found`/`disabled`/`unavailable`) |
 | `export_entity` | object | Validation result for the site export entity when configured (`entity_id`, `status`). Empty object when not configured |
 | `recorder_available` | boolean | Whether the Home Assistant recorder component is loaded |
 
 The `issues` list will include messages such as:
 - `"API quota exhausted for today"` (may not indicate a failure situation, just that no further un-forced updates can occur)
-- `"N API failure(s) in the last 24 hours"` (since UTC midnight)
+- `"N API failure(s) since midnight UTC"`
 - `"No sites configured"`
 - `"Forecast cache file missing"`
+- `"Forecast data has not been fetched yet"` / `"Forecast data is stale"` / `"Forecast data missed the expected auto-update interval"`
+- `"Estimated actuals are enabled but no actuals data is available"` / `"Estimated actuals data is stale"`
+- `"Excluded sites are not configured: <site_id>"`
 - `"Auto-dampening enabled but no generation entities configured"`
 - `"Generation entity <id> not found in registry"` / `"is disabled"` / `"is unavailable"`
 - `"Export entity <id> not found in registry"` / `"is disabled"` / `"is unavailable"`
 - `"Recorder not available but required for auto-dampening"`
+
+The `api.status`, `api.sites_status`, and `api.usage_status` fields report the raw runtime state names. `usage_status` is one of `OK`, `ERROR`, or `UNKNOWN`.
+
+The `forecast_health.status` field is one of:
+- `fresh`: forecast data is present and current
+- `missing`: forecast data has not been fetched yet
+- `stale`: forecast data is older than the integration stale-start threshold
+- `missed_interval`: auto-update is enabled and the last expected update window was missed
+- `indeterminate`: freshness cannot be inferred because the previous update was forced or the auto-update division count changed
+
+The `actuals_health.status` field is one of:
+- `disabled`: estimated actuals fetching is disabled
+- `fresh`: actuals data is present and current
+- `missing`: estimated actuals are enabled but no site data has been recorded yet
+- `stale`: actuals data exists but is older than the previous UTC day threshold
 
 ### Configuration
 
@@ -659,7 +688,7 @@ The `issues` list will include messages such as:
 
 ### Diagnostic
 
-All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Rooftop site name`.
+All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Rooftop site name` (the rooftop entity names are prepended with `solcast_pv_solar` for new installs).
 
 | Name | Type | Attributes | Unit | Description |
 | ------------------------------ | ----------- | ----------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -674,11 +703,14 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 
 `API Used` attributes include the following:
 
+* `api_actuals_used`: The count of successful estimated actuals API calls today (always untracked).
 * `api_force_used`: The count of successful forced API calls today (those that bypassed the API limit tracked).
+* `daily_typical_forecast_updates`: The integration learns the typical forecast update cadence (excluding actuals updates).
+* `api_used_total_combined`: A simple running total of forecast updates, forced forecast updates and estimated actual updates.
 
 `API Last Polled` attributes include the following:
 
-* `failure_count_today`: The count of failures (like `429/Too busy`) that have occurred since midnight local time.
+* `failure_count_today`: The count of failures (like `429/Too busy`) that have occurred since midnight UTC.
 * `failure_count_7_day`: The count of failures that have occurred over the past seven days.
 * `last_attempt`: The date/time of last attempted forecast update. "Currently healthy" is considered last polled >= last attempt.
 
@@ -762,6 +794,7 @@ undampened_p90_ape: 14.72
 `Rooftop site name` attributes include:
 
 * `azimuth` / `tilt`: Panel orientation.
+* `compass_degrees` / `compass_direction`: The Solcast azimuth 'translated' as a compass degree value and direction (e.g. SW/NNW/ENE)
 * `capacity`: Site capacity in AC power.
 * `capacity_dc`: Site capacity in DC power.
 * `install_date`: Configured installation date.
@@ -826,6 +859,8 @@ The theory of operation is simple, relying on two key inputs, and an optional th
 Automated dampening first builds a "consistently best" set of (more than one) half-hourly [estimated actual](https://github.com/BJReplay/ha-solcast-solar/issues/373#key-input-estimated-actual-data-from-solcast) generation periods from the past fourteen days. (This is not actual site generation, but a "best guess" by Solcast of what should have been generated).
 
 It then compares that to [generation history](#key-input-actual-pv-generation-for-your-site) for these periods (excluding generation periods where export limits may have been hit by [optional export limiting](#optional-input-site-export-to-the-grid-combined-with-a-limit-value), or when intentionally suppressed). The highest actual generation value is selected from the similar best-estimated actual periods, but only if there is more than one generation value. This value determines whether external factors are likely impacting generation, and is used to calculate a "base" dampening factor.
+
+Historical generation and estimated actual values are adjusted to account for changing sun geometry before they are compared. This normalises comparison of days when the sun tracked a different arc across the sky, which is particularly useful for spring and autumn with adjustment strongest around sunrise and sunset, and for sites further from the equator.
 
 As automated dampening is looking to identify when shading is affecting your solar generation it will discard 'non-best estimated PV generation' day intervals. These are intervals on days when PV generation is reduced due to cloud, rain, etc.
 
@@ -1050,13 +1085,19 @@ Un-dampened forecast history is retained for just 14 days.
 
 When calculating dampening using an automation it may be beneficial to use estimated actual past values as input.
 
-This is possible by using the action `solcast_solar.query_estimate_data`. The site may not be included in the action parameters presently. (If a site breakdown is desired, then raise an issue or a discussion topic.)
+This is possible by using the action `solcast_solar.query_estimate_data`. The optional `site` parameter may be included to return a single-site breakdown, and the optional `dampened` parameter may be used to return dampened estimated actuals.
+
+If `start_date_time` and `end_date_time` are omitted, the action defaults to returning all intervals for yesterday (from UTC day start - 1 day to UTC day start).
+
+If estimated actuals for that default range are not available yet (for example, estimated actuals are disabled or no data has been fetched for yesterday), the action returns: "The requested data range is not available."
 
 ```yaml
 action: solcast_solar.query_estimate_data
 data:
   start_date_time: 2024-10-08T12:00:00+11:00
   end_date_time: 2024-10-08T19:00:00+11:00
+  dampened: true
+  site: 1111-aaaa-bbbb-2222
 ```
 
 Estimated actual data is retained for 730 days.
@@ -1408,6 +1449,24 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 ## Changes
 
 Latest minor/patch releases.
+
+v4.5.3
+
+* Fix enable estimated actuals skips a day (caution: enabling may exhaust API calls available for a day) by @autoSteve
+* Add `api_actuals_used` attribute to API Used Total entity by @autoSteve
+* Add `daily_typical_forecast_updates` and `api_used_total_combined` attributes by @autoSteve
+* Add sun elevation adjustment for automated dampening by @autoSteve
+* Expanded diagnostic self-test service action by @autoSteve
+* Add undampened total forecast attributes when dampening is enabled by @autoSteve
+* Enable return of per-site and un-dampened estimated actuals by @autoSteve
+* Include health check detail in diagnostic download by @autoSteve
+* Add per-site compass degree and direction attributes and diagnostics by @autoSteve
+* Expand scope for raised issue when actuals enabled and API limit is too high by @autoSteve
+* Code refactoring by @autoSteve
+* Add tests to suite to ensure runtime reliability by @autoSteve
+* API simulator improvements by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.5.2...v4.5.3
 
 v4.5.2
 
@@ -1958,7 +2017,7 @@ v4.0.23
 v4.0.22
 - this time weather sensor is gone.. and midnight UTC reset works
 - (*)added a config for setting a hard limit for inverters with over sized solar arrays
-   *99.9999999% of users will not need to ever user and set this (0.00000001% is @CarrapiettM)
+   *99.9999999% of users will not need to ever use and set this (0.00000001% is @CarrapiettM)
 
 v4.0.21
 - removed weather sensor as it keeps failing with errors

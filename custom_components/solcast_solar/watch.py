@@ -1,122 +1,33 @@
-"""Solcast PV forecast, file monitoring."""
-
-from __future__ import annotations
+"""Solcast file monitoring."""
 
 import asyncio
-from enum import Enum
+from datetime import datetime as dt
 import logging
 from pathlib import Path
+from threading import Event
 from typing import TYPE_CHECKING, Any
 
-from watchdog.events import (
-    DirCreatedEvent,
-    DirDeletedEvent,
-    DirModifiedEvent,
-    DirMovedEvent,
-    FileCreatedEvent,
-    FileDeletedEvent,
-    FileModifiedEvent,
-    FileMovedEvent,
-    FileSystemEventHandler,
-)
-from watchdog.observers import Observer
+from watchfiles import Change, awatch
 
+from homeassistant.core import CALLBACK_TYPE
 from homeassistant.helpers.event import async_call_later
 
 from .const import (
     ADVANCED_RELOAD_ON_ADVANCED_CHANGE,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
-    EVENT,
     SITE_DAMP,
-    TASK_WATCHDOG_ADVANCED,
-    TASK_WATCHDOG_ADVANCED_FILE_CHANGE,
-    TASK_WATCHDOG_DAMPENING,
-    TASK_WATCHDOG_DAMPENING_FILE_CHANGE,
-    TASK_WATCHDOG_DAMPENING_LEGACY,
+    TASK_WATCH_ADVANCED,
+    TASK_WATCH_ADVANCED_FILE_CHANGE,
+    TASK_WATCH_DAMPENING,
+    TASK_WATCH_DAMPENING_FILE_CHANGE,
+    TASK_WATCH_DAMPENING_LEGACY,
 )
 
 if TYPE_CHECKING:
-    from datetime import datetime as dt
-
     from .coordinator import SolcastUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-
-
-class FileEvent(Enum):
-    """File event types."""
-
-    NO_EVENT = 0
-    CREATE = 1
-    UPDATE = 2
-    DELETE = 3
-
-
-class StartEventHandler(FileSystemEventHandler):
-    """Handle start file monitoring."""
-
-    def __init__(self, watcher: FileWatcher, task: str, path: str, direct_task: str = "") -> None:
-        """Initialise the start event handler.
-
-        Arguments:
-            watcher: The file watcher instance.
-            task: The task identifier.
-            path: The file path to watch.
-            direct_task: An optional direct task identifier.
-
-        """
-        self._watcher = watcher
-        self._task = task
-        self._direct_task = direct_task
-        self._path = path
-        super().__init__()
-
-    def on_created(self, event: DirCreatedEvent | FileCreatedEvent) -> None:
-        """File has been created."""
-        coordinator = self._watcher.coordinator
-        if isinstance(event, FileCreatedEvent) and (coordinator.tasks.get(self._task) is None or self._direct_task):
-            if event.src_path == self._path:
-                self._watcher.watchdog[self._task if not self._direct_task else self._direct_task][EVENT] = FileEvent.CREATE
-
-    def on_moved(self, event: DirMovedEvent | FileMovedEvent) -> None:
-        """File has been moved/renamed away from self._path."""
-        coordinator = self._watcher.coordinator
-        # Moved out
-        if isinstance(event, FileMovedEvent) and coordinator.tasks.get(self._task) is not None:
-            if event.src_path == self._path:
-                self._watcher.watchdog[self._task][EVENT] = FileEvent.DELETE
-        # Moved in
-        if isinstance(event, FileMovedEvent) and coordinator.tasks.get(self._task) is None:
-            if event.dest_path == self._path:
-                self._watcher.watchdog[self._task][EVENT] = FileEvent.CREATE
-
-
-class EventHandler(FileSystemEventHandler):
-    """Handle file modification."""
-
-    def __init__(self, watcher: FileWatcher, task: str, path: str) -> None:
-        """Initialise the event handler.
-
-        Arguments:
-            watcher: The file watcher instance.
-            task: The task identifier.
-            path: The file path to watch.
-
-        """
-        self._watcher = watcher
-        self._task = task
-        self._path = path
-        super().__init__()
-
-    def on_deleted(self, event: DirDeletedEvent | FileDeletedEvent) -> None:
-        """File has been deleted."""
-        self._watcher.watchdog[self._task][EVENT] = FileEvent.DELETE
-
-    def on_modified(self, event: DirModifiedEvent | FileModifiedEvent) -> None:
-        """File has been modified."""
-        if isinstance(event, FileModifiedEvent) and self._watcher.watchdog[self._task][EVENT] != FileEvent.UPDATE:
-            self._watcher.watchdog[self._task][EVENT] = FileEvent.UPDATE
 
 
 class FileWatcher:
@@ -130,178 +41,255 @@ class FileWatcher:
 
         """
         self.coordinator = coordinator
-        self.watchdog: dict[str, dict[str, Any]] = {
-            TASK_WATCHDOG_DAMPENING: {EVENT: FileEvent.NO_EVENT},
-            TASK_WATCHDOG_DAMPENING_LEGACY: {EVENT: FileEvent.NO_EVENT},
-            TASK_WATCHDOG_ADVANCED: {EVENT: FileEvent.NO_EVENT},
+        self._pending_restart: CALLBACK_TYPE | None = None
+
+    def _awatch_kwargs(self, stop_event: Event | None) -> dict[str, Any]:
+        """Return common watchfiles arguments for responsive shutdown."""
+        return {
+            "debounce": 50,
+            "step": 10,
+            "stop_event": stop_event,
         }
 
-    async def setup(self) -> None:
-        """Set up file watchdog tasks."""
+    def _start_managed_task(self, task_name: str, coro: Any) -> None:
+        """Start a task whose cancellation also stops its watchfiles iterator."""
         coordinator = self.coordinator
-        coordinator.tasks[TASK_WATCHDOG_ADVANCED_FILE_CHANGE] = (
-            asyncio.create_task(self.watch_for_file(TASK_WATCHDOG_ADVANCED, coordinator.file_advanced, self.watch_advanced_file))
-        ).cancel
+        stop_event = Event()
+        task = asyncio.create_task(coro(stop_event))
+
+        def cancel() -> None:
+            stop_event.set()
+            task.cancel()
+
+        coordinator.tasks[task_name] = cancel
+
+    def _path_exists(self, file_path: str) -> bool:
+        """Return whether a path exists, tolerating transient filesystem races."""
+        try:
+            return Path(file_path).exists()
+        except OSError:
+            return False
+
+    async def setup(self) -> None:
+        """Set up file watcher tasks."""
+        coordinator = self.coordinator
+        self._start_managed_task(
+            TASK_WATCH_ADVANCED_FILE_CHANGE,
+            lambda stop_event: self.watch_for_file(
+                TASK_WATCH_ADVANCED,
+                coordinator.file_advanced,
+                self.watch_advanced_file,
+                process_on_add=True,
+                stop_event=stop_event,
+            ),
+        )
         if not coordinator.solcast.options.auto_dampen:
-            coordinator.tasks[TASK_WATCHDOG_DAMPENING_FILE_CHANGE] = (
-                asyncio.create_task(self.watch_for_file(TASK_WATCHDOG_DAMPENING, coordinator.file_dampening, self.watch_dampening_file))
-            ).cancel
+            self._start_managed_task(
+                TASK_WATCH_DAMPENING_FILE_CHANGE,
+                lambda stop_event: self.watch_for_file(
+                    TASK_WATCH_DAMPENING,
+                    coordinator.file_dampening,
+                    self.watch_dampening_file,
+                    process_on_add=False,
+                    stop_event=stop_event,
+                ),
+            )
             if CONFIG_FOLDER_DISCRETE:
-                coordinator.tasks[TASK_WATCHDOG_DAMPENING_LEGACY] = (asyncio.create_task(self.watch_for_dampening_legacy_location())).cancel
+                self._start_managed_task(
+                    TASK_WATCH_DAMPENING_LEGACY,
+                    self.watch_for_dampening_legacy_location,
+                )
         else:
             _LOGGER.debug("Not monitoring dampening file, auto-dampening is enabled")
 
-    async def _restart(self, called_at: dt | None = None) -> None:
+    async def _restart(self, _called_at: dt | None = None) -> None:
         """Restart the integration to apply advanced configuration changes."""
+        self._pending_restart = None
         coordinator = self.coordinator
         await coordinator.solcast.tasks_cancel()
         await coordinator.tasks_cancel()
         await coordinator.hass.config_entries.async_reload(coordinator.entry.entry_id)
 
-    async def watch_for_file(self, task: str, file_path: str, handler: Any) -> None:
-        """Watch for file modification."""
+    def _watch_dir(self, file_path: str) -> str:
+        """Return the directory to watch for a given file path."""
+        if CONFIG_FOLDER_DISCRETE:
+            return f"{self.coordinator.hass.config.config_dir}/{CONFIG_DISCRETE_NAME}"
+        return str(Path(file_path).parent)
+
+    async def watch_for_file(
+        self,
+        task: str,
+        file_path: str,
+        handler: Any,
+        process_on_add: bool = True,
+        stop_event: Event | None = None,
+    ) -> None:
+        """Watch for file creation and start the handler task when the file appears."""
+        coordinator = self.coordinator
+
+        if self._path_exists(file_path):
+            self._start_managed_task(task, lambda handler_stop_event: handler(False, handler_stop_event))
+            _LOGGER.debug("Running task %s", task)
+
+        async for changes in awatch(
+            self._watch_dir(file_path),
+            watch_filter=lambda change, path: path == file_path and change == Change.added,
+            **self._awatch_kwargs(stop_event),
+        ):
+            for change_type, changed_path in changes:
+                if (
+                    change_type == Change.added
+                    and changed_path == file_path
+                    and coordinator.tasks.get(task) is None
+                    and self._path_exists(file_path)
+                ):
+                    self._start_managed_task(task, lambda handler_stop_event: handler(process_on_add, handler_stop_event))
+                    _LOGGER.debug("Running task %s", task)
+
+    async def _handle_dampening_update(self, file_path: str) -> None:
+        """Refresh dampening data after a file change."""
         coordinator = self.coordinator
 
         try:
-            if Path(file_path).exists():
-                coordinator.tasks[task] = (asyncio.create_task(handler())).cancel
-                _LOGGER.debug("Running task %s", task)
+            dampening_mtime = Path(file_path).stat().st_mtime
+        except FileNotFoundError:
+            return
 
-            observer = Observer()
-            observer.schedule(
-                StartEventHandler(self, task, file_path),
-                path=f"{coordinator.hass.config.config_dir}/{CONFIG_DISCRETE_NAME}"
-                if CONFIG_FOLDER_DISCRETE
-                else coordinator.hass.config.config_dir,
-                recursive=False,
-            )
-            observer.start()
+        if coordinator.solcast.dampening.factors_mtime != dampening_mtime:
+            _LOGGER.debug("Granular dampening mtime changed")
+            await coordinator.solcast.dampening.refresh_granular_data()
+            await coordinator.solcast.dampening.apply_forward()
+            _LOGGER.debug("Recalculate forecasts and refresh sensors")
+            await coordinator.solcast.build_forecast_data()
+            await coordinator.update_integration_listeners()
 
-            try:
-                while not coordinator.hass.is_stopping:
-                    await asyncio.sleep(1)
-                    if self.watchdog[task][EVENT] == FileEvent.CREATE and coordinator.tasks.get(task) is None and Path(file_path).exists():
-                        self.watchdog[task][EVENT] = FileEvent.UPDATE
-                        coordinator.tasks[task] = (asyncio.create_task(handler())).cancel
-                        _LOGGER.debug("Running task %s", task)
-            finally:
-                observer.stop()
-                observer.join()
-        finally:
-            self.watchdog[task][EVENT] = FileEvent.NO_EVENT
-
-    async def watch_dampening_file(self) -> None:
+    async def watch_dampening_file(
+        self,
+        initial_change: bool = False,
+        stop_event: Event | None = None,
+    ) -> None:
         """Watch for granular dampening JSON file modification."""
         coordinator = self.coordinator
-        task = TASK_WATCHDOG_DAMPENING
-        try:
-            event_handler = EventHandler(self, task, coordinator.file_dampening)
-            observer = Observer()
-            observer.schedule(event_handler, path=coordinator.file_dampening, recursive=False)
-            observer.start()
+        task = TASK_WATCH_DAMPENING
+        file_path = coordinator.file_dampening
 
-            try:
-                while not coordinator.hass.is_stopping and coordinator.tasks and self.watchdog[task][EVENT] != FileEvent.DELETE:
-                    await asyncio.sleep(0.5)
-                    if (
-                        self.watchdog[task][EVENT] == FileEvent.UPDATE
-                        and coordinator.solcast.dampening.factors_mtime != Path(coordinator.file_dampening).stat().st_mtime
-                    ):
-                        self.watchdog[task][EVENT] = FileEvent.NO_EVENT
-                        _LOGGER.debug("Granular dampening mtime changed")
-                        await coordinator.solcast.dampening.refresh_granular_data()
-                        await coordinator.solcast.dampening.apply_forward()
-                        _LOGGER.debug("Recalculate forecasts and refresh sensors")
-                        await coordinator.solcast.build_forecast_data()
-                        coordinator.set_data_updated(True)
-                        await coordinator.update_integration_listeners()
-                        coordinator.set_data_updated(False)
-                if self.watchdog[task][EVENT] == FileEvent.DELETE:
-                    _LOGGER.debug("Granular dampening file deleted, no longer monitoring %s for changes", coordinator.file_dampening)
+        try:
+            if initial_change:
+                await self._handle_dampening_update(file_path)
+
+            async for changes in awatch(
+                str(Path(file_path).parent),
+                watch_filter=lambda change, path: path == file_path,
+                **self._awatch_kwargs(stop_event),
+            ):
+                deleted = False
+                for change_type, _ in changes:
+                    if change_type == Change.deleted:
+                        deleted = True
+                        break
+                    if change_type == Change.modified:
+                        await self._handle_dampening_update(file_path)
+                if deleted:
+                    if self._path_exists(file_path):
+                        _LOGGER.debug("Granular dampening file recreation detected, continuing to monitor %s", file_path)
+                        continue
+                    _LOGGER.debug("Granular dampening file deleted, no longer monitoring %s for changes", file_path)
                     coordinator.solcast.dampening.factors = {}
                     entry = coordinator.solcast.entry
-                    opt = coordinator.solcast.entry_options
-                    opt[SITE_DAMP] = False  # Clear "hidden" option.
+                    opt = {**coordinator.solcast.entry_options}
+                    opt[SITE_DAMP] = False
+                    for hour in range(24):
+                        opt[f"damp{hour:02}"] = coordinator.solcast.damp.get(f"{hour}", opt.get(f"damp{hour:02}", 1.0))
                     coordinator.solcast.dampening.set_allow_granular_reset(True)
                     if entry is not None:
                         coordinator.hass.config_entries.async_update_entry(entry, options=opt)
-            finally:
-                observer.stop()
-                observer.join()
+                    break
         finally:
-            self.watchdog[task][EVENT] = FileEvent.NO_EVENT
             if coordinator.tasks.get(task) is not None:
-                coordinator.tasks[task]()  # Cancel the task
+                if stop_event is None:
+                    coordinator.tasks[task]()
                 coordinator.tasks.pop(task)
                 _LOGGER.debug("Cancelled task %s", task)
 
-    async def watch_advanced_file(self) -> None:
+    async def _handle_advanced_update(self) -> None:
+        """Reload advanced options after a file change."""
+        coordinator = self.coordinator
+
+        change = await coordinator.solcast.advanced_opt.read_advanced_options()
+        if change and coordinator.solcast.advanced_options.get(ADVANCED_RELOAD_ON_ADVANCED_CHANGE, False):
+            _LOGGER.debug("Advanced options changed, restarting")
+            if self._pending_restart is not None:
+                self._pending_restart()
+            self._pending_restart = async_call_later(coordinator.hass, 1, self._restart)
+
+    async def watch_advanced_file(
+        self,
+        initial_change: bool = False,
+        stop_event: Event | None = None,
+    ) -> None:
         """Watch for advanced options JSON file modification."""
         coordinator = self.coordinator
-        task = TASK_WATCHDOG_ADVANCED
-        try:
-            event_handler = EventHandler(self, task, coordinator.file_advanced)
-            observer = Observer()
-            observer.schedule(event_handler, path=coordinator.file_advanced, recursive=False)
-            observer.start()
-            _LOGGER.debug("Monitoring %s", coordinator.file_advanced)
+        task = TASK_WATCH_ADVANCED
+        file_path = coordinator.file_advanced
 
-            try:
-                while not coordinator.hass.is_stopping and coordinator.tasks and self.watchdog[task][EVENT] != FileEvent.DELETE:
-                    await asyncio.sleep(0.5)
-                    if self.watchdog[task][EVENT] == FileEvent.UPDATE:
-                        self.watchdog[task][EVENT] = FileEvent.NO_EVENT
-                        change = await coordinator.solcast.advanced_opt.read_advanced_options()
-                        if change and coordinator.solcast.advanced_options.get(ADVANCED_RELOAD_ON_ADVANCED_CHANGE, False):
-                            _LOGGER.debug("Advanced options changed, restarting")
-                            async_call_later(coordinator.hass, 1, self._restart)
-                if self.watchdog[task][EVENT] == FileEvent.DELETE:
-                    _LOGGER.debug("Advanced options file deleted, no longer monitoring %s for changes", coordinator.file_advanced)
+        try:
+            _LOGGER.debug("Monitoring %s", file_path)
+            if initial_change:
+                await self._handle_advanced_update()
+
+            async for changes in awatch(
+                str(Path(file_path).parent),
+                watch_filter=lambda change, path: path == file_path,
+                **self._awatch_kwargs(stop_event),
+            ):
+                deleted = False
+                for change_type, _ in changes:
+                    if change_type == Change.deleted:
+                        deleted = True
+                        break
+                    if change_type == Change.modified:
+                        await self._handle_advanced_update()
+                if deleted:
+                    _LOGGER.debug("Advanced options file deleted, no longer monitoring %s for changes", file_path)
                     coordinator.solcast.advanced_opt.set_default_advanced_options()
-            finally:
-                observer.stop()
-                observer.join()
+                    break
         finally:
-            self.watchdog[task][EVENT] = FileEvent.NO_EVENT
             if coordinator.tasks.get(task) is not None:
-                coordinator.tasks[task]()  # Cancel the task
+                if stop_event is None:
+                    coordinator.tasks[task]()
                 coordinator.tasks.pop(task)
                 _LOGGER.debug("Cancelled task %s", task)
 
-    async def watch_for_dampening_legacy_location(self) -> None:
+    async def watch_for_dampening_legacy_location(self, stop_event: Event | None = None) -> None:
         """Watch for dampening file modification in the legacy config location."""
         coordinator = self.coordinator
-        from datetime import datetime as dt  # noqa: PLC0415
 
         end_date = dt(2026, 6, 1, tzinfo=coordinator.solcast.options.tz)
         if dt.now(coordinator.solcast.options.tz) < end_date:
-            task = TASK_WATCHDOG_DAMPENING_LEGACY
+            task = TASK_WATCH_DAMPENING_LEGACY
             _file_dampening_legacy = coordinator.file_dampening.replace("/solcast_solar", "")
 
             try:
-                observer = Observer()
-                observer.schedule(
-                    StartEventHandler(self, "blah", _file_dampening_legacy, direct_task=task),
-                    path=coordinator.hass.config.config_dir,
-                    recursive=False,
-                )
-                observer.start()
-
-                try:
-                    while not coordinator.hass.is_stopping and dt.now(coordinator.solcast.options.tz) < end_date:
-                        await asyncio.sleep(1)
-                        if self.watchdog[task][EVENT] == FileEvent.CREATE and Path(_file_dampening_legacy).exists():
+                async for changes in awatch(
+                    coordinator.hass.config.config_dir,
+                    watch_filter=lambda change, path: path == _file_dampening_legacy and change == Change.added,
+                    **self._awatch_kwargs(stop_event),
+                ):
+                    for change_type, changed_path in changes:
+                        if (
+                            change_type == Change.added
+                            and changed_path == _file_dampening_legacy
+                            and Path(_file_dampening_legacy).exists()
+                            and dt.now(coordinator.solcast.options.tz) < end_date
+                        ):
                             Path(_file_dampening_legacy).rename(coordinator.file_dampening)
                             _LOGGER.warning(
                                 "Moved dampening file %s from legacy config to %s, auto-moving will cease 1st June 2026",
                                 _file_dampening_legacy,
                                 coordinator.file_dampening,
                             )
-                            self.watchdog[task][EVENT] = FileEvent.NO_EVENT
-                finally:
-                    observer.stop()
-                    observer.join()
+                    if dt.now(coordinator.solcast.options.tz) >= end_date:
+                        break
             finally:
-                self.watchdog[task][EVENT] = FileEvent.NO_EVENT
-                _LOGGER.debug("Cancelled task %s", task) if coordinator.tasks.get(task) is not None else None
-                coordinator.tasks.pop(task) if coordinator.tasks.get(task) is not None else None
+                coordinator.tasks.pop(task, None)
+                _LOGGER.debug("Cancelled task %s", task)

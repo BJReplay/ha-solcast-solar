@@ -1,7 +1,6 @@
-"""Utility."""
+"""Solcast utilities."""
 
 # pylint: disable=consider-using-enumerate
-
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime as dt, timedelta, tzinfo
@@ -12,20 +11,26 @@ import math
 from pathlib import Path
 import re
 from typing import TYPE_CHECKING, Any, NamedTuple
+from urllib.parse import urlsplit, urlunsplit
 
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_ENTITY_ID, CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import IntegrationError
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
+from . import crash_state
 from .const import (
+    ACTUALS_COST,
     ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     API_LIMIT,
+    API_USED,
     AUTO_UPDATE,
     AUTO_UPDATED,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
+    CONFIGURED_VALUE,
     CUSTOM_HOURS,
     DOMAIN,
     DT_DATE_ONLY_FORMAT,
@@ -37,6 +42,7 @@ from .const import (
     GET_ACTUALS,
     INTEGRATION_VERSION,
     ISSUE_ACTUALS_API_LIMIT,
+    ISSUE_ACTUALS_QUOTA_TODAY,
     ISSUE_ADVANCED_DEPRECATED,
     ISSUE_ADVANCED_PROBLEM,
     ISSUE_UNUSUAL_AZIMUTH_NORTHERN,
@@ -50,20 +56,49 @@ from .const import (
     NEW_OPTION,
     OPTION,
     PERIOD_START,
-    PRIOR_CRASH_EXCEPTION,
-    PRIOR_CRASH_PLACEHOLDERS,
-    PRIOR_CRASH_TRANSLATION_KEY,
     PROBLEMS,
     SITE_INFO,
     STOPS_WORKING,
     SUCCESS,
     SUCCESS_FORCED,
     SUCCESS_TRACKED,
+    SUGGESTED_VALUE,
     VERSION,
 )
 
 if TYPE_CHECKING:
     from . import coordinator
+
+
+def get_solcast_base_url(url: str, port: int) -> str:
+    """Return the Solcast base URL with an optional TCP port override."""
+
+    url = url.rstrip("/")
+    if port <= 0:
+        return url
+
+    split_url = urlsplit(url)
+    if not split_url.netloc:
+        return url
+
+    hostname = split_url.hostname or split_url.netloc
+    if ":" in hostname and not hostname.startswith("["):
+        hostname = f"[{hostname}]"
+
+    auth = ""
+    if "@" in split_url.netloc:
+        auth = f"{split_url.netloc.rsplit('@', 1)[0]}@"
+
+    return urlunsplit(
+        (
+            split_url.scheme,
+            f"{auth}{hostname}:{port}",
+            split_url.path.rstrip("/"),
+            split_url.query,
+            split_url.fragment,
+        )
+    ).rstrip("/")
+
 
 # Status code translation, HTTP and more.
 # A HTTP 418 error is included here for fun. This was introduced in RFC2324#section-2.3.2 as an April Fools joke in 1998.
@@ -159,7 +194,7 @@ class UsageStatus(Enum):
 
 
 class AutoUpdate(int, Enum):
-    """The type of history data."""
+    """The auto update mode."""
 
     NONE = 0
     DAYLIGHT = 1
@@ -193,7 +228,7 @@ async def async_is_allow_exceed_api_limit(hass: HomeAssistant) -> bool:
 
     try:
         return await hass.async_add_executor_job(_read_advanced_setting)
-    except (OSError, json.JSONDecodeError, ValueError):
+    except OSError, json.JSONDecodeError, ValueError:
         return False
 
 
@@ -209,7 +244,7 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
 
     try:
         auto_update = int(options.get(AUTO_UPDATE, AutoUpdate.NONE))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         _remove_issue()
         return
 
@@ -217,8 +252,8 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
         _remove_issue()
         return
 
-    api_keys = [key.strip() for key in str(options.get(CONF_API_KEY, "")).split(",") if key.strip()]
-    api_limits = [limit.strip() for limit in str(options.get(API_LIMIT, "")).split(",") if limit.strip()]
+    api_keys = split_and_strip(str(options.get(CONF_API_KEY, "")))
+    api_limits = split_and_strip(str(options.get(API_LIMIT, "")))
     if not api_keys or not api_limits:
         _remove_issue()
         return
@@ -226,9 +261,10 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
     original_limit_count = len(api_limits)
     while len(api_limits) < len(api_keys):
         api_limits.append(api_limits[-1])
+    api_limits = api_limits[: len(api_keys)]
 
     try:
-        configured_limits = [int(api_limits[index]) for index in range(len(api_keys))]
+        configured_limits = [int(lim) for lim in api_limits]
     except ValueError:
         _remove_issue()
         return
@@ -242,9 +278,9 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
         if (site_key := site.get(CONF_API_KEY)) in sites_per_key:
             sites_per_key[site_key] += 1
 
-    suggested_limits = [max(configured_limits[index] - sites_per_key.get(api_keys[index], 0), 1) for index in range(len(api_keys))]
+    suggested_limits = [max(lim - sites_per_key.get(key, 0), 1) for lim, key in zip(configured_limits, api_keys, strict=True)]
 
-    if all(configured_limits[index] <= suggested_limits[index] for index in range(len(configured_limits))):
+    if all(c <= s for c, s in zip(configured_limits, suggested_limits, strict=True)):
         _remove_issue()
         return
 
@@ -269,10 +305,91 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
         severity=ir.IssueSeverity.WARNING,
         translation_key=ISSUE_ACTUALS_API_LIMIT,
         translation_placeholders={
-            "configured_value": configured_value,
-            "suggested_value": suggested_value,
+            CONFIGURED_VALUE: configured_value,
+            SUGGESTED_VALUE: suggested_value,
         },
     )
+
+
+def sync_actuals_quota_risk_issue(
+    hass: HomeAssistant,
+    sites: list[dict[str, Any]],
+    api_typical: dict[str, int],
+    api_used: dict[str, int],
+    api_forced: dict[str, int],
+    api_limit: int,
+    get_actuals: bool,
+    allow_exceed_api_limit_maximum: bool = False,
+) -> None:
+    """Raise or remove warning issue when typical daily API usage may exhaust quota if actuals are fetched."""
+
+    issue_registry = ir.async_get(hass)
+
+    def _remove_issue() -> None:
+        if issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None:
+            _LOGGER.debug("Remove issue for %s", ISSUE_ACTUALS_QUOTA_TODAY)
+            ir.async_delete_issue(hass, DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY)
+
+    if not get_actuals or api_limit == 0:
+        _remove_issue()
+        return
+
+    if allow_exceed_api_limit_maximum and api_limit > 50:
+        _remove_issue()
+        return
+
+    inferred_quota = api_limit if allow_exceed_api_limit_maximum else (10 if api_limit <= 10 else 50)
+
+    if not allow_exceed_api_limit_maximum and api_limit == inferred_quota:
+        _remove_issue()
+        return
+
+    # Count sites per API key — actuals fetch uses one call per site per key.
+    sites_per_key: dict[str, int] = {}
+    for site in sites:
+        if (key := site.get(CONF_API_KEY)) is not None:
+            sites_per_key[key] = sites_per_key.get(key, 0) + 1
+
+    def _effective_typical(key: str) -> int:
+        """Return today's running total or the persisted typical, whichever is higher."""
+        return max(
+            api_typical.get(key, inferred_quota),
+            api_used.get(key, 0) + api_forced.get(key, 0),
+        )
+
+    at_risk_items = [
+        (key, count, _effective_typical(key)) for key, count in sites_per_key.items() if _effective_typical(key) + count > inferred_quota
+    ]
+    if at_risk_items:
+        # Pick the key with the worst overage to populate the issue message.
+        # Each key has its own independent quota, so describe the single key at risk.
+        _, actuals_cost, effective = max(at_risk_items, key=lambda t: t[2] + t[1] - inferred_quota)
+        _LOGGER.debug(
+            "Raise issue `%s`: effective typical %d + %d actuals > %d inferred quota",
+            ISSUE_ACTUALS_QUOTA_TODAY,
+            effective,
+            actuals_cost,
+            inferred_quota,
+        )
+        ir.async_create_issue(
+            hass,
+            DOMAIN,
+            ISSUE_ACTUALS_QUOTA_TODAY,
+            is_fixable=False,
+            is_persistent=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key=ISSUE_ACTUALS_QUOTA_TODAY,
+            translation_placeholders={
+                API_USED: str(effective),
+                API_LIMIT: str(inferred_quota),
+                ACTUALS_COST: str(actuals_cost),
+            },
+        )
+        return
+
+    # Only clear the issue when the configured API limit guarantees headroom for actuals.
+    if all(api_limit + count <= inferred_quota for count in sites_per_key.values()):
+        _remove_issue()
 
 
 def sync_legacy_keys(data: dict[str, Any]) -> None:
@@ -405,7 +522,7 @@ class JSONDecoder(json.JSONDecoder):
         for key, value in o.items():
             try:
                 result[key] = dt.fromisoformat(value)
-            except:  # noqa: E722
+            except TypeError, ValueError:
                 result[key] = value
         return result
 
@@ -420,6 +537,18 @@ def api_key_last_six(api_key: str) -> str:
     """Return last six characters of API key."""
 
     return api_key[-6:]
+
+
+def split_and_strip(value: str) -> list[str]:
+    """Split a comma-separated string and strip whitespace, discarding empty items."""
+
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def format_site_key(site_id: str) -> str:
+    """Convert a site ID to a safe dictionary key by replacing hyphens with underscores."""
+
+    return site_id.replace("-", "_")
 
 
 def redact_api_key(api_key: str) -> str:
@@ -480,6 +609,44 @@ def check_unusual_azimuth(latitude: float, azimuth: float) -> tuple[bool, str, i
             unusual = True
             proposal = -180 - int(azimuth)
     return unusual, issue_key, proposal
+
+
+def azimuth_to_compass_degrees(azimuth: Any) -> float | None:
+    """Convert Solcast azimuth to compass degrees in the range [0, 360).
+
+    Solcast azimuth uses N=0, W=+90, E=-90, S=+/-180.
+    Standard compass bearings use N=0, E=90, S=180, W=270.
+    """
+    try:
+        return (-float(azimuth)) % 360.0
+    except TypeError, ValueError:
+        return None
+
+
+def azimuth_to_compass_direction(azimuth: Any) -> str | None:
+    """Convert an azimuth value to a 16-point cardinal compass direction."""
+    if (compass_degrees := azimuth_to_compass_degrees(azimuth)) is None:
+        return None
+
+    directions = (
+        "N",
+        "NNE",
+        "NE",
+        "ENE",
+        "E",
+        "ESE",
+        "SE",
+        "SSE",
+        "S",
+        "SSW",
+        "SW",
+        "WSW",
+        "W",
+        "WNW",
+        "NW",
+        "NNW",
+    )
+    return directions[int((compass_degrees + 11.25) // 22.5) % len(directions)]
 
 
 class SchemaIncompatibleError(Exception):
@@ -595,13 +762,23 @@ def forecast_entry_update(forecasts: dict[dt, Any], period_start: dt, pv: float,
         }
 
 
-def raise_and_record(
-    hass: HomeAssistant, exception: type[IntegrationError], translation_key: str, translation_placeholders: dict | None = None
+async def raise_and_record(
+    hass: HomeAssistant,
+    entry: ConfigEntry | None,
+    exception: type[IntegrationError],
+    translation_key: str,
+    translation_placeholders: dict | None = None,
 ) -> None:
-    """Raise and record an exception during initialisation."""
-    hass.data[DOMAIN][PRIOR_CRASH_EXCEPTION] = exception
-    hass.data[DOMAIN][PRIOR_CRASH_TRANSLATION_KEY] = translation_key
-    hass.data[DOMAIN][PRIOR_CRASH_PLACEHOLDERS] = translation_placeholders
+    """Record the exception details on the crash-state store and raise.
+
+    When entry is None (only possible in tests) the crash is still raised but no state is persisted.
+    """
+    if entry is not None:
+        store = await crash_state.async_get(hass, entry.entry_id)
+        store.state.exception_class = exception
+        store.state.translation_key = translation_key
+        store.state.translation_placeholders = translation_placeholders
+        await store.async_save()
     raise exception(translation_domain=DOMAIN, translation_key=translation_key, translation_placeholders=translation_placeholders)
 
 
@@ -682,12 +859,13 @@ async def raise_or_clear_advanced_deprecated(
 
 
 async def async_trigger_automation_by_name(hass: HomeAssistant, name: str) -> bool:
-    """Trigger an automation by friendly name; returns True if found and triggered."""
+    """Trigger an automation by friendly name or entity ID; returns True if found and triggered."""
     success = False
     entity_id = None
     for state in hass.states.async_all("automation"):
-        if state.attributes.get("friendly_name") == name:
+        if state.entity_id == name or state.attributes.get("friendly_name") == name:
             entity_id = state.entity_id
+            break
     if entity_id:
         await hass.services.async_call("automation", "trigger", {ATTR_ENTITY_ID: entity_id}, blocking=True)
         success = True
@@ -698,9 +876,9 @@ async def clear_cache(filename: str, warn: bool = True):
     """Deletes filename if it exists."""
     if Path(filename).is_file():
         Path(filename).unlink()
-        _LOGGER.debug("Deleted cache file %s", filename.split("/")[-1])
+        _LOGGER.debug("Deleted cache file %s", Path(filename).name)
     elif warn:
-        _LOGGER.warning("There is no %s to delete", filename.split("/")[-1])
+        _LOGGER.warning("There is no %s to delete", Path(filename).name)
 
 
 def percentile(data: list[Any], _percentile: float) -> float | int:
@@ -915,44 +1093,19 @@ def cubic_interp(x0: list[Any], x: list[Any], y: list[Any]) -> list[Any]:
 
     """
 
-    def clip(lst: list[Any], min_val: float, max_val: float, in_place: bool = False) -> list[Any]:  # numpy-like clip
-        if not in_place:
-            lst = lst[:]
-        for i in range(len(lst)):
-            if lst[i] < min_val:
-                lst[i] = min_val
-            elif lst[i] > max_val:
-                lst[i] = max_val
-        return lst
-
-    def search_sorted(list_to_insert: list[Any], insert_into: list[Any]) -> list[Any]:  # numpy-like search_sorted
-        def float_search_sorted(float_to_insert: Any, insert_into: list[Any]) -> int:
-            for i in range(len(insert_into)):
-                if float_to_insert <= insert_into[i]:
-                    return i
-            return len(insert_into)
-
-        return [float_search_sorted(i, insert_into) for i in list_to_insert]
-
-    def subtract(a: float, b: float) -> float:
-        return a - b
-
     size: int = len(x)
     x_diff: list[Any] = diff(x, non_negative=False)
     y_diff: list[Any] = diff(y, non_negative=False)
 
     li: list[Any] = [0] * size
     li_1: list[Any] = [0] * (size - 1)
-    z: list[Any] = [0] * (size)
+    z: list[Any] = [0] * size
 
     li[0] = math.sqrt(2 * x_diff[0])
     li_1[0] = 0.0
-    b0: float = 0.0
-    z[0] = b0 / li[0]
+    z[0] = 0.0
 
-    bi: float = 0.0
-
-    for i in range(1, size - 1, 1):
+    for i in range(1, size - 1):
         li_1[i] = x_diff[i - 1] / li[i - 1]
         li[i] = math.sqrt(2 * (x_diff[i - 1] + x_diff[i]) - li_1[i - 1] * li_1[i - 1])
         bi = 6 * (y_diff[i] / x_diff[i] - y_diff[i - 1] / x_diff[i - 1])
@@ -961,33 +1114,23 @@ def cubic_interp(x0: list[Any], x: list[Any], y: list[Any]) -> list[Any]:
     i = size - 1
     li_1[i - 1] = x_diff[-1] / li[i - 1]
     li[i] = math.sqrt(2 * x_diff[-1] - li_1[i - 1] * li_1[i - 1])
-    bi = 0.0
-    z[i] = (bi - li_1[i - 1] * z[i - 1]) / li[i]
+    z[i] = -li_1[i - 1] * z[i - 1] / li[i]
 
-    i = size - 1
-    z[i] = z[i] / li[i]
+    z[-1] /= li[-1]
     for i in range(size - 2, -1, -1):
-        z[i] = (z[i] - li_1[i - 1] * z[i + 1]) / li[i]
+        z[i] = (z[i] - li_1[i] * z[i + 1]) / li[i]
 
-    index = search_sorted(x0, x)
-    index = clip(index, 1, size - 1)
-
-    xi1: list[Any] = [x[num] for num in index]
-    xi0: list[Any] = [x[num - 1] for num in index]
-    yi1: list[Any] = [y[num] for num in index]
-    yi0: list[Any] = [y[num - 1] for num in index]
-    zi1: list[Any] = [z[num] for num in index]
-    zi0: list[Any] = [z[num - 1] for num in index]
-    hi1 = list(map(subtract, xi1, xi0))
-
-    f0: list[Any] = [0] * len(hi1)
-    for j in range(len(f0)):
-        f0[j] = round(
-            zi0[j] / (6 * hi1[j]) * (xi1[j] - x0[j]) ** 3
-            + zi1[j] / (6 * hi1[j]) * (x0[j] - xi0[j]) ** 3
-            + (yi1[j] / hi1[j] - zi1[j] * hi1[j] / 6) * (x0[j] - xi0[j])
-            + (yi0[j] / hi1[j] - zi0[j] * hi1[j] / 6) * (xi1[j] - x0[j]),
+    return [
+        round(
+            z[n - 1] / (6 * (h := x[n] - x[n - 1])) * (x[n] - x_) ** 3
+            + z[n] / (6 * h) * (x_ - x[n - 1]) ** 3
+            + (y[n] / h - z[n] * h / 6) * (x_ - x[n - 1])
+            + (y[n - 1] / h - z[n - 1] * h / 6) * (x[n] - x_),
             4,
         )
-
-    return f0
+        for n, x_ in zip(
+            [max(1, min(next((i for i, val in enumerate(x) if item <= val), len(x)), size - 1)) for item in x0],
+            x0,
+            strict=True,
+        )
+    ]

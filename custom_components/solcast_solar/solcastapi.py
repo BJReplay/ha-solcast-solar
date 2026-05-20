@@ -1,9 +1,5 @@
 """Solcast API."""
 
-# pylint: disable=pointless-string-statement
-
-from __future__ import annotations
-
 import asyncio
 from collections import OrderedDict, defaultdict
 import contextlib
@@ -62,6 +58,8 @@ from .const import (
     FORECASTS,
     GENERATION_ENTITIES,
     GET_ACTUALS,
+    HALF_HOUR_MINUTES,
+    HALF_HOUR_SECONDS,
     HARD_LIMIT_API,
     ISSUE_CORRUPT_FILE,
     ISSUE_RECORDS_MISSING,
@@ -82,6 +80,7 @@ from .const import (
     SITE_EXPORT_LIMIT,
     SITE_INFO,
     SUCCESS,
+    SUCCESS_ACTUALS,
     SUCCESS_FORCED,
     UNKNOWN,
     USE_ACTUALS,
@@ -159,6 +158,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.advanced_options: dict[str, Any] = {}
         self.aiohttp_session = aiohttp_session
         self.api_limits: dict[str, int] = {}
+        self.api_actuals: dict[str, int] = {}
+        self.api_forced: dict[str, int] = {}
+        self.api_typical: dict[str, int] = {}
         self.api_used: dict[str, int] = {}
         self.auto_update_divisions: int = 0
         self.custom_hour_sensor: int = options.custom_hour_sensor
@@ -247,7 +249,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                 file.unlink()
                 unlinked.append(str(file.name))
             else:
-                _LOGGER.debug("File %s has length %d", file.resolve(), file.stat().st_size)
+                filename = str(file.resolve())
+                for api_key in self.options.api_key.split(","):
+                    filename = filename.replace("usage-" + api_key.strip(), "usage-" + redact_api_key(api_key.strip()))
+                    filename = filename.replace("sites-" + api_key.strip(), "sites-" + redact_api_key(api_key.strip()))
+                _LOGGER.debug("File %s has length %d", filename, file.stat().st_size)
 
         with contextlib.suppress(OSError):
             ((Path(self.config_dir) / "solcast_solar").rmdir()) if not CONFIG_FOLDER_DISCRETE else None
@@ -362,6 +368,18 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         return self.data_actuals[LAST_UPDATED].astimezone(self.tz).date() == dt.now(self.tz).date()
 
     @property
+    def successes_actuals_24h(self) -> int:
+        """Number of successful estimated actuals fetches today.
+
+        Uses the maximum across all API keys.
+
+        Returns:
+            int: The maximum per-key count of successful estimated actuals site API calls since midnight.
+        """
+        actuals = self.data[SUCCESS].get(SUCCESS_ACTUALS, {})
+        return max(actuals.values()) if actuals else 0
+
+    @property
     def successes_forced_24h(self) -> int:
         """Number of successful forced updates today.
 
@@ -424,6 +442,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             int: The lowest API limit of all configured API keys.
         """
         return min(list(self.api_limits.values()))
+
+    @property
+    def api_typical_count(self) -> int:
+        """Typical daily forecast update count.
+
+        Returns:
+            int: The maximum typical daily forecast update count across all configured API keys.
+        """
+        return max(self.api_typical.values()) if self.api_typical else 0
 
     @property
     def last_updated(self) -> dt | None:
@@ -529,7 +556,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                         dt.strftime(latest.astimezone(self.tz), DT_DATE_FORMAT),
                         data_set,
                     )
-                periods: list[dt] = [earliest + timedelta(minutes=30 * x) for x in range(int((latest - earliest).total_seconds() / 1800))]
+                periods: list[dt] = [
+                    earliest + timedelta(minutes=HALF_HOUR_MINUTES * x)
+                    for x in range(int((latest - earliest).total_seconds() / HALF_HOUR_SECONDS))
+                ]
                 sites_hard_limit[api_key] = {est: {} for est in estimates}
                 for count, period in enumerate(periods):
                     for pv_estimate in estimates:
@@ -756,7 +786,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                             forecasts[period_start][DAMPENING_FACTOR] = round(self.dampening.auto_factors[period_start], 4)
 
                             # Prevent blocking
-                            if forecast_count % 200 == 0:
+                            if forecast_count % 50 == 0:
                                 await asyncio.sleep(0)
 
                         site_data_forecasts[resource_id] = sorted(site_forecasts.values(), key=itemgetter(PERIOD_START))

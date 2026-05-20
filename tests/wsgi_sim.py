@@ -8,10 +8,13 @@ Install:
 
 Optional run arguments:
 
-* --limit LIMIT      Set the API call limit available, example --limit 100 (There is no limit... 😉)
-* --no429            Do not generate 429 response.
+* --limit LIMIT      Set the API call limit available, example --limit 100, default 50 (There is no limit... 😉)
 * --bomb429 w-x,y,z  The minute(s) of the hour to return API too busy, comma separated, example --bomb429 0-5,15,30-35,45
-* --teapot           Infrequently generate 418 response.
+* --bombkey w-x,y,z  The minute(s) of the hour to change the API key, comma separated, example --bombkey 0-5,15,30-35,45
+* --teapot           Return '418/I'm a teapot' status occasionally.
+* --use-guidance     Enable guidance from config/solcast_sim/guidance.json.
+* --port PORT        Set the listening port, example --port 8443, default 443
+* --debug            Enable debug mode.
 
 Theory of operation:
 
@@ -19,23 +22,23 @@ Theory of operation:
 * API key 1 has two sites, API key 2 has one site, API key 3 has an impossible (for hobbyists) three sites.
 * Forecast for every day is the same blissful-clear-day bell curve.
 * As time goes on new forecast hour values are calculated based on the current get forecasts call time of day.
-* 429 responses are given when minute=0, unless --no429 is set, or other minutes are specified with --bomb429.
-* An occasionally generated "I'm a teapot" status can verify that the integration handles unknown status returns.
+* 429 responses are only given when --bomb429 is specified.
+* An occasionally generated "I'm a teapot" status can verify that the integration handles unknown status returns gracefully.
 * The time zone used should be read from the Home Assistant configuration. If this fails then the zone will be Australia/Melbourne.
 
 SSL certificate:
 
-* The integration does not care whether the api.solcast.com.au certificate is valid, so a self-signed certificate is created by this simulator.
-* To generate a new self-signed certificate run in this folder: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 3650,
-* or simply delete *.pem files and restart the simulator to generate new ones. The DevContainer will already have openssl installed.
+The integration does not care whether the api.solcast.com.au certificate is valid, so a self-signed certificate is created by this simulator.
+To generate a new self-signed certificate run in this folder: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 3650,
+or simply delete *.pem files and restart the simulator to generate new ones. The DevContainer will already have openssl installed.
 
 Integration issues raised regarding the simulator will be closed without response.
 Raise a pull request instead, suggesting a fix for whatever is wrong, or to add additional functionality.
 
 Experimental support for advanced_pv_power:
 
-* Should Solcast deprecate the legacy hobbyist API, then the advanced_pv_power API calls will probably be preferred, just with capabilities limited by Solcast.
-* This simulator, and the integration are prepared should this occur.
+Should Solcast deprecate the legacy hobbyist API, then the advanced_pv_power API calls will probably be preferred, just with capabilities limited by Solcast.
+This simulator is prepared should this occur.
 
 """
 
@@ -44,10 +47,12 @@ import copy
 import datetime
 from datetime import datetime as dt, timedelta
 import json
+import logging
 from logging.config import dictConfig
 import os
 from pathlib import Path
 import random
+import re
 import subprocess
 import sys
 from typing import Any
@@ -56,10 +61,24 @@ from zoneinfo import ZoneInfo
 from simulator import API_KEY_SITES, SimulatedSolcast
 
 simulate = SimulatedSolcast()
+DEFAULT_PORT = 443
+GUIDANCE_DIRNAME = "solcast_sim"
+GUIDANCE_FILENAME = "guidance.json"
+GUIDANCE_FILE: str | None = None
+GUIDANCE_MTIME: float | None = None
+
+
+def _path_from_config(path: Path) -> str:
+    """Return display path starting at config/ when present."""
+    parts = path.parts
+    if "config" not in parts:
+        return str(path)
+    config_idx = parts.index("config")
+    return str(Path(*parts[config_idx:]))
 
 
 def restart():
-    """Restarts the sim."""
+    """Restart the sim."""
 
     python = sys.executable
     os.execl(python, python, *sys.argv)
@@ -104,7 +123,8 @@ if not (Path("cert.pem").exists() and Path("key.pem").exists()):
     )
 
 API_LIMIT = 50
-BOMB_429 = [0]
+BOMB_418 = False
+BOMB_429 = []
 BOMB_KEY = []
 ERROR_KEY_REQUIRED = "KeyRequired"
 ERROR_INVALID_KEY = "InvalidKey"
@@ -116,15 +136,14 @@ ERROR_MESSAGE: dict[str, Any] = {
     ERROR_TOO_MANY_REQUESTS: {"message": "You have exceeded your free daily limit.", "status": 429},
     ERROR_SITE_NOT_FOUND: {"message": "The specified site cannot be found.", "status": 404},
 }
-GENERATE_418 = False
-GENERATE_429 = True
 
 dictConfig(  # Logger configuration
     {
         "version": 1,
         "formatters": {
             "default": {
-                "format": "[%(asctime)s] %(levelname)s in %(module)s: %(message)s",
+                "format": "%(asctime)s.%(msecs)03d %(levelname)s [%(name)s:%(filename)s] %(message)s",
+                "datefmt": "%Y-%m-%d %H:%M:%S",
             }
         },
         "handlers": {
@@ -135,7 +154,7 @@ dictConfig(  # Logger configuration
 )
 
 
-class DtJSONProvider(DefaultJSONProvider):  # pyright: ignore[reportPossiblyUnboundVariable]
+class DtJSONProvider(DefaultJSONProvider):
     """Custom JSON provider converting datetime to ISO format."""
 
     def default(self, o: Any) -> Any:  # pyright: ignore[reportIncompatibleMethodOverride]
@@ -146,10 +165,30 @@ class DtJSONProvider(DefaultJSONProvider):  # pyright: ignore[reportPossiblyUnbo
         return super().default(o)
 
 
-app = Flask(__name__)  # pyright: ignore[reportPossiblyUnboundVariable]
+cli = sys.modules["flask.cli"]
+cli.show_server_banner = lambda *x: None  # pyright: ignore[reportAttributeAccessIssue]
+
+app = Flask(__name__)
 app.json = DtJSONProvider(app)
 _LOGGER = app.logger
 counter_last_reset = dt.now(datetime.UTC).replace(hour=0, minute=0, second=0, microsecond=0)  # Previous UTC midnight
+
+
+class _WerkzeugLogFilter(logging.Filter):
+    """Suppress startup noise and reformat access log entries for the Werkzeug logger."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Return False to suppress a record, or True to allow it (possibly modified)."""
+        msg = record.getMessage()
+        if msg.startswith("WARNING: This is a development server.") or " * Running on http" in msg or "Press CTRL+C to quit" in msg:
+            return False
+        if isinstance(record.args, tuple) and len(record.args) >= 2 and " - - [" in record.msg:
+            try:
+                record.msg = 'Request: "%s" -> %s'
+                record.args = (str(record.args[0]), str(record.args[1]))
+            except (IndexError, TypeError):
+                pass
+        return True
 
 
 def validate_call(api_key: str, site_id: str | None = None, counter: bool = True) -> tuple[int, Any, Any]:
@@ -175,7 +214,7 @@ def validate_call(api_key: str, site_id: str | None = None, counter: bool = True
         return error(ERROR_KEY_REQUIRED)
     if api_key not in API_KEY_SITES:
         return error(ERROR_INVALID_KEY)
-    if GENERATE_429 and dt.now(datetime.UTC).minute in BOMB_429:
+    if dt.now(datetime.UTC).minute in BOMB_429:
         return 429, "", None
     if dt.now(datetime.UTC).minute in BOMB_KEY:
         if API_KEY_SITES.get("1"):
@@ -184,7 +223,7 @@ def validate_call(api_key: str, site_id: str | None = None, counter: bool = True
         revert_key = False
     if counter and API_KEY_SITES.get(api_key, {}).get("counter", 0) >= API_LIMIT:
         return error(ERROR_TOO_MANY_REQUESTS)
-    if GENERATE_418 and random.random() < 0.01:
+    if BOMB_418 and random.random() < 0.01:
         return 418, "", None  # An unusual status returned for fun, infrequently
     if site_id is not None:
         # Find the site by site_id
@@ -205,55 +244,81 @@ def validate_call(api_key: str, site_id: str | None = None, counter: bool = True
     return 200, None, site
 
 
+def _refresh_guidance(force: bool = False) -> None:
+    """Reload guidance file when changed on disk."""
+    global GUIDANCE_MTIME  # noqa: PLW0603 pylint: disable=global-statement
+
+    if GUIDANCE_FILE is None:
+        return
+
+    path = Path(GUIDANCE_FILE)
+    if not path.exists():
+        return
+
+    try:
+        mtime = path.stat().st_mtime
+    except OSError:
+        return
+
+    if not force and GUIDANCE_MTIME is not None and mtime <= GUIDANCE_MTIME:
+        return
+
+    simulate.load_forecast_guidance_file(str(path))
+    GUIDANCE_MTIME = mtime
+    _LOGGER.info("Guidance refreshed from %s", _path_from_config(path))
+
+
 @app.route("/rooftop_sites", methods=["GET"])
 def get_sites() -> tuple[Any, int]:
     """Return sites for an API key."""
 
-    api_key = request.args.get("api_key")  # pyright: ignore[reportPossiblyUnboundVariable]
+    api_key = request.args.get("api_key")
     if api_key is None:
         return "{}", 500
 
     response_code, issue, _ = validate_call(api_key, counter=False)
     if response_code != 200:
-        return jsonify(issue) if issue != "" else "{}", response_code  # pyright: ignore[reportPossiblyUnboundVariable]
+        return jsonify(issue) if issue != "" else "{}", response_code
 
     get_sites = simulate.raw_get_sites(api_key)
     if get_sites is not None:
-        return jsonify(get_sites), 200  # pyright: ignore[reportPossiblyUnboundVariable]
+        return jsonify(get_sites), 200
     return "{}", 403
 
 
 @app.route("/rooftop_sites/<site_id>/estimated_actuals", methods=["GET"])
 def get_site_estimated_actuals(site_id: str) -> tuple[Any, int]:
-    """Return simulated estimated actials for a site."""
+    """Return simulated estimated actuals for a site."""
 
-    api_key = request.args.get("api_key")  # pyright: ignore[reportPossiblyUnboundVariable]
+    api_key = request.args.get("api_key")
     if api_key is None:
         return "{}", 500
 
     response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
-        return jsonify(issue) if issue != "" else "", response_code  # pyright: ignore[reportPossiblyUnboundVariable]
+        return jsonify(issue) if issue != "" else "", response_code
 
-    if request.args.get("hours") is None:  # pyright: ignore[reportPossiblyUnboundVariable]
+    if request.args.get("hours") is None:
         return "{}", 500
-    return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, int(request.args["hours"]))), 200  # pyright: ignore[reportPossiblyUnboundVariable]
+    _refresh_guidance()
+    return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, int(request.args["hours"]))), 200
 
 
 @app.route("/rooftop_sites/<site_id>/forecasts", methods=["GET"])
 def get_site_forecasts(site_id: str) -> tuple[Any, int]:
     """Return simulated forecasts for a site."""
 
-    api_key = request.args.get("api_key")  # pyright: ignore[reportPossiblyUnboundVariable]
+    api_key = request.args.get("api_key")
     if api_key is None:
         return "{}", 500
 
     response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
-        return jsonify(issue) if issue != "" else "", response_code  # pyright: ignore[reportPossiblyUnboundVariable]
-    if request.args.get("hours") is None:  # pyright: ignore[reportPossiblyUnboundVariable]
+        return jsonify(issue) if issue != "" else "", response_code
+    if request.args.get("hours") is None:
         return "{}", 500
-    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, int(request.args["hours"]))), 200  # pyright: ignore[reportPossiblyUnboundVariable]
+    _refresh_guidance()
+    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, int(request.args["hours"]))), 200
 
 
 @app.route("/data/historic/advanced_pv_power", methods=["GET"])
@@ -262,77 +327,110 @@ def get_site_estimated_actuals_advanced() -> tuple[Any, int]:
 
     def missing_parameter():
         _LOGGER.info("Missing parameter")
-        return jsonify({"response_status": {"error_code": "MissingParameter", "message": "Missing parameter."}}), 400  # pyright: ignore[reportPossiblyUnboundVariable]
+        return jsonify({"response_status": {"error_code": "MissingParameter", "message": "Missing parameter."}}), 400
 
-    api_key = request.args.get("api_key")  # pyright: ignore[reportPossiblyUnboundVariable]
-    site_id = request.args.get("resource_id")  # pyright: ignore[reportPossiblyUnboundVariable]
+    api_key = request.args.get("api_key")
+    site_id = request.args.get("resource_id")
     if api_key is None or site_id is None:
         return "{}", 500
 
     try:
         start = dt.fromisoformat(request.args.get("start"))  # type:ignore[arg-type]
     except:  # noqa: E722
-        _LOGGER.info("Missing start parameter %s", request.args.get("start"))  # pyright: ignore[reportPossiblyUnboundVariable]
+        _LOGGER.info("Missing start parameter %s", request.args.get("start"))
         return missing_parameter()
     try:
         end = dt.fromisoformat(request.args.get("end"))  # type: ignore[arg-type]
     except:  # noqa: E722
         end = None
     try:
-        duration = isodate.parse_duration(request.args.get("duration"))  # pyright: ignore[reportPossiblyUnboundVariable, reportUnknownMemberType]
-        end = start + duration  # pyright: ignore[reportUnknownVariableType]
+        duration = isodate.parse_duration(request.args.get("duration"))
+        end = start + duration
     except:  # noqa: E722
         duration = None
     if not end and not duration:
         _LOGGER.info("Missing end or duration parameter")
         return missing_parameter()
-    if duration is None:
-        _hours = int((end - start).total_seconds() / 3600)  # type: ignore[operator]
+    _hours = int((end - start).total_seconds() / 3600)  # type: ignore[operator]
     period_end = simulate.get_period(start, timedelta(minutes=30))
     response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
-        return jsonify(issue) if issue != "" else "", response_code  # pyright: ignore[reportPossiblyUnboundVariable]
+        return jsonify(issue) if issue != "" else "", response_code
 
-    return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200  # pyright:ignore[reportPossiblyUnboundVariable, reportCallIssue]
+    _refresh_guidance()
+    return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200  # pyright:ignore[reportCallIssue]
 
 
 @app.route("/data/forecast/advanced_pv_power", methods=["GET"])
 def get_site_forecasts_advanced() -> tuple[Any, int]:
     """Return simulated advanced pv power forecasts for a site."""
 
-    api_key = request.args.get("api_key")  # pyright: ignore[reportPossiblyUnboundVariable]
-    site_id = request.args.get("resource_id")  # pyright: ignore[reportPossiblyUnboundVariable]
-    _hours = int(request.args.get("hours"))  # type:ignore[arg-type]
+    api_key = request.args.get("api_key")
+    site_id = request.args.get("resource_id")
+    hours_arg = request.args.get("hours")
+    if api_key is None or site_id is None or hours_arg is None:
+        return "{}", 500
+    _hours = int(hours_arg)
     period_end = simulate.get_period(dt.now(datetime.UTC), timedelta(minutes=30))
-    response_code, issue, _ = validate_call(api_key, site_id)  # type:ignore[arg-type]
+    response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
-        return jsonify(issue) if issue != "" else "", response_code  # pyright: ignore[reportPossiblyUnboundVariable]
+        return jsonify(issue) if issue != "" else "", response_code
 
-    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200  # pyright:ignore[reportPossiblyUnboundVariable, reportCallIssue]
+    _refresh_guidance()
+    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200  # pyright:ignore[reportCallIssue]
 
 
 def get_time_zone():
     """Attempt to read time zone from Home Assistant config."""
 
+    def _read_storage_timezone() -> str | None:
+        config_path = Path(Path.cwd(), "../../../.storage/core.config")
+        if not config_path.exists():
+            return None
+        try:
+            with config_path.open(encoding="utf-8") as f:
+                config = json.loads(f.read())
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            return None
+
+        timezone = config.get("data", {}).get("time_zone")
+        if isinstance(timezone, str) and timezone.strip():
+            return timezone.strip()
+        return None
+
+    def _read_yaml_timezone() -> str | None:
+        config_path = Path(Path.cwd(), "../../../config/configuration.yaml")
+        if not config_path.exists():
+            return None
+        try:
+            content = config_path.read_text(encoding="utf-8")
+        except OSError:
+            return None
+
+        # Keep this parser intentionally simple to avoid extra dependencies.
+        match = re.search(r"^\s*time_zone\s*:\s*([^#\n]+)", content, flags=re.MULTILINE)
+        if not match:
+            return None
+        timezone = match.group(1).strip().strip('"').strip("'")
+        return timezone or None
+
+    timezone = _read_storage_timezone() or _read_yaml_timezone()
+    if timezone is None:
+        _LOGGER.info("Time zone not configured in Home Assistant config, using simulator default: %s", simulate.timezone)
+        return
+
     try:
-        with Path.open(Path(Path.cwd(), "../../../.storage/core.config")) as f:
-            config = json.loads(f.read())
-            simulate.set_time_zone(ZoneInfo(config["data"]["time_zone"]))
-            _LOGGER.info("Time zone: %s", config["data"]["time_zone"])
-    except:  # noqa: E722
-        pass
+        simulate.set_time_zone(ZoneInfo(timezone))
+        _LOGGER.info("Time zone: %s", timezone)
+    except Exception as err:  # noqa: BLE001
+        _LOGGER.warning("Invalid configured time zone '%s', using simulator default %s (%s)", timezone, simulate.timezone, err)
 
 
-if __name__ == "__main__":
-    random.seed()
-    _LOGGER.info("Starting Solcast API simulator, will listen on localhost:443")
-    _LOGGER.info("Originally written by @autoSteve")
-    _LOGGER.info("Integration issues raised regarding this script will be closed without response because it is a development tool")
-    get_time_zone()
+def build_parser() -> argparse.ArgumentParser:
+    """Return the CLI argument parser."""
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--limit", help="Set the API call limit available, example --limit 100", type=int, required=False)
-    parser.add_argument("--no429", help="Do not generate 429 response", action="store_true", required=False)
     parser.add_argument("--teapot", help="Infrequently generate 418 response", action="store_true", required=False)
     parser.add_argument(
         "--bomb429",
@@ -346,46 +444,88 @@ if __name__ == "__main__":
         type=str,
         required=False,
     )
+    parser.add_argument(
+        "--use-guidance",
+        help="Enable guidance from config/solcast_sim/guidance.json",
+        action="store_true",
+        required=False,
+        default=False,
+    )
+    parser.add_argument("--port", help="Set the HTTPS listening port, example --port 8443", type=int, default=DEFAULT_PORT, required=False)
     parser.add_argument("--debug", help="Set Flask debug mode on", action="store_true", required=False, default=False)
-    args = parser.parse_args()
-    if args.limit:
-        API_LIMIT = args.limit  # pyright: ignore[reportConstantRedefinition]
-        _LOGGER.info("API limit has been set to %s", API_LIMIT)
-    if args.no429:
-        GENERATE_429 = False  # pyright: ignore[reportConstantRedefinition]
-        _LOGGER.info("429 responses will not be generated")
+    return parser
+
+
+def _apply_args(args: argparse.Namespace) -> dict[str, int | bool | list[int]]:
+    """Return simulator runtime values derived from CLI arguments."""
+
+    api_limit = API_LIMIT
+    bomb_429 = BOMB_429.copy()
+    bomb_key = BOMB_KEY.copy()
+    bomb_418 = BOMB_418
+
+    if args.limit is not None:
+        api_limit = args.limit
+        _LOGGER.info("API limit has been set to %s", api_limit)
+    if args.port != DEFAULT_PORT:
+        _LOGGER.info("Listening port has been set to %s", args.port)
     if args.bomb429:
-        if not GENERATE_429:
-            _LOGGER.error("Cannot specify --bomb429 with --no429")
-            sys.exit()
-        BOMB_429 = [  # pyright: ignore[reportConstantRedefinition]
-            int(x) for x in args.bomb429.split(",") if "-" not in x
-        ]  # Simple minutes of the hour. # pyright: ignore[reportConstantRedefinition]
+        bomb_429 = [int(x.strip()) for x in args.bomb429.split(",") if x.strip() and "-" not in x.strip()]
         if "-" in args.bomb429:
-            for x_to_y in [x for x in args.bomb429.split(",") if "-" in x]:  # Minute of the hour ranges.
+            for x_to_y in [x.strip() for x in args.bomb429.split(",") if "-" in x]:
                 split = x_to_y.split("-")
                 if len(split) != 2:
                     _LOGGER.error("Not two hyphen separated values for --bomb429")
-                BOMB_429 += list(range(int(split[0]), int(split[1]) + 1))  # pyright: ignore[reportConstantRedefinition]
-        list.sort(BOMB_429)  # pyright:ignore[reportUnknownMemberType]
-        _LOGGER.info("API too busy responses will be returned at minute(s) %s", BOMB_429)
+                    continue
+                bomb_429 += list(range(int(split[0].strip()), int(split[1].strip()) + 1))
+        list.sort(bomb_429)
+        _LOGGER.info("API too busy responses will be returned at minute(s) %s", bomb_429)
     if args.bombkey:
-        BOMB_KEY = [  # pyright: ignore[reportConstantRedefinition]
-            int(x) for x in args.bombkey.split(",") if "-" not in x
-        ]  # Simple minutes of the hour. # pyright: ignore[reportConstantRedefinition]
+        bomb_key = [int(x.strip()) for x in args.bombkey.split(",") if x.strip() and "-" not in x.strip()]
         if "-" in args.bombkey:
-            for x_to_y in [x for x in args.bombkey.split(",") if "-" in x]:  # Minute of the hour ranges.
+            for x_to_y in [x.strip() for x in args.bombkey.split(",") if "-" in x]:
                 split = x_to_y.split("-")
                 if len(split) != 2:
                     _LOGGER.error("Not two hyphen separated values for --bombkey")
-                BOMB_KEY += list(range(int(split[0]), int(split[1]) + 1))  # pyright: ignore[reportConstantRedefinition]
-        list.sort(BOMB_KEY)  # pyright:ignore[reportUnknownMemberType]
-        _LOGGER.info("API key changes will be happen at minute(s) %s", BOMB_KEY)
+                    continue
+                bomb_key += list(range(int(split[0].strip()), int(split[1].strip()) + 1))
+        list.sort(bomb_key)
+        _LOGGER.info("API key changes will happen at minute(s) %s", bomb_key)
     if args.teapot:
-        GENERATE_418 = True  # pyright: ignore[reportConstantRedefinition]
-        _LOGGER.info("I'm a teapot response will be sometimes generated")
+        bomb_418 = True
+        _LOGGER.info("I'm a teapot status will be returned occasionally")
+    if args.use_guidance:
+        global GUIDANCE_FILE  # noqa: PLW0603 pylint: disable=global-statement
+        GUIDANCE_FILE = str(Path(Path.cwd(), "../../../config", GUIDANCE_DIRNAME, GUIDANCE_FILENAME))
+        try:
+            _refresh_guidance(force=True)
+            _LOGGER.info("Loaded forecast guidance file: %s", _path_from_config(Path(GUIDANCE_FILE)))
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as err:
+            _LOGGER.error("Failed to load guidance file %s: %s", _path_from_config(Path(GUIDANCE_FILE)), err)
 
-    if API_LIMIT == 50:
-        _LOGGER.info("API limit is default %s, usage has been reset", API_LIMIT)
+    return {
+        "API_LIMIT": api_limit,
+        "BOMB_429": bomb_429,
+        "BOMB_KEY": bomb_key,
+        "BOMB_418": bomb_418,
+    }
 
-    app.run(debug=args.debug, host="127.0.0.1", port=443, ssl_context=("cert.pem", "key.pem"))
+
+def main(argv: list[str] | None = None) -> None:
+    """Run the simulator."""
+
+    random.seed()
+    get_time_zone()
+    args = build_parser().parse_args(argv)
+
+    _LOGGER.info("Starting Solcast API simulator")
+    _LOGGER.info("Originally written by @autoSteve")
+    _LOGGER.info("Integration issues raised regarding this script will be closed without response")
+
+    globals().update(_apply_args(args))
+    logging.getLogger("werkzeug").addFilter(_WerkzeugLogFilter())
+    app.run(debug=args.debug, host="127.0.0.1", port=args.port, ssl_context=("cert.pem", "key.pem"))
+
+
+if __name__ == "__main__":
+    main()

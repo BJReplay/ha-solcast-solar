@@ -1,8 +1,4 @@
-"""Solcast HTTP fetch and update orchestration."""
-
-# pylint: disable=pointless-string-statement
-
-from __future__ import annotations
+"""Solcast API fetch and update orchestration."""
 
 import asyncio
 import copy
@@ -27,6 +23,7 @@ from .const import (
     ADVANCED_FORECAST_FUTURE_DAYS,
     ADVANCED_HISTORY_MAX_DAYS,
     ADVANCED_LOG_UPDATE_FAILURE_ONLY,
+    ADVANCED_SOLCAST_PORT,
     ADVANCED_SOLCAST_URL,
     ADVANCED_TRIGGER_ON_API_AVAILABLE,
     ADVANCED_TRIGGER_ON_API_UNAVAILABLE,
@@ -61,6 +58,7 @@ from .const import (
     RESPONSE_STATUS,
     SITE_INFO,
     SUCCESS,
+    SUCCESS_ACTUALS,
     SUCCESS_FORCED,
     SUCCESS_TRACKED,
     TASK_ACTUALS_FETCH,
@@ -76,6 +74,7 @@ from .util import (
     UpdateResult,
     async_trigger_automation_by_name,
     forecast_entry_update,
+    get_solcast_base_url,
     http_status_translate,
     raise_and_record,
     redact_api_key,
@@ -100,6 +99,10 @@ class Fetcher:
         self.api = api
         self._next_update: str | None = None
 
+    def _log_failure(self, message: str, *args: Any) -> None:
+        """Log at warning or error level based on the failure-only advanced option."""
+        (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(message, *args)
+
     async def build_forecast_and_actuals(self, raise_exc=False) -> bool:
         """Build the forecast and estimated actual data.
 
@@ -116,19 +119,15 @@ class Fetcher:
             if self.api.status == SolcastApiStatus.OK and not await self.api.build_forecast_data():
                 self.api.status = SolcastApiStatus.BUILD_FAILED_FORECASTS
                 success = False
-                (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(
-                    "Failed to build forecast data"
-                )
+                self._log_failure("Failed to build forecast data")
                 if raise_exc:
-                    raise_and_record(self.api.hass, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_FORECASTS)
+                    await raise_and_record(self.api.hass, self.api.entry, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_FORECASTS)
             if self.api.status == SolcastApiStatus.OK and self.api.options.get_actuals and not await self.api.build_actual_data():
                 self.api.status = SolcastApiStatus.BUILD_FAILED_ACTUALS
                 success = False
-                (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(
-                    "Failed to build estimated actuals data"
-                )
+                self._log_failure("Failed to build estimated actuals data")
                 if raise_exc:
-                    raise_and_record(self.api.hass, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_ACTUALS)
+                    await raise_and_record(self.api.hass, self.api.entry, ConfigEntryNotReady, EXCEPTION_BUILD_FAILED_ACTUALS)
         return success
 
     async def reset_failure_stats(self) -> None:
@@ -140,6 +139,7 @@ class Fetcher:
         self.api.data[FAILURE][LAST_14D] = [0, *self.api.data[FAILURE][LAST_14D][:-1]]
         self.api.data[SUCCESS][SUCCESS_TRACKED] = {}
         self.api.data[SUCCESS][SUCCESS_FORCED] = {}
+        self.api.data[SUCCESS][SUCCESS_ACTUALS] = {}
         await self.api.sites_cache.serialise_data(self.api.data, self.api.filename)
 
     async def update_estimated_actuals(self, dampen_yesterday: bool = False) -> None:
@@ -222,7 +222,7 @@ class Fetcher:
                 site[RESOURCE_ID], self.api.data_actuals, self.api.advanced_options[ADVANCED_HISTORY_MAX_DAYS], actuals
             )
             _LOGGER.debug("Estimated actuals dictionary for site %s length %s", site[RESOURCE_ID], len(actuals))
-            self.increment_success_count(force=True, api_key=api_key)
+            self.increment_success_count(force=False, api_key=api_key, actuals=True)
 
         if status == DataCallStatus.SUCCESS and dampen_yesterday:
             # Backfill recovered historical actuals with the latest dampening factors if needed, then
@@ -231,17 +231,18 @@ class Fetcher:
             await self.api.dampening.apply_yesterday()
 
         if status != DataCallStatus.SUCCESS:
-            (_LOGGER.warning if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.error)(
-                "Update estimated actuals failed: %s", reason
-            )
+            self._log_failure("Update estimated actuals failed: %s", reason)
         else:
-            self.api.data_actuals[LAST_UPDATED] = dt.now(UTC).replace(microsecond=0)
-            self.api.data_actuals[LAST_ATTEMPT] = dt.now(UTC).replace(microsecond=0)
-            await self.api.sites_cache.serialise_data(self.api.data_actuals, self.api.filename_actuals)
-            self.api.data_actuals_dampened[LAST_UPDATED] = dt.now(UTC).replace(microsecond=0)
-            self.api.data_actuals_dampened[LAST_ATTEMPT] = dt.now(UTC).replace(microsecond=0)
-            await self.api.sites_cache.serialise_data(self.api.data_actuals_dampened, self.api.filename_actuals_dampened)
-            await self.api.sites_cache.serialise_data(self.api.data, self.api.filename)
+            now = dt.now(UTC).replace(microsecond=0)
+            self.api.data_actuals[LAST_UPDATED] = now
+            self.api.data_actuals[LAST_ATTEMPT] = now
+            self.api.data_actuals_dampened[LAST_UPDATED] = now
+            self.api.data_actuals_dampened[LAST_ATTEMPT] = now
+            await asyncio.gather(
+                self.api.sites_cache.serialise_data(self.api.data_actuals, self.api.filename_actuals),
+                self.api.sites_cache.serialise_data(self.api.data_actuals_dampened, self.api.filename_actuals_dampened),
+                self.api.sites_cache.serialise_data(self.api.data, self.api.filename),
+            )
 
         _LOGGER.debug("Task update_estimated_actuals took %.3f seconds", time.time() - start_time)
 
@@ -276,6 +277,7 @@ class Fetcher:
         failure = False
         sites_attempted = 0
         sites_succeeded = 0
+        forced_keys: set[str] = set()
         reason = "Unknown"
         for site in self.api.sites:
             sites_attempted += 1
@@ -306,6 +308,11 @@ class Fetcher:
             if result == DataCallStatus.SUCCESS:
                 sites_succeeded += 1
                 self.increment_success_count(force, site[API_KEY])
+                if force:
+                    forced_keys.add(site[API_KEY])
+
+        for api_key in forced_keys:
+            await self.api.sites_cache.serialise_usage(api_key)
 
         if sites_attempted > 0 and not failure:
             await self.api.dampening.apply_forward(do_past_hours=do_past_hours)
@@ -560,15 +567,22 @@ class Fetcher:
         self.api.data[FAILURE][LAST_7D][0] = self.api.data[FAILURE][LAST_24H]
         self.api.data[FAILURE][LAST_14D][0] = self.api.data[FAILURE][LAST_24H]
 
-    def increment_success_count(self, force: bool, api_key: str) -> None:
+    def increment_success_count(self, force: bool, api_key: str, actuals: bool = False) -> None:
         """Increment the appropriate success counter once per successful site API call.
 
         Arguments:
-            force (bool): True if the update was a forced update (quota not consumed).
+            force (bool): True if the update was a forced forecast update (quota not consumed).
             api_key (str): The API key used for the site fetch.
+            actuals (bool): True if the call was an estimated actuals fetch (tracked separately from forced forecast updates).
         """
         key = md5(api_key[-6:].encode()).hexdigest()
-        if force:
+        if actuals:
+            self.api.api_actuals[api_key] = self.api.api_actuals.get(api_key, 0) + 1
+            actuals_data = self.api.data[SUCCESS].setdefault(SUCCESS_ACTUALS, {})
+            actuals_data[key] = actuals_data.get(key, 0) + 1
+            _LOGGER.debug("Actuals API counter for %s incremented to %d", redact_api_key(api_key), actuals_data[key])
+        elif force:
+            self.api.api_forced[api_key] = self.api.api_forced.get(api_key, 0) + 1
             forced = self.api.data[SUCCESS][SUCCESS_FORCED]
             forced[key] = forced.get(key, 0) + 1
             _LOGGER.debug("Forced API counter for %s incremented from %d to %d", redact_api_key(api_key), forced[key] - 1, forced[key])
@@ -620,7 +634,11 @@ class Fetcher:
                     issue_registry = ir.async_get(self.api.hass)
 
                     if self.api.api_used[api_key] < self.api.api_limits[api_key] or force:
-                        url = f"{self.api.advanced_options[ADVANCED_SOLCAST_URL]}/rooftop_sites/{site}/{path}"
+                        base_url = get_solcast_base_url(
+                            self.api.advanced_options[ADVANCED_SOLCAST_URL],
+                            self.api.advanced_options[ADVANCED_SOLCAST_PORT],
+                        )
+                        url = f"{base_url}/rooftop_sites/{site}/{path}"
                         params: dict[str, str | int] = {FORMAT: JSON, API_KEY: api_key, HOURS: hours}
 
                         tries = UPDATE_TRIES
@@ -702,8 +720,7 @@ class Fetcher:
                                 await self.api.sites_cache.serialise_usage(api_key)
                             else:
                                 _LOGGER.debug("API returned data")
-                            response_json = response_text
-                            response_json = json.loads(response_json)
+                            response_json = await self.api.hass.async_add_executor_job(json.loads, response_text)
                             if issue_registry.async_get_issue(DOMAIN, ISSUE_API_UNAVAILABLE) is not None:
                                 _LOGGER.debug("Remove issue for %s", ISSUE_API_UNAVAILABLE)
                                 ir.async_delete_issue(self.api.hass, DOMAIN, ISSUE_API_UNAVAILABLE)

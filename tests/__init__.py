@@ -5,6 +5,7 @@ import contextlib
 import copy
 from datetime import UTC, datetime as dt, timedelta
 from enum import Enum
+import json
 import logging
 from pathlib import Path
 import re
@@ -26,6 +27,7 @@ from homeassistant.components.recorder.db_schema import (
     StatesMeta,
 )
 from homeassistant.components.sensor import SensorDeviceClass
+from homeassistant.components.solcast_solar import crash_state as _cs
 from homeassistant.components.solcast_solar.const import (
     API_LIMIT,
     AUTO_DAMPEN,
@@ -54,7 +56,7 @@ from homeassistant.components.solcast_solar.const import (
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -212,6 +214,33 @@ _LOGGER = logging.getLogger(__name__)
 simulated: SimulatedSolcast = SimulatedSolcast()
 
 
+def get_config_dir(config_dir: str | Path, create: bool = False) -> Path:
+    """Return the Solcast test config directory."""
+
+    base_path = Path(config_dir)
+    if CONFIG_FOLDER_DISCRETE and base_path.name != CONFIG_DISCRETE_NAME:
+        solcast_config_dir = base_path / CONFIG_DISCRETE_NAME
+    else:
+        solcast_config_dir = base_path
+    if create and CONFIG_FOLDER_DISCRETE:
+        solcast_config_dir.mkdir(parents=True, exist_ok=True)
+    return solcast_config_dir
+
+
+def get_advanced_options_file(config_dir: str | Path, create: bool = False) -> Path:
+    """Return the advanced options file path for Solcast tests."""
+
+    return get_config_dir(config_dir, create=create) / "solcast-advanced.json"
+
+
+def write_advanced_options(config_dir: str | Path, advanced_options: dict[str, Any]) -> Path:
+    """Write Solcast advanced options for tests and return the file path."""
+
+    advanced_file = get_advanced_options_file(config_dir, create=True)
+    advanced_file.write_text(json.dumps(advanced_options), encoding="utf-8")
+    return advanced_file
+
+
 def verify_data_schema(data: dict[str, Any]) -> None:
     """Verify the schema of data sets."""
 
@@ -222,7 +251,7 @@ def verify_data_schema(data: dict[str, Any]) -> None:
         "last_attempt": {"type": dt},
         "auto_updated": {"type": int},
         "failure": {"type": dict, "members": ["last_24h", "last_7d", "last_14d"]},
-        "success": {"type": dict, "members": ["tracked", "forced"]},
+        "success": {"type": dict, "members": ["tracked", "forced", "actuals"]},
         "integration_version": {"type": str},
     }
 
@@ -850,13 +879,37 @@ def no_error_or_exception(caplog: pytest.LogCaptureFixture) -> None:
     assert "Exception" not in caplog.text
 
 
+async def get_crash_state(hass: HomeAssistant, entry: ConfigEntry):
+    """Return the current crash-state object for a config entry (test helper)."""
+    return (await _cs.async_get(hass, entry.entry_id)).state
+
+
+async def set_presumed_dead(hass: HomeAssistant, entry: ConfigEntry, value: bool) -> None:
+    """Set or clear the presumed-dead flag on the persisted crash state (test helper)."""
+    store = await _cs.async_get(hass, entry.entry_id)
+    store.state.presumed_dead = value
+    await store.async_save()
+
+
+async def set_crash_time(hass: HomeAssistant, entry: ConfigEntry, time) -> None:
+    """Set the persisted crash time on the crash state (test helper)."""
+    store = await _cs.async_get(hass, entry.entry_id)
+    store.state.crash_time = time
+    await store.async_save()
+
+
+async def clear_crash_state(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Clear all persisted crash state (test helper)."""
+    await (await _cs.async_get(hass, entry.entry_id)).async_clear()
+
+
 async def reload_integration(hass: HomeAssistant, entry: ConfigEntry) -> tuple[SolcastUpdateCoordinator | None, SolcastApi | None]:
     """Reload the integration."""
 
     _LOGGER.warning("Reloading integration")
     await hass.config_entries.async_reload(entry.entry_id)
     await hass.async_block_till_done()
-    if hass.data[DOMAIN].get(entry.entry_id):
+    if entry.state is ConfigEntryState.LOADED:
         try:
             return entry.runtime_data.coordinator, entry.runtime_data.coordinator.solcast
         except:  # noqa: E722
@@ -926,7 +979,7 @@ async def wait_for_it(
 async def async_cleanup_integration_caches(hass: HomeAssistant, **kwargs: Any) -> bool:
     """Clean up the Solcast Solar integration caches and session."""
 
-    config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+    config_dir = get_config_dir(hass.config.config_dir)
 
     def list_files() -> list[str]:
         return [str(cache) for cache in Path(config_dir).glob("solcast*.json")]
@@ -949,13 +1002,22 @@ async def async_cleanup_integration_caches(hass: HomeAssistant, **kwargs: Any) -
 async def async_cleanup_integration_tests(hass: HomeAssistant, **kwargs: Any) -> bool:
     """Clean up the Solcast Solar integration caches and session."""
 
-    config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
+    config_dir = get_config_dir(hass.config.config_dir)
 
     def list_files() -> list[str]:
         return [str(cache) for cache in Path(config_dir).glob("solcast*.json")]
 
     try:
         leave_dir = False
+
+        loaded_entries = [entry for entry in hass.config_entries.async_entries(DOMAIN) if entry.state is ConfigEntryState.LOADED]
+        for entry in loaded_entries:
+            _LOGGER.debug("Unloading config entry during Solcast test cleanup: %s", entry.entry_id)
+            if not await hass.config_entries.async_unload(entry.entry_id):
+                _LOGGER.error("Error unloading Solcast config entry during test cleanup: %s", entry.entry_id)
+                return False
+        if loaded_entries:
+            await hass.async_block_till_done()
 
         for s in mock_session_default:  # Reset mock session settings
             if s != "aioresponses":

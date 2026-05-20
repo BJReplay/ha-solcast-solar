@@ -2,9 +2,7 @@
 
 import asyncio
 from datetime import timedelta
-import json
 import logging
-from pathlib import Path
 from typing import Any
 from unittest import mock
 
@@ -13,7 +11,11 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.solcast_solar.const import (
+    ADVANCED_LOG_UPDATE_FAILURE_ONLY,
+    ADVANCED_TRIGGER_ON_API_AVAILABLE,
+    ADVANCED_TRIGGER_ON_API_UNAVAILABLE,
     DOMAIN,
+    LAST_UPDATED,
     SERVICE_FORCE_UPDATE_FORECASTS,
 )
 from homeassistant.components.solcast_solar.util import UpdateOutcome, UpdateResult
@@ -21,14 +23,13 @@ from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 
 from . import (
-    CONFIG_DISCRETE_NAME,
-    CONFIG_FOLDER_DISCRETE,
     DEFAULT_INPUT1,
     MOCK_BUSY,
     async_cleanup_integration_tests,
     async_init_integration,
     session_clear,
     session_set,
+    write_advanced_options,
 )
 
 
@@ -80,17 +81,12 @@ async def test_forecast_retry(
     try:
         freezer.move_to("2025-01-11 00:00:00")  # A pending update will be queued for 00:00:09 UTC
 
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
-        Path(f"{config_dir}/solcast-advanced.json").write_text(
-            json.dumps(
-                {
-                    "trigger_on_api_unavailable": "Automation unavailable",
-                    "trigger_on_api_available": "Automation available",
-                }
-            ),
-            encoding="utf-8",
+        write_advanced_options(
+            hass.config.config_dir,
+            {
+                ADVANCED_TRIGGER_ON_API_UNAVAILABLE: "Automation unavailable",
+                ADVANCED_TRIGGER_ON_API_AVAILABLE: "Automation available",
+            },
         )
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
@@ -122,7 +118,7 @@ async def test_forecast_retry(
         session_set(MOCK_BUSY)
         caplog.clear()
 
-        solcast.data["last_updated"] -= timedelta(minutes=20)
+        solcast.data[LAST_UPDATED] -= timedelta(minutes=20)
         with mock.patch("homeassistant.components.solcast_solar.fetcher.Fetcher._sleep", new_callable=AsyncMockDoNothing):
             async with asyncio.timeout(10):
                 while "Raise issue for api_unavailable" not in caplog.text:
@@ -168,18 +164,13 @@ async def test_log_update_failure_only_enabled(
     try:
         freezer.move_to("2025-01-11 00:00:00")
 
-        config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        if CONFIG_FOLDER_DISCRETE:
-            Path(config_dir).mkdir(parents=False, exist_ok=True)
-        Path(f"{config_dir}/solcast-advanced.json").write_text(
-            json.dumps(
-                {
-                    "trigger_on_api_unavailable": "Automation unavailable",
-                    "trigger_on_api_available": "Automation available",
-                    "log_update_failure_only": True,
-                }
-            ),
-            encoding="utf-8",
+        write_advanced_options(
+            hass.config.config_dir,
+            {
+                ADVANCED_TRIGGER_ON_API_UNAVAILABLE: "Automation unavailable",
+                ADVANCED_TRIGGER_ON_API_AVAILABLE: "Automation available",
+                ADVANCED_LOG_UPDATE_FAILURE_ONLY: True,
+            },
         )
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
@@ -190,7 +181,7 @@ async def test_log_update_failure_only_enabled(
         caplog.clear()
         caplog.set_level(logging.DEBUG)
 
-        solcast.data["last_updated"] -= timedelta(minutes=20)
+        solcast.data[LAST_UPDATED] -= timedelta(minutes=20)
         with mock.patch("homeassistant.components.solcast_solar.fetcher.Fetcher._sleep", new_callable=AsyncMockDoNothing):
             async with asyncio.timeout(10):
                 while "Raise issue for api_unavailable" not in caplog.text:
