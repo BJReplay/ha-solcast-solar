@@ -703,8 +703,10 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 
 `API Used` attributes include the following:
 
-* `api_actuals_used`: The count of successful estimated actuals API calls today (always untracked)
+* `api_actuals_used`: The count of successful estimated actuals API calls today (always untracked).
 * `api_force_used`: The count of successful forced API calls today (those that bypassed the API limit tracked).
+* `daily_typical_forecast_updates`: The integration learns the typical forecast update cadence (excluding actuals updates).
+* `api_used_total_combined`: A simple running total of forecast updates, forced forecast updates and estimated actual updates.
 
 `API Last Polled` attributes include the following:
 
@@ -1452,6 +1454,7 @@ v4.5.3
 
 * Fix enable estimated actuals skips a day (caution: enabling may exhaust API calls available for a day) by @autoSteve
 * Add `api_actuals_used` attribute to API Used Total entity by @autoSteve
+* Add `daily_typical_forecast_updates` and `api_used_total_combined` attributes by @autoSteve
 * Add sun elevation adjustment for automated dampening by @autoSteve
 * Expanded diagnostic self-test service action by @autoSteve
 * Add undampened total forecast attributes when dampening is enabled by @autoSteve

@@ -18,7 +18,9 @@ from .const import (
     ALL,
     API_ACTUALS_USED,
     API_FORCE_USED,
+    API_USED_TOTAL_COMBINED,
     CUSTOM_HOURS,
+    DAILY_TYPICAL_FORECAST_UPDATES,
     DAMPENED_APE_BREAKDOWN,
     DAMPENED_DAILY,
     DAMPENED_MAPE,
@@ -424,6 +426,10 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         if key == ENTITY_API_COUNTER:
             ret[API_FORCE_USED] = self.solcast.successes_forced_24h
             ret[API_ACTUALS_USED] = self.solcast.successes_actuals_24h
+            ret[DAILY_TYPICAL_FORECAST_UPDATES] = self.solcast.api_typical_count
+            ret[API_USED_TOTAL_COMBINED] = (
+                self.solcast.api_used_count + self.solcast.successes_forced_24h + self.solcast.successes_actuals_24h
+            )
 
         return ret
 

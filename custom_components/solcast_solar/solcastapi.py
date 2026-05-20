@@ -444,6 +444,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         return min(list(self.api_limits.values()))
 
     @property
+    def api_typical_count(self) -> int:
+        """Typical daily forecast update count.
+
+        Returns:
+            int: The maximum typical daily forecast update count across all configured API keys.
+        """
+        return max(self.api_typical.values()) if self.api_typical else 0
+
+    @property
     def last_updated(self) -> dt | None:
         """When the data was last updated.
 
