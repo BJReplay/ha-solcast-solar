@@ -20,9 +20,9 @@ jobs:
       - uses: actions/stale@v9
         with:
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-          stale-issue-message: 'This issue is stale because it has been open 7 days with no activity. Remove stale label or comment or this will be closed in 2 days.'
+          stale-issue-message: 'This issue is stale because it has been open 7 days with no activity. Remove stale label or comment or label with no-stale or this will be closed in 2 days.'
           stale-issue-label: 'no-issue-activity'
+          exempt-issue-labels: 'no-stale,help-wanted'
           close-issue-message: 'This issue was closed because it has been stalled for over a week with no activity.'
           days-before-issue-stale: 7
           days-before-issue-close: 2
-          
