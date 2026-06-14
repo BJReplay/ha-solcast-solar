@@ -36,6 +36,7 @@ from .const import (
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
+    BRK_CLEARSKY,
     BRK_HALFHOURLY,
     BRK_HOURLY,
     BRK_SITE,
@@ -158,6 +159,7 @@ async def __get_options(hass: HomeAssistant, entry: ConfigEntry) -> ConnectionOp
         entry.options.get(BRK_ESTIMATE, True),
         entry.options.get(BRK_ESTIMATE10, True),
         entry.options.get(BRK_ESTIMATE90, True),
+        entry.options.get(BRK_CLEARSKY, True),
         entry.options.get(BRK_SITE, True),
         entry.options.get(BRK_HALFHOURLY, True),
         entry.options.get(BRK_HOURLY, True),
@@ -550,7 +552,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
         # Attribute changes, which will need a recalculation of splines.
         if not recalculate_and_refresh:
             recalculate_splines = (
-                changed(BRK_ESTIMATE) or changed(BRK_ESTIMATE10) or changed(BRK_ESTIMATE90) or changed(BRK_SITE) or changed(KEY_ESTIMATE)
+                changed(BRK_ESTIMATE) or changed(BRK_ESTIMATE10) or changed(BRK_ESTIMATE90) or changed(BRK_CLEARSKY) or changed(BRK_SITE) or changed(KEY_ESTIMATE)
             )
 
         if changed(AUTO_DAMPEN):
@@ -674,6 +676,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         new_options[BRK_ESTIMATE] = True
         new_options[BRK_ESTIMATE10] = True
         new_options[BRK_ESTIMATE90] = True
+        new_options[BRK_CLEARSKY] = True
         new_options[BRK_SITE] = True
         new_options[BRK_HALFHOURLY] = True
         new_options[BRK_HOURLY] = True

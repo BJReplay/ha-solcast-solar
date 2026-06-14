@@ -44,6 +44,7 @@ from .const import (
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
+    BRK_CLEARSKY,
     BRK_HALFHOURLY,
     BRK_HOURLY,
     BRK_SITE,
@@ -143,6 +144,7 @@ async def validate_sites(hass: HomeAssistant, user_input: dict[str, Any]) -> tup
         user_input[BRK_ESTIMATE],
         user_input[BRK_ESTIMATE10],
         user_input[BRK_ESTIMATE90],
+        user_input[BRK_CLEARSKY],
         user_input[BRK_SITE],
         user_input[BRK_HALFHOURLY],
         user_input[BRK_HOURLY],
@@ -333,6 +335,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     BRK_ESTIMATE: True,
                     BRK_ESTIMATE10: True,
                     BRK_ESTIMATE90: True,
+                    BRK_CLEARSKY: True,
                     BRK_SITE: True,
                     BRK_HALFHOURLY: True,
                     BRK_HOURLY: True,
@@ -553,6 +556,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     all_config_data[BRK_ESTIMATE] = user_input[BRK_ESTIMATE]
                     all_config_data[BRK_ESTIMATE10] = user_input[BRK_ESTIMATE10]
                     all_config_data[BRK_ESTIMATE90] = user_input[BRK_ESTIMATE90]
+                    all_config_data[BRK_CLEARSKY] = user_input[BRK_CLEARSKY]
                     all_config_data[BRK_HALFHOURLY] = user_input[BRK_HALFHOURLY]
                     all_config_data[BRK_HOURLY] = user_input[BRK_HOURLY]
                     site_breakdown = user_input[BRK_SITE]
@@ -636,6 +640,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     vol.Optional(BRK_ESTIMATE10, default=self._options[BRK_ESTIMATE10]): bool,
                     vol.Optional(BRK_ESTIMATE, default=self._options[BRK_ESTIMATE]): bool,
                     vol.Optional(BRK_ESTIMATE90, default=self._options[BRK_ESTIMATE90]): bool,
+                    vol.Optional(BRK_CLEARSKY, default=self._options.get(BRK_CLEARSKY, True)): bool,
                     vol.Optional(BRK_SITE, default=self._options[BRK_SITE]): bool,
                     vol.Optional(BRK_HALFHOURLY, default=self._options[BRK_HALFHOURLY]): bool,
                     vol.Optional(BRK_HOURLY, default=self._options[BRK_HOURLY]): bool,

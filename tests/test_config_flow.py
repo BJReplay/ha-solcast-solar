@@ -33,6 +33,7 @@ from homeassistant.components.solcast_solar.const import (
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
+    BRK_CLEARSKY,
     BRK_HALFHOURLY,
     BRK_HOURLY,
     BRK_SITE,
@@ -192,6 +193,7 @@ async def test_create_entry(hass: HomeAssistant) -> None:
         BRK_ESTIMATE: True,
         BRK_ESTIMATE10: True,
         BRK_ESTIMATE90: True,
+        BRK_CLEARSKY: True,
         BRK_SITE: True,
         BRK_HALFHOURLY: True,
         BRK_HOURLY: True,
@@ -735,6 +737,7 @@ async def test_entry_options_upgrade(
         assert entry.options.get(BRK_ESTIMATE) is True, "Expected option BRK_ESTIMATE to be True"
         assert entry.options.get(BRK_ESTIMATE10) is True, "Expected option BRK_ESTIMATE10 to be True"
         assert entry.options.get(BRK_ESTIMATE90) is True, "Expected option BRK_ESTIMATE90 to be True"
+        assert entry.options.get(BRK_CLEARSKY) is True, "Expected option BRK_CLEARSKY to be True"
         assert entry.options.get(BRK_SITE) is True, "Expected option BRK_SITE to be True"
         assert entry.options.get(BRK_HALFHOURLY) is True, "Expected option BRK_HALFHOURLY to be True"
         assert entry.options.get(BRK_HOURLY) is True, "Expected option BRK_HOURLY to be True"

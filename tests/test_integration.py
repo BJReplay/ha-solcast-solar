@@ -30,6 +30,7 @@ from homeassistant.components.solcast_solar.const import (
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
+    BRK_CLEARSKY,
     BRK_HALFHOURLY,
     BRK_HOURLY,
     BRK_SITE,
@@ -1291,6 +1292,7 @@ async def test_remaining_actions(
                 BRK_ESTIMATE: False,
                 BRK_ESTIMATE10: False,
                 BRK_ESTIMATE90: False,
+                BRK_CLEARSKY: False,
                 BRK_SITE: False,
                 BRK_HALFHOURLY: False,
                 BRK_HOURLY: False,
@@ -1302,6 +1304,7 @@ async def test_remaining_actions(
         assert entry.options[BRK_ESTIMATE] is False, "Expected option BRK_ESTIMATE to be False"
         assert entry.options[BRK_ESTIMATE10] is False, "Expected option BRK_ESTIMATE10 to be False"
         assert entry.options[BRK_ESTIMATE90] is False, "Expected option BRK_ESTIMATE90 to be False"
+        assert entry.options[BRK_CLEARSKY] is False, "Expected option BRK_CLEARSKY to be False"
         assert entry.options[BRK_SITE] is False, "Expected option BRK_SITE to be False"
         assert entry.options[BRK_HALFHOURLY] is False, "Expected option BRK_HALFHOURLY to be False"
         assert entry.options[BRK_HOURLY] is False, "Expected option BRK_HOURLY to be False"
@@ -1353,6 +1356,7 @@ async def test_remaining_actions(
                 BRK_ESTIMATE: True,
                 BRK_ESTIMATE10: True,
                 BRK_ESTIMATE90: True,
+                BRK_CLEARSKY: True,
                 BRK_SITE: True,
                 BRK_HALFHOURLY: True,
                 BRK_HOURLY: True,
@@ -1387,6 +1391,7 @@ async def test_remaining_actions(
             BRK_ESTIMATE: entry.options[BRK_ESTIMATE],
             BRK_ESTIMATE10: entry.options[BRK_ESTIMATE10],
             BRK_ESTIMATE90: entry.options[BRK_ESTIMATE90],
+            BRK_CLEARSKY: entry.options[BRK_CLEARSKY],
             BRK_SITE: entry.options[BRK_SITE],
             BRK_HALFHOURLY: entry.options[BRK_HALFHOURLY],
             BRK_HOURLY: entry.options[BRK_HOURLY],
@@ -1708,6 +1713,7 @@ async def test_scenarios(  # noqa: C901
                 DEFAULT_INPUT1[BRK_ESTIMATE],
                 DEFAULT_INPUT1[BRK_ESTIMATE10],
                 DEFAULT_INPUT1[BRK_ESTIMATE90],
+                DEFAULT_INPUT1[BRK_CLEARSKY],
                 DEFAULT_INPUT1[BRK_SITE],
                 DEFAULT_INPUT1[BRK_HALFHOURLY],
                 DEFAULT_INPUT1[BRK_HOURLY],

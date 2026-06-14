@@ -407,6 +407,7 @@
           "attr_brk_estimate": "Enable estimate 50 sensor attributes",
           "attr_brk_estimate10": "Enable estimate 10 sensor attributes",
           "attr_brk_estimate90": "Enable estimate 90 sensor attributes",
+          "attr_brk_clearsky": "Enable clearsky estimate sensor attributes",
           "attr_brk_halfhourly": "Enable forecast half-hourly detail attributes",
           "attr_brk_hourly": "Enable forecast hourly detail attributes",
           "attr_brk_site": "Enable site breakdown sensor attributes",
@@ -582,6 +583,10 @@
         "attr_brk_estimate90": {
           "description": "Enable estimate 90 sensor attributes.",
           "name": "Breakdown estimate 90"
+        },
+        "attr_brk_clearsky": {
+          "description": "Enable clearsky estimate sensor attributes.",
+          "name": "Breakdown clearsky estimate"
         },
         "attr_brk_halfhourly": {
           "description": "Enable forecast half-hourly detail attributes.",

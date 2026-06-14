@@ -20,6 +20,7 @@ from homeassistant.components.solcast_solar.const import (
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
+    BRK_CLEARSKY,
     BRK_SITE,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
@@ -383,6 +384,8 @@ async def test_sensor_states(  # noqa: C901
             estimate_set.append("estimate10")
         if settings[BRK_ESTIMATE90]:
             estimate_set.append("estimate90")
+        if settings[BRK_CLEARSKY]:
+            estimate_set.append("pv_clearsky")
         return estimate_set
 
     try:

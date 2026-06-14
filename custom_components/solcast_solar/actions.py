@@ -32,6 +32,7 @@ from .const import (
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
+    BRK_CLEARSKY,
     BRK_HALFHOURLY,
     BRK_HOURLY,
     BRK_SITE,
@@ -145,6 +146,7 @@ SERVICE_SET_OPTIONS_SCHEMA: Final = vol.All(
         vol.Optional(BRK_ESTIMATE): cv.boolean,
         vol.Optional(BRK_ESTIMATE10): cv.boolean,
         vol.Optional(BRK_ESTIMATE90): cv.boolean,
+        vol.Optional(BRK_CLEARSKY): cv.boolean,
         vol.Optional(BRK_SITE): cv.boolean,
         vol.Optional(BRK_HALFHOURLY): cv.boolean,
         vol.Optional(BRK_HOURLY): cv.boolean,
@@ -500,6 +502,7 @@ class ServiceActions:
                 BRK_ESTIMATE: opt.get(BRK_ESTIMATE, True),
                 BRK_ESTIMATE10: opt.get(BRK_ESTIMATE10, False),
                 BRK_ESTIMATE90: opt.get(BRK_ESTIMATE90, False),
+                BRK_CLEARSKY: opt.get(BRK_CLEARSKY, True),
                 BRK_SITE: opt.get(BRK_SITE, False),
                 BRK_HALFHOURLY: opt.get(BRK_HALFHOURLY, False),
                 BRK_HOURLY: opt.get(BRK_HOURLY, False),
@@ -761,7 +764,7 @@ class ServiceActions:
             opt[HARD_LIMIT_API] = validated_limit
 
         # Apply boolean breakdown options.
-        for key in (BRK_ESTIMATE, BRK_ESTIMATE10, BRK_ESTIMATE90, BRK_SITE, BRK_HALFHOURLY, BRK_HOURLY, BRK_SITE_DETAILED):
+        for key in (BRK_ESTIMATE, BRK_ESTIMATE10, BRK_ESTIMATE90, BRK_CLEARSKY, BRK_SITE, BRK_HALFHOURLY, BRK_HOURLY, BRK_SITE_DETAILED):
             if (val := call.data.get(key)) is not None:
                 opt[key] = val
 

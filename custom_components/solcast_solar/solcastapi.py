@@ -37,6 +37,7 @@ from .const import (
     BRK_ESTIMATE,
     BRK_ESTIMATE10,
     BRK_ESTIMATE90,
+    BRK_CLEARSKY,
     BRK_HALFHOURLY,
     BRK_HOURLY,
     BRK_SITE,
@@ -124,6 +125,7 @@ class ConnectionOptions:
     attr_brk_estimate: bool
     attr_brk_estimate10: bool
     attr_brk_estimate90: bool
+    attr_brk_clearsky: bool
     attr_brk_site: bool
     attr_brk_halfhourly: bool
     attr_brk_hourly: bool
@@ -305,6 +307,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             options[BRK_ESTIMATE],
             options[BRK_ESTIMATE10],
             options[BRK_ESTIMATE90],
+            options[BRK_CLEARSKY],
             options[BRK_SITE],
             options[BRK_HALFHOURLY],
             options[BRK_HOURLY],
@@ -329,6 +332,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             estimate_set.append(ESTIMATE10)
         if options.attr_brk_estimate90:
             estimate_set.append(ESTIMATE90)
+        if options.attr_brk_clearsky:
+            estimate_set.append(CLEARSKY_ESTIMATE)
         return estimate_set
 
     @property
