@@ -32,6 +32,7 @@ from .const import (
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
+    CLEARSKY_ESTIMATE,
     FAILURE,
     FORECASTS,
     GET_ACTUALS,
@@ -571,7 +572,7 @@ def upgrade_cache_schema(
     return json_version
 
 
-def forecast_entry_update(forecasts: dict[dt, Any], period_start: dt, pv: float, pv10: float | None = None, pv90: float | None = None):
+def forecast_entry_update(forecasts: dict[dt, Any], period_start: dt, pv: float, pv10: float | None = None, pv90: float | None = None, pv_clearsky: float | None = None):
     """Update an individual forecast entry."""
 
     extant = forecasts.get(period_start)
@@ -581,6 +582,8 @@ def forecast_entry_update(forecasts: dict[dt, Any], period_start: dt, pv: float,
             forecasts[period_start][ESTIMATE10] = pv10
         if pv90 is not None:
             forecasts[period_start][ESTIMATE90] = pv90
+        if pv_clearsky is not None:
+            forecasts[period_start][CLEARSKY_ESTIMATE] = pv_clearsky
     elif pv10 is not None:
         forecasts[period_start] = {
             "period_start": period_start,
@@ -588,11 +591,15 @@ def forecast_entry_update(forecasts: dict[dt, Any], period_start: dt, pv: float,
             "pv_estimate10": pv10,
             "pv_estimate90": pv90,
         }
+        if pv_clearsky is not None:
+            forecasts[period_start][CLEARSKY_ESTIMATE] = pv_clearsky
     else:
         forecasts[period_start] = {
             "period_start": period_start,
             "pv_estimate": pv,
         }
+        if pv_clearsky is not None:
+            forecasts[period_start][CLEARSKY_ESTIMATE] = pv_clearsky
 
 
 def raise_and_record(

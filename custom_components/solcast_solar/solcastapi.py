@@ -56,6 +56,7 @@ from .const import (
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
+    CLEARSKY_ESTIMATE,
     EXCLUDE_SITES,
     FAILURE,
     FILES,
@@ -695,7 +696,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     data,
                     sites_hard_limit,
                     logged_hard_limit,
-                    (ESTIMATE, ESTIMATE10, ESTIMATE90),
+                    (ESTIMATE, ESTIMATE10, ESTIMATE90, CLEARSKY_ESTIMATE),
                     data_set=DATA_SET_FORECAST if dampened else DATA_SET_FORECAST_UNDAMPENED,
                 )
 
@@ -718,12 +719,12 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                 } | {
                                     est: round(
                                         min(
-                                            forecast[est],
+                                            forecast.get(est, 0),
                                             sites_hard_limit[api_key][est].get(period_start, {}).get(resource_id, 100),
                                         ),
                                         4,
                                     )
-                                    for est in [ESTIMATE, ESTIMATE10, ESTIMATE90]
+                                    for est in [ESTIMATE, ESTIMATE10, ESTIMATE90, CLEARSKY_ESTIMATE]
                                 }
 
                                 if resource_id not in self.options.exclude_sites:
@@ -743,15 +744,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                                     extant: dict[str, Any] | None = forecasts.get(period_start)
                                     if extant is not None:
-                                        for est in [ESTIMATE, ESTIMATE10, ESTIMATE90]:
+                                        for est in [ESTIMATE, ESTIMATE10, ESTIMATE90, CLEARSKY_ESTIMATE]:
                                             extant[est] = round(
-                                                extant[est] + site_forecasts[period_start][est],
+                                                extant.get(est, 0) + site_forecasts[period_start].get(est, 0),
                                                 4,
                                             )
                                     else:
                                         forecasts[period_start] = {
                                             PERIOD_START: period_start,
-                                        } | {est: site_forecasts[period_start][est] for est in (ESTIMATE, ESTIMATE10, ESTIMATE90)}
+                                        } | {est: site_forecasts[period_start].get(est, 0) for est in (ESTIMATE, ESTIMATE10, ESTIMATE90, CLEARSKY_ESTIMATE)}
                                         if dampened and self.options.auto_dampen and period_start >= self.dt_helper.day_start_utc():
                                             forecasts[period_start][DAMPENING_FACTOR] = round(self.dampening.auto_factors[period_start], 4)
 

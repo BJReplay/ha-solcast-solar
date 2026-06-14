@@ -23,6 +23,7 @@ from .const import (
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
+    CLEARSKY_ESTIMATE,
     NAME,
     PERIOD_START,
     RESOURCE_ID,
@@ -167,6 +168,10 @@ class ForecastQuery:
                     ),
                     ESTIMATE90: round(
                         (forecast[index][ESTIMATE90] + forecast[index + 1][ESTIMATE90]) / 2,
+                        4,
+                    ),
+                    CLEARSKY_ESTIMATE: round(
+                        (forecast[index].get(CLEARSKY_ESTIMATE, 0) + forecast[index + 1].get(CLEARSKY_ESTIMATE, 0)) / 2,
                         4,
                     ),
                 }

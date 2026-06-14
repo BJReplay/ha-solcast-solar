@@ -38,6 +38,7 @@ from .const import (
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
+    CLEARSKY_ESTIMATE,
     ESTIMATED_ACTUALS,
     EXCEPTION_BUILD_FAILED_ACTUALS,
     EXCEPTION_BUILD_FAILED_FORECASTS,
@@ -199,6 +200,7 @@ class Fetcher:
                         {
                             PERIOD_START: period_start,
                             ESTIMATE: estimate_actual[ESTIMATE],
+                            CLEARSKY_ESTIMATE: estimate_actual.get("clearsky_estimate", 0),
                         }
                     )
 
@@ -213,6 +215,9 @@ class Fetcher:
                     actuals,
                     actual[PERIOD_START],
                     round(actual[ESTIMATE], 4),
+                    None,
+                    None,
+                    round(actual.get(CLEARSKY_ESTIMATE, 0), 4),
                 )
                 period_start_key = actual[PERIOD_START].timestamp()
                 if actual[PERIOD_START] < yesterday_start and period_start_key not in dampened_periods:
@@ -438,6 +443,7 @@ class Fetcher:
                                 ESTIMATE: estimate_actual[ESTIMATE],
                                 ESTIMATE10: 0,
                                 ESTIMATE90: 0,
+                                CLEARSKY_ESTIMATE: estimate_actual.get("clearsky_estimate", 0),
                             }
                         )
                 for actual in new_data:
@@ -499,6 +505,7 @@ class Fetcher:
                             ESTIMATE: forecast[ESTIMATE],
                             ESTIMATE10: forecast[ESTIMATE10],
                             ESTIMATE90: forecast[ESTIMATE90],
+                            CLEARSKY_ESTIMATE: forecast.get("clearsky_estimate", 0),
                         }
                     )
 
@@ -521,6 +528,7 @@ class Fetcher:
                     round(forecast[ESTIMATE], 4),
                     round(forecast[ESTIMATE10], 4),
                     round(forecast[ESTIMATE90], 4),
+                    round(forecast.get(CLEARSKY_ESTIMATE, 0), 4),
                 )
 
             await self.sort_and_prune(site, self.api.data_undampened, 14, forecasts_undampened)
