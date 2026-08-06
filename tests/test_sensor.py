@@ -61,6 +61,7 @@ from homeassistant.components.solcast_solar.const import (
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.forecast import ForecastQuery
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import STATE_UNAVAILABLE, UnitOfEnergy, UnitOfPower
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
@@ -75,7 +76,7 @@ from . import (
     write_advanced_options,
 )
 
-from tests.common import async_fire_time_changed
+from tests.common import MockConfigEntry, async_fire_time_changed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -901,6 +902,216 @@ async def test_rooftop_unique_id_mig(
         assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_Second Site") is None
         assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111") is not None
         assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_2222-2222-2222-2222") is not None
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_rooftop_unique_id_mig_skips_when_owned_by_other_entry(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test migration is skipped, without raising, when the colliding entity is owned elsewhere.
+
+    Third companion regression test for https://github.com/BJReplay/ha-solcast-solar/discussions/515,
+    covering the collision case that is neither this integration's own already-migrated entity
+    nor a registry entry with no config entry attached at all: the resource ID unique ID is
+    already claimed by an entity belonging to some other config entry. Nothing is deleted or
+    renamed in that case, and the platform still must not crash.
+    """
+
+    entity_registry = er.async_get(hass)
+
+    other_entry = MockConfigEntry(domain="other_domain")
+    other_entry.add_to_hass(hass)
+
+    entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_First Site",
+        suggested_object_id="first_site_old",
+    )
+    entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_1111-1111-1111-1111",
+        suggested_object_id="owned_elsewhere",
+        config_entry=other_entry,
+    )
+
+    try:
+        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        await hass.async_block_till_done()
+
+        # Setup must still succeed: no unhandled exception from the collision.
+        assert entry.state is ConfigEntryState.LOADED, f"Config entry should load cleanly, got {entry.state}"
+        assert (
+            "Skipped RooftopSensor unique ID migration for site 'First Site': resource ID unique ID is already in use "
+            "by 'sensor.owned_elsewhere', which belongs to a different config entry" in caplog.text
+        )
+
+        # Neither the legacy entity nor the colliding, other-entry-owned entity are touched.
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_First Site") is not None
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111") is not None
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_rooftop_unique_id_mig_orphan_collision(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that migration survives an orphaned entity already holding the resource ID unique ID.
+
+    Regression test for https://github.com/BJReplay/ha-solcast-solar/discussions/515: a stray
+    entity registry entry unrelated to any active config entry (for example, a leftover from a
+    different, unrelated integration that historically shared this domain/unique ID
+    combination) can already own the resource-ID-based unique ID that migration wants to claim
+    for the legacy site entity. Previously this caused `entity_registry.async_update_entity` to
+    raise `ValueError: Unique id '...' is already in use by '...'`, which was unhandled and
+    caused the entire sensor platform setup to fail, leaving every Solcast sensor unavailable.
+    """
+
+    entity_registry = er.async_get(hass)
+    # Legacy, not-yet-migrated RooftopSensor entity for "First Site". This is the entity that
+    # holds the site's real recorder history and should be preserved.
+    entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_First Site",
+        suggested_object_id="first_site_old",
+    )
+    # An orphaned registry entry (no config entry attached) that coincidentally already owns
+    # the resource-ID unique ID migration wants to claim for "First Site".
+    orphan_entity_id = entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_1111-1111-1111-1111",
+        suggested_object_id="orphan_collision",
+    ).entity_id
+    # Second site has no collision and should migrate normally, proving the rest of the
+    # platform is unaffected by the collision on the first site.
+    entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_Second Site",
+        suggested_object_id="second_site_old",
+    )
+
+    try:
+        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        await hass.async_block_till_done()
+
+        # The platform must set up successfully despite the collision: this is the core of the
+        # regression. Before the fix, an unhandled ValueError here aborted sensor platform setup
+        # entirely, and every Solcast sensor entity became unavailable.
+        assert entry.state is ConfigEntryState.LOADED, f"Config entry should load cleanly, got {entry.state}"
+
+        # The uncontested second site must still migrate normally: a collision on one site must
+        # not take down migration (or setup) for any other site.
+        assert "Migrated RooftopSensor unique ID for site 'Second Site' to resource ID" in caplog.text
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_Second Site") is None
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_2222-2222-2222-2222") is not None
+
+        # The orphaned entity that caused the collision must be gone: it was demonstrably not
+        # attached to any active config entry, so it is safe to discard automatically (this is
+        # exactly what maintainers instructed affected users to do by hand: Settings > Entities
+        # > select the stray entity > Delete).
+        assert entity_registry.async_get(orphan_entity_id) is None
+
+        # The legacy "First Site" entity -- which holds the real, continuous history for the
+        # site -- must have been migrated onto the resource ID, exactly as it would be without
+        # a collision. Its entity_id, and therefore its recorder history, is fully preserved.
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_First Site") is None
+        migrated_entity_id = entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111")
+        assert migrated_entity_id == "sensor.first_site_old"
+
+        # Every sensor entity, including both site sensors, must be available: the whole point
+        # of the fix is that a single collision no longer takes the entire platform down.
+        state = hass.states.get(migrated_entity_id)
+        assert state is not None, "Migrated site sensor should have a state"
+        assert state.state != STATE_UNAVAILABLE
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_rooftop_unique_id_mig_stale_duplicate_of_this_entry(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test migration when the colliding entity is this entry's own, already-migrated entity.
+
+    Companion regression test for https://github.com/BJReplay/ha-solcast-solar/discussions/515.
+    autoSteve described a second way the same collision can occur: a downgrade to a pre-v4.6
+    release re-creates the legacy, display-name-based entity, and a subsequent re-upgrade then
+    finds *both* the legacy entity and the already-migrated, resource-ID-based entity (which
+    belongs to this config entry and holds the continuous history) present at once. Here the
+    correct/safe side to discard is the stale legacy duplicate, not the modern entity, which is
+    the opposite priority to the foreign-orphan collision covered above.
+    """
+
+    entity_registry = er.async_get(hass)
+
+    try:
+        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+
+        # First, a normal, clean setup: RooftopSensor entities are created directly with their
+        # resource-ID unique IDs (no legacy entity pre-exists, so nothing is migrated).
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        await hass.async_block_till_done()
+
+        modern_entity_id = entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111")
+        assert modern_entity_id is not None
+        modern_entry = entity_registry.async_get(modern_entity_id)
+        assert modern_entry is not None
+        assert modern_entry.config_entry_id == entry.entry_id
+
+        # Simulate a downgrade-then-re-upgrade cycle: the legacy, display-name-based entity has
+        # reappeared alongside the modern entity above.
+        stale_legacy_entity_id = entity_registry.async_get_or_create(
+            "sensor",
+            "solcast_solar",
+            "solcast_solcast_api_First Site",
+            suggested_object_id="first_site_stale_legacy",
+        ).entity_id
+
+        caplog.clear()
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        # The reload must succeed: this is the core of the regression here too. Before the fix,
+        # renaming the stale legacy entity onto a unique ID already owned by the modern entity
+        # raised an unhandled ValueError and aborted sensor platform setup entirely.
+        assert entry.state is ConfigEntryState.LOADED, f"Config entry should reload cleanly, got {entry.state}"
+
+        # The stale legacy duplicate is discarded: it has been dead since the original
+        # migration/creation and accumulated no history since, so it is safe to drop in favour
+        # of the modern entity, which has been live and collecting history the whole time.
+        assert entity_registry.async_get(stale_legacy_entity_id) is None
+        assert "Removed stale legacy entity" in caplog.text
+
+        # The modern, already-migrated entity -- and its continuous history -- is completely
+        # untouched: same entity_id, still tied to this config entry.
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111") == modern_entity_id
+        state = hass.states.get(modern_entity_id)
+        assert state is not None
+        assert state.state != STATE_UNAVAILABLE
 
         no_error_or_exception(caplog)
 

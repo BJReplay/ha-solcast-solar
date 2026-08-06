@@ -323,6 +323,78 @@ def get_sensor_update_policy(key: str) -> SensorUpdatePolicy:
     return SensorUpdatePolicy.DEFAULT
 
 
+def _migrate_rooftop_unique_id(
+    entity_registry: er.EntityRegistry,
+    entry: ConfigEntry,
+    site_name: str,
+    entity_id: str,
+    new_unique_id: str,
+) -> None:
+    """Migrate a legacy RooftopSensor unique ID to its resource ID, guarding against collisions.
+
+    The legacy entity found at `entity_id` normally just has its unique_id renamed in place,
+    which preserves the entity_id (and therefore recorder history) while allowing the resource
+    ID based entity to seamlessly claim that same entity_id when it is added moments later.
+
+    `new_unique_id` may, however, already be registered to a different entity. This can happen
+    two ways:
+
+    * The colliding entity belongs to this same config entry: a prior run of this migration
+      already succeeded and the resource ID entity is live and accumulating history, but the
+      legacy entity has reappeared (for example, a downgrade to a pre-v4.6 release re-created it,
+      followed by a re-upgrade). The legacy entity has been stale since the original migration,
+      so it is discarded and the live, already-migrated entity is left untouched.
+    * The colliding entity does not belong to any active config entry: it is not something this
+      integration (or any other currently configured integration) is managing, so it cannot hold
+      meaningful, actively-referenced state. This matches a real-world case reported against this
+      exact migration: a leftover entity from an unrelated, long-uninstalled integration that
+      happened to reuse the same entity domain/platform naming, dating from years before this
+      integration adopted its current maintainers. It is removed so the legacy entity -- which
+      holds this site's real history -- can be migrated as originally intended.
+
+    Blindly attempting the rename regardless previously raised an unhandled `ValueError` from
+    the entity registry ("Unique id '...' is already in use by '...'"), which aborted sensor
+    platform setup entirely and left every Solcast sensor entity unavailable
+    (see https://github.com/BJReplay/ha-solcast-solar/discussions/515). Any other collision
+    (an entity belonging to some other, unrelated config entry) is left completely alone and the
+    migration for that one site is skipped, so setup still cannot fail because of it.
+    """
+    collision_entity_id = entity_registry.async_get_entity_id("sensor", DOMAIN, new_unique_id)
+    if collision_entity_id is None:
+        entity_registry.async_update_entity(entity_id, new_unique_id=new_unique_id)
+        _LOGGER.debug("Migrated RooftopSensor unique ID for site '%s' to resource ID", site_name)
+        return
+
+    collision_entry = entity_registry.async_get(collision_entity_id)
+    if collision_entry is not None and collision_entry.config_entry_id == entry.entry_id:
+        entity_registry.async_remove(entity_id)
+        _LOGGER.warning(
+            "Removed stale legacy entity '%s' for site '%s': the resource ID unique ID is already "
+            "owned by '%s', which belongs to this config entry and holds the current history",
+            entity_id,
+            site_name,
+            collision_entity_id,
+        )
+    elif collision_entry is not None and collision_entry.config_entry_id is None:
+        entity_registry.async_remove(collision_entity_id)
+        entity_registry.async_update_entity(entity_id, new_unique_id=new_unique_id)
+        _LOGGER.warning(
+            "Removed orphaned entity '%s' (not attached to any config entry) that collided with the "
+            "resource ID unique ID for site '%s', then migrated '%s' to the resource ID",
+            collision_entity_id,
+            site_name,
+            entity_id,
+        )
+    else:
+        _LOGGER.warning(
+            "Skipped RooftopSensor unique ID migration for site '%s': resource ID unique ID is "
+            "already in use by '%s', which belongs to a different config entry. Remove that "
+            "entity manually (Settings > Devices & services > Entities) to complete migration",
+            site_name,
+            collision_entity_id,
+        )
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -419,8 +491,7 @@ async def async_setup_entry(
         new_unique_id = f"solcast_solcast_api_{site[RESOURCE_ID]}"
         if old_unique_id != new_unique_id:
             if entity_id := entity_registry.async_get_entity_id("sensor", DOMAIN, old_unique_id):
-                entity_registry.async_update_entity(entity_id, new_unique_id=new_unique_id)
-                _LOGGER.debug("Migrated RooftopSensor unique ID for site '%s' to resource ID", site[NAME])
+                _migrate_rooftop_unique_id(entity_registry, entry, site[NAME], entity_id, new_unique_id)
 
     # Site sensors
     for site in coordinator.solcast.sites:
