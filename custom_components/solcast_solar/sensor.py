@@ -157,7 +157,11 @@ def _cleanup_stale_entities(
         active_rooftop_unique_ids.add(f"solcast_solcast_api_{site[RESOURCE_ID]}")
         active_rooftop_unique_ids.add(f"solcast_solcast_api_{site[NAME]}")
     for entity in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
-        if entity.domain == "sensor" and entity.unique_id.startswith("solcast_solcast_api_") and entity.unique_id not in active_rooftop_unique_ids:
+        if (
+            entity.domain == "sensor"
+            and entity.unique_id.startswith("solcast_solcast_api_")
+            and entity.unique_id not in active_rooftop_unique_ids
+        ):
             entity_registry.async_remove(entity.entity_id)
             _LOGGER.warning(
                 "Cleaning up orphaned rooftop site sensor '%s' (unique_id='%s') - no corresponding active site found",

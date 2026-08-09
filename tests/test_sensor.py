@@ -1083,3 +1083,42 @@ async def test_rooftop_unique_id_mig_skips_already_stable_site_name(
     finally:
         API_KEY_SITES["1"]["sites"] = original_sites
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_rooftop_unique_id_mig_removes_orphaned_stale_resource_id(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that a rooftop entity whose resource ID no longer matches any active site is removed."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        await hass.async_block_till_done()
+
+        entity_registry = er.async_get(hass)
+        stale_entry = entity_registry.async_get_or_create(
+            "sensor",
+            "solcast_solar",
+            "solcast_solcast_api_9999-9999-9999-9999",
+            suggested_object_id="stale_site",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            config_entry=entry,
+        )
+
+        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        caplog.clear()
+
+        await hass.config_entries.async_reload(entry.entry_id)
+        await hass.async_block_till_done()
+
+        assert entity_registry.async_get(stale_entry.entity_id) is None
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_9999-9999-9999-9999") is None
+        assert "Cleaning up orphaned rooftop site sensor" in caplog.text
+        assert "9999-9999-9999-9999" in caplog.text
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
