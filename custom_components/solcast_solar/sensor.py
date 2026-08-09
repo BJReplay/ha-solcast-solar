@@ -58,6 +58,7 @@ from .const import (
     FACTORS,
     HARD_LIMIT,
     HARD_LIMIT_API,
+    LEARN_MORE_RAISE_ISSUE,
     NAME,
     RESOURCE_ID,
     SITES_DATA,
@@ -147,12 +148,30 @@ def _cleanup_stale_entities(
                 site[NAME],
             )
 
+    # Clean up orphaned rooftop sensor entities whose unique ID does not correspond to any active site.
+    # These arise when a site is removed from the account, or when its resource ID changes (e.g. API key
+    # migration). Include both new-style (resource-ID-based) and old-style (name-based) unique IDs so
+    # that the check is safe during the migration window.
+    active_rooftop_unique_ids = set()
+    for site in coordinator.solcast.sites:
+        active_rooftop_unique_ids.add(f"solcast_solcast_api_{site[RESOURCE_ID]}")
+        active_rooftop_unique_ids.add(f"solcast_solcast_api_{site[NAME]}")
+    for entity in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
+        if entity.domain == "sensor" and entity.unique_id.startswith("solcast_solcast_api_") and entity.unique_id not in active_rooftop_unique_ids:
+            entity_registry.async_remove(entity.entity_id)
+            _LOGGER.warning(
+                "Cleaning up orphaned rooftop site sensor '%s' (unique_id='%s') - no corresponding active site found",
+                entity.entity_id,
+                entity.unique_id,
+            )
+
 
 def _maintain_entities(
     hass: HomeAssistant,
     coordinator: SolcastUpdateCoordinator,
     entry: ConfigEntry,
     expecting_limits: list[str],
+    active_unique_ids: set[str],
 ) -> None:
     """Clean up stale and legacy entities and migrate old unique IDs."""
     entity_registry = er.async_get(hass)
@@ -191,6 +210,22 @@ def _maintain_entities(
 
         entity_registry.async_update_entity(old_style_entity_id, new_unique_id=new_style_unique_id)
         _LOGGER.debug("Migrated rooftop sensor unique ID for site '%s' to resource ID", site[NAME])
+
+    for entity in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
+        if entity.domain != "sensor":
+            continue
+        if entity.unique_id not in active_unique_ids:
+            _LOGGER.warning(
+                (
+                    "Unmanaged entity '%s' (unique_id='%s') is present in the entity registry "
+                    "but is not actively maintained by this integration. "
+                    "If this entity is not expected, please raise an issue at "
+                    "%s"
+                ),
+                entity.entity_id,
+                entity.unique_id,
+                LEARN_MORE_RAISE_ISSUE,
+            )
 
 
 NAMES: Final[dict[str, str]] = {
@@ -510,8 +545,6 @@ async def async_setup_entry(
             entities.append(sen)
         expecting_limits = [f"hard_limit_{_api_key_last_six(api_key)}" for api_key in coordinator.solcast.options.api_key.split(",")]
 
-    _maintain_entities(hass, coordinator, entry=entry, expecting_limits=expecting_limits)
-
     # Site sensors
     for site in coordinator.solcast.sites:
         k = {
@@ -531,6 +564,9 @@ async def async_setup_entry(
             rooftop_id=site[RESOURCE_ID],
         )
         entities.append(site_sen)
+
+    active_unique_ids = {e.unique_id for e in entities if e.unique_id is not None}
+    _maintain_entities(hass, coordinator, entry=entry, expecting_limits=expecting_limits, active_unique_ids=active_unique_ids)
 
     async_add_entities(entities)
 

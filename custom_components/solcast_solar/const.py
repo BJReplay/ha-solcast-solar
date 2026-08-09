@@ -307,10 +307,6 @@ LAST_24H: Final[str] = "last_24h"
 LAST_7D: Final[str] = "last_7d"
 LAST_14D: Final[str] = "last_14d"
 LEARN_MORE: Final[str] = "learn_more"
-LEARN_MORE_ADVANCED: Final[str] = "https://github.com/BJReplay/ha-solcast-solar/blob/main/ADVOPTIONS.md"
-LEARN_MORE_CORRUPT_FILE: Final[str] = "https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#known-issues"
-LEARN_MORE_MISSING_FORECAST_DATA: Final[str] = "https://github.com/BJReplay/ha-solcast-solar/blob/main/FAQ.md"
-LEARN_MORE_UNUSUAL_AZIMUTH: Final[str] = "https://github.com/BJReplay/ha-solcast-solar?tab=readme-ov-file#solcast-requirements"
 MANUFACTURER: Final[str] = "BJReplay"
 MAXIMUM: Final[str] = "max"
 MESSAGE: Final[str] = "message"
@@ -407,6 +403,13 @@ VALUE: Final[str] = "value"
 VALUE_ADAPTIVE_DAMPENING_CONFIG_UNCHANGED: Final[int] = -99
 VALUE_ADAPTIVE_DAMPENING_NO_DELTA: Final[int] = -1
 VERSION: Final[str] = "version"
+
+GITHUB_REPO_URL: Final[str] = f"https://github.com/{MANUFACTURER}/ha-solcast-solar"
+LEARN_MORE_ADVANCED: Final[str] = f"{GITHUB_REPO_URL}/blob/main/ADVOPTIONS.md"
+LEARN_MORE_CORRUPT_FILE: Final[str] = f"{GITHUB_REPO_URL}?tab=readme-ov-file#known-issues"
+LEARN_MORE_MISSING_FORECAST_DATA: Final[str] = f"{GITHUB_REPO_URL}/blob/main/FAQ.md"
+LEARN_MORE_RAISE_ISSUE: Final[str] = f"{GITHUB_REPO_URL}/issues"
+LEARN_MORE_UNUSUAL_AZIMUTH: Final[str] = f"{GITHUB_REPO_URL}?tab=readme-ov-file#solcast-requirements"
 
 
 ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
