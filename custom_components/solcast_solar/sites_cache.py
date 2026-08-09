@@ -1048,6 +1048,7 @@ class SitesCache:
                         self._rekey[api_key] = key
 
                     self._site_transfers.update(site_transfers)
+                    self.api.site_transfers = dict(self._site_transfers)
                     apply_site_match(site_transfers)
                     cache_status = True
                     break
@@ -1066,6 +1067,7 @@ class SitesCache:
                 site_transfers = self._match_site_set_against_extant(response_json[SITES], combined_extant_sites)
                 if site_transfers is not None:
                     self._site_transfers.update(site_transfers)
+                    self.api.site_transfers = dict(self._site_transfers)
                     apply_site_match(site_transfers)
                     cache_status = True
 
@@ -1078,6 +1080,7 @@ class SitesCache:
         configured_api_keys = split_and_strip(self.api.options.api_key)
         allow_combined_site_match = len(prior_api_keys) > len(configured_api_keys)
         self._site_transfers = {}
+        self.api.site_transfers = {}
 
         try:
             for api_key in api_keys:

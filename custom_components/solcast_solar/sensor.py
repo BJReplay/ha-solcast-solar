@@ -177,13 +177,55 @@ def _maintain_entities(
     expecting_limits: list[str],
     active_unique_ids: set[str],
 ) -> None:
-    """Clean up stale and legacy entities and migrate old unique IDs."""
+    """Run entity maintenance tasks."""
     entity_registry = er.async_get(hass)
 
-    # Clean up.
+    _migrate_transferred_rooftop_unique_ids(entity_registry, coordinator)
     _cleanup_stale_entities(entity_registry, coordinator, entry=entry, expecting_limits=expecting_limits)
+    _migrate_legacy_rooftop_unique_ids(entity_registry, coordinator)
+    _warn_unmanaged_sensor_entities(entity_registry, entry, active_unique_ids)
 
-    # Migrate rooftop sensor unique IDs from site name to resource ID.
+
+def _migrate_transferred_rooftop_unique_ids(
+    entity_registry: er.EntityRegistry,
+    coordinator: SolcastUpdateCoordinator,
+) -> None:
+    """Migrate rooftop unique IDs for detected site resource-ID transfers."""
+
+    for old_site_id, new_site_id in coordinator.solcast.site_transfers.items():
+        old_transfer_unique_id = f"solcast_solcast_api_{old_site_id}"
+        new_transfer_unique_id = f"solcast_solcast_api_{new_site_id}"
+
+        old_transfer_entity_id = entity_registry.async_get_entity_id("sensor", DOMAIN, old_transfer_unique_id)
+        if old_transfer_entity_id is None:
+            continue
+
+        if old_transfer_unique_id == new_transfer_unique_id:
+            continue
+
+        new_transfer_entity_id = entity_registry.async_get_entity_id("sensor", DOMAIN, new_transfer_unique_id)
+        if new_transfer_entity_id is not None and new_transfer_entity_id != old_transfer_entity_id:
+            _LOGGER.debug(
+                "Skipping rooftop sensor unique ID transfer from '%s' to '%s' because the new unique ID is already in use",
+                old_site_id,
+                new_site_id,
+            )
+            continue
+
+        entity_registry.async_update_entity(old_transfer_entity_id, new_unique_id=new_transfer_unique_id)
+        _LOGGER.info(
+            "Migrated rooftop sensor unique ID for transferred site ID '%s' to '%s'",
+            old_site_id,
+            new_site_id,
+        )
+
+
+def _migrate_legacy_rooftop_unique_ids(
+    entity_registry: er.EntityRegistry,
+    coordinator: SolcastUpdateCoordinator,
+) -> None:
+    """Migrate rooftop unique IDs from legacy site-name format to resource ID."""
+
     for site in coordinator.solcast.sites:
         old_style_unique_id = f"solcast_solcast_api_{site[NAME]}"
 
@@ -214,6 +256,14 @@ def _maintain_entities(
 
         entity_registry.async_update_entity(old_style_entity_id, new_unique_id=new_style_unique_id)
         _LOGGER.debug("Migrated rooftop sensor unique ID for site '%s' to resource ID", site[NAME])
+
+
+def _warn_unmanaged_sensor_entities(
+    entity_registry: er.EntityRegistry,
+    entry: ConfigEntry,
+    active_unique_ids: set[str],
+) -> None:
+    """Warn about sensor entities for this entry that are not actively maintained."""
 
     for entity in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
         if entity.domain != "sensor":

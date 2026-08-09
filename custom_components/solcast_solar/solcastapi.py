@@ -281,6 +281,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.serialise_lock = asyncio.Lock()
         self.site_data_forecasts: dict[str, list[dict[str, Any]]] = {}
         self.site_data_forecasts_undampened: dict[str, list[dict[str, Any]]] = {}
+        self.site_transfers: dict[str, str] = {}
         self.sites: list[dict[str, Any]] = []
         self.sites_status: SitesStatus = SitesStatus.UNKNOWN
         self.status: SolcastApiStatus = SolcastApiStatus.UNKNOWN

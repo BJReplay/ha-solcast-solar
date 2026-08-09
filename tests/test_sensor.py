@@ -62,6 +62,7 @@ from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoor
 from homeassistant.components.solcast_solar.forecast import ForecastQuery
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.const import (
+    CONF_API_KEY,
     STATE_UNAVAILABLE,
     EntityCategory,
     UnitOfEnergy,
@@ -1042,6 +1043,54 @@ async def test_rooftop_unique_id_mig_without_legacy_rows(
         assert second_site_entity_id is not None
 
         assert "Migrated rooftop sensor unique ID for site" not in caplog.text
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_rooftop_unique_id_mig_transferred_site_resource_id(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test migration renames rooftop unique IDs in place when a site resource ID transfers."""
+
+    entity_registry = er.async_get(hass)
+
+    try:
+        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sites_cache")
+        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        await hass.async_block_till_done()
+
+        old_unique_id = "solcast_solcast_api_2222-2222-2222-2222"
+        new_unique_id = "solcast_solcast_api_7777-7777-7777-7777"
+
+        old_entity_id = entity_registry.async_get_entity_id("sensor", "solcast_solar", old_unique_id)
+        assert old_entity_id is not None
+        old_entry = entity_registry.async_get(old_entity_id)
+        assert old_entry is not None
+        old_registry_id = old_entry.id
+
+        hass.config_entries.async_update_entry(entry, options={**entry.options, CONF_API_KEY: "11"})
+        await hass.async_block_till_done()
+
+        assert "Site transfer detected for API key ******11" in caplog.text
+        assert "Migrated rooftop sensor unique ID for transferred site ID '2222-2222-2222-2222' to '7777-7777-7777-7777'" in caplog.text
+
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", old_unique_id) is None
+
+        migrated_entity_id = entity_registry.async_get_entity_id("sensor", "solcast_solar", new_unique_id)
+        assert migrated_entity_id == old_entity_id
+        assert migrated_entity_id is not None
+
+        migrated_entry = entity_registry.async_get(migrated_entity_id)
+        assert migrated_entry is not None
+        assert migrated_entry.id == old_registry_id
 
         no_error_or_exception(caplog)
 
