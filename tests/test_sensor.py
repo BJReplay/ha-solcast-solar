@@ -61,7 +61,12 @@ from homeassistant.components.solcast_solar.const import (
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.forecast import ForecastQuery
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
-from homeassistant.const import STATE_UNAVAILABLE, UnitOfEnergy, UnitOfPower
+from homeassistant.const import (
+    STATE_UNAVAILABLE,
+    EntityCategory,
+    UnitOfEnergy,
+    UnitOfPower,
+)
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util.read_only_dict import ReadOnlyDict
@@ -74,6 +79,7 @@ from . import (
     no_error_or_exception,
     write_advanced_options,
 )
+from .simulator import API_KEY_SITES
 
 from tests.common import async_fire_time_changed
 
@@ -863,26 +869,28 @@ async def test_sensor_unavailable_exception(
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
-async def test_rooftop_unique_id_mig(
+async def test_rooftop_unique_id_mig_migrates_old_style_entities(
     recorder_mock: Recorder,
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """Test that RooftopSensor unique IDs are migrated to resource ID."""
+    """Test migration updates old-style rooftop entities to resource-ID-based unique IDs."""
 
     entity_registry = er.async_get(hass)
-    entity_registry.async_get_or_create(
+    first_old_entry = entity_registry.async_get_or_create(
         "sensor",
         "solcast_solar",
         "solcast_solcast_api_First Site",
         suggested_object_id="first_site_old",
+        entity_category=EntityCategory.DIAGNOSTIC,
     )
-    entity_registry.async_get_or_create(
+    second_old_entry = entity_registry.async_get_or_create(
         "sensor",
         "solcast_solar",
         "solcast_solcast_api_Second Site",
         suggested_object_id="second_site_old",
+        entity_category=EntityCategory.DIAGNOSTIC,
     )
 
     try:
@@ -890,19 +898,188 @@ async def test_rooftop_unique_id_mig(
         await async_init_integration(hass, DEFAULT_INPUT1)
         await hass.async_block_till_done()
 
-        assert "Migrated RooftopSensor unique ID for site 'First Site' to resource ID" in caplog.text, (
-            "Expected migration log for 'First Site' not found"
-        )
-        assert "Migrated RooftopSensor unique ID for site 'Second Site' to resource ID" in caplog.text, (
-            "Expected migration log for 'Second Site' not found"
-        )
+        assert "Migrated rooftop sensor unique ID for site 'First Site' to resource ID" in caplog.text
+        assert "Migrated rooftop sensor unique ID for site 'Second Site' to resource ID" in caplog.text
+
+        first_entry = entity_registry.async_get(first_old_entry.entity_id)
+        assert first_entry is not None
+        assert first_entry.unique_id == "solcast_solcast_api_1111-1111-1111-1111"
+
+        second_entry = entity_registry.async_get(second_old_entry.entity_id)
+        assert second_entry is not None
+        assert second_entry.unique_id == "solcast_solcast_api_2222-2222-2222-2222"
 
         assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_First Site") is None
         assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_Second Site") is None
-        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111") is not None
-        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_2222-2222-2222-2222") is not None
+        assert (
+            entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111")
+            == first_old_entry.entity_id
+        )
+        assert (
+            entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_2222-2222-2222-2222")
+            == second_old_entry.entity_id
+        )
 
         no_error_or_exception(caplog)
 
     finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_rooftop_unique_id_mig_removes_diagnostic_collision(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test diagnostic old-style and new-style entities settle on the new-style entity.
+
+    This is testing for upgrade/downgrade/upgrade.
+    """
+
+    entity_registry = er.async_get(hass)
+    old_style_entry = entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_First Site",
+        suggested_object_id="first_site_old_diagnostic",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    )
+    new_style_entry = entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_1111-1111-1111-1111",
+        suggested_object_id="first_site_new_diagnostic",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    )
+
+    try:
+        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        await async_init_integration(hass, DEFAULT_INPUT1)
+        await hass.async_block_till_done()
+
+        assert entity_registry.async_get(old_style_entry.entity_id) is None
+        assert entity_registry.async_get(new_style_entry.entity_id) is not None
+        assert entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_First Site") is None
+        assert (
+            entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111")
+            == new_style_entry.entity_id
+        )
+        assert "Removed unexpected rooftop sensor entity" in caplog.text
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_rooftop_unique_id_mig_removes_config_category_collision(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test a colliding config-category new-style entity is cleaned up before migration.
+
+    Likely won't happen in practice, but might.
+    """
+
+    entity_registry = er.async_get(hass)
+    old_style_entry = entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_First Site",
+        suggested_object_id="first_site_old",
+    )
+    new_style_entry = entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_1111-1111-1111-1111",
+        suggested_object_id="first_site_new",
+        entity_category=EntityCategory.CONFIG,
+    )
+
+    try:
+        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        await async_init_integration(hass, DEFAULT_INPUT1)
+        await hass.async_block_till_done()
+
+        assert entity_registry.async_get(new_style_entry.entity_id) is None
+        migrated_entry = entity_registry.async_get(old_style_entry.entity_id)
+        assert migrated_entry is not None
+        assert migrated_entry.unique_id == "solcast_solcast_api_1111-1111-1111-1111"
+        assert (
+            entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111")
+            == old_style_entry.entity_id
+        )
+        assert "Removed colliding rooftop sensor site-ID entity" in caplog.text
+        assert "Migrated rooftop sensor unique ID for site 'First Site' to resource ID" in caplog.text
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_rooftop_unique_id_mig_without_legacy_rows(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test migration is a no-op when no legacy rooftop entities exist."""
+
+    entity_registry = er.async_get(hass)
+
+    try:
+        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        await async_init_integration(hass, DEFAULT_INPUT1)
+        await hass.async_block_till_done()
+
+        first_site_entity_id = entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111")
+        second_site_entity_id = entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_2222-2222-2222-2222")
+        assert first_site_entity_id is not None
+        assert second_site_entity_id is not None
+
+        assert "Migrated rooftop sensor unique ID for site" not in caplog.text
+
+        no_error_or_exception(caplog)
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_rooftop_unique_id_mig_skips_already_stable_site_name(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test migration is a no-op when a site name already matches its resource ID."""
+
+    entity_registry = er.async_get(hass)
+    original_sites = copy.deepcopy(API_KEY_SITES["1"]["sites"])
+    API_KEY_SITES["1"]["sites"][0]["name"] = API_KEY_SITES["1"]["sites"][0]["resource_id"]
+    existing_entry = entity_registry.async_get_or_create(
+        "sensor",
+        "solcast_solar",
+        "solcast_solcast_api_1111-1111-1111-1111",
+        suggested_object_id="first_site_stable",
+    )
+
+    try:
+        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        await async_init_integration(hass, DEFAULT_INPUT1)
+        await hass.async_block_till_done()
+
+        stable_entity_id = entity_registry.async_get_entity_id("sensor", "solcast_solar", "solcast_solcast_api_1111-1111-1111-1111")
+        assert stable_entity_id is not None
+        assert stable_entity_id == existing_entry.entity_id
+
+        assert "Migrated rooftop sensor unique ID for site '1111-1111-1111-1111'" not in caplog.text
+
+        no_error_or_exception(caplog)
+
+    finally:
+        API_KEY_SITES["1"]["sites"] = original_sites
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

@@ -1486,6 +1486,12 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 Latest minor/patch releases.
 
+v4.6.1
+
+* Fix a rare unique_id collision caused by a prior Oziee beta by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.0...v4.6.1
+
 v4.6.0
 
 * Add rooftop site migration between accounts by @autoSteve
@@ -1507,7 +1513,7 @@ v4.6.0
 * Add tests to suite to ensure runtime reliability by @autoSteve
 * API simulator improvements by @autoSteve
 
-Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.5.2...v4.6
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.5.2...v4.6.0
 
 ### Prior changes
 <details><summary><i>Click here for changes back to v3.0</i></summary>

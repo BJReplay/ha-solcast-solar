@@ -331,7 +331,7 @@ async def test_auto_dampen_issues(
             options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
             options[SITE_EXPORT_LIMIT] = 5.0
         if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-            options[GENERATION_ENTITIES][0] = "sensor.not_valid"
+            options[GENERATION_ENTITIES][0] = "sensor.not_valid"  # type: ignore[reportGeneralTypeIssues]
         if extra_sensors == ExtraSensors.DODGY:
             options[SITE_EXPORT_ENTITY] = "sensor.not_valid"
             write_advanced_options(hass.config.config_dir, {ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: False})
@@ -343,14 +343,14 @@ async def test_auto_dampen_issues(
 
         entity_registry = er.async_get(hass)
         if extra_sensors == ExtraSensors.YES_NO_UNIT:
-            e = entity_registry.async_get(options[GENERATION_ENTITIES][0])
+            e = entity_registry.async_get(options[GENERATION_ENTITIES][0])  # type: ignore[reportGeneralTypeIssues]
             if e is not None:
                 entity_registry.async_update_entity(e.entity_id, disabled_by=RegistryEntryDisabler.USER)
             else:
                 pytest.fail("Failed to get generation entity to disable")
             await hass.async_block_till_done()
         if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-            e = entity_registry.async_get(options[SITE_EXPORT_ENTITY])
+            e = entity_registry.async_get(options[SITE_EXPORT_ENTITY])  # type: ignore[reportGeneralTypeIssues]
             if e is not None:
                 entity_registry.async_update_entity(e.entity_id, disabled_by=RegistryEntryDisabler.USER)
             else:
@@ -384,11 +384,11 @@ async def test_auto_dampen_issues(
                     assert f"Interval {interval} max generation: 0.000, []" in caplog.text
             case ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
                 assert "has no unit_of_measurement, assuming kWh" not in caplog.text
-                assert f"Generation entity {options[GENERATION_ENTITIES][0]} is not a valid entity" in caplog.text
+                assert f"Generation entity {options[GENERATION_ENTITIES][0]} is not a valid entity" in caplog.text  # type: ignore[reportGeneralTypeIssues]
                 assert f"Site export entity {options[SITE_EXPORT_ENTITY]} is disabled, please enable it" in caplog.text
             case ExtraSensors.YES_NO_UNIT:
                 assert "has no unit_of_measurement, assuming kWh" in caplog.text
-                assert f"Generation entity {options[GENERATION_ENTITIES][0]} is disabled, please enable it" in caplog.text
+                assert f"Generation entity {options[GENERATION_ENTITIES][0]} is disabled, please enable it" in caplog.text  # type: ignore[reportGeneralTypeIssues]
             case ExtraSensors.DODGY:
                 assert "has an unsupported unit_of_measurement 'MJ'" in caplog.text  # A dodgy unit should be logged
                 assert f"Site export entity {options[SITE_EXPORT_ENTITY]} is not a valid entity" in caplog.text
