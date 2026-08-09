@@ -134,11 +134,7 @@ def _cleanup_stale_entities(
             )
             continue
 
-        if (
-            new_style_entity_id is not None
-            and new_style_entity is not None
-            and new_style_entity.entity_category != EntityCategory.DIAGNOSTIC
-        ):
+        if new_style_entity_id is not None and new_style_entity is not None and new_style_entity.entity_category == EntityCategory.CONFIG:
             entity_registry.async_remove(new_style_entity_id)
             _LOGGER.debug(
                 "Removed colliding rooftop sensor site-ID entity '%s' while cleaning up legacy rooftop site entity for '%s'",
