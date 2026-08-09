@@ -101,7 +101,8 @@ def _cleanup_stale_entities(
                 _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
 
     # Clean up legacy rooftop sensor entities that would collide with new style unique IDs.
-    # Legacy is identified as having a unique ID using the resource ID, and a category of CONFIG.
+    # Legacy is identified as having a unique ID using the resource ID, and a category that
+    # is not diagnostic.
     for site in coordinator.solcast.sites:
         old_style_unique_id = f"solcast_solcast_api_{site[NAME]}"
         new_style_unique_id = f"solcast_solcast_api_{site[RESOURCE_ID]}"
@@ -134,7 +135,11 @@ def _cleanup_stale_entities(
             )
             continue
 
-        if new_style_entity_id is not None and new_style_entity is not None and new_style_entity.entity_category == EntityCategory.CONFIG:
+        if (
+            new_style_entity_id is not None
+            and new_style_entity is not None
+            and new_style_entity.entity_category != EntityCategory.DIAGNOSTIC
+        ):
             entity_registry.async_remove(new_style_entity_id)
             _LOGGER.debug(
                 "Removed colliding rooftop sensor site-ID entity '%s' while cleaning up legacy rooftop site entity for '%s'",
