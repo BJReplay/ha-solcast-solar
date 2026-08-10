@@ -149,9 +149,8 @@ def _cleanup_stale_entities(
             )
 
     # Clean up orphaned rooftop sensor entities whose unique ID does not correspond to any active site.
-    # These arise when a site is removed from the account, or when its resource ID changes (e.g. API key
-    # migration). Include both new-style (resource-ID-based) and old-style (name-based) unique IDs so
-    # that the check is safe during the migration window.
+    # These arise when a site is removed from the account. Includes both new-style (resource-ID-based)
+    # and old-style (name-based) unique IDs, which is overkill.
     active_rooftop_unique_ids = set()
     for site in coordinator.solcast.sites:
         active_rooftop_unique_ids.add(f"solcast_solcast_api_{site[RESOURCE_ID]}")
@@ -235,8 +234,8 @@ def _migrate_legacy_rooftop_unique_ids(
             continue
 
         new_style_unique_id = f"solcast_solcast_api_{site[RESOURCE_ID]}"
-        old_style_entry = entity_registry.async_get(old_style_entity_id)
-        if old_style_entry is not None and old_style_entry.unique_id == new_style_unique_id:
+        old_style_entity = entity_registry.async_get(old_style_entity_id)
+        if old_style_entity is not None and old_style_entity.unique_id == new_style_unique_id:
             _LOGGER.debug(
                 "Skipping rooftop sensor unique ID migration for site '%s' because entity '%s' already uses unique ID '%s'",
                 site[NAME],
