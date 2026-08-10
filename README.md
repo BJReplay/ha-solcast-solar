@@ -1489,6 +1489,7 @@ Latest minor/patch releases.
 v4.6.1
 
 * Fix a rare unique_id collision caused by a prior Oziee beta by @autoSteve
+* Add a warning for orphaned entities that are not cleaned up by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.0...v4.6.1
 
