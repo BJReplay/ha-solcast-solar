@@ -117,7 +117,11 @@ from homeassistant.components.solcast_solar.const import (
     USE_ACTUALS,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.enums import AutoUpdate, HistoryType, SitesStatus
+from homeassistant.components.solcast_solar.enums import (
+    AutoUpdate,
+    HistoryType,
+    SitesStatus,
+)
 from homeassistant.components.solcast_solar.forecast import ForecastQuery
 from homeassistant.components.solcast_solar.solcastapi import (
     ConnectionOptions,
