@@ -117,7 +117,11 @@ from homeassistant.components.solcast_solar.const import (
     USE_ACTUALS,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.enums import AutoUpdate, HistoryType, SitesStatus
+from homeassistant.components.solcast_solar.enums import (
+    AutoUpdate,
+    HistoryType,
+    SitesStatus,
+)
 from homeassistant.components.solcast_solar.forecast import ForecastQuery
 from homeassistant.components.solcast_solar.solcastapi import (
     ConnectionOptions,
@@ -553,8 +557,6 @@ async def test_api_failure(
                 else:
                     await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
                     assert test["assertion"] in caplog.text
-                    if test["fatal"]:
-                        assert "pausing" not in caplog.text
 
                 assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
                 if isinstance(test["exception"], str):

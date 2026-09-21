@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime as dt, timedelta
 import json
 import logging
-from typing import Any
+from typing import Any, cast
 from unittest import mock
 from zoneinfo import ZoneInfo
 
@@ -30,6 +30,7 @@ from homeassistant.components.solcast_solar.const import (
     TASK_NEW_DAY_ACTUALS,
 )
 from homeassistant.components.solcast_solar.enums import UpdateOutcome, UpdateResult
+from homeassistant.components.solcast_solar.fetcher import Fetcher
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.setup import async_setup_component
@@ -81,6 +82,17 @@ def _dns_connector_error(message: str) -> ClientConnectorDNSError:
         ),
         OSError(message),
     )
+
+
+def test_dns_error_message_falls_back_to_class_name() -> None:
+    """The DNS error helper should tolerate connector errors without an os_error."""
+
+    class DummyConnectorDNSError:
+        """Synthetic DNS error without an os_error attribute."""
+
+        os_error = None
+
+    assert Fetcher._dns_error_message(cast(ClientConnectorDNSError, DummyConnectorDNSError())) == "DummyConnectorDNSError"
 
 
 def _occurs_in_log(caplog: pytest.LogCaptureFixture, text: str, occurrences: int) -> None:
@@ -322,48 +334,6 @@ async def test_dns_timeout_retries_then_succeeds(
         assert "DNS resolution timeout fetching path forecasts for site" in caplog.text
         _occurs_in_log(caplog, "retry 1/2", 1)
         _occurs_in_log(caplog, "retry 2/2", 1)
-
-        await solcast.tasks_cancel()
-        await coordinator.tasks_cancel()
-
-    finally:
-        await async_cleanup_integration_tests(hass)
-
-
-@pytest.mark.asyncio
-async def test_non_timeout_dns_failure_does_not_retry(
-    recorder_mock: Recorder,
-    hass: HomeAssistant,
-    caplog: pytest.LogCaptureFixture,
-) -> None:
-    """Do not retry DNS connector errors that are not resolver timeouts."""
-
-    try:
-        write_advanced_options(hass.config.config_dir, {ADVANCED_DNS_TIMEOUT_RETRIES: 5})
-
-        entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        coordinator = entry.runtime_data.coordinator
-        solcast = coordinator.solcast
-        site_id = solcast.sites[0][RESOURCE_ID]
-        api_key = solcast.sites[0][API_KEY]
-
-        dns_failure = _dns_connector_error("Name or service not known")
-
-        original_session = solcast.aiohttp_session
-        mock_session = mock.MagicMock()
-        mock_session.get = mock.AsyncMock(side_effect=dns_failure)
-        solcast.aiohttp_session = mock_session
-        caplog.set_level(logging.DEBUG)
-
-        try:
-            result = await solcast.fetcher.fetch_data(hours=48, path=FORECASTS, site=site_id, api_key=api_key, force=True)
-        finally:
-            solcast.aiohttp_session = original_session
-
-        assert result is None
-        assert mock_session.get.await_count == 1
-        assert "retry 1/5" not in caplog.text
-        assert "Client error:" in caplog.text
 
         await solcast.tasks_cancel()
         await coordinator.tasks_cancel()

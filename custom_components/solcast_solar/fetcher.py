@@ -683,57 +683,59 @@ class Fetcher:
                         tries = UPDATE_TRIES
                         counter = 0
                         dns_timeout_retries = self.api.advanced_options[ADVANCED_DNS_TIMEOUT_RETRIES]
-                        dns_timeout_attempts = 0
                         backoff = UPDATE_BACKOFF  # On every retry the back-off increases by (at least) UPDATE_BACKOFF seconds more than the previous back-off.
                         while True:
                             _LOGGER.debug("Fetching path %s", path)
                             counter += 1
                             response_text = ""
-                            try:
-                                response: ClientResponse = await self.api.aiohttp_session.get(
-                                    url=url, params=params, headers=self.api.headers, ssl=False
-                                )
-                                _LOGGER.debug("Fetch data url %s", redact_msg_api_key(str(response.url), api_key))
-                                status = response.status
-                                if status == 200:
-                                    response_text = await response.text()
-                            except TimeoutError:
-                                _LOGGER.error("Connection error: Timed out connecting to server")
-                                status = 1000
-                                self.increment_failure_count()
-                                break
-                            except ClientConnectorDNSError as err:
-                                if self._is_dns_timeout_error(err) and dns_timeout_attempts < dns_timeout_retries:
-                                    dns_timeout_attempts += 1
+                            dns_timeout_attempts = 0
+                            while True:
+                                try:
+                                    response: ClientResponse = await self.api.aiohttp_session.get(
+                                        url=url, params=params, headers=self.api.headers, ssl=False
+                                    )
+                                    _LOGGER.debug("Fetch data url %s", redact_msg_api_key(str(response.url), api_key))
+                                    status = response.status
+                                    if status == 200:
+                                        response_text = await response.text()
+                                    break
+                                except TimeoutError:
+                                    _LOGGER.error("Connection error: Timed out connecting to server")
+                                    status = 1000
                                     self.increment_failure_count()
-                                    _LOGGER.debug(
-                                        "DNS resolution timeout fetching path %s for site %s, retry %d/%d",
-                                        path,
-                                        site,
-                                        dns_timeout_attempts,
-                                        dns_timeout_retries,
-                                    )
-                                    continue
-                                _LOGGER.error("Client error: %s", self._dns_error_message(err))
-                                if self._is_dns_timeout_error(err):
-                                    failure_reason = (
-                                        f"DNS resolution timeout after {dns_timeout_attempts} retries"
-                                        if dns_timeout_attempts
-                                        else "DNS resolution timeout"
-                                    )
-                                status = 1000
-                                self.increment_failure_count()
-                                break
-                            except ConnectionRefusedError as e:
-                                _LOGGER.error("Connection error, connection refused: %s", e)
-                                status = 1000
-                                self.increment_failure_count()
-                                break
-                            except (ClientConnectionError, ClientResponseError) as e:
-                                _LOGGER.error("Client error: %s", e)
-                                status = 1000
-                                self.increment_failure_count()
-                                break
+                                    break
+                                except ClientConnectorDNSError as err:
+                                    if self._is_dns_timeout_error(err) and dns_timeout_attempts < dns_timeout_retries:
+                                        dns_timeout_attempts += 1
+                                        self.increment_failure_count()
+                                        _LOGGER.debug(
+                                            "DNS resolution timeout fetching path %s for site %s, retry %d/%d",
+                                            path,
+                                            site,
+                                            dns_timeout_attempts,
+                                            dns_timeout_retries,
+                                        )
+                                        continue
+                                    _LOGGER.error("Client error: %s", self._dns_error_message(err))
+                                    if self._is_dns_timeout_error(err):
+                                        failure_reason = (
+                                            f"DNS resolution timeout after {dns_timeout_attempts} retries"
+                                            if dns_timeout_attempts
+                                            else "DNS resolution timeout"
+                                        )
+                                    status = 1000
+                                    self.increment_failure_count()
+                                    break
+                                except ConnectionRefusedError as e:
+                                    _LOGGER.error("Connection error, connection refused: %s", e)
+                                    status = 1000
+                                    self.increment_failure_count()
+                                    break
+                                except (ClientConnectionError, ClientResponseError) as e:
+                                    _LOGGER.error("Client error: %s", e)
+                                    status = 1000
+                                    self.increment_failure_count()
+                                    break
                             if status in (200, 400, 401, 403, 404, 500):  # Do not retry for these statuses.
                                 if status != 200:
                                     self.increment_failure_count()
