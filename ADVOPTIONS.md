@@ -309,7 +309,7 @@ Possible values: integer `0`..`20` (default `5`)
 
 The number of Domain Name System (DNS) resolution timeout retries to attempt during an API fetch event.
 
-If one is using a local recursive resolver then the time taken to achieve name resolution may exceed the Home Assistant aggressive timeout. By adding retries the resolution can eventually succeed by fetching a (likely) cached value from the resolver, or hard-fail fetch should all retries fail.
+If one is using a local recursive resolver then the time taken to achieve name resolution may exceed the Home Assistant aggressive timeout. By adding retries the resolution can eventually succeed by fetching a (likely) cached value from the resolver, or hard-fail the fetch if all retries fail.
 
 **Key: "entity_logging"**
 
