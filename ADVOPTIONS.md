@@ -303,7 +303,7 @@ If repeated `429 / Try again later` errors are received from Solcast that exhaus
 
 This behaviour may be suppressed by setting this option to `false`.
 
-**key: "dns_timeout_retries"**
+**Key: "dns_timeout_retries"**
 
 Possible values: integer `0`..`20` (default `5`)
 
