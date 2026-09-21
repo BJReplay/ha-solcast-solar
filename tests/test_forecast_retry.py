@@ -343,6 +343,62 @@ async def test_dns_timeout_retries_then_succeeds(
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("dns_timeout_retries", "expected_reason", "expected_calls", "expected_retry_logs"),
+    [
+        pytest.param(2, "DNS resolution timeout after 2 retries", 3, 2, id="retries-exhausted"),
+        pytest.param(0, "DNS resolution timeout", 1, 0, id="zero-retries"),
+    ],
+)
+async def test_dns_timeout_retries_exhausted_terminal_failure(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+    dns_timeout_retries: int,
+    expected_reason: str,
+    expected_calls: int,
+    expected_retry_logs: int,
+) -> None:
+    """Exhausted DNS retries return a clear failure reason and do not enter backoff."""
+
+    try:
+        write_advanced_options(hass.config.config_dir, {ADVANCED_DNS_TIMEOUT_RETRIES: dns_timeout_retries})
+
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        coordinator = entry.runtime_data.coordinator
+        solcast = coordinator.solcast
+        site_id = solcast.sites[0][RESOURCE_ID]
+        api_key = solcast.sites[0][API_KEY]
+
+        dns_timeout = _dns_connector_error("Timeout while contacting DNS servers")
+
+        original_session = solcast.aiohttp_session
+        mock_session = mock.MagicMock()
+        mock_session.get = mock.AsyncMock(side_effect=[dns_timeout] * expected_calls)
+        solcast.aiohttp_session = mock_session
+        caplog.set_level(logging.DEBUG)
+
+        sleep_mock = mock.AsyncMock()
+        with mock.patch.object(solcast.fetcher, "_sleep", sleep_mock):
+            try:
+                result = await solcast.fetcher.fetch_data(hours=48, path=FORECASTS, site=site_id, api_key=api_key, force=True)
+            finally:
+                solcast.aiohttp_session = original_session
+
+        assert result == expected_reason
+        assert mock_session.get.await_count == expected_calls
+        sleep_mock.assert_not_awaited()
+        _occurs_in_log(caplog, "DNS resolution timeout fetching path forecasts for site", expected_retry_logs)
+        assert "pausing" not in caplog.text
+
+        await solcast.tasks_cancel()
+        await coordinator.tasks_cancel()
+
+    finally:
+        await async_cleanup_integration_tests(hass)
+
+
+@pytest.mark.asyncio
 async def test_force_update_unload_cancels_update_task(
     recorder_mock: Recorder,
     hass: HomeAssistant,

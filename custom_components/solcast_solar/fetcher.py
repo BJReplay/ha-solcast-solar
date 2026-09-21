@@ -702,12 +702,10 @@ class Fetcher:
                                 except TimeoutError:
                                     _LOGGER.error("Connection error: Timed out connecting to server")
                                     status = 1000
-                                    self.increment_failure_count()
                                     break
                                 except ClientConnectorDNSError as err:
                                     if self._is_dns_timeout_error(err) and dns_timeout_attempts < dns_timeout_retries:
                                         dns_timeout_attempts += 1
-                                        self.increment_failure_count()
                                         _LOGGER.debug(
                                             "DNS resolution timeout fetching path %s for site %s, retry %d/%d",
                                             path,
@@ -724,20 +722,17 @@ class Fetcher:
                                             else "DNS resolution timeout"
                                         )
                                     status = 1000
-                                    self.increment_failure_count()
                                     break
                                 except ConnectionRefusedError as e:
                                     _LOGGER.error("Connection error, connection refused: %s", e)
                                     status = 1000
-                                    self.increment_failure_count()
                                     break
                                 except (ClientConnectionError, ClientResponseError) as e:
                                     _LOGGER.error("Client error: %s", e)
                                     status = 1000
-                                    self.increment_failure_count()
                                     break
                             if status in (200, 400, 401, 403, 404, 500, 1000):  # Do not retry for these statuses.
-                                if status != 200:
+                                if status not in (200,):
                                     self.increment_failure_count()
                                 break
                             if status == 429:
