@@ -736,7 +736,7 @@ class Fetcher:
                                     status = 1000
                                     self.increment_failure_count()
                                     break
-                            if status in (200, 400, 401, 403, 404, 500):  # Do not retry for these statuses.
+                            if status in (200, 400, 401, 403, 404, 500, 1000):  # Do not retry for these statuses.
                                 if status != 200:
                                     self.increment_failure_count()
                                 break

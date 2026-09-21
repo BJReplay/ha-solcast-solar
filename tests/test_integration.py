@@ -557,6 +557,8 @@ async def test_api_failure(
                 else:
                     await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
                     assert test["assertion"] in caplog.text
+                    if test["fatal"]:
+                        assert "pausing" not in caplog.text
 
                 assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
                 if isinstance(test["exception"], str):
