@@ -42,6 +42,7 @@ ADVANCED_AUTOMATED_DAMPENING_NO_LIMITING_CONSISTENCY: Final[str] = "automated_da
 ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: Final[str] = "automated_dampening_preserve_unmatched_factors"
 ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: Final[str] = "automated_dampening_similar_peak"
 ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY: Final[str] = "automated_dampening_suppression_entity"
+ADVANCED_DNS_TIMEOUT_RETRIES: Final[str] = "dns_timeout_retries"
 ADVANCED_ENTITY_LOGGING: Final[str] = "entity_logging"
 ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY: Final[str] = "estimated_actuals_fetch_delay"
 ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES: Final[str] = "estimated_actuals_log_ape_percentiles"
@@ -133,6 +134,7 @@ DEFAULT_DAMPENING_MODEL_DAYS: Final[int] = 14  # Number of days over which to mo
 DEFAULT_DAMPENING_NO_LIMITING_CONSISTENCY: Final[bool] = False  # Whether to ignore intervals that have been limited at least once
 DEFAULT_DAMPENING_SIMILAR_PEAK: Final[float] = 0.90  # Factor to consider similar estimated actual peak generation for automated dampening
 DEFAULT_DAMPENING_SUPPRESSION_ENTITY: Final[str] = "solcast_suppress_auto_dampening"  # Entity ID to invalidate generation when active
+DEFAULT_DNS_TIMEOUT_RETRIES: Final[int] = 5  # Additional immediate retries for DNS resolution timeout failures
 DEFAULT_ESTIMATED_ACTUALS_FETCH_DELAY: Final[int] = 0  # Minutes to wait after midnight before get estimated actuals (plus random offset)
 DEFAULT_FORECAST_DAYS: Final[int] = 14  # Minimum 8, maximum 14
 DEFAULT_FORECAST_DAY_SENSORS: Final[int] = 8  # Minimum 8, maximum 14
@@ -523,6 +525,12 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         DEFAULT: DEFAULT_DAMPENING_SIMILAR_PEAK,
     },
     ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY: {ADVANCED_TYPE: ADVANCED_OPTION.STR, DEFAULT: DEFAULT_DAMPENING_SUPPRESSION_ENTITY},
+    ADVANCED_DNS_TIMEOUT_RETRIES: {
+        ADVANCED_TYPE: ADVANCED_OPTION.INT,
+        MINIMUM: 0,
+        MAXIMUM: 20,
+        DEFAULT: DEFAULT_DNS_TIMEOUT_RETRIES,
+    },
     ADVANCED_ENTITY_LOGGING: {ADVANCED_TYPE: ADVANCED_OPTION.BOOL, DEFAULT: SENSOR_UPDATE_LOGGING},
     ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY: {
         ADVANCED_TYPE: ADVANCED_OPTION.INT,

@@ -303,6 +303,14 @@ If repeated `429 / Try again later` errors are received from Solcast that exhaus
 
 This behaviour may be suppressed by setting this option to `false`.
 
+**key: "dns_timeout_retries"**
+
+Possible values: integer `0`..`20` (default `5`)
+
+The number of Domain Name System (DNS) resolution failure retries to attempt during an API fetch event.
+
+If one is using a local recursive resolver then the time taken to achieve name resolution may exceed the Home Assistant aggressive timeout. By adding retries the resolution can eventually succeed by fetching a (likely) cached value from the resolver.
+
 **Key: "entity_logging"**
 
 Possible values: boolean `true`/`false` (default `false`)
