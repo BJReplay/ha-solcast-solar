@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import UTC, datetime as dt, timedelta
+from datetime import UTC, timedelta
 import json
 import logging
 from pathlib import Path
@@ -22,8 +22,9 @@ from homeassistant.components.solcast_solar.const import (
     SITES,
     TOTAL_RECORDS,
 )
-from homeassistant.components.solcast_solar.enums import SitesStatus
+from homeassistant.components.solcast_solar.enums import LoadStatus
 from homeassistant.components.solcast_solar.sites_cache import SitesCache
+from homeassistant.util import dt as dt_util
 
 
 class _ExecutorHass:
@@ -145,8 +146,8 @@ async def test_backup_caches_prunes_old_creates_current(tmp_path: Path) -> None:
     cache_file = tmp_path / "solcast.json"
     cache_file.write_text("{}", encoding="utf-8")
 
-    old_day = (dt.now(UTC) - timedelta(days=1)).strftime("%y%m%d")
-    today = dt.now(UTC).strftime("%y%m%d")
+    old_day = (dt_util.now(UTC) - timedelta(days=1)).strftime("%y%m%d")
+    today = dt_util.now(UTC).strftime("%y%m%d")
     old_backup = tmp_path / f"solcast-{old_day}.json.bak"
     old_backup.write_text("{}", encoding="utf-8")
     legacy_backup = tmp_path / f"solcast-{today}-auto_backup.json"
@@ -180,7 +181,7 @@ async def test_sites_data_uses_combined_extant_match_for_key_collapse(tmp_path: 
     api = SimpleNamespace(
         config_dir=str(tmp_path),
         options=SimpleNamespace(api_key="newkey"),
-        sites_status=SitesStatus.OK,
+        sites_status=LoadStatus.OK,
         sites=[],
         http_status_translate=lambda status: f"{status}",
         entry=None,
@@ -239,7 +240,7 @@ async def test_sites_data_uses_combined_extant_match_for_key_collapse(tmp_path: 
         status, _, _ = await sites_cache._sites_data(prior_crash=True, use_cache=True)
 
     assert status == 200
-    assert api.sites_status is SitesStatus.OK
+    assert api.sites_status is LoadStatus.OK
     assert len(api.sites) == 2
     assert all(site[API_KEY] == "newkey" for site in api.sites)
 

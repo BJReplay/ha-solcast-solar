@@ -303,9 +303,7 @@ class Fetcher:
         status = ""
 
         def next_update():
-            if self._next_update is not None:
-                return f", next auto update at {self._next_update}"
-            return ""
+            return f", next auto update at {self._next_update}" if self._next_update is not None else ""
 
         if last_updated := self.api.last_updated:
             if last_updated + timedelta(seconds=10) > dt_util.now(UTC):
@@ -732,7 +730,7 @@ class Fetcher:
                                     status = 1000
                                     break
                             if status in (200, 400, 401, 403, 404, 500, 1000):  # Do not retry for these statuses.
-                                if status not in (200,):
+                                if status != 200:
                                     self.increment_failure_count()
                                 break
                             if status == 429:

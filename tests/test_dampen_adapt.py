@@ -59,6 +59,7 @@ from homeassistant.components.solcast_solar.dates import DateTimeHelper, NoInden
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 from . import (
     DEFAULT_INPUT2,
@@ -158,7 +159,7 @@ async def test_adaptive_auto_dampen(  # noqa: C901
             caplog.clear()
             removed = -5
             solcast.data_actuals[SITE_INFO]["1111-1111-1111-1111"][FORECASTS].pop(removed)
-            freezer.move_to((dt.now(solcast.tz) + timedelta(**roll)).replace(minute=0, second=0, microsecond=0))
+            freezer.move_to((dt_util.now(solcast.tz) + timedelta(**roll)).replace(minute=0, second=0, microsecond=0))
             await hass.async_block_till_done()
             solcast.suppress_advanced_watchdog_reload = True
             await solcast.advanced_opt.read_advanced_options()
@@ -257,12 +258,12 @@ async def test_adaptive_auto_dampen(  # noqa: C901
 
         # Test load_history() with an interior date gap where the contiguous tail satisfies expected_records.
         # This exercises:
-        #   line 256 – contiguous_days = len(dates) - i  (gap detected in loop)
-        #   line 257 – break
-        #   line 259 – if contiguous_days * records_per_day >= expected_records  (True: debug "Gaps tolerated")
+        #   line 256 - contiguous_days = len(dates) - i  (gap detected in loop)
+        #   line 257 - break
+        #   line 259 - if contiguous_days * records_per_day >= expected_records  (True: debug "Gaps tolerated")
         #
         # Setup: remove the 2nd-oldest day from every model/delta combo so the dates stored in the
-        # file are [day0, day2, day3] – a gap of two days between day0 and day2.
+        # file are [day0, day2, day3] - a gap of two days between day0 and day2.
         # With model_days=2: expected_records=24, loaded_count=36 (3 days x 12 combos), 36!=24 triggers
         # the gap-detection block. Contiguous tail = {day2, day3}, contiguous_days=2; 2x12=24 >= 24, so debug.
         full_history = copy.deepcopy(solcast.dampening.auto_factors_history)
@@ -632,7 +633,7 @@ def test_select_comparison_interval_current_factors_fallback() -> None:
     10% of peak generation.
 
     Critically, this must NOT be weighted by generation. A generation-weighted
-    formula (normalised_gen × (1 − factor)) biases toward the peak-energy interval
+    formula (normalised_gen x (1 - factor)) biases toward the peak-energy interval
     even when it has weak dampening, producing a poor comparison discriminator.
     The correct choice is the interval where the model applies the most aggressive
     dampening among those with adequate daylight generation.
@@ -670,9 +671,9 @@ def test_select_comparison_interval_current_factors_fallback() -> None:
 
     selected_interval, _avg_gen, avg_factor, _variance = adaptive._select_comparison_interval(generation_dampening, 1)
 
-    # Interval 15 must win: (1 − 0.55) = 0.45 > (1 − 0.80) = 0.20.
+    # Interval 15 must win: (1 - 0.55) = 0.45 > (1 - 0.80) = 0.20.
     # A generation-weighted formula would pick interval 21:
-    #   21: (8/8 = 1.0) × 0.20 = 0.20 beats 15: (2/8 = 0.25) × 0.45 = 0.11
+    #   21: (8/8 = 1.0) x 0.20 = 0.20 beats 15: (2/8 = 0.25) x 0.45 = 0.11
     # The correct approach ignores generation magnitude and selects maximum
     # dampening among intervals with adequate daylight production.
     assert selected_interval == 15, f"Expected interval 15 (heaviest dampening), got {selected_interval}"

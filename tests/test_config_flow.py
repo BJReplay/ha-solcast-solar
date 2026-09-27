@@ -79,7 +79,7 @@ from homeassistant.components.solcast_solar.const import (
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from homeassistant.components.solcast_solar.enums import HistoryType
-from homeassistant.components.solcast_solar.solcastapi import SitesStatus, SolcastApi
+from homeassistant.components.solcast_solar.solcastapi import LoadStatus, SolcastApi
 from homeassistant.config_entries import ConfigEntryState, ConfigFlowResult
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -341,8 +341,8 @@ async def test_reauth_api_key(
     entry = None
     api_key_sites_backup = copy.deepcopy(simulator.API_KEY_SITES)
     try:
-        USER_INPUT = 0
-        REASON = 1
+        _user_input = 0
+        _reason = 1
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
@@ -353,12 +353,12 @@ async def test_reauth_api_key(
             assert result.get("step_id") == "reauth_confirm"
             result = await hass.config_entries.flow.async_configure(  # pyright: ignore[reportUnknownMemberType]
                 result["flow_id"],
-                user_input=test[USER_INPUT],
+                user_input=test[_user_input],
             )
             await hass.async_block_till_done()
             if result.get("reason") != AFFIRMATION_REAUTH_SUCCESSFUL:
-                _assert_flow_error(result, test[REASON])
-                assert _schema_suggested_values(result) == test[USER_INPUT]
+                _assert_flow_error(result, test[_reason])
+                assert _schema_suggested_values(result) == test[_user_input]
 
         await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
@@ -459,8 +459,8 @@ async def test_reconfigure_api_key1(
     Not parameterised for performance reasons.
     """
     try:
-        USER_INPUT = 0
-        REASON = 1
+        _user_input = 0
+        _reason = 1
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
@@ -475,12 +475,12 @@ async def test_reconfigure_api_key1(
             assert result.get("step_id") == "reconfigure_confirm"
             result = await hass.config_entries.flow.async_configure(  # pyright: ignore[reportUnknownMemberType]
                 result["flow_id"],
-                user_input=test[USER_INPUT],
+                user_input=test[_user_input],
             )
             await hass.async_block_till_done()
             if result.get("reason") != AFFIRMATION_RECONFIGURED:
-                assert result["errors"]["base"] == test[REASON]  # type: ignore[index]
-                assert _schema_suggested_values(result) == test[USER_INPUT]
+                assert result["errors"]["base"] == test[_reason]  # type: ignore[index]
+                assert _schema_suggested_values(result) == test[_user_input]
 
         await hass.config_entries.async_unload(entry.entry_id)
         await hass.async_block_till_done()
@@ -613,17 +613,17 @@ async def test_reconfigure_api_quota(
     Not parameterised for performance reasons.
     """
     try:
-        OPTIONS = 0
-        USER_INPUT = 1
-        REASON = 2
+        _options = 0
+        _user_input = 1
+        _reason = 2
 
         _input = None
         for test in TEST_API_LIMIT:
-            entry = await async_init_integration(hass, test[OPTIONS])  # type: ignore[arg-type]
+            entry = await async_init_integration(hass, test[_options])  # type: ignore[arg-type]
             state_store = await state.async_get(hass, entry.entry_id)
             assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
-            if _input is None or test[OPTIONS] != _input:
-                _input = copy.deepcopy(test[OPTIONS])
+            if _input is None or test[_options] != _input:
+                _input = copy.deepcopy(test[_options])
             result = await hass.config_entries.flow.async_init(
                 DOMAIN,
                 context={"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id},
@@ -634,14 +634,14 @@ async def test_reconfigure_api_quota(
             assert result.get("step_id") == "reconfigure_confirm"
             result = await hass.config_entries.flow.async_configure(  # pyright: ignore[reportUnknownMemberType]
                 result["flow_id"],
-                user_input=test[USER_INPUT],  # type: ignore[arg-type]
+                user_input=test[_user_input],  # type: ignore[arg-type]
             )
             await hass.async_block_till_done()
-            if test[USER_INPUT][CONF_API_KEY] == KEY1:
+            if test[_user_input][CONF_API_KEY] == KEY1:
                 assert not state_store.state.sensitive
-            if test[REASON]:
-                assert result["errors"]["base"] == test[REASON]  # type: ignore[index]
-                assert _schema_suggested_values(result) == test[USER_INPUT]
+            if test[_reason]:
+                assert result["errors"]["base"] == test[_reason]  # type: ignore[index]
+                assert _schema_suggested_values(result) == test[_user_input]
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
@@ -988,18 +988,18 @@ async def test_entry_options_upgrade(
 ) -> None:
     """Test that entry options are upgraded as expected."""
 
-    START_VERSION = 3
-    FINAL_VERSION = 19
-    V3OPTIONS: dict[str, Any] = {
+    _start_version = 3
+    _final_version = 19
+    _v3options: dict[str, Any] = {
         CONF_API_KEY: "1",
         "const_disableautopoll": False,
     }
     try:
         config_dir = f"{hass.config.config_dir}/{CONFIG_DISCRETE_NAME}" if CONFIG_FOLDER_DISCRETE else hass.config.config_dir
-        entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
+        entry = await async_init_integration(hass, copy.deepcopy(_v3options), version=_start_version)
         assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
-        assert entry.version == FINAL_VERSION
+        assert entry.version == _final_version
         # V4
         assert entry.options.get("const_disableautopoll") is None, "Expected option const_disableautopoll to be removed"
         # V5
@@ -1044,7 +1044,7 @@ async def test_entry_options_upgrade(
         # Test API limit gets imported from existing cache in upgrade to V9
         data_file = Path(f"{config_dir}/solcast-usage.json")
         data_file.write_text(json.dumps({DAILY_LIMIT: 50, DAILY_LIMIT_CONSUMED: 34, RESET: "2024-01-01T00:00:00+00:00"}), encoding="utf-8")
-        entry = await async_init_integration(hass, copy.deepcopy(V3OPTIONS), version=START_VERSION)
+        entry = await async_init_integration(hass, copy.deepcopy(_v3options), version=_start_version)
         assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
         assert entry.options.get("api_quota") == "50"
 
@@ -1086,7 +1086,7 @@ async def test_presumed_dead_and_full_flow(
         assert "Integration presumed dead, reloading" in caplog.text or "Integration reload already in progress" in caplog.text
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
         solcast: SolcastApi = coordinator.solcast
-        assert solcast.sites_status is SitesStatus.OK, f"Expected sites status SitesStatus.OK, got {solcast.sites_status}"
+        assert solcast.sites_status is LoadStatus.OK, f"Expected sites status LoadStatus.OK, got {solcast.sites_status}"
         assert solcast.loaded_data is True, "Solcast data should be loaded"
 
         assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"

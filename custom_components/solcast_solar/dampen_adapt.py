@@ -915,7 +915,7 @@ class DampeningAdaptive:
         dampening_breadth = [len(combo_dampens[i]) / total_models if total_models > 0 else 0.0 for i in range(INTERVALS_PER_DAY)]
         interval_error_weights = self._build_interval_error_weights(generation_dampening, min_history_days, actuals)
 
-        # Score = (1 - avg_factor) × sqrt(variance) × dampening_breadth, for intervals with adequate
+        # Score = (1 - avg_factor) x sqrt(variance) x dampening_breadth, for intervals with adequate
         # generation only (≥ 10% of peak / _MIN_GEN_FRACTION to exclude pre-dawn/post-dusk).
         # The goal here is dampening quality, not energy magnitude. Where possible, bias this toward
         # intervals where the current dampened forecast is also persistently wrong.
@@ -929,7 +929,7 @@ class DampeningAdaptive:
 
         # Fall back progressively when history-based scoring cannot discriminate.
         if not dampening_impact or max(dampening_impact) == 0.0:
-            # First fallback: drop the variance term — (1 - dampening) × breadth, still generation-gated
+            # First fallback: drop the variance term — (1 - dampening) x breadth, still generation-gated
             dampening_impact = [
                 (1.0 - avg_dampen_factor[i]) * dampening_breadth[i]
                 if normalised_generation[i] >= _MIN_GEN_FRACTION and not interval_has_zero_generation[i]

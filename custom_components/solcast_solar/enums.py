@@ -33,8 +33,8 @@ class UpdateResult(NamedTuple):
     message: str
 
 
-class SitesStatus(Enum):
-    """The state of load sites."""
+class LoadStatus(Enum):
+    """The state of load sites/cache."""
 
     OK = 0
     BAD_KEY = 1
@@ -42,14 +42,6 @@ class SitesStatus(Enum):
     NO_SITES = 3
     CACHE_INVALID = 4
     API_BUSY = 5
-    UNKNOWN = 99
-
-
-class UsageStatus(Enum):
-    """The state of API usage."""
-
-    OK = 0
-    ERROR = 1
     UNKNOWN = 99
 
 

@@ -120,7 +120,7 @@ from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoor
 from homeassistant.components.solcast_solar.enums import (
     AutoUpdate,
     HistoryType,
-    SitesStatus,
+    LoadStatus,
 )
 from homeassistant.components.solcast_solar.forecast import ForecastQuery
 from homeassistant.components.solcast_solar.solcastapi import (
@@ -713,7 +713,7 @@ async def test_integration(
 
         coordinator._updater.set_next_update()
 
-        assert solcast.sites_status is SitesStatus.OK, f"Expected sites status SitesStatus.OK, got {solcast.sites_status}"
+        assert solcast.sites_status is LoadStatus.OK, f"Expected sites status LoadStatus.OK, got {solcast.sites_status}"
         assert solcast.loaded_data is True, "Solcast data should be loaded"
         assert "Dampening factors corrupt or not found, setting to 1.0" not in caplog.text
         assert solcast.tz == ZONE
