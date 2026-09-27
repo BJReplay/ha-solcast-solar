@@ -77,11 +77,10 @@ from .const import (
 from .dates import DateTimeEncoder, JSONDecoder
 from .enums import (
     AutoUpdate,
-    SitesStatus,
+    LoadStatus,
     SolcastApiStatus,
     UpdateOutcome,
     UpdateResult,
-    UsageStatus,
 )
 from .issues import check_unusual_azimuth
 from .log import get_logger
@@ -411,7 +410,7 @@ class SitesCache:
             remove_orphans(multi_key_usage, multi_usage)
 
         status, message, api_key_in_error = await self._sites_data(prior_crash=prior_crash, use_cache=use_cache)
-        if self.api.sites_status == SitesStatus.OK:
+        if self.api.sites_status == LoadStatus.OK:
             await test_unusual_azimuth()
             await self._sites_usage()
 
@@ -1136,7 +1135,7 @@ class SitesCache:
                         _ = check_rekey(response_json, api_key)
                         await save_cache(cache_filename, response_json)
                         success = True
-                        self.api.sites_status = SitesStatus.OK
+                        self.api.sites_status = LoadStatus.OK
                     else:
                         _LOGGER.error(
                             "No sites for the API key %s are configured at solcast.com%s",
@@ -1146,7 +1145,7 @@ class SitesCache:
                             else "",
                         )
                         cache_exists = False  # Prevent cache load if no sites
-                        self.api.sites_status = SitesStatus.NO_SITES
+                        self.api.sites_status = LoadStatus.NO_SITES
                         api_key_in_error = redact_api_key(api_key)
                         break
 
@@ -1166,13 +1165,13 @@ class SitesCache:
                     if status != 200 and cache_exists and use_cache:
                         response_json = await load_cache(cache_filename)
                         success = True
-                        self.api.sites_status = SitesStatus.OK
+                        self.api.sites_status = LoadStatus.OK
                         if status == 403:
-                            self.api.sites_status = SitesStatus.BAD_KEY
+                            self.api.sites_status = LoadStatus.BAD_KEY
                             break
                         status = 200
                         if not check_rekey(response_json, api_key):
-                            self.api.sites_status = SitesStatus.CACHE_INVALID
+                            self.api.sites_status = LoadStatus.CACHE_INVALID
                             _LOGGER.info(
                                 "API key %s has changed and sites are different invalidating the cache, not using cached data",
                                 redact_api_key(api_key),
@@ -1183,12 +1182,12 @@ class SitesCache:
                     elif not cache_exists:
                         cached_sites_unavailable()
                         if status in (401, 403):
-                            self.api.sites_status = SitesStatus.BAD_KEY
+                            self.api.sites_status = LoadStatus.BAD_KEY
                             break
                         if status in (429, 420):
-                            self.api.sites_status = SitesStatus.API_BUSY
+                            self.api.sites_status = LoadStatus.API_BUSY
                             break
-                        self.api.sites_status = SitesStatus.ERROR
+                        self.api.sites_status = LoadStatus.ERROR
                         api_key_in_error = redact_api_key(api_key)
                         break
 
@@ -1198,7 +1197,7 @@ class SitesCache:
                     cached_sites_unavailable(at_least_one_only=True)
         except (ClientConnectionError, ClientResponseError, ConnectionRefusedError, TimeoutError) as e:
             _LOGGER.error("Connection error: %s", e)
-            self.api.sites_status = SitesStatus.ERROR
+            self.api.sites_status = LoadStatus.ERROR
             api_key_in_error = ""
             _LOGGER.error("Error retrieving sites: %s", e)
             if use_cache:
@@ -1212,9 +1211,9 @@ class SitesCache:
                         response_json = await load_cache(cache_filename)
                         set_sites(response_json, api_key)
                         _ = check_rekey(response_json, api_key)
-                        self.api.sites_status = SitesStatus.OK
+                        self.api.sites_status = LoadStatus.OK
                     else:
-                        self.api.sites_status = SitesStatus.ERROR
+                        self.api.sites_status = LoadStatus.ERROR
                         error = True
                         cached_sites_unavailable()
                         api_key_in_error = redact_api_key(api_key)
@@ -1224,8 +1223,8 @@ class SitesCache:
                         "Suggestion: Check your overall HA configuration, specifically networking related (Is IPV6 an issue for you? DNS? Proxy?)"
                     )
             return (
-                200 if self.api.sites_status == SitesStatus.OK else 999,
-                "Cached sites loaded" if self.api.sites_status == SitesStatus.OK else "Cached sites not loaded",
+                200 if self.api.sites_status == LoadStatus.OK else 999,
+                "Cached sites loaded" if self.api.sites_status == LoadStatus.OK else "Cached sites not loaded",
                 api_key_in_error,
             )
         except Exception as err:
@@ -1304,7 +1303,7 @@ class SitesCache:
                         self.api.api_used[api_key] = 0
                         await self.serialise_usage(api_key, reset=True)
 
-            self.api.usage_status = UsageStatus.OK
+            self.api.usage_status = LoadStatus.OK
             api_keys = self.api.options.api_key.split(",")
             api_limit_values = self.api.options.api_limit.split(",")
             for index in range(len(api_keys)):  # If only one limit value is present, yet there are multiple sites then use the same limit.
@@ -1365,4 +1364,4 @@ class SitesCache:
 
         except Exception:
             _LOGGER.exception("Exception in _sites_usage()")
-            self.api.usage_status = UsageStatus.ERROR
+            self.api.usage_status = LoadStatus.ERROR

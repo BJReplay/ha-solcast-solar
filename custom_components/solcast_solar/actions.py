@@ -7,8 +7,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Final
 
-import voluptuous as vol
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
@@ -126,7 +124,7 @@ from .const import (
     USE_ACTUALS,
 )
 from .coordinator import SolcastUpdateCoordinator
-from .enums import AutoUpdate, UsageStatus
+from .enums import AutoUpdate, LoadStatus
 from .log import get_logger
 from .migration import sync_legacy_keys
 from .solcastapi import SolcastApi
@@ -137,6 +135,9 @@ from .util import (
     split_and_strip,
 )
 from .validators import (
+    All,
+    Optional,
+    Required,
     validate_api_key_value,
     validate_api_limit_value,
     validate_auto_update_value,
@@ -147,67 +148,67 @@ from .validators import (
     validate_use_actuals_value,
 )
 
-SERVICE_DAMP_SCHEMA: Final = vol.All(
+SERVICE_DAMP_SCHEMA: Final = All(
     {
-        vol.Required(DAMP_FACTOR): cv.string,
-        vol.Optional(SITE): cv.string,
+        Required(DAMP_FACTOR): cv.string,
+        Optional(SITE): cv.string,
     }
 )
-SERVICE_QUERY_ESTIMATE_SCHEMA: Final = vol.All(
+SERVICE_QUERY_ESTIMATE_SCHEMA: Final = All(
     {
-        vol.Optional(EVENT_START_DATETIME): cv.datetime,
-        vol.Optional(EVENT_END_DATETIME): cv.datetime,
-        vol.Optional(DAMPENED): cv.boolean,
-        vol.Optional(SITE): cv.string,
+        Optional(EVENT_START_DATETIME): cv.datetime,
+        Optional(EVENT_END_DATETIME): cv.datetime,
+        Optional(DAMPENED): cv.boolean,
+        Optional(SITE): cv.string,
     }
 )
-SERVICE_DAMP_GET_SCHEMA: Final = vol.All(
+SERVICE_DAMP_GET_SCHEMA: Final = All(
     {
-        vol.Optional(SITE): cv.string,
+        Optional(SITE): cv.string,
     }
 )
-SERVICE_QUERY_SCHEMA: Final = vol.All(
+SERVICE_QUERY_SCHEMA: Final = All(
     {
-        vol.Required(EVENT_START_DATETIME): cv.datetime,
-        vol.Required(EVENT_END_DATETIME): cv.datetime,
-        vol.Optional(UNDAMPENED): cv.boolean,
-        vol.Optional(SITE): cv.string,
+        Required(EVENT_START_DATETIME): cv.datetime,
+        Required(EVENT_END_DATETIME): cv.datetime,
+        Optional(UNDAMPENED): cv.boolean,
+        Optional(SITE): cv.string,
     }
 )
-SERVICE_SET_OPTIONS_SCHEMA: Final = vol.All(
+SERVICE_SET_OPTIONS_SCHEMA: Final = All(
     {
-        vol.Optional(CONF_API_KEY): cv.string,
-        vol.Optional(API_LIMIT): cv.string,
-        vol.Optional(AUTO_UPDATE): cv.string,
-        vol.Optional(KEY_ESTIMATE): cv.string,
-        vol.Optional(CUSTOM_HOURS): cv.string,
-        vol.Optional(HARD_LIMIT): cv.string,
-        vol.Optional(BRK_ESTIMATE): cv.boolean,
-        vol.Optional(BRK_ESTIMATE10): cv.boolean,
-        vol.Optional(BRK_ESTIMATE90): cv.boolean,
-        vol.Optional(BRK_SITE): cv.boolean,
-        vol.Optional(BRK_HALFHOURLY): cv.boolean,
-        vol.Optional(BRK_HOURLY): cv.boolean,
-        vol.Optional(BRK_SITE_DETAILED): cv.boolean,
-        vol.Optional(GET_ACTUALS): cv.boolean,
-        vol.Optional(USE_ACTUALS): cv.string,
-        vol.Optional(AUTO_DAMPEN): cv.boolean,
-        vol.Optional(GENERATION_ENTITIES): cv.string,
-        vol.Optional(EXCLUDE_SITES): cv.string,
-        vol.Optional(SITE_EXPORT_ENTITY): cv.string,
-        vol.Optional(SITE_EXPORT_LIMIT): cv.string,
+        Optional(CONF_API_KEY): cv.string,
+        Optional(API_LIMIT): cv.string,
+        Optional(AUTO_UPDATE): cv.string,
+        Optional(KEY_ESTIMATE): cv.string,
+        Optional(CUSTOM_HOURS): cv.string,
+        Optional(HARD_LIMIT): cv.string,
+        Optional(BRK_ESTIMATE): cv.boolean,
+        Optional(BRK_ESTIMATE10): cv.boolean,
+        Optional(BRK_ESTIMATE90): cv.boolean,
+        Optional(BRK_SITE): cv.boolean,
+        Optional(BRK_HALFHOURLY): cv.boolean,
+        Optional(BRK_HOURLY): cv.boolean,
+        Optional(BRK_SITE_DETAILED): cv.boolean,
+        Optional(GET_ACTUALS): cv.boolean,
+        Optional(USE_ACTUALS): cv.string,
+        Optional(AUTO_DAMPEN): cv.boolean,
+        Optional(GENERATION_ENTITIES): cv.string,
+        Optional(EXCLUDE_SITES): cv.string,
+        Optional(SITE_EXPORT_ENTITY): cv.string,
+        Optional(SITE_EXPORT_LIMIT): cv.string,
     }
 )
 
 # Deprecated
-SERVICE_HARD_LIMIT_SCHEMA: Final = vol.All(
+SERVICE_HARD_LIMIT_SCHEMA: Final = All(
     {
-        vol.Required(HARD_LIMIT): cv.string,
+        Required(HARD_LIMIT): cv.string,
     }
 )
-SERVICE_CUSTOM_HOURS_SCHEMA: Final = vol.All(
+SERVICE_CUSTOM_HOURS_SCHEMA: Final = All(
     {
-        vol.Required(HOURS): cv.string,
+        Required(HOURS): cv.string,
     }
 )
 
@@ -1044,7 +1045,7 @@ def build_health_check_report(hass: HomeAssistant, coordinator: SolcastUpdateCoo
 
     usage_health = {
         "status": solcast.usage_status.name,
-        "ok": solcast.usage_status == UsageStatus.OK,
+        "ok": solcast.usage_status == LoadStatus.OK,
     }
 
     forecast_health = _evaluate_forecast_health(coordinator, solcast, issues)

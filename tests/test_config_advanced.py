@@ -128,7 +128,7 @@ async def test_advanced_options(
 ) -> None:
     """Test setting advanced options."""
 
-    LEAST = 1
+    _least = 1
     try:
         issue_registry = ir.async_get(hass)
 
@@ -267,7 +267,7 @@ async def test_advanced_options(
             elif value != advanced_options_with_aliases.get(option, {}).get("default"):
                 if advanced_options_with_aliases[option]["type"] in (int, float):
                     assert (
-                        f"{option}: {value} (must be {LEAST if 'matching' in option else advanced_options_with_aliases[option]['min']}-{advanced_options_with_aliases[option]['max']})"
+                        f"{option}: {value} (must be {_least if 'matching' in option else advanced_options_with_aliases[option]['min']}-{advanced_options_with_aliases[option]['max']})"
                         not in caplog.text
                     )
                 elif advanced_options_with_aliases[option]["type"] is bool:

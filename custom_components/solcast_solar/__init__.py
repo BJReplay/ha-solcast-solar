@@ -78,7 +78,7 @@ from .const import (
     VERSION,
 )
 from .coordinator import SolcastUpdateCoordinator
-from .enums import AutoUpdate, HistoryType, SitesStatus, UsageStatus
+from .enums import AutoUpdate, HistoryType, LoadStatus
 from .issues import sync_actuals_api_limit_issue
 from .log import get_logger
 from .solcastapi import ConnectionOptions, SolcastApi
@@ -352,22 +352,22 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     solcast.integration_version = version
     await solcast.sites_cache.get_sites_and_usage(prior_crash=prior_crash, use_cache=not state_store.sensitive)
     match solcast.sites_status:
-        case SitesStatus.BAD_KEY:
+        case LoadStatus.BAD_KEY:
             await raise_and_record(hass, entry, ConfigEntryAuthFailed, EXCEPTION_INIT_KEY_INVALID)
-        case SitesStatus.API_BUSY:
+        case LoadStatus.API_BUSY:
             await raise_and_record(hass, entry, ConfigEntryNotReady, EXCEPTION_INIT_CANNOT_GET_SITES)
-        case SitesStatus.ERROR:
+        case LoadStatus.ERROR:
             await raise_and_record(hass, entry, ConfigEntryError, EXCEPTION_INIT_CANNOT_GET_SITES)
-        case SitesStatus.CACHE_INVALID:
+        case LoadStatus.CACHE_INVALID:
             await raise_and_record(hass, entry, ConfigEntryError, EXCEPTION_INIT_CANNOT_GET_SITES_CACHE_INVALID)
-        case SitesStatus.NO_SITES:
+        case LoadStatus.NO_SITES:
             await raise_and_record(hass, entry, ConfigEntryError, EXCEPTION_INIT_NO_SITES)
-        case SitesStatus.UNKNOWN:
+        case LoadStatus.UNKNOWN:
             await raise_and_record(hass, entry, ConfigEntryError, EXCEPTION_INIT_UNKNOWN)
-        case SitesStatus.OK:
+        case LoadStatus.OK:
             pass
     match solcast.usage_status:
-        case UsageStatus.ERROR:
+        case LoadStatus.ERROR:
             await raise_and_record(hass, entry, ConfigEntryError, EXCEPTION_INIT_USAGE_CORRUPT)
         case _:
             pass
@@ -488,18 +488,18 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     def changed(config: str) -> bool:
         return coordinator.solcast.entry_options.get(config) != entry.options.get(config)
 
-    state = entry_state.get(entry.entry_id)
+    _state = entry_state.get(entry.entry_id)
 
     # Old API key tracking.
     if changed(CONF_API_KEY):
-        if state.reset_old_key:
-            state.reset_old_key = False
-            state.old_api_key = entry.options.get(CONF_API_KEY)
+        if _state.reset_old_key:
+            _state.reset_old_key = False
+            _state.old_api_key = entry.options.get(CONF_API_KEY)
         else:
-            state.old_api_key = coordinator.solcast.entry_options.get(CONF_API_KEY)
+            _state.old_api_key = coordinator.solcast.entry_options.get(CONF_API_KEY)
 
     # Multi-API key hard limit tracking and clean up.
-    previous_hard_limit = state.old_hard_limit or coordinator.solcast.hard_limit
+    previous_hard_limit = _state.old_hard_limit or coordinator.solcast.hard_limit
     if previous_hard_limit != entry.options[HARD_LIMIT_API]:
         old_multi_key = len(previous_hard_limit.split(",")) > 1
         new_multi_key = len(entry.options[HARD_LIMIT_API].split(",")) > 1
@@ -516,7 +516,7 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
                 if entity.unique_id in clean_up:
                     _LOGGER.warning("Cleaning up orphaned %s", entity.entity_id)
                     entity_registry.async_remove(entity.entity_id)
-    state.old_hard_limit = entry.options[HARD_LIMIT_API]
+    _state.old_hard_limit = entry.options[HARD_LIMIT_API]
 
     # Config changes, which when changed will cause a reload.
     reload = (

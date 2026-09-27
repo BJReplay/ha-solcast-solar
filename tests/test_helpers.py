@@ -184,7 +184,7 @@ class TestOrdinal:
         assert ordinal(23) == "23rd", "23 should produce '23rd'"
 
     def test_th_suffix(self) -> None:
-        """Integers ending in 0 or 4–9, and the teens 11–13, should use the 'th' suffix."""
+        """Integers ending in 0 or 4-9, and the teens 11-13, should use the 'th' suffix."""
         assert ordinal(4) == "4th", "4 should produce '4th'"
         assert ordinal(11) == "11th", "11 should produce '11th' (teen exception)"
         assert ordinal(12) == "12th", "12 should produce '12th' (teen exception)"

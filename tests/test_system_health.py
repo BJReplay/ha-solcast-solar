@@ -10,6 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 
 from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
+
 from tests.common import get_system_health_info
 
 _LOGGER = logging.getLogger(__name__)

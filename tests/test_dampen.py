@@ -20,7 +20,6 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.components.sensor import SensorDeviceClass
-import homeassistant.components.solcast_solar.dampen as dampen_module
 from homeassistant.components.solcast_solar.config_flow import (
     SolcastSolarOptionFlowHandler,
 )
@@ -62,6 +61,7 @@ from homeassistant.components.solcast_solar.const import (
     SITE_INFO,
     USE_ACTUALS,
 )
+import homeassistant.components.solcast_solar.dampen as dampen_module
 from homeassistant.components.solcast_solar.dampen import (
     Dampening,
     compute_energy_intervals,
@@ -75,6 +75,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_registry import RegistryEntryDisabler
+from homeassistant.util import dt as dt_util
 
 from . import (
     DEFAULT_INPUT2,
@@ -97,7 +98,7 @@ from . import (
 from tests.common import MockConfigEntry
 
 ZONE = ZoneInfo(ZONE_RAW)
-NOW = dt.now(ZONE)
+NOW = dt_util.now(ZONE)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -218,7 +219,7 @@ async def test_auto_dampen(
         caplog.clear()
         removed = -5
         value_removed = solcast.data_actuals[SITE_INFO]["1111-1111-1111-1111"][FORECASTS].pop(removed)
-        freezer.move_to((dt.now(solcast.tz) + timedelta(hours=12)).replace(minute=0, second=0, microsecond=0))
+        freezer.move_to((dt_util.now(solcast.tz) + timedelta(hours=12)).replace(minute=0, second=0, microsecond=0))
         await hass.async_block_till_done()
         await wait_for_it(hass, caplog, freezer, "Update generation data", long_time=True)
         await wait_for_it(hass, caplog, freezer, "Estimated actual mean APE", long_time=True)
@@ -238,7 +239,7 @@ async def test_auto_dampen(
         )
         assert "Auto-dampen factor for 08:30 is 0.830" in caplog.text
 
-        ADVANCED_CHECKS = {
+        _advanced_checks = {
             0: {"base": 0.830, "adjusted": [0.858, 0.834]},
             1: {"base": 0.830, "adjusted": [0.858, 0.834]},
             2: {"base": 0.652, "adjusted": [0.709, 0.660]},
@@ -250,7 +251,7 @@ async def test_auto_dampen(
                 caplog.clear()
                 solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MODEL] = model
                 await solcast.dampening.model_automated()
-                assert "Auto-dampen factor for 08:30 is {:.3f}".format(ADVANCED_CHECKS[model]["base"]) in caplog.text
+                assert "Auto-dampen factor for 08:30 is {:.3f}".format(_advanced_checks[model]["base"]) in caplog.text
 
                 for adjustment_model in (0, 1):
                     caplog.clear()
@@ -260,7 +261,7 @@ async def test_auto_dampen(
                     assert (
                         re.search(
                             r"Adjusted granular dampening factor for .+ 08:30:00, {:.3f}".format(
-                                ADVANCED_CHECKS[model]["adjusted"][adjustment_model]
+                                _advanced_checks[model]["adjusted"][adjustment_model]
                             ),
                             caplog.text,
                         )
@@ -280,7 +281,7 @@ async def test_auto_dampen(
         _LOGGER.debug("Rolling over to another tomorrow")
         caplog.clear()
         session_set(MOCK_CORRUPT_ACTUALS)
-        freezer.move_to((dt.now(solcast.tz) + timedelta(days=1)).replace(minute=0, second=0, microsecond=0))  # pyright: ignore[reportOptionalMemberAccess]
+        freezer.move_to((dt_util.now(solcast.tz) + timedelta(days=1)).replace(minute=0, second=0, microsecond=0))  # pyright: ignore[reportOptionalMemberAccess]
         await wait_for_it(hass, caplog, freezer, "Update estimated actuals failed: No valid json returned", long_time=True)
         session_clear(MOCK_CORRUPT_ACTUALS)
         await wait_for_it(hass, caplog, freezer, "Task get_pv_generation took")

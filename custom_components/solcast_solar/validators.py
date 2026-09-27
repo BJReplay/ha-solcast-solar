@@ -1,6 +1,7 @@
 """Solcast config validation functions."""
 
 import re
+import sys
 from typing import Any
 
 from homeassistant.const import CONF_API_KEY
@@ -23,6 +24,25 @@ from .const import (
     EXCEPTION_LIMIT_ONE_OR_GREATER,
     EXCEPTION_LIMIT_TOO_MANY,
 )
+
+if "probatio" in sys.modules:
+    validator = sys.modules["probatio"]
+else:
+    try:
+        import probatio
+
+        validator = probatio
+    except ImportError:
+        import voluptuous  # noqa: TID251
+
+        validator = voluptuous
+
+Schema = validator.Schema
+Required = validator.Required
+Optional = validator.Optional
+All = validator.All
+Coerce = validator.Coerce
+Range = validator.Range
 
 LIKE_SITE_ID = r"^[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}$"
 

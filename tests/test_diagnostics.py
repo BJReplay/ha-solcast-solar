@@ -47,13 +47,14 @@ from homeassistant.components.solcast_solar.const import (
     USAGE_STATUS,
 )
 from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.enums import UsageStatus
+from homeassistant.components.solcast_solar.enums import LoadStatus
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_registry import RegistryEntryDisabler
+from homeassistant.util import dt as dt_util
 
 from . import (
     DEFAULT_INPUT1,
@@ -84,7 +85,7 @@ async def test_diagnostics(
 
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        freezer.move_to(dt.now() + timedelta(minutes=1))
+        freezer.move_to(dt_util.now() + timedelta(minutes=1))
         await hass.async_block_till_done()
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
         solcast: SolcastApi = coordinator.solcast
@@ -561,7 +562,7 @@ async def test_diagnostic_usage_status_and_excluded_sites(
         options[EXCLUDE_SITES] = ["missing-site-id"]
         entry = await async_init_integration(hass, options)
         solcast: SolcastApi = patch_solcast_api(entry.runtime_data.coordinator.solcast)
-        solcast.usage_status = UsageStatus.ERROR
+        solcast.usage_status = LoadStatus.ERROR
         assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
 
         result = await hass.services.async_call(DOMAIN, SERVICE_DIAGNOSTIC, {}, blocking=True, return_response=True)

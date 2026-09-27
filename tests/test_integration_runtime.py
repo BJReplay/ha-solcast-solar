@@ -34,6 +34,7 @@ from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 from . import (
     DEFAULT_INPUT1,
@@ -144,7 +145,11 @@ async def test_integration_runtime_and_dampening_flow(
                 "3333-3333-3333-3333": [0.9] * 48,
             }
         )
-        if options == DEFAULT_INPUT1 and dt.now(solcast.options.tz) < dt(2026, 6, 1, tzinfo=solcast.options.tz) and CONFIG_FOLDER_DISCRETE:
+        if (
+            options == DEFAULT_INPUT1
+            and dt_util.now(solcast.options.tz) < dt(2026, 6, 1, tzinfo=solcast.options.tz)
+            and CONFIG_FOLDER_DISCRETE
+        ):
             legacy_dampening_file = Path(f"{config_dir.replace(f'/{CONFIG_DISCRETE_NAME}', '')}/{granular_dampening_file.name}")
             legacy_dampening_file.write_text(json.dumps(granular_dampening), encoding="utf-8")
             _LOGGER.debug("Write legacy dampening file %s for auto-move test", legacy_dampening_file)
@@ -154,7 +159,7 @@ async def test_integration_runtime_and_dampening_flow(
         await _wait_for(caplog, "Running task watch_dampening")
         assert granular_dampening_file.is_file(), f"File {granular_dampening_file} should exist"
         if CONFIG_FOLDER_DISCRETE:
-            if options == DEFAULT_INPUT1 and dt.now(solcast.options.tz) < dt(2026, 6, 1, tzinfo=solcast.options.tz):
+            if options == DEFAULT_INPUT1 and dt_util.now(solcast.options.tz) < dt(2026, 6, 1, tzinfo=solcast.options.tz):
                 assert "auto-moving will cease 1st June 2026" in caplog.text
             else:
                 assert "auto-moving will cease 1st June 2026" not in caplog.text
@@ -162,7 +167,7 @@ async def test_integration_runtime_and_dampening_flow(
         # Test update beyond ten seconds of prior update, also with stale usage cache and dodgy dampening file
         session_reset_usage()
         for api_key in options[API_KEY].split(","):
-            solcast.sites_cache._api_used_reset[api_key] = dt.now(datetime.UTC) - timedelta(days=5)
+            solcast.sites_cache._api_used_reset[api_key] = dt_util.now(datetime.UTC) - timedelta(days=5)
         solcast.options.auto_update = AutoUpdate.NONE
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "Not requesting a solar forecast because time is within ten seconds of last update" not in caplog.text
@@ -257,7 +262,7 @@ async def test_integration_runtime_and_dampening_flow(
             os.utime(file_path, (dt_epoch, dt_epoch))
 
         granular_dampening_file.write_text("really dodgy", encoding="utf-8")
-        set_file_last_modified(str(granular_dampening_file), dt.now(datetime.UTC) - timedelta(minutes=5))
+        set_file_last_modified(str(granular_dampening_file), dt_util.now(datetime.UTC) - timedelta(minutes=5))
         await _exec_update(hass, solcast, caplog, "update_forecasts", last_update_delta=20)
         assert "JSONDecodeError, dampening ignored" in caplog.text
         granular_dampening_file.unlink()

@@ -66,6 +66,7 @@ from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.json import JSON_DUMP
+from homeassistant.util import dt as dt_util
 
 from .aioresponses import CallbackResult, aioresponses
 from .simulator import API_KEY_SITES, GENERATION_FACTOR, SimulatedSolcast
@@ -273,7 +274,7 @@ def adjust_dampening_test_caches(config_dir: str | Path, undampened_factor: floa
 def verify_data_schema(data: dict[str, Any]) -> None:
     """Verify the schema of data sets."""
 
-    SCHEMA: dict[str, Any] = {
+    _schema: dict[str, Any] = {
         "siteinfo": {"type": dict},
         "version": {"type": int},
         "last_updated": {"type": dt},
@@ -286,7 +287,7 @@ def verify_data_schema(data: dict[str, Any]) -> None:
 
     fail = False
 
-    for key, rules in SCHEMA.items():
+    for key, rules in _schema.items():
         if key not in data:
             _LOGGER.error("Missing key in data: %s", key)
             fail = True
@@ -300,13 +301,13 @@ def verify_data_schema(data: dict[str, Any]) -> None:
                     _LOGGER.error("Missing member %s in key %s", member, key)
                     fail = True
     for key, value in data.items():
-        if key not in SCHEMA:
+        if key not in _schema:
             _LOGGER.error("Unexpected key in schema: %s", key)
             fail = True
-        if SCHEMA.get(key):
-            if "members" in SCHEMA[key]:
+        if _schema.get(key):
+            if "members" in _schema[key]:
                 for member in value:
-                    if member not in SCHEMA[key]["members"]:
+                    if member not in _schema[key]["members"]:
                         _LOGGER.error("Unexpected member %s in key %s", member, key)
                         fail = True
 
@@ -428,7 +429,7 @@ async def async_setup_aioresponses() -> None:
     aioresp = None
     aioresp = aioresponses(passthrough=["http://127.0.0.1"])
 
-    URLS: dict[str, dict[str, Any]] = {
+    _urls: dict[str, dict[str, Any]] = {
         "sites": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites\?.*api_key=.*$", "callback": _get_sites},
         "forecasts": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites/.+/forecasts.*$", "callback": _get_forecasts},
         "estimated_actuals": {"URL": r"https://api\.solcast\.com\.au/rooftop_sites/.+/estimated_actuals.*$", "callback": _get_actuals},
@@ -437,13 +438,13 @@ async def async_setup_aioresponses() -> None:
     exc = MOCK_SESSION_CONFIG["exception"]
     if exc == ClientConnectionError:
         # Modify the URLs to cause a connection error.
-        for url in URLS.values():
+        for url in _urls.values():
             url["URL"] = url["URL"].replace("solcast", "solcastxxxx")
         exc = None
 
     # Set up the mock GET responses.
     aioresp.get("https://api.solcast.com.au", status=200)
-    for _get in URLS.values():
+    for _get in _urls.values():
         aioresp.get(re.compile(_get["URL"]), status=200, callback=_get["callback"], repeat=99999, exception=exc)
 
     MOCK_SESSION_CONFIG["aioresponses"] = aioresp
@@ -455,8 +456,8 @@ async def async_setup_extra_sensors(  # noqa: C901
 ) -> None:
     """Set up extra sensors for testing."""
 
-    FASTER = True  # True for fast tests, False for reliable ones.
-    USE_BATCHED_HISTORY = FASTER and extra_sensors != ExtraSensors.DODGY
+    _faster = True  # True for fast tests, False for reliable ones.
+    _use_batched_history = _faster and extra_sensors != ExtraSensors.DODGY
     pending_history_rows: list[tuple[str, str, dict[str, Any] | None, float]] = []
     pending_live_states: list[tuple[str, str, dict[str, Any] | None, float]] = []
 
@@ -468,7 +469,7 @@ async def async_setup_extra_sensors(  # noqa: C901
     def finalize_history(entity_id: str) -> None:
         """Move the newest queued row for an entity to a live state-machine update."""
 
-        if not USE_BATCHED_HISTORY:
+        if not _use_batched_history:
             return
 
         if pending_history_rows and pending_history_rows[-1][0] == entity_id:
@@ -543,16 +544,16 @@ async def async_setup_extra_sensors(  # noqa: C901
     async def flush_history() -> None:
         """Flush queued history rows and final live states."""
 
-        if USE_BATCHED_HISTORY and pending_history_rows:
+        if _use_batched_history and pending_history_rows:
             await get_instance(hass).async_add_executor_job(insert_history_rows, list(pending_history_rows))
             pending_history_rows.clear()
 
-        if USE_BATCHED_HISTORY and pending_live_states:
+        if _use_batched_history and pending_live_states:
             for entity_id, state, attributes, timestamp in pending_live_states:
                 hass.states.async_set(entity_id, state, attributes, timestamp=timestamp)
             pending_live_states.clear()
 
-        if FASTER:
+        if _faster:
             await hass.async_block_till_done()
             await hass.async_block_till_done()
 
@@ -578,16 +579,16 @@ async def async_setup_extra_sensors(  # noqa: C901
     increasing: float
 
     async def record_history(entity_id: str, new_now: dt, increasing: float, gap: bool) -> None:
-        if not FASTER:
+        if not _faster:
             frozen_time.move_to(new_now)
         if not gap:
             attributes = None if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY else {"unit_of_measurement": _uom}
             state = str(round(increasing / adjustment[_uom], 4))
             timestamp = dt.timestamp(new_now)
             if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
-                if USE_BATCHED_HISTORY:
+                if _use_batched_history:
                     queue_history(entity_id, state, attributes, timestamp)
-                elif FASTER:
+                elif _faster:
                     hass.states.async_set(entity_id, state, None, timestamp=timestamp)
                 else:
                     await hass.async_add_executor_job(
@@ -598,9 +599,9 @@ async def async_setup_extra_sensors(  # noqa: C901
                         True,
                     )
             else:  # noqa: PLR5501
-                if USE_BATCHED_HISTORY:
+                if _use_batched_history:
                     queue_history(entity_id, state, attributes, timestamp)
-                elif FASTER:
+                elif _faster:
                     hass.states.async_set(entity_id, state, attributes, timestamp=timestamp)
                 else:
                     await hass.async_add_executor_job(
@@ -622,7 +623,7 @@ async def async_setup_extra_sensors(  # noqa: C901
             continue
         power = {}
         if site != "site_export_sensor":
-            now = (dt.now(UTC) - timedelta(days=entity_history["days_generation"])).replace(hour=14, minute=0, second=0)
+            now = (dt_util.now(UTC) - timedelta(days=entity_history["days_generation"])).replace(hour=14, minute=0, second=0)
             for interval in range(48):
                 power[interval] = (
                     0.5 * generation * GENERATION_FACTOR[interval]
@@ -635,7 +636,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                 )
             entity = "solar_export_sensor_" + site.replace("-", "_")
         else:
-            now = (dt.now(UTC) - timedelta(days=entity_history["days_export"])).replace(hour=14, minute=0, second=0)
+            now = (dt_util.now(UTC) - timedelta(days=entity_history["days_export"])).replace(hour=14, minute=0, second=0)
             if extra_sensors == ExtraSensors.DODGY:
                 for interval in range(48):
                     power[interval] = 0.0 if (interval < 24 or interval > 34) else (5.0 if interval != 34 else 2.0)
@@ -663,17 +664,17 @@ async def async_setup_extra_sensors(  # noqa: C901
         # returns False (insufficient numeric readings), covering the insufficient-readings branch.
         # Use distinct non-numeric values so each is a genuine state change for the recorder.
         if extra_sensors == ExtraSensors.YES_POWER and site == "1111-1111-1111-1111":
-            base = (dt.now(UTC) - timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
+            base = (dt_util.now(UTC) - timedelta(days=1)).replace(hour=8, minute=0, second=0, microsecond=0)
             non_numeric = ["unavailable", "unknown", "error", "none", "n/a"]
             for k, state_val in enumerate(non_numeric):
-                if USE_BATCHED_HISTORY:
+                if _use_batched_history:
                     queue_history(
                         entity_id,
                         state_val,
                         {"unit_of_measurement": _uom},
                         dt.timestamp(base + timedelta(minutes=k * 5)),
                     )
-                elif FASTER:
+                elif _faster:
                     hass.states.async_set(
                         entity_id,
                         state_val,
@@ -687,7 +688,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                         {"unit_of_measurement": _uom},
                         timestamp=dt.timestamp(base + timedelta(minutes=k * 5)),
                     )
-            if USE_BATCHED_HISTORY:
+            if _use_batched_history:
                 queue_history(
                     entity_id,
                     "1.0",
@@ -695,7 +696,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                     dt.timestamp(base + timedelta(minutes=25)),
                 )
                 finalize_history(entity_id)
-            elif FASTER:
+            elif _faster:
                 hass.states.async_set(
                     entity_id,
                     "1.0",
@@ -789,7 +790,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                             + timedelta(seconds=(day * 86400) + (i * 30 * 60) + b)
                         )
                         await record_history(entity_id, new_now, increasing, gap)
-            if USE_BATCHED_HISTORY:
+            if _use_batched_history:
                 finalize_history(entity_id)
     if extra_sensors == ExtraSensors.YES_WITH_SUPPRESSION:
         entity = "solcast_suppress_auto_dampening"
@@ -815,7 +816,7 @@ async def async_setup_extra_sensors(  # noqa: C901
             {"hours": 13, "minutes": 46, "seconds": 5, "value": "on"},
             {"hours": 14, "minutes": 14, "seconds": 5, "value": "off"},
         ]
-        now = (dt.now(UTC) - timedelta(days=entity_history["days_suppression"])).replace(hour=14, minute=0, second=0)
+        now = (dt_util.now(UTC) - timedelta(days=entity_history["days_suppression"])).replace(hour=14, minute=0, second=0)
         with freeze_time(
             now,
             tz_offset=0,
@@ -823,9 +824,9 @@ async def async_setup_extra_sensors(  # noqa: C901
             for day in range(entity_history["days_suppression"]):
                 for s in sequence:
                     event_time = now + timedelta(days=day, hours=s["hours"], minutes=s["minutes"], seconds=s["seconds"])
-                    if USE_BATCHED_HISTORY:
+                    if _use_batched_history:
                         queue_history(entity_id, s["value"], None, dt.timestamp(event_time))
-                    elif FASTER:
+                    elif _faster:
                         hass.states.async_set(entity_id, s["value"], None, timestamp=dt.timestamp(event_time))
                     else:
                         frozen_time.move_to(event_time)
@@ -836,7 +837,7 @@ async def async_setup_extra_sensors(  # noqa: C901
                             None,
                             True,
                         )
-        if USE_BATCHED_HISTORY:
+        if _use_batched_history:
             finalize_history(entity_id)
 
     await flush_history()
@@ -866,8 +867,8 @@ async def async_init_integration(
 
     session_reset_usage()
 
-    ZONE = ZoneInfo(timezone)
-    simulated.set_time_zone(ZONE)
+    _zone = ZoneInfo(timezone)
+    simulated.set_time_zone(_zone)
     simulated.modified_actuals = False
 
     hass.config.time_zone = timezone
