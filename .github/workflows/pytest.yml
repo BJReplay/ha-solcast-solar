@@ -20,11 +20,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The latest release and the current betas; raise them when a new one is out.
-        core: ["2026.9.4", "2026.10.0b0", "2026.10.0b1"]
-    env:
-      # Use the tzdata package: Ubuntu's zone data marks Dublin summer +1 hour, and the Dublin tests expect winter -1 hour.
-      PYTHONTZPATH: ""
+        # Branches of Home Assistant Core: master is the latest release, rc the current beta.
+        core: ["master", "rc"]
     steps:
       - name: Checkout integration
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
