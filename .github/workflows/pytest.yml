@@ -57,6 +57,13 @@ jobs:
           cp -a integration/custom_components/solcast_solar core/homeassistant/components/solcast_solar
           cp -a integration/tests core/tests/components/solcast_solar
 
+      - name: Mount the simulator into Core
+        run: |
+          mkdir -p core/config/custom_components
+          cp -a integration/custom_sim/solcast_sim core/config/custom_components/solcast_sim
+          cp -a integration/custom_sim/solcast_sim core/homeassistant/components/solcast_sim
+          cp -a integration/tests_solcast_sim core/tests/components/solcast_sim
+
       - name: Compile translations
         working-directory: core
         run: python -m script.translations develop --all
@@ -67,3 +74,11 @@ jobs:
           python -m pytest tests/components/solcast_solar -n auto --dist=worksteal --timeout=300 -p no:sugar
           --cov=homeassistant.components.solcast_solar --cov-config=tests/components/solcast_solar/.coveragerc
           --cov-report=term-missing:skip-covered --cov-fail-under=100
+
+      - name: Run the simulator suite with coverage
+        if: ${{ !cancelled() }}  # Also when the whole suite failed
+        working-directory: core
+        run: >-
+          python -m pytest tests/components/solcast_sim -n auto --dist=worksteal --timeout=300 -p no:sugar
+          --cov=config/custom_components/solcast_sim --cov-config=tests/components/solcast_sim/.coveragerc
+          --cov-report=term-missing:skip-covered
