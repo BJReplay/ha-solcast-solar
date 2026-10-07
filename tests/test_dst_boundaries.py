@@ -6,7 +6,8 @@ transition detection on DST transition days.
 """
 
 import copy
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
+from importlib import resources
 import tempfile
 from typing import Any
 from unittest.mock import MagicMock
@@ -492,3 +493,33 @@ async def test_updater_details_empty_intervals_on_dst_day(
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+def _zone_from_tzdata(name: str, key: str) -> ZoneInfo:
+    """Load a zone from the tzdata package under another key, independent of the system time zone database."""
+    with resources.files("tzdata.zoneinfo").joinpath(*name.split("/")).open("rb") as file:
+        return ZoneInfo.from_file(file, key=key)
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        pytest.param("Europe/Dublin", id="winter marked -1 hour"),
+        pytest.param("Europe/London", id="summer marked +1 hour"),
+    ],
+)
+def test_dublin_summer_time_with_either_database_form(source: str) -> None:
+    """Dublin summer time is found whichever way the time zone database marks it.
+
+    The tzdata package marks Dublin winter -1 hour. Some system databases mark summer +1 hour, like London.
+    """
+    tz = _zone_from_tzdata(source, "Europe/Dublin")
+    winter = dt(2025, 12, 15, 12, tzinfo=tz)
+    summer = dt(2025, 7, 15, 12, tzinfo=tz)
+    # Make sure both ways are really tested.
+    assert (winter.dst(), summer.dst()) in ((timedelta(hours=-1), timedelta(0)), (timedelta(0), timedelta(hours=1)))
+
+    helper = DateTimeHelper(tz)
+    assert helper.is_dublin
+    assert not helper.dst(winter)
+    assert helper.dst(summer)

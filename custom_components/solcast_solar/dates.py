@@ -43,8 +43,11 @@ class DateTimeHelper:
         """Return whether a given date is daylight savings time, or for zones using winter time whether summer time."""
         result = False
         if dt_obj is not None:
-            delta = timedelta(hours=1) if not self.is_dublin else timedelta(hours=0)
-            result = dt_obj.astimezone(self._tz).dst() == delta
+            local = dt_obj.astimezone(self._tz)
+            # Summer time is one hour ahead of the smaller offset of the year. Not tzinfo.dst(): for Dublin,
+            # some time zone databases mark winter (-1 hour) and others summer (+1 hour).
+            offsets = [dt(local.year, month, 1, tzinfo=self._tz).utcoffset() or timedelta(0) for month in (1, 7)]
+            result = local.utcoffset() == min(offsets) + timedelta(hours=1)
         return result
 
     def hour_start_utc(self) -> dt:
