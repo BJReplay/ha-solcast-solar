@@ -135,11 +135,10 @@ jobs:
           python3 << 'PY'
           import json, os, urllib.request
 
-          # dev always: a Home Assistant core break should stay visible.
-          # master and rc only when this change touches the simulator, which is not part of a release.
-          core = os.environ["CORE"]
+          # Every core, including dev: only when this change touches the simulator.
+          # A manual run has no diff, so it still runs the suite.
           event = os.environ["EVENT_NAME"]
-          run = core == "dev" or event == "workflow_dispatch"
+          run = event == "workflow_dispatch"
           prefixes = ("custom_sim/", "tests_solcast_sim/")
 
           def sim_files_changed(repo, base, head):
@@ -165,7 +164,7 @@ jobs:
               else:
                   run = sim_files_changed(os.environ["REPO"], before, os.environ["SHA"])
 
-          print(f"simulator={str(run).lower()} on {core}")
+          print(f"simulator={str(run).lower()} on {os.environ['CORE']}")
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write("run=" + str(run).lower() + "\n")
           PY
