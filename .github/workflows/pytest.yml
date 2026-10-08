@@ -1,0 +1,180 @@
+name: Tests
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pytest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  branches:
+    name: Home Assistant branches
+    runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+    steps:
+      - name: master, dev, and rc only while that branch exists
+        id: set
+        run: |
+          python3 << 'PY'
+          import json, os, subprocess, urllib.request
+          # master is the latest release and must pass.
+          # dev is the current development branch: run it, but a failure must not fail the workflow.
+          # rc is the beta. Run it only while its release differs from master.
+          entries = [
+              {"core": "master", "allow_failure": False},
+              {"core": "dev", "allow_failure": True},
+          ]
+
+          def head(ref):
+              found = subprocess.run(
+                  ["git", "ls-remote", "--heads", "https://github.com/home-assistant/core.git", ref],
+                  capture_output=True, text=True, check=True,
+              )
+              return found.stdout.split()[0] if found.stdout.strip() else ""
+
+          def release(ref):
+              url = f"https://raw.githubusercontent.com/home-assistant/core/{ref}/homeassistant/const.py"
+              text = urllib.request.urlopen(url, timeout=30).read().decode()
+              values = {}
+              for key in ("MAJOR_VERSION", "MINOR_VERSION", "PATCH_VERSION"):
+                  for line in text.splitlines():
+                      if line.startswith(key + ":"):
+                          values[key] = line.split("=", 1)[1].strip().strip("\"")
+              return f"{values['MAJOR_VERSION']}.{values['MINOR_VERSION']}.{values['PATCH_VERSION']}"
+
+          # Same release as master means the same code under test, even if the commits differ.
+          if head("rc") and release("rc") != release("master"):
+              entries.append({"core": "rc", "allow_failure": False})
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write("matrix=" + json.dumps(entries) + "\n")
+          print(json.dumps(entries))
+          PY
+
+  pytest:
+    name: pytest, Home Assistant ${{ matrix.core }}
+    needs: branches
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    continue-on-error: ${{ matrix.allow_failure }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJSON(needs.branches.outputs.matrix) }}
+    steps:
+      - name: Checkout integration
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: integration
+          persist-credentials: false
+
+      - name: Decide whether to run the simulator
+        id: sim
+        env:
+          CORE: ${{ matrix.core }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          python3 << 'PY'
+          import json, os, urllib.request
+
+          # Every core, including dev: only when this change touches the simulator.
+          # A manual run has no diff, so it still runs the suite.
+          event = os.environ["EVENT_NAME"]
+          run = event == "workflow_dispatch"
+          prefixes = ("custom_sim/", "tests_solcast_sim/")
+
+          def sim_files_changed(repo, base, head):
+              url = f"https://api.github.com/repos/{repo}/compare/{base}...{head}"
+              req = urllib.request.Request(
+                  url,
+                  headers={"Accept": "application/vnd.github+json", "User-Agent": "solcast-ci"},
+              )
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  data = json.load(resp)
+              files = [item["filename"] for item in data.get("files") or []]
+              # The compare API returns at most 300 files. Past that, do not skip.
+              if len(files) >= 300:
+                  return True
+              return any(name.startswith(prefixes) for name in files)
+
+          if not run and event == "pull_request":
+              run = sim_files_changed(os.environ["BASE_REPO"], os.environ["BASE_SHA"], os.environ["HEAD_SHA"])
+          elif not run:
+              before = os.environ["BEFORE"]
+              if not before or set(before) == {"0"}:
+                  run = True
+              else:
+                  run = sim_files_changed(os.environ["REPO"], before, os.environ["SHA"])
+
+          print(f"simulator={str(run).lower()} on {os.environ['CORE']}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write("run=" + str(run).lower() + "\n")
+          PY
+
+      - name: Checkout Home Assistant Core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: home-assistant/core
+          ref: ${{ matrix.core }}
+          path: core
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: core/.python-version
+
+      - name: Install Core test requirements
+        working-directory: core
+        run: |
+          python -m pip install uv
+          extra=$(grep -E "^(SQLAlchemy|fnv-hash-fast|psutil-home-assistant|paho-mqtt|aiohasupervisor)==" requirements_all.txt)
+          reqs=$(python -c 'import json; print(" ".join(json.load(open("../integration/custom_components/solcast_solar/manifest.json"))["requirements"]))')
+          # shellcheck disable=SC2086
+          uv pip install --system -e . -r requirements_test.txt $extra $reqs colorlog flask isodate --config-settings editable_mode=compat
+
+      - name: Mount the integration into Core
+        run: |
+          rm -rf core/homeassistant/components/solcast_solar core/tests/components/solcast_solar
+          cp -a integration/custom_components/solcast_solar core/homeassistant/components/solcast_solar
+          cp -a integration/tests core/tests/components/solcast_solar
+
+      - name: Mount the simulator into Core
+        if: ${{ steps.sim.outputs.run == 'true' }}
+        run: |
+          mkdir -p core/config/custom_components
+          cp -a integration/custom_sim/solcast_sim core/config/custom_components/solcast_sim
+          cp -a integration/custom_sim/solcast_sim core/homeassistant/components/solcast_sim
+          cp -a integration/tests_solcast_sim core/tests/components/solcast_sim
+
+      - name: Compile translations
+        working-directory: core
+        run: python -m script.translations develop --all
+
+      - name: Run the whole suite with coverage
+        working-directory: core
+        run: >-
+          python -m pytest tests/components/solcast_solar -n auto --dist=worksteal --timeout=300 -p no:sugar
+          --cov=homeassistant.components.solcast_solar --cov-config=tests/components/solcast_solar/.coveragerc
+          --cov-report=term-missing:skip-covered --cov-fail-under=100
+
+      - name: Run the simulator suite with coverage
+        if: ${{ !cancelled() && steps.sim.outputs.run == 'true' }}
+        continue-on-error: true  # Not part of a release; a failure must not fail the workflow
+        working-directory: core
+        run: >-
+          python -m pytest tests/components/solcast_sim -n auto --dist=worksteal --timeout=300 -p no:sugar
+          --cov=config/custom_components/solcast_sim --cov-config=tests/components/solcast_sim/.coveragerc
+          --cov-report=term-missing:skip-covered
