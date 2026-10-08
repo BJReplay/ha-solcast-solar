@@ -1499,6 +1499,7 @@ Latest minor/patch releases.
 
 v4.6.2
 
+* Fix momentary power sensors dropping to 0 W in the afternoon when today's forecast starts after midnight by @Bascht74
 * Add DNS timeout retries by @autoSteve
 * Embrace Home Assistant dt_util by @autoSteve
 
