@@ -74,52 +74,6 @@ jobs:
           path: integration
           persist-credentials: false
 
-      - name: Checkout Home Assistant Core
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: home-assistant/core
-          ref: ${{ matrix.core }}
-          path: core
-          persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version-file: core/.python-version
-
-      - name: Install Core test requirements
-        working-directory: core
-        run: |
-          python -m pip install uv
-          extra=$(grep -E "^(SQLAlchemy|fnv-hash-fast|psutil-home-assistant|paho-mqtt|aiohasupervisor)==" requirements_all.txt)
-          reqs=$(python -c 'import json; print(" ".join(json.load(open("../integration/custom_components/solcast_solar/manifest.json"))["requirements"]))')
-          # shellcheck disable=SC2086
-          uv pip install --system -e . -r requirements_test.txt $extra $reqs colorlog flask isodate --config-settings editable_mode=compat
-
-      - name: Mount the integration into Core
-        run: |
-          rm -rf core/homeassistant/components/solcast_solar core/tests/components/solcast_solar
-          cp -a integration/custom_components/solcast_solar core/homeassistant/components/solcast_solar
-          cp -a integration/tests core/tests/components/solcast_solar
-
-      - name: Mount the simulator into Core
-        run: |
-          mkdir -p core/config/custom_components
-          cp -a integration/custom_sim/solcast_sim core/config/custom_components/solcast_sim
-          cp -a integration/custom_sim/solcast_sim core/homeassistant/components/solcast_sim
-          cp -a integration/tests_solcast_sim core/tests/components/solcast_sim
-
-      - name: Compile translations
-        working-directory: core
-        run: python -m script.translations develop --all
-
-      - name: Run the whole suite with coverage
-        working-directory: core
-        run: >-
-          python -m pytest tests/components/solcast_solar -n auto --dist=worksteal --timeout=300 -p no:sugar
-          --cov=homeassistant.components.solcast_solar --cov-config=tests/components/solcast_solar/.coveragerc
-          --cov-report=term-missing:skip-covered --cov-fail-under=100
-
       - name: Decide whether to run the simulator
         id: sim
         env:
@@ -168,6 +122,53 @@ jobs:
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write("run=" + str(run).lower() + "\n")
           PY
+
+      - name: Checkout Home Assistant Core
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: home-assistant/core
+          ref: ${{ matrix.core }}
+          path: core
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version-file: core/.python-version
+
+      - name: Install Core test requirements
+        working-directory: core
+        run: |
+          python -m pip install uv
+          extra=$(grep -E "^(SQLAlchemy|fnv-hash-fast|psutil-home-assistant|paho-mqtt|aiohasupervisor)==" requirements_all.txt)
+          reqs=$(python -c 'import json; print(" ".join(json.load(open("../integration/custom_components/solcast_solar/manifest.json"))["requirements"]))')
+          # shellcheck disable=SC2086
+          uv pip install --system -e . -r requirements_test.txt $extra $reqs colorlog flask isodate --config-settings editable_mode=compat
+
+      - name: Mount the integration into Core
+        run: |
+          rm -rf core/homeassistant/components/solcast_solar core/tests/components/solcast_solar
+          cp -a integration/custom_components/solcast_solar core/homeassistant/components/solcast_solar
+          cp -a integration/tests core/tests/components/solcast_solar
+
+      - name: Mount the simulator into Core
+        if: ${{ steps.sim.outputs.run == 'true' }}
+        run: |
+          mkdir -p core/config/custom_components
+          cp -a integration/custom_sim/solcast_sim core/config/custom_components/solcast_sim
+          cp -a integration/custom_sim/solcast_sim core/homeassistant/components/solcast_sim
+          cp -a integration/tests_solcast_sim core/tests/components/solcast_sim
+
+      - name: Compile translations
+        working-directory: core
+        run: python -m script.translations develop --all
+
+      - name: Run the whole suite with coverage
+        working-directory: core
+        run: >-
+          python -m pytest tests/components/solcast_solar -n auto --dist=worksteal --timeout=300 -p no:sugar
+          --cov=homeassistant.components.solcast_solar --cov-config=tests/components/solcast_solar/.coveragerc
+          --cov-report=term-missing:skip-covered --cov-fail-under=100
 
       - name: Run the simulator suite with coverage
         if: ${{ !cancelled() && steps.sim.outputs.run == 'true' }}
