@@ -120,9 +120,59 @@ jobs:
           --cov=homeassistant.components.solcast_solar --cov-config=tests/components/solcast_solar/.coveragerc
           --cov-report=term-missing:skip-covered --cov-fail-under=100
 
+      - name: Decide whether to run the simulator
+        id: sim
+        env:
+          CORE: ${{ matrix.core }}
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          python3 << 'PY'
+          import json, os, urllib.request
+
+          # dev always: a Home Assistant core break should stay visible.
+          # master and rc only when this change touches the simulator, which is not part of a release.
+          core = os.environ["CORE"]
+          event = os.environ["EVENT_NAME"]
+          run = core == "dev" or event == "workflow_dispatch"
+          prefixes = ("custom_sim/", "tests_solcast_sim/")
+
+          def sim_files_changed(repo, base, head):
+              url = f"https://api.github.com/repos/{repo}/compare/{base}...{head}"
+              req = urllib.request.Request(
+                  url,
+                  headers={"Accept": "application/vnd.github+json", "User-Agent": "solcast-ci"},
+              )
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  data = json.load(resp)
+              files = [item["filename"] for item in data.get("files") or []]
+              # The compare API returns at most 300 files. Past that, do not skip.
+              if len(files) >= 300:
+                  return True
+              return any(name.startswith(prefixes) for name in files)
+
+          if not run and event == "pull_request":
+              run = sim_files_changed(os.environ["BASE_REPO"], os.environ["BASE_SHA"], os.environ["HEAD_SHA"])
+          elif not run:
+              before = os.environ["BEFORE"]
+              if not before or set(before) == {"0"}:
+                  run = True
+              else:
+                  run = sim_files_changed(os.environ["REPO"], before, os.environ["SHA"])
+
+          print(f"simulator={str(run).lower()} on {core}")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
+              fh.write("run=" + str(run).lower() + "\n")
+          PY
+
       - name: Run the simulator suite with coverage
-        if: ${{ !cancelled() }}  # Also when the whole suite failed
-        continue-on-error: true  # Dev-only code; a failure must not fail the workflow
+        if: ${{ !cancelled() && steps.sim.outputs.run == 'true' }}
+        continue-on-error: true  # Not part of a release; a failure must not fail the workflow
         working-directory: core
         run: >-
           python -m pytest tests/components/solcast_sim -n auto --dist=worksteal --timeout=300 -p no:sugar
