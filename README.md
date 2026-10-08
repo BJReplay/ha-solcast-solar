@@ -1499,6 +1499,7 @@ Latest minor/patch releases.
 
 v4.6.2
 
+* Fix Dublin dampening intervals shifted by one hour when the system time zone database marks summer as +1 hour by @Bascht74
 * Add DNS timeout retries by @autoSteve
 * Embrace Home Assistant dt_util by @autoSteve
 
