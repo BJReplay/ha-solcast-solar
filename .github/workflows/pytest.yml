@@ -23,19 +23,34 @@ jobs:
         id: set
         run: |
           python3 << 'PY'
-          import json, os, subprocess
+          import json, os, subprocess, urllib.request
           # master is the latest release and must pass.
           # dev is the current development branch: run it, but a failure must not fail the workflow.
-          # rc is the beta and only exists in the weeks before a release.
+          # rc is the beta. Run it only while its release differs from master.
           entries = [
               {"core": "master", "allow_failure": False},
               {"core": "dev", "allow_failure": True},
           ]
-          rc = subprocess.run(
-              ["git", "ls-remote", "--heads", "https://github.com/home-assistant/core.git", "rc"],
-              capture_output=True, text=True, check=True,
-          )
-          if rc.stdout.strip():
+
+          def head(ref):
+              found = subprocess.run(
+                  ["git", "ls-remote", "--heads", "https://github.com/home-assistant/core.git", ref],
+                  capture_output=True, text=True, check=True,
+              )
+              return found.stdout.split()[0] if found.stdout.strip() else ""
+
+          def release(ref):
+              url = f"https://raw.githubusercontent.com/home-assistant/core/{ref}/homeassistant/const.py"
+              text = urllib.request.urlopen(url, timeout=30).read().decode()
+              values = {}
+              for key in ("MAJOR_VERSION", "MINOR_VERSION", "PATCH_VERSION"):
+                  for line in text.splitlines():
+                      if line.startswith(key + ":"):
+                          values[key] = line.split("=", 1)[1].strip().strip("\"")
+              return f"{values['MAJOR_VERSION']}.{values['MINOR_VERSION']}.{values['PATCH_VERSION']}"
+
+          # Same release as master means the same code under test, even if the commits differ.
+          if head("rc") and release("rc") != release("master"):
               entries.append({"core": "rc", "allow_failure": False})
           with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
               fh.write("matrix=" + json.dumps(entries) + "\n")
