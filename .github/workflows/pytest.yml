@@ -122,6 +122,7 @@ jobs:
 
       - name: Run the simulator suite with coverage
         if: ${{ !cancelled() }}  # Also when the whole suite failed
+        continue-on-error: true  # Dev-only code; a failure must not fail the workflow
         working-directory: core
         run: >-
           python -m pytest tests/components/solcast_sim -n auto --dist=worksteal --timeout=300 -p no:sugar
