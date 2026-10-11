@@ -15,7 +15,7 @@ concurrency:
 jobs:
   branches:
     name: Home Assistant branches
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.set.outputs.matrix }}
     steps:
@@ -60,7 +60,7 @@ jobs:
   pytest:
     name: pytest, Home Assistant ${{ matrix.core }}
     needs: branches
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     continue-on-error: ${{ matrix.allow_failure }}
     strategy:
@@ -134,7 +134,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version-file: core/.python-version
+          python-version: "3.14"
 
       - name: Install Core test requirements
         working-directory: core
