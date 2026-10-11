@@ -1499,9 +1499,9 @@ Latest minor/patch releases.
 
 v4.6.2
 
-* Run the test suite with coverage on every push and pull request by @Bascht74
 * Add DNS timeout retries by @autoSteve
 * Embrace Home Assistant dt_util by @autoSteve
+* Run the test suite with coverage on every push and pull request by @Bascht74
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.1...v4.6.2
 
