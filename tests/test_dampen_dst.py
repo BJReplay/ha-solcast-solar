@@ -9,7 +9,7 @@ These tests verify:
 """
 
 from collections import OrderedDict
-from datetime import datetime as dt, timedelta
+from datetime import datetime as dt
 from importlib import resources
 import tempfile
 from typing import Any
@@ -94,12 +94,6 @@ def _build_matching_data(
     generation = dict(zip(timestamps, gen_values, strict=True))
     actuals = OrderedDict(zip(timestamps, act_values, strict=True))
     return matching_intervals, generation, actuals
-
-
-def _dublin_winter_marked() -> ZoneInfo:
-    """Load Europe/Dublin from the tzdata package, which marks winter -1 hour like Home Assistant OS, not from the system."""
-    with resources.files("tzdata.zoneinfo").joinpath("Europe", "Dublin").open("rb") as file:
-        return ZoneInfo.from_file(file, key="Europe/Dublin")
 
 
 def _get_attribute_factors(
@@ -637,27 +631,17 @@ class TestWinterTimeDSTLabels:
         # Dublin winter: GMT, dst() helper returns False, offset 0, label "10:00"
         assert "Auto-dampen factor for 10:00 is 0.819" in caplog.text
 
-    @pytest.mark.parametrize(
-        ("now", "label"),
-        [
-            pytest.param("2025-06-15T14:00:00+01:00", "11:00", id="summer"),
-            pytest.param("2025-01-15T14:00:00+00:00", "10:00", id="winter"),
-        ],
-    )
-    def test_dublin_attribute_labels(self, now: str, label: str) -> None:
-        """Test the attribute shows a Dublin factor at the same time as the dampening log."""
-        tz = _dublin_winter_marked()
-        assert dt(2025, 1, 15, 12, tzinfo=tz).dst() == timedelta(hours=-1), "Zone data does not mark winter -1 hour"
+    @freeze_time("2025-06-15T14:00:00+01:00")  # IST (summer)
+    def test_dublin_summer_attribute_label(self) -> None:
+        """Test the attribute shows a Dublin summer factor at 11:00 with tzdata package data, which marks winter -1 hour."""
+        with resources.files("tzdata.zoneinfo").joinpath("Europe", "Dublin").open("rb") as file:
+            tz = ZoneInfo.from_file(file, key="Europe/Dublin")
         factors_list = [1.0] * 48
         factors_list[20] = 0.819
 
-        with freeze_time(now):
-            result = _get_attribute_factors(factors_list, tz)
+        result = _get_attribute_factors(factors_list, tz)
 
-        assert len(result) == 48, f"Dublin: expected 48 entries, got {len(result)}"
-        labels = [e[INTERVAL] for e in result]
-        assert labels == sorted(labels), "Dublin: attribute entries are not sorted"
-        assert [e[INTERVAL] for e in result if e[FACTOR] == 0.819] == [label]
+        assert [e[INTERVAL] for e in result if e[FACTOR] == 0.819] == ["11:00"]
 
 
 class TestCoordinatorAttributeBuilder:

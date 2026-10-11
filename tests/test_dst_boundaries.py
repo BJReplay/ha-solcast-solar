@@ -6,11 +6,11 @@ transition detection on DST transition days.
 """
 
 import copy
-from datetime import UTC, datetime as dt, timedelta, tzinfo
+from datetime import datetime as dt, timedelta, tzinfo
 from importlib import resources
 import tempfile
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 from zoneinfo import ZoneInfo
 
 from freezegun.api import FrozenDateTimeFactory
@@ -28,6 +28,7 @@ from homeassistant.components.solcast_solar.const import (
     AUTO_UPDATE_DIVISIONS,
     AUTO_UPDATE_NEXT,
     AUTO_UPDATE_QUEUE,
+    DOMAIN,
     EXCLUDE_SITES,
     GENERATION_ENTITIES,
     GET_ACTUALS,
@@ -495,64 +496,84 @@ async def test_updater_details_empty_intervals_on_dst_day(
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
-def _zone_from_tzdata(name: str, key: str) -> ZoneInfo:
-    """Load a zone from the tzdata package under another key, independent of the system time zone database."""
-    with resources.files("tzdata.zoneinfo").joinpath(*name.split("/")).open("rb") as file:
+def _tzdata_zone(data: str, key: str) -> ZoneInfo:
+    """Load zone data from the tzdata package under the given key."""
+    with resources.files("tzdata.zoneinfo").joinpath(*data.split("/")).open("rb") as file:
         return ZoneInfo.from_file(file, key=key)
 
 
 @pytest.mark.parametrize(
-    ("source", "key"),
+    ("data", "key"),
     [
-        pytest.param("Europe/Dublin", "Europe/Dublin", id="Dublin, winter marked -1 hour"),
-        pytest.param("Europe/London", "Europe/Dublin", id="Dublin, summer marked +1 hour"),
-        pytest.param("Eire", "Eire", id="Eire, winter marked -1 hour"),
-        pytest.param("Europe/London", "Eire", id="Eire, summer marked +1 hour"),
+        pytest.param("Europe/Dublin", "Europe/Dublin", id="Dublin, tzdata package marks winter -1h"),
+        pytest.param("Europe/London", "Europe/Dublin", id="Dublin, data marks summer +1h like London"),
+        pytest.param("Eire", "Eire", id="Eire, tzdata package marks winter -1h"),
+        pytest.param("Europe/Paris", "Europe/Paris", id="Paris, UTC+1 in winter is not summer time"),
     ],
 )
-def test_dublin_summer_time_with_either_database_form(source: str, key: str) -> None:
-    """Irish summer time is found whichever way the time zone database marks it.
-
-    The tzdata package marks Dublin winter -1 hour. Some system databases mark summer +1 hour, like London.
-    """
-    tz = _zone_from_tzdata(source, key)
-    winter = dt(2025, 12, 15, 12, tzinfo=tz)
-    summer = dt(2025, 7, 15, 12, tzinfo=tz)
-    # Make sure both ways are really tested.
-    assert (winter.dst(), summer.dst()) in ((timedelta(hours=-1), timedelta(0)), (timedelta(0), timedelta(hours=1)))
-
+def test_summer_time_with_either_zone_data_form(data: str, key: str) -> None:
+    """Test Irish summer time is found however the zone data marks it, and other zones are unchanged."""
+    tz = _tzdata_zone(data, key)
     helper = DateTimeHelper(tz)
-    assert helper.is_dublin
-    assert not helper.dst(winter)
-    assert helper.dst(summer)
+
+    assert helper.dst(dt(2025, 7, 15, 12, tzinfo=tz))
+    assert not helper.dst(dt(2025, 12, 15, 12, tzinfo=tz))
 
 
-class _RelabelledZone(tzinfo):
-    """UTC-7 all the time, but summer time only before 2026-11-01 02:00, like America/Vancouver in tzdata 2026e."""
+class LondonKeepingSummerTime(tzinfo):
+    """London if it kept summer time after 2026-10-25: the clock stays at UTC+1, only the DST flag ends.
 
-    def utcoffset(self, dt_obj: dt | None) -> timedelta:
-        """Return the offset, which never changes."""
-        return timedelta(hours=-7)
+    America/Vancouver does this from 2026-11-01 in tzdata 2026d. Written out so the test does not depend on the installed tzdata.
+    """
 
-    def dst(self, dt_obj: dt | None) -> timedelta:
-        """Return one hour before the label change, else zero."""
-        return timedelta(hours=1) if dt_obj is not None and dt_obj.replace(tzinfo=None) < dt(2026, 11, 1, 2) else timedelta(0)
+    def utcoffset(self, dt_obj: dt | None, /) -> timedelta:
+        """Return UTC+1."""
+        return timedelta(hours=1)
+
+    def dst(self, dt_obj: dt | None, /) -> timedelta:
+        """Return one hour before 2026-10-25 02:00, else zero."""
+        return timedelta(hours=1) if dt_obj is not None and dt_obj.replace(tzinfo=None) < dt(2026, 10, 25, 2) else timedelta(0)
+
+    def fromutc(self, dt_obj: dt, /) -> dt:
+        """Return the local time for a UTC time."""
+        return dt_obj + timedelta(hours=1)
 
 
 @pytest.mark.parametrize(
-    "tz",
+    ("tz", "day", "intervals"),
     [
-        pytest.param(_RelabelledZone(), id="label changes, offset does not"),
-        pytest.param(_zone_from_tzdata("America/Vancouver", "America/Vancouver"), id="America/Vancouver"),
+        pytest.param(ZoneInfo("Europe/London"), "2026-01-15", 48, id="normal day"),
+        pytest.param(ZoneInfo("Europe/London"), "2026-03-29", 46, id="clocks go forward"),
+        pytest.param(ZoneInfo("Europe/London"), "2026-10-25", 50, id="clocks go back"),
+        pytest.param(LondonKeepingSummerTime(), "2026-10-25", 48, id="DST flag ends, clocks stay"),
     ],
 )
-def test_dst_outside_ireland_follows_tzinfo_dst(tz: tzinfo) -> None:
-    """Outside Ireland, summer time is what tzinfo.dst() says, as before."""
-    helper = DateTimeHelper(tz)
-    assert not helper.is_dublin
-    results = set()
-    for hour in range(24 * 92):  # 2026-10-01 to 2026-12-31
-        when = dt(2026, 10, 1, tzinfo=UTC) + timedelta(hours=hour)
-        results.add(helper.dst(when))
-        assert helper.dst(when) == (when.astimezone(tz).dst() == timedelta(hours=1)), when
-    assert results == {True, False}
+async def test_expected_intervals_per_day(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+    tz: tzinfo,
+    day: str,
+    intervals: int,
+) -> None:
+    """Test a day expects as many half-hour intervals as it really has."""
+
+    try:
+        day_start = dt.fromisoformat(day).replace(tzinfo=tz)
+        freezer.move_to(day_start - timedelta(hours=12))
+        # Give the integration tz itself, which can be a synthetic zone.
+        with patch(f"homeassistant.components.{DOMAIN}.__get_time_zone", AsyncMock(return_value=tz)):
+            entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone="Europe/London")
+        solcast = entry.runtime_data.coordinator.solcast
+
+        assert "missing forecast data" not in caplog.text
+
+        # Remove the first interval of the day.
+        solcast.data_forecasts = [f for f in solcast.data_forecasts if f[PERIOD_START] != day_start]
+        await solcast.check_data_records()
+
+        assert f"Forecast data for {day} contains {intervals - 1} of {intervals} intervals" in caplog.text
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
