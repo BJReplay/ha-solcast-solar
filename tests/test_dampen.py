@@ -18,7 +18,8 @@ from zoneinfo import ZoneInfo
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
-from homeassistant.components.recorder import Recorder
+from homeassistant.components.recorder import Recorder, get_instance
+from homeassistant.components.recorder.history import state_changes_during_period
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.components.solcast_solar.config_flow import (
     SolcastSolarOptionFlowHandler,
@@ -85,6 +86,7 @@ from . import (
     adjust_dampening_test_caches,
     async_cleanup_integration_tests,
     async_init_integration,
+    async_setup_extra_sensors,
     exec_update_actuals,
     get_config_dir,
     no_exception,
@@ -96,6 +98,10 @@ from . import (
 )
 
 from tests.common import MockConfigEntry
+from tests.components.recorder.common import (
+    async_block_recorder,
+    async_wait_recording_done,
+)
 
 ZONE = ZoneInfo(ZONE_RAW)
 NOW = dt_util.now(ZONE)
@@ -430,6 +436,30 @@ async def test_auto_dampen_issues(
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_extra_sensors_history_recorded(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+) -> None:
+    """Test generation history written through the state machine is in the recorder when setup returns."""
+
+    entry = MockConfigEntry(domain=DOMAIN, data=DEFAULT_INPUT2, options=DEFAULT_INPUT2)
+    entry.add_to_hass(hass)
+    entity = "sensor.solar_export_sensor_2222_2222_2222_2222"
+    start = dt_util.now(datetime.UTC) - timedelta(days=7)
+
+    def recorded_states() -> int:
+        return len(state_changes_during_period(hass, start, dt_util.now(datetime.UTC), entity).get(entity, []))
+
+    # A recorder that lags behind the event loop, as on a busy test runner.
+    await async_block_recorder(hass, 0.1)
+    await async_setup_extra_sensors(hass, DEFAULT_INPUT2, entry, ExtraSensors.DODGY)
+    recorded = await get_instance(hass).async_add_executor_job(recorded_states)
+
+    await async_wait_recording_done(hass)
+    assert recorded > 0
+    assert recorded == await get_instance(hass).async_add_executor_job(recorded_states)
 
 
 async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.LogCaptureFixture) -> None:
