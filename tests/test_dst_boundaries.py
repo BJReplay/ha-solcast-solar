@@ -6,7 +6,8 @@ transition detection on DST transition days.
 """
 
 import copy
-from datetime import datetime as dt
+from datetime import UTC, datetime as dt, timedelta, tzinfo
+from importlib import resources
 import tempfile
 from typing import Any
 from unittest.mock import MagicMock
@@ -492,3 +493,66 @@ async def test_updater_details_empty_intervals_on_dst_day(
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+def _zone_from_tzdata(name: str, key: str) -> ZoneInfo:
+    """Load a zone from the tzdata package under another key, independent of the system time zone database."""
+    with resources.files("tzdata.zoneinfo").joinpath(*name.split("/")).open("rb") as file:
+        return ZoneInfo.from_file(file, key=key)
+
+
+@pytest.mark.parametrize(
+    ("source", "key"),
+    [
+        pytest.param("Europe/Dublin", "Europe/Dublin", id="Dublin, winter marked -1 hour"),
+        pytest.param("Europe/London", "Europe/Dublin", id="Dublin, summer marked +1 hour"),
+        pytest.param("Eire", "Eire", id="Eire, winter marked -1 hour"),
+        pytest.param("Europe/London", "Eire", id="Eire, summer marked +1 hour"),
+    ],
+)
+def test_dublin_summer_time_with_either_database_form(source: str, key: str) -> None:
+    """Irish summer time is found whichever way the time zone database marks it.
+
+    The tzdata package marks Dublin winter -1 hour. Some system databases mark summer +1 hour, like London.
+    """
+    tz = _zone_from_tzdata(source, key)
+    winter = dt(2025, 12, 15, 12, tzinfo=tz)
+    summer = dt(2025, 7, 15, 12, tzinfo=tz)
+    # Make sure both ways are really tested.
+    assert (winter.dst(), summer.dst()) in ((timedelta(hours=-1), timedelta(0)), (timedelta(0), timedelta(hours=1)))
+
+    helper = DateTimeHelper(tz)
+    assert helper.is_dublin
+    assert not helper.dst(winter)
+    assert helper.dst(summer)
+
+
+class _RelabelledZone(tzinfo):
+    """UTC-7 all the time, but summer time only before 2026-11-01 02:00, like America/Vancouver in tzdata 2026e."""
+
+    def utcoffset(self, dt_obj: dt | None) -> timedelta:
+        """Return the offset, which never changes."""
+        return timedelta(hours=-7)
+
+    def dst(self, dt_obj: dt | None) -> timedelta:
+        """Return one hour before the label change, else zero."""
+        return timedelta(hours=1) if dt_obj is not None and dt_obj.replace(tzinfo=None) < dt(2026, 11, 1, 2) else timedelta(0)
+
+
+@pytest.mark.parametrize(
+    "tz",
+    [
+        pytest.param(_RelabelledZone(), id="label changes, offset does not"),
+        pytest.param(_zone_from_tzdata("America/Vancouver", "America/Vancouver"), id="America/Vancouver"),
+    ],
+)
+def test_dst_outside_ireland_follows_tzinfo_dst(tz: tzinfo) -> None:
+    """Outside Ireland, summer time is what tzinfo.dst() says, as before."""
+    helper = DateTimeHelper(tz)
+    assert not helper.is_dublin
+    results = set()
+    for hour in range(24 * 92):  # 2026-10-01 to 2026-12-31
+        when = dt(2026, 10, 1, tzinfo=UTC) + timedelta(hours=hour)
+        results.add(helper.dst(when))
+        assert helper.dst(when) == (when.astimezone(tz).dst() == timedelta(hours=1)), when
+    assert results == {True, False}
