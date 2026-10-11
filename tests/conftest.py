@@ -4,7 +4,6 @@ from collections.abc import Generator
 from datetime import datetime as dt
 import logging
 from typing import Any
-import zoneinfo
 
 import freezegun
 from freezegun.api import FrozenDateTimeFactory
@@ -13,11 +12,6 @@ import pytest
 from . import aioresponses_reset
 
 from tests.ignore_uncaught_exceptions import IGNORE_UNCAUGHT_EXCEPTIONS
-
-# Use the zone data of the tzdata package, not of the system. Ubuntu marks Dublin summer as +1 hour, the
-# Dublin tests expect winter as -1 hour, as the tzdata package, Home Assistant OS and Debian have it.
-zoneinfo.reset_tzpath([])
-zoneinfo.ZoneInfo.clear_cache()
 
 # Background tasks can fire during teardown under parallel execution, producing
 # an asyncio exception (InvalidStateError, CancelledError) when the entry is
