@@ -29,6 +29,7 @@ from .const import (
     ADVANCED_OPTIONS,
     ALL,
     AMENDABLE,
+    DEFAULT,
     DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL,
     DT_DATE_FORMAT,
     DT_DATE_FORMAT_UTC,
@@ -71,6 +72,22 @@ _DELTA_RANGE: Final = range(
 )
 
 _MIN_GEN_FRACTION: Final[float] = 0.10
+
+# Another model replaces the default model only with a mean rank at least this much better, so a few days of
+# curtailment or partial shade do not switch the model back and forth.
+_SWITCH_MARGIN: Final[float] = 2.0
+
+
+def _prefer_default_model(scores: dict[tuple[int, int], float]) -> tuple[int, int]:
+    """Return the (model, delta) with the best mean rank, keeping the default model unless another is clearly better."""
+    best = min(scores, key=lambda md: (scores[md], md[0], md[1]))
+    default_model = ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][DEFAULT]
+    defaults = [md for md in scores if md[0] == default_model]
+    if defaults:
+        best_default = min(defaults, key=lambda md: (scores[md], md[1]))
+        if scores[best_default] - scores[best] < _SWITCH_MARGIN:
+            return best_default
+    return best
 
 
 class _ModelEvalResult(NamedTuple):
@@ -628,16 +645,10 @@ class DampeningAdaptive:
         adjusted_candidates = {md: s for md, s in borda_scores.items() if md[1] != VALUE_ADAPTIVE_DAMPENING_NO_DELTA}
 
         if no_delta_candidates:
-            best_nd = min(no_delta_candidates, key=lambda md: (no_delta_candidates[md], md[0]))
-            best_model_no_delta = best_nd[0]
+            best_model_no_delta = _prefer_default_model(no_delta_candidates)[0]
 
         if adjusted_candidates:
-            best_adj = min(
-                adjusted_candidates,
-                key=lambda md: (adjusted_candidates[md], md[0], md[1] if md[1] >= 0 else float("inf")),
-            )
-            best_model_adjusted = best_adj[0]
-            best_delta_adjusted = best_adj[1]
+            best_model_adjusted, best_delta_adjusted = _prefer_default_model(adjusted_candidates)
 
         return _ModelEvalResult(
             daily_model_errors=daily_model_errors,

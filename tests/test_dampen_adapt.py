@@ -55,6 +55,7 @@ from homeassistant.components.solcast_solar.const import (
     VALUE_ADAPTIVE_DAMPENING_NO_DELTA,
 )
 from homeassistant.components.solcast_solar.dampen import Dampening
+from homeassistant.components.solcast_solar.dampen_adapt import _prefer_default_model
 from homeassistant.components.solcast_solar.dates import DateTimeHelper, NoIndentEncoder
 from homeassistant.components.solcast_solar.solcastapi import SolcastApi
 from homeassistant.core import HomeAssistant
@@ -440,6 +441,21 @@ async def test_update_history_deal_breaker(
         entity_history["offset"] = -1
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
+
+
+def test_default_model_stays_unless_another_is_clearly_better() -> None:
+    """Model 0 stays unless another model ranks at least two places better on average.
+
+    On a north roof the adaptive choice took models 0, 2 and 3 in turns almost every day, after a few days of
+    curtailment or shade, and the factors jumped with it.
+    """
+
+    # Model 2 ranks 1.5 places better than model 0, which is noise: model 0 stays.
+    assert _prefer_default_model({(0, 0): 4.5, (2, 0): 3.0, (3, 1): 6.0}) == (0, 0)
+    # Model 2 ranks 2.5 places better: it takes over.
+    assert _prefer_default_model({(0, 0): 5.5, (2, 0): 3.0, (3, 1): 6.0}) == (2, 0)
+    # Without model 0, for example when it is excluded, the best model wins as before.
+    assert _prefer_default_model({(2, 0): 3.0, (3, 1): 6.0}) == (2, 0)
 
 def test_select_comparison_interval_variance() -> None:
     """Test comparison interval selection with variance across models."""
