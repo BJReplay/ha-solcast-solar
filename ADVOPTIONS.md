@@ -65,11 +65,11 @@ Possible values: boolean `true`/`false` (default `true`)
 
 Adjusts historical generation and estimated actual values for changing sun geometry before they are compared when modelling dampening factors.
 
-Past data used to model dampening for today was recorded on days when the sun tracked a different arc across the sky. In spring and autumn in particular, a half-hour interval fourteen days ago may have seen a noticeably different solar elevation than the same half-hour today, which biases the "peak" and per-pair ratios used by the various dampening models. This bias is strongest around sunrise and sunset, and for sites further from the equator.
+Past data used to model dampening for today was recorded on days when the sun tracked a different arc across the sky. In spring and autumn in particular, a half-hour interval fourteen days ago may have seen a noticeably different solar elevation than the same half-hour today, which biases the comparison with the "peak" used by the default dampening model. This bias is strongest around sunrise and sunset, and for sites further from the equator.
 
 When this option is enabled the integration computes a geometry-normalised ratio between past and present timestamps for every past half-hour sample used in modelling. This normalises historical PV generation samples from a prior day to the expected solar contribution on the present day, compensating for solar-geometry drift. Said another way, your given panel tilt and azimuth will subtly change generation over time based on where the sun would be, so this mechanism compensates for that in automated dampening computations to improve peak interval comparison.
 
-Each historical estimated actual and generation pair for dampening models 1/2/3 has an appropriate ratio applied, and the peak estimated actual used by the default model is likewise normalised to today's sun geometry.
+The peak estimated actual used by the default model is likewise normalised to today's sun geometry. Dampening models 1/2/3 compare each generation sample with the estimated actual of the same half-hour, which already shares its sun geometry, so they use no ratio.
 
 **Key: "automated_dampening_generation_fetch_delay"**
 

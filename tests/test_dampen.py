@@ -1085,3 +1085,44 @@ async def test_calculate_elevation_adjustment_applied(monkeypatch: pytest.Monkey
 
     assert len(result) == 48
     assert result[interval] <= 1.0
+
+
+async def test_calculate_models_1_to_3_without_elevation_ratio(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Models 1-3 divide generation by the estimated actual of the same half-hour, so they apply no elevation ratio."""
+
+    api = MagicMock()
+    api.tz = datetime.UTC
+    api.dt_helper = DateTimeHelper(datetime.UTC)
+    api.advanced_options = {
+        ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: False,
+        ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS: 2,
+        ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION: 2,
+        ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR: 0.95,
+        ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: True,
+    }
+    api.filename_generation = tempfile.NamedTemporaryFile(delete=False).name
+    api.filename_dampening = tempfile.NamedTemporaryFile(delete=False).name
+    dampening = Dampening(api)
+    # The sun of day 1 gave twice the output it gives on the target day, the sun of day 2 the same.
+    monkeypatch.setattr(dampening, "elevation_adjustment_ratio", lambda past, _target: 2.0 if past.day == 1 else 1.0)
+
+    interval = 20  # 10:00 UTC
+    day_1 = dt(2025, 10, 1, 10, 0, tzinfo=datetime.UTC)
+    day_2 = dt(2025, 10, 2, 10, 0, tzinfo=datetime.UTC)
+    matching = {interval: [day_1, day_2]}
+    generation = {day_1: 0.4, day_2: 0.9}
+    actuals = OrderedDict([(day_1, 1.0), (day_2, 2.0)])
+    target_day = dt(2025, 10, 3, tzinfo=datetime.UTC)
+
+    model_0 = await dampening.calculate(matching, generation, actuals, [], 0, target_day=target_day)
+    model_1 = await dampening.calculate(matching, generation, actuals, [], 1, target_day=target_day)
+    model_2 = await dampening.calculate(matching, generation, actuals, [], 2, target_day=target_day)
+    model_3 = await dampening.calculate(matching, generation, actuals, [], 3, target_day=target_day)
+
+    # Generation over estimated actual: 0.4 / 1.0 = 0.4 on day 1, 0.9 / 2.0 = 0.45 on day 2.
+    # With the ratio applied to these pairs, day 1 became 0.8 and models 1-3 gave 0.8, 0.625 and 0.45.
+    assert model_1[interval] == pytest.approx(0.45)  # The highest pair
+    assert model_2[interval] == pytest.approx(0.425)  # The mean of the pairs
+    assert model_3[interval] == pytest.approx(0.4)  # The lowest pair
+    # The default model still uses the ratio: the highest generation, 0.9, over the peak, 2.0 on both days.
+    assert model_0[interval] == pytest.approx(0.45)
