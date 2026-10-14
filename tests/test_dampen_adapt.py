@@ -443,7 +443,6 @@ async def test_update_history_deal_breaker(
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
-
 async def test_update_history_with_an_estimated_actual_of_zero(
     recorder_mock: Recorder,
     hass: HomeAssistant,
@@ -498,6 +497,7 @@ async def test_update_history_with_an_estimated_actual_of_zero(
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
 
 def test_select_comparison_interval_variance() -> None:
     """Test comparison interval selection with variance across models."""
