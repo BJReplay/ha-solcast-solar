@@ -22,6 +22,7 @@ from homeassistant.components.solcast_solar.const import (
     API_KEY,
     DOMAIN,
     FORECASTS,
+    ISSUE_API_LIMIT_REACHED,
     ISSUE_API_UNAVAILABLE,
     LAST_UPDATED,
     RESOURCE_ID,
@@ -38,10 +39,11 @@ from homeassistant.setup import async_setup_component
 from . import (
     DEFAULT_INPUT1,
     MOCK_BUSY,
-    MOCK_BUSY_CDN,
+    MOCK_OVER_LIMIT,
     async_cleanup_integration_tests,
     async_init_integration,
     session_clear,
+    session_reset_usage,
     session_set,
     write_advanced_options,
 )
@@ -496,33 +498,34 @@ async def test_retry_recovery_then_schedule_deferred_actuals(
         await async_cleanup_integration_tests(hass)
 
 
-async def test_429_from_the_solcast_cdn(
+async def test_api_limit_reached_raises_its_own_issue(
     recorder_mock: Recorder,
     hass: HomeAssistant,
-    caplog: pytest.LogCaptureFixture,
 ) -> None:
-    """A 429 that Solcast's CDN gave itself is named so, and the last failure shows it until an update succeeds."""
+    """When Solcast says the daily limit is used up, an issue lists the settings to check; the next success removes it."""
 
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         coordinator = entry.runtime_data.coordinator
         solcast = coordinator.solcast
+        issue_registry = ir.async_get(hass)
 
-        session_set(MOCK_BUSY_CDN)
-        solcast.data[LAST_UPDATED] -= timedelta(minutes=20)
-        with mock.patch.object(solcast.fetcher, "_sleep", mock.AsyncMock()):
-            await solcast.fetcher.get_forecast_update()
-        session_clear(MOCK_BUSY_CDN)
-
-        assert "Call status 429/Try again later from the Solcast CDN, before the API key was checked, pausing" in caplog.text
-        reason = "429/Try again later after 10 attempts, all from the Solcast CDN before the API key was checked"
-        assert f"Forecast has not been updated: {reason}" in caplog.text
-        assert coordinator._updater.get_auto_update_details()["last_failure"] == reason  # pyright: ignore[reportPrivateUsage]
-
-        # The next successful update clears it.
+        session_set(MOCK_OVER_LIMIT)  # Solcast answers 429 with "You have exceeded your free daily limit"
         solcast.data[LAST_UPDATED] -= timedelta(minutes=20)
         await solcast.fetcher.get_forecast_update()
-        assert coordinator._updater.get_auto_update_details()["last_failure"] is None  # pyright: ignore[reportPrivateUsage]
+        session_clear(MOCK_OVER_LIMIT)
+
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_API_LIMIT_REACHED) is not None
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_API_UNAVAILABLE) is None  # Not the "change nothing" issue
+
+        # After midnight UTC the calls are available again, and the next successful update removes the issue.
+        session_reset_usage()
+        for api_key in solcast.api_used:
+            solcast.api_used[api_key] = 0
+        solcast.data[LAST_UPDATED] -= timedelta(minutes=20)
+        await solcast.fetcher.get_forecast_update()
+
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_API_LIMIT_REACHED) is None
 
         await solcast.tasks_cancel()
         await coordinator.tasks_cancel()

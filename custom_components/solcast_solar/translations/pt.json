@@ -316,6 +316,10 @@
       "description": "O arquivo de configuração avançada contém erros.\n{problems}\n\nCorrija-os, consultando a documentação da integração no link 'Saiba mais'.",
       "title": "Problema com opção avançada"
     },
+    "api_limit_reached": {
+      "description": "A Solcast informa que o limite diário da API de uma chave de API foi esgotado (`429 / Too many requests`, \"You have exceeded your free daily limit\"). Ao contrário de uma API temporariamente indisponível, isto deve-se ao número de chamadas, por isso uma definição pode ajudar:\n\n* Verifique se o limite da API nas opções da integração corresponde à sua conta Solcast.\n* Menos atualizações automáticas por dia, ou menos atualizações forçadas por automações, usam menos chamadas. Os valores reais estimados usam uma chamada por telhado todos os dias.\n* Outra instalação ou ferramenta que use a mesma chave de API consome as mesmas chamadas.\n\nO limite é reposto à meia-noite UTC. A integração mantém a última previsão, e este problema desaparece com a próxima atualização bem-sucedida.\n\n(Para suprimir este problema, crie uma opção de configuração avançada api_raise_issues e defina-a como false.)",
+      "title": "Limite da API Solcast atingido"
+    },
     "api_unavailable": {
       "description": "A API Solcast reportou repetidamente o estado `429 / Try again later` durante uma atualização. Isso significa que a API Solcast está ocupada e está bloqueando ativamente solicitações de contas de hobbistas.\n\n* O site solcast.com não é afetado, mas a API está temporariamente indisponível para você.\n* A página de status da API em status.solcast.com quase certamente não indicará nenhum problema.\n* Não tente resolver esta situação.\n* Não altere sua chave API.\n* Não tente atualizar a integração.\n* Evite reiniciar a integração.\n* A integração continuará fornecendo a última previsão solar obtida do Solcast.\n* Isto não é um problema de integração e se resolverá sozinho. Não mude nada.\n\n(Para suprimir este problema, crie uma opção de configuração avançada api_raise_issue e defina-a como false.)",
       "title": "API Solcast temporariamente indisponível"

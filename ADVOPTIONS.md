@@ -301,6 +301,8 @@ Possible values: boolean `true`/`false` (default `true`)
 
 If repeated `429 / Try again later` errors are received from Solcast that exhaust ten consecutive retries then the integration will raise an ignorable issue to alert that there has been an update failure. (You may hear this situation referred to as a '429 storm', as subsequent updates will also likely fail until Solcast staff intervene.)
 
+If Solcast reports that the daily API limit of an API key is used up, the integration raises a separate ignorable issue that lists the settings to check, because this case comes from the number of calls and not from Solcast being busy.
+
 This behaviour may be suppressed by setting this option to `false`.
 
 **Key: "dns_timeout_retries"**

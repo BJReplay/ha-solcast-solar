@@ -48,6 +48,7 @@ from .const import (
     FORECASTS,
     FORMAT,
     HOURS,
+    ISSUE_API_LIMIT_REACHED,
     ISSUE_API_UNAVAILABLE,
     ISSUE_RECORDS_MISSING_INITIAL,
     JSON,
@@ -82,9 +83,6 @@ if TYPE_CHECKING:
 from .log import get_logger
 
 _LOGGER = get_logger(__name__)
-
-# Added to a 429 that Solcast's CDN gave without passing the call to the API.
-_FROM_CDN = " from the Solcast CDN, before the API key was checked"
 
 
 async def async_trigger_automation_by_name(hass: HomeAssistant, name: str) -> bool:
@@ -359,7 +357,6 @@ class Fetcher:
             await self.api.sites_cache.serialise_usage(api_key)
 
         if sites_attempted > 0 and not failure:
-            self.api.last_failure = None
             await self.api.dampening.apply_forward(do_past_hours=do_past_hours)
 
             b_status = await self.api.build_forecast_data()
@@ -389,7 +386,6 @@ class Fetcher:
 
             status = "Build or serialisation failed" if not b_status or not s_status else ""
         else:
-            self.api.last_failure = reason
             _LOGGER.warning("Forecast has not been updated: %s%s", reason, next_update())
             if not status:
                 status = f"Forecast get failed: {reason}"
@@ -655,7 +651,6 @@ class Fetcher:
         """
         response_text = ""
         received_429: int = 0
-        received_429_cdn: int = 0
         failure_reason: str | None = None
 
         try:
@@ -692,7 +687,6 @@ class Fetcher:
                             _LOGGER.debug("Fetching path %s", path)
                             counter += 1
                             response_text = ""
-                            rejected_by_cdn = False
                             dns_timeout_attempts = 0
                             while True:
                                 try:
@@ -759,14 +753,8 @@ class Fetcher:
                                         break
                                 else:
                                     received_429 += 1
-                                    # Solcast's CDN (CloudFront) answers itself when it sheds load, so the API key was not checked.
-                                    rejected_by_cdn = response.headers.get("Server") == "CloudFront"
-                                    if rejected_by_cdn:
-                                        received_429_cdn += 1
                             if counter >= tries:
                                 failure_reason = f"{self.api.http_status_translate(status)} after {tries} attempts"
-                                if received_429_cdn == tries:
-                                    failure_reason += ", all from the Solcast CDN before the API key was checked"
                                 if not self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY]:
                                     _LOGGER.error("API was tried %d times, but all attempts failed", tries)
                                 break
@@ -774,9 +762,8 @@ class Fetcher:
                             # plus a random number of seconds between zero and 15.
                             delay: int = (counter * backoff) + random.randrange(0, 15)
                             (_LOGGER.debug if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.warning)(
-                                "Call status %s%s, pausing %d seconds before retry",
+                                "Call status %s, pausing %d seconds before retry",
                                 self.api.http_status_translate(status),
-                                _FROM_CDN if rejected_by_cdn else "",
                                 delay,
                             )
                             await self._sleep(delay)
@@ -793,6 +780,9 @@ class Fetcher:
                             else:
                                 _LOGGER.debug("API returned data")
                             response_json = await self.api.hass.async_add_executor_job(json.loads, response_text)
+                            if issue_registry.async_get_issue(DOMAIN, ISSUE_API_LIMIT_REACHED) is not None:
+                                _LOGGER.debug("Remove issue for %s", ISSUE_API_LIMIT_REACHED)
+                                ir.async_delete_issue(self.api.hass, DOMAIN, ISSUE_API_LIMIT_REACHED)
                             if issue_registry.async_get_issue(DOMAIN, ISSUE_API_UNAVAILABLE) is not None:
                                 _LOGGER.debug("Remove issue for %s", ISSUE_API_UNAVAILABLE)
                                 ir.async_delete_issue(self.api.hass, DOMAIN, ISSUE_API_UNAVAILABLE)
@@ -814,6 +804,22 @@ class Fetcher:
                                 self.api.api_used[api_key],
                                 self.api.api_limits[api_key],
                             )
+                            # Unlike a busy API this is about the settings, so the issue says which ones to check.
+                            if (
+                                self.api.advanced_options[ADVANCED_API_RAISE_ISSUES]
+                                and issue_registry.async_get_issue(DOMAIN, ISSUE_API_LIMIT_REACHED) is None
+                            ):
+                                _LOGGER.debug("Raise issue for %s", ISSUE_API_LIMIT_REACHED)
+                                ir.async_create_issue(
+                                    self.api.hass,
+                                    DOMAIN,
+                                    ISSUE_API_LIMIT_REACHED,
+                                    is_fixable=False,
+                                    is_persistent=True,
+                                    severity=ir.IssueSeverity.WARNING,
+                                    translation_key=ISSUE_API_LIMIT_REACHED,
+                                    learn_more_url=LEARN_MORE_MISSING_FORECAST_DATA,
+                                )
                         elif status == 1000:  # Unexpected response.
                             _LOGGER.error("Unexpected response received")
                         else:  # Other, or unknown status.

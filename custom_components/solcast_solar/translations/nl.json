@@ -324,6 +324,10 @@
       "description": "Het geavanceerde configuratiebestand bevat fouten.\n{problems}\n\nLos deze op aan de hand van de integratiedocumentatie via de link ‘Meer informatie’.",
       "title": "Probleem met geavanceerde optie"
     },
+    "api_limit_reached": {
+      "description": "Solcast meldt dat de dagelijkse API-limiet van een API-sleutel is opgebruikt (`429 / Too many requests`, \"You have exceeded your free daily limit\"). Anders dan bij een tijdelijk onbeschikbare API komt dit door het aantal aanroepen, dus een instelling kan helpen:\n\n* Controleer of de API-limiet in de opties van de integratie overeenkomt met uw Solcast-account.\n* Minder automatische updates per dag, of minder geforceerde updates door automatiseringen, gebruiken minder aanroepen. Geschatte werkelijke waarden gebruiken elke dag één aanroep per dakvlak.\n* Een andere installatie of tool die dezelfde API-sleutel gebruikt, verbruikt dezelfde aanroepen.\n\nDe limiet wordt om middernacht UTC gereset. De integratie behoudt de laatste voorspelling en dit probleem verdwijnt bij de volgende geslaagde update.\n\n(Om dit probleem te onderdrukken, maakt u een geavanceerde configuratieoptie api_raise_issues aan en zet u deze op false.)",
+      "title": "Solcast API-limiet bereikt"
+    },
     "api_unavailable": {
       "description": "De Solcast API heeft tijdens een update herhaaldelijk de status `429 / Probeer het later opnieuw` gemeld.\n\n* Probeer deze situatie niet op te lossen.\n* Wijzig uw API-sleutel niet.\n* Start de integratie niet opnieuw op\n* Dit is geen integratieprobleem en lost zichzelf op. Wijzig niets.\n\n(Om dit probleem te onderdrukken, maakt u een geavanceerde configuratieoptie api_raise_issue aan en stelt u deze in op false.)",
       "title": "Solcast API tijdelijk niet beschikbaar"

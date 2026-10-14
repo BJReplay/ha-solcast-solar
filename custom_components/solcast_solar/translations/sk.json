@@ -316,6 +316,10 @@
       "description": "Súbor pokročilej konfigurácie obsahuje chyby.\n{problems}\n\nOpravte ich s odkazom na dokumentáciu integrácie na odkaze 'Zistiť viac'.",
       "title": "Problém s pokročilou možnosťou"
     },
+    "api_limit_reached": {
+      "description": "Solcast hlási, že denný limit API kľúča API je vyčerpaný (`429 / Too many requests`, \"You have exceeded your free daily limit\"). Na rozdiel od dočasne nedostupného API to súvisí s počtom volaní, preto môže pomôcť nastavenie:\n\n* Skontrolujte, či limit API v možnostiach integrácie zodpovedá vášmu účtu Solcast.\n* Menej automatických aktualizácií za deň alebo menej vynútených aktualizácií automatizáciami spotrebuje menej volaní. Odhadované skutočné hodnoty spotrebujú každý deň jedno volanie na strechu.\n* Iná inštalácia alebo nástroj s rovnakým kľúčom API spotrebúva tie isté volania.\n\nLimit sa resetuje o polnoci UTC. Integrácia si ponechá poslednú predpoveď a tento problém zmizne pri ďalšej úspešnej aktualizácii.\n\n(Ak chcete tento problém potlačiť, vytvorte rozšírenú konfiguračnú možnosť api_raise_issues a nastavte ju na false.)",
+      "title": "Dosiahnutý limit API Solcast"
+    },
     "api_unavailable": {
       "description": "Počas aktualizácie Solcast API opakovane hlásilo stav `429 / Try again later`. To znamená, že Solcast API je zaneprázdnené a aktívne blokuje požiadavky pre hobby účty.\n\n* Webová stránka solcast.com nie je ovplyvnená, ale API je dočasne nedostupné pre vás.\n* Stránka stavu API na status.solcast.com takmer určite neukáže žiadny problém.\n* Nesnažte sa túto situáciu riešiť.\n* Nezmeňte svoj kľúč API.\n* Nesnažte sa aktualizovať integráciu.\n* Vyhnite sa reštartovaniu integrácie.\n* Integrácia bude naďalej poskytovať poslednú predpoveď solárneho žiarenia získanú zo Solcastu.\n* Nie je to problém s integráciou a vyrieši sa to samo. Nič nemeňte.\n\n(Ak chcete tento problém potlačiť, vytvorte možnosť pokročilej konfigurácie api_raise_issue a nastavte ju na false.)",
       "title": "Solcast API dočasne nedostupné"

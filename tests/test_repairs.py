@@ -28,6 +28,7 @@ from homeassistant.components.solcast_solar.const import (
     FAILURE,
     FORECASTS,
     GET_ACTUALS,
+    ISSUE_API_LIMIT_REACHED,
     ISSUE_RECORDS_MISSING_FIXABLE,
     ISSUE_RECORDS_MISSING_INITIAL,
     ISSUE_RECORDS_MISSING_UNFIXABLE,
@@ -192,10 +193,14 @@ async def test_missing_data_initial(
 
     try:
 
+        def other_issues():
+            # The limit-reached issue comes from the same 429 and is tested in test_forecast_retry.
+            return [issue for issue in issue_registry.issues.values() if issue.issue_id != ISSUE_API_LIMIT_REACHED]
+
         def assert_issue_present():
             # Assert the issue is present, unfixable and persistent
-            assert len(issue_registry.issues) == 1, f"Expected 1 issue, got {len(issue_registry.issues)}"
-            issue = list(issue_registry.issues.values())[0]
+            assert len(other_issues()) == 1, f"Expected 1 issue, got {len(other_issues())}"
+            issue = other_issues()[0]
             assert issue.domain == DOMAIN, f"Expected domain {DOMAIN}, got {issue.domain}"
             assert issue.issue_id == ISSUE_RECORDS_MISSING_INITIAL, f"Expected issue_id ISSUE_RECORDS_MISSING_INITIAL, got {issue.issue_id}"
             assert issue.is_fixable is False, "Initial missing data issue should not be fixable"
@@ -203,7 +208,7 @@ async def test_missing_data_initial(
 
         def assert_issue_not_present():
             # Assert the issue is not present
-            assert len(issue_registry.issues) == 0
+            assert len(other_issues()) == 0
 
         async def update_forecast():
             await hass.services.async_call(DOMAIN, SERVICE_UPDATE, {}, blocking=True)

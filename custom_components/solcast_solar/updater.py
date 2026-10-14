@@ -213,9 +213,8 @@ class Updater:
         """Return attributes for the last updated sensor."""
 
         tz = self._coordinator.solcast.options.tz
-        base: dict[str, int | dt | str | None] = {
+        base: dict[str, int | dt] = {
             "last_attempt": self._coordinator.solcast.last_attempt.astimezone(tz),
-            "last_failure": self._coordinator.solcast.last_failure,
             "failure_count_today": self._coordinator.solcast.failures_last_24h,
             "failure_count_7_day": self._coordinator.solcast.failures_last_7d,
             "failure_count_14_day": self._coordinator.solcast.failures_last_14d,

@@ -280,6 +280,7 @@ INTEGRATION: Final[str] = "Solcast PV Forecast"
 INTEGRATION_AUTOMATED: Final[str] = "integration_automated"
 INTERVAL: Final[str] = "interval"
 INTERVALS_PER_DAY: Final[int] = 48
+ISSUE_API_LIMIT_REACHED: Final[str] = "api_limit_reached"
 ISSUE_API_UNAVAILABLE: Final[str] = "api_unavailable"
 ISSUE_ADVANCED_DEPRECATED: Final[str] = "advanced_deprecated"
 ISSUE_ADVANCED_PROBLEM: Final[str] = "advanced_problem"

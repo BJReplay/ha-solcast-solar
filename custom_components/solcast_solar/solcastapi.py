@@ -287,7 +287,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.options: ConnectionOptions = options
         self.peak_intervals: dict[int, float] = dict.fromkeys(range(48), -1.0)
         self.reauth_required: bool = False
-        self.last_failure: str | None = None  # Why the last forecast update failed, None after a success.
         self.serialise_lock = asyncio.Lock()
         self.site_data_forecasts: dict[str, list[dict[str, Any]]] = {}
         self.site_data_forecasts_undampened: dict[str, list[dict[str, Any]]] = {}
