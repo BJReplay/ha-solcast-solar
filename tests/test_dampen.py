@@ -15,6 +15,8 @@ from typing import Any
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
+from astral import Observer
+from astral.sun import azimuth, elevation
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
@@ -948,8 +950,9 @@ def test_elevation_adjustment_ratio_uses_site_geometry(monkeypatch: pytest.Monke
         hass=SimpleNamespace(),
         options=SimpleNamespace(exclude_sites=[]),
         sites=[
-            {RESOURCE_ID: "east", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 90.0},
-            {RESOURCE_ID: "west", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 270.0},
+            # Solcast azimuth convention: E=-90, W=+90 (compass 90 and 270).
+            {RESOURCE_ID: "east", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: -90.0},
+            {RESOURCE_ID: "west", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 90.0},
         ],
     )  # type: ignore[attr-defined]
 
@@ -961,17 +964,79 @@ def test_elevation_adjustment_ratio_uses_site_geometry(monkeypatch: pytest.Monke
     ratio = dampening.elevation_adjustment_ratio(past_ts, target_ts)
 
     # Computed geometry ratios per site:
-    #   east (panel_azimuth=90):
+    #   east (Solcast -90, compass panel_azimuth=90):
     #     past_gain  = sin(35) x cos(30) + cos(35) x sin(30) x cos(90-90)   ≈ 0.9063
     #     target_gain= sin(55) x cos(30) + cos(55) x sin(30) x cos(240-90)  ≈ 0.4610
     #     ratio_east ≈ 0.509
-    #   west (panel_azimuth=270):
+    #   west (Solcast 90, compass panel_azimuth=270):
     #     past_gain  = sin(35) x cos(30) + cos(35) x sin(30) x cos(90-270)  ≈ 0.0872
     #     target_gain= sin(55) x cos(30) + cos(55) x sin(30) x cos(240-270) ≈ 0.9578
     #     ratio_west ≈ 10.99
     #   average ~= 5.75, clamped to 2.0
     assert ratio == pytest.approx(2.0)
     assert ratio > base_ratio
+
+
+def test_elevation_adjustment_ratio_east_site_in_morning(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Solcast gives east as azimuth -90 and west as +90, so in the morning sun -90 must get the east-facing ratio."""
+
+    class _MorningSun:
+        """The sun is in the east: 30 degrees high on the past day, 40 degrees on the target day."""
+
+        def solar_elevation(self, when: dt) -> float:
+            return 30.0 if when.day == 1 else 40.0
+
+        def solar_azimuth(self, when: dt) -> float:
+            return 100.0 if when.day == 1 else 110.0
+
+    _patch_astral_location_provider(monkeypatch, _MorningSun())
+    past_ts = dt(2025, 6, 1, 8, 0, tzinfo=datetime.UTC)
+    target_ts = dt(2025, 6, 2, 8, 0, tzinfo=datetime.UTC)
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(hass=SimpleNamespace(), options=SimpleNamespace(exclude_sites=[]), sites=[])  # pyright: ignore[reportAttributeAccessIssue]
+
+    dampening.api.sites = [{RESOURCE_ID: "east", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: -90.0}]
+    east = dampening.elevation_adjustment_ratio(past_ts, target_ts)
+    dampening.api.sites = [{RESOURCE_ID: "west", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 90.0}]
+    west = dampening.elevation_adjustment_ratio(past_ts, target_ts)
+
+    # A panel gets sin(elevation) x cos(tilt) + cos(elevation) x sin(tilt) x cos(sun azimuth - panel azimuth).
+    # The east-facing site faces the morning sun on both days, so its output changes little: 0.917 / 0.859 = 1.066.
+    assert east == pytest.approx(1.066, abs=0.001)
+    # The west-facing site barely sees the morning sun on the past day, so its ratio hits the upper limit of 2.0.
+    assert west == pytest.approx(2.0)
+
+
+def test_elevation_adjustment_ratio_real_east_roof(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A real east roof, tilt 12 and Solcast azimuth -55, near 50.3 N 9.5 E (rounded).
+
+    Modelling 6 October from 22 September at 09:30 local time gives 0.835. Before the fix the roof was taken as facing
+    north-west and got 0.573.
+    """
+
+    class _RealSun:
+        """The sun at 50.3 N 9.5 E."""
+
+        observer = Observer(latitude=50.3, longitude=9.5)
+
+        def solar_elevation(self, when: dt) -> float:
+            return elevation(self.observer, when)
+
+        def solar_azimuth(self, when: dt) -> float:
+            return azimuth(self.observer, when)
+
+    _patch_astral_location_provider(monkeypatch, _RealSun())
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        hass=SimpleNamespace(),
+        options=SimpleNamespace(exclude_sites=[]),
+        sites=[{RESOURCE_ID: "east", SITE_ATTRIBUTE_TILT: 12.0, SITE_ATTRIBUTE_AZIMUTH: -55.0}],
+    )
+
+    past_ts = dt(2026, 9, 22, 7, 30, tzinfo=datetime.UTC)  # 09:30 local time
+    target_ts = dt(2026, 10, 6, 7, 30, tzinfo=datetime.UTC)
+
+    assert dampening.elevation_adjustment_ratio(past_ts, target_ts) == pytest.approx(0.835, abs=0.001)
 
 
 def test_elevation_adjustment_ratio_falls_back_when_all_sites_face_away(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -988,11 +1053,11 @@ def test_elevation_adjustment_ratio_falls_back_when_all_sites_face_away(monkeypa
     target_ts = dt(2025, 6, 2, 12, 0, tzinfo=datetime.UTC)
 
     dampening = Dampening.__new__(Dampening)
-    # Tilt=90, panel faces directly away from sun (azimuth delta=180°), so gain <= 0 for both timestamps.
+    # Tilt=90, west-facing panel (Solcast azimuth 90) faces directly away from the eastern sun, so gain <= 0 for both timestamps.
     dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
         hass=SimpleNamespace(),
         options=SimpleNamespace(exclude_sites=[]),
-        sites=[{RESOURCE_ID: "a", SITE_ATTRIBUTE_TILT: 90, SITE_ATTRIBUTE_AZIMUTH: 270}],
+        sites=[{RESOURCE_ID: "a", SITE_ATTRIBUTE_TILT: 90, SITE_ATTRIBUTE_AZIMUTH: 90}],
     )  # type: ignore[attr-defined]
 
     _patch_astral_location_provider(monkeypatch, _Loc())

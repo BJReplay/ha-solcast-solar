@@ -1500,6 +1500,7 @@ Latest minor/patch releases.
 v4.6.2
 
 * Add DNS timeout retries by @autoSteve
+* Fix the sun elevation adjustment of automated dampening swapping east and west facing sites by @Bascht74
 * Embrace Home Assistant dt_util by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.1...v4.6.2
