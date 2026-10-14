@@ -145,7 +145,7 @@ async def test_adaptive_auto_dampen(  # noqa: C901
 
         assert "Auto-dampening suppressed: Excluded site for 3333-3333-3333-3333" in caplog.text
         assert "Interval 08:30 has peak estimated actual 0.936" in caplog.text
-        assert "Auto-dampen factor for 08:30 is 0.296" in caplog.text
+        assert "Auto-dampen factor for 08:30 is 0.830" in caplog.text  # Left out: three days without generation and the day the first generation entity is missing
 
         # Roll over to tomorrow three times.
         roll_to = [
