@@ -15,6 +15,8 @@ from typing import Any
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
+from astral import Observer
+from astral.sun import azimuth, elevation
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
@@ -1003,6 +1005,38 @@ def test_elevation_adjustment_ratio_east_site_in_morning(monkeypatch: pytest.Mon
     # The west-facing site barely sees the morning sun on the past day, so its ratio hits the upper limit of 2.0.
     assert west == pytest.approx(2.0)
 
+
+
+def test_elevation_adjustment_ratio_real_east_roof(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A real east roof, tilt 12 and Solcast azimuth -55, near 50.3 N 9.5 E (rounded).
+
+    Modelling 6 October from 22 September at 09:30 local time gives 0.835. Before the fix the roof was taken as facing
+    north-west and got 0.573.
+    """
+
+    class _RealSun:
+        """The sun at 50.3 N 9.5 E."""
+
+        observer = Observer(latitude=50.3, longitude=9.5)
+
+        def solar_elevation(self, when: dt) -> float:
+            return elevation(self.observer, when)
+
+        def solar_azimuth(self, when: dt) -> float:
+            return azimuth(self.observer, when)
+
+    _patch_astral_location_provider(monkeypatch, _RealSun())
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        hass=SimpleNamespace(),
+        options=SimpleNamespace(exclude_sites=[]),
+        sites=[{RESOURCE_ID: "east", SITE_ATTRIBUTE_TILT: 12.0, SITE_ATTRIBUTE_AZIMUTH: -55.0}],
+    )
+
+    past_ts = dt(2026, 9, 22, 7, 30, tzinfo=datetime.UTC)  # 09:30 local time
+    target_ts = dt(2026, 10, 6, 7, 30, tzinfo=datetime.UTC)
+
+    assert dampening.elevation_adjustment_ratio(past_ts, target_ts) == pytest.approx(0.835, abs=0.001)
 
 def test_elevation_adjustment_ratio_falls_back_when_all_sites_face_away(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ratio falls back to elevation-only when every site's panel faces away (zero gain)."""
