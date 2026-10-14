@@ -1501,6 +1501,7 @@ v4.6.2
 
 * Add DNS timeout retries by @autoSteve
 * Embrace Home Assistant dt_util by @autoSteve
+* Fix the adaptive dampening history stopping when an estimated actual is 0 by @Bascht74
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.1...v4.6.2
 

@@ -38,6 +38,7 @@ from homeassistant.components.solcast_solar.const import (
     AUTO_UPDATE,
     DOMAIN,
     ENTITY_ACCURACY,
+    ESTIMATE,
     EXCLUDE_SITES,
     EXPORT_LIMITING,
     FORECASTS,
@@ -48,6 +49,7 @@ from homeassistant.components.solcast_solar.const import (
     MINIMUM,
     MINIMUM_EXTENDED,
     PERIOD_START,
+    RESOURCE_ID,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
     SITE_INFO,
@@ -438,6 +440,62 @@ async def test_update_history_deal_breaker(
         entity_history["days_generation"] = 3
         entity_history["days_suppression"] = 3
         entity_history["offset"] = -1
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_update_history_with_an_estimated_actual_of_zero(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """An estimated actual of 0 keeps the factor instead of stopping the history update.
+
+    The delta adjustment takes the logarithm of the estimated actual, so an estimated actual of 0 raised a ValueError.
+    Example from a west roof at 18:30: forecast 0.001 kWh, estimated actual 0, factor 0.706.
+    """
+
+    assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+    try:
+        write_advanced_options(hass.config.config_dir, {ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: True})
+
+        options = copy.deepcopy(DEFAULT_INPUT2)
+        options[AUTO_UPDATE] = 0
+        options[AUTO_DAMPEN] = True
+        options[GET_ACTUALS] = True
+        options[USE_ACTUALS] = True
+
+        entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.YES)
+        solcast: SolcastApi = entry.runtime_data.coordinator.solcast
+
+        # Yesterday every half hour has a small forecast, an estimated actual of 0 and a factor of 0.706.
+        yesterday = solcast.dt_helper.day_start_utc(future=-1)
+        half_hours = [yesterday + timedelta(minutes=30 * i) for i in range(48)]
+        site = solcast.sites[0][RESOURCE_ID]
+        solcast.data_undampened[SITE_INFO][site][FORECASTS] += [{PERIOD_START: ts, ESTIMATE: 0.002} for ts in half_hours]
+        solcast.peak_intervals = dict.fromkeys(range(48), 1.0)
+        solcast.dampening.data_generation[GENERATION] = [{PERIOD_START: yesterday, GENERATION: 0.0, EXPORT_LIMITING: False}]
+        await solcast.dampening.adaptive.load_history()
+
+        _, ignored_intervals, generation, matching_intervals = await solcast.dampening.prepare_data()
+
+        async def actuals_of_zero() -> tuple[dict[dt, float], list[int], dict[dt, float], dict[int, list[dt]]]:
+            return dict.fromkeys(half_hours, 0.0), ignored_intervals, generation, matching_intervals
+
+        async def factors_of_0_706(*args: Any, **kwargs: Any) -> list[float]:
+            return [0.706] * 48
+
+        monkeypatch.setattr(solcast.dampening, "prepare_data", actuals_of_zero)
+        monkeypatch.setattr(solcast.dampening, "calculate", factors_of_0_706)
+
+        await solcast.dampening.adaptive.update_history()
+
+        # Each delta adjustment recorded yesterday with the factor unchanged.
+        for delta, history in solcast.dampening.auto_factors_history[0].items():
+            yesterdays_factors = [record["factors"] for record in history if record["period_start"] == yesterday]
+            assert yesterdays_factors == [[0.706] * 48], f"delta adjustment {delta}"
+
+    finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
