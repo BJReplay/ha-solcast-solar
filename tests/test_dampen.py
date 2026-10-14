@@ -1000,11 +1000,11 @@ def test_elevation_adjustment_ratio_east_site_in_morning(monkeypatch: pytest.Mon
     dampening.api.sites = [{RESOURCE_ID: "west", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 90.0}]
     west = dampening.elevation_adjustment_ratio(past_ts, target_ts)
 
+    # A panel gets sin(elevation) x cos(tilt) + cos(elevation) x sin(tilt) x cos(sun azimuth - panel azimuth).
     # The east-facing site faces the morning sun on both days, so its output changes little: 0.917 / 0.859 = 1.066.
     assert east == pytest.approx(1.066, abs=0.001)
     # The west-facing site barely sees the morning sun on the past day, so its ratio hits the upper limit of 2.0.
     assert west == pytest.approx(2.0)
-
 
 
 def test_elevation_adjustment_ratio_real_east_roof(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1037,6 +1037,7 @@ def test_elevation_adjustment_ratio_real_east_roof(monkeypatch: pytest.MonkeyPat
     target_ts = dt(2026, 10, 6, 7, 30, tzinfo=datetime.UTC)
 
     assert dampening.elevation_adjustment_ratio(past_ts, target_ts) == pytest.approx(0.835, abs=0.001)
+
 
 def test_elevation_adjustment_ratio_falls_back_when_all_sites_face_away(monkeypatch: pytest.MonkeyPatch) -> None:
     """Ratio falls back to elevation-only when every site's panel faces away (zero gain)."""
