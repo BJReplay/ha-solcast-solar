@@ -2,6 +2,7 @@
 
 import asyncio
 from collections import OrderedDict
+from collections.abc import Callable
 import copy
 import datetime
 from datetime import datetime as dt, timedelta
@@ -1087,8 +1088,8 @@ async def test_calculate_elevation_adjustment_applied(monkeypatch: pytest.Monkey
     assert result[interval] <= 1.0
 
 
-async def test_calculate_models_1_to_3_without_elevation_ratio(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Models 1-3 divide generation by the estimated actual of the same half-hour, so they apply no elevation ratio."""
+def _dampening_with_elevation_ratio(monkeypatch: pytest.MonkeyPatch, ratio: Callable[[dt, dt], float]) -> Dampening:
+    """Dampening with the elevation adjustment on, and ratio as the sun of a past day to the sun of the target day."""
 
     api = MagicMock()
     api.tz = datetime.UTC
@@ -1103,8 +1104,15 @@ async def test_calculate_models_1_to_3_without_elevation_ratio(monkeypatch: pyte
     api.filename_generation = tempfile.NamedTemporaryFile(delete=False).name
     api.filename_dampening = tempfile.NamedTemporaryFile(delete=False).name
     dampening = Dampening(api)
+    monkeypatch.setattr(dampening, "elevation_adjustment_ratio", ratio)
+    return dampening
+
+
+async def test_calculate_models_1_to_3_without_elevation_ratio(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Models 1-3 divide generation by the estimated actual of the same half-hour, so they apply no elevation ratio."""
+
     # The sun of day 1 gave twice the output it gives on the target day, the sun of day 2 the same.
-    monkeypatch.setattr(dampening, "elevation_adjustment_ratio", lambda past, _target: 2.0 if past.day == 1 else 1.0)
+    dampening = _dampening_with_elevation_ratio(monkeypatch, lambda past, _target: 2.0 if past.day == 1 else 1.0)
 
     interval = 20  # 10:00 UTC
     day_1 = dt(2025, 10, 1, 10, 0, tzinfo=datetime.UTC)
@@ -1126,3 +1134,24 @@ async def test_calculate_models_1_to_3_without_elevation_ratio(monkeypatch: pyte
     assert model_3[interval] == pytest.approx(0.4)  # The lowest pair
     # The default model still uses the ratio: the highest generation, 0.9, over the peak, 2.0 on both days.
     assert model_0[interval] == pytest.approx(0.45)
+
+
+async def test_calculate_models_1_to_3_real_north_roof(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A real north roof at 13:00 local time: models 1-3 for 6 October from 2 and 4 October."""
+
+    # The real sun of 2 and 4 October gave 0.917 and 0.957 of the output it gives on 6 October.
+    dampening = _dampening_with_elevation_ratio(monkeypatch, lambda past, _target: 0.917 if past.day == 2 else 0.957)
+
+    interval = 22  # 11:00 UTC
+    day_1 = dt(2026, 10, 2, 11, 0, tzinfo=datetime.UTC)
+    day_2 = dt(2026, 10, 4, 11, 0, tzinfo=datetime.UTC)
+    matching = {interval: [day_1, day_2]}
+    generation = {day_1: 0.482, day_2: 0.639}  # kWh in the half hour
+    actuals = OrderedDict([(day_1, 0.657), (day_2, 0.700)])  # Estimated actuals in kWh
+    target_day = dt(2026, 10, 6, tzinfo=datetime.UTC)
+
+    models = [await dampening.calculate(matching, generation, actuals, [], model, target_day=target_day) for model in (1, 2, 3)]
+
+    # Generation over estimated actual: 0.734 on 2 October, 0.913 on 4 October.
+    # With the ratio applied to these pairs, models 1-3 gave 0.874, 0.773 and 0.673.
+    assert [factors[interval] for factors in models] == pytest.approx([0.913, 0.823, 0.734], abs=0.001)
