@@ -1501,6 +1501,7 @@ v4.6.2
 
 * Add DNS timeout retries by @autoSteve
 * Embrace Home Assistant dt_util by @autoSteve
+* Fix automated dampening models 1, 2 and 3 applying the sun elevation adjustment to pairs that already share their sun geometry by @Bascht74
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.1...v4.6.2
 

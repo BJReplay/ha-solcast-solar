@@ -1507,15 +1507,16 @@ class Dampening:
                     _LOGGER.debug("Interval %s is intentionally ignored, skipping", interval_time)
                 continue
             # Build (timestamp, gen, elevation_ratio) triplets for matching intervals
-            # that have non-zero generation. The ratio is retained so that per-pair
-            # raw dampening factors (gen/act) can be normalised to target_day's sun
-            # geometry in the 1/2/3 models below.
+            # that have non-zero generation. The ratio normalises generation to target_day's
+            # sun geometry for the default model, which compares it with the peak of other
+            # days. Models 1/2/3 compare generation with the estimated actual of the same
+            # interval, which already shares its sun geometry, so they use no ratio.
             sample_triplets: list[tuple[dt, float, float]] = []
             for timestamp in matching:
                 raw_gen = round(generation.get(timestamp, 0.0), 3)
                 if raw_gen == 0.0:
                     continue
-                if apply_elevation_adjustment and target_day is not None:
+                if apply_elevation_adjustment and target_day is not None and dampening_model not in (1, 2, 3):
                     ratio = self.elevation_adjustment_ratio(timestamp, self._target_timestamp(timestamp, target_day))
                 else:
                     ratio = 1.0
@@ -1537,7 +1538,6 @@ class Dampening:
                     case 1 | 2 | 3:
                         if len(matching) >= self.api.advanced_options[ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS]:
                             actual_samples: list[float] = [actuals.get(timestamp, 0.0) for timestamp, _, _ in sample_triplets]
-                            ratio_samples: list[float] = [ratio for _, _, ratio in sample_triplets]
                             if verbose_log:
                                 _LOGGER.debug(
                                     "Selected %d estimated actuals for %s: %s",
@@ -1557,20 +1557,13 @@ class Dampening:
                             ):
                                 if len(actual_samples) == len(generation_samples):
                                     raw_factors: list[float] = []
-                                    for act, gen, ratio in zip(actual_samples, generation_samples, ratio_samples, strict=True):
+                                    for act, gen in zip(actual_samples, generation_samples, strict=True):
                                         if act <= 0:
                                             raw_factors.append(1.0)
                                             continue
-                                        # Normalise each historical pair's factor to target_day's sun geometry.
                                         # Cap at 1.0 since dampening cannot amplify.
-                                        raw_factors.append(min((gen / act) * ratio, 1.0))
+                                        raw_factors.append(min(gen / act, 1.0))
                                     if verbose_log:
-                                        if apply_elevation_adjustment and any(r != 1.0 for r in ratio_samples):
-                                            _LOGGER.debug(
-                                                "Elevation ratios applied for %s: %s",
-                                                interval_time,
-                                                ", ".join(f"{r:.3f}" for r in ratio_samples),
-                                            )
                                         _LOGGER.debug(
                                             "Candidate factors for %s: %s",
                                             interval_time,
