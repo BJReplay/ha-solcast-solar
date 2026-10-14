@@ -1128,7 +1128,7 @@ async def test_calculate_models_1_to_3_without_elevation_ratio(monkeypatch: pyte
     model_3 = await dampening.calculate(matching, generation, actuals, [], 3, target_day=target_day)
 
     # Generation over estimated actual: 0.4 / 1.0 = 0.4 on day 1, 0.9 / 2.0 = 0.45 on day 2.
-    # With the ratio applied to these pairs, day 1 became 0.8 and models 1-3 gave 0.8, 0.625 and 0.45.
+    # Before the fix the ratio was applied to these pairs too: day 1 became 0.8, and models 1-3 gave 0.8, 0.625 and 0.45.
     assert model_1[interval] == pytest.approx(0.45)  # The highest pair
     assert model_2[interval] == pytest.approx(0.425)  # The mean of the pairs
     assert model_3[interval] == pytest.approx(0.4)  # The lowest pair
@@ -1153,5 +1153,5 @@ async def test_calculate_models_1_to_3_real_north_roof(monkeypatch: pytest.Monke
     models = [await dampening.calculate(matching, generation, actuals, [], model, target_day=target_day) for model in (1, 2, 3)]
 
     # Generation over estimated actual: 0.734 on 2 October, 0.913 on 4 October.
-    # With the ratio applied to these pairs, models 1-3 gave 0.874, 0.773 and 0.673.
+    # Before the fix the ratio was applied to these pairs too, and models 1-3 gave 0.874, 0.773 and 0.673.
     assert [factors[interval] for factors in models] == pytest.approx([0.913, 0.823, 0.734], abs=0.001)
