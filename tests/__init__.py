@@ -165,6 +165,7 @@ STATUS_429_UNEXPECTED: dict[str, Any] = {
 MOCK_ALTER_HISTORY = "alter_history"
 MOCK_BAD_REQUEST = "return_400"
 MOCK_BUSY = "return_429"
+MOCK_BUSY_CDN = "return_429_from_cdn"
 MOCK_BUSY_SITE = "return_429_for_site"
 MOCK_BUSY_UNEXPECTED = "return_429_unexpected"
 MOCK_CORRUPT_SITES = "return_corrupt_sites"
@@ -182,6 +183,7 @@ MOCK_SESSION_CONFIG: dict[str, Any] = {
     MOCK_ALTER_HISTORY: False,
     MOCK_BAD_REQUEST: False,
     MOCK_BUSY: False,
+    MOCK_BUSY_CDN: False,
     MOCK_BUSY_SITE: None,
     MOCK_BUSY_UNEXPECTED: False,
     MOCK_CORRUPT_SITES: False,
@@ -318,6 +320,8 @@ def verify_data_schema(data: dict[str, Any]) -> None:
 def _check_abend(api_key: str, site: str | None = None, get_sites: bool = False) -> CallbackResult | None:
     if MOCK_SESSION_CONFIG[MOCK_BUSY] or (MOCK_SESSION_CONFIG[MOCK_BUSY_SITE] and site == MOCK_SESSION_CONFIG[MOCK_BUSY_SITE]):
         return CallbackResult(status=429, body=STATUS_EMPTY)
+    if MOCK_SESSION_CONFIG[MOCK_BUSY_CDN]:  # Solcast's CDN answers itself, without asking the API
+        return CallbackResult(status=429, body=STATUS_EMPTY, headers={"Server": "CloudFront"})
     if MOCK_SESSION_CONFIG["api_used"].get(api_key, 0) >= MOCK_SESSION_CONFIG["api_limit"]:
         return CallbackResult(status=429, payload=STATUS_429_OVER)
     if MOCK_SESSION_CONFIG[MOCK_BUSY_UNEXPECTED]:

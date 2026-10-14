@@ -38,6 +38,7 @@ from homeassistant.setup import async_setup_component
 from . import (
     DEFAULT_INPUT1,
     MOCK_BUSY,
+    MOCK_BUSY_CDN,
     async_cleanup_integration_tests,
     async_init_integration,
     session_clear,
@@ -490,6 +491,41 @@ async def test_retry_recovery_then_schedule_deferred_actuals(
         assert "Estimated actuals update window was missed, scheduling at" in caplog.text
 
         await coordinator.tasks_cancel_specific(TASK_NEW_DAY_ACTUALS)
+
+    finally:
+        await async_cleanup_integration_tests(hass)
+
+
+async def test_429_from_the_solcast_cdn(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A 429 that Solcast's CDN gave itself is named so, and the last failure shows it until an update succeeds."""
+
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        coordinator = entry.runtime_data.coordinator
+        solcast = coordinator.solcast
+
+        session_set(MOCK_BUSY_CDN)
+        solcast.data[LAST_UPDATED] -= timedelta(minutes=20)
+        with mock.patch.object(solcast.fetcher, "_sleep", mock.AsyncMock()):
+            await solcast.fetcher.get_forecast_update()
+        session_clear(MOCK_BUSY_CDN)
+
+        assert "Call status 429/Try again later from the Solcast CDN, before the API key was checked, pausing" in caplog.text
+        reason = "429/Try again later after 10 attempts, all from the Solcast CDN before the API key was checked"
+        assert f"Forecast has not been updated: {reason}" in caplog.text
+        assert coordinator._updater.get_auto_update_details()["last_failure"] == reason  # pyright: ignore[reportPrivateUsage]
+
+        # The next successful update clears it.
+        solcast.data[LAST_UPDATED] -= timedelta(minutes=20)
+        await solcast.fetcher.get_forecast_update()
+        assert coordinator._updater.get_auto_update_details()["last_failure"] is None  # pyright: ignore[reportPrivateUsage]
+
+        await solcast.tasks_cancel()
+        await coordinator.tasks_cancel()
 
     finally:
         await async_cleanup_integration_tests(hass)

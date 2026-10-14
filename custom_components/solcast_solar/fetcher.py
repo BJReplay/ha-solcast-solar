@@ -83,6 +83,9 @@ from .log import get_logger
 
 _LOGGER = get_logger(__name__)
 
+# Added to a 429 that Solcast's CDN gave without passing the call to the API.
+_FROM_CDN = " from the Solcast CDN, before the API key was checked"
+
 
 async def async_trigger_automation_by_name(hass: HomeAssistant, name: str) -> bool:
     """Trigger an automation by friendly name or entity ID; returns True if found and triggered."""
@@ -356,6 +359,7 @@ class Fetcher:
             await self.api.sites_cache.serialise_usage(api_key)
 
         if sites_attempted > 0 and not failure:
+            self.api.last_failure = None
             await self.api.dampening.apply_forward(do_past_hours=do_past_hours)
 
             b_status = await self.api.build_forecast_data()
@@ -385,6 +389,7 @@ class Fetcher:
 
             status = "Build or serialisation failed" if not b_status or not s_status else ""
         else:
+            self.api.last_failure = reason
             _LOGGER.warning("Forecast has not been updated: %s%s", reason, next_update())
             if not status:
                 status = f"Forecast get failed: {reason}"
@@ -650,6 +655,7 @@ class Fetcher:
         """
         response_text = ""
         received_429: int = 0
+        received_429_cdn: int = 0
         failure_reason: str | None = None
 
         try:
@@ -686,6 +692,7 @@ class Fetcher:
                             _LOGGER.debug("Fetching path %s", path)
                             counter += 1
                             response_text = ""
+                            rejected_by_cdn = False
                             dns_timeout_attempts = 0
                             while True:
                                 try:
@@ -752,8 +759,14 @@ class Fetcher:
                                         break
                                 else:
                                     received_429 += 1
+                                    # Solcast's CDN (CloudFront) answers itself when it sheds load, so the API key was not checked.
+                                    rejected_by_cdn = response.headers.get("Server") == "CloudFront"
+                                    if rejected_by_cdn:
+                                        received_429_cdn += 1
                             if counter >= tries:
                                 failure_reason = f"{self.api.http_status_translate(status)} after {tries} attempts"
+                                if received_429_cdn == tries:
+                                    failure_reason += ", all from the Solcast CDN before the API key was checked"
                                 if not self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY]:
                                     _LOGGER.error("API was tried %d times, but all attempts failed", tries)
                                 break
@@ -761,8 +774,9 @@ class Fetcher:
                             # plus a random number of seconds between zero and 15.
                             delay: int = (counter * backoff) + random.randrange(0, 15)
                             (_LOGGER.debug if self.api.advanced_options[ADVANCED_LOG_UPDATE_FAILURE_ONLY] else _LOGGER.warning)(
-                                "Call status %s, pausing %d seconds before retry",
+                                "Call status %s%s, pausing %d seconds before retry",
                                 self.api.http_status_translate(status),
+                                _FROM_CDN if rejected_by_cdn else "",
                                 delay,
                             )
                             await self._sleep(delay)

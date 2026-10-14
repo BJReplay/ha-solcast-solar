@@ -760,6 +760,7 @@ All diagnostic sensor names are preceded by `Solcast PV Forecast` except for `Ro
 * `failure_count_today`: The count of failures (like `429/Too busy`) that have occurred since midnight UTC.
 * `failure_count_7_day`: The count of failures that have occurred over the past seven days.
 * `last_attempt`: The date/time of last attempted forecast update. "Currently healthy" is considered last polled >= last attempt.
+* `last_failure`: Why the last forecast update failed, for example `429/Try again later after 10 attempts, all from the Solcast CDN before the API key was checked`. Empty again after the next successful update.
 
 If auto-update is enabled then last polled also features these attributes:
 
@@ -1499,6 +1500,7 @@ Latest minor/patch releases.
 
 v4.6.2
 
+* Name a 429 from the Solcast CDN in the log, and add the last_failure attribute to API Last Polled by @Bascht74
 * Add DNS timeout retries by @autoSteve
 * Embrace Home Assistant dt_util by @autoSteve
 
