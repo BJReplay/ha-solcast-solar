@@ -983,7 +983,7 @@ This is where you can get creative with a specifically named templated sensor to
 
 Example scenarios include not being able to export to the grid, or choosing not to export. At these times, household consumption will match generation, and will confuse automated dampening.
 
-To modify the behaviour of automated dampening, a template entity can be created with the name of `solcast_suppress_auto_dampening`. This can be using either the platform "sensor", "binary_sensor" or "switch".
+To modify the behaviour of automated dampening, a template entity can be created with the name of `solcast_suppress_auto_dampening`. This can be using either the platform "sensor", "binary_sensor" or "switch", or an `input_boolean` helper switched by an automation.
 
 The integration will monitor this entity for state changes. When a state is one of "on", "1", "true" or "True" at _any time in a half-hourly PV generation interval_ then this will signal automated dampening to vary its behaviour and exclude that interval, or if the entity state is one of "off", "0", "false" or "False" for the _entire interval_, the interval will be included as normal in automated dampening.
 

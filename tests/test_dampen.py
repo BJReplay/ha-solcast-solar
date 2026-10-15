@@ -327,6 +327,7 @@ async def test_auto_dampen(
     "extra_sensors",
     [
         ExtraSensors.YES_WITH_SUPPRESSION,
+        ExtraSensors.YES_WITH_SUPPRESSION_INPUT_BOOLEAN,
         ExtraSensors.YES_UNIT_NOT_IN_HISTORY,
         ExtraSensors.YES_NO_UNIT,
         ExtraSensors.DODGY,
@@ -352,7 +353,7 @@ async def test_auto_dampen_issues(
             "sensor.solar_export_sensor_1111_1111_1111_1111",
             "sensor.solar_export_sensor_2222_2222_2222_2222",
         ]
-        if extra_sensors != ExtraSensors.YES_WITH_SUPPRESSION:
+        if extra_sensors not in (ExtraSensors.YES_WITH_SUPPRESSION, ExtraSensors.YES_WITH_SUPPRESSION_INPUT_BOOLEAN):
             options[SITE_EXPORT_ENTITY] = "sensor.site_export_sensor"
             options[SITE_EXPORT_LIMIT] = 5.0
         if extra_sensors == ExtraSensors.YES_UNIT_NOT_IN_HISTORY:
@@ -401,7 +402,7 @@ async def test_auto_dampen_issues(
             # assert "Retrieved day -3 PV generation data from entity: sensor.solar_export_sensor_1111_1111_1111_1111" in caplog.text
 
         match extra_sensors:
-            case ExtraSensors.YES_WITH_SUPPRESSION:
+            case ExtraSensors.YES_WITH_SUPPRESSION | ExtraSensors.YES_WITH_SUPPRESSION_INPUT_BOOLEAN:
                 for interval in ("12:00", "12:30", "13:00", "13:30", "14:00"):
                     assert re.search(r"Auto-dampen suppressed for interval.+" + interval, caplog.text) is not None, (
                         f"Expected auto-dampen suppression log for interval {interval}"

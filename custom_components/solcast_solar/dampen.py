@@ -64,6 +64,7 @@ from .const import (
     LAST_UPDATED,
     PERIOD_START,
     PLATFORM_BINARY_SENSOR,
+    PLATFORM_INPUT_BOOLEAN,
     PLATFORM_SENSOR,
     PLATFORM_SWITCH,
     RESOURCE_ID,
@@ -886,7 +887,7 @@ class Dampening:
         recorder_instance: Any,
     ) -> None:
         """Apply suppression-entity state history to export-limiting intervals."""
-        platforms = [PLATFORM_BINARY_SENSOR, PLATFORM_SENSOR, PLATFORM_SWITCH]
+        platforms = [PLATFORM_BINARY_SENSOR, PLATFORM_INPUT_BOOLEAN, PLATFORM_SENSOR, PLATFORM_SWITCH]
         find_entity = self.api.advanced_options[ADVANCED_AUTOMATED_DAMPENING_SUPPRESSION_ENTITY]
         entity = ""
         found = False

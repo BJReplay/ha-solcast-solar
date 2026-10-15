@@ -187,7 +187,7 @@ This option varies what is considered a similar interval from all modelled days.
 
 Possible values: string (default `"solcast_suppress_auto_dampening"`)
 
-A templated suppression entity in the `sensor`, `binary_sensor` or `switch` platform can be used to intentionally ignore intervals of generation. This option allows the entity name searched for to be changed.
+A templated suppression entity in the `sensor`, `binary_sensor` or `switch` platform, or an `input_boolean` helper, can be used to intentionally ignore intervals of generation. This option allows the entity name searched for to be changed.
 
 ## Automated dampening adaptation
 

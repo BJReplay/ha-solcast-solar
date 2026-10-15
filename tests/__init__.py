@@ -212,6 +212,7 @@ class ExtraSensors(Enum):
     YES_UNIT_NOT_IN_HISTORY = 4
     YES_WITH_SUPPRESSION = 5
     YES_POWER = 6
+    YES_WITH_SUPPRESSION_INPUT_BOOLEAN = 7
     DODGY = 9
 
 
@@ -792,17 +793,19 @@ async def async_setup_extra_sensors(  # noqa: C901
                         await record_history(entity_id, new_now, increasing, gap)
             if _use_batched_history:
                 finalize_history(entity_id)
-    if extra_sensors == ExtraSensors.YES_WITH_SUPPRESSION:
+    if extra_sensors in (ExtraSensors.YES_WITH_SUPPRESSION, ExtraSensors.YES_WITH_SUPPRESSION_INPUT_BOOLEAN):
+        # The same suppression states, once from a sensor and once from an input_boolean.
+        platform = "input_boolean" if extra_sensors == ExtraSensors.YES_WITH_SUPPRESSION_INPUT_BOOLEAN else "sensor"
         entity = "solcast_suppress_auto_dampening"
         entity_registry.async_get_or_create(
-            "sensor",
+            platform,
             "pytest",
             entity,
             config_entry=entry,
             suggested_object_id=entity,
             unit_of_measurement=_uom,
         )
-        entity_id = "sensor." + entity
+        entity_id = f"{platform}.{entity}"
         sequence: list[dict[str, Any]] = [
             {"hours": 12, "minutes": 14, "seconds": 5, "value": "on"},
             {"hours": 12, "minutes": 18, "seconds": 5, "value": "off"},
