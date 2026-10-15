@@ -93,3 +93,52 @@ class TestCubicInterp:
         assert result[2] > result[0], f"11h value {result[2]} should exceed 7h value {result[0]} on the rising side"
         # The value at 13h should be higher than at 17h (falling side)
         assert result[3] > result[5], f"13h value {result[3]} should exceed 17h value {result[5]} on the falling side"
+
+
+class TestSanitiseSpline:
+    """Tests for zeroing the momentary spline where two half hours in a row are zero."""
+
+    def test_missing_morning_does_not_zero_the_afternoon(self) -> None:
+        """A day that starts after midnight must not wipe the afternoon with night zeros."""
+        query = ForecastQuery.__new__(ForecastQuery)
+        gap = 15  # First forecast at 07:30
+        xx = list(range(1800 * gap, 1800 * 50, 300))
+        y = [3.0 if 8 <= 7.5 + i * 0.5 <= 18 else 0.0 for i in range(len(xx) // 6)]
+        confidence = "pv_estimate"
+        spline = {confidence: [1.0] * len(xx)}
+        query._sanitise_spline(spline, confidence, xx, y)
+
+        def index(seconds: int) -> int:
+            # Three leading samples are the half-hour average shift.
+            return int(seconds / 300) - int(xx[0] / 300) + 3
+
+        assert spline[confidence][index(15 * 3600)] == 1.0, "Afternoon must keep its value"
+        assert spline[confidence][index(22 * 3600 + 30 * 60)] == 0.0, "Night must still be zeroed"
+
+    def test_real_day_starting_at_0730_keeps_the_afternoon(self) -> None:
+        """Real forecast of a site added during the day, so its first half hour is 07:30 local.
+
+        pv_estimate in kW for each half hour from 07:30, taken from the detailedForecast attribute of a
+        rooftop on 7 October 2026 (Europe/Berlin). Before the fix the momentary spline was 0 from 11:30 on.
+        """
+        query = ForecastQuery.__new__(ForecastQuery)
+        query._spline_period = list(range(0, 90000, 1800))
+        today = [
+            0.0695, 0.3961, 0.9175, 1.4272, 1.909, 2.3363, 2.7661, 3.0155, 3.211, 2.8405, 3.0162,
+            1.9623, 1.5817, 1.0721, 0.5086, 0.4775, 0.5228, 0.5704, 0.3915, 0.2477, 0.1891, 0.0691,
+            0.0198, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
+        ]  # fmt: skip
+        confidence = "pv_estimate"
+        data = [{confidence: value} for value in [*today, 0.0, 0.0]]  # Plus the first hour of tomorrow
+        xx = list(range(1800 * (48 - len(today)), 1800 * len(query._spline_period), 300))
+        spline: dict[str, list[float]] = {}
+        query._get_spline(spline, 0, xx, data, [confidence])
+        moment = spline[confidence]
+        offset = len(query._spline_period) * 6 - len(moment) + 3  # As in _get_moment()
+
+        def at(hour: int, minute: int = 0) -> float:
+            return moment[int((hour * 3600 + minute * 60) / 300) - offset]
+
+        for hour, minute in ((11, 30), (12, 0), (13, 0), (15, 0), (17, 0)):
+            assert at(hour, minute) > 0.1, f"{hour:02d}:{minute:02d} must not be zeroed"
+        assert at(21) == 0.0, "21:00 is night"
