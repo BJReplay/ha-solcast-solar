@@ -254,7 +254,19 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator, serv
             stale = False
         elif auto_updated > 0:
             _LOGGER.debug("Checking whether auto update forecast is stale")
-            if coordinator.interval_just_passed is not None and coordinator.solcast.data[LAST_ATTEMPT] < coordinator.interval_just_passed:
+            interval_just_passed = coordinator.interval_just_passed
+            last_attempt = coordinator.solcast.data[LAST_ATTEMPT]
+            today_start = coordinator.solcast.dt_helper.day_start_utc()
+            yesterday_start = coordinator.solcast.dt_helper.day_start_utc(future=-1)
+            if interval_just_passed is None or last_attempt >= interval_just_passed:
+                _LOGGER.debug("Auto update forecast is fresh")
+            elif interval_just_passed < today_start and last_attempt >= yesterday_start:
+                # Only the last updates of yesterday (local time) are missing. Fetching one now, for example at night,
+                # would take a call from today's updates, so the next scheduled update fetches the forecast.
+                _LOGGER.debug("Previous auto update was due yesterday, waiting for the next one")
+            elif not coordinator.solcast.forecast_update_fits:
+                _LOGGER.debug("Previous auto update was missed, but no API call is left for it, waiting for the next one")
+            else:
                 _LOGGER.info(
                     "Last auto update forecast recorded (%s) is older than expected, should be (%s), updating forecast",
                     coordinator.solcast.data[LAST_ATTEMPT].astimezone(coordinator.solcast.options.tz).strftime(DT_DATE_FORMAT),
@@ -267,8 +279,6 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator, serv
                 }
                 await service_actions.async_update_forecast(**kwargs)
                 stale = True
-            else:
-                _LOGGER.debug("Auto update forecast is fresh")
     return stale
 
 

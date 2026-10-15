@@ -1,7 +1,7 @@
 """Solcast API."""
 
 import asyncio
-from collections import OrderedDict, defaultdict
+from collections import Counter, OrderedDict, defaultdict
 import contextlib
 import copy
 from dataclasses import dataclass
@@ -517,6 +517,16 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             int: The number of failures in the last 14 days.
         """
         return sum(self.data[FAILURE][LAST_14D])
+
+    @property
+    def forecast_update_fits(self) -> bool:
+        """Whether every API key still has a call for each of its sites.
+
+        Returns:
+            bool: True when a forecast update of every site would not be refused for the API limit.
+        """
+        sites_per_key = Counter(site[CONF_API_KEY] for site in self.sites)
+        return all(self.api_used.get(api_key, 0) + sites <= self.api_limits.get(api_key, 0) for api_key, sites in sites_per_key.items())
 
     @property
     def api_used_count(self) -> int:
