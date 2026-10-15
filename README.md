@@ -1500,6 +1500,8 @@ Latest minor/patch releases.
 v4.6.2
 
 * Add DNS timeout retries by @autoSteve
+* Fix Dublin dampening intervals shifted by one hour when the system time zone database marks summer as +1 hour by @Bascht74
+* Fix false missing forecast data warnings and repair issues around summer time changes by @Bascht74
 * Embrace Home Assistant dt_util by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.1...v4.6.2
