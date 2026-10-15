@@ -13,8 +13,10 @@ from custom_components.solcast_sim.restore_helpers import (  # pyright: ignore[r
     select_measurement_restore_value,
 )
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, State
 from homeassistant.helpers import entity_registry as er
+
+from tests.common import mock_restore_cache
 
 _T1 = datetime(2025, 1, 1, 12, 0, tzinfo=UTC)
 _T2 = datetime(2025, 1, 1, 13, 0, tzinfo=UTC)
@@ -231,47 +233,35 @@ async def test_prime_model_does_nothing_when_no_state_available(hass: HomeAssist
 
 
 async def test_restored_sensor_value_returns_float_and_timestamp(hass: HomeAssistant) -> None:
-    """Return (float, timestamp) from a valid restore state."""
+    """Return the value and time stored before the restart.
+
+    Home Assistant 2026.11 keeps stored states by entity registry id, older
+    versions by entity_id. Both must return the 42.5 kWh from 10:00.
+    """
     registry = er.async_get(hass)
-    registry.async_get_or_create(
+    entry = registry.async_get_or_create(
         domain="sensor",
         platform="solcast_sim",
         unique_id="solcast_sim_battery_energy",
     )
     ts = datetime(2025, 6, 1, 10, 0, tzinfo=UTC)
-    fake_stored = SimpleNamespace(
-        state=SimpleNamespace(state="42.5", last_updated=ts, last_changed=None),
-        last_seen=None,
-    )
-    mock_restore = MagicMock()
-    mock_restore.last_states = {"sensor.solcast_sim_solcast_sim_battery_energy": fake_stored}
-    with patch(
-        "custom_components.solcast_sim.restore_helpers.async_get_restore_state",
-        return_value=mock_restore,
-    ):
-        result = restored_sensor_value(hass, "solcast_sim", "solcast_sim_battery_energy")
+    mock_restore_cache(hass, [State(entry.entity_id, "42.5", last_updated=ts)])
+
+    result = restored_sensor_value(hass, "solcast_sim", "solcast_sim_battery_energy")
     assert result == (42.5, ts)
 
 
 async def test_restored_sensor_value_returns_none_on_invalid_state(hass: HomeAssistant) -> None:
-    """Return None when stored state is not a valid float."""
+    """Return None when the stored state is not a number."""
     registry = er.async_get(hass)
-    registry.async_get_or_create(
+    entry = registry.async_get_or_create(
         domain="sensor",
         platform="solcast_sim",
         unique_id="solcast_sim_battery_energy",
     )
-    fake_stored = SimpleNamespace(
-        state=SimpleNamespace(state="unavailable", last_updated=None, last_changed=None),
-        last_seen=None,
-    )
-    mock_restore = MagicMock()
-    mock_restore.last_states = {"sensor.solcast_sim_solcast_sim_battery_energy": fake_stored}
-    with patch(
-        "custom_components.solcast_sim.restore_helpers.async_get_restore_state",
-        return_value=mock_restore,
-    ):
-        result = restored_sensor_value(hass, "solcast_sim", "solcast_sim_battery_energy")
+    mock_restore_cache(hass, [State(entry.entity_id, "unavailable")])
+
+    result = restored_sensor_value(hass, "solcast_sim", "solcast_sim_battery_energy")
     assert result is None
 
 

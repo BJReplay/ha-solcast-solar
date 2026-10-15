@@ -40,7 +40,7 @@ def restored_sensor_value(
     if entity_id is None:
         return None
 
-    if (stored := async_get_restore_state(hass).last_states.get(entity_id)) is None:
+    if (stored := async_get_restore_state(hass).async_get_stored_state(entity_id)) is None:
         return None
 
     with contextlib.suppress(ValueError, TypeError):
