@@ -72,6 +72,7 @@ from .aioresponses import CallbackResult, aioresponses
 from .simulator import API_KEY_SITES, GENERATION_FACTOR, SimulatedSolcast
 
 from tests.common import MockConfigEntry
+from tests.components.recorder.common import async_wait_recording_done
 
 KEY1 = "1"
 KEY2 = "2"
@@ -542,7 +543,7 @@ async def async_setup_extra_sensors(  # noqa: C901
             session.commit()
 
     async def flush_history() -> None:
-        """Flush queued history rows and final live states."""
+        """Flush queued history rows and final live states, then wait until the recorder has committed them."""
 
         if _use_batched_history and pending_history_rows:
             await get_instance(hass).async_add_executor_job(insert_history_rows, list(pending_history_rows))
@@ -554,8 +555,7 @@ async def async_setup_extra_sensors(  # noqa: C901
             pending_live_states.clear()
 
         if _faster:
-            await hass.async_block_till_done()
-            await hass.async_block_till_done()
+            await async_wait_recording_done(hass)
 
     match extra_sensors:
         case ExtraSensors.YES_WATT_HOUR:
