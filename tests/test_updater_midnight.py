@@ -391,6 +391,6 @@ async def test_update_is_aborted_while_a_fetch_is_running(
         result = await solcast.fetcher.get_forecast_update()
     finally:
         solcast.tasks.pop(TASK_FORECASTS_FETCH)
-    assert result.outcome == UpdateOutcome.ABORTED
+    assert result.outcome is UpdateOutcome.ABORTED
     assert "A fetch task is already running, so aborting forecast update" in caplog.text
     assert "Forecast update aborted" in caplog.text
