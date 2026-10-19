@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 from datetime import datetime as dt, timedelta
+import functools
 import logging
 import math
 from random import randint
@@ -67,7 +68,7 @@ class Updater:
         self.interval_just_passed: dt | None = None
         self.accuracy_data: dict[str, Any] = {}
         self._intervals: list[dt] = []
-        self._update_sequence: list[int] = []
+        self._claimed: set[dt] = set()  # Slots armed or dispatched, so a rebuilt schedule or repeated check cannot claim one twice
         self._sunrise: dt
         self._sunrise_tomorrow: dt
         self._sunrise_yesterday: dt
@@ -146,7 +147,9 @@ class Updater:
                     self.interval_just_passed = i
                 else:
                     break
-            intervals = [i for i in intervals if i > _now]
+            # A daily rebuild is made on the tick that checks for due updates, so retain this five-minute window's slot for that check
+            window_start = _now - timedelta(minutes=_now.minute % 5, seconds=_now.second, microseconds=_now.microsecond)
+            intervals = [i for i in intervals if (i > _now if init else i >= window_start) and i not in self._claimed]
             if _LOGGER.isEnabledFor(logging.DEBUG):
                 if log:
                     _LOGGER.debug("Auto update total seconds %d, divisions %d, interval %d seconds", seconds, self.divisions, interval)
@@ -235,21 +238,21 @@ class Updater:
                 _now = self._coordinator.solcast.dt_helper.real_now_utc().replace(microsecond=0)
                 _from = _now.replace(minute=int(_now.minute / 5) * 5, second=0)
 
+                self._claimed = {interval for interval in self._claimed if interval >= _from}
                 pop_expired: list[int] = []
                 for index, interval in enumerate(self._intervals):
-                    if _from <= interval < _from + timedelta(minutes=5):
-                        update_in = int((interval - _now).total_seconds())
-                        if update_in >= 0:
-                            task_name = f"pending_update_{update_in:03}"
-                            _LOGGER.debug(
-                                "Create task %s to fire at %02d:%02d:%02d UTC", task_name, interval.hour, interval.minute, interval.second
-                            )
-                            self._update_sequence.append(update_in)
-                            self._coordinator.tasks[task_name] = async_track_point_in_utc_time(
-                                self._coordinator.hass,
-                                self._fetch,
-                                interval,
-                            )
+                    if _from <= interval < _from + timedelta(minutes=5) and interval not in self._claimed:
+                        update_in = max(0, int((interval - _now).total_seconds()))  # Due now if this check started late
+                        task_name = f"pending_update_{update_in:03}"
+                        _LOGGER.debug(
+                            "Create task %s to fire at %02d:%02d:%02d UTC", task_name, interval.hour, interval.minute, interval.second
+                        )
+                        self._claimed.add(interval)
+                        self._coordinator.tasks[task_name] = async_track_point_in_utc_time(
+                            self._coordinator.hass,
+                            functools.partial(self._fetch, interval, task_name),
+                            interval,
+                        )
                     if interval < _from:
                         pop_expired.append(index)
                 # Remove expired intervals if any have been missed
@@ -258,17 +261,15 @@ class Updater:
                     self._intervals = [interval for i, interval in enumerate(self._intervals) if i not in pop_expired]
                     self.set_next_update()
 
-    async def _fetch(self, _called_at: dt | None = None) -> None:
-        """Handle a scheduled auto forecast update."""
+    async def _fetch(self, slot: dt, task_name: str, _called_at: dt | None = None) -> None:
+        """Handle a scheduled auto forecast update, consuming the slot that was scheduled and no other."""
 
-        if len(self._update_sequence) > 0:
-            task_name = f"pending_update_{self._update_sequence.pop(0):03}"
-            _LOGGER.info("Auto update forecast")
-            self._intervals.pop(0)
-            self.set_next_update()
-            await self.forecast_update(completion=f"Completed task {task_name}")
-            if task_name in self._coordinator.tasks:
-                self._coordinator.tasks.pop(task_name)
+        _LOGGER.info("Auto update forecast")
+        if slot in self._intervals:
+            self._intervals.remove(slot)
+        self.set_next_update()
+        await self.forecast_update(completion=f"Completed task {task_name}")
+        self._coordinator.tasks.pop(task_name, None)
 
     async def forecast_update(self, force: bool = False, completion: str = "", need_history_hours: int = 0) -> None:
         """Get updated forecast data."""
