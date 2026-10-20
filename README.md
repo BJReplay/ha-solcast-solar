@@ -5,6 +5,7 @@
 ![GitHub Release](https://img.shields.io/github/v/release/BJReplay/ha-solcast-solar?style=for-the-badge)
 [![hacs_downloads](https://img.shields.io/github/downloads/BJReplay/ha-solcast-solar/latest/total?style=for-the-badge)](https://github.com/BJReplay/ha-solcast-solar/releases/latest)
 ![GitHub License](https://img.shields.io/github/license/BJReplay/ha-solcast-solar?style=for-the-badge)
+[![Tests](https://img.shields.io/github/actions/workflow/status/BJReplay/ha-solcast-solar/pytest.yml?branch=main&label=tests&style=for-the-badge)](https://github.com/BJReplay/ha-solcast-solar/actions/workflows/pytest.yml)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/y/BJReplay/ha-solcast-solar?style=for-the-badge)
 ![Maintenance](https://img.shields.io/maintenance/yes/2026?style=for-the-badge)
 
