@@ -1502,6 +1502,9 @@ v4.6.2
 * Add DNS timeout retries by @autoSteve
 * Embrace Home Assistant dt_util by @autoSteve
 * Run the test suite with coverage on every push and pull request by @Bascht74
+* Fix api_raise_issues text in 429 repair issue description by @splichy
+* Fix 400 return code on forecast fetch due to DST transition by @BJReplay
+* Update checkout action version to v5 by @BJReplay
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.1...v4.6.2
 
