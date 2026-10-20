@@ -168,7 +168,7 @@ jobs:
         run: |
           # Core dev moved tests/common.py and the other test helpers into the package pytest_homeassistant.
           [ -d core/packages/pytest-home-assistant ] || exit 0
-          modules="common|typing|ignore_uncaught_exceptions|components\.diagnostics"
+          modules="common|typing|ignore_uncaught_exceptions|components\.diagnostics|components\.recorder\.common"
           grep -rlE "from tests\.($modules) import" core/tests/components/solcast_* \
             | xargs -r sed -i -E "s/from tests\.($modules) import/from pytest_homeassistant.\1 import/"
 
