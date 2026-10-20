@@ -311,6 +311,7 @@ LAST_14D: Final[str] = "last_14d"
 LEARN_MORE: Final[str] = "learn_more"
 MANUFACTURER: Final[str] = "BJReplay"
 MAXIMUM: Final[str] = "max"
+MAX_HOURS: Final[int] = 336
 MESSAGE: Final[str] = "message"
 METHOD: Final[str] = "method"
 MINIMUM: Final[str] = "min"

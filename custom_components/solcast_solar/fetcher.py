@@ -57,6 +57,7 @@ from .const import (
     LAST_ATTEMPT,
     LAST_UPDATED,
     LEARN_MORE_MISSING_FORECAST_DATA,
+    MAX_HOURS,
     MESSAGE,
     PERIOD_END,
     PERIOD_START,
@@ -434,6 +435,10 @@ class Fetcher:
         try:
             last_day = self.api.dt_helper.day_start_utc(future=self.api.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS])
             hours = math.ceil((last_day - self.api.dt_helper.now_utc()).total_seconds() / 3600)
+            if hours > MAX_HOURS:
+                # DST Transition has blown past max hours allowable for Solcast forecast API - jump back a day
+                last_day = self.api.dt_helper.day_start_utc(future=self.api.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS]-1)
+                hours = math.ceil((last_day - self.api.dt_helper.now_utc()).total_seconds() / 3600)
             _LOGGER.debug(
                 "Polling API for site %s, last day %s, %d hours",
                 site,
