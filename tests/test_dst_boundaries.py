@@ -115,6 +115,13 @@ def _dt_helper(tz_name: str) -> DateTimeHelper:
         # -- Non-DST zone (Australia/Brisbane) --
         ("Australia/Brisbane", "2025-07-15T00:00:00+10:00", 0, "Brisbane midnight maps to interval 0 (never DST)"),
         ("Australia/Brisbane", "2025-07-15T23:30:00+10:00", 47, "Brisbane 23:30 maps to interval 47 (never DST)"),
+        # -- Europe/London (UTC+1 BST / UTC+0 GMT) --
+        # Summer (BMT): offset = 1 - placeholder to exercise the MAX_HOURS test
+        ("Europe/London", "2026-10-10T00:00:00+00:00", 0, "London winter midnight maps to interval 0"),
+        ("Europe/London", "2026-10-15T00:00:00+00:00", 0, "London winter midnight maps to interval 0"),
+        ("Europe/London", "2026-10-20T00:00:00+00:00", 0, "London winter midnight maps to interval 0"),
+        ("Europe/London", "2026-10-26T00:00:00+00:00", 0, "London summer midnight maps to interval 0"),
+        ("Europe/London", "2026-10-31T00:00:00+00:00", 0, "London summer midnight maps to interval 0"),
     ],
 )
 def test_adjusted_interval_dt_boundaries(
