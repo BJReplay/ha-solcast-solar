@@ -317,7 +317,7 @@
       "title": "Problém s pokročilou možnosťou"
     },
     "api_unavailable": {
-      "description": "Počas aktualizácie Solcast API opakovane hlásilo stav `429 / Try again later`. To znamená, že Solcast API je zaneprázdnené a aktívne blokuje požiadavky pre hobby účty.\n\n* Webová stránka solcast.com nie je ovplyvnená, ale API je dočasne nedostupné pre vás.\n* Stránka stavu API na status.solcast.com takmer určite neukáže žiadny problém.\n* Nesnažte sa túto situáciu riešiť.\n* Nezmeňte svoj kľúč API.\n* Nesnažte sa aktualizovať integráciu.\n* Vyhnite sa reštartovaniu integrácie.\n* Integrácia bude naďalej poskytovať poslednú predpoveď solárneho žiarenia získanú zo Solcastu.\n* Nie je to problém s integráciou a vyrieši sa to samo. Nič nemeňte.\n\n(Ak chcete tento problém potlačiť, vytvorte možnosť pokročilej konfigurácie api_raise_issue a nastavte ju na false.)",
+      "description": "Počas aktualizácie Solcast API opakovane hlásilo stav `429 / Try again later`. To znamená, že Solcast API je zaneprázdnené a aktívne blokuje požiadavky pre hobby účty.\n\n* Webová stránka solcast.com nie je ovplyvnená, ale API je dočasne nedostupné pre vás.\n* Stránka stavu API na status.solcast.com takmer určite neukáže žiadny problém.\n* Nesnažte sa túto situáciu riešiť.\n* Nezmeňte svoj kľúč API.\n* Nesnažte sa aktualizovať integráciu.\n* Vyhnite sa reštartovaniu integrácie.\n* Integrácia bude naďalej poskytovať poslednú predpoveď solárneho žiarenia získanú zo Solcastu.\n* Nie je to problém s integráciou a vyrieši sa to samo. Nič nemeňte.\n\n(Ak chcete tento problém potlačiť, vytvorte možnosť pokročilej konfigurácie api_raise_issues a nastavte ju na false.)",
       "title": "Solcast API dočasne nedostupné"
     },
     "actuals_api_limit": {
