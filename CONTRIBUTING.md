@@ -23,7 +23,19 @@ ruff check .
 ruff format .
 ```
 
-Configuration lives in `pyproject.toml` — currently the `E`, `F`, `I`, `UP`, and `B` rule sets, targeting Python 3.13, 100-character line length. Please run both before opening a PR.
+Please run both before opening a PR.
+
+Configuration lives in `pyproject.toml` — if you are using the supplied pyproject.toml from the Home Assistant Dev Container, as we support older versions of home assistant than the latest dev version, you will want to make some changes to the supplied template:
+
+```toml
+[tool.ruff]
+required-version = ">=0.16.8"
+line-length = 140
+target-version = "py313"
+```
+
+Remove the line:
+`"__future__.annotations".msg = "It should not be needed because Home Assistant requires Python 3.14+"`
 
 ## Key Expectations
 
