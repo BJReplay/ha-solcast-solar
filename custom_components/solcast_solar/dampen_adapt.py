@@ -85,10 +85,22 @@ def _prefer_default_model(scores: dict[tuple[int, int], float], margin: int) -> 
     """
     best = min(scores, key=lambda md: (scores[md], md[0], md[1]))
     default_model = ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][DEFAULT]
+    if not margin or best[0] == default_model:
+        return best
     defaults = [md for md in scores if md[0] == default_model]
     if defaults:
         best_default = min(defaults, key=lambda md: (scores[md], md[1]))
-        if scores[best_default] - scores[best] < margin - _RANK_TOLERANCE:
+        lead = scores[best_default] - scores[best]
+        if lead < margin - _RANK_TOLERANCE:
+            _LOGGER.debug(
+                "Switch margin %s keeps Model %d Delta %d: Model %d Delta %d leads by %.3f",
+                margin,
+                best_default[0],
+                best_default[1],
+                best[0],
+                best[1],
+                lead,
+            )
             return best_default
     return best
 

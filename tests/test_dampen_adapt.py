@@ -443,7 +443,7 @@ async def test_update_history_deal_breaker(
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
-def test_default_model_stays_unless_another_is_clearly_better() -> None:
+def test_default_model_stays_unless_another_is_clearly_better(caplog: pytest.LogCaptureFixture) -> None:
     """With a switch margin of 2, model 0 stays unless another model ranks at least two places better on average.
 
     On a north roof the adaptive choice took models 0, 2 and 3 in turns almost every day, after a few days of
@@ -451,8 +451,11 @@ def test_default_model_stays_unless_another_is_clearly_better() -> None:
     """
 
     # Each key is (model, delta adjustment model), each value its mean rank over the days: lower is better.
-    # Model 2 ranks 1.5 places better than model 0, which is noise: model 0 stays.
+    # Model 2 ranks 1.5 places better than model 0, which is noise: model 0 stays, and the log says why.
     assert _prefer_default_model({(0, 0): 4.5, (2, 0): 3.0, (3, 1): 6.0}, 2) == (0, 0)
+    assert "Switch margin 2 keeps Model 0 Delta 0: Model 2 Delta 0 leads by 1.500" in caplog.text
+    # Model 0 ranks best itself: it stays.
+    assert _prefer_default_model({(0, 0): 3.0, (2, 0): 4.5}, 2) == (0, 0)
     # Model 2 ranks 2.5 places better: it takes over.
     assert _prefer_default_model({(0, 0): 5.5, (2, 0): 3.0, (3, 1): 6.0}, 2) == (2, 0)
     # Without model 0, for example when it is excluded, the best model wins as before.
