@@ -20,6 +20,7 @@ from .const import (
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN,
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
     ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR,
     ADVANCED_AUTOMATED_DAMPENING_MODEL,
@@ -73,19 +74,18 @@ _DELTA_RANGE: Final = range(
 
 _MIN_GEN_FRACTION: Final[float] = 0.10
 
-# Another model replaces the default model only with a mean rank at least this much better, so a few days of
-# curtailment or partial shade do not switch the model back and forth.
-_SWITCH_MARGIN: Final[float] = 2.0
 
+def _prefer_default_model(scores: dict[tuple[int, int], float], margin: int) -> tuple[int, int]:
+    """Return the (model, delta) with the best mean rank, keeping the default model unless another ranks at least margin places better.
 
-def _prefer_default_model(scores: dict[tuple[int, int], float]) -> tuple[int, int]:
-    """Return the (model, delta) with the best mean rank, keeping the default model unless another is clearly better."""
+    With a margin of 0 the best mean rank wins.
+    """
     best = min(scores, key=lambda md: (scores[md], md[0], md[1]))
     default_model = ADVANCED_OPTIONS[ADVANCED_AUTOMATED_DAMPENING_MODEL][DEFAULT]
     defaults = [md for md in scores if md[0] == default_model]
     if defaults:
         best_default = min(defaults, key=lambda md: (scores[md], md[1]))
-        if scores[best_default] - scores[best] < _SWITCH_MARGIN:
+        if scores[best_default] - scores[best] < margin:
             return best_default
     return best
 
@@ -644,11 +644,13 @@ class DampeningAdaptive:
         no_delta_candidates = {md: s for md, s in borda_scores.items() if md[1] == VALUE_ADAPTIVE_DAMPENING_NO_DELTA}
         adjusted_candidates = {md: s for md, s in borda_scores.items() if md[1] != VALUE_ADAPTIVE_DAMPENING_NO_DELTA}
 
+        margin = self.dampening.api.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN]
+
         if no_delta_candidates:
-            best_model_no_delta = _prefer_default_model(no_delta_candidates)[0]
+            best_model_no_delta = _prefer_default_model(no_delta_candidates, margin)[0]
 
         if adjusted_candidates:
-            best_model_adjusted, best_delta_adjusted = _prefer_default_model(adjusted_candidates)
+            best_model_adjusted, best_delta_adjusted = _prefer_default_model(adjusted_candidates, margin)
 
         return _ModelEvalResult(
             daily_model_errors=daily_model_errors,
