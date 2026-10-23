@@ -1439,7 +1439,7 @@ This integration requires `watchfiles` which is not part of the standard Home As
 
 If you receive an error attempting to install this integration - or after updating Home Assistant - that says `Setup failed for custom integration 'solcast_solar': Requirements for solcast_solar not found: ['watchfiles>=1.0.0']` then you have run into this error.
 
-You should consider adding `files.pythonhosted.org` to your adblocker's whitelist, or using a different DNS server for Home Assistant, or at least temporarily disabling your adblocker.
+You should consider adding `files.pythonhosted.org` to your adblocker's whitelist, or using a different DNS server for Home Assistant, or at least consider temporarily disabling your adblocker.
 
 ## Troubleshooting
 
