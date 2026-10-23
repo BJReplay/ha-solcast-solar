@@ -241,7 +241,7 @@ Possible values: float `0.0`..`11.0` (default `0.0`)
 
 How many places better on average another configuration must rank before it replaces the default dampening model `0`. With the default of `0.0` the best ranked configuration is selected.
 
-With a margin of `2.0`, model `0` is selected unless another configuration ranks at least two places better on average (see the [ranking](#automated-dampening-adaptation) above), so a few days of curtailment or partial shade do not switch the model back and forth. If model `0` is excluded, the best ranked configuration is selected.
+For example, with a margin of `2.0`, model `0` is selected unless another configuration ranks at least two places better on average (see the [ranking](#automated-dampening-adaptation) above), so a few days of curtailment or partial shade do not switch the model back and forth. If model `0` is excluded, the best ranked configuration is selected.
 
 Can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
 
