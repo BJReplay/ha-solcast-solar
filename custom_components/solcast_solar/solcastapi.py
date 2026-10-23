@@ -974,17 +974,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             end_utc = self.dt_helper.day_start_utc(future=future_day + 1)
             start_index, end_index = self.query.get_list_slice(self.data_forecasts, start_utc, end_utc)
 
-            expected_intervals = 48
-            _is_dst: bool | None = (
-                self.dt_helper.is_interval_dst(self.data_forecasts[start_index]) if start_index < len(self.data_forecasts) else None
-            )
-            for interval in range(start_index, min(len(self.data_forecasts), start_index + 8)):
-                is_daylight = self.dt_helper.is_interval_dst(self.data_forecasts[interval])
-                if is_daylight != _is_dst:
-                    time_transitioning = True
-                    transition_from_dst = _is_dst
-                    expected_intervals = 50 if _is_dst else 46
-                    break
+            # From the real length of the local day, so a DST flag change without a clock change keeps 48.
+            expected_intervals = (end_utc - start_utc) // timedelta(minutes=30)
+            if expected_intervals != 48:
+                time_transitioning = True
+                transition_from_dst = expected_intervals > 48
             intervals = end_index - start_index
             forecasts_date = dt_util.now(self.tz).date() + timedelta(days=future_day)
 

@@ -1,6 +1,6 @@
 """Solcast update coordinator."""
 
-from datetime import datetime as dt, timedelta
+from datetime import datetime as dt
 from operator import itemgetter
 from typing import Any
 
@@ -346,7 +346,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
                     dst = False
                     now_local = dt.now(self.solcast.options.tz)
                     for i, f in enumerate(self.solcast.dampening.factors.get(ALL, [])):
-                        dst = now_local.replace(hour=i // 2, minute=i % 2 * 30, second=0, microsecond=0).dst() == timedelta(hours=1)
+                        dst = self.solcast.dt_helper.dst(now_local.replace(hour=i // 2, minute=i % 2 * 30, second=0, microsecond=0))
                         interval = f"{i // 2 + (1 if dst else 0):02d}:{i % 2 * 30:02d}"
                         factors[interval] = {
                             INTERVAL: interval,
