@@ -1510,6 +1510,7 @@ Latest minor/patch releases.
 v4.6.3
 
 * Add SSL verify by default by @autoSteve
+* Add a model switch margin for adaptive dampening by @Bascht74
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.2...v4.6.3
 
