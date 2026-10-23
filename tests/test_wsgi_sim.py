@@ -1,13 +1,19 @@
 """Tests for the Solcast WSGI simulator CLI."""
 
+from copy import deepcopy
+from datetime import UTC, datetime, timedelta
 import importlib.util
 import json
+import math
 from pathlib import Path
 import sys
 from types import ModuleType
+from typing import Any
 from unittest.mock import patch
+from urllib.parse import parse_qs
 from zoneinfo import ZoneInfo
 
+from freezegun.api import FrozenDateTimeFactory
 import pytest
 
 from homeassistant.components.solcast_solar.const import (
@@ -51,6 +57,223 @@ def _test_client(module: ModuleType):
     setattr(module, "BOMB_418", False)  # noqa: B010
     module.app.config["TESTING"] = True  # type: ignore[attr-defined]
     return module.app.test_client()  # type: ignore[attr-defined]
+
+
+@pytest.fixture
+def bounded_route_module(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
+    """Isolate API state and disable failures and guidance for route tests."""
+    module = _load_wsgi_sim_module()
+    sites = deepcopy(module.API_KEY_SITES)
+    for api_key in sites.values():
+        api_key["counter"] = 0
+    monkeypatch.setattr(module, "API_KEY_SITES", sites)
+    monkeypatch.setattr(sys.modules[module.SimulatedSolcast.__module__], "API_KEY_SITES", sites)
+    monkeypatch.setattr(module, "BOMB_KEY", [])
+    monkeypatch.setattr(module, "BOMB_429", [])
+    monkeypatch.setattr(module, "BOMB_418", False)
+    monkeypatch.setattr(module, "GUIDANCE_FILE", None)
+    monkeypatch.setattr(module, "GUIDANCE_MTIME", None)
+    monkeypatch.setattr(module, "simulate", module.SimulatedSolcast())
+    module.simulate.set_time_zone(ZoneInfo("UTC"))
+    return module
+
+
+@pytest.mark.parametrize(
+    ("route", "response_key", "fields", "maximum", "oversized", "start", "end"),
+    [
+        pytest.param(
+            "/rooftop_sites/1111-1111-1111-1111/forecasts",
+            FORECASTS,
+            ("pv_estimate", "pv_estimate10", "pv_estimate90"),
+            336,
+            400,
+            0,
+            1,
+            id="rooftop-forecasts",
+        ),
+        pytest.param(
+            "/rooftop_sites/1111-1111-1111-1111/estimated_actuals",
+            ESTIMATED_ACTUALS,
+            ("pv_estimate",),
+            168,
+            300,
+            -1,
+            0,
+            id="rooftop-actuals",
+        ),
+        pytest.param(
+            "/data/forecast/advanced_pv_power",
+            FORECASTS,
+            ("pv_power_advanced", "pv_power_advanced10", "pv_power_advanced90"),
+            336,
+            400,
+            0,
+            1,
+            id="advanced-forecasts",
+        ),
+    ],
+)
+@pytest.mark.parametrize("request_size", ["small", "maximum", "oversized", "huge"])
+@pytest.mark.parametrize("minute", [0, 17], ids=["aligned", "overlapping-period"])
+def test_route_hours_bounds(
+    bounded_route_module: ModuleType,
+    freezer: FrozenDateTimeFactory,
+    route: str,
+    response_key: str,
+    fields: tuple[str, ...],
+    maximum: int,
+    oversized: int,
+    start: int,
+    end: int,
+    request_size: str,
+    minute: int,
+) -> None:
+    """HTTP horizons are capped, bounded, numeric and never padded."""
+    now = datetime(2026, 9, 6, 8, minute, tzinfo=UTC)
+    freezer.move_to(now)
+    hours = {
+        "small": 8,
+        "maximum": maximum,
+        "oversized": oversized,
+        "huge": 10**100,
+    }[request_size]
+    clamped_hours = min(hours, maximum)
+    client = _test_client(bounded_route_module)
+    query = {"api_key": "1", "resource_id": "1111-1111-1111-1111", "hours": hours}
+    response = client.get(route, query_string=query)
+    assert response.status_code == 200
+    payload = response.get_json()
+    periods = payload[response_key]
+    assert len(periods) == clamped_hours * 2
+    lower = now + timedelta(hours=start * clamped_hours)
+    upper = now + timedelta(hours=end * clamped_hours)
+    period_ends = [datetime.fromisoformat(period["period_end"]) for period in periods]
+    assert all(lower < period_end.astimezone(UTC) <= upper for period_end in period_ends)
+    assert period_ends == sorted(set(period_ends))
+    for period in periods:
+        assert period["period"] == "PT30M"
+        assert set(period) == {"period_end", "period", *fields}
+        for field in fields:
+            assert type(period[field]) in (int, float)
+            assert math.isfinite(period[field])
+
+    capped_response = client.get(route, query_string=query | {"hours": clamped_hours})
+    assert capped_response.status_code == 200
+    assert payload == capped_response.get_json()
+
+
+def test_route_actuals_guidance_is_not_padded(
+    bounded_route_module: ModuleType,
+    freezer: FrozenDateTimeFactory,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Missing recorder-backed days stay absent from the capped actuals response."""
+    now = datetime(2026, 9, 6, 8, tzinfo=UTC)
+    freezer.move_to(now)
+    monkeypatch.setattr(bounded_route_module.simulate, "_guidance_file_loaded", True)
+    bounded_route_module.simulate.set_forecast_guidance({}, {"2026-09-06"})
+    client = _test_client(bounded_route_module)
+    response = client.get(
+        "/rooftop_sites/1111-1111-1111-1111/estimated_actuals",
+        query_string={"api_key": "1", "hours": 300},
+    )
+    assert response.status_code == 200
+    periods = response.get_json()[ESTIMATED_ACTUALS]
+    assert len(periods) == 17
+    assert [datetime.fromisoformat(period["period_end"]) for period in periods] == [
+        now.replace(hour=0) + timedelta(minutes=30 * index) for index in range(17)
+    ]
+    assert all(type(period["pv_estimate"]) in (int, float) for period in periods)
+    assert all(math.isfinite(period["pv_estimate"]) for period in periods)
+
+
+@pytest.mark.parametrize(
+    ("kind", "maximum", "collection_hours"),
+    [(FORECASTS, 336, 336), (ESTIMATED_ACTUALS, 168, 168)],
+)
+def test_proxy_collects_capped_wsgi_data(
+    bounded_route_module: ModuleType,
+    freezer: FrozenDateTimeFactory,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    maximum: int,
+    collection_hours: int,
+) -> None:
+    """The real proxy serves bounded simulator data without any network calls."""
+    name = "tests.components.solcast_solar._proxy_wsgi_test"
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name("proxy.py"))
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    monkeypatch.setitem(sys.modules, name, module)
+    spec.loader.exec_module(module)
+    upstream = _test_client(bounded_route_module)
+    calls: list[tuple[str, dict[str, list[str]]]] = []
+
+    def fetch(path: str, query: str) -> Any:
+        calls.append((path, parse_qs(query)))
+        response = upstream.get(path, query_string=query)
+        return module.UpstreamResponse(response.status_code, response.get_json())
+
+    clock = [datetime(2026, 9, 6, 7, 59, tzinfo=UTC)]
+    freezer.move_to(clock[0])
+    configured = module.SolcastProxy(
+        fetch=fetch,
+        now=lambda: clock[0],
+        forecast_cron="* * * * *",
+        actuals_cron="* * * * *",
+    )
+    monkeypatch.setattr(module, "proxy", configured)
+    client = module.app.test_client()
+    path = f"/rooftop_sites/1111-1111-1111-1111/{kind}"
+    query = {"api_key": "1", "hours": maximum, "format": "json"}
+    assert client.get(path, query_string=query).status_code == 503
+    assert calls == []
+    clock[0] += timedelta(minutes=1)
+    freezer.move_to(clock[0])
+    configured.run_pending()
+    assert len(calls) == 2
+    assert (
+        path,
+        {"api_key": ["1"], "format": ["json"], "hours": [str(collection_hours)]},
+    ) in calls
+    full = client.get(path, query_string=query)
+    assert full.status_code == 200
+    assert len(full.get_json()[kind]) == maximum * 2
+    assert full.headers["x-proxy-cache-hours"] == str(maximum)
+    assert full.headers["x-proxy-hours-truncated"] == "false"
+    oversized = client.get(path, query_string=query | {"hours": 1000})
+    assert oversized.get_json() == full.get_json()
+    assert oversized.headers["x-proxy-hours-truncated"] == "true"
+    small = client.get(path, query_string=query | {"hours": 8})
+    assert len(small.get_json()[kind]) == 16
+    assert len(calls) == 2
+
+
+@pytest.mark.parametrize("hours", [8, 300])
+def test_route_historic_advanced_duration_unchanged(
+    bounded_route_module: ModuleType,
+    freezer: FrozenDateTimeFactory,
+    hours: int,
+) -> None:
+    """Historical advanced durations keep the shared generator's extra periods."""
+    now = datetime(2026, 9, 6, 8, tzinfo=UTC)
+    freezer.move_to(now)
+    start = now - timedelta(hours=hours)
+    client = _test_client(bounded_route_module)
+    response = client.get(
+        "/data/historic/advanced_pv_power",
+        query_string={
+            "api_key": "1",
+            "resource_id": "1111-1111-1111-1111",
+            "start": start.isoformat(),
+            "duration": f"PT{hours}H",
+        },
+    )
+    assert response.status_code == 200
+    periods = response.get_json()[ESTIMATED_ACTUALS]
+    assert len(periods) == (hours + 1) * 2
+    assert datetime.fromisoformat(periods[0]["period_end"]) == start + timedelta(minutes=30)
+    assert datetime.fromisoformat(periods[-1]["period_end"]) == now + timedelta(hours=1)
 
 
 def test_wsgi_sim_parser_accepts_port() -> None:

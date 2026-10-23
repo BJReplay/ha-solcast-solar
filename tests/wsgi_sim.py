@@ -22,6 +22,8 @@ Theory of operation:
 * API key 1 has two sites, API key 2 has one site, API key 3 has an impossible (for hobbyists) three sites.
 * Forecast for every day is the same blissful-clear-day bell curve.
 * As time goes on new forecast hour values are calculated based on the current get forecasts call time of day.
+* Rooftop HTTP forecasts are capped at 336 hours and estimated actuals at 168 hours, without padding.
+* Advanced HTTP forecast hours are also capped at 336; historical advanced duration semantics are unchanged.
 * 429 responses are only given when --bomb429 is specified.
 * An occasionally generated "I'm a teapot" status can verify that the integration handles unknown status returns gracefully.
 * The time zone used should be read from the Home Assistant configuration. If this fails then the zone will be Australia/Melbourne.
@@ -41,6 +43,8 @@ Should Solcast deprecate the legacy hobbyist API, then the advanced_pv_power API
 This simulator is prepared should this occur.
 
 """
+
+# pylint: disable=home-assistant-enforce-utcnow
 
 import argparse
 import copy
@@ -62,6 +66,8 @@ from simulator import API_KEY_SITES, SimulatedSolcast
 
 simulate = SimulatedSolcast()
 DEFAULT_PORT = 443
+MAX_FORECAST_HOURS = 336
+MAX_ACTUAL_HOURS = 168
 GUIDANCE_DIRNAME = "solcast_sim"
 GUIDANCE_FILENAME = "guidance.json"
 GUIDANCE_FILE: str | None = None
@@ -268,6 +274,34 @@ def _refresh_guidance(force: bool = False) -> None:
     _LOGGER.info("Guidance refreshed from %s", _path_from_config(path))
 
 
+def _bounded_site_periods(
+    site_id: str,
+    api_key: str,
+    hours: int,
+    *,
+    actuals: bool = False,
+    key: str | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Bound HTTP periods without changing the shared fixture generators."""
+    hours = min(hours, MAX_ACTUAL_HOURS if actuals else MAX_FORECAST_HOURS)
+    now = dt.now(datetime.UTC)
+    if actuals:
+        lower, upper = now - timedelta(hours=hours), now
+        period_end = simulate.get_period(now, -timedelta(hours=hours))
+        response_key = "estimated_actuals"
+        response = simulate.raw_get_site_estimated_actuals(site_id, api_key, hours, key=key, period_end=period_end)
+    else:
+        lower, upper = now, now + timedelta(hours=hours)
+        period_end = simulate.get_period(now, timedelta(minutes=30))
+        response_key = "forecasts"
+        response = simulate.raw_get_site_forecasts(site_id, api_key, hours, key=key, period_end=period_end)
+    return response | {
+        response_key: [
+            period for period in response[response_key] if lower < dt.fromisoformat(period["period_end"]).astimezone(datetime.UTC) <= upper
+        ]
+    }
+
+
 @app.route("/rooftop_sites", methods=["GET"])
 def get_sites() -> tuple[Any, int]:
     """Return sites for an API key."""
@@ -301,7 +335,7 @@ def get_site_estimated_actuals(site_id: str) -> tuple[Any, int]:
     if request.args.get("hours") is None:
         return "{}", 500
     _refresh_guidance()
-    return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, int(request.args["hours"]))), 200
+    return jsonify(_bounded_site_periods(site_id, api_key, int(request.args["hours"]), actuals=True)), 200
 
 
 @app.route("/rooftop_sites/<site_id>/forecasts", methods=["GET"])
@@ -318,7 +352,7 @@ def get_site_forecasts(site_id: str) -> tuple[Any, int]:
     if request.args.get("hours") is None:
         return "{}", 500
     _refresh_guidance()
-    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, int(request.args["hours"]))), 200
+    return jsonify(_bounded_site_periods(site_id, api_key, int(request.args["hours"]))), 200
 
 
 @app.route("/data/historic/advanced_pv_power", methods=["GET"])
@@ -371,13 +405,12 @@ def get_site_forecasts_advanced() -> tuple[Any, int]:
     if api_key is None or site_id is None or hours_arg is None:
         return "{}", 500
     _hours = int(hours_arg)
-    period_end = simulate.get_period(dt.now(datetime.UTC), timedelta(minutes=30))
     response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue) if issue != "" else "", response_code
 
     _refresh_guidance()
-    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200  # pyright:ignore[reportCallIssue]
+    return jsonify(_bounded_site_periods(site_id, api_key, _hours, key="pv_power_advanced")), 200
 
 
 def get_time_zone():
