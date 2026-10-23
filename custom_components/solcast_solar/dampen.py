@@ -362,7 +362,8 @@ class Dampening:
                 continue
 
             tilt = float(site[SITE_ATTRIBUTE_TILT])
-            panel_azimuth = float(site[SITE_ATTRIBUTE_AZIMUTH])
+            # Solcast azimuth is N=0, W=+90, E=-90; astral gives a compass bearing (E=90, W=270).
+            panel_azimuth = -float(site[SITE_ATTRIBUTE_AZIMUTH]) % 360.0
 
             past_gain = self._tilt_incidence_gain(elev_past, azimuth_past, tilt, panel_azimuth)
             target_gain = self._tilt_incidence_gain(elev_target, azimuth_target, tilt, panel_azimuth)
