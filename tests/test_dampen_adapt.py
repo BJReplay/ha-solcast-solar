@@ -481,6 +481,16 @@ def test_lead_equal_to_the_switch_margin_switches() -> None:
     assert _prefer_default_model({(0, 1): 46 / 9, (3, 0): 28 / 9}, 2.0) == (3, 0)
 
 
+def test_switch_margin_can_be_a_fraction() -> None:
+    """Mean ranks are fractions, so the switch margin can be one too: with 1.5, a lead of 1.6 places switches and 1.4 does not."""
+
+    # Over ten days model 2 collected 30 rank points (mean rank 3.0) and model 0 collected 46 (mean rank 4.6).
+    # Model 2 leads by 1.6 places, more than the margin of 1.5, and takes over.
+    assert _prefer_default_model({(0, 0): 4.6, (2, 0): 3.0}, 1.5) == (2, 0)
+    # With 44 rank points (mean rank 4.4) for model 0, model 2 leads by only 1.4 places: model 0 stays.
+    assert _prefer_default_model({(0, 0): 4.4, (2, 0): 3.0}, 1.5) == (0, 0)
+
+
 def test_select_comparison_interval_variance() -> None:
     """Test comparison interval selection with variance across models."""
 
