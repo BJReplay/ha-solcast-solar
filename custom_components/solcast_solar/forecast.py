@@ -676,8 +676,11 @@ class ForecastQuery:
                 ):
                     spline[forecast_confidence][spline_index + 1] = spline[forecast_confidence][spline_index]
             else:
-                y_index = math.floor(interval / 1800)  # Every half hour
-                if y_index + 1 <= len(y) - 1 and y[y_index] == 0 and y[y_index + 1] == 0:
+                # y[0] is the half hour at xx[0], not local midnight. A day that
+                # starts later (missing morning intervals) must not look up the
+                # night zeros at the absolute half-hour index and wipe the afternoon.
+                y_index = math.floor((interval - xx[0]) / 1800)
+                if 0 <= y_index < len(y) - 1 and y[y_index] == 0 and y[y_index + 1] == 0:
                     spline[forecast_confidence][spline_index] = 0.0
         # Shift right by fifteen minutes because 30-minute averages, padding as appropriate.
         if reducing:
