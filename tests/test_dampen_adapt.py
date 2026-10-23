@@ -468,6 +468,16 @@ def test_switch_margin_zero_keeps_the_best_ranked_configuration() -> None:
     assert _prefer_default_model({(3, 0): 3.0, (1, 1): 3.0, (1, 0): 3.0}, 0) == (1, 0)
 
 
+def test_lead_equal_to_the_switch_margin_switches() -> None:
+    """A lead exactly equal to the switch margin replaces the default model, although the float difference is a little less.
+
+    South roof, 8 October: over nine days model 0 with delta 1 collected 46 rank points and model 3 with delta 0
+    collected 28, so model 3 led by (46 - 28) / 9 = 2 places. As floats, 46 / 9 - 28 / 9 is 1.9999999999999996.
+    """
+
+    assert _prefer_default_model({(0, 1): 46 / 9, (3, 0): 28 / 9}, 2) == (3, 0)
+
+
 def test_select_comparison_interval_variance() -> None:
     """Test comparison interval selection with variance across models."""
 

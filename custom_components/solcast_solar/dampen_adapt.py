@@ -74,6 +74,9 @@ _DELTA_RANGE: Final = range(
 
 _MIN_GEN_FRACTION: Final[float] = 0.10
 
+# Mean ranks are fractions such as 46/9, so a lead exactly equal to the switch margin can come out a tiny bit short of it.
+_RANK_TOLERANCE: Final[float] = 1e-9
+
 
 def _prefer_default_model(scores: dict[tuple[int, int], float], margin: int) -> tuple[int, int]:
     """Return the (model, delta) with the best mean rank, keeping the default model unless another ranks at least margin places better.
@@ -85,7 +88,7 @@ def _prefer_default_model(scores: dict[tuple[int, int], float], margin: int) -> 
     defaults = [md for md in scores if md[0] == default_model]
     if defaults:
         best_default = min(defaults, key=lambda md: (scores[md], md[1]))
-        if scores[best_default] - scores[best] < margin:
+        if scores[best_default] - scores[best] < margin - _RANK_TOLERANCE:
             return best_default
     return best
 
