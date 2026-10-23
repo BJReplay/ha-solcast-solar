@@ -9,6 +9,9 @@ import freezegun
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
+from homeassistant import loader
+from homeassistant.components.solcast_solar.const import DOMAIN
+
 from . import aioresponses_reset
 
 from tests.ignore_uncaught_exceptions import IGNORE_UNCAUGHT_EXCEPTIONS
@@ -66,6 +69,22 @@ def frozen_time() -> Generator[FrozenDateTimeFactory]:
 def hass_config_dir(hass_tmp_config_dir: str) -> str:
     """Use a per-test config directory so xdist workers do not share files."""
     return hass_tmp_config_dir
+
+
+@pytest.fixture(autouse=True)
+def as_custom_integration(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Treat solcast_solar as a custom integration, as Home Assistant does for users.
+
+    The tests mount it under homeassistant/components, where Core would see a built-in integration.
+    Other integrations keep Core's own check.
+    """
+    core_is_built_in = loader.Integration.is_built_in.fget
+    assert core_is_built_in is not None
+
+    def is_built_in(integration: loader.Integration) -> bool:
+        return integration.domain != DOMAIN and core_is_built_in(integration)
+
+    monkeypatch.setattr(loader.Integration, "is_built_in", property(is_built_in))
 
 
 # Slowest tests.  Placing them first in the queue ensures xdist dispatches each to a separate worker.
