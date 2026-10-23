@@ -1510,6 +1510,7 @@ Latest minor/patch releases.
 v4.6.3
 
 * Add SSL verify by default by @autoSteve
+* Add a model switch margin for adaptive dampening by @Bascht74
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.2...v4.6.3
 
@@ -1521,7 +1522,6 @@ v4.6.2
 * Fix api_raise_issues text in 429 repair issue description by @splichy
 * Fix 400 return code on forecast fetch due to DST transition by @BJReplay
 * Update checkout action version to v5 by @BJReplay
-* Keep the default dampening model unless another one ranks clearly better by @Bascht74
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.1...v4.6.2
 
