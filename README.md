@@ -25,7 +25,7 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
 
 > [!TIP]
 > #### Support Instructions
-> Please check the [FAQ](https://github.com/BJReplay/ha-solcast-solar/blob/main/FAQ.md) for common problems and solutions, review any pinned and active [discussions](https://github.com/BJReplay/ha-solcast-solar/discussions), and review any open [issues](https://github.com/BJReplay/ha-solcast-solar/issues) before creating a new issue or discussion.
+> Please always check the [Known Issues](#known-issues) and the [FAQ](https://github.com/BJReplay/ha-solcast-solar/blob/main/FAQ.md) for common problems and solutions and always review any pinned and active [discussions](https://github.com/BJReplay/ha-solcast-solar/discussions), and review any open [issues](https://github.com/BJReplay/ha-solcast-solar/issues) before creating a new issue or discussion.
 >
 > Do not post "me too" comments on existing issues (but feel free to thumbs up or subscribe to notifications on issues where you have the same issue). Nor should you assume that if you have a similar error to an open issue that it is the same. Unless that error is identical, then it is probably not the same issue.
 >
@@ -1411,8 +1411,9 @@ series:
 ## Known issues
 
 * Altering hard limit will alter recorded forecast history. This is currently by design and may not change.
-* Any zero-length integration JSON files will be removed on startup (see below)
-* Sample sites (if set up in your Solcast dashboard) will be included in your forecasts retrieved by this integration and returned to Home Assistant (see below)
+* Any zero-length integration JSON files will be removed on startup [(see below)](#removal-of-zero-length-files)
+* Sample sites (if set up in your Solcast dashboard) will be included in your forecasts retrieved by this integration and returned to Home Assistant [(see below)](#sample-sites)
+* PiHole adblocker (or other adblockers) may block `files.pythonhosted.org` required to download components for this (and other) integrations [(see below)](#watchfile-dependency-download-error)
 
 ### Removal of zero-length files
 
@@ -1431,6 +1432,14 @@ Expect API usage issues, which will clear within 24 hours.
 If you see sample sites (such as these) [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSites.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSites.png) remove them from your Solcast dashboard.
 
 If you don't remove sample sites from your Solcast dashboard, you may not be able to configure the integration - you may receive an `Error Exception in __sites_data(): 'azimuth' for API key` during configuration: [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSitesException.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/SampleSitesException.png)
+
+### Watchfile dependency download error
+
+This integration requires `watchfiles` which is not part of the standard Home Assistant install, so is downloaded when the first integration that needs it is installed.  Dependencies such as watchfiles are downloaded from `files.pythonhosted.org`, and this may be blocked by adblockers such as PiHole, resulting in the inability to set up this integration.
+
+If you receive an error attempting to install this integration - or after updating Home Assistant - that says `Setup failed for custom integration 'solcast_solar': Requirements for solcast_solar not found: ['watchfiles>=1.0.0']` then you have run into this error.
+
+You should consider adding `files.pythonhosted.org` to your adblocker's whitelist, or using a different DNS server for Home Assistant, or at least temporarily disabling your adblocker.
 
 ## Troubleshooting
 
