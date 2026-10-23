@@ -1507,6 +1507,12 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 Latest minor/patch releases.
 
+v4.6.3
+
+* Add SSL verify by default by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.2...v4.6.3
+
 v4.6.2
 
 * Add DNS timeout retries by @autoSteve
