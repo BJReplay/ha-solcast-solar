@@ -1515,6 +1515,7 @@ v4.6.2
 * Fix api_raise_issues text in 429 repair issue description by @splichy
 * Fix 400 return code on forecast fetch due to DST transition by @BJReplay
 * Update checkout action version to v5 by @BJReplay
+* Fix automated dampening models 1, 2 and 3 applying the sun elevation adjustment to pairs that already share their sun geometry by @Bascht74
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.1...v4.6.2
 
