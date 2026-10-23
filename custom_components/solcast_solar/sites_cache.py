@@ -26,6 +26,7 @@ from .const import (
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_SOLCAST_PORT,
     ADVANCED_SOLCAST_URL,
+    ADVANCED_SSL_VERIFY,
     API_KEY,
     AUTO_UPDATED,
     DAILY_ACTUALS_CONSUMED,
@@ -1106,7 +1107,10 @@ class SitesCache:
                     params = {FORMAT: JSON, API_KEY: api_key}
                     _LOGGER.debug("Connecting to %s?format=json&api_key=%s", url, redact_api_key(api_key))
                     response: ClientResponse = await self.api.aiohttp_session.get(
-                        url=url, params=params, headers=self.api.headers, ssl=False
+                        url=url,
+                        params=params,
+                        headers=self.api.headers,
+                        ssl=self.api.advanced_options[ADVANCED_SSL_VERIFY],
                     )
                     status = response.status
                     (_LOGGER.debug if status == 200 else _LOGGER.warning)(
