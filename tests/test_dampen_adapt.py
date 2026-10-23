@@ -444,7 +444,7 @@ async def test_update_history_deal_breaker(
 
 
 def test_default_model_stays_unless_another_is_clearly_better(caplog: pytest.LogCaptureFixture) -> None:
-    """With a switch margin of 2, model 0 stays unless another model ranks at least two places better on average.
+    """With a switch margin of 2.0, model 0 stays unless another model ranks at least two places better on average.
 
     On a north roof the adaptive choice took models 0, 2 and 3 in turns almost every day, after a few days of
     curtailment or shade, and the factors jumped with it.
@@ -452,23 +452,23 @@ def test_default_model_stays_unless_another_is_clearly_better(caplog: pytest.Log
 
     # Each key is (model, delta adjustment model), each value its mean rank over the days: lower is better.
     # Model 2 ranks 1.5 places better than model 0, which is noise: model 0 stays, and the log says why.
-    assert _prefer_default_model({(0, 0): 4.5, (2, 0): 3.0, (3, 1): 6.0}, 2) == (0, 0)
-    assert "Switch margin 2 keeps Model 0 Delta 0: Model 2 Delta 0 leads by 1.500" in caplog.text
+    assert _prefer_default_model({(0, 0): 4.5, (2, 0): 3.0, (3, 1): 6.0}, 2.0) == (0, 0)
+    assert "Switch margin 2.0 keeps Model 0 Delta 0: Model 2 Delta 0 leads by 1.500" in caplog.text
     # Model 0 ranks best itself: it stays.
-    assert _prefer_default_model({(0, 0): 3.0, (2, 0): 4.5}, 2) == (0, 0)
+    assert _prefer_default_model({(0, 0): 3.0, (2, 0): 4.5}, 2.0) == (0, 0)
     # Model 2 ranks 2.5 places better: it takes over.
-    assert _prefer_default_model({(0, 0): 5.5, (2, 0): 3.0, (3, 1): 6.0}, 2) == (2, 0)
+    assert _prefer_default_model({(0, 0): 5.5, (2, 0): 3.0, (3, 1): 6.0}, 2.0) == (2, 0)
     # Without model 0, for example when it is excluded, the best model wins as before.
-    assert _prefer_default_model({(2, 0): 3.0, (3, 1): 6.0}, 2) == (2, 0)
+    assert _prefer_default_model({(2, 0): 3.0, (3, 1): 6.0}, 2.0) == (2, 0)
 
 
 def test_switch_margin_zero_keeps_the_best_ranked_configuration() -> None:
-    """With the default switch margin of 0 the best mean rank wins, as it did before the option existed."""
+    """With the default switch margin of 0.0 the best mean rank wins, as it did before the option existed."""
 
     # Model 2 ranks 1.5 places better than model 0 and wins at once.
-    assert _prefer_default_model({(0, 0): 4.5, (2, 0): 3.0, (3, 1): 6.0}, 0) == (2, 0)
+    assert _prefer_default_model({(0, 0): 4.5, (2, 0): 3.0, (3, 1): 6.0}, 0.0) == (2, 0)
     # On equal mean ranks the lower model wins, then the lower delta adjustment model.
-    assert _prefer_default_model({(3, 0): 3.0, (1, 1): 3.0, (1, 0): 3.0}, 0) == (1, 0)
+    assert _prefer_default_model({(3, 0): 3.0, (1, 1): 3.0, (1, 0): 3.0}, 0.0) == (1, 0)
 
 
 def test_lead_equal_to_the_switch_margin_switches() -> None:
@@ -478,7 +478,7 @@ def test_lead_equal_to_the_switch_margin_switches() -> None:
     collected 28, so model 3 led by (46 - 28) / 9 = 2 places. As floats, 46 / 9 - 28 / 9 is 1.9999999999999996.
     """
 
-    assert _prefer_default_model({(0, 1): 46 / 9, (3, 0): 28 / 9}, 2) == (3, 0)
+    assert _prefer_default_model({(0, 1): 46 / 9, (3, 0): 28 / 9}, 2.0) == (3, 0)
 
 
 def test_select_comparison_interval_variance() -> None:
@@ -733,7 +733,7 @@ def _build_adaptive_under_test(tz: ZoneInfo) -> tuple[Any, defaultdict[dt, list[
     api.filename_dampening = ""
     api.advanced_options = {
         ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: [],
-        ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN: 0,
+        ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN: 0.0,
     }
     api.sites = []  # instance attribute not in spec; empty list skips site iteration
     dampening = Dampening(api)

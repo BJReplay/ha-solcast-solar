@@ -124,7 +124,7 @@ DAY_NAME: Final[str] = "dayname"
 DEFAULT: Final[str] = "default"
 DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: Final[int] = 3  # Minimum number of days of history for adaptive dampening model
 DEFAULT_DAMPENING_ADAPTIVE_MODEL_MINIMUM_UNDAMPENED_ACTUAL: Final[float] = 0.0  # Default to accepting all days
-DEFAULT_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN: Final[int] = 0  # Mean rank lead another model needs to replace the default model
+DEFAULT_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN: Final[float] = 0.0  # Mean rank lead another model needs to replace the default model
 DEFAULT_DAMPENING_DELTA_ADJUSTMENT_MODEL: Final[int] = 0  # Logarithmic adjustment is default model
 DEFAULT_DAMPENING_ELEVATION_ADJUSTMENT: Final[bool] = True  # Whether to adjust historical generation by sun elevation ratio
 DEFAULT_DAMPENING_INSIGNIFICANT: Final[float] = 0.95  # Dampening factors considered insignificant for automated dampening
@@ -444,9 +444,9 @@ ADVANCED_OPTIONS: Final[dict[str, dict[str, Any]]] = {
         OPTION_REQUIRES: [ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION],
     },
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN: {
-        ADVANCED_TYPE: ADVANCED_OPTION.INT,
-        MINIMUM: 0,
-        MAXIMUM: 11,
+        ADVANCED_TYPE: ADVANCED_OPTION.FLOAT,
+        MINIMUM: 0.0,
+        MAXIMUM: 11.0,
         DEFAULT: DEFAULT_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN,
         OPTION_REQUIRES: [ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION],
     },

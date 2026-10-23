@@ -78,7 +78,7 @@ _MIN_GEN_FRACTION: Final[float] = 0.10
 _RANK_TOLERANCE: Final[float] = 1e-9
 
 
-def _prefer_default_model(scores: dict[tuple[int, int], float], margin: int) -> tuple[int, int]:
+def _prefer_default_model(scores: dict[tuple[int, int], float], margin: float) -> tuple[int, int]:
     """Return the (model, delta) with the best mean rank, keeping the default model unless another ranks at least margin places better.
 
     With a margin of 0 the best mean rank wins.
