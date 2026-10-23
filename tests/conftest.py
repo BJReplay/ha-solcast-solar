@@ -76,10 +76,13 @@ def as_custom_integration(monkeypatch: pytest.MonkeyPatch) -> None:
     """Treat solcast_solar as a custom integration, as Home Assistant does for users.
 
     The tests mount it under homeassistant/components, where Core would see a built-in integration.
+    Other integrations keep Core's own check.
     """
+    core_is_built_in = loader.Integration.is_built_in.fget
+    assert core_is_built_in is not None
 
     def is_built_in(integration: loader.Integration) -> bool:
-        return integration.domain != DOMAIN and integration.pkg_path.startswith(loader.PACKAGE_BUILTIN)
+        return integration.domain != DOMAIN and core_is_built_in(integration)
 
     monkeypatch.setattr(loader.Integration, "is_built_in", property(is_built_in))
 
