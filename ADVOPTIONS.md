@@ -203,7 +203,7 @@ This selected dampening configuration is then applied to the forecast and the se
 
 When `automated_dampening_no_delta_adjustment` is true, the algorithm selects the most consistently accurate dampening model from the configurations that do not use delta adjustment.  When it is false, the algorithm selects the combination of dampening model and delta adjustment option that are most consistently accurate.
 
-"Most consistently accurate" comes from a ranking (a Borda count). For each day of the history, the error of each configuration is calculated at one comparison interval, the half-hour where dampening makes the most difference, and the configurations are ranked by that error: `1` for the lowest, equal errors share a place. Configurations with and without delta adjustment are ranked together, up to twelve (four models, each without delta adjustment and with each of the two delta adjustment models), leaving out excluded ones and those with too little history. The places of each configuration are averaged over the days, and the configuration with the lowest mean rank is selected from the configurations allowed by `automated_dampening_no_delta_adjustment`; on equal mean ranks the lower model wins. For example, if over nine days the places of model `3` with delta `0` add up to 28 (mean rank 3.11) and those of model `0` with delta `1` to 46 (mean rank 5.11), model `3` ranks two places better on average. The mean ranks are logged at `DEBUG` level as `Borda` in the `Ranking:` lines. `automated_dampening_adaptive_model_switch_margin` can keep the default model `0` until another configuration ranks better by a set number of places.
+"Most consistently accurate" comes from a ranking (a Borda count). Each day, the configurations are ranked by their error at the half-hour where dampening makes the most difference, `1` for the lowest. These places are averaged over the days, and the configuration with the lowest mean rank is selected. For example, if over nine days model `3` with delta `0` has a mean rank of 3.11 and model `0` with delta `1` one of 5.11, model `3` ranks two places better. The mean ranks are logged at `DEBUG` level as `Borda`. `automated_dampening_adaptive_model_switch_margin` can keep the default model `0` until another configuration ranks better by a set number of places.
 
 A debug message will be logged whenever the `automated_dampening_no_delta_adjustment` setting disagrees with the overall best error results. This happens if `automated_dampening_no_delta_adjustment` is `true` but a delta adjusted model performs better, or if it is `false` but a model without delta adjustment achieves a lower error.
 
@@ -237,11 +237,11 @@ Must not be greater than `automated_dampening_model_days`, and can only be defin
 
 **Key: "automated_dampening_adaptive_model_switch_margin"**
 
-Possible values: integer `0`..`11` (default `0`)
+Possible values: float `0.0`..`11.0` (default `0.0`)
 
-How many places better on average another configuration must rank before it replaces the default dampening model `0`. With the default of `0` the best ranked configuration is selected.
+How many places better on average another configuration must rank before it replaces the default dampening model `0`. With the default of `0.0` the best ranked configuration is selected.
 
-With a margin of `2`, model `0` (with its better ranked delta adjustment) is selected unless another configuration ranks at least two places better on average, so a few days of curtailment or partial shade do not switch the model back and forth. If model `0` is excluded, the best ranked configuration is selected. At most twelve configurations are ranked, so `11` is the largest possible lead.
+With a margin of `2.0`, model `0` is selected unless another configuration ranks at least two places better on average (see the [ranking](#automated-dampening-adaptation) above), so a few days of curtailment or partial shade do not switch the model back and forth. If model `0` is excluded, the best ranked configuration is selected.
 
 Can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
 
