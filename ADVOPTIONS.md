@@ -203,7 +203,7 @@ This selected dampening configuration is then applied to the forecast and the se
 
 When `automated_dampening_no_delta_adjustment` is true, the algorithm selects the most consistently accurate dampening model from the configurations that do not use delta adjustment.  When it is false, the algorithm selects the combination of dampening model and delta adjustment option that are most consistently accurate.
 
-"Most consistently accurate" comes from a ranking (a Borda count). Each day, the configurations are ranked by their error at the half-hour where dampening makes the most difference, `1` for the lowest. These places are averaged over the days, and the configuration with the lowest mean rank is selected. For example, if over nine days model `3` with delta `0` has a mean rank of 3.11 and model `0` with delta `1` one of 5.11, model `3` ranks two places better. The mean ranks are logged at `DEBUG` level as `Borda`. `automated_dampening_adaptive_model_switch_margin` can keep the default model `0` until another configuration ranks better by a set number of places.
+"Most consistently accurate" comes from a ranking (a Borda count). Each day, the configurations are ranked by their error at the half-hour where dampening makes the most difference, `1` for the lowest. These places are averaged over the days, and the configuration with the lowest mean rank is selected. For example, if over nine days model `3` with delta `0` has a mean rank of 3.11 and model `0` with delta `1` one of 5.11, the mean rank of model `3` is lower by 2.0. The mean ranks are logged at `DEBUG` level as `Borda`. `automated_dampening_adaptive_model_switch_margin` can keep the default model `0` until another configuration's mean rank is lower by at least a set margin.
 
 A debug message will be logged whenever the `automated_dampening_no_delta_adjustment` setting disagrees with the overall best error results. This happens if `automated_dampening_no_delta_adjustment` is `true` but a delta adjusted model performs better, or if it is `false` but a model without delta adjustment achieves a lower error.
 
@@ -239,9 +239,9 @@ Must not be greater than `automated_dampening_model_days`, and can only be defin
 
 Possible values: float `0.0`..`11.0` (default `0.0`)
 
-How many places better on average another configuration must rank before it replaces the default dampening model `0`. With the default of `0.0` the best ranked configuration is selected.
+How much lower another configuration's mean rank must be than that of the default dampening model `0` to replace it. With the default of `0.0` the best ranked configuration is selected.
 
-For example, with a margin of `2.0`, model `0` is selected unless another configuration ranks at least two places better on average (see the [ranking](#automated-dampening-adaptation) above), so a few days of curtailment or partial shade do not switch the model back and forth. If model `0` is excluded, the best ranked configuration is selected.
+For example, with a margin of `2.0`, model `0` is selected unless another configuration's mean rank is lower by at least `2.0` (see the [ranking](#automated-dampening-adaptation) above), so a few days of curtailment or partial shade do not switch the model back and forth. If model `0` is excluded, the best ranked configuration is selected.
 
 Can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
 
