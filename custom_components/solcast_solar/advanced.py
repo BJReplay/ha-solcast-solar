@@ -212,6 +212,8 @@ class AdvancedOptions:
                                     advanced_options_with_aliases[option][CURRENT_NAME],
                                 )
                             value = self.api.advanced_options.get(advanced_options_with_aliases[option][CURRENT_NAME])
+                            if isinstance(value, float) and isinstance(new_value, int) and not isinstance(new_value, bool):
+                                new_value = float(new_value)
                             valid = True
                             if isinstance(new_value, type(value)):
                                 match advanced_options_with_aliases[option][ADVANCED_TYPE]:
