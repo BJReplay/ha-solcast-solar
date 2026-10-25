@@ -30,7 +30,7 @@ Configuration lives in `pyproject.toml` — if you are using the supplied pyproj
 ```toml
 [tool.ruff]
 required-version = ">=0.16.8"
-line-length = 140
+line-length = 150
 target-version = "py313"
 ```
 
