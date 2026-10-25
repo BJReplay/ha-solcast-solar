@@ -15,16 +15,8 @@ from typing import Any
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
-from freezegun.api import FrozenDateTimeFactory
-import pytest
-
-from homeassistant.components.recorder import Recorder, get_instance
-from homeassistant.components.recorder.history import state_changes_during_period
-from homeassistant.components.sensor import SensorDeviceClass
-from homeassistant.components.solcast_solar.config_flow import (
-    SolcastSolarOptionFlowHandler,
-)
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.config_flow import SolcastSolarOptionFlowHandler
+from custom_components.solcast_solar.const import (
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
     ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
@@ -62,15 +54,21 @@ from homeassistant.components.solcast_solar.const import (
     SITE_INFO,
     USE_ACTUALS,
 )
-import homeassistant.components.solcast_solar.dampen as dampen_module
-from homeassistant.components.solcast_solar.dampen import (
+import custom_components.solcast_solar.dampen as dampen_module
+from custom_components.solcast_solar.dampen import (
     Dampening,
     compute_energy_intervals,
     compute_power_intervals,
 )
-from homeassistant.components.solcast_solar.dates import DateTimeHelper
-from homeassistant.components.solcast_solar.enums import SolcastApiStatus
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.dates import DateTimeHelper
+from custom_components.solcast_solar.enums import SolcastApiStatus
+from custom_components.solcast_solar.solcastapi import SolcastApi
+from freezegun.api import FrozenDateTimeFactory
+import pytest
+
+from homeassistant.components.recorder import Recorder, get_instance
+from homeassistant.components.recorder.history import state_changes_during_period
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
@@ -112,22 +110,22 @@ _LOGGER = logging.getLogger(__name__)
 def _patch_astral_location_provider(monkeypatch: pytest.MonkeyPatch, loc: Any) -> None:
     """Patch dampen astral providers for both observer and legacy environments."""
     monkeypatch.setattr(
-        "homeassistant.components.solcast_solar.dampen._astral_elevation",
+        "custom_components.solcast_solar.dampen._astral_elevation",
         lambda astral_loc, when: astral_loc.solar_elevation(when),
     )
     monkeypatch.setattr(
-        "homeassistant.components.solcast_solar.dampen._astral_azimuth",
+        "custom_components.solcast_solar.dampen._astral_azimuth",
         lambda astral_loc, when: astral_loc.solar_azimuth(when) if hasattr(astral_loc, "solar_azimuth") else 180.0,
     )
 
     if hasattr(dampen_module, "get_astral_observer"):
         monkeypatch.setattr(
-            "homeassistant.components.solcast_solar.dampen.get_astral_observer",
+            "custom_components.solcast_solar.dampen.get_astral_observer",
             lambda _hass: loc,
         )
     else:
         monkeypatch.setattr(
-            "homeassistant.components.solcast_solar.dampen.get_astral_location",
+            "custom_components.solcast_solar.dampen.get_astral_location",
             lambda _hass: (loc, 0),
         )
 

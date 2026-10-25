@@ -8,12 +8,7 @@ import logging
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from freezegun.api import FrozenDateTimeFactory
-import pytest
-
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.sensor import SensorStateClass
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     ADVANCED_ENTITY_LOGGING,
     ANALYSIS,
     API_FORCE_USED,
@@ -58,9 +53,14 @@ from homeassistant.components.solcast_solar.const import (
     UNDAMPENED_ESTIMATE10,
     UNDAMPENED_ESTIMATE90,
 )
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.forecast import ForecastQuery
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.forecast import ForecastQuery
+from custom_components.solcast_solar.solcastapi import SolcastApi
+from freezegun.api import FrozenDateTimeFactory
+import pytest
+
+from homeassistant.components.recorder import Recorder
+from homeassistant.components.sensor import SensorStateClass
 from homeassistant.const import (
     CONF_API_KEY,
     STATE_UNAVAILABLE,
@@ -895,7 +895,7 @@ async def test_rooftop_unique_id_mig_migrates_old_style_entities(
     )
 
     try:
-        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        caplog.set_level(logging.DEBUG, logger="custom_components.solcast_solar.sensor")
         await async_init_integration(hass, DEFAULT_INPUT1)
         await hass.async_block_till_done()
 
@@ -955,7 +955,7 @@ async def test_rooftop_unique_id_mig_removes_diagnostic_collision(
     )
 
     try:
-        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        caplog.set_level(logging.DEBUG, logger="custom_components.solcast_solar.sensor")
         await async_init_integration(hass, DEFAULT_INPUT1)
         await hass.async_block_till_done()
 
@@ -1001,7 +1001,7 @@ async def test_rooftop_unique_id_mig_removes_config_category_collision(
     )
 
     try:
-        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        caplog.set_level(logging.DEBUG, logger="custom_components.solcast_solar.sensor")
         await async_init_integration(hass, DEFAULT_INPUT1)
         await hass.async_block_till_done()
 
@@ -1033,7 +1033,7 @@ async def test_rooftop_unique_id_mig_without_legacy_rows(
     entity_registry = er.async_get(hass)
 
     try:
-        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        caplog.set_level(logging.DEBUG, logger="custom_components.solcast_solar.sensor")
         await async_init_integration(hass, DEFAULT_INPUT1)
         await hass.async_block_till_done()
 
@@ -1061,8 +1061,8 @@ async def test_rooftop_unique_id_mig_transferred_site_resource_id(
     entity_registry = er.async_get(hass)
 
     try:
-        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sites_cache")
-        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        caplog.set_level(logging.DEBUG, logger="custom_components.solcast_solar.sites_cache")
+        caplog.set_level(logging.DEBUG, logger="custom_components.solcast_solar.sensor")
 
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
         await hass.async_block_till_done()
@@ -1117,7 +1117,7 @@ async def test_rooftop_unique_id_mig_skips_already_stable_site_name(
     )
 
     try:
-        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        caplog.set_level(logging.DEBUG, logger="custom_components.solcast_solar.sensor")
         await async_init_integration(hass, DEFAULT_INPUT1)
         await hass.async_block_till_done()
 
@@ -1156,7 +1156,7 @@ async def test_rooftop_unique_id_mig_removes_orphaned_stale_resource_id(
             config_entry=entry,
         )
 
-        caplog.set_level(logging.DEBUG, logger="homeassistant.components.solcast_solar.sensor")
+        caplog.set_level(logging.DEBUG, logger="custom_components.solcast_solar.sensor")
         caplog.clear()
 
         await hass.config_entries.async_reload(entry.entry_id)

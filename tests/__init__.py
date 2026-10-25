@@ -14,21 +14,8 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 from aiohttp import ClientConnectionError
-from freezegun import freeze_time
-from freezegun.api import FrozenDateTimeFactory
-import pytest
-from sqlalchemy import insert
-from yarl import URL
-
-from homeassistant.components.recorder import get_instance
-from homeassistant.components.recorder.db_schema import (
-    StateAttributes,
-    States,
-    StatesMeta,
-)
-from homeassistant.components.sensor import SensorDeviceClass
-from homeassistant.components.solcast_solar import state as _cs
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar import state as _cs
+from custom_components.solcast_solar.const import (
     API_LIMIT,
     AUTO_DAMPEN,
     AUTO_UPDATE,
@@ -58,9 +45,22 @@ from homeassistant.components.solcast_solar.const import (
     SITE_INFO,
     USE_ACTUALS,
 )
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.dates import DateTimeEncoder, JSONDecoder
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.dates import DateTimeEncoder, JSONDecoder
+from custom_components.solcast_solar.solcastapi import SolcastApi
+from freezegun import freeze_time
+from freezegun.api import FrozenDateTimeFactory
+import pytest
+from sqlalchemy import insert
+from yarl import URL
+
+from homeassistant.components.recorder import get_instance
+from homeassistant.components.recorder.db_schema import (
+    StateAttributes,
+    States,
+    StatesMeta,
+)
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant

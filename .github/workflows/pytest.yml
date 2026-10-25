@@ -103,8 +103,9 @@ jobs:
 
       - name: Mount the integration into Core
         run: |
-          rm -rf core/homeassistant/components/solcast_solar core/tests/components/solcast_solar
-          cp -a integration/custom_components/solcast_solar core/homeassistant/components/solcast_solar
+          rm -rf core/custom_components/solcast_solar core/tests/components/solcast_solar
+          mkdir -p core/custom_components
+          cp -a integration/custom_components/solcast_solar core/custom_components/solcast_solar
           cp -a integration/tests core/tests/components/solcast_solar
 
       - name: Mount the simulator into Core
@@ -132,7 +133,7 @@ jobs:
         run: >-
           set -o pipefail &&
           python -m pytest tests/components/solcast_solar -n auto --dist=worksteal --timeout=300 -p no:sugar
-          --cov=homeassistant.components.solcast_solar --cov-config=tests/components/solcast_solar/.coveragerc
+          --cov=custom_components.solcast_solar --cov-config=tests/components/solcast_solar/.coveragerc
           --cov-report=term-missing:skip-covered --cov-fail-under=100
           2>&1 | tee "$RUNNER_TEMP/pytest.log"
 

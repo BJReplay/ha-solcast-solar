@@ -7,14 +7,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from freezegun.api import FrozenDateTimeFactory
-import pytest
-
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.config_flow import (
-    _async_is_allow_exceed_api_limit,
-)
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.config_flow import _async_is_allow_exceed_api_limit
+from custom_components.solcast_solar.const import (
     ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     ADVANCED_API_RAISE_ISSUES,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
@@ -58,8 +52,12 @@ from homeassistant.components.solcast_solar.const import (
     PROBLEMS,
     TASK_WATCH_ADVANCED_FILE_CHANGE,
 )
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.solcastapi import SolcastApi
+from freezegun.api import FrozenDateTimeFactory
+import pytest
+
+from homeassistant.components.recorder import Recorder
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 

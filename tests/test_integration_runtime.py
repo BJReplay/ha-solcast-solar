@@ -9,10 +9,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-import pytest
-
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     ADVANCED_ENTITY_LOGGING,
     ADVANCED_GRANULAR_DAMPENING_DELTA_ADJUSTMENT,
     API_KEY,
@@ -27,10 +24,13 @@ from homeassistant.components.solcast_solar.const import (
     SERVICE_FORCE_UPDATE_ESTIMATES,
     SITE_INFO,
 )
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.dates import DateTimeEncoder, JSONDecoder
-from homeassistant.components.solcast_solar.enums import AutoUpdate
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.dates import DateTimeEncoder, JSONDecoder
+from custom_components.solcast_solar.enums import AutoUpdate
+from custom_components.solcast_solar.solcastapi import SolcastApi
+import pytest
+
+from homeassistant.components.recorder import Recorder
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er

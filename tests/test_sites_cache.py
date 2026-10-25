@@ -10,9 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
-
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     API_KEY,
     FORECASTS,
     RESOURCE_ID,
@@ -22,8 +20,10 @@ from homeassistant.components.solcast_solar.const import (
     SITES,
     TOTAL_RECORDS,
 )
-from homeassistant.components.solcast_solar.enums import LoadStatus
-from homeassistant.components.solcast_solar.sites_cache import SitesCache
+from custom_components.solcast_solar.enums import LoadStatus
+from custom_components.solcast_solar.sites_cache import SitesCache
+import pytest
+
 from homeassistant.util import dt as dt_util
 
 

@@ -2,10 +2,10 @@
 
 import logging
 
+from custom_components.solcast_solar.const import DOMAIN
 from freezegun.api import FrozenDateTimeFactory
 
 from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.const import DOMAIN
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
 

@@ -12,11 +12,7 @@ from typing import Any
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
-from freezegun.api import FrozenDateTimeFactory
-import pytest
-
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
@@ -54,9 +50,13 @@ from homeassistant.components.solcast_solar.const import (
     USE_ACTUALS,
     VALUE_ADAPTIVE_DAMPENING_NO_DELTA,
 )
-from homeassistant.components.solcast_solar.dampen import Dampening
-from homeassistant.components.solcast_solar.dates import DateTimeHelper, NoIndentEncoder
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.dampen import Dampening
+from custom_components.solcast_solar.dates import DateTimeHelper, NoIndentEncoder
+from custom_components.solcast_solar.solcastapi import SolcastApi
+from freezegun.api import FrozenDateTimeFactory
+import pytest
+
+from homeassistant.components.recorder import Recorder
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from homeassistant.util import dt as dt_util
@@ -977,8 +977,8 @@ async def test_dampening_adaptations_development_flag(
     configuration are both enabled, update_history and determine_best_settings
     are called during async_setup_entry.
     """
-    import homeassistant.components.solcast_solar as solcast_module  # noqa: PLC0415
-    from homeassistant.components.solcast_solar.dampen_adapt import (  # noqa: PLC0415
+    import custom_components.solcast_solar as solcast_module  # noqa: PLC0415
+    from custom_components.solcast_solar.dampen_adapt import (  # noqa: PLC0415
         DampeningAdaptive,
     )
 
