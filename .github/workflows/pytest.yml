@@ -74,55 +74,6 @@ jobs:
           path: integration
           persist-credentials: false
 
-      - name: Decide whether to run the simulator
-        id: sim
-        env:
-          CORE: ${{ matrix.core }}
-          EVENT_NAME: ${{ github.event_name }}
-          BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          REPO: ${{ github.repository }}
-          BEFORE: ${{ github.event.before }}
-          SHA: ${{ github.sha }}
-        run: |
-          python3 << 'PY'
-          import json, os, urllib.request
-
-          # Every core, including dev: only when this change touches the simulator.
-          # A manual run has no diff, so it still runs the suite.
-          event = os.environ["EVENT_NAME"]
-          run = event == "workflow_dispatch"
-          prefixes = ("custom_sim/", "tests_solcast_sim/")
-
-          def sim_files_changed(repo, base, head):
-              url = f"https://api.github.com/repos/{repo}/compare/{base}...{head}"
-              req = urllib.request.Request(
-                  url,
-                  headers={"Accept": "application/vnd.github+json", "User-Agent": "solcast-ci"},
-              )
-              with urllib.request.urlopen(req, timeout=30) as resp:
-                  data = json.load(resp)
-              files = [item["filename"] for item in data.get("files") or []]
-              # The compare API returns at most 300 files. Past that, do not skip.
-              if len(files) >= 300:
-                  return True
-              return any(name.startswith(prefixes) for name in files)
-
-          if not run and event == "pull_request":
-              run = sim_files_changed(os.environ["BASE_REPO"], os.environ["BASE_SHA"], os.environ["HEAD_SHA"])
-          elif not run:
-              before = os.environ["BEFORE"]
-              if not before or set(before) == {"0"}:
-                  run = True
-              else:
-                  run = sim_files_changed(os.environ["REPO"], before, os.environ["SHA"])
-
-          print(f"simulator={str(run).lower()} on {os.environ['CORE']}")
-          with open(os.environ["GITHUB_OUTPUT"], "a") as fh:
-              fh.write("run=" + str(run).lower() + "\n")
-          PY
-
       - name: Checkout Home Assistant Core
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -157,7 +108,7 @@ jobs:
           cp -a integration/tests core/tests/components/solcast_solar
 
       - name: Mount the simulator into Core
-        if: ${{ steps.sim.outputs.run == 'true' }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}  # The simulator suite runs only when started by hand
         run: |
           mkdir -p core/config/custom_components
           cp -a integration/custom_sim/solcast_sim core/config/custom_components/solcast_sim
@@ -186,7 +137,7 @@ jobs:
           2>&1 | tee "$RUNNER_TEMP/pytest.log"
 
       - name: Run the simulator suite with coverage
-        if: ${{ !cancelled() && steps.sim.outputs.run == 'true' }}
+        if: ${{ !cancelled() && github.event_name == 'workflow_dispatch' }}
         continue-on-error: true  # Not part of a release; a failure must not fail the workflow
         working-directory: core
         run: >-

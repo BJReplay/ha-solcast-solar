@@ -339,6 +339,12 @@ Possible values: boolean `true`/`false` (default `false`)
 
 Setting this option to `true` will cause the integration to reload whenever any advanced option is added or changed.
 
+**Key: "ssl_verify"**
+
+Possible values: boolean `true`/`false` (default `true`)
+
+Setting this option to `false` will prevent SSL certificate validation of the API endpoint.
+
 **Key: "trigger_on_api_available"**
 
 Possible values: string (default `""`)

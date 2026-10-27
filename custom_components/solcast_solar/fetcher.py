@@ -31,6 +31,7 @@ from .const import (
     ADVANCED_LOG_UPDATE_FAILURE_ONLY,
     ADVANCED_SOLCAST_PORT,
     ADVANCED_SOLCAST_URL,
+    ADVANCED_SSL_VERIFY,
     ADVANCED_TRIGGER_ON_API_AVAILABLE,
     ADVANCED_TRIGGER_ON_API_UNAVAILABLE,
     API_KEY,
@@ -437,7 +438,7 @@ class Fetcher:
             hours = math.ceil((last_day - self.api.dt_helper.now_utc()).total_seconds() / 3600)
             if hours > MAX_HOURS:
                 # DST Transition has blown past max hours allowable for Solcast forecast API - jump back a day
-                last_day = self.api.dt_helper.day_start_utc(future=self.api.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS]-1)
+                last_day = self.api.dt_helper.day_start_utc(future=self.api.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS] - 1)
                 hours = math.ceil((last_day - self.api.dt_helper.now_utc()).total_seconds() / 3600)
             _LOGGER.debug(
                 "Polling API for site %s, last day %s, %d hours",
@@ -695,7 +696,7 @@ class Fetcher:
                             while True:
                                 try:
                                     response: ClientResponse = await self.api.aiohttp_session.get(
-                                        url=url, params=params, headers=self.api.headers, ssl=False
+                                        url=url, params=params, headers=self.api.headers, ssl=self.api.advanced_options[ADVANCED_SSL_VERIFY]
                                     )
                                     _LOGGER.debug("Fetch data url %s", redact_msg_api_key(str(response.url), api_key))
                                     status = response.status
