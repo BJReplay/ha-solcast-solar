@@ -1522,6 +1522,7 @@ v4.6.2
 * Fix api_raise_issues text in 429 repair issue description by @splichy
 * Fix 400 return code on forecast fetch due to DST transition by @BJReplay
 * Update checkout action version to v5 by @BJReplay
+* Fix the adaptive dampening history stopping when an estimated actual is 0 by @Bascht74
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.1...v4.6.2
 
