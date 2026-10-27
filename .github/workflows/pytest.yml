@@ -93,7 +93,7 @@ jobs:
           python -m pip install uv
           extra=$(grep -E "^(SQLAlchemy|fnv-hash-fast|psutil-home-assistant|paho-mqtt|aiohasupervisor)==" requirements_all.txt)
           reqs=$(python -c 'import json; print(" ".join(json.load(open("../integration/custom_components/solcast_solar/manifest.json"))["requirements"]))')
-          # Core dev ships its test helpers as the package pytest_homeassistant. master and rc do not have it yet.
+          # Core 2026.11 ships its test helpers as the package pytest_homeassistant.
           helpers=""
           if [ -d packages/pytest-home-assistant ]; then
             helpers="-e packages/pytest-home-assistant"

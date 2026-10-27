@@ -74,7 +74,7 @@ from homeassistant.util import dt as dt_util
 from .aioresponses import CallbackResult, aioresponses
 from .simulator import API_KEY_SITES, GENERATION_FACTOR, SimulatedSolcast
 
-# Core dev moved these test helpers into the package pytest_homeassistant, so keep their old names working.
+# Core 2026.11 moved these test helpers into the package pytest_homeassistant, so keep their old names working.
 if find_spec("tests.common") is None:
     for _name in ("common", "typing", "ignore_uncaught_exceptions", "components.diagnostics", "components.recorder.common"):
         sys.modules[f"tests.{_name}"] = import_module(f"pytest_homeassistant.{_name}")
