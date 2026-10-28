@@ -2,7 +2,7 @@
 
 import math
 
-from homeassistant.components.solcast_solar.forecast import ForecastQuery
+from custom_components.solcast_solar.forecast import ForecastQuery
 
 cubic_interp = ForecastQuery._cubic_interp
 

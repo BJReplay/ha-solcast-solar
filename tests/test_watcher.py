@@ -3,10 +3,9 @@
 from typing import Any
 import unittest.mock
 
+from custom_components.solcast_solar.watch import FileWatcher
 import pytest
 from watchfiles import Change
-
-from homeassistant.components.solcast_solar.watch import FileWatcher
 
 
 @pytest.mark.asyncio
@@ -32,8 +31,8 @@ async def test_watch_dampening_file_missing() -> None:
         yield {(Change.deleted, "/config/solcast_solar/solcast-dampening.json")}
 
     with (
-        unittest.mock.patch("homeassistant.components.solcast_solar.watch.awatch", mock_awatch),
-        unittest.mock.patch("homeassistant.components.solcast_solar.watch.Path.stat", side_effect=FileNotFoundError),
+        unittest.mock.patch("custom_components.solcast_solar.watch.awatch", mock_awatch),
+        unittest.mock.patch("custom_components.solcast_solar.watch.Path.stat", side_effect=FileNotFoundError),
     ):
         await watcher.watch_dampening_file()
 
@@ -52,7 +51,7 @@ def test_watch_dir_non_discrete() -> None:
     coordinator.hass.config.config_dir = "/config"
     watcher = FileWatcher(coordinator)
 
-    with unittest.mock.patch("homeassistant.components.solcast_solar.watch.CONFIG_FOLDER_DISCRETE", False):
+    with unittest.mock.patch("custom_components.solcast_solar.watch.CONFIG_FOLDER_DISCRETE", False):
         assert watcher._watch_dir("/config/solcast_solar/solcast-dampening.json") == "/config/solcast_solar"
 
 
@@ -73,7 +72,7 @@ async def test_watch_dampening_file_initial_change() -> None:
         yield {(Change.deleted, "/config/solcast_solar/solcast-dampening.json")}
 
     with (
-        unittest.mock.patch("homeassistant.components.solcast_solar.watch.awatch", mock_awatch),
+        unittest.mock.patch("custom_components.solcast_solar.watch.awatch", mock_awatch),
         unittest.mock.patch.object(watcher, "_path_exists", return_value=False),
     ):
         await watcher.watch_dampening_file(initial_change=True)
@@ -104,7 +103,7 @@ async def test_watch_dampening_file_recreated_then_deleted() -> None:
         yield {(Change.deleted, "/config/solcast_solar/solcast-dampening.json")}
 
     with (
-        unittest.mock.patch("homeassistant.components.solcast_solar.watch.awatch", mock_awatch),
+        unittest.mock.patch("custom_components.solcast_solar.watch.awatch", mock_awatch),
         unittest.mock.patch.object(watcher, "_path_exists", side_effect=[True, False]),
     ):
         await watcher.watch_dampening_file()
@@ -139,7 +138,7 @@ async def test_watch_dampening_file_rapid_churn() -> None:
         yield {(Change.deleted, "/config/solcast_solar/solcast-dampening.json")}
 
     with (
-        unittest.mock.patch("homeassistant.components.solcast_solar.watch.awatch", mock_awatch),
+        unittest.mock.patch("custom_components.solcast_solar.watch.awatch", mock_awatch),
         unittest.mock.patch.object(watcher, "_path_exists", side_effect=[True, False]),
     ):
         await watcher.watch_dampening_file()
@@ -173,7 +172,7 @@ async def test_watch_advanced_task_cancel_without_stop() -> None:
         """Yield delete event so watcher exits and finally block runs."""
         yield {(Change.deleted, "/config/solcast_solar/solcast-advanced.json")}
 
-    with unittest.mock.patch("homeassistant.components.solcast_solar.watch.awatch", mock_awatch):
+    with unittest.mock.patch("custom_components.solcast_solar.watch.awatch", mock_awatch):
         await watcher.watch_advanced_file()
 
     cancel.assert_called_once()
@@ -196,7 +195,7 @@ async def test_handle_advanced_update_cancels_pending() -> None:
     watcher = FileWatcher(coordinator)
 
     with unittest.mock.patch(
-        "homeassistant.components.solcast_solar.watch.async_call_later",
+        "custom_components.solcast_solar.watch.async_call_later",
         side_effect=lambda *a, **kw: next(call_later_returns),
     ):
         # First change: _pending_restart is None, so no cancel; schedules cancel_first
@@ -217,5 +216,5 @@ def test_path_exists_oserror_returns_false() -> None:
     coordinator.hass.config.config_dir = "/config"
     watcher = FileWatcher(coordinator)
 
-    with unittest.mock.patch("homeassistant.components.solcast_solar.watch.Path.exists", side_effect=OSError):
+    with unittest.mock.patch("custom_components.solcast_solar.watch.Path.exists", side_effect=OSError):
         assert watcher._path_exists("/config/solcast_solar/solcast-dampening.json") is False

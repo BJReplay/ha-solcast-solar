@@ -9,23 +9,15 @@ import re
 from typing import Any
 from unittest.mock import patch
 
-from freezegun.api import FrozenDateTimeFactory
-import pytest
-
-from homeassistant import config_entries
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.sensor import SensorDeviceClass
-import homeassistant.components.solcast_solar as solcast_module
-from homeassistant.components.solcast_solar import state
-
-# As a core component, these imports would be homeassistant.components.solcast_solar and not config.custom_components.solcast_solar
-from homeassistant.components.solcast_solar.config_flow import (
+import custom_components.solcast_solar as solcast_module
+from custom_components.solcast_solar import state
+from custom_components.solcast_solar.config_flow import (
     ATTR_BREAKDOWN,
     CONFIG_DAMP,
     SolcastSolarFlowHandler,
     SolcastSolarOptionFlowHandler,
 )
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     AFFIRMATION_REAUTH_SUCCESSFUL,
     AFFIRMATION_RECONFIGURED,
     AFFIRMATION_UNCHANGED,
@@ -77,9 +69,15 @@ from homeassistant.components.solcast_solar.const import (
     TITLE,
     USE_ACTUALS,
 )
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.enums import HistoryType
-from homeassistant.components.solcast_solar.solcastapi import LoadStatus, SolcastApi
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.enums import HistoryType
+from custom_components.solcast_solar.solcastapi import LoadStatus, SolcastApi
+from freezegun.api import FrozenDateTimeFactory
+import pytest
+
+from homeassistant import config_entries
+from homeassistant.components.recorder import Recorder
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.config_entries import ConfigEntryState, ConfigFlowResult
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -430,8 +428,8 @@ async def test_reauth_unchanged_key_retries_setup_without_key_change(hass: HomeA
     result = await entry.start_reauth_flow(hass)
 
     with (
-        patch("homeassistant.components.solcast_solar.config_flow.validate_sites", return_value=(200, "")) as mock_validate_sites,
-        patch("homeassistant.components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive,
+        patch("custom_components.solcast_solar.config_flow.validate_sites", return_value=(200, "")) as mock_validate_sites,
+        patch("custom_components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive,
         patch.object(SolcastSolarFlowHandler, "_mark_reset_old_key") as mock_mark_reset_old_key,
         patch.object(hass.config_entries, "async_update_entry") as mock_update_entry,
         patch.object(hass.config_entries, "async_schedule_reload") as mock_schedule_reload,
@@ -526,8 +524,8 @@ async def test_reconfigure_errors_then_unchanged_does_not_update(hass: HomeAssis
         assert result["errors"]["base"] == reason  # type: ignore[index]
 
     with (
-        patch("homeassistant.components.solcast_solar.config_flow.validate_sites") as mock_validate_sites,
-        patch("homeassistant.components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive,
+        patch("custom_components.solcast_solar.config_flow.validate_sites") as mock_validate_sites,
+        patch("custom_components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive,
         patch.object(SolcastSolarFlowHandler, "_mark_reset_old_key") as mock_mark_reset_old_key,
         patch.object(hass.config_entries, "async_update_entry") as mock_update_entry,
         patch.object(hass.config_entries, "async_schedule_reload") as mock_schedule_reload,
@@ -657,7 +655,7 @@ async def test_options_api_key(hass: HomeAssistant, user_input: dict[str, Any], 
     result = await flow.async_step_init()
     assert result.get("type") == FlowResultType.FORM
     assert result.get("step_id") == "init"
-    with patch("homeassistant.components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive:
+    with patch("custom_components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive:
         result = await flow.async_step_init(user_input)
     if reason is not None:
         assert result["errors"]["base"] == reason  # type: ignore[index]
@@ -676,7 +674,7 @@ async def test_options_api_key_invalid(hass: HomeAssistant) -> None:
     options = DEFAULT_INPUT1.copy()
     options[SITE_EXPORT_ENTITY] = [options[SITE_EXPORT_ENTITY]]
 
-    with patch("homeassistant.components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive:
+    with patch("custom_components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive:
         inject = {CONF_API_KEY: "555"}
         result = await flow.async_step_init({**options, **inject})
         _assert_flow_error(result, "Bad API key, 403/Forbidden")
@@ -706,8 +704,8 @@ async def test_options_api_key_change_sets_sensitive(hass: HomeAssistant) -> Non
     options[SITE_EXPORT_ENTITY] = []
 
     with (
-        patch("homeassistant.components.solcast_solar.config_flow.validate_sites", return_value=(200, "")),
-        patch("homeassistant.components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive,
+        patch("custom_components.solcast_solar.config_flow.validate_sites", return_value=(200, "")),
+        patch("custom_components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive,
     ):
         await flow.async_step_init(options)
 
@@ -726,8 +724,8 @@ async def test_options_api_key_change_defers_sensitive_until_dampen_commit(hass:
     options[SITE_EXPORT_ENTITY] = []
 
     with (
-        patch("homeassistant.components.solcast_solar.config_flow.validate_sites", return_value=(200, "")),
-        patch("homeassistant.components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive,
+        patch("custom_components.solcast_solar.config_flow.validate_sites", return_value=(200, "")),
+        patch("custom_components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive,
         patch.object(hass.config_entries, "async_update_entry") as mock_update_entry,
         patch.object(flow, "check_dead") as mock_check_dead,
     ):
@@ -750,7 +748,7 @@ async def test_options_unexpected_exception_is_translated(hass: HomeAssistant, c
     flow = SolcastSolarOptionFlowHandler(MOCK_ENTRY1)
     flow.hass = hass
 
-    with patch("homeassistant.components.solcast_solar.config_flow.validate_api_key", side_effect=RuntimeError("secret detail")):
+    with patch("custom_components.solcast_solar.config_flow.validate_api_key", side_effect=RuntimeError("secret detail")):
         result = await flow.async_step_init(copy.deepcopy(DEFAULT_INPUT1))
 
     errors = result.get("errors")
@@ -818,8 +816,8 @@ async def test_options_duplicate_api_key_then_unchanged_does_not_update(hass: Ho
     assert suggested_values == {key: value for key, value in duplicate_input.items() if key in suggested_values}
 
     with (
-        patch("homeassistant.components.solcast_solar.config_flow.validate_sites") as mock_validate_sites,
-        patch("homeassistant.components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive,
+        patch("custom_components.solcast_solar.config_flow.validate_sites") as mock_validate_sites,
+        patch("custom_components.solcast_solar.config_flow.set_sensitive") as mock_set_sensitive,
         patch.object(hass.config_entries, "async_update_entry") as mock_update_entry,
         patch.object(flow, "check_dead") as mock_check_dead,
     ):

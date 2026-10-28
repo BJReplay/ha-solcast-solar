@@ -325,7 +325,7 @@
       "title": "Probleem met geavanceerde optie"
     },
     "api_unavailable": {
-      "description": "De Solcast API heeft tijdens een update herhaaldelijk de status `429 / Probeer het later opnieuw` gemeld.\n\n* Probeer deze situatie niet op te lossen.\n* Wijzig uw API-sleutel niet.\n* Start de integratie niet opnieuw op\n* Dit is geen integratieprobleem en lost zichzelf op. Wijzig niets.\n\n(Om dit probleem te onderdrukken, maakt u een geavanceerde configuratieoptie api_raise_issue aan en stelt u deze in op false.)",
+      "description": "De Solcast API heeft tijdens een update herhaaldelijk de status `429 / Probeer het later opnieuw` gemeld.\n\n* Probeer deze situatie niet op te lossen.\n* Wijzig uw API-sleutel niet.\n* Start de integratie niet opnieuw op\n* Dit is geen integratieprobleem en lost zichzelf op. Wijzig niets.\n\n(Om dit probleem te onderdrukken, maakt u een geavanceerde configuratieoptie api_raise_issues aan en stelt u deze in op false.)",
       "title": "Solcast API tijdelijk niet beschikbaar"
     },
     "corrupt_file": {

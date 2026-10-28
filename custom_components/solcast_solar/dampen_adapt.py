@@ -344,7 +344,7 @@ class DampeningAdaptive:
                             self.dampening.api.peak_intervals[interval] > 0
                             and period_value > 0
                             and dampening[interval] < 1.0
-                            and period_start in actuals
+                            and actuals.get(period_start, 0) > 0
                         ):
                             adjusted_dampening[interval] = self.dampening.apply_adjustment(
                                 actuals[period_start], dampening[interval], interval, delta_adjustment

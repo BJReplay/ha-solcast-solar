@@ -2,13 +2,13 @@
 
 from datetime import UTC, datetime as dt
 
-import pytest
-
-from homeassistant.components.solcast_solar import state
-from homeassistant.components.solcast_solar.state import (
+from custom_components.solcast_solar import state
+from custom_components.solcast_solar.state import (
     StateStore,
     async_get,
 )
+import pytest
+
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 

@@ -1,7 +1,7 @@
 """Unit tests for migration.py."""
 
-from homeassistant.components.solcast_solar.const import API_LIMIT, CUSTOM_HOURS
-from homeassistant.components.solcast_solar.migration import sync_legacy_keys
+from custom_components.solcast_solar.const import API_LIMIT, CUSTOM_HOURS
+from custom_components.solcast_solar.migration import sync_legacy_keys
 
 
 class TestSyncLegacyKeys:
