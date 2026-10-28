@@ -34,6 +34,7 @@ from custom_components.solcast_solar.const import (
     AUTO_DAMPEN,
     AUTO_UPDATE,
     DAMP_FACTOR,
+    DAMPENING_FACTOR,
     DOMAIN,
     ENTITY_ACCURACY,
     ESTIMATE,
@@ -431,6 +432,40 @@ async def test_auto_dampen_issues(
                 assert "Retrieved day -1 PV generation data from entity: sensor.solar_export_sensor_2222_2222_2222_2222" in caplog.text
             case _:
                 pytest.fail("Assertions missing for extra_sensors value")
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_auto_dampen_factor_from_today_only(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+) -> None:
+    """Test that only forecasts from local midnight today carry an automated dampening factor."""
+
+    try:
+        options = copy.deepcopy(DEFAULT_INPUT2)
+        options[GET_ACTUALS] = True
+        options[USE_ACTUALS] = 1
+        options[AUTO_DAMPEN] = True
+        options[GENERATION_ENTITIES] = [
+            "sensor.solar_export_sensor_1111_1111_1111_1111",
+            "sensor.solar_export_sensor_2222_2222_2222_2222",
+        ]
+        entry = await async_init_integration(hass, options, extra_sensors=ExtraSensors.YES_WATT_HOUR)
+        assert entry.state is ConfigEntryState.LOADED, "Integration presumed dead after setup"
+        solcast: SolcastApi = entry.runtime_data.coordinator.solcast
+
+        day_start = solcast.dt_helper.day_start_utc()
+        past = [f for f in solcast.data_forecasts if f[PERIOD_START] < day_start]
+        current = [f for f in solcast.data_forecasts if f[PERIOD_START] >= day_start]
+
+        # Both sides of the boundary must be present, including the intervals right next to it
+        assert past and current
+        assert past[-1][PERIOD_START] == day_start - timedelta(minutes=30)
+        assert current[0][PERIOD_START] == day_start
+        assert all(DAMPENING_FACTOR not in f for f in past)
+        assert all(DAMPENING_FACTOR in f for f in current)
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

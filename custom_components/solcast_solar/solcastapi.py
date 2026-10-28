@@ -844,6 +844,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             api_key: str | None = None
 
             try:
+                day_start = self.dt_helper.day_start_utc()  # Constant for the whole build
                 multi_key = await self._build_hard_limit(
                     data,
                     sites_hard_limit,
@@ -905,7 +906,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                                         forecasts[period_start] = {
                                             PERIOD_START: period_start,
                                         } | {est: site_forecasts[period_start][est] for est in (ESTIMATE, ESTIMATE10, ESTIMATE90)}
-                                        if dampened and self.options.auto_dampen and period_start >= self.dt_helper.day_start_utc():
+                                        if dampened and self.options.auto_dampen and period_start >= day_start:
                                             forecasts[period_start][DAMPENING_FACTOR] = round(self.dampening.auto_factors[period_start], 4)
 
                             # Prevent blocking

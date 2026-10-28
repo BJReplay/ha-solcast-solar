@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import copy
 from datetime import UTC, datetime as dt, timedelta
 from enum import Enum
 from hashlib import md5
@@ -411,7 +410,8 @@ class Fetcher:
             ),
             key=itemgetter(PERIOD_START),
         )
-        data[SITE_INFO].update({site: {FORECASTS: copy.deepcopy(_forecasts)}})
+        # Entries hold only datetimes and numbers, so copying each dict is enough
+        data[SITE_INFO].update({site: {FORECASTS: [dict(forecast) for forecast in _forecasts]}})
 
     async def http_data_call(
         self,
