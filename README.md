@@ -1510,12 +1510,12 @@ Latest minor/patch releases.
 v4.6.3
 
 * Add SSL verify by default by @autoSteve
+* Fix momentary power sensors dropping to 0 W in the afternoon when today's forecast starts after midnight by @Bascht74
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.2...v4.6.3
 
 v4.6.2
 
-* Fix momentary power sensors dropping to 0 W in the afternoon when today's forecast starts after midnight by @Bascht74
 * Add DNS timeout retries by @autoSteve
 * Embrace Home Assistant dt_util by @autoSteve
 * Run the test suite with coverage on every push and pull request by @Bascht74
