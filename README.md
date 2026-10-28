@@ -1511,6 +1511,9 @@ v4.6.3
 
 * Add SSL verify by default by @autoSteve
 * Fix automated dampening models 1, 2 and 3 applying the sun elevation adjustment to pairs that already share their sun geometry by @Bascht74
+* Add a model switch margin for adaptive dampening by @Bascht74
+* Fix Dublin dampening intervals shifted by one hour when the system time zone database marks summer as +1 hour by @Bascht74
+* Fix false missing forecast data warnings and repair issues around summer time changes by @Bascht74
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.2...v4.6.3
 

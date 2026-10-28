@@ -14,6 +14,7 @@ from custom_components.solcast_solar.const import (
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_HISTORY_LOAD_DAYS,
     ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS,
@@ -230,6 +231,7 @@ async def test_advanced_options(
             ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: 0,
             ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: ["wrong", "wrong", "so wrong"],
             ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS: 0,
+            ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN: 12.0,
             ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION: 0,
             ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS: 0,
             ADVANCED_AUTOMATED_DAMPENING_IGNORE_INTERVALS: ["24:00", "12:20", "13:00", "13:00", "14:00", "14:30", "15:00", "15:30"],
@@ -285,6 +287,7 @@ async def test_advanced_options(
         assert f"Advanced option proposed {ADVANCED_SOLCAST_PORT}: 8443" in caplog.text
         assert f"Advanced option set {ADVANCED_SOLCAST_PORT}: 8443" in caplog.text
         assert "solcast_url: https://localhost" in caplog.text
+        assert "automated_dampening_adaptive_model_switch_margin: 12.0 (must be 0.0-11.0)" in caplog.text
         assert "Invalid time in advanced option automated_dampening_ignore_intervals: 24:00" in caplog.text
         assert "Invalid time in advanced option automated_dampening_ignore_intervals: 12:20" in caplog.text
         assert "Duplicate time in advanced option automated_dampening_ignore_intervals: 13:00" in caplog.text
@@ -377,6 +380,7 @@ async def test_advanced_options(
             ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION: [
                 {"option": ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS, "value": 7},
                 {"option": ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE, "value": [{"model": 1, "delta": 2}]},
+                {"option": ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN, "value": 2.0},
             ]
         }
         data_file_4: dict[str, Any] = {

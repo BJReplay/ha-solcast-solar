@@ -43,8 +43,13 @@ class DateTimeHelper:
         """Return whether a given date is daylight savings time, or for zones using winter time whether summer time."""
         result = False
         if dt_obj is not None:
-            delta = timedelta(hours=1) if not self.is_dublin else timedelta(hours=0)
-            result = dt_obj.astimezone(self._tz).dst() == delta
+            local = dt_obj.astimezone(self._tz)
+            if self.is_dublin:
+                # Irish summer time is UTC+1. Not tzinfo.dst(): some time zone databases mark Dublin winter -1 hour,
+                # others summer +1 hour.
+                result = local.utcoffset() == timedelta(hours=1)
+            else:
+                result = local.dst() == timedelta(hours=1)
         return result
 
     def hour_start_utc(self) -> dt:
@@ -54,7 +59,7 @@ class DateTimeHelper:
     @property
     def is_dublin(self) -> bool:
         """Return whether the timezone is Dublin, which has unique DST."""
-        return str(self._tz) in ("Europe/Dublin", "Dublin")
+        return str(self._tz) in ("Europe/Dublin", "Dublin", "Eire")
 
     def is_interval_dst(self, interval: dict[str, Any]) -> bool:
         """Return whether an interval is daylight savings time, or for zones using winter time whether summer time."""

@@ -10,6 +10,7 @@ These tests verify:
 
 from collections import OrderedDict
 from datetime import datetime as dt
+from importlib import resources
 import tempfile
 from typing import Any
 from unittest.mock import MagicMock
@@ -70,6 +71,7 @@ def _make_mock_coordinator(
     solcast.entry_options = {SITE_DAMP: True}
     solcast.options.auto_dampen = auto_dampen
     solcast.options.tz = tz
+    solcast.dt_helper = DateTimeHelper(tz)
     solcast.dampening.factors = {ALL: factors_list}
     solcast.dampening.factors_mtime = 0
     solcast.advanced_options = {}
@@ -627,6 +629,18 @@ class TestWinterTimeDSTLabels:
 
         # Dublin winter: GMT, dst() helper returns False, offset 0, label "10:00"
         assert "Auto-dampen factor for 10:00 is 0.819" in caplog.text
+
+    @freeze_time("2025-06-15T14:00:00+01:00")  # IST (summer)
+    def test_dublin_summer_attribute_label(self) -> None:
+        """Test the attribute shows a Dublin summer factor at 11:00 with tzdata package data, which marks winter -1 hour."""
+        with resources.files("tzdata.zoneinfo").joinpath("Europe", "Dublin").open("rb") as file:
+            tz = ZoneInfo.from_file(file, key="Europe/Dublin")
+        factors_list = [1.0] * 48
+        factors_list[20] = 0.819
+
+        result = _get_attribute_factors(factors_list, tz)
+
+        assert [e[INTERVAL] for e in result if e[FACTOR] == 0.819] == ["11:00"]
 
 
 class TestCoordinatorAttributeBuilder:
