@@ -7,14 +7,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from freezegun.api import FrozenDateTimeFactory
-import pytest
-
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.config_flow import (
-    _async_is_allow_exceed_api_limit,
-)
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.config_flow import _async_is_allow_exceed_api_limit
+from custom_components.solcast_solar.const import (
     ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM,
     ADVANCED_API_RAISE_ISSUES,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
@@ -59,12 +53,21 @@ from homeassistant.components.solcast_solar.const import (
     PROBLEMS,
     TASK_WATCH_ADVANCED_FILE_CHANGE,
 )
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.solcastapi import SolcastApi
+from freezegun.api import FrozenDateTimeFactory
+import pytest
+
+from homeassistant.components.recorder import Recorder
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er, issue_registry as ir
 
-from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
+from . import (
+    DEFAULT_INPUT1,
+    async_cleanup_integration_tests,
+    async_init_integration,
+    write_advanced_options,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -415,6 +418,37 @@ async def test_advanced_options(
         await hass.config_entries.async_unload(entry.entry_id)
         await wait()
         assert f"Cancelling coordinator task {TASK_WATCH_ADVANCED_FILE_CHANGE}" in caplog.text
+
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_whole_number_for_float_option(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Test that a float option takes a whole number, but not true."""
+
+    try:
+        # These two options take 0.0 to 1.0, so the whole number here is 1.
+        # 1 replaces the default 0.95 as 1.0. true is not a number, so the default 0.9 stays.
+        write_advanced_options(
+            hass.config.config_dir,
+            {
+                ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR: 1,
+                ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK: True,
+            },
+        )
+        entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT1))
+        solcast: SolcastApi = entry.runtime_data.coordinator.solcast
+
+        insignificant_factor = solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR]
+        assert insignificant_factor == 1.0
+        assert isinstance(insignificant_factor, float)
+
+        assert "Type mismatch for advanced option automated_dampening_similar_peak: should be float" in caplog.text
+        assert solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_SIMILAR_PEAK] == 0.9
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

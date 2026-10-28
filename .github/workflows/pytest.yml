@@ -93,7 +93,7 @@ jobs:
           python -m pip install uv
           extra=$(grep -E "^(SQLAlchemy|fnv-hash-fast|psutil-home-assistant|paho-mqtt|aiohasupervisor)==" requirements_all.txt)
           reqs=$(python -c 'import json; print(" ".join(json.load(open("../integration/custom_components/solcast_solar/manifest.json"))["requirements"]))')
-          # Core dev ships its test helpers as the package pytest_homeassistant. master and rc do not have it yet.
+          # Core 2026.11 ships its test helpers as the package pytest_homeassistant.
           helpers=""
           if [ -d packages/pytest-home-assistant ]; then
             helpers="-e packages/pytest-home-assistant"
@@ -103,8 +103,9 @@ jobs:
 
       - name: Mount the integration into Core
         run: |
-          rm -rf core/homeassistant/components/solcast_solar core/tests/components/solcast_solar
-          cp -a integration/custom_components/solcast_solar core/homeassistant/components/solcast_solar
+          rm -rf core/custom_components/solcast_solar core/tests/components/solcast_solar
+          mkdir -p core/custom_components
+          cp -a integration/custom_components/solcast_solar core/custom_components/solcast_solar
           cp -a integration/tests core/tests/components/solcast_solar
 
       - name: Mount the simulator into Core
@@ -115,14 +116,6 @@ jobs:
           cp -a integration/custom_sim/solcast_sim core/homeassistant/components/solcast_sim
           cp -a integration/tests_solcast_sim core/tests/components/solcast_sim
 
-      - name: Point the test helper imports at Core's package
-        run: |
-          # Core dev moved tests/common.py and the other test helpers into the package pytest_homeassistant.
-          [ -d core/packages/pytest-home-assistant ] || exit 0
-          modules="common|typing|ignore_uncaught_exceptions|components\.diagnostics|components\.recorder\.common"
-          grep -rlE "from tests\.($modules) import" core/tests/components/solcast_* \
-            | xargs -r sed -i -E "s/from tests\.($modules) import/from pytest_homeassistant.\1 import/"
-
       - name: Compile translations
         working-directory: core
         run: python -m script.translations develop --all
@@ -132,7 +125,7 @@ jobs:
         run: >-
           set -o pipefail &&
           python -m pytest tests/components/solcast_solar -n auto --dist=worksteal --timeout=300 -p no:sugar
-          --cov=homeassistant.components.solcast_solar --cov-config=tests/components/solcast_solar/.coveragerc
+          --cov=custom_components.solcast_solar --cov-config=tests/components/solcast_solar/.coveragerc
           --cov-report=term-missing:skip-covered --cov-fail-under=100
           2>&1 | tee "$RUNNER_TEMP/pytest.log"
 

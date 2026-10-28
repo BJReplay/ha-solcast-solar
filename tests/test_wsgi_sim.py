@@ -8,13 +8,8 @@ from types import ModuleType
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
+from custom_components.solcast_solar.const import ESTIMATED_ACTUALS, FORECASTS, SITES
 import pytest
-
-from homeassistant.components.solcast_solar.const import (
-    ESTIMATED_ACTUALS,
-    FORECASTS,
-    SITES,
-)
 
 pytest.importorskip("flask", reason="Flask is required to run simulator tests")
 pytest.importorskip("isodate", reason="isodate is required to run simulator tests")

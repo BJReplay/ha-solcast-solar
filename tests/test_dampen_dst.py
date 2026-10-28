@@ -15,10 +15,7 @@ from typing import Any
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
-from freezegun import freeze_time
-import pytest
-
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR,
     ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION,
     ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS,
@@ -31,9 +28,11 @@ from homeassistant.components.solcast_solar.const import (
     METHOD,
     SITE_DAMP,
 )
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.dampen import Dampening
-from homeassistant.components.solcast_solar.dates import DateTimeHelper
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.dampen import Dampening
+from custom_components.solcast_solar.dates import DateTimeHelper
+from freezegun import freeze_time
+import pytest
 
 
 @pytest.fixture(autouse=True)

@@ -1,10 +1,10 @@
 """Unit tests for redact.py."""
 
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     SITE_ATTRIBUTE_LATITUDE,
     SITE_ATTRIBUTE_LONGITUDE,
 )
-from homeassistant.components.solcast_solar.redact import (
+from custom_components.solcast_solar.redact import (
     format_site_key,
     redact_api_key,
     redact_filename_api_key,

@@ -5,30 +5,20 @@ import contextlib
 import copy
 from datetime import UTC, datetime as dt, timedelta
 from enum import Enum
+from importlib import import_module
+from importlib.util import find_spec
 import json
 import logging
 from pathlib import Path
 import re
 from re import Pattern
+import sys
 from typing import Any, cast
 from zoneinfo import ZoneInfo
 
 from aiohttp import ClientConnectionError
-from freezegun import freeze_time
-from freezegun.api import FrozenDateTimeFactory
-import pytest
-from sqlalchemy import insert
-from yarl import URL
-
-from homeassistant.components.recorder import get_instance
-from homeassistant.components.recorder.db_schema import (
-    StateAttributes,
-    States,
-    StatesMeta,
-)
-from homeassistant.components.sensor import SensorDeviceClass
-from homeassistant.components.solcast_solar import state as _cs
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar import state as _cs
+from custom_components.solcast_solar.const import (
     API_LIMIT,
     AUTO_DAMPEN,
     AUTO_UPDATE,
@@ -58,9 +48,22 @@ from homeassistant.components.solcast_solar.const import (
     SITE_INFO,
     USE_ACTUALS,
 )
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.dates import DateTimeEncoder, JSONDecoder
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.dates import DateTimeEncoder, JSONDecoder
+from custom_components.solcast_solar.solcastapi import SolcastApi
+from freezegun import freeze_time
+from freezegun.api import FrozenDateTimeFactory
+import pytest
+from sqlalchemy import insert
+from yarl import URL
+
+from homeassistant.components.recorder import get_instance
+from homeassistant.components.recorder.db_schema import (
+    StateAttributes,
+    States,
+    StatesMeta,
+)
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
@@ -70,6 +73,11 @@ from homeassistant.util import dt as dt_util
 
 from .aioresponses import CallbackResult, aioresponses
 from .simulator import API_KEY_SITES, GENERATION_FACTOR, SimulatedSolcast
+
+# Core 2026.11 moved these test helpers into the package pytest_homeassistant, so keep their old names working.
+if find_spec("tests.common") is None:
+    for _name in ("common", "typing", "ignore_uncaught_exceptions", "components.diagnostics", "components.recorder.common"):
+        sys.modules[f"tests.{_name}"] = import_module(f"pytest_homeassistant.{_name}")
 
 from tests.common import MockConfigEntry
 from tests.components.recorder.common import async_wait_recording_done

@@ -2,16 +2,12 @@
 
 from datetime import datetime as dt
 
+from custom_components.solcast_solar.const import CONFIG_VERSION, DOMAIN, INTEGRATION
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.energy import async_get_solar_forecast
 import pytest
 
 from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.const import (
-    CONFIG_VERSION,
-    DOMAIN,
-    INTEGRATION,
-)
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.energy import async_get_solar_forecast
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 

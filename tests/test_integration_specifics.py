@@ -10,11 +10,8 @@ from pathlib import Path
 from typing import Any
 import unittest.mock
 
-import pytest
-
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.config_flow import validate_sites
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.config_flow import validate_sites
+from custom_components.solcast_solar.const import (
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
     ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY,
     ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES,
@@ -57,8 +54,11 @@ from homeassistant.components.solcast_solar.const import (
     UNDAMPENED_PERCENTILES,
     USE_ACTUALS,
 )
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.solcastapi import SolcastApi
+import pytest
+
+from homeassistant.components.recorder import Recorder
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, SupportsResponse
@@ -390,10 +390,10 @@ async def test_updater_scheduler_catch_up_and_duplicate_guards(
 
         now_local = dt.now(solcast.options.tz).replace(minute=1, second=0, microsecond=0)
         with (
-            unittest.mock.patch("homeassistant.components.solcast_solar.updater.dt") as dt_mock,
-            unittest.mock.patch("homeassistant.components.solcast_solar.updater.randint", return_value=5),
+            unittest.mock.patch("custom_components.solcast_solar.updater.dt") as dt_mock,
+            unittest.mock.patch("custom_components.solcast_solar.updater.randint", return_value=5),
             unittest.mock.patch(
-                "homeassistant.components.solcast_solar.updater.async_track_point_in_utc_time",
+                "custom_components.solcast_solar.updater.async_track_point_in_utc_time",
                 return_value=unittest.mock.Mock(),
             ) as mock_track_point,
         ):
@@ -436,7 +436,7 @@ async def test_updater_estimated_actuals_skip_paths_and_undampened_accuracy(
         solcast.data_actuals[LAST_UPDATED] = dt.now(datetime.UTC)
         now_local = dt.now(solcast.options.tz).replace(minute=0, second=0, microsecond=0)
 
-        with unittest.mock.patch("homeassistant.components.solcast_solar.updater.dt") as dt_mock:
+        with unittest.mock.patch("custom_components.solcast_solar.updater.dt") as dt_mock:
             dt_mock.now.return_value = now_local
             scheduled = await coordinator.updater.check_estimated_actuals_fetch()
 
@@ -446,7 +446,7 @@ async def test_updater_estimated_actuals_skip_paths_and_undampened_accuracy(
         solcast.data_actuals[LAST_UPDATED] = dt.now(datetime.UTC) - timedelta(days=1)
         caplog.clear()
         with (
-            unittest.mock.patch("homeassistant.components.solcast_solar.updater.dt") as dt_mock,
+            unittest.mock.patch("custom_components.solcast_solar.updater.dt") as dt_mock,
             unittest.mock.patch.object(
                 SolcastApi,
                 "estimated_actuals_updated_today",
@@ -459,7 +459,7 @@ async def test_updater_estimated_actuals_skip_paths_and_undampened_accuracy(
                 new=unittest.mock.AsyncMock(return_value=None),
             ),
             unittest.mock.patch(
-                "homeassistant.components.solcast_solar.updater.async_track_point_in_utc_time",
+                "custom_components.solcast_solar.updater.async_track_point_in_utc_time",
                 return_value=unittest.mock.Mock(),
             ),
         ):
