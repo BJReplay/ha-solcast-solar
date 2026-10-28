@@ -1510,6 +1510,7 @@ Latest minor/patch releases.
 v4.6.3
 
 * Add SSL verify by default by @autoSteve
+* Fix automated dampening models 1, 2 and 3 applying the sun elevation adjustment to pairs that already share their sun geometry by @Bascht74
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.2...v4.6.3
 
@@ -1522,7 +1523,6 @@ v4.6.2
 * Fix 400 return code on forecast fetch due to DST transition by @BJReplay
 * Update checkout action version to v5 by @BJReplay
 * Fix the adaptive dampening history stopping when an estimated actual is 0 by @Bascht74
-* Fix automated dampening models 1, 2 and 3 applying the sun elevation adjustment to pairs that already share their sun geometry by @Bascht74
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.1...v4.6.2
 
