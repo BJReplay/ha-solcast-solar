@@ -570,7 +570,7 @@ async def test_expected_intervals_per_day(
         day_start = dt.fromisoformat(day).replace(tzinfo=tz)
         freezer.move_to(day_start - timedelta(hours=12))
         # Give the integration tz itself, which can be a synthetic zone.
-        with patch(f"homeassistant.components.{DOMAIN}.__get_time_zone", AsyncMock(return_value=tz)):
+        with patch(f"custom_components.{DOMAIN}.__get_time_zone", AsyncMock(return_value=tz)):
             entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone="Europe/London")
         solcast = entry.runtime_data.coordinator.solcast
 
