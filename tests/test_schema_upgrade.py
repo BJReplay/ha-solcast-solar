@@ -2,9 +2,7 @@
 
 import copy
 
-import pytest
-
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     AUTO_UPDATED,
     ESTIMATE,
     FAILURE,
@@ -20,10 +18,11 @@ from homeassistant.components.solcast_solar.const import (
     SITE_INFO,
     VERSION,
 )
-from homeassistant.components.solcast_solar.migration import (
+from custom_components.solcast_solar.migration import (
     SchemaIncompatibleError,
     upgrade_cache_schema,
 )
+import pytest
 
 SITE_ID = "3333-3333-3333-3333"
 SAMPLE_FORECASTS: list = [{PERIOD_START: "2025-01-01T00:00:00", ESTIMATE: 1.0}]
