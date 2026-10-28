@@ -2,7 +2,7 @@
 
 import logging
 
-from homeassistant.components.solcast_solar.log import (
+from custom_components.solcast_solar.log import (
     _LOG_FILTER,
     _LOG_MESSAGE_REWRITES,
     get_logger,
@@ -65,6 +65,6 @@ def test_log_filter_ignores_invalid_arguments() -> None:
 
 def test_get_logger() -> None:
     """Test the shared filter is attached to an integration logger."""
-    logger = get_logger("homeassistant.components.solcast_solar.test")
+    logger = get_logger("custom_components.solcast_solar.test")
 
     assert _LOG_FILTER in logger.filters

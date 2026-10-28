@@ -10,16 +10,14 @@ from pathlib import Path
 from typing import Any
 import unittest.mock
 
-import pytest
-
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.config_flow import validate_sites
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.config_flow import validate_sites
+from custom_components.solcast_solar.const import (
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
     ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY,
     ADVANCED_ESTIMATED_ACTUALS_LOG_APE_PERCENTILES,
     ADVANCED_ESTIMATED_ACTUALS_LOG_MAPE_BREAKDOWN,
     ADVANCED_SOLCAST_PORT,
+    ADVANCED_SSL_VERIFY,
     API_KEY,
     CONFIG_DISCRETE_NAME,
     CONFIG_FOLDER_DISCRETE,
@@ -56,8 +54,11 @@ from homeassistant.components.solcast_solar.const import (
     UNDAMPENED_PERCENTILES,
     USE_ACTUALS,
 )
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.solcastapi import SolcastApi
+import pytest
+
+from homeassistant.components.recorder import Recorder
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, SupportsResponse
@@ -389,10 +390,10 @@ async def test_updater_scheduler_catch_up_and_duplicate_guards(
 
         now_local = dt.now(solcast.options.tz).replace(minute=1, second=0, microsecond=0)
         with (
-            unittest.mock.patch("homeassistant.components.solcast_solar.updater.dt") as dt_mock,
-            unittest.mock.patch("homeassistant.components.solcast_solar.updater.randint", return_value=5),
+            unittest.mock.patch("custom_components.solcast_solar.updater.dt") as dt_mock,
+            unittest.mock.patch("custom_components.solcast_solar.updater.randint", return_value=5),
             unittest.mock.patch(
-                "homeassistant.components.solcast_solar.updater.async_track_point_in_utc_time",
+                "custom_components.solcast_solar.updater.async_track_point_in_utc_time",
                 return_value=unittest.mock.Mock(),
             ) as mock_track_point,
         ):
@@ -435,7 +436,7 @@ async def test_updater_estimated_actuals_skip_paths_and_undampened_accuracy(
         solcast.data_actuals[LAST_UPDATED] = dt.now(datetime.UTC)
         now_local = dt.now(solcast.options.tz).replace(minute=0, second=0, microsecond=0)
 
-        with unittest.mock.patch("homeassistant.components.solcast_solar.updater.dt") as dt_mock:
+        with unittest.mock.patch("custom_components.solcast_solar.updater.dt") as dt_mock:
             dt_mock.now.return_value = now_local
             scheduled = await coordinator.updater.check_estimated_actuals_fetch()
 
@@ -445,7 +446,7 @@ async def test_updater_estimated_actuals_skip_paths_and_undampened_accuracy(
         solcast.data_actuals[LAST_UPDATED] = dt.now(datetime.UTC) - timedelta(days=1)
         caplog.clear()
         with (
-            unittest.mock.patch("homeassistant.components.solcast_solar.updater.dt") as dt_mock,
+            unittest.mock.patch("custom_components.solcast_solar.updater.dt") as dt_mock,
             unittest.mock.patch.object(
                 SolcastApi,
                 "estimated_actuals_updated_today",
@@ -458,7 +459,7 @@ async def test_updater_estimated_actuals_skip_paths_and_undampened_accuracy(
                 new=unittest.mock.AsyncMock(return_value=None),
             ),
             unittest.mock.patch(
-                "homeassistant.components.solcast_solar.updater.async_track_point_in_utc_time",
+                "custom_components.solcast_solar.updater.async_track_point_in_utc_time",
                 return_value=unittest.mock.Mock(),
             ),
         ):
@@ -583,6 +584,81 @@ async def test_service_supports_response(
                 f"Action '{action_name}' should not have SupportsResponse.ONLY, got {registered[action_name].supports_response}"
             )
 
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+@pytest.mark.parametrize("ssl_verify", [True, False])
+async def test_fetch_data_respects_advanced_ssl_verify(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    ssl_verify: bool,
+) -> None:
+    """Test fetch_data passes ssl_verify to aiohttp."""
+
+    try:
+        entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT1))
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = coordinator.solcast
+
+        assert solcast.sites
+        site_id = solcast.sites[0][RESOURCE_ID]
+        api_key = solcast.sites[0][API_KEY]
+        solcast.advanced_options[ADVANCED_SSL_VERIFY] = ssl_verify
+
+        payload = simulated.raw_get_site_forecasts(site_id, api_key, 320)
+        response = unittest.mock.MagicMock(status=200, url=f"https://api.solcast.com.au/rooftop_sites/{site_id}/forecasts")
+        response.text = unittest.mock.AsyncMock(return_value=json.dumps(payload))
+
+        original_session = solcast.aiohttp_session
+        mock_session = unittest.mock.MagicMock()
+        mock_session.get = unittest.mock.AsyncMock(return_value=response)
+        solcast.aiohttp_session = mock_session
+        try:
+            await solcast.fetcher.fetch_data(hours=320, path=FORECASTS, site=site_id, api_key=api_key, force=True)
+        finally:
+            solcast.aiohttp_session = original_session
+
+        mock_session.get.assert_awaited_once()
+        assert mock_session.get.await_args.kwargs["ssl"] is ssl_verify
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+@pytest.mark.parametrize("ssl_verify", [True, False])
+async def test_sites_cache_respects_advanced_ssl_verify(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    ssl_verify: bool,
+) -> None:
+    """Test sites discovery passes ssl_verify to aiohttp."""
+
+    try:
+        entry = await async_init_integration(hass, copy.deepcopy(DEFAULT_INPUT1))
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = coordinator.solcast
+
+        solcast.advanced_options[ADVANCED_SSL_VERIFY] = ssl_verify
+
+        api_key = str(entry.options[CONF_API_KEY]).split(",")[0].strip()
+        payload = simulated.raw_get_sites(api_key)
+        assert payload is not None
+
+        response = unittest.mock.MagicMock(status=200)
+        response.text = unittest.mock.AsyncMock(return_value=json.dumps(payload))
+
+        original_session = solcast.aiohttp_session
+        mock_session = unittest.mock.MagicMock()
+        mock_session.get = unittest.mock.AsyncMock(return_value=response)
+        solcast.aiohttp_session = mock_session
+        try:
+            status, _, _ = await solcast.sites_cache.get_sites_and_usage(prior_crash=False, use_cache=False)
+        finally:
+            solcast.aiohttp_session = original_session
+
+        assert status == 200
+        mock_session.get.assert_awaited_once()
+        assert mock_session.get.await_args.kwargs["ssl"] is ssl_verify
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 

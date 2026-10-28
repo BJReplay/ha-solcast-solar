@@ -10,20 +10,31 @@ As a custom component (no tests):
   ],
 ```
 
-Or as a core component, which is preferred. To run tests the integration must be mounted under core components. To be able to set up the integration in HA a symbolic link needs to be created to the custom components location. HA will run the integration as a custom component that replaces a core integration, and `pytest` will test the code that it sees at the core component location. This is the recommended approach to avoid a bunch of bad.
+Or with tests, which is preferred. Mount the integration at `config/custom_components/solcast_solar` as above and the tests at `tests/components/solcast_solar`. HA loads it from there as a custom component, next to any other custom component in `config/custom_components`. The dev container does not build `translations/en.json` from `strings.json` for a custom component, so copy any `strings.json` change to `en.json` by hand.
 
 ```
   "mounts": [
-    "source=${localEnv:HOME}/Documents/GitHub/ha-solcast-solar/custom_components/solcast_solar,target=${containerWorkspaceFolder}/homeassistant/components/solcast_solar,type=bind",
+    "source=${localEnv:HOME}/Documents/GitHub/ha-solcast-solar/custom_components/solcast_solar,target=${containerWorkspaceFolder}/config/custom_components/solcast_solar,type=bind",
     "source=${localEnv:HOME}/Documents/GitHub/ha-solcast-solar/tests,target=${containerWorkspaceFolder}/tests/components/solcast_solar,type=bind"
   ],
 ```
 
-Symbolic link creation... If an empty solcast_solar folder exists at the target then that folder will need to be removed before creating the link.
+Add `PYTHONPATH` to `containerEnv` in `devcontainer.json`, so that `pytest` finds the integration in `config/custom_components`.
 
 ```
-ln -s /workspaces/homeAssistant-core/homeassistant/components/solcast_solar \
-      /workspaces/homeAssistant-core/config/custom_components/solcast_solar
+  "containerEnv": {
+    "PYTHONASYNCIODEBUG": "1",
+    "PYTHONPATH": "${containerWorkspaceFolder}/config"
+  },
+```
+
+For VS Code to find the imports as well, add the paths to `.vscode/settings.json` and restart the language server.
+
+```
+  "python.analysis.extraPaths": [
+    "./config",
+    "./config/custom_components"
+  ],
 ```
 
 Mounting a solcast_solar config folder is also recommended.
@@ -38,7 +49,7 @@ To get the WSGI simulator to work an advanced integration option (`solcast_url`)
 
 Re-building the dev container will require `/etc/hosts` to be modified again if that approach has been used. Using the advanced option persists a re-build, and even more so if a mount of the config folder has been done.
 
-The tests will show up at `tests/components/solcast_solar`. `cd` to there and execute `pytest -n auto` for all, or `pytest test_xxxx.py` for just one test module. To inspect logging, `pytest -o log_cli=true --log-cli-level=DEBUG [module.py ...]`. For a test coverage report, `pytest -n auto --cov=homeassistant.components.solcast_solar --cov-report term-missing -v` using `xdist` parallelism (drop `-n auto` for a serialised run).
+The tests will show up at `tests/components/solcast_solar`. `cd` to there and execute `pytest -n auto` for all, or `pytest test_xxxx.py` for just one test module. To inspect logging, `pytest -o log_cli=true --log-cli-level=DEBUG [module.py ...]`. For a test coverage report, `pytest -n auto --cov=custom_components.solcast_solar --cov-report term-missing -v` using `xdist` parallelism (drop `-n auto` for a serialised run).
 
 Adding `--dist=worksteal` will likely reduce test runtime. Also if running the dev container on Apple silicon then limiting `xdist` to `-n {performance_cores}` will likely yield consistently fast test runtime (e.g. M2 Max use `-n 8`); the Linux test environment has no way of knowing which core is a performance core, so let MacOS work it out, because `-n auto` would choose 12 worker threads and end up running tests on efficiency cores.
 
@@ -50,20 +61,5 @@ Home Assistant development standards to Platinum level is also a thing here, and
 
 If you're really new to Home Assistant development then to set up the dev container install VSCode, fork homeAssistant-core to your own repo, go to https://developers.home-assistant.io/docs/development_environment/ and
 use the forked repo address https://github.com/{myGithubName}/homeAssistant-core/. Commits and PRs are not managed in the dev container unless you are developing core components, so use GitHub Desktop or Git command line instead for this custom component.
-
-Note that there is an annoyance that can be fixed in the dev container. When HA starts it recreates the translations files for core integrations, and this will include files for this integration when it is mounted as core. Why this is an annoyance is that the translation files for this integration use indent spaces=2, while HA uses indent spaces=4. This can be fixed with a small HA modification.
-
-```diff
-diff --git a/script/translations/download.py b/script/translations/download.py
-index 4ed2d8f045f..129d73084e6 100755
---- a/script/translations/download.py
-+++ b/script/translations/download.py
-@@ -62,7 +62,7 @@ def run_download_docker() -> None:
- 
- def save_json(filename: Path, data: list | dict) -> None:
-     """Save JSON data to a file."""
--    filename.write_text(json.dumps(data, sort_keys=True, indent=4), encoding="utf-8")
-+    filename.write_text(json.dumps(data, sort_keys=True, indent=2) + "\n", encoding="utf-8")
-```
 
 Welcome! Let's make this an even better integration!

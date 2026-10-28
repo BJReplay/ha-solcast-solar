@@ -10,11 +10,7 @@ from zoneinfo import ZoneInfo
 
 from aiohttp import ClientConnectorDNSError
 from aiohttp.client_reqrep import ConnectionKey
-from freezegun.api import FrozenDateTimeFactory
-import pytest
-
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     ADVANCED_DNS_TIMEOUT_RETRIES,
     ADVANCED_LOG_UPDATE_FAILURE_ONLY,
     ADVANCED_TRIGGER_ON_API_AVAILABLE,
@@ -29,8 +25,12 @@ from homeassistant.components.solcast_solar.const import (
     TASK_FORECASTS_FETCH_IMMEDIATE,
     TASK_NEW_DAY_ACTUALS,
 )
-from homeassistant.components.solcast_solar.enums import UpdateOutcome, UpdateResult
-from homeassistant.components.solcast_solar.fetcher import Fetcher
+from custom_components.solcast_solar.enums import UpdateOutcome, UpdateResult
+from custom_components.solcast_solar.fetcher import Fetcher
+from freezegun.api import FrozenDateTimeFactory
+import pytest
+
+from homeassistant.components.recorder import Recorder
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.setup import async_setup_component
@@ -182,7 +182,7 @@ async def test_forecast_retry(
         caplog.clear()
 
         solcast.data[LAST_UPDATED] -= timedelta(minutes=20)
-        with mock.patch("homeassistant.components.solcast_solar.fetcher.Fetcher._sleep", new_callable=AsyncMockDoNothing):
+        with mock.patch("custom_components.solcast_solar.fetcher.Fetcher._sleep", new_callable=AsyncMockDoNothing):
             await _wait_for_log(hass, caplog, freezer, "Raise issue for api_unavailable")
 
         assert "API was tried 10 times, but all attempts failed" in caplog.text
@@ -241,7 +241,7 @@ async def test_log_update_failure_only_enabled(
         caplog.set_level(logging.DEBUG)
 
         solcast.data[LAST_UPDATED] -= timedelta(minutes=20)
-        with mock.patch("homeassistant.components.solcast_solar.fetcher.Fetcher._sleep", new_callable=AsyncMockDoNothing):
+        with mock.patch("custom_components.solcast_solar.fetcher.Fetcher._sleep", new_callable=AsyncMockDoNothing):
             await _wait_for_log(hass, caplog, freezer, "Raise issue for api_unavailable")
 
         # Retry-related messages must be logged at DEBUG (not WARNING).
@@ -466,7 +466,7 @@ async def test_retry_recovery_then_schedule_deferred_actuals(
         caplog.clear()
         solcast.data[LAST_UPDATED] -= timedelta(minutes=20)
 
-        with mock.patch("homeassistant.components.solcast_solar.fetcher.Fetcher._sleep", new_callable=AsyncMockDoNothing):
+        with mock.patch("custom_components.solcast_solar.fetcher.Fetcher._sleep", new_callable=AsyncMockDoNothing):
             await _wait_for_log(hass, caplog, freezer, "Raise issue for api_unavailable")
 
         assert issue_registry.async_get_issue(DOMAIN, ISSUE_API_UNAVAILABLE) is not None

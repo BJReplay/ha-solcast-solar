@@ -6,6 +6,7 @@
 * [Q: I'm trying to set up (or re-set up) the integration, and **I'm getting 429 errors** and can't get any further.  What's happening?](#q-im-trying-to-set-up-or-re-set-up-the-integration-and-im-getting-429-errors-and-cant-get-any-further--whats-happening)
 * [Q: Solcast's API status page at https://status.solcast.com/ says that the API status is all green, but **I'm getting 429 errors**.  What should I do?](#solcasts-api-status-page-at-httpsstatussolcastcom-says-that-the-api-status-is-all-green-but-im-getting-429-errors--what-should-i-do)
 * [Q: You asked for DEBUG logs to be provided when raising issues. How do I get these?](#q-you-asked-for-debug-logs-to-be-provided-when-raising-issues-how-do-i-get-these)
+* [Q: I got an error setting up the integration, or it would not start after upgrading Home Assistant, complaining about Watchfiles. Why?](#q-i-got-an-error-setting-up-the-integration-or-it-would-not-start-after-upgrading-home-assistant-complaining-about-watchfiles-why)
 * [Q: The Solcast Toolkit site will not allow me to add a new rooftop site. I get a minus one error. Why?](#q-the-solcast-toolkit-site-will-not-allow-me-to-add-a-new-rooftop-site-i-get-a-minus-one-error-why)
 * [Q: I don't understand the README, and it's too long. Can it be simplified?](#q-i-dont-understand-the-readme-and-its-too-long-can-it-be-simplified)
 * [Q: Is submitting debug logging going to expose my API key or location to the world?](#q-is-submitting-debug-logging-going-to-expose-my-api-key-or-location-to-the-world)
@@ -38,11 +39,13 @@ or
 
 ### Solcast's API status page at [https://status.solcast.com/](https://status.solcast.com/) says that the API status is all green, but I'm getting 429 errors.  What should I do?
 
-As the [Solcast API Status](https://status.solcast.com/) page says: **_Don't agree with what's reported here? Contact_ [them] _at [support@solcast.com](mailto:support@solcast.com?subject=Report%20Incident)._** Do note that the status page generally **doesn't report the hobbyist API status** because the information there is for **paying customers**, not you.
+As the [Solcast API Status](https://status.solcast.com/) page says: **_Don't agree with what's reported here? Contact_ [them] _at [support@solcast.com](mailto:support@solcast.com?subject=Report%20Incident)._** Do note that the status page now **does include the hobbyist API status** at the very bottom of the status page listed as `Solcast Hobbyist Free API Endpoint`.
 
 This integration reports 429 errors returned by the Solcast Legacy Rooftop Site API as received.  If that's what Solcast is sending us, then that's what we report.
 
 There is nothing that the integration maintainers can do to fix this.
+
+If the maintainers are aware that there is an active 429 storm, then https://github.com/BJReplay/ha-solcast-solar/discussions/400 will be open and pinned, with a comment noting when the storm was last detected.
 
 The vast majority of times that this has occurred is because someone (not necessarily an integration user, and not necessarily a rooftop hobbyist user) is hammering Solcast servers thousands of times an hour (or minute) with an out-of-control process.
 
@@ -76,6 +79,18 @@ Reviewing logs is quite simple, and can be done from the UI. Go to Settings | Sy
 <img width="231" height="170" alt="image" src="https://github.com/user-attachments/assets/1799752a-0bd6-4fc4-9b91-daaed9ad2f82" />
 
 You can't filter for just the Solcast integration in the UI, so it might be a good idea to download the log and filter it by another method (for example the *nix utility `less` "&/" command, or Notepad++ with the Linefilter2 plugin.)
+
+### Q: I got an error setting up the integration, or it would not start after upgrading Home Assistant, complaining about Watchfiles. Why?
+
+This integration requires `watchfiles` which is not part of the standard Home Assistant install, so is downloaded when the first integration that needs it is installed.  Dependencies such as watchfiles are downloaded from `files.pythonhosted.org`, and this may be blocked by adblockers such as PiHole, resulting in the inability to set up this integration.
+
+If you receive an error attempting to install this integration - or after updating Home Assistant - that says something like `Setup failed for custom integration 'solcast_solar': Requirements for solcast_solar not found: ['watchfiles>=1.0.0']` then you have run into this error.
+
+You should consider adding `files.pythonhosted.org` to your adblocker's whitelist, or using a different DNS server for Home Assistant, or at least temporarily disabling your adblocker.
+
+Even if you have previously set up this integration, and it has worked perfectly, this could happen because of random time-outs when you upgrade Home Assistant.
+
+Changing from your ISP's DNS server to a more reliable one like Google (`8.8.8.8`) or CloudFlare (`1.1.1.1`) might be worth trying.
 
 ### Q: The Solcast Toolkit site will not allow me to add a new rooftop site. I get a minus one error. Why?
 
@@ -126,6 +141,8 @@ WT?
 Check for IPv6 weirdness. Is IPv6 enabled in Home Assistant? If yes, then triple check that HA can _actually_ talk IPv6 to the Internet...  If in doubt, then disable IPv6 in the HA network config. Or triple check your **router** config. This IPv6 stuff is new and scary, but please get your head around it, or disable it if you don't get it.
 
 If that's not the problem, and `curl` works, then I've got nothing without knowing more. But it's a network issue... Try a more generic networking issue Google search relating to Home Assistant.
+
+We've seen issues where swapping from your ISP's DNS server to one provided by Google or CloudFlare may help - see https://github.com/BJReplay/ha-solcast-solar/discussions/529 for a long discussion on this.  Long story short, the latest release should cope with dodgy DNSs better, but a better DNS is a better long term solution.
 
 ### Q: I've just had a shiny new PV string attached to my inverter, and I've gone to Solcast, added the new rooftop site details, but it's not being included in the forecast results. What's up?
 

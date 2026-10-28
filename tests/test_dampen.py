@@ -15,15 +15,8 @@ from typing import Any
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
-from freezegun.api import FrozenDateTimeFactory
-import pytest
-
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.sensor import SensorDeviceClass
-from homeassistant.components.solcast_solar.config_flow import (
-    SolcastSolarOptionFlowHandler,
-)
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.config_flow import SolcastSolarOptionFlowHandler
+from custom_components.solcast_solar.const import (
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
     ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
@@ -61,15 +54,21 @@ from homeassistant.components.solcast_solar.const import (
     SITE_INFO,
     USE_ACTUALS,
 )
-import homeassistant.components.solcast_solar.dampen as dampen_module
-from homeassistant.components.solcast_solar.dampen import (
+import custom_components.solcast_solar.dampen as dampen_module
+from custom_components.solcast_solar.dampen import (
     Dampening,
     compute_energy_intervals,
     compute_power_intervals,
 )
-from homeassistant.components.solcast_solar.dates import DateTimeHelper
-from homeassistant.components.solcast_solar.enums import SolcastApiStatus
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.dates import DateTimeHelper
+from custom_components.solcast_solar.enums import SolcastApiStatus
+from custom_components.solcast_solar.solcastapi import SolcastApi
+from freezegun.api import FrozenDateTimeFactory
+import pytest
+
+from homeassistant.components.recorder import Recorder, get_instance
+from homeassistant.components.recorder.history import state_changes_during_period
+from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady, ServiceValidationError
@@ -85,6 +84,7 @@ from . import (
     adjust_dampening_test_caches,
     async_cleanup_integration_tests,
     async_init_integration,
+    async_setup_extra_sensors,
     exec_update_actuals,
     get_config_dir,
     no_exception,
@@ -96,6 +96,10 @@ from . import (
 )
 
 from tests.common import MockConfigEntry
+from tests.components.recorder.common import (
+    async_block_recorder,
+    async_wait_recording_done,
+)
 
 ZONE = ZoneInfo(ZONE_RAW)
 NOW = dt_util.now(ZONE)
@@ -106,22 +110,22 @@ _LOGGER = logging.getLogger(__name__)
 def _patch_astral_location_provider(monkeypatch: pytest.MonkeyPatch, loc: Any) -> None:
     """Patch dampen astral providers for both observer and legacy environments."""
     monkeypatch.setattr(
-        "homeassistant.components.solcast_solar.dampen._astral_elevation",
+        "custom_components.solcast_solar.dampen._astral_elevation",
         lambda astral_loc, when: astral_loc.solar_elevation(when),
     )
     monkeypatch.setattr(
-        "homeassistant.components.solcast_solar.dampen._astral_azimuth",
+        "custom_components.solcast_solar.dampen._astral_azimuth",
         lambda astral_loc, when: astral_loc.solar_azimuth(when) if hasattr(astral_loc, "solar_azimuth") else 180.0,
     )
 
     if hasattr(dampen_module, "get_astral_observer"):
         monkeypatch.setattr(
-            "homeassistant.components.solcast_solar.dampen.get_astral_observer",
+            "custom_components.solcast_solar.dampen.get_astral_observer",
             lambda _hass: loc,
         )
     else:
         monkeypatch.setattr(
-            "homeassistant.components.solcast_solar.dampen.get_astral_location",
+            "custom_components.solcast_solar.dampen.get_astral_location",
             lambda _hass: (loc, 0),
         )
 
@@ -430,6 +434,30 @@ async def test_auto_dampen_issues(
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_extra_sensors_history_recorded(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+) -> None:
+    """Test generation history written through the state machine is in the recorder when setup returns."""
+
+    entry = MockConfigEntry(domain=DOMAIN, data=DEFAULT_INPUT2, options=DEFAULT_INPUT2)
+    entry.add_to_hass(hass)
+    entity = "sensor.solar_export_sensor_2222_2222_2222_2222"
+    start = dt_util.now(datetime.UTC) - timedelta(days=7)
+
+    def recorded_states() -> int:
+        return len(state_changes_during_period(hass, start, dt_util.now(datetime.UTC), entity).get(entity, []))
+
+    # A recorder that lags behind the event loop, as on a busy test runner.
+    await async_block_recorder(hass, 0.1)
+    await async_setup_extra_sensors(hass, DEFAULT_INPUT2, entry, ExtraSensors.DODGY)
+    recorded = await get_instance(hass).async_add_executor_job(recorded_states)
+
+    await async_wait_recording_done(hass)
+    assert recorded > 0
+    assert recorded == await get_instance(hass).async_add_executor_job(recorded_states)
 
 
 async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.LogCaptureFixture) -> None:

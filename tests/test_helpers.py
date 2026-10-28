@@ -2,17 +2,15 @@
 
 from datetime import UTC, datetime as dt
 
-import pytest
-
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     DEFAULT_SOLCAST_HTTPS_URL,
     ESTIMATE,
     ESTIMATE10,
     ESTIMATE90,
     PERIOD_START,
 )
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
-from homeassistant.components.solcast_solar.util import (
+from custom_components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.util import (
     azimuth_to_compass_degrees,
     azimuth_to_compass_direction,
     diff,
@@ -21,6 +19,7 @@ from homeassistant.components.solcast_solar.util import (
     percentile,
     split_and_strip,
 )
+import pytest
 
 
 class TestGetSolcastBaseUrl:

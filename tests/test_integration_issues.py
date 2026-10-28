@@ -6,10 +6,7 @@ import copy
 from types import SimpleNamespace
 from typing import Any
 
-import pytest
-
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     ACTUALS_COST,
     API_LIMIT,
     API_USED,
@@ -23,14 +20,17 @@ from homeassistant.components.solcast_solar.const import (
     TASK_ACTUALS_FETCH,
     USE_ACTUALS,
 )
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.enums import AutoUpdate
-from homeassistant.components.solcast_solar.fetcher import Fetcher
-from homeassistant.components.solcast_solar.issues import (
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.enums import AutoUpdate
+from custom_components.solcast_solar.fetcher import Fetcher
+from custom_components.solcast_solar.issues import (
     sync_actuals_api_limit_issue,
     sync_actuals_quota_risk_issue,
 )
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.solcastapi import SolcastApi
+import pytest
+
+from homeassistant.components.recorder import Recorder
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import issue_registry as ir

@@ -11,12 +11,7 @@ import re
 from unittest.mock import patch
 from zoneinfo import ZoneInfo
 
-from freezegun.api import FrozenDateTimeFactory
-import pytest
-
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.repairs import ConfirmRepairFlow
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     AFFIRMATION_RECONFIGURED,
     AFFIRMATION_UNCHANGED,
     AUTO_UPDATE,
@@ -43,9 +38,14 @@ from homeassistant.components.solcast_solar.const import (
     SITE_INFO,
     SITES,
 )
-from homeassistant.components.solcast_solar.issues import check_unusual_azimuth
-from homeassistant.components.solcast_solar.redact import redact_lat_lon_simple
-from homeassistant.components.solcast_solar.repairs import async_create_fix_flow
+from custom_components.solcast_solar.issues import check_unusual_azimuth
+from custom_components.solcast_solar.redact import redact_lat_lon_simple
+from custom_components.solcast_solar.repairs import async_create_fix_flow
+from freezegun.api import FrozenDateTimeFactory
+import pytest
+
+from homeassistant.components.recorder import Recorder
+from homeassistant.components.repairs import ConfirmRepairFlow
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import issue_registry as ir

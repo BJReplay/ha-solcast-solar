@@ -6,11 +6,7 @@ from datetime import datetime as dt, timedelta
 import logging
 import unittest.mock
 
-from freezegun.api import FrozenDateTimeFactory
-import pytest
-
-from homeassistant.components.recorder import Recorder
-from homeassistant.components.solcast_solar.const import (
+from custom_components.solcast_solar.const import (
     ACTUALS_ATTEMPT,
     ACTUALS_UPDATED,
     API_FORCE_USED,
@@ -46,9 +42,13 @@ from homeassistant.components.solcast_solar.const import (
     SITES_STATUS,
     USAGE_STATUS,
 )
-from homeassistant.components.solcast_solar.coordinator import SolcastUpdateCoordinator
-from homeassistant.components.solcast_solar.enums import LoadStatus
-from homeassistant.components.solcast_solar.solcastapi import SolcastApi
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.enums import LoadStatus
+from custom_components.solcast_solar.solcastapi import SolcastApi
+from freezegun.api import FrozenDateTimeFactory
+import pytest
+
+from homeassistant.components.recorder import Recorder
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
