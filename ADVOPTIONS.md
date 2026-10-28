@@ -65,11 +65,11 @@ Possible values: boolean `true`/`false` (default `true`)
 
 Adjusts historical generation and estimated actual values for changing sun geometry before they are compared when modelling dampening factors.
 
-Past data used to model dampening for today was recorded on days when the sun tracked a different arc across the sky. In spring and autumn in particular, a half-hour interval fourteen days ago may have seen a noticeably different solar elevation than the same half-hour today, which biases the "peak" and per-pair ratios used by the various dampening models. This bias is strongest around sunrise and sunset, and for sites further from the equator.
+Past data used to model dampening for today was recorded on days when the sun tracked a different arc across the sky. In spring and autumn in particular, a half-hour interval fourteen days ago may have seen a noticeably different solar elevation than the same half-hour today, which biases the comparison with the "peak" used by the default dampening model. This bias is strongest around sunrise and sunset, and for sites further from the equator.
 
 When this option is enabled the integration computes a geometry-normalised ratio between past and present timestamps for every past half-hour sample used in modelling. This normalises historical PV generation samples from a prior day to the expected solar contribution on the present day, compensating for solar-geometry drift. Said another way, your given panel tilt and azimuth will subtly change generation over time based on where the sun would be, so this mechanism compensates for that in automated dampening computations to improve peak interval comparison.
 
-Each historical estimated actual and generation pair for dampening models 1/2/3 has an appropriate ratio applied, and the peak estimated actual used by the default model is likewise normalised to today's sun geometry.
+The peak estimated actual used by the default model is likewise normalised to today's sun geometry. Dampening models 1/2/3 compare each generation sample with the estimated actual of the same half-hour, which already shares its sun geometry, so they use no ratio.
 
 **Key: "automated_dampening_generation_fetch_delay"**
 
@@ -203,6 +203,8 @@ This selected dampening configuration is then applied to the forecast and the se
 
 When `automated_dampening_no_delta_adjustment` is true, the algorithm selects the most consistently accurate dampening model from the configurations that do not use delta adjustment.  When it is false, the algorithm selects the combination of dampening model and delta adjustment option that are most consistently accurate.
 
+"Most consistently accurate" comes from a ranking (a Borda count). Each day, the configurations are ranked by their error at the half-hour where dampening makes the most difference, `1` for the lowest. These places are averaged over the days, and the configuration with the lowest mean rank is selected. For example, if over nine days model `3` with delta `0` has a mean rank of 3.11 and model `0` with delta `1` one of 5.11, the mean rank of model `3` is lower by 2.0. The mean ranks are logged at `DEBUG` level as `Borda`. `automated_dampening_adaptive_model_switch_margin` can keep the default model `0` until another configuration's mean rank is lower by at least a set margin.
+
 A debug message will be logged whenever the `automated_dampening_no_delta_adjustment` setting disagrees with the overall best error results. This happens if `automated_dampening_no_delta_adjustment` is `true` but a delta adjusted model performs better, or if it is `false` but a model without delta adjustment achieves a lower error.
 
 There are a number of other advanced options that can and should be used to tune the performance of adaptive dampening model configuration to suit your local conditions.  These are described below, please read these carefully and decide on appropriate settings for each before setting `automated_dampening_adaptive_model_configuration` to `true`.
@@ -232,6 +234,16 @@ Possible values: integer `1`..`21` (default `3`)
 Defines the minimum number of days of dampening history required before adaptive model configuration will set values for `automated_dampening_model` and `automated_dampening_delta_adjustment_model`.
 
 Must not be greater than `automated_dampening_model_days`, and can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
+
+**Key: "automated_dampening_adaptive_model_switch_margin"**
+
+Possible values: float `0.0`..`11.0` (default `0.0`)
+
+How much lower another configuration's mean rank must be than that of the default dampening model `0` to replace it. With the default of `0.0` the best ranked configuration is selected.
+
+For example, with a margin of `2.0`, model `0` is selected unless another configuration's mean rank is lower by at least `2.0` (see the [ranking](#automated-dampening-adaptation) above), so a few days of curtailment or partial shade do not switch the model back and forth. If model `0` is excluded, the best ranked configuration is selected.
+
+Can only be defined when `automated_dampening_adaptive_model_configuration` is `true`.
 
 ## Estimated actuals
 
