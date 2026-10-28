@@ -16,6 +16,7 @@ from custom_components.solcast_solar.const import (
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE,
     ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_MINIMUM_HISTORY_DAYS,
+    ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN,
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
     ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT,
     ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
@@ -53,6 +54,7 @@ from custom_components.solcast_solar.const import (
     VALUE_ADAPTIVE_DAMPENING_NO_DELTA,
 )
 from custom_components.solcast_solar.dampen import Dampening
+from custom_components.solcast_solar.dampen_adapt import _prefer_default_model
 from custom_components.solcast_solar.dates import DateTimeHelper, NoIndentEncoder
 from custom_components.solcast_solar.solcastapi import SolcastApi
 from freezegun.api import FrozenDateTimeFactory
@@ -499,6 +501,54 @@ async def test_update_history_with_an_estimated_actual_of_zero(
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 
 
+def test_default_model_stays_unless_another_is_clearly_better(caplog: pytest.LogCaptureFixture) -> None:
+    """With a switch margin of 2.0, model 0 stays unless another model ranks at least two places better on average.
+
+    On a north roof the adaptive choice took models 0, 2 and 3 in turns almost every day, after a few days of
+    curtailment or shade, and the factors jumped with it.
+    """
+
+    # Each key is (model, delta adjustment model), each value its mean rank over the days: lower is better.
+    # Model 2 ranks 1.5 places better than model 0, which is noise: model 0 stays, and the log says why.
+    assert _prefer_default_model({(0, 0): 4.5, (2, 0): 3.0, (3, 1): 6.0}, 2.0) == (0, 0)
+    assert "Switch margin 2.0 keeps Model 0 Delta 0: Model 2 Delta 0 leads by 1.500" in caplog.text
+    # Model 0 ranks best itself: it stays.
+    assert _prefer_default_model({(0, 0): 3.0, (2, 0): 4.5}, 2.0) == (0, 0)
+    # Model 2 ranks 2.5 places better: it takes over.
+    assert _prefer_default_model({(0, 0): 5.5, (2, 0): 3.0, (3, 1): 6.0}, 2.0) == (2, 0)
+    # Without model 0, for example when it is excluded, the best model wins as before.
+    assert _prefer_default_model({(2, 0): 3.0, (3, 1): 6.0}, 2.0) == (2, 0)
+
+
+def test_switch_margin_zero_keeps_the_best_ranked_configuration() -> None:
+    """With the default switch margin of 0.0 the best mean rank wins, as it did before the option existed."""
+
+    # Model 2 ranks 1.5 places better than model 0 and wins at once.
+    assert _prefer_default_model({(0, 0): 4.5, (2, 0): 3.0, (3, 1): 6.0}, 0.0) == (2, 0)
+    # On equal mean ranks the lower model wins, then the lower delta adjustment model.
+    assert _prefer_default_model({(3, 0): 3.0, (1, 1): 3.0, (1, 0): 3.0}, 0.0) == (1, 0)
+
+
+def test_lead_equal_to_the_switch_margin_switches() -> None:
+    """A lead exactly equal to the switch margin replaces the default model, although the float difference is a little less.
+
+    South roof, 8 October: over nine days model 0 with delta 1 collected 46 rank points and model 3 with delta 0
+    collected 28, so model 3 led by (46 - 28) / 9 = 2 places. As floats, 46 / 9 - 28 / 9 is 1.9999999999999996.
+    """
+
+    assert _prefer_default_model({(0, 1): 46 / 9, (3, 0): 28 / 9}, 2.0) == (3, 0)
+
+
+def test_switch_margin_can_be_a_fraction() -> None:
+    """Mean ranks are fractions, so the switch margin can be one too: with 1.5, a lead of 1.6 places switches and 1.4 does not."""
+
+    # Over ten days model 2 collected 30 rank points (mean rank 3.0) and model 0 collected 46 (mean rank 4.6).
+    # Model 2 leads by 1.6 places, more than the margin of 1.5, and takes over.
+    assert _prefer_default_model({(0, 0): 4.6, (2, 0): 3.0}, 1.5) == (2, 0)
+    # With 44 rank points (mean rank 4.4) for model 0, model 2 leads by only 1.4 places: model 0 stays.
+    assert _prefer_default_model({(0, 0): 4.4, (2, 0): 3.0}, 1.5) == (0, 0)
+
+
 def test_select_comparison_interval_variance() -> None:
     """Test comparison interval selection with variance across models."""
 
@@ -749,7 +799,10 @@ def _build_adaptive_under_test(tz: ZoneInfo) -> tuple[Any, defaultdict[dt, list[
     api.dt_helper = DateTimeHelper(tz)
     api.filename_generation = ""
     api.filename_dampening = ""
-    api.advanced_options = {ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: []}
+    api.advanced_options = {
+        ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_EXCLUDE: [],
+        ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_SWITCH_MARGIN: 0.0,
+    }
     api.sites = []  # instance attribute not in spec; empty list skips site iteration
     dampening = Dampening(api)
     dampening.adjusted_interval_dt = lambda ts: ts.astimezone(tz).hour * 2 + ts.astimezone(tz).minute // 30  # type: ignore[method-assign]

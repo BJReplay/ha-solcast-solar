@@ -2,6 +2,7 @@
 
 import asyncio
 from collections import OrderedDict
+from collections.abc import Callable
 import copy
 import datetime
 from datetime import datetime as dt, timedelta
@@ -15,6 +16,8 @@ from typing import Any
 from unittest.mock import MagicMock
 from zoneinfo import ZoneInfo
 
+from astral import Observer
+from astral.sun import azimuth, elevation
 from custom_components.solcast_solar.config_flow import SolcastSolarOptionFlowHandler
 from custom_components.solcast_solar.const import (
     ADVANCED_AUTOMATED_DAMPENING_DELTA_ADJUSTMENT_MODEL,
@@ -976,8 +979,9 @@ def test_elevation_adjustment_ratio_uses_site_geometry(monkeypatch: pytest.Monke
         hass=SimpleNamespace(),
         options=SimpleNamespace(exclude_sites=[]),
         sites=[
-            {RESOURCE_ID: "east", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 90.0},
-            {RESOURCE_ID: "west", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 270.0},
+            # Solcast azimuth convention: E=-90, W=+90 (compass 90 and 270).
+            {RESOURCE_ID: "east", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: -90.0},
+            {RESOURCE_ID: "west", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 90.0},
         ],
     )  # type: ignore[attr-defined]
 
@@ -989,17 +993,79 @@ def test_elevation_adjustment_ratio_uses_site_geometry(monkeypatch: pytest.Monke
     ratio = dampening.elevation_adjustment_ratio(past_ts, target_ts)
 
     # Computed geometry ratios per site:
-    #   east (panel_azimuth=90):
+    #   east (Solcast -90, compass panel_azimuth=90):
     #     past_gain  = sin(35) x cos(30) + cos(35) x sin(30) x cos(90-90)   ≈ 0.9063
     #     target_gain= sin(55) x cos(30) + cos(55) x sin(30) x cos(240-90)  ≈ 0.4610
     #     ratio_east ≈ 0.509
-    #   west (panel_azimuth=270):
+    #   west (Solcast 90, compass panel_azimuth=270):
     #     past_gain  = sin(35) x cos(30) + cos(35) x sin(30) x cos(90-270)  ≈ 0.0872
     #     target_gain= sin(55) x cos(30) + cos(55) x sin(30) x cos(240-270) ≈ 0.9578
     #     ratio_west ≈ 10.99
     #   average ~= 5.75, clamped to 2.0
     assert ratio == pytest.approx(2.0)
     assert ratio > base_ratio
+
+
+def test_elevation_adjustment_ratio_east_site_in_morning(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Solcast gives east as azimuth -90 and west as +90, so in the morning sun -90 must get the east-facing ratio."""
+
+    class _MorningSun:
+        """The sun is in the east: 30 degrees high on the past day, 40 degrees on the target day."""
+
+        def solar_elevation(self, when: dt) -> float:
+            return 30.0 if when.day == 1 else 40.0
+
+        def solar_azimuth(self, when: dt) -> float:
+            return 100.0 if when.day == 1 else 110.0
+
+    _patch_astral_location_provider(monkeypatch, _MorningSun())
+    past_ts = dt(2025, 6, 1, 8, 0, tzinfo=datetime.UTC)
+    target_ts = dt(2025, 6, 2, 8, 0, tzinfo=datetime.UTC)
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(hass=SimpleNamespace(), options=SimpleNamespace(exclude_sites=[]), sites=[])  # pyright: ignore[reportAttributeAccessIssue]
+
+    dampening.api.sites = [{RESOURCE_ID: "east", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: -90.0}]
+    east = dampening.elevation_adjustment_ratio(past_ts, target_ts)
+    dampening.api.sites = [{RESOURCE_ID: "west", SITE_ATTRIBUTE_TILT: 30.0, SITE_ATTRIBUTE_AZIMUTH: 90.0}]
+    west = dampening.elevation_adjustment_ratio(past_ts, target_ts)
+
+    # A panel gets sin(elevation) x cos(tilt) + cos(elevation) x sin(tilt) x cos(sun azimuth - panel azimuth).
+    # The east-facing site faces the morning sun on both days, so its output changes little: 0.917 / 0.859 = 1.066.
+    assert east == pytest.approx(1.066, abs=0.001)
+    # The west-facing site barely sees the morning sun on the past day, so its ratio hits the upper limit of 2.0.
+    assert west == pytest.approx(2.0)
+
+
+def test_elevation_adjustment_ratio_real_east_roof(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A real east roof, tilt 12 and Solcast azimuth -55, near 50.3 N 9.5 E (rounded).
+
+    Modelling 6 October from 22 September at 09:30 local time gives 0.835. Before the fix the roof was taken as facing
+    north-west and got 0.573.
+    """
+
+    class _RealSun:
+        """The sun at 50.3 N 9.5 E."""
+
+        observer = Observer(latitude=50.3, longitude=9.5)
+
+        def solar_elevation(self, when: dt) -> float:
+            return elevation(self.observer, when)
+
+        def solar_azimuth(self, when: dt) -> float:
+            return azimuth(self.observer, when)
+
+    _patch_astral_location_provider(monkeypatch, _RealSun())
+    dampening = Dampening.__new__(Dampening)
+    dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
+        hass=SimpleNamespace(),
+        options=SimpleNamespace(exclude_sites=[]),
+        sites=[{RESOURCE_ID: "east", SITE_ATTRIBUTE_TILT: 12.0, SITE_ATTRIBUTE_AZIMUTH: -55.0}],
+    )
+
+    past_ts = dt(2026, 9, 22, 7, 30, tzinfo=datetime.UTC)  # 09:30 local time
+    target_ts = dt(2026, 10, 6, 7, 30, tzinfo=datetime.UTC)
+
+    assert dampening.elevation_adjustment_ratio(past_ts, target_ts) == pytest.approx(0.835, abs=0.001)
 
 
 def test_elevation_adjustment_ratio_falls_back_when_all_sites_face_away(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1016,11 +1082,11 @@ def test_elevation_adjustment_ratio_falls_back_when_all_sites_face_away(monkeypa
     target_ts = dt(2025, 6, 2, 12, 0, tzinfo=datetime.UTC)
 
     dampening = Dampening.__new__(Dampening)
-    # Tilt=90, panel faces directly away from sun (azimuth delta=180°), so gain <= 0 for both timestamps.
+    # Tilt=90, west-facing panel (Solcast azimuth 90) faces directly away from the eastern sun, so gain <= 0 for both timestamps.
     dampening.api = SimpleNamespace(  # pyright: ignore[reportAttributeAccessIssue]
         hass=SimpleNamespace(),
         options=SimpleNamespace(exclude_sites=[]),
-        sites=[{RESOURCE_ID: "a", SITE_ATTRIBUTE_TILT: 90, SITE_ATTRIBUTE_AZIMUTH: 270}],
+        sites=[{RESOURCE_ID: "a", SITE_ATTRIBUTE_TILT: 90, SITE_ATTRIBUTE_AZIMUTH: 90}],
     )  # type: ignore[attr-defined]
 
     _patch_astral_location_provider(monkeypatch, _Loc())
@@ -1113,3 +1179,72 @@ async def test_calculate_elevation_adjustment_applied(monkeypatch: pytest.Monkey
 
     assert len(result) == 48
     assert result[interval] <= 1.0
+
+
+def _dampening_with_elevation_ratio(monkeypatch: pytest.MonkeyPatch, ratio: Callable[[dt, dt], float]) -> Dampening:
+    """Dampening with the elevation adjustment on, and ratio as the sun of a past day to the sun of the target day."""
+
+    api = MagicMock()
+    api.tz = datetime.UTC
+    api.dt_helper = DateTimeHelper(datetime.UTC)
+    api.advanced_options = {
+        ADVANCED_AUTOMATED_DAMPENING_PRESERVE_UNMATCHED_FACTORS: False,
+        ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_INTERVALS: 2,
+        ADVANCED_AUTOMATED_DAMPENING_MINIMUM_MATCHING_GENERATION: 2,
+        ADVANCED_AUTOMATED_DAMPENING_INSIGNIFICANT_FACTOR: 0.95,
+        ADVANCED_AUTOMATED_DAMPENING_ELEVATION_ADJUSTMENT: True,
+    }
+    api.filename_generation = tempfile.NamedTemporaryFile(delete=False).name
+    api.filename_dampening = tempfile.NamedTemporaryFile(delete=False).name
+    dampening = Dampening(api)
+    monkeypatch.setattr(dampening, "elevation_adjustment_ratio", ratio)
+    return dampening
+
+
+async def test_calculate_models_1_to_3_without_elevation_ratio(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Models 1-3 divide generation by the estimated actual of the same half-hour, so they apply no elevation ratio."""
+
+    # The sun of day 1 gave twice the output it gives on the target day, the sun of day 2 the same.
+    dampening = _dampening_with_elevation_ratio(monkeypatch, lambda past, _target: 2.0 if past.day == 1 else 1.0)
+
+    interval = 20  # 10:00 UTC
+    day_1 = dt(2025, 10, 1, 10, 0, tzinfo=datetime.UTC)
+    day_2 = dt(2025, 10, 2, 10, 0, tzinfo=datetime.UTC)
+    matching = {interval: [day_1, day_2]}
+    generation = {day_1: 0.4, day_2: 0.9}
+    actuals = OrderedDict([(day_1, 1.0), (day_2, 2.0)])
+    target_day = dt(2025, 10, 3, tzinfo=datetime.UTC)
+
+    model_0 = await dampening.calculate(matching, generation, actuals, [], 0, target_day=target_day)
+    model_1 = await dampening.calculate(matching, generation, actuals, [], 1, target_day=target_day)
+    model_2 = await dampening.calculate(matching, generation, actuals, [], 2, target_day=target_day)
+    model_3 = await dampening.calculate(matching, generation, actuals, [], 3, target_day=target_day)
+
+    # Generation over estimated actual: 0.4 / 1.0 = 0.4 on day 1, 0.9 / 2.0 = 0.45 on day 2.
+    # Before the fix the ratio was applied to these pairs too: day 1 became 0.8, and models 1-3 gave 0.8, 0.625 and 0.45.
+    assert model_1[interval] == pytest.approx(0.45)  # The highest pair
+    assert model_2[interval] == pytest.approx(0.425)  # The mean of the pairs
+    assert model_3[interval] == pytest.approx(0.4)  # The lowest pair
+    # The default model still uses the ratio: the highest generation, 0.9, over the peak, 2.0 on both days.
+    assert model_0[interval] == pytest.approx(0.45)
+
+
+async def test_calculate_models_1_to_3_real_north_roof(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A real north roof at 13:00 local time: models 1-3 for 6 October from 2 and 4 October."""
+
+    # The real sun of 2 and 4 October gave 0.917 and 0.957 of the output it gives on 6 October.
+    dampening = _dampening_with_elevation_ratio(monkeypatch, lambda past, _target: 0.917 if past.day == 2 else 0.957)
+
+    interval = 22  # 11:00 UTC
+    day_1 = dt(2026, 10, 2, 11, 0, tzinfo=datetime.UTC)
+    day_2 = dt(2026, 10, 4, 11, 0, tzinfo=datetime.UTC)
+    matching = {interval: [day_1, day_2]}
+    generation = {day_1: 0.482, day_2: 0.639}  # kWh in the half hour
+    actuals = OrderedDict([(day_1, 0.657), (day_2, 0.700)])  # Estimated actuals in kWh
+    target_day = dt(2026, 10, 6, tzinfo=datetime.UTC)
+
+    models = [await dampening.calculate(matching, generation, actuals, [], model, target_day=target_day) for model in (1, 2, 3)]
+
+    # Generation over estimated actual: 0.734 on 2 October, 0.913 on 4 October.
+    # Before the fix the ratio was applied to these pairs too, and models 1-3 gave 0.874, 0.773 and 0.673.
+    assert [factors[interval] for factors in models] == pytest.approx([0.913, 0.823, 0.734], abs=0.001)
