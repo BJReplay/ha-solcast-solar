@@ -6,7 +6,6 @@
 * [Q: I'm trying to set up (or re-set up) the integration, and **I'm getting 429 errors** and can't get any further.  What's happening?](#q-im-trying-to-set-up-or-re-set-up-the-integration-and-im-getting-429-errors-and-cant-get-any-further--whats-happening)
 * [Q: Solcast's API status page at https://status.solcast.com/ says that the API status is all green, but **I'm getting 429 errors**.  What should I do?](#solcasts-api-status-page-at-httpsstatussolcastcom-says-that-the-api-status-is-all-green-but-im-getting-429-errors--what-should-i-do)
 * [Q: You asked for DEBUG logs to be provided when raising issues. How do I get these?](#q-you-asked-for-debug-logs-to-be-provided-when-raising-issues-how-do-i-get-these)
-* [Q: I got an error setting up the integration, or it would not start after upgrading Home Assistant, complaining about Watchfiles. Why?](#q-i-got-an-error-setting-up-the-integration-or-it-would-not-start-after-upgrading-home-assistant-complaining-about-watchfiles-why)
 * [Q: The Solcast Toolkit site will not allow me to add a new rooftop site. I get a minus one error. Why?](#q-the-solcast-toolkit-site-will-not-allow-me-to-add-a-new-rooftop-site-i-get-a-minus-one-error-why)
 * [Q: I don't understand the README, and it's too long. Can it be simplified?](#q-i-dont-understand-the-readme-and-its-too-long-can-it-be-simplified)
 * [Q: Is submitting debug logging going to expose my API key or location to the world?](#q-is-submitting-debug-logging-going-to-expose-my-api-key-or-location-to-the-world)
@@ -79,18 +78,6 @@ Reviewing logs is quite simple, and can be done from the UI. Go to Settings | Sy
 <img width="231" height="170" alt="image" src="https://github.com/user-attachments/assets/1799752a-0bd6-4fc4-9b91-daaed9ad2f82" />
 
 You can't filter for just the Solcast integration in the UI, so it might be a good idea to download the log and filter it by another method (for example the *nix utility `less` "&/" command, or Notepad++ with the Linefilter2 plugin.)
-
-### Q: I got an error setting up the integration, or it would not start after upgrading Home Assistant, complaining about Watchfiles. Why?
-
-This integration requires `watchfiles` which is not part of the standard Home Assistant install, so is downloaded when the first integration that needs it is installed.  Dependencies such as watchfiles are downloaded from `files.pythonhosted.org`, and this may be blocked by adblockers such as PiHole, resulting in the inability to set up this integration.
-
-If you receive an error attempting to install this integration - or after updating Home Assistant - that says something like `Setup failed for custom integration 'solcast_solar': Requirements for solcast_solar not found: ['watchfiles>=1.0.0']` then you have run into this error.
-
-You should consider adding `files.pythonhosted.org` to your adblocker's whitelist, or using a different DNS server for Home Assistant, or at least temporarily disabling your adblocker.
-
-Even if you have previously set up this integration, and it has worked perfectly, this could happen because of random time-outs when you upgrade Home Assistant.
-
-Changing from your ISP's DNS server to a more reliable one like Google (`8.8.8.8`) or CloudFlare (`1.1.1.1`) might be worth trying.
 
 ### Q: The Solcast Toolkit site will not allow me to add a new rooftop site. I get a minus one error. Why?
 

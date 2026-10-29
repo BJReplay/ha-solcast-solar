@@ -38,8 +38,6 @@ _SUPPRESS_LOGGERS = [
     "homeassistant.components.recorder.pool",
     "homeassistant.components.recorder.pool.MutexPool",
     "sqlalchemy.engine.Engine",
-    "watchfiles",
-    "watchfiles.main",
     "asyncio",
 ]
 

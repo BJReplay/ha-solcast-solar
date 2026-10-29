@@ -18,7 +18,7 @@
   "issue_tracker": "https://github.com/BJReplay/ha-solcast-solar/issues",
   "requirements": [
     "aiofiles>=23.2.0",
-    "watchfiles>=1.0.0"
+    "asyncinotify>=4.2.0"
   ],
   "single_config_entry": true,
   "version": "4.6.3"

@@ -755,13 +755,7 @@ async def test_integration(
 
         # Test forced update and clear data actions
         caplog.clear()
-        _watchfiles_logger = logging.getLogger("watchfiles")
-        _watchfiles_level = _watchfiles_logger.level
-        _watchfiles_logger.setLevel(logging.WARNING)
-        try:
-            await _exec_update(hass, solcast, caplog, SERVICE_FORCE_UPDATE_FORECASTS)
-        finally:
-            _watchfiles_logger.setLevel(_watchfiles_level)
+        await _exec_update(hass, solcast, caplog, SERVICE_FORCE_UPDATE_FORECASTS)
 
         # Test for API key redaction
         for api_key in options[API_KEY].split(","):

@@ -13,7 +13,7 @@ Example:
 }
 ```
 
-Changes to this file will be detected in near-real time, changing code behaviour. The impact of that changed behaviour may only be seen at forecast or estimated actuals update. For other changes, `reload_on_advanced_change` can be set to `true` (see below), so that things like dampening modelling and entity set up can occur on reload.
+Changes to this file will be detected in near-real time, changing code behaviour. (Not for changes made by another computer to a network share holding the configuration, or from the Windows side of Docker Desktop. Those apply on reload.) The impact of that changed behaviour may only be seen at forecast or estimated actuals update. For other changes, `reload_on_advanced_change` can be set to `true` (see below), so that things like dampening modelling and entity set up can occur on reload.
 
 The impact of not restarting will vary by advanced option, and you are left to decide when the outcome should occur. This is advanced, and _you_ are expected to be advanced about option application. If you're unsure then just set `reload_on_advanced_change` while testing.
 
