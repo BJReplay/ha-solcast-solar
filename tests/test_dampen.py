@@ -440,6 +440,7 @@ async def test_auto_dampen_issues(
 async def test_auto_dampen_factor_from_today_only(
     recorder_mock: Recorder,
     hass: HomeAssistant,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     """Test that only forecasts from local midnight today carry an automated dampening factor."""
 
@@ -465,7 +466,8 @@ async def test_auto_dampen_factor_from_today_only(
         assert past[-1][PERIOD_START] == day_start - timedelta(minutes=30)
         assert current[0][PERIOD_START] == day_start
         assert all(DAMPENING_FACTOR not in f for f in past)
-        assert all(DAMPENING_FACTOR in f for f in current)
+        assert all(f[DAMPENING_FACTOR] == round(solcast.dampening.auto_factors[f[PERIOD_START]], 4) for f in current)
+        no_exception(caplog)
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"

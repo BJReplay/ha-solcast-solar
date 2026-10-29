@@ -822,6 +822,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         commencing: date = dt_util.now(self.tz).date() - timedelta(days=self.advanced_options[ADVANCED_HISTORY_MAX_DAYS])
         commencing_undampened: date = dt_util.now(self.tz).date() - timedelta(days=14)
         last_day: date = dt_util.now(self.tz).date() + timedelta(days=self.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS])
+        day_start: dt = self.dt_helper.day_start_utc()
         logged_hard_limit: list[str] = []
 
         forecasts: dict[dt, dict[str, dt | float]] = {}
@@ -844,7 +845,6 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             api_key: str | None = None
 
             try:
-                day_start = self.dt_helper.day_start_utc()  # Constant for the whole build
                 multi_key = await self._build_hard_limit(
                     data,
                     sites_hard_limit,
