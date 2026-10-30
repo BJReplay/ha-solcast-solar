@@ -60,13 +60,9 @@ async def test_select_change_value(
         freezer.move_to((dt.now(solcast.tz) + timedelta(hours=24)).replace(minute=27, second=27))
         await hass.async_block_till_done()
 
-        assert (
-            select_entity_id := entity_registry.async_get_entity_id(  # noqa: RUF018
-                SELECT_DOMAIN,
-                DOMAIN,
-                "estimate_mode",
-            )
-        ) is not None, "estimate_mode select entity should be registered"
+        assert (select_entity_id := entity_registry.async_get_entity_id(SELECT_DOMAIN, DOMAIN, "estimate_mode")) is not None, (
+            "estimate_mode select entity should be registered"
+        )
         assert hass.states.get(select_entity_id).state == "estimate"  # type: ignore[union-attr]
 
         await hass.services.async_call(
