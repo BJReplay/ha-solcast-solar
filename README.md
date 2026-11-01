@@ -44,9 +44,11 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
 1. [Key Solcast integration concepts](#key-solcast-integration-concepts)
 1. [Solcast requirements](#solcast-requirements)
 1. [Installation](#installation)
-    1. [HACS recommended](#hacs-recommended)
+    1. [Marketplace/HACS (recommended)](#marketplace--hacs-recommended)
+        1. [Marketplace](#marketplace)
+        1. [HACS](#hacs)
     1. [Installing manually in HACS](#installing-manually-in-hacs)
-    1. [Installing manually (not using HACS)](#installing-manually-(not-using-hacs))
+    1. [Installing manually (not using HACS)](#installing-manually-not-using-hacs)
     1. [Beta versions](#beta-versions)
 1. [Configuration](#configuration)
     1. [Updating forecasts](#updating-forecasts)
@@ -76,7 +78,7 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
 1. [Known issues](#known-issues)
 1. [Troubleshooting](#troubleshooting)
 1. [Complete integration removal](#complete-integration-removal)
-1. [Changes](#Changes)
+1. [Changes](#changes)
 
 ## Key Solcast integration concepts
 
@@ -155,15 +157,43 @@ Once set up, the integration provides azimuth values as compass degrees and dire
 
 ## Installation
 
-### HACS recommended
+### Marketplace / HACS (recommended)
 
 *(Recommended installation method)*
 
-Install as a Default Repository using HACS. More info about HACS can be found [here](https://hacs.xyz/).  If you haven't installed HACS yet, go do it first!
+Install as a Default Repository using Marketplace / HACS.
 
-The easiest way to install the integration is to click the button below to open this page in your Home Assistant HACS page (you will be prompted for your Home Assistant URL if you've never used this type of button before).
+Since Home Assistant 2026.11, Marketplace is built into Home Assistant and is available under **Settings** > **Marketplace**.  Marketplace is a great experience - apart from anything else, for most integrations there's no need to restart Home Assistant when installing an integration, so the set up is much smoother.  If you can upgrade, you should.  Make sure you have a backup first, of course.
+
+If you are stuck on an earlier version of Home Assistant, you need to install HACS: - if you haven't installed HACS yet, go do it first - more info about HACS can be found [here](https://hacs.xyz/).
+
+The easiest way to install the integration is to click the button below to open this page in your Home Assistant Marketplace / HACS page.
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BJReplay&repository=ha-solcast-solar&category=integration)
+
+You will be prompted for your Home Assistant URL if you've never used this type of button before:
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/MyHomeAssistantURL.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/MyHomeAssistantURL.png)
+
+Depending on whether you're using Home Assistant 2026.11 or later, or Home Assistant 2026.10 or earlier, you'll either follow the [Marketplace](#marketplace) steps or the [HACS](#hacs) steps next.
+
+#### Marketplace
+
+You'll be prompted to confirm you want to open the repository inside Marketplace inside Home Assistant:
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/OpenPageInMarketplace.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/OpenPageInMarketplace.png)
+
+You'll be prompted to install the Solcast PV Forecast integration - with an `↓ Install` button - click on it:
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/InstallSolcastFromMarketplace.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/InstallSolcastFromMarketplace.png)
+
+This will be followed by an installation confirmation, warning that this integration is not reviewed or supported by the Home Assistant project.  Click on `Install` to continue.
+
+[<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/InstallWarning.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/InstallWarning.png)
+
+It will jump straight to the configuration screen - jump to [Minimal Configuration](#minimal-configuration) in this readme to follow along.
+
+#### HACS
 
 You'll be prompted to confirm you want to open the repository inside HACS inside Home Assistant:
 
@@ -235,6 +265,8 @@ Your feedback from testing betas is most welcome in the repository [discussions]
  and start typing `Solcast PV Forecast` to bring up the Solcast PV Forecast integration, and select it.<br/>
 
  [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/Setupanewintegration.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/Setupanewintegration.png)
+
+### Minimal Configuration
 
 1. Enter your `Solcast API Key`, `API limit`, desired auto-update choice and click `Submit`. If you have more than one Solcast account because you have more than two rooftop setups, enter all Solcast account API keys separated by a comma `xxxxxxxx-xxxxx-xxxx,yyyyyyyy-yyyyy-yyyy`. (_Note: This may breach Solcast terms and conditions by having more than one account if the locations of these account sites are within one kilometre of each other, or 0.62 miles._) Your API limit will be 10 for new Solcast users or 50 for early adopters. If the API limit is the same for multiple accounts then enter a single value for that, or both values separated by a comma, or the least API limit of all accounts as a single value. See [Excluded sites configuration](#excluded-sites-configuration) for a multiple API key use case.
 1. If an auto-update option was not chosen then create your own automation to call the action `solcast_solar.update_forecasts` at the times you would like to update the solar forecast.
