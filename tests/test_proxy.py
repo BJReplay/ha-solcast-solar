@@ -228,7 +228,11 @@ def test_load_shedding_pauses_all_accounts_until_recovery(proxy: ProxyHarness, k
     proxy.simulator.run_pending()
 
     assert [call[0] for call in proxy.resource_calls(kind)] == [
-        path, path, path, f"/rooftop_sites/{OTHER_SITE_ID}/{kind}", f"/rooftop_sites/third-site/{kind}",
+        path,
+        path,
+        path,
+        f"/rooftop_sites/{OTHER_SITE_ID}/{kind}",
+        f"/rooftop_sites/third-site/{kind}",
     ]
     assert proxy.read(kind, site=OTHER_SITE_ID).status_code == 200
     assert proxy.read(kind, site="third-site", api_key="second-account").status_code == 200
@@ -259,7 +263,10 @@ def test_load_shedding_exhaustion_defers_all_sites_to_next_cycle(proxy: ProxyHar
     proxy.simulator.run_pending()
 
     assert [call[0] for call in proxy.resource_calls(kind)] == [
-        path, path, f"/rooftop_sites/{OTHER_SITE_ID}/{kind}", f"/rooftop_sites/third-site/{kind}",
+        path,
+        path,
+        f"/rooftop_sites/{OTHER_SITE_ID}/{kind}",
+        f"/rooftop_sites/third-site/{kind}",
     ]
 
 
@@ -326,9 +333,7 @@ def test_load_shedding_preserves_deferred_cache_and_survives_discovery(proxy: Pr
 
 @pytest.mark.parametrize("upstream_status", [429, 500, 502, 503])
 @pytest.mark.parametrize("response_kind", KINDS)
-def test_shared_failure_is_reported_on_every_resource(
-    proxy: ProxyHarness, upstream_status: int, response_kind: str
-) -> None:
+def test_shared_failure_is_reported_on_every_resource(proxy: ProxyHarness, upstream_status: int, response_kind: str) -> None:
     """Consumers see shared failure regardless of order, cache, or due time."""
     proxy.discover()
     proxy.discover((OTHER_SITE_ID,), api_key="second-account")

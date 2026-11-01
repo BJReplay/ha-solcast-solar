@@ -360,7 +360,11 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             new_options[PROXY_MODE] = enabled
             changed = True
 
-        if enabled and self.proxy_saved_auto_update is not None and new_options.get(PROXY_SAVED_AUTO_UPDATE) != self.proxy_saved_auto_update:
+        if (
+            enabled
+            and self.proxy_saved_auto_update is not None
+            and new_options.get(PROXY_SAVED_AUTO_UPDATE) != self.proxy_saved_auto_update
+        ):
             new_options[PROXY_SAVED_AUTO_UPDATE] = self.proxy_saved_auto_update
             changed = True
 

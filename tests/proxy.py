@@ -320,9 +320,10 @@ class SolcastProxy:
                 if not record.halted and not record.in_flight and record.next_attempt_at is not None and record.next_attempt_at <= now
             ]
             if self._load_shed_resource is not None:
-                if self.resources.get(
-                    (self._load_shed_resource.api_key, self._load_shed_resource.site, self._load_shed_resource.kind)
-                ) is not self._load_shed_resource:
+                if (
+                    self.resources.get((self._load_shed_resource.api_key, self._load_shed_resource.site, self._load_shed_resource.kind))
+                    is not self._load_shed_resource
+                ):
                     self._load_shed_resource = None
                 else:
                     due = [record for record in due if record is self._load_shed_resource]

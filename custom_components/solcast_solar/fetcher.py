@@ -361,9 +361,7 @@ class Fetcher:
             if self.api.proxy_mode:
                 if self.api.proxy_halted or self.api.proxy_next_attempt_at is None:
                     return ""
-                follow_at = (
-                    self.api.proxy_next_attempt_at + timedelta(seconds=self.api.proxy_poll_delay_seconds)
-                ).astimezone(self.api.tz)
+                follow_at = (self.api.proxy_next_attempt_at + timedelta(seconds=self.api.proxy_poll_delay_seconds)).astimezone(self.api.tz)
                 date_format = DT_TIME_FORMAT if follow_at.date() == dt_util.now(self.api.tz).date() else DT_DATE_FORMAT
                 return f", next auto update at {follow_at.strftime(date_format)}"
             return f", next auto update at {self._next_update}" if self._next_update is not None else ""

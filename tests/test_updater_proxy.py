@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import UTC, datetime as dt, timedelta, timezone
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import AsyncMock, Mock, call
 
 from custom_components.solcast_solar.const import TASK_FORECASTS_FETCH
 from custom_components.solcast_solar.enums import AutoUpdate
@@ -92,14 +93,18 @@ async def test_check_forecast_fetch_derives_schedule_from_proxy_cron(monkeypatch
     [
         pytest.param("*/10 * * * *", dt(2026, 11, 1, 18, 24, tzinfo=UTC), dt(2026, 11, 1, 18, 30, tzinfo=UTC), id="step"),
         pytest.param("*/10 * * * *", dt(2026, 11, 1, 18, 30, tzinfo=UTC), dt(2026, 11, 1, 18, 40, tzinfo=UTC), id="exclusive-boundary"),
-        pytest.param("*/10 * * * *", dt(2026, 11, 1, 18, 29, 59, 999999, tzinfo=UTC), dt(2026, 11, 1, 18, 30, tzinfo=UTC), id="fractional-second"),
+        pytest.param(
+            "*/10 * * * *", dt(2026, 11, 1, 18, 29, 59, 999999, tzinfo=UTC), dt(2026, 11, 1, 18, 30, tzinfo=UTC), id="fractional-second"
+        ),
         pytest.param("55 2,7,12,17 * * *", dt(2026, 11, 1, 18, 24, tzinfo=UTC), dt(2026, 11, 2, 2, 55, tzinfo=UTC), id="list-next-day"),
         pytest.param("10-50/20 18-20 * * *", dt(2026, 11, 1, 18, 24, tzinfo=UTC), dt(2026, 11, 1, 18, 30, tzinfo=UTC), id="range-step"),
         pytest.param("0 9 * * MON", dt(2026, 11, 1, 18, 24, tzinfo=UTC), dt(2026, 11, 2, 9, tzinfo=UTC), id="weekday"),
         pytest.param("0 0 1 * *", dt(2026, 11, 1, 18, 24, tzinfo=UTC), dt(2026, 12, 1, tzinfo=UTC), id="monthly"),
         pytest.param("0 0 1 JAN *", dt(2026, 11, 1, 18, 24, tzinfo=UTC), dt(2027, 1, 1, tzinfo=UTC), id="yearly"),
         pytest.param("0 0 29 FEB *", dt(2026, 11, 1, 18, 24, tzinfo=UTC), dt(2028, 2, 29, tzinfo=UTC), id="leap-day"),
-        pytest.param("0 19 * * *", dt(2026, 11, 2, 5, 24, tzinfo=timezone(timedelta(hours=11))), dt(2026, 11, 1, 19, tzinfo=UTC), id="utc-schedule"),
+        pytest.param(
+            "0 19 * * *", dt(2026, 11, 2, 5, 24, tzinfo=timezone(timedelta(hours=11))), dt(2026, 11, 1, 19, tzinfo=UTC), id="utc-schedule"
+        ),
     ],
 )
 def test_next_from_proxy_cron(cron_expression: str, base_time: dt, expected: dt) -> None:
@@ -121,9 +126,7 @@ def test_next_from_proxy_cron(cron_expression: str, base_time: dt, expected: dt)
         pytest.param("0 0 31 FEB *", id="impossible-date"),
     ],
 )
-async def test_invalid_proxy_cron_does_not_schedule(
-    monkeypatch: pytest.MonkeyPatch, cron_expression: str
-) -> None:
+async def test_invalid_proxy_cron_does_not_schedule(monkeypatch: pytest.MonkeyPatch, cron_expression: str) -> None:
     """Invalid cron metadata leaves the fallback unscheduled rather than raising."""
     updater, fake_track = _make_updater(proxy_mode=True, proxy_forecast_cron=cron_expression)
     monkeypatch.setattr("custom_components.solcast_solar.updater.async_track_point_in_utc_time", fake_track)
@@ -154,9 +157,7 @@ async def test_proxy_header_timestamp_takes_precedence_over_cron(monkeypatch: py
         pytest.param(dt(2026, 11, 1, 18, 23, 29, tzinfo=UTC), dt(2026, 11, 1, 18, 24, 5, tzinfo=UTC), id="overdue"),
     ],
 )
-async def test_proxy_follow_schedules_exact_time(
-    monkeypatch: pytest.MonkeyPatch, next_attempt: dt, expected: dt
-) -> None:
+async def test_proxy_follow_schedules_exact_time(monkeypatch: pytest.MonkeyPatch, next_attempt: dt, expected: dt) -> None:
     """Short retry timestamps are scheduled without waiting for five-minute checks."""
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater.async_track_point_in_utc_time", fake_track)
@@ -191,3 +192,43 @@ async def test_proxy_follow_reschedules_changed_timestamp(monkeypatch: pytest.Mo
 
     assert updater._proxy_scheduled_for == dt(2026, 11, 1, 18, 25, 18, tzinfo=UTC)
     assert len(updater._test_scheduled) == 2
+
+
+@pytest.mark.parametrize("pending", [pytest.param(False, id="no-event"), pytest.param(True, id="pending-event")])
+async def test_halted_proxy_cancels_follow_event(pending: bool) -> None:
+    """A halted proxy clears scheduling and the displayed next update."""
+    updater, _ = _make_updater(proxy_mode=True)
+    cancel = Mock()
+    updater._coordinator.tasks = {"pending_proxy_update": cancel} if pending else {}
+    updater._proxy_scheduled_for = dt(2026, 11, 1, 18, 30, tzinfo=UTC)
+    updater._coordinator.solcast.proxy_halted = True
+    updater._coordinator.solcast.fetcher.set_next_update = Mock()
+
+    await updater.check_forecast_fetch()
+
+    assert cancel.call_count == int(pending)
+    assert updater._coordinator.tasks == {}
+    assert updater._proxy_scheduled_for is None
+    assert updater._test_scheduled == []
+    updater._coordinator.solcast.fetcher.set_next_update.assert_called_once_with(None)
+
+
+@pytest.mark.parametrize("active_fetch", [pytest.param(False, id="fetch"), pytest.param(True, id="already-fetching")])
+async def test_proxy_follow_callback_clears_event_and_avoids_overlap(
+    monkeypatch: pytest.MonkeyPatch, active_fetch: bool
+) -> None:
+    """A fired follow callback relinquishes its event before starting a fetch."""
+    updater, fake_track = _make_updater(proxy_mode=True)
+    monkeypatch.setattr("custom_components.solcast_solar.updater.async_track_point_in_utc_time", fake_track)
+    updater._coordinator.solcast.proxy_next_attempt_at = dt(2026, 11, 1, 18, 30, tzinfo=UTC)
+    await updater.check_forecast_fetch()
+    updater._coordinator.solcast.tasks = {TASK_FORECASTS_FETCH: object()} if active_fetch else {}
+    fetch = AsyncMock()
+    monkeypatch.setattr(updater, "forecast_update", fetch)
+
+    await updater._fetch_proxy()
+
+    assert "pending_proxy_update" not in updater._coordinator.tasks
+    assert updater._proxy_scheduled_for is None
+    assert fetch.await_count == int(not active_fetch)
+    assert fetch.await_args_list == [call(completion="Completed task pending_proxy_update")] * int(not active_fetch)
