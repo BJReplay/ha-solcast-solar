@@ -34,8 +34,12 @@
           "auto_update": "Automatyczna aktualizacja"
         },
         "description": "Dane konta Solcast\n\n{auto_update_notice}{proxy_notice}",
+        "sections": {
+          "auto_update_notice": {
+            "description": "(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)"
+          }
+        },
         "data_description": {
-          "auto_update_notice": "(Jeśli nie ma automatycznej aktualizacji, wymagana jest automatyzacja - zobacz dokumentację integracji)",
           "api_key": "Wprowadź jeden lub więcej kluczy API Solcast, oddzielonych przecinkami",
           "api_limit": "Wprowadź dzienny limit aktualizacji prognozy, rozdzielony przecinkami przy użyciu wielu kluczy",
           "auto_update": "Jeśli nie używasz automatycznej aktualizacji, utwórz automatyzację, która okresowo wywołuje akcję \"solcast_solar.update_forecasts\", przestrzegając zalecanego przez Solcast maksymalnego łącznego limitu (zwykle łącznie dziesięć razy dziennie dla jednego miejsca dachowego, a przy dwóch miejscach pięć razy dziennie)"
@@ -477,8 +481,12 @@
           "use_actuals": "Historia prognoz do wyświetlenia na pulpicie nawigacyjnym Energy"
         },
         "description": "Opcje konfiguracji Solcast\n\n{proxy_notice}",
+        "sections": {
+          "proxy_notice": {
+            "description": "Używany jest serwer proxy API Solcast. Automatyczna aktualizacja przebiega zgodnie z harmonogramem tego serwera proxy, dopóki nie zostanie on wyłączony."
+          }
+        },
         "data_description": {
-          "proxy_notice": "Używany jest serwer proxy API Solcast. Automatyczna aktualizacja przebiega zgodnie z harmonogramem tego serwera proxy, dopóki nie zostanie on wyłączony.",
           "api_key": "Wprowadź jeden lub więcej kluczy API Solcast, oddzielonych przecinkami",
           "api_limit": "Wprowadź dzienny limit aktualizacji prognozy, rozdzielony przecinkami przy użyciu wielu kluczy",
           "attr_breakdown": "Wybierz, które podziały są włączone",

@@ -34,8 +34,12 @@
           "auto_update": "Automatische Aktualisierung"
         },
         "description": "Solcast-Kontodaten\n\n{auto_update_notice}{proxy_notice}",
+        "sections": {
+          "auto_update_notice": {
+            "description": "(Wenn keine automatische Aktualisierung erfolgt, ist eine Automatisierung erforderlich – siehe Integrationsdokumentation)"
+          }
+        },
         "data_description": {
-          "auto_update_notice": "(Wenn keine automatische Aktualisierung erfolgt, ist eine Automatisierung erforderlich – siehe Integrationsdokumentation)",
           "api_key": "Geben Sie einen oder mehrere Solcast-API-Schlüssel ein, durch Kommas getrennt",
           "api_limit": "Geben Sie ein tägliches Prognoseaktualisierungslimit ein, bei mehreren Schlüsseln kommagetrennt",
           "auto_update": "Wenn Sie keine automatische Aktualisierung verwenden, erstellen Sie eine Automatisierung, die die Aktion \"solcast_solar.update_forecasts\" regelmäßig aufruft, und halten Sie dabei das von Solcast empfohlene maximale Gesamtlimit ein (in der Regel insgesamt zehnmal pro Tag für einen Dachstandort oder bei zwei Standorten fünfmal pro Tag)"
@@ -477,8 +481,12 @@
           "use_actuals": "Prognosehistorie, die im Energiedashboard angezeigt werden soll"
         },
         "description": "Dein Solcast-API-Kontoschlüssel\n\n{proxy_notice}",
+        "sections": {
+          "proxy_notice": {
+            "description": "Ein Solcast-API-Proxy wird verwendet. Die automatische Aktualisierung folgt dem Zeitplan des Proxys, bis dieser Proxy deaktiviert wird."
+          }
+        },
         "data_description": {
-          "proxy_notice": "Ein Solcast-API-Proxy wird verwendet. Die automatische Aktualisierung folgt dem Zeitplan des Proxys, bis dieser Proxy deaktiviert wird.",
           "api_key": "Geben Sie einen oder mehrere Solcast-API-Schlüssel ein, durch Kommas getrennt",
           "api_limit": "Geben Sie ein tägliches Prognoseaktualisierungslimit ein, bei mehreren Schlüsseln kommagetrennt",
           "attr_breakdown": "Wählen Sie, welche Aufschlüsselungen aktiviert sind",

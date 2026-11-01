@@ -577,7 +577,7 @@ async def test_proxy_reconfigure_preserves_auto_update(
     assert schema is not None
     assert AUTO_UPDATE not in schema.schema
     translations = await translation.async_get_translations(hass, language, "options", {DOMAIN})
-    notice = translations[f"component.{DOMAIN}.options.step.init.data_description.proxy_notice"]
+    notice = translations[f"component.{DOMAIN}.options.step.init.sections.proxy_notice.description"]
     placeholders = result.get("description_placeholders")
     assert placeholders is not None
     assert placeholders["proxy_notice"] == notice
@@ -622,8 +622,8 @@ async def test_reconfigure_localized_notices(hass: HomeAssistant, language: str,
 
     localized = json.loads((Path(solcast_module.__file__).parent / "translations" / f"{language}.json").read_text())
     step = localized["config"]["step"]["reconfigure_confirm"]
-    automation_notice = step["data_description"]["auto_update_notice"]
-    proxy_notice = localized["options"]["step"]["init"]["data_description"]["proxy_notice"]
+    automation_notice = step["sections"]["auto_update_notice"]["description"]
+    proxy_notice = localized["options"]["step"]["init"]["sections"]["proxy_notice"]["description"]
     placeholders = result.get("description_placeholders")
     assert placeholders is not None
     assert placeholders["auto_update_notice"] == {True: "", False: f"{automation_notice}\n\n"}[proxy_mode]
@@ -837,17 +837,17 @@ async def test_proxy_options_preserve_auto_update(
     assert schema is not None
     assert AUTO_UPDATE not in schema.schema
     translations = await translation.async_get_translations(hass, language, "options", {DOMAIN})
-    notice = translations[f"component.{DOMAIN}.options.step.init.data_description.proxy_notice"]
+    notice = translations[f"component.{DOMAIN}.options.step.init.sections.proxy_notice.description"]
     placeholders = result.get("description_placeholders")
     assert placeholders is not None
     assert placeholders["proxy_notice"] == notice
     english = "A Solcast API proxy is in use. Auto-update follows the proxy schedule until the proxy is disabled."
     assert (notice == english) == (language == "en")
     localized = json.loads((Path(solcast_module.__file__).parent / "translations" / f"{language}.json").read_text())
-    assert notice == localized["options"]["step"]["init"]["data_description"]["proxy_notice"]
+    assert notice == localized["options"]["step"]["init"]["sections"]["proxy_notice"]["description"]
     rendered = translations[f"component.{DOMAIN}.options.step.init.description"].format(**placeholders)
     assert notice in rendered
-    assert localized["config"]["step"]["reconfigure_confirm"]["data_description"]["auto_update_notice"] not in rendered
+    assert localized["config"]["step"]["reconfigure_confirm"]["sections"]["auto_update_notice"]["description"] not in rendered
     assert "{" not in rendered
 
     custom_hours = int(options[CUSTOM_HOURS]) + 1

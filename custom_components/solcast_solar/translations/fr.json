@@ -34,8 +34,12 @@
           "auto_update": "Mise à jour automatique"
         },
         "description": "Détails du compte Solcast\n\n{auto_update_notice}{proxy_notice}",
+        "sections": {
+          "auto_update_notice": {
+            "description": "(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)"
+          }
+        },
         "data_description": {
-          "auto_update_notice": "(S'il n'y a pas de mise à jour automatique, une automatisation est requise - voir la documentation d'intégration)",
           "api_key": "Entrez une ou plusieurs clés API Solcast, séparées par des virgules",
           "api_limit": "Entrez une limite quotidienne de mises à jour des prévisions, séparées par des virgules en cas de clés multiples",
           "auto_update": "Si vous n'utilisez pas la mise à jour automatique, créez une automatisation qui appelle périodiquement l'action \"solcast_solar.update_forecasts\", tout en respectant la limite totale maximale conseillée par Solcast (généralement dix fois au total par jour pour un site sur toit, ou avec deux sites cinq fois par jour)"
@@ -477,8 +481,12 @@
           "use_actuals": "Historique des prévisions à afficher sur le tableau de bord Énergie"
         },
         "description": "Options de configuration Solcast\n\n{proxy_notice}",
+        "sections": {
+          "proxy_notice": {
+            "description": "Un proxy API Solcast est utilisé. La mise à jour automatique suit le calendrier du proxy jusqu'à ce que ce proxy soit désactivé."
+          }
+        },
         "data_description": {
-          "proxy_notice": "Un proxy API Solcast est utilisé. La mise à jour automatique suit le calendrier du proxy jusqu'à ce que ce proxy soit désactivé.",
           "api_key": "Entrez une ou plusieurs clés API Solcast, séparées par des virgules",
           "api_limit": "Entrez une limite quotidienne de mises à jour des prévisions, séparées par des virgules en cas de clés multiples",
           "attr_breakdown": "Choisissez les répartitions activées",

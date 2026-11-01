@@ -33,8 +33,12 @@
           "api_limit": "API limit",
           "auto_update": "Auto-update"
         },
+        "sections": {
+          "auto_update_notice": {
+            "description": "(If not using auto-update then an automation is required - see the integration documentation)"
+          }
+        },
         "data_description": {
-          "auto_update_notice": "(If not using auto-update then an automation is required - see the integration documentation)",
           "api_key": "Enter one or more Solcast API keys, separated by commas",
           "api_limit": "Enter a forecast update daily limit, comma separated when using multiple keys",
           "auto_update": "If not using auto-update, create an automation that calls the action \"solcast_solar.update_forecasts\" periodically, while adhering to your Solcast advised maximum total limit (usually ten times total per day for one rooftop site, or with two sites five times per day)"
@@ -479,8 +483,12 @@
           "site_export_limit": "Site export limit (kW)",
           "use_actuals": "Forecast history to show on the Energy dashboard"
         },
+        "sections": {
+          "proxy_notice": {
+            "description": "A Solcast API proxy is in use. Auto-update follows the proxy schedule until the proxy is disabled."
+          }
+        },
         "data_description": {
-          "proxy_notice": "A Solcast API proxy is in use. Auto-update follows the proxy schedule until the proxy is disabled.",
           "api_key": "Enter one or more Solcast API keys, separated by commas",
           "api_limit": "Enter a forecast update daily limit, comma separated when using multiple keys",
           "attr_breakdown": "Select which breakdowns are enabled",

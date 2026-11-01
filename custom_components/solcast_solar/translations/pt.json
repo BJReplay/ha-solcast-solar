@@ -34,8 +34,12 @@
           "auto_update": "Atualização automática"
         },
         "description": "Detalhes da conta Solcast\n\n{auto_update_notice}{proxy_notice}",
+        "sections": {
+          "auto_update_notice": {
+            "description": "(Se não usar a atualização automática, é necessária uma automação - consulte a documentação da integração)"
+          }
+        },
         "data_description": {
-          "auto_update_notice": "(Se não usar a atualização automática, é necessária uma automação - consulte a documentação da integração)",
           "api_key": "Insira uma ou mais chaves API Solcast, separadas por vírgulas",
           "api_limit": "Insira um limite diário de atualização de previsão, separado por vírgulas ao usar várias chaves",
           "auto_update": "Se não usar a atualização automática, crie uma automação que chame periodicamente a ação \"solcast_solar.update_forecasts\", respeitando o limite máximo total recomendado pela Solcast (normalmente dez vezes no total por dia para um único local em telhado, ou com dois locais cinco vezes por dia)"
@@ -477,8 +481,12 @@
           "use_actuals": "História de previsões para mostrar no painel de energia"
         },
         "description": "Opções de configuração do Solcast\n\n{proxy_notice}",
+        "sections": {
+          "proxy_notice": {
+            "description": "Está a ser utilizado um proxy de API Solcast. A atualização automática segue o agendamento do proxy até que esse proxy seja desativado."
+          }
+        },
         "data_description": {
-          "proxy_notice": "Está a ser utilizado um proxy de API Solcast. A atualização automática segue o agendamento do proxy até que esse proxy seja desativado.",
           "api_key": "Insira uma ou mais chaves API Solcast, separadas por vírgulas",
           "api_limit": "Insira um limite diário de atualização de previsão, separado por vírgulas ao usar várias chaves",
           "attr_breakdown": "Selecione quais detalhamentos estão ativados",

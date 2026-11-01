@@ -34,8 +34,12 @@
           "auto_update": "Automatická aktualizácia"
         },
         "description": "Podrobnosti o účte Solcast\n\n{auto_update_notice}{proxy_notice}",
+        "sections": {
+          "auto_update_notice": {
+            "description": "(Ak nie je automatická aktualizácia, potom je potrebná automatizácia – pozrite si integračnú dokumentáciu)"
+          }
+        },
         "data_description": {
-          "auto_update_notice": "(Ak nie je automatická aktualizácia, potom je potrebná automatizácia – pozrite si integračnú dokumentáciu)",
           "api_key": "Zadajte jeden alebo viac kľúčov API Solcast, oddelených čiarkami",
           "api_limit": "Zadajte denný limit aktualizácií predpovede, oddelený čiarkami pri použití viacerých kľúčov",
           "auto_update": "Ak nepoužívate automatickú aktualizáciu, vytvorte automatizáciu, ktorá pravidelne volá akciu \"solcast_solar.update_forecasts\", pričom dodržujte Solcastom odporúčaný maximálny celkový limit (zvyčajne spolu desaťkrát denne pre jedno strešné miesto, alebo pri dvoch miestach päťkrát denne)"
@@ -477,8 +481,12 @@
           "use_actuals": "História predpovedí na zobrazenie na paneli Energy"
         },
         "description": "Solcast možnosti konfigurácie\n\n{proxy_notice}",
+        "sections": {
+          "proxy_notice": {
+            "description": "Používa sa API proxy Solcast. Automatická aktualizácia prebieha podľa harmonogramu proxy, kým sa tento proxy nevypne."
+          }
+        },
         "data_description": {
-          "proxy_notice": "Používa sa API proxy Solcast. Automatická aktualizácia prebieha podľa harmonogramu proxy, kým sa tento proxy nevypne.",
           "api_key": "Zadajte jeden alebo viac kľúčov API Solcast, oddelených čiarkami",
           "api_limit": "Zadajte denný limit aktualizácií predpovede, oddelený čiarkami pri použití viacerých kľúčov",
           "attr_breakdown": "Vyberte, ktoré rozdelenia sú povolené",

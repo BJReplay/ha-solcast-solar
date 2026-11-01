@@ -34,8 +34,12 @@
           "auto_update": "Actualización automática"
         },
         "description": "Detalles de la cuenta Solcast\n\n{auto_update_notice}{proxy_notice}",
+        "sections": {
+          "auto_update_notice": {
+            "description": "(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)"
+          }
+        },
         "data_description": {
-          "auto_update_notice": "(Si no se utiliza la actualización automática, se requiere una automatización; consulte la documentación de integración)",
           "api_key": "Ingrese una o más claves API de Solcast, separadas por comas",
           "api_limit": "Ingrese un límite diario de actualización de pronóstico, separado por comas al usar múltiples claves",
           "auto_update": "Si no usa la actualización automática, cree una automatización que llame periódicamente a la acción \"solcast_solar.update_forecasts\", respetando el límite total máximo recomendado por Solcast (normalmente diez veces en total por día para un sitio de azotea, o con dos sitios cinco veces por día)"
@@ -477,8 +481,12 @@
           "use_actuals": "Historial de pronósticos para mostrar en el panel de energía"
         },
         "description": "Opciones de configuración de Solcast\n\n{proxy_notice}",
+        "sections": {
+          "proxy_notice": {
+            "description": "Se está utilizando un proxy de API de Solcast. La actualización automática sigue la programación del proxy hasta que se desactive ese proxy."
+          }
+        },
         "data_description": {
-          "proxy_notice": "Se está utilizando un proxy de API de Solcast. La actualización automática sigue la programación del proxy hasta que se desactive ese proxy.",
           "api_key": "Ingrese una o más claves API de Solcast, separadas por comas",
           "api_limit": "Ingrese un límite diario de actualización de pronóstico, separado por comas al usar múltiples claves",
           "attr_breakdown": "Seleccione qué desgloses están habilitados",

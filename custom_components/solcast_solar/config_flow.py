@@ -331,12 +331,12 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         if proxy_mode:
             translations = await translation.async_get_translations(self.hass, self.hass.config.language, "options", {DOMAIN})
             description_placeholders["proxy_notice"] = translations[
-                f"component.{DOMAIN}.options.step.init.data_description.proxy_notice"
+                f"component.{DOMAIN}.options.step.init.sections.proxy_notice.description"
             ]
         else:
             translations = await translation.async_get_translations(self.hass, self.hass.config.language, "config", {DOMAIN})
             description_placeholders["auto_update_notice"] = (
-                translations[f"component.{DOMAIN}.config.step.reconfigure_confirm.data_description.auto_update_notice"] + "\n\n"
+                translations[f"component.{DOMAIN}.config.step.reconfigure_confirm.sections.auto_update_notice.description"] + "\n\n"
             )
             auto_update_schema = {
                 Required(AUTO_UPDATE, default=str(all_config_data[AUTO_UPDATE])): SelectSelector(
@@ -730,7 +730,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         if proxy_mode:
             translations = await translation.async_get_translations(self.hass, self.hass.config.language, "options", {DOMAIN})
             description_placeholders["proxy_notice"] = translations[
-                f"component.{DOMAIN}.options.step.init.data_description.proxy_notice"
+                f"component.{DOMAIN}.options.step.init.sections.proxy_notice.description"
             ]
         else:
             auto_update_schema = {
