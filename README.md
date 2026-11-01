@@ -44,9 +44,9 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
 1. [Key Solcast integration concepts](#key-solcast-integration-concepts)
 1. [Solcast requirements](#solcast-requirements)
 1. [Installation](#installation)
-    1. [HACS recommended](#hacs-recommended)
+    1. [Marketplace/HACS (recommended)](#marketplace--hacs-recommended)
     1. [Installing manually in HACS](#installing-manually-in-hacs)
-    1. [Installing manually (not using HACS)](#installing-manually-(not-using-hacs))
+    1. [Installing manually (not using HACS)](#installing-manually-not-using-hacs)
     1. [Beta versions](#beta-versions)
 1. [Configuration](#configuration)
     1. [Updating forecasts](#updating-forecasts)
@@ -76,7 +76,7 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
 1. [Known issues](#known-issues)
 1. [Troubleshooting](#troubleshooting)
 1. [Complete integration removal](#complete-integration-removal)
-1. [Changes](#Changes)
+1. [Changes](#changes)
 
 ## Key Solcast integration concepts
 
@@ -155,17 +155,19 @@ Once set up, the integration provides azimuth values as compass degrees and dire
 
 ## Installation
 
-### HACS recommended
+### Marketplace / HACS (recommended)
 
 *(Recommended installation method)*
 
-Install as a Default Repository using HACS. More info about HACS can be found [here](https://hacs.xyz/).  If you haven't installed HACS yet, go do it first!
+Install as a Default Repository using Marketplace / HACS.
 
-The easiest way to install the integration is to click the button below to open this page in your Home Assistant HACS page (you will be prompted for your Home Assistant URL if you've never used this type of button before).
+Since Home Assistant 2026.11, Marketplace is built into Home Assistant and is available under **Settings** > **Marketplace**.  If you are stuck on an earlier version of Home Assistant, you need to install HACS: - if you haven't installed HACS yet, go do it first - more info about HACS can be found [here](https://hacs.xyz/).
+
+The easiest way to install the integration is to click the button below to open this page in your Home Assistant Marketplace / HACS page (you will be prompted for your Home Assistant URL if you've never used this type of button before).
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=BJReplay&repository=ha-solcast-solar&category=integration)
 
-You'll be prompted to confirm you want to open the repository inside HACS inside Home Assistant:
+You'll be prompted to confirm you want to open the repository inside the Marketplace / HACS inside Home Assistant:
 
 [<img src="https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/OpenPageinyourHomeAssistant.png">](https://github.com/BJReplay/ha-solcast-solar/blob/main/.github/SCREENSHOTS/OpenPageinyourHomeAssistant.png)
 
