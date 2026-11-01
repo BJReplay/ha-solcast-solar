@@ -59,6 +59,10 @@ from .const import (
     LEARN_MORE_UNUSUAL_AZIMUTH,
     PERIOD_START,
     PROPOSAL,
+    PROXY_CACHE_STATE,
+    PROXY_FORECAST_CRON,
+    PROXY_MODE,
+    PROXY_POLL_DELAY_SECONDS,
     RESET,
     RESOURCE_ID,
     SITE,
@@ -965,8 +969,53 @@ class SitesCache:
             if not cache_mutation_allowed:
                 return
             _LOGGER.debug("Writing sites cache for %s", redact_api_key(api_key))
+            cache_payload = {
+                **response_data,
+                PROXY_CACHE_STATE: {
+                    PROXY_MODE: self.api.proxy_mode,
+                    PROXY_POLL_DELAY_SECONDS: self.api.proxy_poll_delay_seconds,
+                    PROXY_FORECAST_CRON: self.api.proxy_forecast_cron,
+                },
+            }
             async with self.api.serialise_lock, aiofiles.open(cache_filename, "w") as file:
-                await file.write(json.dumps(response_json, ensure_ascii=False))
+                await file.write(json.dumps(cache_payload, ensure_ascii=False))
+
+        async def apply_proxy_cache_state(payload: dict[str, Any], source: str) -> None:
+            proxy_state = payload.get(PROXY_CACHE_STATE)
+            if not isinstance(proxy_state, dict):
+                return
+
+            poll_delay = proxy_state.get(PROXY_POLL_DELAY_SECONDS)
+            if isinstance(poll_delay, int):
+                await self.api.async_set_proxy_poll_delay(poll_delay, source=f"{source}_cache")
+
+            proxy_mode = proxy_state.get(PROXY_MODE)
+            if isinstance(proxy_mode, bool):
+                await self.api.async_set_proxy_mode(proxy_mode, source=f"{source}_cache")
+
+            forecast_cron = proxy_state.get(PROXY_FORECAST_CRON)
+            if isinstance(forecast_cron, str):
+                await self.api.async_set_proxy_forecast_cron(forecast_cron, source=f"{source}_cache")
+
+        async def apply_proxy_discovery_headers(response: ClientResponse) -> None:
+            headers = response.headers
+            is_proxy = headers.get("x-solcast-proxy", "").lower() == "true"
+
+            if is_proxy:
+                _LOGGER.debug("Proxy discovery detected for %s", redact_api_key(api_key))
+                poll_delay_value = headers.get("x-proxy-poll-delay-seconds")
+                if poll_delay_value is not None:
+                    with contextlib.suppress(ValueError):
+                        await self.api.async_set_proxy_poll_delay(int(poll_delay_value), source="discovery_header")
+                forecast_cron = headers.get("x-proxy-forecast-cron")
+                if forecast_cron is not None:
+                    await self.api.async_set_proxy_forecast_cron(forecast_cron, source="discovery_header")
+                await self.api.async_set_proxy_mode(True, source="discovery_header")
+                return
+
+            if self.api.proxy_mode:
+                _LOGGER.debug("Proxy discovery not detected for %s, disabling proxy mode", redact_api_key(api_key))
+                await self.api.async_set_proxy_mode(False, source="discovery_header")
 
         async def load_dismissals(cache_filename: str) -> None:
             _LOGGER.debug("Loading warning dismissals for %s", redact_api_key(api_key))
@@ -1112,6 +1161,7 @@ class SitesCache:
                         headers=self.api.headers,
                         ssl=self.api.advanced_options[ADVANCED_SSL_VERIFY],
                     )
+                    await apply_proxy_discovery_headers(response)
                     status = response.status
                     (_LOGGER.debug if status == 200 else _LOGGER.warning)(
                         "HTTP session returned status %s for API key %s%s",
@@ -1168,6 +1218,7 @@ class SitesCache:
                         api_key_in_error = redact_api_key(api_key)
                     if status != 200 and cache_exists and use_cache:
                         response_json = await load_cache(cache_filename)
+                        await apply_proxy_cache_state(response_json, source="fallback")
                         success = True
                         self.api.sites_status = LoadStatus.OK
                         if status == 403:
@@ -1213,6 +1264,7 @@ class SitesCache:
                     cache_filename = self._get_sites_cache_filename(api_key)
                     if Path(cache_filename).is_file():  # Cache exists, so load it
                         response_json = await load_cache(cache_filename)
+                        await apply_proxy_cache_state(response_json, source="error_fallback")
                         set_sites(response_json, api_key)
                         _ = check_rekey(response_json, api_key)
                         self.api.sites_status = LoadStatus.OK

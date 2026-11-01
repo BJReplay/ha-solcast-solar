@@ -109,6 +109,7 @@ class ProxyRetryHarness:
 
     async def fetch_data(self) -> dict[str, Any] | str | None:
         """Run the production fetcher's full retry and repair-issue handling."""
+        assert self.fetcher.api.dt_helper.real_now_utc() == self.clock
         return await self.fetcher.fetch_data(
             hours=48,
             path=self.kind,
@@ -231,11 +232,11 @@ async def test_proxy_retry_exhaustion(
     start = proxy_retry.clock
     result = await proxy_retry.fetch_data()
 
-    assert result == "429/Try again later after 10 attempts"
+    assert result == "Proxy collection give_up"
     assert [(status, payload) for _, status, payload in proxy_retry.polls] == [(429, None)] * 10
     assert proxy_retry.polls[0][0] == datetime(2025, 1, 11, 1, 1, 5, tzinfo=UTC)
-    assert proxy_retry.delays == [attempt * 15 + 14 for attempt in range(1, 10)]
-    assert (proxy_retry.clock - start).total_seconds() == 801
+    assert proxy_retry.delays == [29, *[attempt * 15 + 19 for attempt in range(2, 10)]]
+    assert (proxy_retry.clock - start).total_seconds() == 841
     assert (proxy_retry.clock - proxy_retry.upstream_calls[0]).total_seconds() <= 900
     assert len(proxy_retry.upstream_calls) == 10
     assert proxy_retry.upstream_calls[1] - proxy_retry.upstream_calls[0] == timedelta(seconds=34)
@@ -268,12 +269,15 @@ async def test_proxy_retry_exhaustion(
         pytest.param(ESTIMATED_ACTUALS, id="actuals"),
     ],
 )
+@pytest.mark.parametrize("upstream_status", [429, 500, 502, 503])
 async def test_proxy_retry_recovery(
     proxy_retry: ProxyRetryHarness,
     hass: HomeAssistant,
     issue_registry: ir.IssueRegistry,
+    upstream_status: int,
 ) -> None:
     """A scheduled retry success returns fresh data and clears an existing issue."""
+    proxy_retry.simulator.resources[(proxy_retry.api_key, proxy_retry.site, proxy_retry.kind)].status = upstream_status
     ir.async_create_issue(
         hass,
         DOMAIN,
@@ -295,7 +299,7 @@ async def test_proxy_retry_recovery(
 
     assert result == payload
     assert [(status, body) for _, status, body in proxy_retry.polls] == [
-        (429, None),
+        (upstream_status, None),
         (200, payload),
     ]
     assert proxy_retry.delays == [29]
@@ -319,3 +323,76 @@ async def test_proxy_retry_recovery(
     assert proxy_retry.poll_headers[-1]["x-proxy-give-up"] == "false"
     assert proxy_retry.poll_headers[-1]["x-proxy-last-fetch-status"] == "retry_success"
     assert issue_registry.async_get_issue(DOMAIN, ISSUE_API_UNAVAILABLE) is None
+
+
+@pytest.mark.parametrize("kind", [FORECASTS, ESTIMATED_ACTUALS])
+@pytest.mark.parametrize(
+    ("status", "collection_state", "halted"),
+    [
+        pytest.param(429, "give_up", False, id="give-up"),
+        pytest.param(429, "budget_exhausted", False, id="daily-budget"),
+        pytest.param(403, "permanent_error", True, id="halted"),
+        pytest.param(0, "not_fetched", False, id="awaiting-cron"),
+    ],
+)
+async def test_proxy_terminal_state_does_not_retry(
+    proxy_retry: ProxyRetryHarness,
+    status: int,
+    collection_state: str,
+    halted: bool,
+) -> None:
+    """Consumer retries stop when collection is deferred to cron or halted."""
+    record = proxy_retry.simulator.resources[(proxy_retry.api_key, proxy_retry.site, proxy_retry.kind)]
+    record.status = status
+    record.attempt_result = collection_state
+    record.halted = halted
+    record.payload = None
+    original_usage = proxy_retry.fetcher.api.api_used[proxy_retry.api_key]
+    upstream_calls = list(proxy_retry.upstream_calls)
+
+    result = await proxy_retry.fetch_data()
+
+    assert result == f"Proxy collection {collection_state}"
+    assert len(proxy_retry.polls) == 1
+    assert proxy_retry.delays == []
+    assert proxy_retry.upstream_calls == upstream_calls
+    assert proxy_retry.fetcher.api.api_used[proxy_retry.api_key] == original_usage
+
+
+@pytest.mark.parametrize("kind", [FORECASTS, ESTIMATED_ACTUALS])
+async def test_proxy_slow_collection_polls_after_offset(proxy_retry: ProxyRetryHarness) -> None:
+    """An overdue in-flight collection is polled without local jitter/backoff."""
+    record = proxy_retry.simulator.resources[(proxy_retry.api_key, proxy_retry.site, proxy_retry.kind)]
+    record.next_attempt_at = proxy_retry.clock - timedelta(seconds=20)
+    record.in_flight = True
+    proxy_retry.responses.append(proxy_retry.module.UpstreamResponse(200, {proxy_retry.kind: []}))
+
+    def finish_collection(delay: int) -> None:
+        proxy_retry.clock += timedelta(seconds=delay)
+        proxy_retry.freezer.tick(delay)
+        record.in_flight = False
+        proxy_retry.simulator.run_pending()
+
+    async def sleep(delay: int) -> None:
+        proxy_retry.delays.append(delay)
+        finish_collection(delay)
+
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        monkeypatch.setattr(proxy_retry.fetcher, "_sleep", sleep)
+        result = await proxy_retry.fetch_data()
+
+    assert result == {proxy_retry.kind: []}
+    assert proxy_retry.delays == [5]
+    assert len(proxy_retry.polls) == 2
+
+
+@pytest.mark.parametrize("kind", [ESTIMATED_ACTUALS])
+async def test_proxy_actuals_do_not_replace_forecast_schedule(proxy_retry: ProxyRetryHarness) -> None:
+    """Independent actuals collection state must not move the forecast timer."""
+    forecast_at = proxy_retry.clock + timedelta(hours=4)
+    proxy_retry.fetcher.api.proxy_next_attempt_at = forecast_at
+    proxy_retry.responses.append(proxy_retry.module.UpstreamResponse(200, {ESTIMATED_ACTUALS: []}))
+
+    assert await proxy_retry.fetch_data() == {ESTIMATED_ACTUALS: []}
+
+    assert proxy_retry.fetcher.api.proxy_next_attempt_at == forecast_at

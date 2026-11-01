@@ -61,6 +61,10 @@ from custom_components.solcast_solar.const import (
     HARD_LIMIT,
     HARD_LIMIT_API,
     KEY_ESTIMATE,
+    PROXY_FORECAST_CRON,
+    PROXY_MODE,
+    PROXY_POLL_DELAY_SECONDS,
+    PROXY_SAVED_AUTO_UPDATE,
     RESET,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
@@ -987,7 +991,7 @@ async def test_entry_options_upgrade(
     """Test that entry options are upgraded as expected."""
 
     _start_version = 3
-    _final_version = 19
+    _final_version = 20
     _v3options: dict[str, Any] = {
         CONF_API_KEY: "1",
         "const_disableautopoll": False,
@@ -1035,6 +1039,12 @@ async def test_entry_options_upgrade(
         # V19
         assert entry.options.get(API_LIMIT) == "10"
         assert entry.options.get(CUSTOM_HOURS) == 1
+        # V20
+        assert entry.options.get(PROXY_MODE) is False
+        assert entry.options.get(PROXY_POLL_DELAY_SECONDS) == 5
+        assert entry.options.get(PROXY_SAVED_AUTO_UPDATE) == 0
+        # V21
+        assert entry.options.get(PROXY_FORECAST_CRON) is None
 
         assert await hass.config_entries.async_unload(entry.entry_id), "Config entry unload failed"
         await hass.async_block_till_done()

@@ -237,6 +237,7 @@ class SolcastProxy:
         self.retry_backoff = retry_backoff
         self.jitter = jitter or (lambda: random.randrange(15))
         self.resources: dict[tuple[str, str, str], Resource] = {}
+        self._load_shed_resource: Resource | None = None
         self.accounts: dict[str, set[str]] = {}
         self.discovered_accounts: set[str] = set()
         self.lock = threading.RLock()
@@ -318,6 +319,13 @@ class SolcastProxy:
                 for record in self.resources.values()
                 if not record.halted and not record.in_flight and record.next_attempt_at is not None and record.next_attempt_at <= now
             ]
+            if self._load_shed_resource is not None:
+                if self.resources.get(
+                    (self._load_shed_resource.api_key, self._load_shed_resource.site, self._load_shed_resource.kind)
+                ) is not self._load_shed_resource:
+                    self._load_shed_resource = None
+                else:
+                    due = [record for record in due if record is self._load_shed_resource]
             for record in due:
                 record.in_flight = True
         try:
@@ -345,6 +353,14 @@ class SolcastProxy:
                     result = self.fetch(path, query)
                 with self.lock:
                     self._record_attempt(record, result)
+                    if record.status != 200 and not record.halted and record.attempt_result != "budget_exhausted":
+                        self._load_shed_resource = record
+                    elif self._load_shed_resource is record and (
+                        record.status == 200 or record.halted or record.attempt_result == "budget_exhausted"
+                    ):
+                        self._load_shed_resource = None
+                    if self._load_shed_resource is not None:
+                        break
         finally:
             with self.lock:
                 for record in due:
@@ -454,7 +470,25 @@ class SolcastProxy:
             budget_exhausted = record.attempt_result == "budget_exhausted"
             error_payload = copy.deepcopy(record.error_payload)
             now = self.now()
-        if upstream_status == 429:
+            blocker = self._load_shed_resource
+            if blocker is not None:
+                headers.update(
+                    {
+                        "x-proxy-collection-deferred": str(blocker is not record).lower(),
+                        "x-proxy-next-attempt-at": _iso_utc(blocker.next_attempt_at),
+                        "x-proxy-last-fetch-status": blocker.attempt_result,
+                        "x-proxy-upstream-status": str(blocker.status),
+                        "x-proxy-fetch-in-progress": str(blocker.in_flight).lower(),
+                        "x-proxy-give-up": str(blocker.give_up).lower(),
+                        "x-proxy-halted": str(blocker.halted).lower(),
+                    }
+                )
+                upstream_status = blocker.status
+                budget_exhausted = False
+        if blocker is not None:
+            response = jsonify(None)
+            response.status_code = upstream_status
+        elif upstream_status == 429:
             # JSON null is the integration's load-shedding signal, not quota exhaustion.
             response = jsonify(error_payload if budget_exhausted else None)
             response.status_code = 429

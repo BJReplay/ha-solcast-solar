@@ -194,6 +194,180 @@ def test_direct_discovery_returns_upstream_response(proxy: ProxyHarness) -> None
 
 
 @pytest.mark.parametrize("kind", KINDS)
+def test_load_shedding_pauses_all_accounts_until_recovery(proxy: ProxyHarness, kind: str) -> None:
+    """One transient 429 owns retries while other accounts and sites wait."""
+    proxy.discover((SITE_ID, OTHER_SITE_ID))
+    proxy.discover(("third-site",), api_key="second-account")
+    path = f"/rooftop_sites/{SITE_ID}/{kind}"
+    proxy.queue(path, 429)
+    proxy.queue(path, 429)
+    proxy.queue(path, payload={kind: []})
+    proxy.clock[0] = _collection_time(kind)
+
+    proxy.simulator.run_pending()
+
+    assert [call[0] for call in proxy.resource_calls(kind)] == [path]
+    deferred = proxy.read(kind, site="third-site", api_key="second-account")
+    assert deferred.status_code == 429
+    assert deferred.get_json() is None
+    assert deferred.headers["x-proxy-collection-deferred"] == "true"
+    assert deferred.headers["x-proxy-last-fetch-status"] == "retrying"
+    assert deferred.headers["x-proxy-consecutive-failures"] == "0"
+    assert _header_time(deferred, "x-proxy-next-attempt-at") == proxy.clock[0] + timedelta(seconds=15)
+    proxy.simulator.run_pending()
+    assert len(proxy.resource_calls(kind)) == 1
+
+    proxy.clock[0] = _header_time(deferred, "x-proxy-next-attempt-at")
+    proxy.simulator.run_pending()
+    assert [call[0] for call in proxy.resource_calls(kind)] == [path, path]
+    deferred = proxy.read(kind, site=OTHER_SITE_ID)
+    assert _header_time(deferred, "x-proxy-next-attempt-at") == proxy.clock[0] + timedelta(seconds=30)
+
+    proxy.clock[0] = _header_time(deferred, "x-proxy-next-attempt-at")
+    proxy.simulator.run_pending()
+    proxy.simulator.run_pending()
+
+    assert [call[0] for call in proxy.resource_calls(kind)] == [
+        path, path, path, f"/rooftop_sites/{OTHER_SITE_ID}/{kind}", f"/rooftop_sites/third-site/{kind}",
+    ]
+    assert proxy.read(kind, site=OTHER_SITE_ID).status_code == 200
+    assert proxy.read(kind, site="third-site", api_key="second-account").status_code == 200
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_load_shedding_exhaustion_defers_all_sites_to_next_cycle(proxy: ProxyHarness, kind: str) -> None:
+    """Giving up does not start a fresh retry storm on each remaining site."""
+    proxy.discover((SITE_ID, OTHER_SITE_ID))
+    proxy.discover(("third-site",), api_key="second-account")
+    proxy.simulator.max_attempts = 1
+    path = f"/rooftop_sites/{SITE_ID}/{kind}"
+    proxy.queue(path, 429)
+    proxy.clock[0] = _collection_time(kind)
+
+    proxy.simulator.run_pending()
+    proxy.clock[0] += timedelta(minutes=1)
+    proxy.simulator.run_pending()
+
+    assert [call[0] for call in proxy.resource_calls(kind)] == [path]
+    deferred = proxy.read(kind, site="third-site", api_key="second-account")
+    assert deferred.status_code == 429
+    assert deferred.headers["x-proxy-last-fetch-status"] == "give_up"
+    assert _header_time(deferred, "x-proxy-next-attempt-at") == _next_collection_time(kind)
+
+    proxy.clock[0] = _next_collection_time(kind)
+    proxy.simulator.run_pending()
+    proxy.simulator.run_pending()
+
+    assert [call[0] for call in proxy.resource_calls(kind)] == [
+        path, path, f"/rooftop_sites/{OTHER_SITE_ID}/{kind}", f"/rooftop_sites/third-site/{kind}",
+    ]
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_daily_budget_failure_does_not_gate_other_accounts(proxy: ProxyHarness, kind: str) -> None:
+    """An account quota error is not global upstream load shedding."""
+    proxy.discover()
+    proxy.discover((OTHER_SITE_ID,), api_key="second-account")
+    path = f"/rooftop_sites/{SITE_ID}/{kind}"
+    proxy.queue(path, 429, {"response_status": {"error_code": "TooManyRequests"}})
+    proxy.clock[0] = _collection_time(kind)
+
+    proxy.simulator.run_pending()
+
+    assert [call[0] for call in proxy.resource_calls(kind)] == [path, f"/rooftop_sites/{OTHER_SITE_ID}/{kind}"]
+    assert proxy.read(kind, site=OTHER_SITE_ID, api_key="second-account").status_code == 200
+
+
+def test_load_shedding_blocks_other_resource_kinds(proxy: ProxyHarness) -> None:
+    """A forecast storm also pauses due actuals across accounts."""
+    proxy.discover()
+    proxy.discover((OTHER_SITE_ID,), api_key="second-account")
+    proxy.simulator.schedules["forecasts"]["cron"] = ACTUALS_CRON
+    for record in proxy.simulator.resources.values():
+        record.next_attempt_at = ACTUALS_AT
+    path = f"/rooftop_sites/{SITE_ID}/forecasts"
+    proxy.queue(path, 429)
+    proxy.clock[0] = ACTUALS_AT
+
+    proxy.simulator.run_pending()
+
+    assert [call[0] for call in proxy.resource_calls("forecasts")] == [path]
+    assert proxy.resource_calls("estimated_actuals") == []
+    deferred = proxy.read("estimated_actuals", site=OTHER_SITE_ID, api_key="second-account")
+    assert deferred.status_code == 429
+    assert _header_time(deferred, "x-proxy-next-attempt-at") == ACTUALS_AT + timedelta(seconds=15)
+
+
+def test_load_shedding_preserves_deferred_cache_and_survives_discovery(proxy: ProxyHarness) -> None:
+    """Restart discovery and deferred reads neither reset the gate nor damage caches."""
+    proxy.discover((SITE_ID, OTHER_SITE_ID))
+    payload = {"forecasts": [], "generation": "last-good"}
+    proxy.queue(f"/rooftop_sites/{OTHER_SITE_ID}/forecasts", payload=payload)
+    proxy.clock[0] = FORECAST_AT
+    proxy.simulator.run_pending()
+    record = proxy.simulator.resources[(API_KEY, OTHER_SITE_ID, "forecasts")]
+    last_success = record.last_success_at
+    proxy.queue(f"/rooftop_sites/{SITE_ID}/forecasts", 429)
+    proxy.clock[0] = _next_collection_time("forecasts")
+    proxy.simulator.run_pending()
+    calls = list(proxy.resource_calls("forecasts"))
+
+    proxy.discover((SITE_ID, OTHER_SITE_ID))
+    proxy.simulator.run_pending()
+    deferred = proxy.read("forecasts", site=OTHER_SITE_ID)
+
+    assert deferred.status_code == 429
+    assert deferred.headers["x-proxy-collection-deferred"] == "true"
+    assert record.payload == payload
+    assert record.last_success_at == last_success
+    assert record.consecutive_failures == 0
+    assert proxy.resource_calls("forecasts") == calls
+
+
+@pytest.mark.parametrize("upstream_status", [429, 500, 502, 503])
+@pytest.mark.parametrize("response_kind", KINDS)
+def test_shared_failure_is_reported_on_every_resource(
+    proxy: ProxyHarness, upstream_status: int, response_kind: str
+) -> None:
+    """Consumers see shared failure regardless of order, cache, or due time."""
+    proxy.discover()
+    proxy.discover((OTHER_SITE_ID,), api_key="second-account")
+    payload = {response_kind: [], "generation": "last-good"}
+    record = proxy.simulator.resources[("second-account", OTHER_SITE_ID, response_kind)]
+    record.payload = payload
+    record.last_success_at = REGISTERED_AT
+    record.next_attempt_at = FORECAST_AT + timedelta(hours=8)
+    path = f"/rooftop_sites/{SITE_ID}/forecasts"
+    proxy.queue(path, upstream_status)
+    proxy.clock[0] = FORECAST_AT
+
+    proxy.simulator.run_pending()
+    response = proxy.read(response_kind, site=OTHER_SITE_ID, api_key="second-account")
+    owner = proxy.read("forecasts")
+
+    assert response.status_code == owner.status_code == upstream_status
+    assert response.get_json() is None
+    assert response.headers["x-proxy-upstream-status"] == str(upstream_status)
+    assert response.headers["x-proxy-last-fetch-status"] == "retrying"
+    assert response.headers["x-proxy-collection-deferred"] == "true"
+    assert response.headers["x-proxy-next-attempt-at"] == owner.headers["x-proxy-next-attempt-at"]
+    assert record.payload == payload
+    assert record.last_success_at == REGISTERED_AT
+    assert record.consecutive_failures == 0
+    assert record.next_attempt_at == FORECAST_AT + timedelta(hours=8)
+    assert [call[0] for call in proxy.resource_calls("forecasts")] == [path]
+
+    proxy.queue(path, payload={"forecasts": []})
+    proxy.clock[0] = _header_time(owner, "x-proxy-next-attempt-at")
+    proxy.simulator.run_pending()
+    recovered = proxy.read(response_kind, site=OTHER_SITE_ID, api_key="second-account")
+
+    assert recovered.status_code == 200
+    assert recovered.get_json() == payload
+    assert "x-proxy-collection-deferred" not in recovered.headers
+
+
+@pytest.mark.parametrize("kind", KINDS)
 def test_registration_schedules_without_consumer_fetch(proxy: ProxyHarness, kind: str) -> None:
     """Registration calculates the next UTC cron and leaves an empty cache."""
     proxy.discover()
@@ -299,7 +473,7 @@ def test_retry_is_deferred_and_success_resets_failures(proxy: ProxyHarness, kind
     proxy.simulator.run_pending()
     assert len(proxy.resource_calls(kind)) == 1
     failed = proxy.read(kind)
-    assert failed.status_code == {429: 429, 503: 503, 502: 503}[upstream_status]
+    assert failed.status_code == upstream_status
     assert failed.headers["x-proxy-last-fetch-status"] == "retrying"
     assert failed.headers["x-proxy-consecutive-failures"] == "1"
     assert failed.headers["x-proxy-upstream-status"] == str(upstream_status)
@@ -1184,6 +1358,11 @@ def test_custom_schedules_horizons_backoff_and_jitter(proxy: ProxyHarness) -> No
         ]
         proxy.clock[0] = datetime(2026, 9, 6, 8, tzinfo=UTC)
         proxy.simulator.run_pending()
+        assert proxy.resource_calls("estimated_actuals") == []
+        assert proxy.read("estimated_actuals").status_code == 503
+        proxy.clock[0] = datetime(2026, 9, 7, 7, 56, tzinfo=UTC)
+        proxy.simulator.run_pending()
+        proxy.simulator.run_pending()
         assert proxy.resource_calls("estimated_actuals")[0][1]["hours"] == ["168"]
 
 
@@ -1519,7 +1698,7 @@ def test_invalid_success_payload_is_a_retryable_failure(proxy: ProxyHarness, pay
     proxy.clock[0] = FORECAST_AT
     proxy.simulator.run_pending()
     response = proxy.read("forecasts")
-    assert response.status_code == 503
+    assert response.status_code == 502
     assert response.headers["x-proxy-upstream-status"] == "502"
     assert response.headers["x-proxy-last-fetch-status"] == "retrying"
 

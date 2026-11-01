@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from datetime import UTC, datetime as dt, timedelta
 from enum import Enum
 from hashlib import md5
@@ -36,7 +37,9 @@ from .const import (
     API_KEY,
     AUTO_UPDATED,
     DOMAIN,
+    DT_DATE_FORMAT,
     DT_DATE_ONLY_FORMAT,
+    DT_TIME_FORMAT,
     ERROR_CODE,
     ESTIMATE,
     ESTIMATE10,
@@ -148,6 +151,57 @@ class Fetcher:
     def _is_dns_timeout_error(err: ClientConnectorDNSError) -> bool:
         """Return whether a DNS connector error was caused by resolver timeout."""
         return "timeout while contacting dns servers" in Fetcher._dns_error_message(err).lower()
+
+    @staticmethod
+    def _header_as_bool(value: str | None) -> bool | None:
+        """Return a bool for true/false headers, or None when unknown."""
+        if value is None:
+            return None
+        lowered = value.strip().lower()
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+        return None
+
+    @staticmethod
+    def _header_as_dt(value: str | None) -> dt | None:
+        """Parse a UTC ISO datetime from a proxy header."""
+        if not value:
+            return None
+        with contextlib.suppress(ValueError, TypeError):
+            return dt.fromisoformat(value).astimezone(UTC)
+        return None
+
+    async def _apply_proxy_resource_headers(self, headers: Any, path: str = FORECASTS) -> bool:
+        """Update runtime state from proxy resource headers when present."""
+        if headers is None:
+            return False
+
+        upstream_status_raw = headers.get("x-proxy-upstream-status")
+        if not isinstance(upstream_status_raw, str):
+            return False
+
+        await self.api.async_set_proxy_mode(True, source="resource_header")
+        if path != FORECASTS:
+            return True
+
+        with contextlib.suppress(ValueError):
+            self.api.proxy_upstream_status = int(upstream_status_raw)
+
+        self.api.proxy_next_attempt_at = self._header_as_dt(headers.get("x-proxy-next-attempt-at"))
+
+        self.api.proxy_halted = self._header_as_bool(headers.get("x-proxy-halted")) is True
+        self.api.proxy_fetch_in_progress = self._header_as_bool(headers.get("x-proxy-fetch-in-progress")) is True
+        self.api.proxy_last_fetch_status = headers.get("x-proxy-last-fetch-status")
+        _LOGGER.debug(
+            "Proxy forecast collection: status=%s, next attempt=%s, in progress=%s, halted=%s",
+            self.api.proxy_last_fetch_status,
+            self.api.proxy_next_attempt_at,
+            self.api.proxy_fetch_in_progress,
+            self.api.proxy_halted,
+        )
+        return True
 
     async def build_forecast_and_actuals(self, raise_exc=False) -> bool:
         """Build the forecast and estimated actual data.
@@ -303,15 +357,23 @@ class Fetcher:
         last_attempt = dt_util.now(UTC)
         status = ""
 
-        def next_update():
+        def next_update() -> str:
+            if self.api.proxy_mode:
+                if self.api.proxy_halted or self.api.proxy_next_attempt_at is None:
+                    return ""
+                follow_at = (
+                    self.api.proxy_next_attempt_at + timedelta(seconds=self.api.proxy_poll_delay_seconds)
+                ).astimezone(self.api.tz)
+                date_format = DT_TIME_FORMAT if follow_at.date() == dt_util.now(self.api.tz).date() else DT_DATE_FORMAT
+                return f", next auto update at {follow_at.strftime(date_format)}"
             return f", next auto update at {self._next_update}" if self._next_update is not None else ""
 
         if last_updated := self.api.last_updated:
             if last_updated + timedelta(seconds=10) > dt_util.now(UTC):
                 status = f"Not requesting a solar forecast because time is within ten seconds of last update ({last_updated.astimezone(self.api.tz)})"
                 _LOGGER.warning(status)
-                if self._next_update is not None:
-                    _LOGGER.info("Forecast update suppressed%s", next_update())
+                if next_update_message := next_update():
+                    _LOGGER.info("Forecast update suppressed%s", next_update_message)
                 return UpdateResult(UpdateOutcome.SKIPPED, status)
 
         await self.api.dampening.refresh_granular_data()
@@ -434,12 +496,13 @@ class Fetcher:
         failure = False
 
         try:
+            now_utc = self.api.dt_helper.now_utc()
             last_day = self.api.dt_helper.day_start_utc(future=self.api.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS])
-            hours = math.ceil((last_day - self.api.dt_helper.now_utc()).total_seconds() / 3600)
+            hours = math.ceil((last_day - now_utc).total_seconds() / 3600)
             if hours > MAX_HOURS:
-                # DST Transition has blown past max hours allowable for Solcast forecast API - jump back a day
+                # DST transition can push one day over the API horizon; request one day less.
                 last_day = self.api.dt_helper.day_start_utc(future=self.api.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS] - 1)
-                hours = math.ceil((last_day - self.api.dt_helper.now_utc()).total_seconds() / 3600)
+                hours = math.ceil((last_day - now_utc).total_seconds() / 3600)
             _LOGGER.debug(
                 "Polling API for site %s, last day %s, %d hours",
                 site,
@@ -692,12 +755,14 @@ class Fetcher:
                             _LOGGER.debug("Fetching path %s", path)
                             counter += 1
                             response_text = ""
+                            proxy_response = False
                             dns_timeout_attempts = 0
                             while True:
                                 try:
                                     response: ClientResponse = await self.api.aiohttp_session.get(
                                         url=url, params=params, headers=self.api.headers, ssl=self.api.advanced_options[ADVANCED_SSL_VERIFY]
                                     )
+                                    proxy_response = await self._apply_proxy_resource_headers(response.headers, path)
                                     _LOGGER.debug("Fetch data url %s", redact_msg_api_key(str(response.url), api_key))
                                     status = response.status
                                     if status == 200:
@@ -735,6 +800,34 @@ class Fetcher:
                                     _LOGGER.error("Client error: %s", e)
                                     status = 1000
                                     break
+                            if proxy_response and status != 200:
+                                self.increment_failure_count()
+                                proxy_status = response.headers.get("x-proxy-last-fetch-status")
+                                halted = self._header_as_bool(response.headers.get("x-proxy-halted")) is True
+                                in_progress = self._header_as_bool(response.headers.get("x-proxy-fetch-in-progress")) is True
+                                next_attempt = self._header_as_dt(response.headers.get("x-proxy-next-attempt-at"))
+                                if halted or next_attempt is None or (proxy_status != "retrying" and not in_progress):
+                                    failure_reason = f"Proxy collection {proxy_status or 'unavailable'}"
+                                    if status == 429 and proxy_status == "give_up":
+                                        received_429 = tries
+                                    break
+                                delay = max(
+                                    1,
+                                    self.api.proxy_poll_delay_seconds,
+                                    math.ceil(
+                                        (next_attempt - self.api.dt_helper.real_now_utc()).total_seconds()
+                                        + self.api.proxy_poll_delay_seconds
+                                    ),
+                                )
+                                _LOGGER.debug(
+                                    "Proxy collection %s for site %s, next attempt %s; polling in %d seconds",
+                                    proxy_status,
+                                    site,
+                                    next_attempt.isoformat(),
+                                    delay,
+                                )
+                                await self._sleep(delay)
+                                continue
                             if status in (200, 400, 401, 403, 404, 500, 1000):  # Do not retry for these statuses.
                                 if status != 200:
                                     self.increment_failure_count()
