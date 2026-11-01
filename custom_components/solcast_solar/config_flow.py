@@ -295,9 +295,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                 key_changed = api_key != all_config_data[CONF_API_KEY]
                 auto_update = all_config_data[AUTO_UPDATE] if proxy_mode else int(user_input[AUTO_UPDATE])
                 options_changed = (
-                    key_changed
-                    or api_limit != all_config_data[API_LIMIT]
-                    or int(auto_update) != int(all_config_data[AUTO_UPDATE])
+                    key_changed or api_limit != all_config_data[API_LIMIT] or int(auto_update) != int(all_config_data[AUTO_UPDATE])
                 )
                 all_config_data[CONF_API_KEY] = api_key
                 all_config_data[API_LIMIT] = api_limit

@@ -73,16 +73,19 @@ async def test_actuals_headers_preserve_forecast_state(solcast: SolcastApi) -> N
     solcast.proxy_fetch_in_progress = True
     solcast.proxy_last_fetch_status = "retrying"
 
-    assert await solcast.fetcher._apply_proxy_resource_headers(
-        {
-            "x-proxy-upstream-status": "200",
-            "x-proxy-next-attempt-at": "2026-11-02T23:55:00+00:00",
-            "x-proxy-halted": "false",
-            "x-proxy-fetch-in-progress": "false",
-            "x-proxy-last-fetch-status": "clean_success",
-        },
-        path=ESTIMATED_ACTUALS,
-    ) is True
+    assert (
+        await solcast.fetcher._apply_proxy_resource_headers(
+            {
+                "x-proxy-upstream-status": "200",
+                "x-proxy-next-attempt-at": "2026-11-02T23:55:00+00:00",
+                "x-proxy-halted": "false",
+                "x-proxy-fetch-in-progress": "false",
+                "x-proxy-last-fetch-status": "clean_success",
+            },
+            path=ESTIMATED_ACTUALS,
+        )
+        is True
+    )
 
     assert solcast.proxy_mode is True
     assert solcast.proxy_next_attempt_at == next_attempt
@@ -151,11 +154,19 @@ async def test_proxy_forecast_cron_persists_once(solcast: SolcastApi, cron: str 
     [
         pytest.param(
             {"x-solcast-proxy": "true", "x-proxy-poll-delay-seconds": "9", "x-proxy-forecast-cron": "*/10 * * * *"},
-            False, True, 9, "*/10 * * * *", id="proxy-discovery",
+            False,
+            True,
+            9,
+            "*/10 * * * *",
+            id="proxy-discovery",
         ),
         pytest.param(
             {"x-solcast-proxy": "true", "x-proxy-poll-delay-seconds": "invalid"},
-            False, True, 5, None, id="invalid-delay",
+            False,
+            True,
+            5,
+            None,
+            id="invalid-delay",
         ),
         pytest.param({"x-solcast-proxy": "TRUE"}, False, True, 5, None, id="optional-headers-absent"),
         pytest.param({}, True, False, 5, None, id="direct-discovery"),

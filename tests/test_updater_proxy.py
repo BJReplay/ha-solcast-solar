@@ -214,9 +214,7 @@ async def test_halted_proxy_cancels_follow_event(pending: bool) -> None:
 
 
 @pytest.mark.parametrize("active_fetch", [pytest.param(False, id="fetch"), pytest.param(True, id="already-fetching")])
-async def test_proxy_follow_callback_clears_event_and_avoids_overlap(
-    monkeypatch: pytest.MonkeyPatch, active_fetch: bool
-) -> None:
+async def test_proxy_follow_callback_clears_event_and_avoids_overlap(monkeypatch: pytest.MonkeyPatch, active_fetch: bool) -> None:
     """A fired follow callback relinquishes its event before starting a fetch."""
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater.async_track_point_in_utc_time", fake_track)

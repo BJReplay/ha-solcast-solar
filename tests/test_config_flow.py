@@ -556,9 +556,7 @@ async def test_reconfigure_errors_then_unchanged_does_not_update(hass: HomeAssis
     "auto_update_input",
     [pytest.param({}, id="field-absent"), pytest.param({AUTO_UPDATE: "0"}, id="stale-form")],
 )
-async def test_proxy_reconfigure_preserves_auto_update(
-    hass: HomeAssistant, language: str, auto_update_input: dict[str, str]
-) -> None:
+async def test_proxy_reconfigure_preserves_auto_update(hass: HomeAssistant, language: str, auto_update_input: dict[str, str]) -> None:
     """An unloaded proxy entry preserves auto-update while accepting a new API limit."""
     hass.config.language = language
     options = {**DEFAULT_INPUT1, PROXY_MODE: True, PROXY_SAVED_AUTO_UPDATE: DEFAULT_INPUT1[AUTO_UPDATE]}
@@ -819,9 +817,7 @@ async def test_options_api_key(hass: HomeAssistant, user_input: dict[str, Any], 
     [pytest.param(path.stem, id=path.stem) for path in sorted((Path(solcast_module.__file__).parent / "translations").glob("*.json"))],
 )
 @pytest.mark.parametrize("stale_input", [pytest.param(False, id="field-absent"), pytest.param(True, id="stale-form")])
-async def test_proxy_options_preserve_auto_update(
-    hass: HomeAssistant, language: str, stale_input: bool
-) -> None:
+async def test_proxy_options_preserve_auto_update(hass: HomeAssistant, language: str, stale_input: bool) -> None:
     """Persisted proxy detection hides the placebo control and ignores stale submissions."""
     hass.config.language = language
     options = {**DEFAULT_INPUT1, PROXY_MODE: True, PROXY_SAVED_AUTO_UPDATE: DEFAULT_INPUT1[AUTO_UPDATE]}
@@ -865,9 +861,7 @@ async def test_proxy_options_preserve_auto_update(
 
 
 @pytest.mark.parametrize("proxy_mode", [pytest.param(True, id="proxy-detected"), pytest.param(False, id="proxy-disabled")])
-async def test_options_use_current_runtime_proxy_state(
-    recorder_mock: Recorder, hass: HomeAssistant, proxy_mode: bool
-) -> None:
+async def test_options_use_current_runtime_proxy_state(recorder_mock: Recorder, hass: HomeAssistant, proxy_mode: bool) -> None:
     """Live detection overrides persisted state when deciding whether to offer auto-update."""
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
