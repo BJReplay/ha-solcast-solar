@@ -33,8 +33,9 @@
           "api_limit": "Kvóta API",
           "auto_update": "Automatická aktualizácia"
         },
-        "description": "Podrobnosti o účte Solcast\n\n(Ak nie je automatická aktualizácia, potom je potrebná automatizácia – pozrite si integračnú dokumentáciu)",
+        "description": "Podrobnosti o účte Solcast\n\n{auto_update_notice}{proxy_notice}",
         "data_description": {
+          "auto_update_notice": "(Ak nie je automatická aktualizácia, potom je potrebná automatizácia – pozrite si integračnú dokumentáciu)",
           "api_key": "Zadajte jeden alebo viac kľúčov API Solcast, oddelených čiarkami",
           "api_limit": "Zadajte denný limit aktualizácií predpovede, oddelený čiarkami pri použití viacerých kľúčov",
           "auto_update": "Ak nepoužívate automatickú aktualizáciu, vytvorte automatizáciu, ktorá pravidelne volá akciu \"solcast_solar.update_forecasts\", pričom dodržujte Solcastom odporúčaný maximálny celkový limit (zvyčajne spolu desaťkrát denne pre jedno strešné miesto, alebo pri dvoch miestach päťkrát denne)"
@@ -46,7 +47,7 @@
           "api_limit": "Kvóta API",
           "auto_update": "Automatická aktualizácia"
         },
-        "description": "Podrobnosti o účte Solcast\n\n(Ak nie je automatická aktualizácia, potom je potrebná automatizácia – pozrite si integračnú dokumentáciu)\n\nAPI Solcast musí byť dostupné na počiatočnú konfiguráciu tejto integrácie. Ak dostanete stavovú správu '429 / Try again later', API nie je dostupné a konfiguráciu nie je možné dokončiť. Musíte počkať. Všimnite si, že stránka stavu API na status.solcast.com takmer určite neukáže žiadne problémy s API. Príčina spočíva s najväčšou pravdepodobnosťou v jedinom problematickom používateľovi API, ktorý ovplyvňuje dostupnosť pre všetkých hobbistov.",
+        "description": "Podrobnosti o účte Solcast\n\n(Ak nie je automatická aktualizácia, potom je potrebná automatizácia – pozrite si integračnú dokumentáciu)\n\nAPI Solcast musí byť dostupné na počiatočnú konfiguráciu tejto integrácie. Ak dostanete stavovú správu '429 / Try again later', API nie je dostupné a konfiguráciu nie je možné dokončiť. Musíte počkať. Aktuálne informácie o stave API nájdete na status.solcast.com. Príčina spočíva s najväčšou pravdepodobnosťou v jedinom problematickom používateľovi API, ktorý ovplyvňuje dostupnosť pre všetkých hobbistov.",
         "data_description": {
           "api_key": "Zadajte jeden alebo viac kľúčov API Solcast, oddelených čiarkami",
           "api_limit": "Zadajte denný limit aktualizácií predpovede, oddelený čiarkami pri použití viacerých kľúčov",
@@ -317,7 +318,7 @@
       "title": "Problém s pokročilou možnosťou"
     },
     "api_unavailable": {
-      "description": "Počas aktualizácie Solcast API opakovane hlásilo stav `429 / Try again later`. To znamená, že Solcast API je zaneprázdnené a aktívne blokuje požiadavky pre hobby účty.\n\n* Webová stránka solcast.com nie je ovplyvnená, ale API je dočasne nedostupné pre vás.\n* Stránka stavu API na status.solcast.com takmer určite neukáže žiadny problém.\n* Nesnažte sa túto situáciu riešiť.\n* Nezmeňte svoj kľúč API.\n* Nesnažte sa aktualizovať integráciu.\n* Vyhnite sa reštartovaniu integrácie.\n* Integrácia bude naďalej poskytovať poslednú predpoveď solárneho žiarenia získanú zo Solcastu.\n* Nie je to problém s integráciou a vyrieši sa to samo. Nič nemeňte.\n\n(Ak chcete tento problém potlačiť, vytvorte možnosť pokročilej konfigurácie api_raise_issues a nastavte ju na false.)",
+      "description": "Počas aktualizácie Solcast API opakovane hlásilo stav `429 / Try again later`. To znamená, že Solcast API je zaneprázdnené a aktívne blokuje požiadavky pre hobby účty.\n\n* Webová stránka solcast.com nie je ovplyvnená, ale API je dočasne nedostupné pre vás.\n* Aktuálne informácie o stave API nájdete na status.solcast.com.\n* Nesnažte sa túto situáciu riešiť.\n* Nezmeňte svoj kľúč API.\n* Nesnažte sa aktualizovať integráciu.\n* Vyhnite sa reštartovaniu integrácie.\n* Integrácia bude naďalej poskytovať poslednú predpoveď solárneho žiarenia získanú zo Solcastu.\n* Nie je to problém s integráciou a vyrieši sa to samo. Nič nemeňte.\n\n(Ak chcete tento problém potlačiť, vytvorte možnosť pokročilej konfigurácie api_raise_issues a nastavte ju na false.)",
       "title": "Solcast API dočasne nedostupné"
     },
     "actuals_api_limit": {
@@ -475,8 +476,9 @@
           "site_export_limit": "Limit exportu lokality (kW)",
           "use_actuals": "História predpovedí na zobrazenie na paneli Energy"
         },
-        "description": "Solcast možnosti konfigurácie",
+        "description": "Solcast možnosti konfigurácie\n\n{proxy_notice}",
         "data_description": {
+          "proxy_notice": "Používa sa API proxy Solcast. Automatická aktualizácia prebieha podľa harmonogramu proxy, kým sa tento proxy nevypne.",
           "api_key": "Zadajte jeden alebo viac kľúčov API Solcast, oddelených čiarkami",
           "api_limit": "Zadajte denný limit aktualizácií predpovede, oddelený čiarkami pri použití viacerých kľúčov",
           "attr_breakdown": "Vyberte, ktoré rozdelenia sú povolené",

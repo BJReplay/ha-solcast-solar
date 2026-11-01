@@ -33,8 +33,9 @@
           "api_limit": "Limite API",
           "auto_update": "Aggiornamento automatico"
         },
-        "description": "Dettagli dell'account Solcast\n\n(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)",
+        "description": "Dettagli dell'account Solcast\n\n{auto_update_notice}{proxy_notice}",
         "data_description": {
+          "auto_update_notice": "(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)",
           "api_key": "Inserire una o più chiavi API Solcast, separate da virgole",
           "api_limit": "Inserire un limite giornaliero di aggiornamento delle previsioni, separato da virgole quando si utilizzano più chiavi",
           "auto_update": "Se non si usa l'aggiornamento automatico, creare un'automazione che richiami periodicamente l'azione \"solcast_solar.update_forecasts\", rispettando il limite massimo totale consigliato da Solcast (di solito dieci volte totali al giorno per un singolo sito su tetto, oppure con due siti cinque volte al giorno)"
@@ -46,7 +47,7 @@
           "api_limit": "Limite API",
           "auto_update": "Aggiornamento automatico"
         },
-        "description": "Dettagli dell'account Solcast\n\n(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)\n\nL'API Solcast deve essere disponibile per configurare inizialmente questa integrazione. Se ricevi il messaggio di stato '429 / Try again later', l'API non è disponibile e la configurazione non può essere completata. Devi attendere. Tieni presente che la pagina di stato dell'API su status.solcast.com quasi certamente non mostrerà alcun problema API. La causa risiede molto probabilmente in un singolo utente problematico dell'API che sta influenzando la disponibilità per tutti gli appassionati.",
+        "description": "Dettagli dell'account Solcast\n\n(Se non si utilizza l'aggiornamento automatico, è necessaria un'automazione - consultare la documentazione dell'integrazione)\n\nL'API Solcast deve essere disponibile per configurare inizialmente questa integrazione. Se ricevi il messaggio di stato '429 / Try again later', l'API non è disponibile e la configurazione non può essere completata. Devi attendere. Consulta status.solcast.com per aggiornamenti sullo stato dell'API. La causa risiede molto probabilmente in un singolo utente problematico dell'API che sta influenzando la disponibilità per tutti gli appassionati.",
         "data_description": {
           "api_key": "Inserire una o più chiavi API Solcast, separate da virgole",
           "api_limit": "Inserire un limite giornaliero di aggiornamento delle previsioni, separato da virgole quando si utilizzano più chiavi",
@@ -317,7 +318,7 @@
       "title": "Problema con l'opzione avanzata"
     },
     "api_unavailable": {
-      "description": "L'API Solcast ha segnalato ripetutamente lo stato `429 / Try again later` durante un aggiornamento. Ciò significa che l'API Solcast è occupata e sta bloccando attivamente le richieste degli account hobbisti.\n\n* Il sito web solcast.com non è influenzato, ma l'API è temporaneamente non disponibile per te.\n* La pagina di stato dell'API su status.solcast.com quasi certamente non indicherà alcun problema.\n* Non tentare di risolvere questa situazione.\n* Non modificare la chiave API.\n* Non tentare di aggiornare l'integrazione.\n* Evita di riavviare l'integrazione.\n* L'integrazione continuerà a fornire l'ultima previsione solare recuperata da Solcast.\n* Non è un problema di integrazione e si risolverà da solo. Non cambiare nulla.\n\n(Per sopprimere questo problema, crea un'opzione di configurazione avanzata api_raise_issues e impostala su false.)",
+      "description": "L'API Solcast ha segnalato ripetutamente lo stato `429 / Try again later` durante un aggiornamento. Ciò significa che l'API Solcast è occupata e sta bloccando attivamente le richieste degli account hobbisti.\n\n* Il sito web solcast.com non è influenzato, ma l'API è temporaneamente non disponibile per te.\n* Consulta status.solcast.com per aggiornamenti sullo stato dell'API.\n* Non tentare di risolvere questa situazione.\n* Non modificare la chiave API.\n* Non tentare di aggiornare l'integrazione.\n* Evita di riavviare l'integrazione.\n* L'integrazione continuerà a fornire l'ultima previsione solare recuperata da Solcast.\n* Non è un problema di integrazione e si risolverà da solo. Non cambiare nulla.\n\n(Per sopprimere questo problema, crea un'opzione di configurazione avanzata api_raise_issues e impostala su false.)",
       "title": "API Solcast temporaneamente non disponibile"
     },
     "actuals_api_limit": {
@@ -475,8 +476,9 @@
           "site_export_limit": "Limite di esportazione del sito (kW)",
           "use_actuals": "Storia delle previsioni da mostrare sul dashboard Energia"
         },
-        "description": "Opzioni di configurazione di Solcast",
+        "description": "Opzioni di configurazione di Solcast\n\n{proxy_notice}",
         "data_description": {
+          "proxy_notice": "È in uso un proxy API Solcast. L'aggiornamento automatico segue la pianificazione del proxy finché quel proxy non verrà disattivato.",
           "api_key": "Inserire una o più chiavi API Solcast, separate da virgole",
           "api_limit": "Inserire un limite giornaliero di aggiornamento delle previsioni, separato da virgole quando si utilizzano più chiavi",
           "attr_breakdown": "Seleziona quali ripartizioni sono abilitate",

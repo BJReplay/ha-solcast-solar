@@ -34,11 +34,12 @@
           "auto_update": "Auto-update"
         },
         "data_description": {
+          "auto_update_notice": "(If not using auto-update then an automation is required - see the integration documentation)",
           "api_key": "Enter one or more Solcast API keys, separated by commas",
           "api_limit": "Enter a forecast update daily limit, comma separated when using multiple keys",
           "auto_update": "If not using auto-update, create an automation that calls the action \"solcast_solar.update_forecasts\" periodically, while adhering to your Solcast advised maximum total limit (usually ten times total per day for one rooftop site, or with two sites five times per day)"
         },
-        "description": "Solcast Account Details\n\n(If not using auto-update then an automation is required - see the integration documentation)"
+        "description": "Solcast Account Details\n\n{auto_update_notice}{proxy_notice}"
       },
       "user": {
         "data": {
@@ -51,7 +52,7 @@
           "api_limit": "Enter a forecast update daily limit, comma separated when using multiple keys",
           "auto_update": "If not using auto-update, create an automation that calls the action \"solcast_solar.update_forecasts\" periodically, while adhering to your Solcast advised maximum total limit (usually ten times total per day for one rooftop site, or with two sites five times per day)"
         },
-        "description": "Solcast Account Details\n\n(If not using auto-update then an automation is required - see the integration documentation)\n\nThe Solcast API must be available to initially configure this integration. If you receive a status message '429 / Try again later' then the API is unavailable and configuration cannot be completed. You need to wait. Note that the API status page at status.solcast.com will almost certainly not show any API issues. The cause most likely lies with a single bad API user who is affecting availability for all hobbyists."
+        "description": "Solcast Account Details\n\n(If not using auto-update then an automation is required - see the integration documentation)\n\nThe Solcast API must be available to initially configure this integration. If you receive a status message '429 / Try again later' then the API is unavailable and configuration cannot be completed. You need to wait. Check status.solcast.com for API status updates. The cause most likely lies with a single bad API user who is affecting availability for all hobbyists."
       }
     }
   },
@@ -328,7 +329,7 @@
       "title": "Advanced option problem"
     },
     "api_unavailable": {
-      "description": "The Solcast API has reported `429 / Try again later` status repeatedly during an update. This means that the Solcast API is busy and is actively blocking requests for hobbyist accounts.\n\n* The solcast.com website is unaffected, but the API is temporarily unavailable to you.\n* The API status page at status.solcast.com will almost certainly indicate no issue.\n* Do not attempt to fix this situation.\n* Do not change your API key.\n* Do not attempt an integration upgrade.\n* Avoid restarting the integration.\n* The integration will continue providing the last solar forecast it retrieved from Solcast.\n* This is not an integration issue and will resolve itself. Change nothing.\n\n(To suppress this issue, create an advanced configuration option api_raise_issues and set it to false.)",
+      "description": "The Solcast API has reported `429 / Try again later` status repeatedly during an update. This means that the Solcast API is busy and is actively blocking requests for hobbyist accounts.\n\n* The solcast.com website is unaffected, but the API is temporarily unavailable to you.\n* Check status.solcast.com for API status updates.\n* Do not attempt to fix this situation.\n* Do not change your API key.\n* Do not attempt an integration upgrade.\n* Avoid restarting the integration.\n* The integration will continue providing the last solar forecast it retrieved from Solcast.\n* This is not an integration issue and will resolve itself. Change nothing.\n\n(To suppress this issue, create an advanced configuration option api_raise_issues and set it to false.)",
       "title": "Solcast API temporarily unavailable"
     },
     "corrupt_file": {
@@ -479,6 +480,7 @@
           "use_actuals": "Forecast history to show on the Energy dashboard"
         },
         "data_description": {
+          "proxy_notice": "A Solcast API proxy is in use. Auto-update follows the proxy schedule until the proxy is disabled.",
           "api_key": "Enter one or more Solcast API keys, separated by commas",
           "api_limit": "Enter a forecast update daily limit, comma separated when using multiple keys",
           "attr_breakdown": "Select which breakdowns are enabled",
@@ -496,7 +498,7 @@
           "site_export_limit": "Required if a site export entity is specified",
           "use_actuals": ""
         },
-        "description": "Solcast configuration options"
+        "description": "Solcast configuration options\n\n{proxy_notice}"
       }
     }
   },

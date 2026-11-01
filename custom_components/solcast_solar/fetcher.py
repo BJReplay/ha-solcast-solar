@@ -805,7 +805,12 @@ class Fetcher:
                                 in_progress = self._header_as_bool(response.headers.get("x-proxy-fetch-in-progress")) is True
                                 next_attempt = self._header_as_dt(response.headers.get("x-proxy-next-attempt-at"))
                                 if halted or next_attempt is None or (proxy_status != "retrying" and not in_progress):
-                                    failure_reason = f"Proxy collection {proxy_status or 'unavailable'}"
+                                    if proxy_status == "give_up":
+                                        failure_reason = "Proxy collection gave up"
+                                        if status == 429:
+                                            failure_reason = f"{failure_reason} ({status})"
+                                    else:
+                                        failure_reason = f"Proxy collection {proxy_status or 'unavailable'}"
                                     if status == 429 and proxy_status == "give_up":
                                         received_429 = tries
                                     break

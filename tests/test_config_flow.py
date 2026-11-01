@@ -7,7 +7,7 @@ import logging
 from pathlib import Path
 import re
 from typing import Any
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 import custom_components.solcast_solar as solcast_module
 from custom_components.solcast_solar import state
@@ -86,7 +86,7 @@ from homeassistant.config_entries import ConfigEntryState, ConfigFlowResult
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, translation
 
 from . import (
     DEFAULT_INPUT1,
@@ -551,6 +551,153 @@ async def test_reconfigure_errors_then_unchanged_does_not_update(hass: HomeAssis
     mock_schedule_reload.assert_not_called()
 
 
+@pytest.mark.parametrize("language", [pytest.param("en", id="english"), pytest.param("de", id="german")])
+@pytest.mark.parametrize(
+    "auto_update_input",
+    [pytest.param({}, id="field-absent"), pytest.param({AUTO_UPDATE: "0"}, id="stale-form")],
+)
+async def test_proxy_reconfigure_preserves_auto_update(
+    hass: HomeAssistant, language: str, auto_update_input: dict[str, str]
+) -> None:
+    """An unloaded proxy entry preserves auto-update while accepting a new API limit."""
+    hass.config.language = language
+    options = {**DEFAULT_INPUT1, PROXY_MODE: True, PROXY_SAVED_AUTO_UPDATE: DEFAULT_INPUT1[AUTO_UPDATE]}
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options=options, title=TITLE)
+    entry.add_to_hass(hass)
+    assert entry.state is ConfigEntryState.NOT_LOADED
+    flow = SolcastSolarFlowHandler()
+    flow.hass = hass
+    flow.context = {"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id}
+
+    result = await flow.async_step_reconfigure(entry.data)  # pyright: ignore[reportAttributeAccessIssue]
+
+    assert result.get("type") == FlowResultType.FORM
+    assert result.get("step_id") == "reconfigure_confirm"
+    schema = result.get("data_schema")
+    assert schema is not None
+    assert AUTO_UPDATE not in schema.schema
+    translations = await translation.async_get_translations(hass, language, "options", {DOMAIN})
+    notice = translations[f"component.{DOMAIN}.options.step.init.data_description.proxy_notice"]
+    placeholders = result.get("description_placeholders")
+    assert placeholders is not None
+    assert placeholders["proxy_notice"] == notice
+    config_translations = await translation.async_get_translations(hass, language, "config", {DOMAIN})
+    assert config_translations[f"component.{DOMAIN}.config.step.reconfigure_confirm.description"].endswith("{proxy_notice}")
+
+    state_clear = AsyncMock()
+    with (
+        patch("custom_components.solcast_solar.config_flow.state.async_get") as mock_state_get,
+        patch.object(hass.config_entries, "async_schedule_reload") as mock_schedule_reload,
+    ):
+        mock_state_get.return_value.async_clear = state_clear
+        result = await flow.async_step_reconfigure_confirm(  # pyright: ignore[reportAttributeAccessIssue]
+            {CONF_API_KEY: KEY1, API_LIMIT: "9", **auto_update_input}
+        )
+
+    assert result.get("type") == FlowResultType.ABORT
+    assert result.get("reason") == AFFIRMATION_RECONFIGURED
+    assert entry.options[API_LIMIT] == "9"
+    assert entry.options[AUTO_UPDATE] == options[AUTO_UPDATE]
+    assert entry.options[PROXY_SAVED_AUTO_UPDATE] == options[PROXY_SAVED_AUTO_UPDATE]
+    mock_state_get.assert_awaited_once_with(hass, entry.entry_id)
+    state_clear.assert_awaited_once()
+    mock_schedule_reload.assert_called_once_with(entry.entry_id)
+
+
+@pytest.mark.parametrize(
+    "language",
+    [pytest.param(path.stem, id=path.stem) for path in sorted((Path(solcast_module.__file__).parent / "translations").glob("*.json"))],
+)
+@pytest.mark.parametrize("proxy_mode", [pytest.param(True, id="proxy-detected"), pytest.param(False, id="proxy-disabled")])
+async def test_reconfigure_localized_notices(hass: HomeAssistant, language: str, proxy_mode: bool) -> None:
+    """Render exactly one localized scheduling notice, without translation fallback."""
+    hass.config.language = language
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={**DEFAULT_INPUT1, PROXY_MODE: proxy_mode})
+    entry.add_to_hass(hass)
+    flow = SolcastSolarFlowHandler()
+    flow.hass = hass
+    flow.context = {"source": config_entries.SOURCE_RECONFIGURE, "entry_id": entry.entry_id}
+
+    result = await flow.async_step_reconfigure(entry.data)  # pyright: ignore[reportAttributeAccessIssue]
+
+    localized = json.loads((Path(solcast_module.__file__).parent / "translations" / f"{language}.json").read_text())
+    step = localized["config"]["step"]["reconfigure_confirm"]
+    automation_notice = step["data_description"]["auto_update_notice"]
+    proxy_notice = localized["options"]["step"]["init"]["data_description"]["proxy_notice"]
+    placeholders = result.get("description_placeholders")
+    assert placeholders is not None
+    assert placeholders["auto_update_notice"] == {True: "", False: f"{automation_notice}\n\n"}[proxy_mode]
+    assert placeholders["proxy_notice"] == {True: proxy_notice, False: ""}[proxy_mode]
+    translations = await translation.async_get_translations(hass, language, "config", {DOMAIN})
+    template = translations[f"component.{DOMAIN}.config.step.reconfigure_confirm.description"]
+    assert template == step["description"]
+    rendered = template.format(**placeholders)
+    assert (automation_notice in rendered) is not proxy_mode
+    assert (proxy_notice in rendered) is proxy_mode
+    assert "{" not in rendered
+    schema = result.get("data_schema")
+    assert schema is not None
+    assert (AUTO_UPDATE in schema.schema) is not proxy_mode
+
+
+def test_notice_source_matches_english_translation() -> None:
+    """Keep the custom integration's source notices aligned with English translations."""
+    directory = Path(solcast_module.__file__).parent
+    source = json.loads((directory / "strings.json").read_text())
+    english = json.loads((directory / "translations" / "en.json").read_text())
+    assert source["config"]["step"]["reconfigure_confirm"] == english["config"]["step"]["reconfigure_confirm"]
+    assert source["config"]["step"]["user"] == english["config"]["step"]["user"]
+    assert source["options"]["step"]["init"] == english["options"]["step"]["init"]
+
+
+@pytest.mark.parametrize(
+    ("language", "guidance"),
+    [
+        pytest.param("en", "Check status.solcast.com for API status updates.", id="en"),
+        pytest.param("de", "Aktuelle Informationen zum API-Status finden Sie auf status.solcast.com.", id="de"),
+        pytest.param("es", "Consulte status.solcast.com para obtener actualizaciones sobre el estado de la API.", id="es"),
+        pytest.param("fr", "Consultez status.solcast.com pour les mises à jour sur l'état de l'API.", id="fr"),
+        pytest.param("it", "Consulta status.solcast.com per aggiornamenti sullo stato dell'API.", id="it"),
+        pytest.param("ja", "APIの稼働状況の最新情報は status.solcast.com で確認してください。", id="ja"),
+        pytest.param("nl", "Raadpleeg status.solcast.com voor updates over de API-status.", id="nl"),
+        pytest.param("pl", "Sprawdź status.solcast.com, aby uzyskać aktualne informacje o stanie API.", id="pl"),
+        pytest.param("pt", "Consulte status.solcast.com para obter atualizações sobre o estado da API.", id="pt"),
+        pytest.param("sk", "Aktuálne informácie o stave API nájdete na status.solcast.com.", id="sk"),
+        pytest.param("ur", "API کی حیثیت کے بارے میں تازہ ترین معلومات کے لیے status.solcast.com دیکھیں۔", id="ur"),
+    ],
+)
+def test_localized_status_page_guidance(language: str, guidance: str) -> None:
+    """Setup and repair notices link hobbyists to the API status page."""
+    directory = Path(solcast_module.__file__).parent
+    localized = json.loads((directory / "translations" / f"{language}.json").read_text())
+    setup_description = localized["config"]["step"]["user"]["description"]
+    repair_description = localized["issues"]["api_unavailable"]["description"]
+    assert guidance in setup_description
+    assert f"* {guidance}" in repair_description
+    assert setup_description.count("status.solcast.com") == 1
+    assert repair_description.count("status.solcast.com") == 1
+
+
+@pytest.mark.parametrize("proxy_mode", [pytest.param(True, id="proxy-detected"), pytest.param(False, id="proxy-disabled")])
+async def test_reconfigure_uses_current_runtime_proxy_state(hass: HomeAssistant, proxy_mode: bool) -> None:
+    """Runtime proxy detection overrides the persisted reconfigure state."""
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options={**DEFAULT_INPUT1, PROXY_MODE: not proxy_mode})
+    flow = SolcastSolarFlowHandler()
+    flow.hass = hass
+    flow._entry = entry  # pyright: ignore[reportAttributeAccessIssue]
+
+    with patch.object(entry, "runtime_data", create=True) as runtime_data:
+        runtime_data.coordinator.solcast.proxy_mode = proxy_mode
+        result = await flow.async_step_reconfigure_confirm()  # pyright: ignore[reportAttributeAccessIssue]
+
+    schema = result.get("data_schema")
+    assert schema is not None
+    assert (AUTO_UPDATE in schema.schema) is not proxy_mode
+    placeholders = result.get("description_placeholders")
+    assert placeholders is not None
+    assert bool(placeholders["proxy_notice"]) is proxy_mode
+
+
 @pytest.mark.parametrize(("set", "options", "to_assert"), TEST_KEY_CHANGES)
 async def test_reconfigure_api_key2(
     recorder_mock: Recorder,
@@ -665,6 +812,82 @@ async def test_options_api_key(hass: HomeAssistant, user_input: dict[str, Any], 
         assert result["errors"]["base"] == reason  # type: ignore[index]
         assert _schema_suggested_values(result)[CONF_API_KEY] == user_input[CONF_API_KEY]  # type: ignore[arg-type]
         mock_set_sensitive.assert_not_awaited()
+
+
+@pytest.mark.parametrize(
+    "language",
+    [pytest.param(path.stem, id=path.stem) for path in sorted((Path(solcast_module.__file__).parent / "translations").glob("*.json"))],
+)
+@pytest.mark.parametrize("stale_input", [pytest.param(False, id="field-absent"), pytest.param(True, id="stale-form")])
+async def test_proxy_options_preserve_auto_update(
+    hass: HomeAssistant, language: str, stale_input: bool
+) -> None:
+    """Persisted proxy detection hides the placebo control and ignores stale submissions."""
+    hass.config.language = language
+    options = {**DEFAULT_INPUT1, PROXY_MODE: True, PROXY_SAVED_AUTO_UPDATE: DEFAULT_INPUT1[AUTO_UPDATE]}
+    entry = MockConfigEntry(domain=DOMAIN, data={}, options=options)
+    entry.add_to_hass(hass)
+    flow = SolcastSolarOptionFlowHandler(entry)
+    flow.hass = hass
+
+    result = await flow.async_step_init()
+
+    assert result.get("type") == FlowResultType.FORM
+    schema = result.get("data_schema")
+    assert schema is not None
+    assert AUTO_UPDATE not in schema.schema
+    translations = await translation.async_get_translations(hass, language, "options", {DOMAIN})
+    notice = translations[f"component.{DOMAIN}.options.step.init.data_description.proxy_notice"]
+    placeholders = result.get("description_placeholders")
+    assert placeholders is not None
+    assert placeholders["proxy_notice"] == notice
+    english = "A Solcast API proxy is in use. Auto-update follows the proxy schedule until the proxy is disabled."
+    assert (notice == english) == (language == "en")
+    localized = json.loads((Path(solcast_module.__file__).parent / "translations" / f"{language}.json").read_text())
+    assert notice == localized["options"]["step"]["init"]["data_description"]["proxy_notice"]
+    rendered = translations[f"component.{DOMAIN}.options.step.init.description"].format(**placeholders)
+    assert notice in rendered
+    assert localized["config"]["step"]["reconfigure_confirm"]["data_description"]["auto_update_notice"] not in rendered
+    assert "{" not in rendered
+
+    custom_hours = int(options[CUSTOM_HOURS]) + 1
+    submitted = {**DEFAULT_INPUT1, CUSTOM_HOURS: custom_hours, SITE_EXPORT_ENTITY: []}
+    submitted.pop(AUTO_UPDATE)
+    submitted.update({AUTO_UPDATE: "0"} if stale_input else {})
+    with patch.object(flow, "check_dead"):
+        result = await flow.async_step_init(submitted)
+
+    assert result.get("type") == FlowResultType.ABORT
+    assert result.get("reason") == AFFIRMATION_RECONFIGURED
+    assert entry.options[CUSTOM_HOURS] == custom_hours
+    assert entry.options[AUTO_UPDATE] == options[AUTO_UPDATE]
+    assert entry.options[PROXY_SAVED_AUTO_UPDATE] == options[PROXY_SAVED_AUTO_UPDATE]
+
+
+@pytest.mark.parametrize("proxy_mode", [pytest.param(True, id="proxy-detected"), pytest.param(False, id="proxy-disabled")])
+async def test_options_use_current_runtime_proxy_state(
+    recorder_mock: Recorder, hass: HomeAssistant, proxy_mode: bool
+) -> None:
+    """Live detection overrides persisted state when deciding whether to offer auto-update."""
+    try:
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        await entry.runtime_data.coordinator.tasks_cancel()
+        await entry.runtime_data.coordinator.solcast.tasks_cancel()
+        entry.runtime_data.coordinator.solcast.proxy_mode = proxy_mode
+        hass.config_entries.async_update_entry(entry, options={**entry.options, PROXY_MODE: not proxy_mode})
+        flow = SolcastSolarOptionFlowHandler(entry)
+        flow.hass = hass
+
+        result = await flow.async_step_init()
+
+        schema = result.get("data_schema")
+        assert schema is not None
+        placeholders = result.get("description_placeholders")
+        assert placeholders is not None
+        assert (AUTO_UPDATE in schema.schema) is not proxy_mode
+        assert bool(placeholders["proxy_notice"]) is proxy_mode
+    finally:
+        await async_cleanup_integration_tests(hass)
 
 
 async def test_options_api_key_invalid(hass: HomeAssistant) -> None:

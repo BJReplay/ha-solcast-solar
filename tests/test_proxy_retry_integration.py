@@ -232,7 +232,7 @@ async def test_proxy_retry_exhaustion(
     start = proxy_retry.clock
     result = await proxy_retry.fetch_data()
 
-    assert result == "Proxy collection give_up"
+    assert result == "Proxy collection gave up (429)"
     assert [(status, payload) for _, status, payload in proxy_retry.polls] == [(429, None)] * 10
     assert proxy_retry.polls[0][0] == datetime(2025, 1, 11, 1, 1, 5, tzinfo=UTC)
     assert proxy_retry.delays == [29, *[attempt * 15 + 19 for attempt in range(2, 10)]]
@@ -327,12 +327,12 @@ async def test_proxy_retry_recovery(
 
 @pytest.mark.parametrize("kind", [FORECASTS, ESTIMATED_ACTUALS])
 @pytest.mark.parametrize(
-    ("status", "collection_state", "halted"),
+    ("status", "collection_state", "halted", "expected_result"),
     [
-        pytest.param(429, "give_up", False, id="give-up"),
-        pytest.param(429, "budget_exhausted", False, id="daily-budget"),
-        pytest.param(403, "permanent_error", True, id="halted"),
-        pytest.param(0, "not_fetched", False, id="awaiting-cron"),
+        pytest.param(429, "give_up", False, "Proxy collection gave up (429)", id="give-up"),
+        pytest.param(429, "budget_exhausted", False, "Proxy collection budget_exhausted", id="daily-budget"),
+        pytest.param(403, "permanent_error", True, "Proxy collection permanent_error", id="halted"),
+        pytest.param(0, "not_fetched", False, "Proxy collection not_fetched", id="awaiting-cron"),
     ],
 )
 async def test_proxy_terminal_state_does_not_retry(
@@ -340,6 +340,7 @@ async def test_proxy_terminal_state_does_not_retry(
     status: int,
     collection_state: str,
     halted: bool,
+    expected_result: str,
 ) -> None:
     """Consumer retries stop when collection is deferred to cron or halted."""
     record = proxy_retry.simulator.resources[(proxy_retry.api_key, proxy_retry.site, proxy_retry.kind)]
@@ -352,7 +353,7 @@ async def test_proxy_terminal_state_does_not_retry(
 
     result = await proxy_retry.fetch_data()
 
-    assert result == f"Proxy collection {collection_state}"
+    assert result == expected_result
     assert len(proxy_retry.polls) == 1
     assert proxy_retry.delays == []
     assert proxy_retry.upstream_calls == upstream_calls

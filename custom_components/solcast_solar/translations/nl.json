@@ -33,8 +33,9 @@
           "api_limit": "API-limiet",
           "auto_update": "Auto-update"
         },
-        "description": "Solcast accountgegevens\n\n(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)",
+        "description": "Solcast accountgegevens\n\n{auto_update_notice}{proxy_notice}",
         "data_description": {
+          "auto_update_notice": "(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)",
           "api_key": "Voer een of meer Solcast API-sleutels in, gescheiden door komma's",
           "api_limit": "Voer een dagelijkse limiet voor voorspellingsupdates in, komma-gescheiden bij gebruik van meerdere sleutels",
           "auto_update": "Als u geen automatische update gebruikt, maak dan een automatisering die de actie \"solcast_solar.update_forecasts\" periodiek aanroept, en houd u daarbij aan de door Solcast geadviseerde maximale totale limiet (meestal in totaal tien keer per dag voor één daksite, of bij twee sites vijf keer per dag)"
@@ -46,7 +47,7 @@
           "api_limit": "API-limiet",
           "auto_update": "Auto-update"
         },
-        "description": "Solcast accountgegevens\n\n(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)\n\nDe Solcast API moet beschikbaar zijn om deze integratie in eerste instantie te configureren. Als u de statusmelding '429 / Probeer het later opnieuw' ontvangt, is de API niet beschikbaar en kan de configuratie niet worden voltooid. U moet wachten. Houd er rekening mee dat de API-statuspagina op status.solcast.com vrijwel zeker geen API-problemen zal tonen. De meest waarschijnlijke oorzaak is een slechte API-gebruiker die de beschikbaarheid voor alle hobbyisten beïnvloedt.",
+        "description": "Solcast accountgegevens\n\n(Als u geen automatische updates gebruikt, is automatisering vereist - zie de integratiedocumentatie)\n\nDe Solcast API moet beschikbaar zijn om deze integratie in eerste instantie te configureren. Als u de statusmelding '429 / Probeer het later opnieuw' ontvangt, is de API niet beschikbaar en kan de configuratie niet worden voltooid. U moet wachten. Raadpleeg status.solcast.com voor updates over de API-status. De meest waarschijnlijke oorzaak is een slechte API-gebruiker die de beschikbaarheid voor alle hobbyisten beïnvloedt.",
         "data_description": {
           "api_key": "Voer een of meer Solcast API-sleutels in, gescheiden door komma's",
           "api_limit": "Voer een dagelijkse limiet voor voorspellingsupdates in, komma-gescheiden bij gebruik van meerdere sleutels",
@@ -325,7 +326,7 @@
       "title": "Probleem met geavanceerde optie"
     },
     "api_unavailable": {
-      "description": "De Solcast API heeft tijdens een update herhaaldelijk de status `429 / Probeer het later opnieuw` gemeld.\n\n* Probeer deze situatie niet op te lossen.\n* Wijzig uw API-sleutel niet.\n* Start de integratie niet opnieuw op\n* Dit is geen integratieprobleem en lost zichzelf op. Wijzig niets.\n\n(Om dit probleem te onderdrukken, maakt u een geavanceerde configuratieoptie api_raise_issues aan en stelt u deze in op false.)",
+      "description": "De Solcast API heeft tijdens een update herhaaldelijk de status `429 / Probeer het later opnieuw` gemeld.\n\n* Raadpleeg status.solcast.com voor updates over de API-status.\n* Probeer deze situatie niet op te lossen.\n* Wijzig uw API-sleutel niet.\n* Start de integratie niet opnieuw op\n* Dit is geen integratieprobleem en lost zichzelf op. Wijzig niets.\n\n(Om dit probleem te onderdrukken, maakt u een geavanceerde configuratieoptie api_raise_issues aan en stelt u deze in op false.)",
       "title": "Solcast API tijdelijk niet beschikbaar"
     },
     "corrupt_file": {
@@ -475,8 +476,9 @@
           "site_export_limit": "Site-exportlimiet (kW)",
           "use_actuals": "Voospellings historiek om te tonen in het energiedashboard"
         },
-        "description": "Configuratieopties voor Solcast",
+        "description": "Configuratieopties voor Solcast\n\n{proxy_notice}",
         "data_description": {
+          "proxy_notice": "Er wordt een Solcast API-proxy gebruikt. De automatische update volgt het schema van de proxy totdat die proxy wordt uitgeschakeld.",
           "api_key": "Voer een of meer Solcast API-sleutels in, gescheiden door komma's",
           "api_limit": "Voer een dagelijkse limiet voor voorspellingsupdates in, komma-gescheiden bij gebruik van meerdere sleutels",
           "attr_breakdown": "Selecteer welke uitsplitsingen zijn ingeschakeld",

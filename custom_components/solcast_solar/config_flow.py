@@ -19,7 +19,7 @@ from homeassistant.config_entries import (
 )
 from homeassistant.const import CONF_API_KEY
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import entity_registry as er, translation
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.selector import (
     SelectOptionDict,
@@ -70,6 +70,7 @@ from .const import (
     HARD_LIMIT_API,
     KEY_ESTIMATE,
     NAME,
+    PROXY_MODE,
     RESOURCE_ID,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
@@ -275,6 +276,9 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
         submitted_input: dict[str, Any] | None = None
 
         all_config_data = {**self._entry.options} if self._entry is not None else {}
+        runtime_data = getattr(self._entry, "runtime_data", None)
+        solcast = runtime_data.coordinator.solcast if runtime_data is not None else None
+        proxy_mode = solcast.proxy_mode if solcast is not None else all_config_data.get(PROXY_MODE, False)
 
         if user_input is not None:
             submitted_input = {**user_input}
@@ -289,14 +293,15 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     errors[BASE] = abort
             if not errors:
                 key_changed = api_key != all_config_data[CONF_API_KEY]
+                auto_update = all_config_data[AUTO_UPDATE] if proxy_mode else int(user_input[AUTO_UPDATE])
                 options_changed = (
                     key_changed
                     or api_limit != all_config_data[API_LIMIT]
-                    or int(user_input[AUTO_UPDATE]) != int(all_config_data[AUTO_UPDATE])
+                    or int(auto_update) != int(all_config_data[AUTO_UPDATE])
                 )
                 all_config_data[CONF_API_KEY] = api_key
                 all_config_data[API_LIMIT] = api_limit
-                all_config_data[AUTO_UPDATE] = int(user_input[AUTO_UPDATE])
+                all_config_data[AUTO_UPDATE] = auto_update
 
                 if key_changed:
                     status, message = await validate_sites(self.hass, all_config_data)
@@ -320,6 +325,24 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     result = self.async_abort(reason=AFFIRMATION_RECONFIGURED if options_changed else AFFIRMATION_UNCHANGED)
                 return result
 
+        description_placeholders["auto_update_notice"] = ""
+        description_placeholders["proxy_notice"] = ""
+        auto_update_schema = {}
+        if proxy_mode:
+            translations = await translation.async_get_translations(self.hass, self.hass.config.language, "options", {DOMAIN})
+            description_placeholders["proxy_notice"] = translations[
+                f"component.{DOMAIN}.options.step.init.data_description.proxy_notice"
+            ]
+        else:
+            translations = await translation.async_get_translations(self.hass, self.hass.config.language, "config", {DOMAIN})
+            description_placeholders["auto_update_notice"] = (
+                translations[f"component.{DOMAIN}.config.step.reconfigure_confirm.data_description.auto_update_notice"] + "\n\n"
+            )
+            auto_update_schema = {
+                Required(AUTO_UPDATE, default=str(all_config_data[AUTO_UPDATE])): SelectSelector(
+                    SelectSelectorConfig(options=AUTO_UPDATE_OPTIONS, mode=SelectSelectorMode.DROPDOWN, translation_key=AUTO_UPDATE)
+                )
+            }
         return self.async_show_form(
             step_id="reconfigure_confirm",
             data_schema=self.add_suggested_values_to_schema(
@@ -327,9 +350,7 @@ class SolcastSolarFlowHandler(ConfigFlow, domain=DOMAIN):
                     {
                         Required(CONF_API_KEY, default=all_config_data[CONF_API_KEY]): str,
                         Required(API_LIMIT, default=all_config_data[API_LIMIT]): str,
-                        Required(AUTO_UPDATE, default=str(all_config_data[AUTO_UPDATE])): SelectSelector(
-                            SelectSelectorConfig(options=AUTO_UPDATE_OPTIONS, mode=SelectSelectorMode.DROPDOWN, translation_key=AUTO_UPDATE)
-                        ),
+                        **auto_update_schema,
                     }
                 ),  # pyright: ignore[reportArgumentType]
                 submitted_input if errors else None,
@@ -524,6 +545,10 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
         description_placeholders: dict[str, str] = {}
         submitted_input: dict[str, Any] | None = None
 
+        runtime_data = getattr(self._entry, "runtime_data", None)
+        solcast = runtime_data.coordinator.solcast if runtime_data is not None else None
+        proxy_mode = solcast.proxy_mode if solcast is not None else self._entry.options.get(PROXY_MODE, False)
+
         if user_input is not None:
             submitted_input = {**user_input}
             try:
@@ -625,7 +650,8 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     if user_input.get(SITE_DAMP) is not None:
                         all_config_data[SITE_DAMP] = user_input[SITE_DAMP]
 
-                    all_config_data[AUTO_UPDATE] = int(user_input[AUTO_UPDATE])
+                    if not proxy_mode:
+                        all_config_data[AUTO_UPDATE] = int(user_input[AUTO_UPDATE])
                     all_config_data[KEY_ESTIMATE] = user_input[KEY_ESTIMATE]
                     selected_breakdowns = set(user_input.get(ATTR_BREAKDOWN, []))
                     for breakdown_key in BREAKDOWN_ATTRIBUTE_OPTIONS:
@@ -679,11 +705,6 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             SelectOptionDict(label="estimate90", value="estimate90"),
         ]
 
-        solcast = None
-        if self._entry is not None:
-            runtime_data = getattr(self._entry, "runtime_data", None)
-            if runtime_data is not None:
-                solcast = runtime_data.coordinator.solcast
         exclude: list[SelectOptionDict] = [SelectOptionDict(label="not_loaded", value="")]
         if solcast is not None:
             exclude = [
@@ -704,6 +725,19 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
             }
         else:
             damp = {}
+        description_placeholders["proxy_notice"] = ""
+        auto_update_schema = {}
+        if proxy_mode:
+            translations = await translation.async_get_translations(self.hass, self.hass.config.language, "options", {DOMAIN})
+            description_placeholders["proxy_notice"] = translations[
+                f"component.{DOMAIN}.options.step.init.data_description.proxy_notice"
+            ]
+        else:
+            auto_update_schema = {
+                Required(AUTO_UPDATE, default=str(int(self._options[AUTO_UPDATE]))): SelectSelector(
+                    SelectSelectorConfig(options=update, mode=SelectSelectorMode.DROPDOWN, translation_key=AUTO_UPDATE)
+                )
+            }
         breakdown_defaults = [breakdown_key for breakdown_key in BREAKDOWN_ATTRIBUTE_OPTIONS if self._options.get(breakdown_key, False)]
         return self.async_show_form(
             step_id="init",
@@ -712,9 +746,7 @@ class SolcastSolarOptionFlowHandler(OptionsFlow):
                     {
                         Required(CONF_API_KEY, default=self._options.get(CONF_API_KEY)): str,
                         Required(API_LIMIT, default=self._options[API_LIMIT]): str,
-                        Required(AUTO_UPDATE, default=str(int(self._options[AUTO_UPDATE]))): SelectSelector(
-                            SelectSelectorConfig(options=update, mode=SelectSelectorMode.DROPDOWN, translation_key=AUTO_UPDATE)
-                        ),
+                        **auto_update_schema,
                         Required(KEY_ESTIMATE, default=self._options.get(KEY_ESTIMATE, "estimate")): SelectSelector(
                             SelectSelectorConfig(options=forecasts, mode=SelectSelectorMode.DROPDOWN, translation_key=KEY_ESTIMATE)
                         ),
