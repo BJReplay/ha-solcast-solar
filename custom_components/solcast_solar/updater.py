@@ -485,28 +485,7 @@ class Updater:
                 if TASK_NEW_DAY_ACTUALS in self._coordinator.tasks:
                     return True
 
-                tz = self._coordinator.solcast.options.tz
-                now_minute = self._get_minute_of_day(dt_util.now(tz))
-                estimated_actuals_fetch_delay = self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY]
-
-                if now_minute <= estimated_actuals_fetch_delay:
-                    update_at = (
-                        dt_util.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)  # i.e. midnight local
-                        + timedelta(minutes=max(now_minute, estimated_actuals_fetch_delay))
-                        + timedelta(minutes=randint(1, 14), seconds=randint(0, 59))
-                    )
-                    _LOGGER.debug(
-                        "Scheduling estimated actuals update at %s",
-                        update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
-                    )
-                else:
-                    # If startup/reload happened after the scheduled window then the timer was likely cancelled and not recreated. Schedule it again.
-                    update_at = dt_util.now(tz).replace(microsecond=0) + timedelta(seconds=30 + randint(0, 29))
-                    _LOGGER.info(
-                        "Estimated actuals update window was missed, scheduling at %s",
-                        update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
-                    )
-
+                update_at = self._proxy_actuals_update_at() or self._local_actuals_update_at()
                 self._coordinator.tasks[TASK_NEW_DAY_ACTUALS] = async_track_point_in_utc_time(
                     self._coordinator.hass,
                     self._actuals,
@@ -514,6 +493,59 @@ class Updater:
                 )
                 scheduled = True
         return scheduled
+
+    def _local_actuals_update_at(self) -> dt:
+        """Return when to collect estimated actuals directly from Solcast."""
+
+        tz = self._coordinator.solcast.options.tz
+        now_minute = self._get_minute_of_day(dt_util.now(tz))
+        estimated_actuals_fetch_delay = self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY]
+
+        if now_minute <= estimated_actuals_fetch_delay:
+            update_at = (
+                dt_util.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)  # i.e. midnight local
+                + timedelta(minutes=max(now_minute, estimated_actuals_fetch_delay))
+                + timedelta(minutes=randint(1, 14), seconds=randint(0, 59))
+            )
+            _LOGGER.debug(
+                "Scheduling estimated actuals update at %s",
+                update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
+            )
+        else:
+            # If startup/reload happened after the scheduled window then the timer was likely cancelled and not recreated. Schedule it again.
+            update_at = dt_util.now(tz).replace(microsecond=0) + timedelta(seconds=30 + randint(0, 29))
+            _LOGGER.info(
+                "Estimated actuals update window was missed, scheduling at %s",
+                update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
+            )
+        return update_at
+
+    def _proxy_actuals_update_at(self) -> dt | None:
+        """Return when to collect estimated actuals from the proxy, or None when it advertises no usable cron."""
+
+        solcast = self._coordinator.solcast
+        if not solcast.proxy_mode or solcast.proxy_actuals_cron is None:
+            return None
+        # The proxy collects once per cron occurrence, so the first occurrence of the local day is the one to follow.
+        collected_at = self._next_from_proxy_cron(solcast.dt_helper.day_start_utc() - timedelta(seconds=1), solcast.proxy_actuals_cron)
+        if collected_at is None:
+            return None
+
+        tz = solcast.options.tz
+        now = solcast.dt_helper.real_now_utc().replace(microsecond=0)
+        update_at = collected_at + timedelta(seconds=solcast.proxy_poll_delay_seconds)
+        if update_at <= now:
+            update_at = now + timedelta(seconds=30 + randint(0, 29))
+            _LOGGER.info(
+                "Proxy estimated actuals collection was missed, scheduling at %s",
+                update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
+            )
+        else:
+            _LOGGER.debug(
+                "Scheduling estimated actuals update at %s (proxy-follow)",
+                update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
+            )
+        return update_at
 
     async def _actuals(self, _called_at: dt | None = None) -> None:
         _LOGGER.info("Update estimated actuals")

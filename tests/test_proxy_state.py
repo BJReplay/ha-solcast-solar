@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from custom_components.solcast_solar.const import (
     ESTIMATED_ACTUALS,
+    PROXY_ACTUALS_CRON,
     PROXY_CACHE_STATE,
     PROXY_FORECAST_CRON,
     PROXY_MODE,
@@ -150,14 +151,20 @@ async def test_proxy_forecast_cron_persists_once(solcast: SolcastApi, cron: str 
 
 
 @pytest.mark.parametrize(
-    ("headers", "initial_proxy_mode", "expected_mode", "expected_delay", "expected_cron"),
+    ("headers", "initial_proxy_mode", "expected_mode", "expected_delay", "expected_cron", "expected_actuals_cron"),
     [
         pytest.param(
-            {"x-solcast-proxy": "true", "x-proxy-poll-delay-seconds": "9", "x-proxy-forecast-cron": "*/10 * * * *"},
+            {
+                "x-solcast-proxy": "true",
+                "x-proxy-poll-delay-seconds": "9",
+                "x-proxy-forecast-cron": "*/10 * * * *",
+                "x-proxy-estimated-actuals-cron": "55 23 * * *",
+            },
             False,
             True,
             9,
             "*/10 * * * *",
+            "55 23 * * *",
             id="proxy-discovery",
         ),
         pytest.param(
@@ -166,10 +173,11 @@ async def test_proxy_forecast_cron_persists_once(solcast: SolcastApi, cron: str 
             True,
             5,
             None,
+            None,
             id="invalid-delay",
         ),
-        pytest.param({"x-solcast-proxy": "TRUE"}, False, True, 5, None, id="optional-headers-absent"),
-        pytest.param({}, True, False, 5, None, id="direct-discovery"),
+        pytest.param({"x-solcast-proxy": "TRUE"}, False, True, 5, None, None, id="optional-headers-absent"),
+        pytest.param({}, True, False, 5, None, None, id="direct-discovery"),
     ],
 )
 async def test_discovery_persists_proxy_headers(
@@ -179,6 +187,7 @@ async def test_discovery_persists_proxy_headers(
     expected_mode: bool,
     expected_delay: int,
     expected_cron: str | None,
+    expected_actuals_cron: str | None,
 ) -> None:
     """Discovery updates persistent proxy state and the sites cache metadata."""
     await solcast.async_set_proxy_mode(initial_proxy_mode)
@@ -195,9 +204,11 @@ async def test_discovery_persists_proxy_headers(
     assert solcast.proxy_mode is expected_mode
     assert solcast.proxy_poll_delay_seconds == expected_delay
     assert solcast.proxy_forecast_cron == expected_cron
+    assert solcast.proxy_actuals_cron == expected_actuals_cron
     assert solcast.entry.options[PROXY_MODE] is expected_mode
     assert solcast.entry.options[PROXY_POLL_DELAY_SECONDS] == expected_delay
     assert solcast.entry.options.get(PROXY_FORECAST_CRON) == expected_cron
+    assert solcast.entry.options.get(PROXY_ACTUALS_CRON) == expected_actuals_cron
     assert solcast.proxy_saved_auto_update == int(solcast.options.auto_update)
     assert solcast.entry.options.get(PROXY_SAVED_AUTO_UPDATE) == solcast.proxy_saved_auto_update
 
@@ -207,4 +218,5 @@ async def test_discovery_persists_proxy_headers(
         PROXY_MODE: expected_mode,
         PROXY_POLL_DELAY_SECONDS: expected_delay,
         PROXY_FORECAST_CRON: expected_cron,
+        PROXY_ACTUALS_CRON: expected_actuals_cron,
     }

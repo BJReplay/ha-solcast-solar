@@ -59,6 +59,7 @@ from .const import (
     LEARN_MORE_UNUSUAL_AZIMUTH,
     PERIOD_START,
     PROPOSAL,
+    PROXY_ACTUALS_CRON,
     PROXY_CACHE_STATE,
     PROXY_FORECAST_CRON,
     PROXY_MODE,
@@ -975,6 +976,7 @@ class SitesCache:
                     PROXY_MODE: self.api.proxy_mode,
                     PROXY_POLL_DELAY_SECONDS: self.api.proxy_poll_delay_seconds,
                     PROXY_FORECAST_CRON: self.api.proxy_forecast_cron,
+                    PROXY_ACTUALS_CRON: self.api.proxy_actuals_cron,
                 },
             }
             async with self.api.serialise_lock, aiofiles.open(cache_filename, "w") as file:
@@ -997,6 +999,10 @@ class SitesCache:
             if isinstance(forecast_cron, str):
                 await self.api.async_set_proxy_forecast_cron(forecast_cron, source=f"{source}_cache")
 
+            actuals_cron = proxy_state.get(PROXY_ACTUALS_CRON)
+            if isinstance(actuals_cron, str):
+                await self.api.async_set_proxy_actuals_cron(actuals_cron, source=f"{source}_cache")
+
         async def apply_proxy_discovery_headers(response: ClientResponse) -> None:
             headers = response.headers
             is_proxy = headers.get("x-solcast-proxy", "").lower() == "true"
@@ -1010,6 +1016,7 @@ class SitesCache:
                 forecast_cron = headers.get("x-proxy-forecast-cron")
                 if forecast_cron is not None:
                     await self.api.async_set_proxy_forecast_cron(forecast_cron, source="discovery_header")
+                await self.api.async_set_proxy_actuals_cron(headers.get("x-proxy-estimated-actuals-cron"), source="discovery_header")
                 await self.api.async_set_proxy_mode(True, source="discovery_header")
                 return
 

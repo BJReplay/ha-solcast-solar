@@ -75,6 +75,7 @@ from .const import (
     LEARN_MORE_CORRUPT_FILE,
     LEARN_MORE_MISSING_FORECAST_DATA,
     PERIOD_START,
+    PROXY_ACTUALS_CRON,
     PROXY_FORECAST_CRON,
     PROXY_MODE,
     PROXY_POLL_DELAY_SECONDS,
@@ -309,6 +310,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.proxy_saved_auto_update: int | None = self.entry_options.get(PROXY_SAVED_AUTO_UPDATE)
         self.proxy_poll_delay_seconds: int = int(self.entry_options.get(PROXY_POLL_DELAY_SECONDS, 5))
         self.proxy_forecast_cron: str | None = self.entry_options.get(PROXY_FORECAST_CRON)
+        self.proxy_actuals_cron: str | None = self.entry_options.get(PROXY_ACTUALS_CRON)
         self.proxy_next_attempt_at: dt | None = None
         self.proxy_halted: bool = False
         self.proxy_fetch_in_progress: bool = False
@@ -376,6 +378,10 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             new_options[PROXY_FORECAST_CRON] = self.proxy_forecast_cron
             changed = True
 
+        if new_options.get(PROXY_ACTUALS_CRON) != self.proxy_actuals_cron:
+            new_options[PROXY_ACTUALS_CRON] = self.proxy_actuals_cron
+            changed = True
+
         if changed:
             _LOGGER.debug("Persisting proxy mode %s%s", enabled, f" ({source})" if source else "")
             self.hass.config_entries.async_update_entry(self.entry, options=new_options)
@@ -397,6 +403,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         if self.proxy_forecast_cron == value and self.entry_options.get(PROXY_FORECAST_CRON) == value:
             return
         self.proxy_forecast_cron = value
+        await self.async_set_proxy_mode(self.proxy_mode, source=source)
+
+    async def async_set_proxy_actuals_cron(self, cron: str | None, source: str = "") -> None:
+        """Set proxy estimated actuals cron expression and persist if changed."""
+
+        value = cron.strip() if isinstance(cron, str) and cron.strip() else None
+        if self.proxy_actuals_cron == value and self.entry_options.get(PROXY_ACTUALS_CRON) == value:
+            return
+        self.proxy_actuals_cron = value
         await self.async_set_proxy_mode(self.proxy_mode, source=source)
 
     def _migrate_config_files(self) -> list[str]:

@@ -7,13 +7,16 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, Mock, call
 
-from custom_components.solcast_solar.const import TASK_FORECASTS_FETCH
+from custom_components.solcast_solar.const import (
+    ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY,
+    TASK_FORECASTS_FETCH,
+)
 from custom_components.solcast_solar.enums import AutoUpdate
 from custom_components.solcast_solar.updater import Updater
 import pytest
 
 
-def _make_updater(proxy_mode: bool, proxy_forecast_cron: str | None = None) -> tuple[Updater, Any]:
+def _make_updater(proxy_mode: bool, proxy_forecast_cron: str | None = None, proxy_actuals_cron: str | None = None) -> tuple[Updater, Any]:
     """Create an Updater with lightweight coordinator/solcast stubs."""
 
     scheduled: list[tuple[object, object]] = []
@@ -27,20 +30,31 @@ def _make_updater(proxy_mode: bool, proxy_forecast_cron: str | None = None) -> t
         def real_now_utc() -> dt:
             return dt(2026, 11, 1, 18, 24, 0, tzinfo=UTC)
 
+        @staticmethod
+        def day_start_utc() -> dt:
+            return dt(2026, 11, 1, 0, 0, 0, tzinfo=UTC)
+
     solcast = SimpleNamespace(
         proxy_mode=proxy_mode,
         proxy_halted=False,
         proxy_next_attempt_at=None,
         proxy_poll_delay_seconds=5,
         proxy_forecast_cron=proxy_forecast_cron,
+        proxy_actuals_cron=proxy_actuals_cron,
         tasks={},
-        options=SimpleNamespace(auto_update=AutoUpdate.ALL_DAY, tz=UTC),
+        options=SimpleNamespace(auto_update=AutoUpdate.ALL_DAY, tz=UTC, get_actuals=False),
         fetcher=SimpleNamespace(set_next_update=lambda _x: None),
         dt_helper=_DateHelper(),
         failures_last_24h=0,
         failures_last_7d=0,
         failures_last_14d=0,
         last_attempt=dt(2026, 11, 1, 18, 0, 0, tzinfo=UTC),
+        sites=[],
+        api_typical=0,
+        api_used=0,
+        api_forced=0,
+        api_limit=10,
+        advanced_options={ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY: 0},
     )
     coordinator = SimpleNamespace(
         solcast=solcast,
@@ -178,6 +192,59 @@ async def test_proxy_follow_does_not_overlap_active_fetch(monkeypatch: pytest.Mo
     await updater.check_forecast_fetch()
 
     assert updater._test_scheduled == []
+
+
+@pytest.mark.parametrize(
+    ("actuals_cron", "expected"),
+    [
+        pytest.param("55 23 * * *", dt(2026, 11, 1, 23, 55, 5, tzinfo=UTC), id="upcoming"),
+        pytest.param("30 18 * * *", dt(2026, 11, 1, 18, 30, 5, tzinfo=UTC), id="just-ahead"),
+    ],
+)
+async def test_proxy_actuals_follow_cron(monkeypatch: pytest.MonkeyPatch, actuals_cron: str, expected: dt) -> None:
+    """Estimated actuals are collected at the proxy's actuals cron plus the poll offset."""
+    updater, fake_track = _make_updater(proxy_mode=True, proxy_actuals_cron=actuals_cron)
+    monkeypatch.setattr("custom_components.solcast_solar.updater.async_track_point_in_utc_time", fake_track)
+    monkeypatch.setattr("custom_components.solcast_solar.updater.sync_actuals_quota_risk_issue", lambda *args, **kwargs: None)
+    updater._coordinator.solcast.options.get_actuals = True
+    updater._coordinator.solcast.estimated_actuals_updated_today = False
+
+    assert await updater.check_estimated_actuals_fetch() is True
+
+    assert "new_day_actuals" in updater._coordinator.tasks
+    assert [when for _, when in updater._test_scheduled] == [expected]
+
+
+async def test_proxy_actuals_missed_cron_schedules_promptly(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Starting after today's proxy collection fetches its cached actuals shortly rather than waiting a day."""
+    updater, fake_track = _make_updater(proxy_mode=True, proxy_actuals_cron="0 1 * * *")
+    monkeypatch.setattr("custom_components.solcast_solar.updater.async_track_point_in_utc_time", fake_track)
+    monkeypatch.setattr("custom_components.solcast_solar.updater.sync_actuals_quota_risk_issue", lambda *args, **kwargs: None)
+    updater._coordinator.solcast.options.get_actuals = True
+    updater._coordinator.solcast.estimated_actuals_updated_today = False
+
+    assert await updater.check_estimated_actuals_fetch() is True
+
+    now = dt(2026, 11, 1, 18, 24, 0, tzinfo=UTC)
+    [(_, when)] = updater._test_scheduled
+    assert now + timedelta(seconds=30) <= when <= now + timedelta(seconds=59)
+
+
+@pytest.mark.parametrize("actuals_cron", [pytest.param(None, id="not-advertised"), pytest.param("* * *", id="invalid")])
+async def test_proxy_actuals_without_usable_cron_uses_local_schedule(monkeypatch: pytest.MonkeyPatch, actuals_cron: str | None) -> None:
+    """A proxy that advertises no usable actuals cron leaves the local midnight schedule in place."""
+    updater, fake_track = _make_updater(proxy_mode=True, proxy_actuals_cron=actuals_cron)
+    monkeypatch.setattr("custom_components.solcast_solar.updater.async_track_point_in_utc_time", fake_track)
+    monkeypatch.setattr("custom_components.solcast_solar.updater.sync_actuals_quota_risk_issue", lambda *args, **kwargs: None)
+    local = Mock(return_value=dt(2026, 11, 2, 0, 5, tzinfo=UTC))
+    monkeypatch.setattr(updater, "_local_actuals_update_at", local)
+    updater._coordinator.solcast.options.get_actuals = True
+    updater._coordinator.solcast.estimated_actuals_updated_today = False
+
+    assert await updater.check_estimated_actuals_fetch() is True
+
+    local.assert_called_once()
+    assert [when for _, when in updater._test_scheduled] == [dt(2026, 11, 2, 0, 5, tzinfo=UTC)]
 
 
 async def test_proxy_follow_reschedules_changed_timestamp(monkeypatch: pytest.MonkeyPatch) -> None:
