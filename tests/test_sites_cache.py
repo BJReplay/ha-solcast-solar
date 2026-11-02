@@ -13,6 +13,7 @@ from typing import Any
 from custom_components.solcast_solar.const import (
     API_KEY,
     FORECASTS,
+    PROXY_ACTUALS_CRON,
     PROXY_CACHE_STATE,
     PROXY_FORECAST_CRON,
     PROXY_MODE,
@@ -283,6 +284,7 @@ async def test_sites_data_restores_proxy_mode_from_cache_metadata(tmp_path: Path
         proxy_mode=False,
         proxy_poll_delay_seconds=5,
         proxy_forecast_cron=None,
+        proxy_actuals_cron=None,
         http_status_translate=lambda status: f"{status}",
         entry=None,
     )
@@ -296,9 +298,13 @@ async def test_sites_data_restores_proxy_mode_from_cache_metadata(tmp_path: Path
     async def _set_proxy_cron(cron: str | None, source: str = "") -> None:
         api.proxy_forecast_cron = cron
 
+    async def _set_proxy_actuals_cron(cron: str | None, source: str = "") -> None:
+        api.proxy_actuals_cron = cron
+
     api.async_set_proxy_mode = _set_proxy_mode
     api.async_set_proxy_poll_delay = _set_proxy_delay
     api.async_set_proxy_forecast_cron = _set_proxy_cron
+    api.async_set_proxy_actuals_cron = _set_proxy_actuals_cron
 
     sites_cache = SitesCache(api)  # pyright: ignore[reportArgumentType]
     sites_cache._extant_sites = defaultdict(
@@ -331,6 +337,7 @@ async def test_sites_data_restores_proxy_mode_from_cache_metadata(tmp_path: Path
             PROXY_MODE: True,
             PROXY_POLL_DELAY_SECONDS: 9,
             PROXY_FORECAST_CRON: "*/10 * * * *",
+            PROXY_ACTUALS_CRON: "55 23 * * *",
         },
     }
     (tmp_path / "solcast-sites.json").write_text(json.dumps(response_json), encoding="utf-8")
@@ -342,3 +349,4 @@ async def test_sites_data_restores_proxy_mode_from_cache_metadata(tmp_path: Path
     assert api.proxy_mode is True
     assert api.proxy_poll_delay_seconds == 9
     assert api.proxy_forecast_cron == "*/10 * * * *"
+    assert api.proxy_actuals_cron == "55 23 * * *"
