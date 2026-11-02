@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime as dt, timedelta, timezone
+from datetime import UTC, datetime as dt, timedelta, timezone, tzinfo
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, Mock, call
+from zoneinfo import ZoneInfo
 
 from custom_components.solcast_solar.const import (
     ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY,
@@ -16,7 +17,9 @@ from custom_components.solcast_solar.updater import Updater
 import pytest
 
 
-def _make_updater(proxy_mode: bool, proxy_forecast_cron: str | None = None, proxy_actuals_cron: str | None = None) -> tuple[Updater, Any]:
+def _make_updater(
+    proxy_mode: bool, proxy_forecast_cron: str | None = None, proxy_actuals_cron: str | None = None, tz: tzinfo = UTC
+) -> tuple[Updater, Any]:
     """Create an Updater with lightweight coordinator/solcast stubs."""
 
     scheduled: list[tuple[object, object]] = []
@@ -42,7 +45,7 @@ def _make_updater(proxy_mode: bool, proxy_forecast_cron: str | None = None, prox
         proxy_forecast_cron=proxy_forecast_cron,
         proxy_actuals_cron=proxy_actuals_cron,
         tasks={},
-        options=SimpleNamespace(auto_update=AutoUpdate.ALL_DAY, tz=UTC, get_actuals=False),
+        options=SimpleNamespace(auto_update=AutoUpdate.ALL_DAY, tz=tz, get_actuals=False),
         fetcher=SimpleNamespace(set_next_update=lambda _x: None),
         dt_helper=_DateHelper(),
         failures_last_24h=0,
@@ -245,6 +248,49 @@ async def test_proxy_actuals_without_usable_cron_uses_local_schedule(monkeypatch
 
     local.assert_called_once()
     assert [when for _, when in updater._test_scheduled] == [dt(2026, 11, 2, 0, 5, tzinfo=UTC)]
+
+
+@pytest.mark.parametrize(
+    ("zone", "cron", "flagged"),
+    [
+        pytest.param("UTC", "55 23 * * *", False, id="utc-late-evening"),
+        pytest.param("Australia/Sydney", "55 23 * * *", False, id="sydney-after-1am-all-year"),
+        pytest.param("America/New_York", "55 23 * * *", False, id="new-york-evening"),
+        pytest.param("Australia/Sydney", "30 13 * * *", True, id="sydney-00:30-in-summer"),
+        pytest.param("Australia/Sydney", "0 14 * * *", True, id="sydney-midnight-in-winter"),
+        pytest.param("Australia/Brisbane", "0 14 * * *", False, id="brisbane-midnight-no-dst"),
+        pytest.param("Australia/Brisbane", "59 13 * * *", False, id="brisbane-late-evening-no-dst"),
+        pytest.param("Europe/London", "30 23 * * *", True, id="london-00:30-in-summer"),
+        pytest.param("UTC", "* * * * *", False, id="every-minute-no-dst"),
+        pytest.param("Australia/Sydney", "* * * * *", True, id="every-minute-dst"),
+        pytest.param("UTC", "0 9 * * MON", True, id="weekly-skips-days"),
+    ],
+)
+async def test_proxy_actuals_cron_suitability(caplog: pytest.LogCaptureFixture, zone: str, cron: str, flagged: bool) -> None:
+    """An unsuitable proxy actuals cron is reported once at ERROR level and is still followed."""
+    updater, _ = _make_updater(proxy_mode=True, proxy_actuals_cron=cron, tz=ZoneInfo(zone))
+
+    assert updater._proxy_actuals_update_at() is not None
+    assert updater._proxy_actuals_update_at() is not None
+
+    errors = [record for record in caplog.records if record.levelname == "ERROR"]
+    assert len(errors) == int(flagged)
+
+
+async def test_forecast_update_rechecks_proxy_schedule(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A completed forecast update re-evaluates the proxy follow schedule."""
+    updater, _ = _make_updater(proxy_mode=True)
+    coordinator = updater._coordinator
+    coordinator.solcast.sites_cache = SimpleNamespace(stale_usage_cache=False)
+    coordinator.solcast.fetcher.get_forecast_update = AsyncMock()
+    coordinator.update_integration_listeners = AsyncMock()
+    coordinator.async_request_refresh = AsyncMock()
+    check = AsyncMock()
+    monkeypatch.setattr(updater, "_check_proxy_forecast_fetch", check)
+
+    await updater.forecast_update()
+
+    check.assert_awaited_once()
 
 
 async def test_proxy_follow_reschedules_changed_timestamp(monkeypatch: pytest.MonkeyPatch) -> None:

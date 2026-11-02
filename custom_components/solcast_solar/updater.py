@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
-from datetime import datetime as dt, timedelta
+from datetime import date, datetime as dt, timedelta
 import logging
 import math
 from random import randint
@@ -79,6 +79,7 @@ class Updater:
         self._sunset_tomorrow: dt
         self._sunset_yesterday: dt
         self._proxy_scheduled_for: dt | None = None
+        self._proxy_actuals_cron_checked: str | None = None
 
     async def setup(self) -> None:
         """Set up auto-update scheduling."""
@@ -520,6 +521,30 @@ class Updater:
             )
         return update_at
 
+    def _earliest_proxy_actuals_hour(self) -> int:
+        """Return the earliest local hour a proxy collection may fire: 1 where DST shifts the UTC offset, otherwise 0."""
+
+        solcast = self._coordinator.solcast
+        tz = solcast.options.tz
+        today = solcast.dt_helper.real_now_utc().astimezone(tz).date()
+        offsets = {dt.combine(today + timedelta(days=offset), dt.min.time(), tzinfo=tz).utcoffset() for offset in range(367)}
+        return 0 if len(offsets) == 1 else 1
+
+    def _first_unsuitable_actuals_day(self, cron_expression: str, earliest_hour: int) -> date | None:
+        """Return the first local day in the next year whose first proxy collection is missing or before the earliest local hour."""
+
+        solcast = self._coordinator.solcast
+        tz = solcast.options.tz
+        today = solcast.dt_helper.real_now_utc().astimezone(tz).date()
+        for offset in range(366):
+            day = today + timedelta(days=offset)
+            day_start = dt.combine(day, dt.min.time(), tzinfo=tz)
+            first = self._next_from_proxy_cron(day_start - timedelta(seconds=1), cron_expression)
+            local = first.astimezone(tz) if first is not None else None
+            if local is None or local.date() != day or local.hour < earliest_hour:
+                return day
+        return None
+
     def _proxy_actuals_update_at(self) -> dt | None:
         """Return when to collect estimated actuals from the proxy, or None when it advertises no usable cron."""
 
@@ -530,6 +555,18 @@ class Updater:
         collected_at = self._next_from_proxy_cron(solcast.dt_helper.day_start_utc() - timedelta(seconds=1), solcast.proxy_actuals_cron)
         if collected_at is None:
             return None
+
+        if self._proxy_actuals_cron_checked != solcast.proxy_actuals_cron:
+            self._proxy_actuals_cron_checked = solcast.proxy_actuals_cron
+            earliest_hour = self._earliest_proxy_actuals_hour()
+            if (day := self._first_unsuitable_actuals_day(solcast.proxy_actuals_cron, earliest_hour)) is not None:
+                _LOGGER.error(
+                    "Proxy estimated actuals schedule '%s' (UTC) does not first fire at or after %02d:00 local time on %s, so a day's estimated actuals may be skipped. The proxy should collect at or after %02d:00 local time on every day of the year",
+                    solcast.proxy_actuals_cron,
+                    earliest_hour,
+                    day.strftime(DT_DATE_ONLY_FORMAT),
+                    earliest_hour,
+                )
 
         tz = solcast.options.tz
         now = solcast.dt_helper.real_now_utc().replace(microsecond=0)
