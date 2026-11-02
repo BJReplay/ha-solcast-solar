@@ -9,6 +9,7 @@ from unittest.mock import AsyncMock, Mock, call
 from zoneinfo import ZoneInfo
 
 from custom_components.solcast_solar.const import (
+    ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY,
     ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY,
     TASK_FORECASTS_FETCH,
 )
@@ -45,7 +46,7 @@ def _make_updater(
         proxy_forecast_cron=proxy_forecast_cron,
         proxy_actuals_cron=proxy_actuals_cron,
         tasks={},
-        options=SimpleNamespace(auto_update=AutoUpdate.ALL_DAY, tz=tz, get_actuals=False),
+        options=SimpleNamespace(auto_update=AutoUpdate.ALL_DAY, tz=tz, get_actuals=False, auto_dampen=False, generation_entities=[]),
         fetcher=SimpleNamespace(set_next_update=lambda _x: None),
         dt_helper=_DateHelper(),
         failures_last_24h=0,
@@ -57,7 +58,7 @@ def _make_updater(
         api_used=0,
         api_forced=0,
         api_limit=10,
-        advanced_options={ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY: 0},
+        advanced_options={ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY: 0, ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY: 0},
     )
     coordinator = SimpleNamespace(
         solcast=solcast,
@@ -275,6 +276,32 @@ async def test_proxy_actuals_cron_suitability(caplog: pytest.LogCaptureFixture, 
 
     errors = [record for record in caplog.records if record.levelname == "ERROR"]
     assert len(errors) == int(flagged)
+
+
+@pytest.mark.parametrize(
+    ("cron", "delay", "dampening", "flagged"),
+    [
+        pytest.param("0 0 * * *", 0, True, True, id="same-minute-as-generation"),
+        pytest.param("0 0 * * *", 0, False, False, id="no-dampening"),
+        pytest.param("1 0 * * *", 0, True, False, id="minute-after-generation"),
+        pytest.param("30 0 * * *", 60, True, True, id="before-delayed-generation"),
+        pytest.param("5 1 * * *", 60, True, False, id="after-delayed-generation"),
+    ],
+)
+async def test_proxy_actuals_cron_after_generation(
+    caplog: pytest.LogCaptureFixture, cron: str, delay: int, dampening: bool, flagged: bool
+) -> None:
+    """A proxy actuals cron that fires before generation data is fetched is reported at ERROR level."""
+    updater, _ = _make_updater(proxy_mode=True, proxy_actuals_cron=cron)
+    solcast = updater._coordinator.solcast
+    solcast.options.auto_dampen = dampening
+    solcast.options.generation_entities = ["sensor.pv_generation"] if dampening else []
+    solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY] = delay
+
+    assert updater._proxy_actuals_update_at() is not None
+
+    errors = [record.getMessage() for record in caplog.records if record.levelname == "ERROR"]
+    assert ["generation data fetch" in message for message in errors] == [True] * int(flagged)
 
 
 async def test_forecast_update_rechecks_proxy_schedule(monkeypatch: pytest.MonkeyPatch) -> None:

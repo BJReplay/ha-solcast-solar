@@ -530,8 +530,8 @@ class Updater:
         offsets = {dt.combine(today + timedelta(days=offset), dt.min.time(), tzinfo=tz).utcoffset() for offset in range(367)}
         return 0 if len(offsets) == 1 else 1
 
-    def _first_unsuitable_actuals_day(self, cron_expression: str, earliest_hour: int) -> date | None:
-        """Return the first local day in the next year whose first proxy collection is missing or before the earliest local hour."""
+    def _first_unsuitable_actuals_day(self, cron_expression: str, earliest_minute: int) -> date | None:
+        """Return the first local day in the next year whose first proxy collection is missing or before the earliest local minute of the day."""
 
         solcast = self._coordinator.solcast
         tz = solcast.options.tz
@@ -541,7 +541,7 @@ class Updater:
             day_start = dt.combine(day, dt.min.time(), tzinfo=tz)
             first = self._next_from_proxy_cron(day_start - timedelta(seconds=1), cron_expression)
             local = first.astimezone(tz) if first is not None else None
-            if local is None or local.date() != day or local.hour < earliest_hour:
+            if local is None or local.date() != day or local.hour * 60 + local.minute < earliest_minute:
                 return day
         return None
 
@@ -559,7 +559,7 @@ class Updater:
         if self._proxy_actuals_cron_checked != solcast.proxy_actuals_cron:
             self._proxy_actuals_cron_checked = solcast.proxy_actuals_cron
             earliest_hour = self._earliest_proxy_actuals_hour()
-            if (day := self._first_unsuitable_actuals_day(solcast.proxy_actuals_cron, earliest_hour)) is not None:
+            if (day := self._first_unsuitable_actuals_day(solcast.proxy_actuals_cron, earliest_hour * 60)) is not None:
                 _LOGGER.error(
                     "Proxy estimated actuals schedule '%s' (UTC) does not first fire at or after %02d:00 local time on %s, so a day's estimated actuals may be skipped. The proxy should collect at or after %02d:00 local time on every day of the year",
                     solcast.proxy_actuals_cron,
@@ -567,6 +567,15 @@ class Updater:
                     day.strftime(DT_DATE_ONLY_FORMAT),
                     earliest_hour,
                 )
+            if solcast.options.auto_dampen and solcast.options.generation_entities:
+                generation_delay = solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY]
+                if (day := self._first_unsuitable_actuals_day(solcast.proxy_actuals_cron, generation_delay + 1)) is not None:
+                    _LOGGER.error(
+                        "Proxy estimated actuals schedule '%s' (UTC) does not first fire after the generation data fetch at %02d:%02d local time on %s, so automated dampening may model with stale generation data. The proxy should collect after that time on every day of the year",
+                        solcast.proxy_actuals_cron,
+                        *divmod(generation_delay, 60),
+                        day.strftime(DT_DATE_ONLY_FORMAT),
+                    )
 
         tz = solcast.options.tz
         now = solcast.dt_helper.real_now_utc().replace(microsecond=0)
