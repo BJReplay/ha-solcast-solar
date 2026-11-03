@@ -251,19 +251,36 @@ async def test_proxy_actuals_without_usable_cron_uses_local_schedule(monkeypatch
     assert [when for _, when in updater._test_scheduled] == [dt(2026, 11, 2, 0, 5, tzinfo=UTC)]
 
 
+async def test_proxy_actuals_validation_runs_when_today_already_updated(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Startup still validates proxy actuals cron even when no actuals fetch is scheduled today."""
+    updater, _ = _make_updater(proxy_mode=True, proxy_actuals_cron="30 13 * * *", tz=ZoneInfo("Australia/Sydney"))
+    monkeypatch.setattr("custom_components.solcast_solar.updater.sync_actuals_quota_risk_issue", lambda *args, **kwargs: None)
+    solcast = updater._coordinator.solcast
+    solcast.options.get_actuals = True
+    solcast.estimated_actuals_updated_today = True
+
+    assert await updater.check_estimated_actuals_fetch() is False
+
+    errors = [record for record in caplog.records if record.levelname == "ERROR"]
+    assert len(errors) == 1
+    assert "estimated actuals schedule" in errors[0].getMessage()
+
+
 @pytest.mark.parametrize(
     ("zone", "cron", "flagged"),
     [
-        pytest.param("UTC", "55 23 * * *", False, id="utc-late-evening"),
-        pytest.param("Australia/Sydney", "55 23 * * *", False, id="sydney-after-1am-all-year"),
-        pytest.param("America/New_York", "55 23 * * *", False, id="new-york-evening"),
+        pytest.param("UTC", "55 23 * * *", True, id="utc-late-evening"),
+        pytest.param("Australia/Sydney", "55 23 * * *", True, id="sydney-late-morning"),
+        pytest.param("America/New_York", "55 23 * * *", True, id="new-york-evening"),
         pytest.param("Australia/Sydney", "30 13 * * *", True, id="sydney-00:30-in-summer"),
-        pytest.param("Australia/Sydney", "0 14 * * *", True, id="sydney-midnight-in-winter"),
+        pytest.param("Australia/Sydney", "0 14 * * *", False, id="sydney-midnight-in-winter"),
         pytest.param("Australia/Brisbane", "0 14 * * *", False, id="brisbane-midnight-no-dst"),
-        pytest.param("Australia/Brisbane", "59 13 * * *", False, id="brisbane-late-evening-no-dst"),
+        pytest.param("Australia/Brisbane", "59 13 * * *", True, id="brisbane-late-evening-no-dst"),
         pytest.param("Europe/London", "30 23 * * *", True, id="london-00:30-in-summer"),
         pytest.param("UTC", "* * * * *", False, id="every-minute-no-dst"),
-        pytest.param("Australia/Sydney", "* * * * *", True, id="every-minute-dst"),
+        pytest.param("Australia/Sydney", "* * * * *", False, id="every-minute-dst"),
         pytest.param("UTC", "0 9 * * MON", True, id="weekly-skips-days"),
     ],
 )
