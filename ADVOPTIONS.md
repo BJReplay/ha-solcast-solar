@@ -35,6 +35,7 @@ You are free to raise an issue should a code exception occur after setting an ad
 1. [Forecasts](#forecasts)
 1. [Granular dampening](#granular-dampening)
 1. [General](#general)
+1. [Proxies](#proxies)
 1. [Developer](#developer)
 
 ## Automated dampening
@@ -80,6 +81,8 @@ A number of minutes to delay beyond midnight before generation history is retrie
 This value must be less than the estimated actual fetch delay option.
 
 If Home Assistant is restarted in the period between midnight and generation being retrieved then retrieval will be rescheduled.
+
+Note: If using a Solcast API Proxy and automated dampening then generation data must be retrieved before estimated actuals.
 
 **Key: "automated_dampening_generation_history_load_days"**
 
@@ -257,6 +260,8 @@ If automated dampening is enabled then modelling of new dampening factors will o
 
 If Home Assistant is restarted in the period between midnight and estimated actuals being retrieved then retrieval will be rescheduled.
 
+Note: Has no affect if using a Solcast API Proxy.
+
 **Key: "estimated_actuals_log_ape_percentiles"**
 
 Possible values: list[int] (default [50])
@@ -375,9 +380,60 @@ Possible values: string (default `"default"`)
 
 The HTTP header User-Agent is set to "ha-solcast-solar-integration/x.x.x" by default. This advanced option allows it to be set to another user agent string.
 
+## Proxies
+
+**Key: "solcast_url" / "solcast_port"**
+
+Possible values for `solcast_url`: string (default `"https://api.solcast.com.au"`)
+Possible values for `solcast_port`: integer (default `0`)
+
+A trailing `/` is optional for the URL.
+
+Specifying the TCP port to connect to the API end-points may either be by using the option `solcast_port`, or by embedding the TCP port in the `solcast_url` option (example, `https://localhost:8443/`). If `solcast_port` is used then it will override any URL-embedded port specified.
+
+When using a proxy for the Solcast API (single update, multiple downstream consumers) then this advanced option may be used to point the integration at your proxy.
+
+The integration has extensive capabilities to work in a proxied environment, provided the proxy sends the expected response headers.
+
+In proxy mode the integration can:
+
+- Auto-detect proxy behaviour from discovery headers.
+- Learn and follow proxy-provided forecast and estimated-actuals cron schedules, abandoning any auto-update scheduling configured.
+- Follow the proxy's advertised next-attempt time, including a configurable poll delay, rather than polling blindly.
+- Respect proxy state such as halted/in-progress fetch status and avoid redundant downstream fetch attempts.
+- Fall back safely when a cron expression is unusable (for example, by using local scheduling logic where appropriate).
+- Validate estimated-actuals cron suitability across the year (including DST transitions), and logs errors if the collection is outside the intended local overnight window or conflicts with automated dampening generation-fetch ordering. Check the log for errors on integration reload.
+
+If the proxy provides appropriate schedule and status headers, the integration will align its own fetch timing and retry behaviour to the proxy so multiple consumers can remain coordinated from one upstream collection flow, regardless of whether `429` status storms are happening, or other transient Internet issues.
+
+### Proxy response headers used by the integration
+
+The integration consumes the following response headers when operating against a proxy, and your proxy should return all of them or unexpected behaviour will likely be expected.
+
+Discovery headers (typically from `/rooftop_sites`):
+
+- `x-solcast-proxy`: `"true"` enables proxy discovery mode. Any other value is treated as not-proxy.
+- `x-proxy-poll-delay-seconds`: integer seconds as a string (for example `"5"`, `"30"`). This tells the integration how long it should delay following the proxy schedule. Changes presently require an integration restart.
+- `x-proxy-forecast-cron`: cron expression string in UTC (5-field format). These are the times of day that forecasts get updated by the proxy. Updating this presently requires an integration restart.
+- `x-proxy-estimated-actuals-cron`: cron expression string in UTC (5-field format). These are the times of day that estimated actuals get updated by the proxy. Updating this presently requires an integration restart.
+
+Resource/state headers (typically from forecast/actual resource reads):
+
+- `x-proxy-upstream-status`: integer HTTP status code as a string (for example `"200"`, `"429"`, `"502"`). Presence of this header is used to identify proxy state headers on resource responses.
+- `x-proxy-next-attempt-at`: ISO datetime string (UTC), for example `"2026-11-02T23:55:00+00:00"`.
+- `x-proxy-halted`: boolean string `"true"` or `"false"`.
+- `x-proxy-fetch-in-progress`: boolean string `"true"` or `"false"`.
+- `x-proxy-last-fetch-status`: status string from the proxy. Expected values are `"not_fetched"`, `"clean_success"`, `"retry_success"`, `"retrying"`, `"give_up"`, `"budget_exhausted"`, and `"permanent_error"`.
+
+Notes:
+
+- Cron expressions that cannot be parsed are treated as unusable.
+- If proxy estimated-actuals cron metadata is missing or unusable, estimated actuals scheduling falls back to local scheduling behaviour.
+- Datetime/boolean fields that cannot be parsed are treated as unknown, and the integration continues with available scheduling data.
+
 ## Developer
 
-These advanced options are intended only for developers to use.
+These advanced options may be used by developers.
 
 **Key: "allow_exceed_api_limit_maximum"**
 
@@ -385,7 +441,7 @@ Possible values: boolean `true`/`false` (default `false`)
 
 The maximum configurable API limit is 50 by default. This value represents the maximum number of metered API calls that any Solcast hobbyist user has ever been able to make.
 
-If not specified, then this option is set to `true` when `solcast_url` is non-default. In that case this option is used to force `allow_exceed_api_limit_maximum` to `false` if required.
+If not specified, then this option is set to `true` when `solcast_url` is non-default. In that case this option is used to force `allow_exceed_api_limit_maximum` to `false` if required. (Should a proxy be in use then the auto-enablement of this option will not have any effect.)
 
 Do not set this option unless you are a developer and want to utilise the Solcast API Simulator in a dev container, plus you want to enable config/options flow adherence to a max. 50 limit by forcing it to be `false`.
 
@@ -393,8 +449,6 @@ Do not set this option unless you are a developer and want to utilise the Solcas
 
 Possible values for `solcast_url`: string (default `"https://api.solcast.com.au"`)
 Possible values for `solcast_port`: integer (default `0`)
-
-Do not set these options unless you are a developer and want to utilise the Solcast API Simulator in a dev container.
 
 A trailing `/` is optional for the URL.
 
