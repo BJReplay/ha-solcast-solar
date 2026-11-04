@@ -550,7 +550,7 @@ All sensor names are preceded by the integration name `Solcast PV Forecast`.
 > [!TIP]
 >
 >
-> It may be desirable to exclude certain sensor entities from being retained by the recorder for long-term history. The bloat is minimal, but the usefulness of history is questionable. `sum` statistics for certain `ENERGY` entities is useless anyway because of the nature of those entities, so keeping the generated stats means keeping  useless data.
+> It may be desirable to exclude certain sensor entities from being retained by the recorder for long-term history. The bloat is minimal, but the usefulness of history is questionable. `sum` statistics for certain `ENERGY` entities are useless because of the nature of those entities, so keeping the generated stats means keeping  useless data.
 >
 > ```
 > recorder:
