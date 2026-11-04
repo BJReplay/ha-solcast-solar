@@ -547,6 +547,27 @@ All sensor names are preceded by the integration name `Solcast PV Forecast`.
 >
 > This will likely yield a different result, depending on the time the value is requested, so it is not wrong. It's just different.
 
+> [!TIP]
+>
+>
+> It may be desirable to exclude certain sensor entities in the Home Assistant `configuration.yaml` from being retained by the recorder for long-term history. The bloat is minimal, but the usefulness of history is questionable. `sum` statistics for certain `ENERGY` entities are useless because of the nature of those entities, so keeping the generated stats means keeping useless data.
+>
+> ```
+> recorder:
+>   exclude:
+>     entities:
+>       - sensor.solcast_pv_forecast_forecast_tomorrow
+>       - sensor.solcast_pv_forecast_forecast_day_3
+>       - sensor.solcast_pv_forecast_forecast_day_4
+>       - sensor.solcast_pv_forecast_forecast_day_5
+>       - sensor.solcast_pv_forecast_forecast_day_6
+>       - sensor.solcast_pv_forecast_forecast_day_7
+>       - sensor.solcast_pv_forecast_forecast_next_hour
+>       - sensor.solcast_pv_forecast_forecast_peak_time_tomorrow
+>       - sensor.solcast_pv_forecast_forecast_remaining_today
+>       - sensor.solcast_pv_forecast_forecast_this_hour
+> ```
+
 ### Attributes
 
 As stated above, sensor attributes are created to enable sensor state variations to be used in templates. Examples are the estimate confidence, `estimate10`/`estimate`/`estimate90`. The sensor _state_ is generally left at the default of `estimate`, but displaying the tenth percentile of a sensor on a dashboard may be desired and this is enabled by the use of _attribute_ values.
