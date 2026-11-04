@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from cronsim import CronSim
 from custom_components.solcast_solar.const import (
     ESTIMATED_ACTUALS,
     PROXY_ACTUALS_CRON,
@@ -59,6 +60,19 @@ def test_proxy_datetime_header_unavailable(value: str | None) -> None:
     assert Fetcher._header_as_dt(value) is None
 
 
+@pytest.mark.parametrize(
+    ("base_time", "cron_expression", "expected"),
+    [
+        pytest.param(dt(2026, 11, 1, 9, 6, tzinfo=UTC), "*/10 * * * *", dt(2026, 11, 1, 9, 10, tzinfo=UTC), id="valid"),
+        pytest.param(dt(2026, 11, 1, 9, 6, tzinfo=UTC), "* * * *", None, id="bad-field-count"),
+        pytest.param(dt(2026, 11, 1, 9, 6, tzinfo=UTC), "*/0 * * * *", None, id="cronsim-error"),
+    ],
+)
+def test_proxy_cron_next_occurrence(base_time: dt, cron_expression: str, expected: dt | None) -> None:
+    """Cron fallback returns the next UTC time or None for invalid expressions."""
+    assert Fetcher._next_from_proxy_cron(base_time, cron_expression) == expected
+
+
 async def test_missing_proxy_resource_headers(solcast: SolcastApi) -> None:
     """An absent header mapping does not enable proxy mode."""
     assert await solcast.fetcher._apply_proxy_resource_headers(None) is False
@@ -94,6 +108,30 @@ async def test_actuals_headers_preserve_forecast_state(solcast: SolcastApi) -> N
     assert solcast.proxy_halted is True
     assert solcast.proxy_fetch_in_progress is True
     assert solcast.proxy_last_fetch_status == "retrying"
+
+
+async def test_forecast_headers_fallback_to_cron_when_retry_time_missing(solcast: SolcastApi) -> None:
+    """Forecast header parsing derives next attempt from cron when retry timestamp is absent."""
+    now = dt(2026, 11, 1, 9, 6, tzinfo=UTC)
+    cron = "*/10 * * * *"
+    solcast.proxy_forecast_cron = cron
+    expected_next = next(CronSim(cron, now))
+
+    with patch.object(solcast.dt_helper, "real_now_utc", return_value=now):
+        assert (
+            await solcast.fetcher._apply_proxy_resource_headers(
+                {
+                    "x-proxy-upstream-status": "200",
+                    "x-proxy-next-attempt-at": "",
+                    "x-proxy-halted": "false",
+                    "x-proxy-fetch-in-progress": "false",
+                    "x-proxy-last-fetch-status": "clean_success",
+                }
+            )
+            is True
+        )
+
+    assert solcast.proxy_next_attempt_at == expected_next
 
 
 async def test_proxy_mode_without_config_entry(solcast: SolcastApi) -> None:

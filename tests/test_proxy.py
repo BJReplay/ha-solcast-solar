@@ -256,7 +256,7 @@ def test_load_shedding_exhaustion_defers_all_sites_to_next_cycle(proxy: ProxyHar
     deferred = proxy.read(kind, site="third-site", api_key="second-account")
     assert deferred.status_code == 429
     assert deferred.headers["x-proxy-last-fetch-status"] == "give_up"
-    assert _header_time(deferred, "x-proxy-next-attempt-at") == _next_collection_time(kind)
+    assert deferred.headers["x-proxy-next-attempt-at"] == ""
 
     proxy.clock[0] = _next_collection_time(kind)
     proxy.simulator.run_pending()
@@ -378,7 +378,7 @@ def test_registration_schedules_without_consumer_fetch(proxy: ProxyHarness, kind
     proxy.discover()
     response = proxy.read(kind)
     assert response.status_code == 503
-    assert _header_time(response, "x-proxy-next-attempt-at") == _collection_time(kind)
+    assert response.headers["x-proxy-next-attempt-at"] == ""
     assert response.headers["x-proxy-last-fetch-at"] == ""
     assert response.headers["x-proxy-last-success-at"] == ""
     assert proxy.resource_calls(kind) == []
@@ -448,7 +448,7 @@ def test_success_metadata_and_repeated_cache_reads(proxy: ProxyHarness, kind: st
         assert response.headers[header] == expected
     assert _header_time(response, "x-proxy-last-fetch-at") == _collection_time(kind)
     assert _header_time(response, "x-proxy-last-success-at") == _collection_time(kind)
-    assert _header_time(response, "x-proxy-next-attempt-at") == _next_collection_time(kind)
+    assert response.headers["x-proxy-next-attempt-at"] == ""
     calls = list(proxy.calls)
     proxy.clock[0] += timedelta(seconds=5)
     for _ in range(3):
@@ -500,7 +500,7 @@ def test_retry_is_deferred_and_success_resets_failures(proxy: ProxyHarness, kind
     assert response.headers["x-proxy-retries-used"] == "1"
     assert response.headers["x-proxy-upstream-status"] == "200"
     assert _header_time(response, "x-proxy-last-success-at") == proxy.clock[0]
-    assert _header_time(response, "x-proxy-next-attempt-at") == _next_collection_time(kind)
+    assert response.headers["x-proxy-next-attempt-at"] == ""
 
 
 @pytest.mark.parametrize("kind", KINDS)
@@ -523,7 +523,7 @@ def test_retry_exhaustion_resumes_at_next_cron(proxy: ProxyHarness, kind: str) -
     assert response.headers["x-proxy-give-up"] == "true"
     assert response.headers["x-proxy-halted"] == "false"
     assert response.headers["x-proxy-retries-used"] == "9"
-    assert _header_time(response, "x-proxy-next-attempt-at") == _next_collection_time(kind)
+    assert response.headers["x-proxy-next-attempt-at"] == ""
     proxy.simulator.run_pending()
     assert len(proxy.resource_calls(kind)) == 10
     proxy.queue(path, payload={kind: []})
@@ -559,17 +559,14 @@ def test_budget_exhaustion_preserves_cache_until_next_cron(proxy: ProxyHarness, 
     assert response.headers["x-proxy-halted"] == "false"
     assert response.headers["x-proxy-last-success-at"] == success.headers["x-proxy-last-success-at"]
     assert _header_time(response, "x-proxy-last-fetch-at") == proxy.clock[0]
-    next_attempt = _header_time(response, "x-proxy-next-attempt-at")
-    expected = {
-        "forecasts": datetime(2026, 9, 6, 17, 55, tzinfo=UTC),
-        "estimated_actuals": datetime(2026, 9, 8, 22, 45, tzinfo=UTC),
-    }[kind]
-    assert next_attempt == expected
+    assert response.headers["x-proxy-next-attempt-at"] == ""
+    next_cycle = proxy.simulator.resources[(API_KEY, SITE_ID, kind)].next_attempt_at
+    assert next_cycle is not None
     count = len(proxy.resource_calls(kind))
     proxy.clock[0] += timedelta(minutes=1)
     proxy.simulator.run_pending()
     assert len(proxy.resource_calls(kind)) == count
-    proxy.clock[0] = next_attempt
+    proxy.clock[0] = next_cycle
     proxy.simulator.run_pending()
     assert len(proxy.resource_calls(kind)) == count + 1
 
@@ -1346,7 +1343,7 @@ def test_custom_schedules_horizons_backoff_and_jitter(proxy: ProxyHarness) -> No
         proxy.discover()
         assert proxy.read("estimated_actuals", hours=48).status_code == 503
         forecast_at = datetime(2026, 9, 6, 7, 56, tzinfo=UTC)
-        assert _header_time(proxy.read("forecasts", hours=96), "x-proxy-next-attempt-at") == forecast_at
+        assert proxy.read("forecasts", hours=96).headers["x-proxy-next-attempt-at"] == ""
         path = f"/rooftop_sites/{SITE_ID}/forecasts"
         proxy.queue(path, 503)
         proxy.queue(path, 503)
@@ -1549,7 +1546,7 @@ def test_repeated_429_matches_integration_backoff(proxy: ProxyHarness, kind: str
     horizon = {"forecasts": "336", "estimated_actuals": "168"}[kind]
     assert [query["hours"] for _, query in proxy.resource_calls(kind)] == [[horizon]] * 10
     assert (proxy.clock[0] - start).total_seconds() == 675 + jitter * 9
-    assert _header_time(response, "x-proxy-next-attempt-at") == _next_collection_time(kind)
+    assert response.headers["x-proxy-next-attempt-at"] == ""
 
 
 def test_first_network_request_counts_against_cycle_deadline(
@@ -1570,7 +1567,7 @@ def test_first_network_request_counts_against_cycle_deadline(
     response = proxy.read("forecasts")
     assert response.status_code == 429
     assert response.headers["x-proxy-last-fetch-status"] == "give_up"
-    assert _header_time(response, "x-proxy-next-attempt-at") == _next_collection_time("forecasts")
+    assert response.headers["x-proxy-next-attempt-at"] == ""
     assert len(proxy.resource_calls("forecasts")) == 1
 
 
@@ -1582,7 +1579,7 @@ def test_retry_window_is_bounded_to_fifteen_minutes(proxy: ProxyHarness) -> None
     proxy.simulator.run_pending()
     response = proxy.read("forecasts")
     assert response.headers["x-proxy-last-fetch-status"] == "give_up"
-    assert _header_time(response, "x-proxy-next-attempt-at") == _next_collection_time("forecasts")
+    assert response.headers["x-proxy-next-attempt-at"] == ""
     assert len(proxy.resource_calls("forecasts")) == 1
 
 
@@ -1598,7 +1595,7 @@ def test_late_worker_does_not_resume_an_expired_retry_cycle(
     proxy.simulator.run_pending()
     response = proxy.read("forecasts")
     assert response.headers["x-proxy-last-fetch-status"] == "give_up"
-    assert _header_time(response, "x-proxy-next-attempt-at") == _next_collection_time("forecasts")
+    assert response.headers["x-proxy-next-attempt-at"] == ""
     assert len(proxy.resource_calls("forecasts")) == 1
 
 
@@ -1628,7 +1625,7 @@ def test_cycle_cutoff_is_anchored_to_cycle_start(proxy: ProxyHarness) -> None:
     response = proxy.read("forecasts")
     assert response.headers["x-proxy-last-fetch-status"] == "give_up"
     # Retry-After reaches 07:56:10, so the next cron at/after cooldown is 07:57.
-    assert _header_time(response, "x-proxy-next-attempt-at") == datetime(2026, 9, 6, 7, 57, tzinfo=UTC)
+    assert response.headers["x-proxy-next-attempt-at"] == ""
 
 
 def test_retry_after_cooldown_is_preserved_across_cycles(proxy: ProxyHarness) -> None:
@@ -1642,7 +1639,7 @@ def test_retry_after_cooldown_is_preserved_across_cycles(proxy: ProxyHarness) ->
     response = proxy.read("forecasts")
     assert response.headers["x-proxy-last-fetch-status"] == "give_up"
     # Next cron at or after retry_at (07:57:50) is 07:58.
-    assert _header_time(response, "x-proxy-next-attempt-at") == datetime(2026, 9, 6, 7, 58, tzinfo=UTC)
+    assert response.headers["x-proxy-next-attempt-at"] == ""
 
 
 def test_background_scheduler_collects_without_a_consumer_read(
@@ -1714,7 +1711,7 @@ def test_resource_first_learns_caller_key_and_multiple_sites(proxy: ProxyHarness
     first = proxy.read(kind)
     assert first.status_code == 503
     assert first.headers["x-proxy-last-fetch-status"] == "not_fetched"
-    assert _header_time(first, "x-proxy-next-attempt-at") == _collection_time(kind)
+    assert first.headers["x-proxy-next-attempt-at"] == ""
     assert proxy.read(kind, site=OTHER_SITE_ID).status_code == 503
     assert proxy.calls == []
     proxy.clock[0] = _collection_time(kind)

@@ -399,9 +399,8 @@ In proxy mode the integration can:
 
 - Auto-detect proxy behaviour from discovery headers.
 - Learn and follow proxy-provided forecast and estimated-actuals cron schedules, abandoning any auto-update scheduling configured.
-- Follow the proxy's advertised next-attempt time, including a configurable poll delay, rather than polling blindly.
+- Follow the proxy's advertised next-attempt time for retries, including a configurable poll delay, rather than polling blindly.
 - Respect proxy state such as halted/in-progress fetch status and avoid redundant downstream fetch attempts.
-- Fall back safely when a cron expression is unusable (for example, by using local scheduling logic where appropriate).
 - Validate estimated-actuals cron suitability across the year (including DST transitions), and logs errors if the collection is outside the intended local overnight window or conflicts with automated dampening generation-fetch ordering. Check the log for errors on integration reload.
 
 If the proxy provides appropriate schedule and status headers, the integration will align its own fetch timing and retry behaviour to the proxy so multiple consumers can remain coordinated from one upstream collection flow, regardless of whether `429` status storms are happening, or other transient Internet issues.
@@ -420,7 +419,7 @@ Discovery headers (typically from `/rooftop_sites`):
 Resource/state headers (typically from forecast/actual resource reads):
 
 - `x-proxy-upstream-status`: integer HTTP status code as a string (for example `"200"`, `"429"`, `"502"`). Presence of this header is used to identify proxy state headers on resource responses.
-- `x-proxy-next-attempt-at`: ISO datetime string (UTC), for example `"2026-11-02T23:55:00+00:00"`.
+- `x-proxy-next-attempt-at`: ISO datetime string (UTC), for example `"2026-11-02T23:55:00+00:00"`. Used when in a retry cycle.
 - `x-proxy-halted`: boolean string `"true"` or `"false"`.
 - `x-proxy-fetch-in-progress`: boolean string `"true"` or `"false"`.
 - `x-proxy-last-fetch-status`: status string from the proxy. Expected values are `"not_fetched"`, `"clean_success"`, `"retry_success"`, `"retrying"`, `"give_up"`, `"budget_exhausted"`, and `"permanent_error"`.

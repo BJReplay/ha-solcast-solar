@@ -17,7 +17,7 @@ Point the integration's `solcast_url` advanced option at `https://127.0.0.1` and
 
 - `/rooftop_sites` forwards the key unchanged to the upstream discovery call and registers the returned sites for scheduled collection.
 - If forecasts or actuals are the first request, the key and requested site are registered locally for both collection schedules. Additional sites can be registered this way until live discovery supplies the account's site list.
-- A resource-first request with no cached data returns 503 and the next cron timestamp. It does not make an upstream discovery or quota-bearing data call. The upstream validates the key/site during scheduled collection; permanent failures are then reported via the resource headers.
+- A resource-first request with no cached data returns 503 with collection-state headers. It does not make an upstream discovery or quota-bearing data call. The upstream validates the key/site during scheduled collection; permanent failures are then reported via the resource headers.
 - Subsequent consumers using the same key/site share the cache. Scheduled fetches use exactly that caller-provided key, never a proxy-owned credential.
 
 The upstream defaults to `api.solcast.com.au` on port 443.
@@ -66,7 +66,7 @@ Last-good data survives all failures; a shared failure is not hidden behind a ca
 
 Do not rely on matching the consumer's API-key/site traversal order. If collection stops on an API-wide failure, expose that shared failure and its retry schedule on **all** valid resource responses until recovery, including resources with last-good caches. Do not manufacture successful forecast responses for unattempted sites. Keep credential/site-specific errors scoped unless there is evidence they apply globally. The integration uses the HTTP status and collection headers, not matching request order or the deferred marker to decide whether to wait, stop, or accept data.
 
-This deliberately avoids hiding upstream load shedding behind a cached 200. The proxy owns upstream retries. The integration polls at `x-proxy-next-attempt-at` plus the discovery-advertised poll offset, without adding its own backoff or jitter. If collection is still in flight after that timestamp, it checks again after the offset. It stops retrying when the proxy reports `give_up`, `budget_exhausted`, or a permanent halt; the next forecast collection is followed at its advertised cron time. Proxy exhaustion of load-shedding retries raises the integration's existing non-fixable API-unavailable warning; later success clears it. Consumer reads never initiate upstream collection, and the integration's existing 900-second task limit remains unchanged. Headers and status additionally describe the proxy's collection state:
+This deliberately avoids hiding upstream load shedding behind a cached 200. The proxy owns upstream retries. The integration polls at `x-proxy-next-attempt-at` plus the discovery-advertised poll offset while `retrying`; when that header is empty outside retries, the integration follows the discovery-advertised forecast cron as the next collection time. The integration does not add its own backoff or jitter. If collection is still in flight after a retry timestamp, it checks again after the offset. It stops retrying when the proxy reports `give_up`, `budget_exhausted`, or a permanent halt; the next forecast collection is followed at its advertised cron time. Proxy exhaustion of load-shedding retries raises the integration's existing non-fixable API-unavailable warning; later success clears it. Consumer reads never initiate upstream collection, and the integration's existing 900-second task limit remains unchanged. Headers and status additionally describe the proxy's collection state:
 
 | Header | Meaning |
 | --- | --- |
@@ -75,7 +75,7 @@ This deliberately avoids hiding upstream load shedding behind a cached 200. The 
 | `x-proxy-last-fetch-status` | `not_fetched`, `clean_success`, `retry_success`, `retrying`, `give_up`, `budget_exhausted`, or `permanent_error` |
 | `x-proxy-consecutive-failures` | Failed collection attempts since last success |
 | `x-proxy-retries-used` | Retries beyond the initial attempt in the latest cycle |
-| `x-proxy-next-attempt-at` | Actual pending retry or next cron, empty when halted |
+| `x-proxy-next-attempt-at` | Actual pending retry timestamp; empty when not retrying |
 | `x-proxy-give-up` | Latest cycle ended unsuccessfully; not necessarily a permanent halt |
 | `x-proxy-halted` | Permanent resource failure; do not keep scheduling consumer retries |
 | `x-proxy-upstream-status` | Latest upstream status, including synthetic 502 for transport/invalid-payload failures |
@@ -93,6 +93,6 @@ Consumer reads never move these timestamps or increment failures. Status is avai
 - `x-proxy-poll-delay-seconds: 5`
 - `x-proxy-status-url: /proxy-status`
 
-Consumers can follow cron slightly later should they understand the response headers, inspect the resource's next-attempt header during retries, and stop on `x-proxy-halted`. The five-second offset is nominal, not a guarantee that slow upstream collection has finished; consumers must inspect collection state.
+Consumers can follow cron slightly later should they understand the response headers, inspect the resource's next-attempt header during retries, and stop on `x-proxy-halted`. Outside retries, consumers should derive next collection from the advertised cron values. The five-second offset is nominal, not a guarantee that slow upstream collection has finished; consumers must inspect collection state.
 
 All caches are in memory and not persisted at this stage.

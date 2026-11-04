@@ -138,7 +138,7 @@ class Resource:
             "x-proxy-last-fetch-at": _iso_utc(self.fetched_at),
             "x-proxy-last-fetch-status": self.attempt_result,
             "x-proxy-last-success-at": _iso_utc(self.last_success_at),
-            "x-proxy-next-attempt-at": _iso_utc(self.next_attempt_at),
+            "x-proxy-next-attempt-at": _iso_utc(self.next_attempt_at) if self.retrying else "",
             "x-proxy-upstream-status": str(self.status),
             "x-proxy-retries-used": str(self.retries_used),
             "x-proxy-halted": str(self.halted).lower(),
@@ -476,7 +476,7 @@ class SolcastProxy:
                 headers.update(
                     {
                         "x-proxy-collection-deferred": str(blocker is not record).lower(),
-                        "x-proxy-next-attempt-at": _iso_utc(blocker.next_attempt_at),
+                        "x-proxy-next-attempt-at": _iso_utc(blocker.next_attempt_at) if blocker.retrying else "",
                         "x-proxy-last-fetch-status": blocker.attempt_result,
                         "x-proxy-upstream-status": str(blocker.status),
                         "x-proxy-fetch-in-progress": str(blocker.in_flight).lower(),

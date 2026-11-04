@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 from aiohttp import ClientConnectionError, ClientConnectorDNSError, ClientResponseError
 from aiohttp.client_reqrep import ClientResponse
+from cronsim import CronSim, CronSimError
 
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
@@ -173,6 +174,16 @@ class Fetcher:
             return dt.fromisoformat(value).astimezone(UTC)
         return None
 
+    @staticmethod
+    def _next_from_proxy_cron(base_time: dt, cron_expression: str) -> dt | None:
+        """Return the next UTC occurrence for the proxy forecast cron expression."""
+        if len(cron_expression.split()) != 5:
+            return None
+        try:
+            return next(CronSim(cron_expression, base_time.astimezone(UTC)))
+        except (CronSimError, StopIteration):
+            return None
+
     async def _apply_proxy_resource_headers(self, headers: Any, path: str = FORECASTS) -> bool:
         """Update runtime state from proxy resource headers when present."""
         if headers is None:
@@ -189,11 +200,21 @@ class Fetcher:
         with contextlib.suppress(ValueError):
             self.api.proxy_upstream_status = int(upstream_status_raw)
 
-        self.api.proxy_next_attempt_at = self._header_as_dt(headers.get("x-proxy-next-attempt-at"))
-
         self.api.proxy_halted = self._header_as_bool(headers.get("x-proxy-halted")) is True
         self.api.proxy_fetch_in_progress = self._header_as_bool(headers.get("x-proxy-fetch-in-progress")) is True
         self.api.proxy_last_fetch_status = headers.get("x-proxy-last-fetch-status")
+        self.api.proxy_next_attempt_at = self._header_as_dt(headers.get("x-proxy-next-attempt-at"))
+        if (
+            self.api.proxy_next_attempt_at is None
+            and self.api.proxy_forecast_cron
+            and not self.api.proxy_halted
+            and not self.api.proxy_fetch_in_progress
+            and self.api.proxy_last_fetch_status != "retrying"
+        ):
+            self.api.proxy_next_attempt_at = self._next_from_proxy_cron(
+                self.api.dt_helper.real_now_utc(),
+                self.api.proxy_forecast_cron,
+            )
         _LOGGER.debug(
             "Proxy forecast collection: status=%s, next attempt=%s, in progress=%s, halted=%s",
             self.api.proxy_last_fetch_status,
