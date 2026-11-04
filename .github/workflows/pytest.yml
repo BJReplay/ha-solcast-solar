@@ -95,8 +95,8 @@ jobs:
           reqs=$(python -c 'import json; print(" ".join(json.load(open("../integration/custom_components/solcast_solar/manifest.json"))["requirements"]))')
           # Core 2026.11 ships its test helpers as the package pytest_homeassistant.
           helpers=""
-          if [ -d packages/pytest-home-assistant ]; then
-            helpers="-e packages/pytest-home-assistant"
+          if [ -d packages/pytest-homeassistant ]; then
+            helpers="-e packages/pytest-homeassistant"
           fi
           # shellcheck disable=SC2086
           uv pip install --system -e . $helpers -r requirements_test.txt $extra $reqs colorlog flask isodate --config-settings editable_mode=compat
