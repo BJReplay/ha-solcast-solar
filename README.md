@@ -550,11 +550,10 @@ All sensor names are preceded by the integration name `Solcast PV Forecast`.
 > [!TIP]
 >
 >
-> It may be desirable to exclude certain sensor entities from being retained by the recorder for long-term history. The bloat is minimal, but the usefulness of history is questionable. `sum` statistics for certain `ENERGY` entities are useless because of the nature of those entities, so keeping the generated stats means keeping useless data.
+> It may be desirable to exclude certain sensor entities in the Home Assistant `configuration.yaml` from being retained by the recorder for long-term history. The bloat is minimal, but the usefulness of history is questionable. `sum` statistics for certain `ENERGY` entities are useless because of the nature of those entities, so keeping the generated stats means keeping useless data.
 >
 > ```
 > recorder:
->   purge_keep_days: 14
 >   exclude:
 >     entities:
 >       - sensor.solcast_pv_forecast_forecast_tomorrow
@@ -563,6 +562,10 @@ All sensor names are preceded by the integration name `Solcast PV Forecast`.
 >       - sensor.solcast_pv_forecast_forecast_day_5
 >       - sensor.solcast_pv_forecast_forecast_day_6
 >       - sensor.solcast_pv_forecast_forecast_day_7
+>       - sensor.solcast_pv_forecast_forecast_next_hour
+>       - sensor.solcast_pv_forecast_forecast_peak_time_tomorrow
+>       - sensor.solcast_pv_forecast_forecast_remaining_today
+>       - sensor.solcast_pv_forecast_forecast_this_hour
 > ```
 
 ### Attributes
