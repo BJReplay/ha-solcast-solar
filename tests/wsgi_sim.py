@@ -30,9 +30,10 @@ Theory of operation:
 
 SSL certificate:
 
-The integration does not care whether the api.solcast.com.au certificate is valid, so a self-signed certificate is created by this simulator.
-To generate a new self-signed certificate run in this folder: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 3650,
-or simply delete *.pem files and restart the simulator to generate new ones. The DevContainer will already have openssl installed.
+A self-signed localhost certificate is generated in memory on each start.
+No certificate or private key is written to disk; existing PEM files are ignored.
+Clients must disable verification or trust the live public certificate.
+run_proxy_cloudflare.py discovers it automatically. Restart the launcher when the simulator restarts.
 
 Integration issues raised regarding the simulator will be closed without response.
 Raise a pull request instead, suggesting a fix for whatever is wrong, or to add additional functionality.
@@ -47,7 +48,10 @@ This simulator is prepared should this occur.
 # pylint: disable=home-assistant-enforce-utcnow
 
 import argparse
+from collections.abc import Iterator
+from contextlib import contextmanager
 import copy
+from ctypes import CDLL, c_char_p, c_int, c_uint, get_errno
 import datetime
 from datetime import datetime as dt, timedelta
 import json
@@ -57,11 +61,13 @@ import os
 from pathlib import Path
 import random
 import re
+import ssl
 import subprocess
 import sys
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from cryptography.hazmat.primitives import serialization
 from simulator import API_KEY_SITES, SimulatedSolcast
 
 simulate = SimulatedSolcast()
@@ -96,6 +102,7 @@ need_restart = False
 try:
     from flask import Flask, jsonify, request
     from flask.json.provider import DefaultJSONProvider
+    from werkzeug.serving import generate_adhoc_ssl_pair
 except (ModuleNotFoundError, ImportError):
     subprocess.check_call([sys.executable, "-m", "pip", "install", "flask"])
     need_restart = True
@@ -107,26 +114,6 @@ except (ModuleNotFoundError, ImportError):
 
 if need_restart:
     restart()
-
-if not (Path("cert.pem").exists() and Path("key.pem").exists()):
-    subprocess.check_call(
-        [
-            "/usr/bin/openssl",
-            "req",
-            "-x509",
-            "-newkey",
-            "rsa:4096",
-            "-nodes",
-            "-out",
-            "cert.pem",
-            "-keyout",
-            "key.pem",
-            "-days",
-            "3650",
-            "-subj",
-            "/C=AU/ST=Victoria/L=Melbourne/O=Solcast/OU=Solcast/CN=api.solcast.com.au",
-        ]
-    )
 
 API_LIMIT = 50
 BOMB_418 = False
@@ -544,6 +531,42 @@ def _apply_args(args: argparse.Namespace) -> dict[str, int | bool | list[int]]:
     }
 
 
+def _memfd_create(name: bytes) -> int:
+    """Create anonymous memory storage, including on Python builds without os.memfd_create."""
+    create = CDLL(None, use_errno=True).memfd_create
+    create.argtypes = (c_char_p, c_uint)
+    create.restype = c_int
+    descriptor = create(name, 1)  # MFD_CLOEXEC
+    if descriptor < 0:
+        error = get_errno()
+        raise OSError(error, os.strerror(error))
+    return descriptor
+
+
+@contextmanager
+def _ssl_context() -> Iterator[ssl.SSLContext]:
+    """Keep the localhost certificate in memory for the server's lifetime."""
+    cert, key = generate_adhoc_ssl_pair("localhost")
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    # SSLContext requires paths; Linux memfd descriptors avoid disk-backed PEMs.
+    with os.fdopen(_memfd_create(b"solcast-simulator-cert"), "w+b") as cert_file:
+        cert_file.write(cert.public_bytes(serialization.Encoding.PEM))
+        cert_file.flush()
+        cert_path = f"/proc/{os.getpid()}/fd/{cert_file.fileno()}"
+        with os.fdopen(_memfd_create(b"solcast-simulator-key"), "w+b") as key_file:
+            key_file.write(
+                key.private_bytes(
+                    serialization.Encoding.PEM,
+                    serialization.PrivateFormat.TraditionalOpenSSL,
+                    serialization.NoEncryption(),
+                )
+            )
+            key_file.flush()
+            context.load_cert_chain(cert_path, f"/proc/{os.getpid()}/fd/{key_file.fileno()}")
+        _LOGGER.info("In-memory localhost TLS ready; public certificate: %s", cert_path)
+        yield context
+
+
 def main(argv: list[str] | None = None) -> None:
     """Run the simulator."""
 
@@ -557,7 +580,8 @@ def main(argv: list[str] | None = None) -> None:
 
     globals().update(_apply_args(args))
     logging.getLogger("werkzeug").addFilter(_WerkzeugLogFilter())
-    app.run(debug=args.debug, host="127.0.0.1", port=args.port, ssl_context=("cert.pem", "key.pem"))
+    with _ssl_context() as context:
+        app.run(debug=args.debug, host="127.0.0.1", port=args.port, use_reloader=False, ssl_context=context)
 
 
 if __name__ == "__main__":

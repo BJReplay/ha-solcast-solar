@@ -6,6 +6,7 @@ import importlib.util
 import json
 import math
 from pathlib import Path
+import ssl
 import sys
 from types import ModuleType
 from typing import Any
@@ -13,6 +14,7 @@ from unittest.mock import patch
 from urllib.parse import parse_qs
 from zoneinfo import ZoneInfo
 
+from cryptography import x509
 from custom_components.solcast_solar.const import ESTIMATED_ACTUALS, FORECASTS, SITES
 from freezegun.api import FrozenDateTimeFactory
 import pytest
@@ -35,8 +37,6 @@ def _load_wsgi_sim_module() -> ModuleType:
     sys.path.insert(0, str(module_path.parent))
     try:
         with (
-            patch("pathlib.Path.exists", return_value=True),
-            patch("subprocess.check_call", return_value=None),
             patch("os.execl", return_value=None),
             patch("sys.exit", return_value=None),
             patch("logging.config.dictConfig", return_value=None),
@@ -448,52 +448,57 @@ def test_route_estimated_actuals_missing_hours() -> None:
     assert client.get("/rooftop_sites/1111-1111-1111-1111/estimated_actuals?api_key=1").status_code == 500
 
 
-def test_wsgi_sim_main_uses_configured_port() -> None:
-    """The simulator starts Flask on the configured TCP port."""
+@pytest.mark.parametrize(
+    ("args", "port", "debug"),
+    [
+        pytest.param(["--port", "8443"], 8443, False, id="configured-port"),
+        pytest.param([], 443, False, id="default-port"),
+        pytest.param(["--debug"], 443, True, id="debug"),
+    ],
+)
+def test_wsgi_sim_main(args: list[str], port: int, debug: bool) -> None:
+    """The simulator uses ephemeral TLS without a reloader replacing its certificate."""
     module = _load_wsgi_sim_module()
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     with (
         patch.object(module, "get_time_zone"),
         patch.object(module.random, "seed"),
+        patch.object(module, "_ssl_context") as mock_context,
         patch.object(module.app, "run") as mock_run,
     ):
-        module.main(["--port", "8443"])
+        mock_context.return_value.__enter__.return_value = context
+        module.main(args)
     mock_run.assert_called_once_with(
-        debug=False,
+        debug=debug,
         host="127.0.0.1",
-        port=8443,
-        ssl_context=("cert.pem", "key.pem"),
+        port=port,
+        use_reloader=False,
+        ssl_context=context,
     )
+    mock_context.return_value.__exit__.assert_called_once()
 
 
-def test_wsgi_sim_main_default_port() -> None:
-    """The simulator starts Flask on port 443 when no port is specified."""
+def test_wsgi_sim_tls_is_memory_backed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    """Expose only a live public certificate and leave no PEM files behind."""
     module = _load_wsgi_sim_module()
-    with (
-        patch.object(module, "get_time_zone"),
-        patch.object(module.random, "seed"),
-        patch.object(module.app, "run") as mock_run,
-    ):
-        module.main([])
-    mock_run.assert_called_once_with(
-        debug=False,
-        host="127.0.0.1",
-        port=443,
-        ssl_context=("cert.pem", "key.pem"),
-    )
+    monkeypatch.chdir(tmp_path)
+    caplog.set_level("INFO")
+    with module._ssl_context() as context:
+        assert isinstance(context, ssl.SSLContext)
+        cert_path = Path(caplog.records[-1].getMessage().split("public certificate: ", 1)[1])
+        assert cert_path.readlink().as_posix().startswith("/memfd:solcast-simulator-cert")
+        cert = x509.load_pem_x509_certificate(cert_path.read_bytes())
+        names = cert.extensions.get_extension_for_class(x509.SubjectAlternativeName).value
+        assert "localhost" in names.get_values_for_type(x509.DNSName)
+        ssl.create_default_context(cafile=str(cert_path))
+        assert list(tmp_path.iterdir()) == []
+    assert not cert_path.exists()
 
 
-def test_wsgi_sim_main_debug_mode() -> None:
-    """--debug passes debug=True to Flask."""
-    module = _load_wsgi_sim_module()
-    with (
-        patch.object(module, "get_time_zone"),
-        patch.object(module.random, "seed"),
-        patch.object(module.app, "run") as mock_run,
-    ):
-        module.main(["--debug"])
-    mock_run.assert_called_once_with(
-        debug=True,
-        host="127.0.0.1",
-        port=443,
-        ssl_context=("cert.pem", "key.pem"),
-    )
+def test_wsgi_sim_import_does_not_generate_certificate(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Importing the simulator must not create persistent certificates."""
+    monkeypatch.chdir(tmp_path)
+    with patch("subprocess.check_call") as mock_subprocess:
+        _load_wsgi_sim_module()
+    mock_subprocess.assert_not_called()
+    assert list(tmp_path.iterdir()) == []

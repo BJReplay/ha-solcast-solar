@@ -22,10 +22,12 @@ import datetime as dt
 import json
 import math
 import random
+import re
 from typing import Any
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 
-from js import Headers, Request, Response, fetch
+from js import Headers, Request, fetch as js_fetch
+from workers import DurableObject, Response, WorkerEntrypoint
 
 DEFAULT_SOLCAST_HOST = "api.solcast.com.au"
 DEFAULT_SOLCAST_PORT = 443
@@ -125,6 +127,17 @@ def _discovery_headers(env: Any) -> dict[str, str]:
     }
 
 
+def _row_start(row: dict[str, Any], end: dt.datetime) -> dt.datetime:
+    """Resolve interval starts from Solcast's period-end and ISO time duration."""
+    if "period_start" in row:
+        return dt.datetime.fromisoformat(row["period_start"]).astimezone(dt.UTC)
+    duration = re.fullmatch(r"PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?", row["period"])
+    if duration is None or not any(duration.groups()):
+        raise ValueError("Invalid Solcast period")
+    hours, minutes, seconds = (float(value or 0) for value in duration.groups())
+    return end - dt.timedelta(hours=hours, minutes=minutes, seconds=seconds)
+
+
 def _slice_rows(rows: list[dict[str, Any]], kind: str, now: dt.datetime, hours: int) -> list[dict[str, Any]]:
     sliced: list[dict[str, Any]] = []
     for row in rows:
@@ -133,7 +146,7 @@ def _slice_rows(rows: list[dict[str, Any]], kind: str, now: dt.datetime, hours: 
             if kind == ACTUALS_KIND:
                 include = -hours * 3600 < (end - now).total_seconds() <= 0
             else:
-                start = dt.datetime.fromisoformat(row["period_start"]).astimezone(dt.UTC)
+                start = _row_start(row, end)
                 include = end > now and (start - now).total_seconds() < hours * 3600
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
@@ -167,10 +180,11 @@ def _resource_headers(resource: ResourceState, retry_state: RetryState) -> dict[
     }
 
 
-def _json_response(payload: Any, status: int) -> Response:
-    return Response.new(
+def _json_response(payload: Any, status: int, headers: dict[str, str] | None = None) -> Response:
+    return Response(
         json.dumps(payload),
-        {"status": status, "headers": {"content-type": "application/json"}},
+        status=status,
+        headers=[("content-type", "application/json"), *(headers or {}).items()],
     )
 
 
@@ -183,7 +197,7 @@ async def _fetch_upstream(env: Any, path: str, query: str = "") -> tuple[int, An
 
     headers = Headers.new()
     headers.set("User-Agent", f"{PROXY_NAME}/{PROXY_VERSION}")
-    response = await fetch(url, {"method": "GET", "headers": headers})
+    response = await js_fetch(url, {"method": "GET", "headers": headers})
 
     status = int(response.status)
     text = await response.text()
@@ -201,15 +215,18 @@ async def _fetch_upstream(env: Any, path: str, query: str = "") -> tuple[int, An
     return status, payload, detail, guidance
 
 
-class ProxyCoordinator:
+class ProxyCoordinator(DurableObject):
     """Durable Object: single-writer coordinator for state and retries."""
 
     def __init__(self, state: Any, env: Any) -> None:
+        super().__init__(state, env)
         self.state = state
         self.env = env
 
     async def _load(self) -> dict[str, Any]:
         data = await self.state.storage.get("state")
+        if isinstance(data, str):
+            data = json.loads(data)
         if not isinstance(data, dict):
             data = {
                 "accounts": {},
@@ -222,7 +239,7 @@ class ProxyCoordinator:
         return data
 
     async def _save(self, data: dict[str, Any]) -> None:
-        await self.state.storage.put("state", data)
+        await self.state.storage.put("state", json.dumps(data))
 
     async def _register_sites(self, data: dict[str, Any], api_key: str, sites: set[str]) -> None:
         data["accounts"][api_key] = sorted(sites)
@@ -300,8 +317,10 @@ class ProxyCoordinator:
                 ends: list[dt.datetime] = []
                 for row in rows:
                     with suppress(KeyError, TypeError, ValueError):
-                        starts.append(dt.datetime.fromisoformat(row["period_start"]).astimezone(dt.UTC))
-                        ends.append(dt.datetime.fromisoformat(row["period_end"]).astimezone(dt.UTC))
+                        end = dt.datetime.fromisoformat(row["period_end"]).astimezone(dt.UTC)
+                        start = _row_start(row, end)
+                        starts.append(start)
+                        ends.append(end)
                 if starts and ends:
                     span = max(ends) - min(starts)
                     resource.history_hours = max(0.0, span.total_seconds() / 3600)
@@ -454,15 +473,18 @@ class ProxyCoordinator:
         payload = resource.payload
 
         if resource.status == 429:
-            response = _json_response(resource.error_payload if resource.attempt_result == "budget_exhausted" else None, 429)
+            response_payload = resource.error_payload if resource.attempt_result == "budget_exhausted" else None
+            response_status = 429
         elif payload is None:
-            response = _json_response({"error": "No scheduled collection has succeeded yet"}, 503)
+            response_payload = {"error": "No scheduled collection has succeeded yet"}
+            response_status = 503
         else:
             payload_copy = json.loads(json.dumps(payload))
             rows = payload_copy.get(kind, [])
             if isinstance(rows, list):
                 payload_copy[kind] = _slice_rows(rows, kind, now, hours)
-            response = _json_response(payload_copy, 200)
+            response_payload = payload_copy
+            response_status = 200
 
         available_hours = float(resource.hours)
         if resource.last_success_at:
@@ -482,9 +504,7 @@ class ProxyCoordinator:
             }
         )
 
-        for k, v in headers.items():
-            response.headers.set(k, v)
-        return response
+        return _json_response(response_payload, response_status, headers)
 
     async def _status_response(self) -> Response:
         data = await self._load()
@@ -555,36 +575,35 @@ class ProxyCoordinator:
                 await self._run_cycle(FORECAST_KIND)
             elif cron_value == actuals_cron:
                 await self._run_cycle(ACTUALS_KIND)
-            return Response.new("", {"status": 204})
+            return Response(None, status=204)
 
         if path == "/rooftop_sites":
             qs = parse_qs(parsed.query)
+            headers = _discovery_headers(self.env)
             api_key = (qs.get("api_key") or [""])[0]
             fmt = (qs.get("format") or ["json"])[0]
             if not api_key or fmt != "json":
-                response = _json_response({"error": "API key and JSON format required"}, 400)
+                response = _json_response({"error": "API key and JSON format required"}, 400, headers)
             else:
                 status, payload, detail = await self._discover(api_key)
                 if payload is not None:
-                    response = _json_response(payload, status)
+                    response = _json_response(payload, status, headers)
                 else:
-                    response = Response.new(detail or "", {"status": status})
-            for k, v in _discovery_headers(self.env).items():
-                response.headers.set(k, v)
+                    response = Response(detail or "", status=status, headers=list(headers.items()))
             return response
 
         if path.endswith("/forecasts") and "/rooftop_sites/" in path:
-            site_id = path.split("/")[3]
+            site_id = path.split("/")[2]
             return await self._resource_response(request_url, site_id, FORECAST_KIND)
 
         if path.endswith("/estimated_actuals") and "/rooftop_sites/" in path:
-            site_id = path.split("/")[3]
+            site_id = path.split("/")[2]
             return await self._resource_response(request_url, site_id, ACTUALS_KIND)
 
         if path in ("/proxy-status", "/proxy_status"):
             return await self._status_response()
 
-        return Response.new("Not found", {"status": 404})
+        return Response("Not found", status=404)
 
     async def alarm(self) -> None:
         """Durable Object alarm callback: run lock-step retry when active."""
@@ -597,17 +616,19 @@ class ProxyCoordinator:
 
 def _coordinator_stub(env: Any) -> Any:
     namespace = env.PROXY_COORDINATOR
-    obj_id = namespace.idFromName("global")
-    return namespace.get(obj_id)
+    return namespace.getByName("global")
 
 
-async def on_fetch(request: Any, env: Any, _ctx: Any) -> Response:
-    """Worker entrypoint: route all API traffic through the coordinator DO."""
-    return await _coordinator_stub(env).fetch(request)
+class Default(WorkerEntrypoint):
+    """Cloudflare Python worker entrypoint."""
 
+    async def fetch(self, request: Any) -> Response:
+        """Route all API traffic through the coordinator DO."""
+        return await _coordinator_stub(self.env).fetch(request)
 
-async def on_scheduled(controller: Any, env: Any, _ctx: Any) -> None:
-    """Worker scheduled entrypoint: dispatch main kind cycles to coordinator DO."""
-    cron_value = quote(str(controller.cron), safe="")
-    request = Request.new(f"https://proxy.internal/__scheduled?cron={cron_value}", {"method": "POST"})
-    await _coordinator_stub(env).fetch(request)
+    async def scheduled(self, controller: Any, _ctx: Any) -> None:
+        """Dispatch scheduled cycles to the coordinator DO."""
+        cron_value = quote(str(controller.cron), safe="")
+        request = Request.new(f"https://proxy.internal/__scheduled?cron={cron_value}", {"method": "POST"})
+        await _coordinator_stub(self.env).fetch(request)
+
