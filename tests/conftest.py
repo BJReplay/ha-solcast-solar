@@ -14,6 +14,7 @@ import pytest
 
 from homeassistant import loader
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 from homeassistant.util.yaml import load_yaml_dict  # pyright: ignore[reportUnknownVariableType]
 
 from . import aioresponses_reset
@@ -65,7 +66,7 @@ def reset_aioresponses() -> Generator[None]:
 def frozen_time() -> Generator[FrozenDateTimeFactory]:
     """Freeze test time."""
 
-    with freezegun.freeze_time(f"{dt.now().date()} 12:27:27", tz_offset=-10) as freeze:
+    with freezegun.freeze_time(f"{dt_util.naive_now().date()} 12:27:27", tz_offset=-10) as freeze:
         yield freeze  # type: ignore[misc]
 
 
@@ -104,13 +105,13 @@ def fail_on_custom_integration_report() -> Generator[None]:
         pytest.fail("\n".join(reports))
 
 
-@pytest.fixture(autouse=True, scope="session")
+@pytest.fixture(autouse=True, scope="package")
 def quality_scale_from_custom_components() -> Generator[None]:
     """Let Core's translation checks read quality_scale.yaml of this integration from custom_components.
 
     Core reads homeassistant/components/<domain>/quality_scale.yaml. Without that file it skips the check for untranslated
-    exceptions and does not require data_description in config flows. Core runs the exception check after the test, so
-    the scope is session. Other integrations keep Core's own functions.
+    exceptions and does not require data_description in config flows. Package scope keeps the override active for this
+    integration's tests. Other integrations keep Core's own functions.
     """
     rules = cast(dict[str, Any], load_yaml_dict(Path(const.__file__).with_name("quality_scale.yaml"))["rules"])
     # Same as Core's get_quality_scale, with the path of this integration. A rule is a status or a mapping with a status.

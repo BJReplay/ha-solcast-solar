@@ -20,6 +20,7 @@ from homeassistant.components.select import (
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
+from homeassistant.util import dt as dt_util
 
 from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
 
@@ -49,20 +50,19 @@ async def test_select_change_value(
 
     try:
         entry = await async_init_integration(hass, DEFAULT_INPUT1)
-        freezer.move_to(dt.now() + timedelta(minutes=1))
+        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
+        solcast: SolcastApi = coordinator.solcast
+        freezer.move_to(dt_util.now(solcast.tz) + timedelta(minutes=1))
         async with asyncio.timeout(10):
             while "Start is not stale" not in caplog.text:
                 freezer.tick()
                 await hass.async_block_till_done()
-        coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-        solcast: SolcastApi = coordinator.solcast
 
-        freezer.move_to((dt.now(solcast.tz) + timedelta(hours=24)).replace(minute=27, second=27))
+        freezer.move_to((dt_util.now(solcast.tz) + timedelta(hours=24)).replace(minute=27, second=27))
         await hass.async_block_till_done()
 
-        assert (select_entity_id := entity_registry.async_get_entity_id(SELECT_DOMAIN, DOMAIN, "estimate_mode")) is not None, (
-            "estimate_mode select entity should be registered"
-        )
+        select_entity_id = entity_registry.async_get_entity_id(SELECT_DOMAIN, DOMAIN, "estimate_mode")
+        assert select_entity_id is not None, "estimate_mode select entity should be registered"
         assert hass.states.get(select_entity_id).state == "estimate"  # type: ignore[union-attr]
 
         await hass.services.async_call(
