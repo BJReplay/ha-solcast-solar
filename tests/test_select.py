@@ -1,7 +1,7 @@
 """Tests for the Solcast Solar select."""
 
 import asyncio
-from datetime import datetime as dt, timedelta
+from datetime import timedelta
 import logging
 
 from custom_components.solcast_solar.const import DOMAIN

@@ -1,6 +1,6 @@
 """Solcast config flow."""
 
-from __future__ import annotations
+from __future__ import annotations  # Remains for compatibility with Python < 3.14+  # noqa: TID251
 
 from collections.abc import Mapping
 from datetime import timezone

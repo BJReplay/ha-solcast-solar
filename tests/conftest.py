@@ -1,7 +1,6 @@
 """Test configuration for Solcast Solar integration."""
 
 from collections.abc import Generator
-from datetime import datetime as dt
 import logging
 from pathlib import Path
 from typing import Any, cast

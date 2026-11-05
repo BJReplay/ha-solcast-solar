@@ -1,6 +1,6 @@
 """Solcast sites, usage and cache management."""
 
-from __future__ import annotations
+from __future__ import annotations  # Remains for compatibility with Python < 3.14+  # noqa: TID251
 
 from collections import defaultdict
 import contextlib

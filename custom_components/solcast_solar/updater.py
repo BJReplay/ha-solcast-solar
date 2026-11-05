@@ -1,6 +1,6 @@
 """Solcast update scheduling and execution."""
 
-from __future__ import annotations
+from __future__ import annotations  # Remains for compatibility with Python < 3.14+  # noqa: TID251
 
 import asyncio
 import contextlib

@@ -150,6 +150,7 @@ async def test_proxy_mode_without_config_entry(solcast: SolcastApi) -> None:
 @pytest.mark.parametrize("delay", [pytest.param(9, id="positive"), pytest.param(-1, id="clamped")])
 async def test_proxy_poll_delay_persists_once(solcast: SolcastApi, delay: int) -> None:
     """Persist changed poll delays, but do not rewrite an unchanged value."""
+    assert solcast.entry is not None, "An entry is required for this test"
     expected = max(0, delay)
     with patch.object(solcast.hass.config_entries, "async_update_entry", wraps=solcast.hass.config_entries.async_update_entry) as update:
         await solcast.async_set_proxy_poll_delay(delay, source="test")
@@ -174,6 +175,7 @@ async def test_proxy_poll_delay_persists_once(solcast: SolcastApi, delay: int) -
 )
 async def test_proxy_forecast_cron_persists_once(solcast: SolcastApi, cron: str | None, expected: str | None) -> None:
     """Persist normalized cron changes without rewriting unchanged state."""
+    assert solcast.entry is not None, "An entry is required for this test"
     await solcast.async_set_proxy_forecast_cron("0 * * * *")
     with patch.object(solcast.hass.config_entries, "async_update_entry", wraps=solcast.hass.config_entries.async_update_entry) as update:
         await solcast.async_set_proxy_forecast_cron(cron, source="test")
@@ -228,6 +230,7 @@ async def test_discovery_persists_proxy_headers(
     expected_actuals_cron: str | None,
 ) -> None:
     """Discovery updates persistent proxy state and the sites cache metadata."""
+    assert solcast.entry is not None, "An entry is required for this test"
     await solcast.async_set_proxy_mode(initial_proxy_mode)
     payload = {SITES: solcast.sites, TOTAL_RECORDS: len(solcast.sites)}
     response = MagicMock(status=200, headers=headers)
