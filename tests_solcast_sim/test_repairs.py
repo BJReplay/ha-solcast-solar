@@ -83,6 +83,7 @@ def _make_repair_flow(hass: HomeAssistant, entry_id: str) -> ApiKeyMismatchRepai
     flow = ApiKeyMismatchRepairFlow(entry_id)
     flow.hass = hass
     flow.handler = "solcast_sim"
+    flow.context = f"api_key_mismatch_{entry_id}"
     return flow
 
 
