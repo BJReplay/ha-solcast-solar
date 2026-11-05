@@ -48,10 +48,9 @@ class SolcastRepair(RepairsFlow):
     def _async_get_placeholders(self) -> dict[str, str]:
         issue_registry = ir.async_get(self.hass)
         placeholders: dict[str, Any] = {}
-        if self.get(issue_id):
-            if issue := issue_registry.issues.get((DOMAIN, self.issue_id)):
-                if issue.learn_more_url:
-                    placeholders[LEARN_MORE] = issue.learn_more_url
+        if issue := issue_registry.issues.get((DOMAIN, self.issue_id)):
+            if issue.learn_more_url:
+                placeholders[LEARN_MORE] = issue.learn_more_url
 
         return placeholders
 
