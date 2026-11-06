@@ -631,4 +631,3 @@ class Default(WorkerEntrypoint):
         cron_value = quote(str(controller.cron), safe="")
         request = Request.new(f"https://proxy.internal/__scheduled?cron={cron_value}", {"method": "POST"})
         await _coordinator_stub(self.env).fetch(request)
-

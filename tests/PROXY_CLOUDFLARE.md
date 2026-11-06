@@ -178,16 +178,14 @@ wrangler --version
 
 ### Simulator certificate and startup
 
-There are two separate TLS connections: Home Assistant → Wrangler on port 9443,
-and the Worker → simulator on port 8443. Home Assistant's advanced
+There are two separate TLS connections: Home Assistant to Wrangler on port 9443,
+and the Worker to simulator on port 8443. Home Assistant's advanced
 `ssl_verify: false` option affects only the first connection. It does not
 disable the Worker's upstream certificate verification.
 
 The simulator generates a fresh self-signed certificate valid for `localhost`
 in memory at startup. Neither the certificate nor the private key is written
-to disk, and existing `cert.pem`/`key.pem` files are ignored. This uses Linux
-memory-backed descriptors in the dev container, not Werkzeug's `"adhoc"`
-context, which creates temporary PEM files.
+to disk. This uses Linux memory-backed descriptors in the dev container.
 
 Start (or restart) the simulator:
 
@@ -200,8 +198,7 @@ Use the local launcher in another terminal. It finds the process listening on
 the configured simulator port, locates its in-memory public certificate, verifies
 the localhost TLS handshake, and supplies that certificate to Wrangler. It
 automatically overrides a stale `NODE_EXTRA_CA_CERTS` for the launched process;
-no manual export or PEM file is needed. It never stops the simulator or an
-existing Wrangler process. Run both as the same user in the same dev container.
+no manual export or PEM file is needed.
 
 Check certificate discovery and TLS without starting Wrangler:
 
@@ -211,22 +208,11 @@ python /workspaces/homeAssistant-core/tests/components/solcast_solar/run_proxy_c
 
 This must print `Verified simulator HTTPS`. An absent listener, missing
 in-memory certificate, or failed verification stops the launcher with a clear
-error before Wrangler starts. The check makes no API requests and spends no
-simulator quota. Linux `/proc` access and `lsof` are required (both available in
-this dev container).
+error before Wrangler starts. Linux `/proc` access and `lsof` are required
+(both generally available in a dev container).
 
-If you already created a Worker project above, open that directory now.
-If not, create one first:
-
-```bash
-mkdir -p ~/solcast-proxy-worker
-cd ~/solcast-proxy-worker
-```
-
-For local testing from this repository, keep
-`/workspaces/homeAssistant-core/tests/components/solcast_solar/proxy_cloudflare.py`
-as the single source of truth and point your local `wrangler.toml` `main`
-directly at that file:
+For local testing from this repository, point a local `wrangler.toml` `main` at
+`/workspaces/homeAssistant-core/tests/components/solcast_solar/proxy_cloudflare.py`.
 
 ```toml
 name = "solcast-proxy"
@@ -235,14 +221,14 @@ compatibility_date = "2026-11-05"
 compatibility_flags = ["python_workers", "disable_python_external_sdk"]
 ```
 
-Then set local vars in `wrangler.toml`:
+Then set local vars in the same `toml` file:
 
 ```toml
 [vars]
 SOLCAST_HOST = "localhost"
 SOLCAST_PORT = "8443"
-FORECAST_CRON = "55 2,7,12,17 * * *"
-ACTUALS_CRON = "45 22 * * *"
+FORECAST_CRON = "*/5 * * * *"
+ACTUALS_CRON = "05 14 * * *"
 POLL_DELAY_SECONDS = "5"
 MAX_ATTEMPTS = "5"
 RETRY_BACKOFF_SECONDS = "45"
@@ -251,21 +237,30 @@ RETRY_BACKOFF_SECONDS = "45"
 Start Wrangler through the launcher, with HTTPS enabled for Home Assistant:
 
 ```bash
-python /workspaces/homeAssistant-core/tests/components/solcast_solar/run_proxy_cloudflare.py
+cd /workspaces/homeAssistant-core/tests/components/solcast_solar
+python ./run_proxy_cloudflare.py
 ```
 
-The default configuration is the repository's
-`tests/components/solcast_solar/solcast-proxy-worker/wrangler.toml`. If you created
-a separate project above, pass `--config /absolute/path/to/wrangler.toml` to
-both the check and launch commands. The launcher reads `SOLCAST_HOST` and
-`SOLCAST_PORT` from that file; the host must be `localhost`. Wrangler must be
-on `PATH`. The local HTTPS port defaults to 9443; override it with `--port`.
-The launcher replaces itself with Wrangler, so Ctrl+C stops the Worker normally.
-It does not modify the Worker configuration or synchronise source copies.
+The default configuration is `wrangler.toml` in the current directory. Run from
+`tests/components/solcast_solar` to use the repository's local configuration.
+The launcher can also accept a path to the wrangler configuration.
+
+`--config /absolute/path/to/wrangler.toml`
+
+The launcher reads `SOLCAST_HOST` and `SOLCAST_PORT` from that file; the host must
+be `localhost`. Wrangler must be on `PATH`. The local HTTPS port defaults to 9443;
+override it with `--port`. The launcher streams Wrangler's output, hiding only the
+attached-module table. After Wrangler reports that it is ready, the launcher discovers
+simulator accounts `1` and `2` and immediately seeds both forecast and estimated-actuals
+caches. It then dispatches the configured cron events locally. To seed different
+accounts, pass `--api-key` for each account, for example `--api-key 1 --api-key 3`;
+this replaces the default account list. Both `[triggers].crons` and the advertised
+`FORECAST_CRON` and `ACTUALS_CRON` must match; startup rejects a mismatch. All schedules
+use UTC. `[local-cron:info]` messages report dispatch and completion; failures are logged
+as `[local-cron:error]`.
 
 Important protocol note for local testing:
 
-- `wrangler dev` defaults to HTTP, but `--local-protocol https` enables HTTPS.
 - The launcher enables `--local-protocol https`. Use `https://localhost:9443` (or
   `https://127.0.0.1:9443`) in HA proxy settings.
 - Wrangler supplies a development certificate. Set the integration's advanced
@@ -274,13 +269,37 @@ Important protocol note for local testing:
 - An HTTPS URL against a plain HTTP listener produces `SSL: WRONG_VERSION_NUMBER`;
   disabling certificate verification cannot fix a protocol mismatch.
 - A working `/proxy-status` response does not test upstream TLS. Test
-  `/rooftop_sites` too: it actually contacts the simulator.
+  `/rooftop_sites`, which contacts the simulator.
 
-Trigger scheduled runs manually:
+### Collection timing and an empty cache
+
+Cloudflare executes Cron Triggers when deployed, but `wrangler dev` does not
+execute them automatically. `--test-scheduled` only exposes an endpoint for
+invoking scheduled handlers. The launcher supplies the missing local scheduler;
+starting raw Wrangler does not.
+
+Startup seeding registers the selected accounts with `/rooftop_sites`, invokes
+both collection handlers regardless of their next scheduled times, and
+checks `/proxy-status` before logging `Startup cache seeding complete`. After
+seeding, the launcher follows future cron occurrences.
+
+Wait for `Startup cache seeding complete` before starting or reloading HA.
+No manual discovery or scheduled trigger is required for the selected accounts.
+If the simulator rejects a request (for example during `--bomb429` minutes),
+startup logs a seeding error and normal scheduling continues. Until collection
+succeeds, resource reads can still return HTTP 503 with
+`x-proxy-last-fetch-status: not_fetched`. Those reads do not contact the simulator,
+so there will be no corresponding forecast/actuals request in its log.
+
+To register an additional account after startup or invoke a collection manually,
+use the exact cron strings from the active configuration. These examples match
+the repository's local configuration:
 
 ```bash
-curl -k "https://127.0.0.1:9443/__scheduled?cron=55+2,7,12,17+*+*+*"
-curl -k "https://127.0.0.1:9443/__scheduled?cron=45+22+*+*+*"
+curl -k "https://127.0.0.1:9443/rooftop_sites?format=json&api_key=1"
+curl -k "https://127.0.0.1:9443/rooftop_sites?format=json&api_key=2"
+curl -k --get --data-urlencode 'cron=*/5 * * * *' "https://127.0.0.1:9443/__scheduled"
+curl -k --get --data-urlencode 'cron=05 14 * * *' "https://127.0.0.1:9443/__scheduled"
 ```
 
 Check status and resource calls:
@@ -290,12 +309,10 @@ curl -k "https://127.0.0.1:9443/proxy-status"
 curl -k "https://127.0.0.1:9443/rooftop_sites?format=json&api_key=1"
 ```
 
-Here `-k` bypasses verification of Wrangler's development certificate only;
-it does not disable verification between the Worker and the simulator.
+Here `-k` bypasses verification of Wrangler's development certificate.
 
 Notes:
 
-- Upstream requests are HTTPS-only in this worker.
 - Use `localhost`, not `127.0.0.1`, for `SOLCAST_HOST`: the simulator certificate
   contains a DNS SAN for `localhost`, not an IP SAN.
 - Each simulator restart generates a new certificate. Stop Wrangler and run the
