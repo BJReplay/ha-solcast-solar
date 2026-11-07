@@ -80,6 +80,7 @@ class RetryState:
     attempts: int = 0
     next_attempt_at: str | None = None
     last_status: int = 0
+    kinds: list[str] = field(default_factory=list)
 
 
 def _utc_now() -> dt.datetime:
@@ -163,8 +164,8 @@ def _next_retry(now: dt.datetime, attempts: int, backoff_seconds: int) -> dt.dat
 
 
 def _resource_headers(resource: ResourceState, retry_state: RetryState) -> dict[str, str]:
-    next_retry = _from_iso(retry_state.next_attempt_at) if retry_state.active else None
-    retrying = retry_state.active
+    retrying = retry_state.active and resource.kind in retry_state.kinds
+    next_retry = _from_iso(retry_state.next_attempt_at) if retrying else None
     upstream_status = retry_state.last_status if retrying else resource.status
     return {
         "x-proxy-consecutive-failures": str(resource.consecutive_failures),
@@ -371,8 +372,10 @@ class ProxyCoordinator(DurableObject):
         now = _utc_now()
 
         resources = [ResourceState(**raw) for raw in data["resources"].values()]
+        kinds = set(retry.kinds) if retry.active else set()
         if kind_filter is not None:
-            resources = [r for r in resources if r.kind == kind_filter]
+            kinds.add(kind_filter)
+        resources = [r for r in resources if r.kind in kinds]
 
         if not resources:
             return
@@ -396,10 +399,13 @@ class ProxyCoordinator(DurableObject):
 
         if all_success:
             retry.active = False
+            retry.kinds = []
             retry.attempts = 0
             retry.next_attempt_at = None
             retry.last_status = 200
             for rid, raw in data["resources"].items():
+                if raw["kind"] not in kinds:
+                    continue
                 state = ResourceState(**raw)
                 state.retrying = False
                 state.give_up = False
@@ -411,12 +417,16 @@ class ProxyCoordinator(DurableObject):
                 await self.state.storage.deleteAlarm()
         elif any_retryable:
             retry.active = True
+            retry.kinds = sorted(kinds)
             retry.attempts += 1
             retry.last_status = 429 if any_429 else 502
             if retry.attempts > max_attempts:
                 retry.active = False
+                retry.kinds = []
                 retry.next_attempt_at = None
                 for rid, raw in data["resources"].items():
+                    if raw["kind"] not in kinds:
+                        continue
                     state = ResourceState(**raw)
                     state.retrying = False
                     state.give_up = True
@@ -429,6 +439,8 @@ class ProxyCoordinator(DurableObject):
                 next_retry = _next_retry(now, retry.attempts, backoff_seconds)
                 retry.next_attempt_at = _iso(next_retry)
                 for rid, raw in data["resources"].items():
+                    if raw["kind"] not in kinds:
+                        continue
                     state = ResourceState(**raw)
                     if not state.halted:
                         state.retrying = True
@@ -442,6 +454,7 @@ class ProxyCoordinator(DurableObject):
         else:
             # Permanent failures only; no lock-step retries.
             retry.active = False
+            retry.kinds = []
             retry.next_attempt_at = None
             with suppress(Exception):
                 await self.state.storage.deleteAlarm()
@@ -529,18 +542,19 @@ class ProxyCoordinator(DurableObject):
         resources: dict[str, Any] = {}
         for raw in data["resources"].values():
             state = ResourceState(**raw)
+            retrying = retry.active and state.kind in retry.kinds
             label = f"account-{account_ids.get(state.api_key, 0)}:{state.site}"
             resources.setdefault(label, {})[state.kind] = {
                 "fetchedAt": _ts_ms(_from_iso(state.fetched_at)),
                 "ok": state.status == 200,
-                "status": retry.last_status if retry.active else state.status,
+                "status": retry.last_status if retrying else state.status,
                 "detail": state.detail,
                 "rateLimitHeaders": state.rate_limit_headers or None,
                 "lastSuccessAt": _ts_ms(_from_iso(state.last_success_at)),
                 "consecutiveFailures": state.consecutive_failures,
-                "attemptResult": "retrying" if retry.active else state.attempt_result,
-                "retriesUsed": retry.attempts if retry.active else state.retries_used,
-                "nextAttemptAt": _ts_ms(_from_iso(retry.next_attempt_at if retry.active else state.next_attempt_at)),
+                "attemptResult": "retrying" if retrying else state.attempt_result,
+                "retriesUsed": retry.attempts if retrying else state.retries_used,
+                "nextAttemptAt": _ts_ms(_from_iso(retry.next_attempt_at if retrying else state.next_attempt_at)),
                 "giveUp": state.give_up,
                 "halted": state.halted,
                 "cacheHours": state.hours,
@@ -568,6 +582,7 @@ class ProxyCoordinator(DurableObject):
             "resources": resources,
             "retry": {
                 "active": retry.active,
+                "kinds": retry.kinds,
                 "attempts": retry.attempts,
                 "nextAttemptAt": _ts_ms(_from_iso(retry.next_attempt_at)),
                 "status": retry.last_status,
@@ -625,6 +640,12 @@ class ProxyCoordinator(DurableObject):
         data = await self._load()
         retry = RetryState(**data["retry"])
         if not retry.active:
+            return
+        if not retry.kinds:
+            # Old retry state has no trustworthy collection scope.
+            data["retry"] = asdict(RetryState())
+            await self.state.storage.deleteAlarm()
+            await self._save(data)
             return
         await self._run_cycle(None)
 

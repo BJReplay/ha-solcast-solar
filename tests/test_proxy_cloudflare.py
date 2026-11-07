@@ -43,6 +43,7 @@ async def test_storage_round_trip(worker_module: ModuleType) -> None:
             "attempts": 0,
             "next_attempt_at": None,
             "last_status": 0,
+            "kinds": [],
         },
     }
 
@@ -68,6 +69,7 @@ async def test_storage_defaults(worker_module: ModuleType, stored: str | dict[st
             "attempts": 0,
             "next_attempt_at": None,
             "last_status": 0,
+            "kinds": [],
         },
     }
 
@@ -147,7 +149,7 @@ async def test_discovery_removes_stale_sites(worker_module: ModuleType, sites: l
         new=AsyncMock(side_effect=lambda resource, hours: (resource, True, False, False)),
     ) as collect:
         storage.get.return_value = json.dumps(saved)
-        await coordinator._run_cycle()
+        await coordinator._run_cycle(worker_module.FORECAST_KIND)
     assert {call.args[0].site for call in collect.await_args_list if call.args[0].api_key == "1"} == set(sites)
 
 
@@ -253,6 +255,96 @@ def test_forecast_slicing_without_period_start(worker_module: ModuleType, period
     now = datetime(2026, 11, 6, 12, 15, tzinfo=UTC)
 
     assert worker_module._slice_rows(rows, "forecasts", now, 1) == rows[1:4]
+
+
+@pytest.mark.parametrize("kind", ["forecasts", "estimated_actuals"])
+async def test_alarm_retries_only_scheduled_kind(worker_module: ModuleType, kind: str) -> None:
+    """Persist retry scope across restarts without collecting the other cache kind."""
+    coordinator = object.__new__(worker_module.ProxyCoordinator)
+    coordinator.env = SimpleNamespace()
+    state = {
+        "accounts": {"1": ["first"], "2": ["second"]},
+        "resources": {
+            worker_module._resource_id(api_key, site, resource_kind): worker_module.asdict(
+                worker_module.ResourceState(api_key=api_key, site=site, kind=resource_kind)
+            )
+            for api_key, site in [("1", "first"), ("2", "second")]
+            for resource_kind in worker_module._RESOURCE_KINDS
+        },
+        "retry": worker_module.asdict(worker_module.RetryState()),
+    }
+    storage = SimpleNamespace(get=AsyncMock(return_value=json.dumps(state)), put=AsyncMock(), setAlarm=AsyncMock(), deleteAlarm=AsyncMock())
+    coordinator.state = SimpleNamespace(storage=storage)
+    with patch.object(worker_module, "_fetch_upstream", new=AsyncMock(return_value=(429, None, "busy", {}))) as fetch:
+        await coordinator._run_cycle(kind)
+        storage.get.return_value = storage.put.await_args.args[1]
+        restarted = object.__new__(worker_module.ProxyCoordinator)
+        restarted.env = coordinator.env
+        restarted.state = coordinator.state
+        await restarted.alarm()
+        assert [call.args[1] for call in fetch.await_args_list] == [
+            f"/rooftop_sites/{site}/{kind}" for site in ("first", "second", "first", "second")
+        ]
+        storage.get.return_value = storage.put.await_args.args[1]
+    with patch.object(worker_module, "_fetch_upstream", new=AsyncMock(return_value=(200, {kind: []}, "", {}))) as fetch:
+        await restarted.alarm()
+        assert [call.args[1] for call in fetch.await_args_list] == [f"/rooftop_sites/{site}/{kind}" for site in ("first", "second")]
+    saved = json.loads(storage.put.await_args.args[1])
+    assert saved["retry"]["active"] is False
+    untouched = {rid: raw for rid, raw in state["resources"].items() if raw["kind"] != kind}
+    assert {rid: saved["resources"][rid] for rid in untouched} == untouched
+
+
+async def test_legacy_alarm_does_not_collect(worker_module: ModuleType) -> None:
+    """Cancel unscoped persisted retries instead of guessing and spending quota."""
+    coordinator = object.__new__(worker_module.ProxyCoordinator)
+    coordinator.env = SimpleNamespace()
+    storage = SimpleNamespace(
+        get=AsyncMock(return_value=json.dumps({"retry": {"active": True, "attempts": 1, "next_attempt_at": None, "last_status": 429}})),
+        put=AsyncMock(),
+        deleteAlarm=AsyncMock(),
+    )
+    coordinator.state = SimpleNamespace(storage=storage)
+    with patch.object(worker_module, "_fetch_upstream", new=AsyncMock()) as fetch:
+        await coordinator.alarm()
+    fetch.assert_not_awaited()
+    storage.deleteAlarm.assert_awaited_once_with()
+    assert json.loads(storage.put.await_args.args[1])["retry"] == worker_module.asdict(worker_module.RetryState())
+
+
+async def test_actuals_cron_joins_forecast_retry(worker_module: ModuleType) -> None:
+    """Only an explicit actuals trigger adds actuals to an existing forecast retry."""
+    coordinator = object.__new__(worker_module.ProxyCoordinator)
+    coordinator.env = SimpleNamespace()
+    state = {
+        "accounts": {"1": ["site"]},
+        "resources": {
+            worker_module._resource_id("1", "site", kind): worker_module.asdict(
+                worker_module.ResourceState(api_key="1", site="site", kind=kind)
+            )
+            for kind in worker_module._RESOURCE_KINDS
+        },
+        "retry": worker_module.asdict(worker_module.RetryState(active=True, kinds=["forecasts"])),
+    }
+    storage = SimpleNamespace(get=AsyncMock(return_value=json.dumps(state)), put=AsyncMock(), setAlarm=AsyncMock(), deleteAlarm=AsyncMock())
+    coordinator.state = SimpleNamespace(storage=storage)
+    with (
+        patch.object(worker_module, "_fetch_upstream", new=AsyncMock(return_value=(429, None, "busy", {}))) as fetch,
+        patch.object(worker_module, "Response"),
+    ):
+        await coordinator.fetch(SimpleNamespace(url="https://proxy.internal/__scheduled?cron=45+22+*+*+*"))
+    assert [call.args[1] for call in fetch.await_args_list] == ["/rooftop_sites/site/forecasts", "/rooftop_sites/site/estimated_actuals"]
+    assert json.loads(storage.put.await_args.args[1])["retry"]["kinds"] == ["estimated_actuals", "forecasts"]
+
+
+def test_forecast_retry_preserves_actuals_headers(worker_module: ModuleType) -> None:
+    """Actuals cache headers do not inherit the forecast retry's rate limiting."""
+    resource = worker_module.ResourceState(api_key="1", site="site", kind="estimated_actuals", status=200, attempt_result="clean_success")
+    retry = worker_module.RetryState(active=True, kinds=["forecasts"], last_status=429, next_attempt_at="2026-11-07T07:11:00Z")
+    headers = worker_module._resource_headers(resource, retry)
+    assert headers["x-proxy-last-fetch-status"] == "clean_success"
+    assert headers["x-proxy-upstream-status"] == "200"
+    assert headers["x-proxy-next-attempt-at"] == ""
 
 
 async def test_actuals_coverage_without_period_start(worker_module: ModuleType) -> None:

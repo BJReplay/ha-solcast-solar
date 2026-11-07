@@ -34,10 +34,10 @@ The Home Assistant integration depends on these headers and semantics:
 
 ## Retry model (lock-step)
 
-- If any resource gets a retryable failure, all resources enter retry mode.
-- If any resource gets upstream `429`, all resources are treated as rate-limited.
+- If any resource gets a retryable failure, all sites/accounts in that scheduled collection kind enter retry mode.
+- If any resource gets upstream `429`, all resources participating in that cycle are treated as rate-limited; unrelated caches and collection metadata are unchanged.
 - Retries are coordinated by one Durable Object alarm.
-- If a retry cycle succeeds for all resources, retry mode clears for everyone.
+- Retry kinds are persisted and shown in `/proxy-status`.
 
 This matches the rule: one out, all out; all succeed, happy days.
 
