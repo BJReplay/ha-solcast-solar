@@ -243,11 +243,17 @@ class ProxyCoordinator(DurableObject):
 
     async def _register_sites(self, data: dict[str, Any], api_key: str, sites: set[str]) -> None:
         data["accounts"][api_key] = sorted(sites)
+        stale_resources = [rid for rid, raw in data["resources"].items() if raw["api_key"] == api_key and raw["site"] not in sites]
+        for rid in stale_resources:
+            del data["resources"][rid]
         for site in sites:
             for kind in _RESOURCE_KINDS:
                 rid = _resource_id(api_key, site, kind)
                 if rid not in data["resources"]:
                     data["resources"][rid] = asdict(ResourceState(api_key=api_key, site=site, kind=kind))
+        if not data["resources"]:
+            data["retry"] = asdict(RetryState())
+            await self.state.storage.deleteAlarm()
 
     async def _discover(self, api_key: str) -> tuple[int, Any, str]:
         status, payload, detail, _headers = await _fetch_upstream(
@@ -255,17 +261,26 @@ class ProxyCoordinator(DurableObject):
             "/rooftop_sites",
             urlencode({"format": "json", "api_key": api_key}),
         )
-        if status != 200 or not isinstance(payload, dict):
+        if status != 200:
             return status, payload, detail
 
-        sites = {
-            site.get("resource_id")
-            for site in payload.get("sites", [])
-            if isinstance(site, dict) and isinstance(site.get("resource_id"), str)
-        }
+        if (
+            not isinstance(payload, dict)
+            or not isinstance(payload.get("sites"), list)
+            or any(
+                not isinstance(site, dict) or not isinstance(site.get("resource_id"), str) or not site["resource_id"]
+                for site in payload["sites"]
+            )
+        ):
+            return (
+                502,
+                {"error": "Invalid rooftop sites response from upstream"},
+                "Invalid rooftop sites response from upstream",
+            )
+        sites = {site["resource_id"] for site in payload["sites"]}
 
         data = await self._load()
-        await self._register_sites(data, api_key, {str(s) for s in sites if s})
+        await self._register_sites(data, api_key, sites)
         await self._save(data)
         return status, payload, detail
 
