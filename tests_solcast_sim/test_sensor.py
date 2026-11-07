@@ -6,7 +6,7 @@ from datetime import timedelta
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-from custom_components.solcast_sim import (  # pyright: ignore[reportMissingImports]
+from custom_components.solcast_sim import (
     sensor as _sensor,
 )
 import pytest

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from unittest.mock import AsyncMock
 
-from custom_components.solcast_sim import (  # pyright: ignore[reportMissingImports]
+from custom_components.solcast_sim import (
     DOMAIN,
     _async_update_listener,
     _get_adjacent_solcast_api_key,

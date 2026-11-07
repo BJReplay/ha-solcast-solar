@@ -294,7 +294,9 @@ async def _loop_passes() -> None:
         await asyncio.sleep(0)
 
 
-async def _watching(file: Path, ready: Callable[[], None] | None = None) -> tuple[AsyncGenerator[set[tuple[Change, str]]], asyncio.Task[Any]]:
+async def _watching(
+    file: Path, ready: Callable[[], None] | None = None
+) -> tuple[AsyncGenerator[set[tuple[Change, str]]], asyncio.Task[Any]]:
     """Start a watcher and return it with its pending first change."""
     is_ready = asyncio.Event()
 

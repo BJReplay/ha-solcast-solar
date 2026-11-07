@@ -1,14 +1,16 @@
 """Solcast update scheduling and execution."""
 
-from __future__ import annotations
+from __future__ import annotations  # Remains for compatibility with Python < 3.14+  # noqa: TID251
 
 import asyncio
 import contextlib
-from datetime import datetime as dt, timedelta
+from datetime import date, datetime as dt, timedelta
 import logging
 import math
 from random import randint
 from typing import TYPE_CHECKING, Any
+
+from cronsim import CronSim, CronSimError
 
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.event import (
@@ -36,6 +38,7 @@ from .const import (
     SENSOR,
     TASK_ACTUALS_FETCH,
     TASK_CHECK_FETCH,
+    TASK_FORECASTS_FETCH,
     TASK_FORECASTS_FETCH_IMMEDIATE,
     TASK_NEW_DAY_ACTUALS,
     TASK_NEW_DAY_GENERATION,
@@ -50,6 +53,9 @@ if TYPE_CHECKING:
 from .log import get_logger
 
 _LOGGER = get_logger(__name__)
+TASK_PROXY_UPDATE = "pending_proxy_update"
+# Max estimated_actuals_fetch_delay (120) plus one hour latitude for UTC/local and DST variation.
+_LATEST_PROXY_ACTUALS_MINUTE = 180
 
 
 class Updater:
@@ -74,6 +80,8 @@ class Updater:
         self._sunset: dt
         self._sunset_tomorrow: dt
         self._sunset_yesterday: dt
+        self._proxy_scheduled_for: dt | None = None
+        self._proxy_actuals_cron_checked: str | None = None
 
     async def setup(self) -> None:
         """Set up auto-update scheduling."""
@@ -87,6 +95,12 @@ class Updater:
 
     def update_setup(self, init: bool = False) -> None:
         """Set up of auto-updates."""
+
+        if self._coordinator.solcast.proxy_mode:
+            if self._intervals:
+                self._intervals = []
+            _LOGGER.debug("Auto update interval generation skipped: proxy mode active")
+            return
 
         match self._coordinator.solcast.options.auto_update:
             case AutoUpdate.DAYLIGHT:
@@ -200,6 +214,18 @@ class Updater:
     def set_next_update(self) -> None:
         """Set the next forecast update message time."""
         self._coordinator.solcast.fetcher.set_next_update(None)
+        if self._coordinator.solcast.proxy_mode and self._coordinator.solcast.proxy_next_attempt_at is not None:
+            tz = self._coordinator.solcast.options.tz
+            follow_at = self._coordinator.solcast.proxy_next_attempt_at + timedelta(
+                seconds=self._coordinator.solcast.proxy_poll_delay_seconds
+            )
+            next_update = follow_at.astimezone(tz)
+            self._coordinator.solcast.fetcher.set_next_update(
+                next_update.strftime(DT_TIME_FORMAT)
+                if next_update.date() == dt_util.now(tz).date()
+                else next_update.strftime(DT_DATE_FORMAT)
+            )
+            return
         if len(self._intervals) > 0:
             tz = self._coordinator.solcast.options.tz
             next_update = self._intervals[0].astimezone(tz)
@@ -219,6 +245,19 @@ class Updater:
             "failure_count_7_day": self._coordinator.solcast.failures_last_7d,
             "failure_count_14_day": self._coordinator.solcast.failures_last_14d,
         }
+        if self._coordinator.solcast.proxy_mode:
+            next_update = None
+            queue: list[dt] = []
+            if self._coordinator.solcast.proxy_next_attempt_at is not None:
+                next_update = (
+                    self._coordinator.solcast.proxy_next_attempt_at + timedelta(seconds=self._coordinator.solcast.proxy_poll_delay_seconds)
+                ).astimezone(tz)
+                queue = [next_update]
+            return base | {
+                "next_auto_update": next_update,
+                "auto_update_divisions": self.divisions,
+                "auto_update_queue": queue,
+            }
         if self._coordinator.solcast.options.auto_update != AutoUpdate.NONE:
             return base | {
                 "next_auto_update": self._intervals[0].astimezone(tz) if self._intervals else None,
@@ -227,8 +266,77 @@ class Updater:
             }
         return base
 
+    def _next_from_proxy_cron(self, base_time: dt, cron_expression: str) -> dt | None:
+        """Return the next UTC occurrence for the proxy's cron expression."""
+        if len(cron_expression.split()) != 5:
+            return None
+        try:
+            return next(CronSim(cron_expression, base_time.astimezone(dt_util.UTC)))
+        except (CronSimError, StopIteration):
+            return None
+
+    async def _check_proxy_forecast_fetch(self) -> None:
+        """Check for and schedule a proxy-follow forecast update event."""
+        if self._coordinator.solcast.proxy_halted:
+            if cancel := self._coordinator.tasks.pop(TASK_PROXY_UPDATE, None):
+                cancel()
+            self._proxy_scheduled_for = None
+            self._coordinator.solcast.fetcher.set_next_update(None)
+            return
+        if self._coordinator.solcast.tasks.get(TASK_FORECASTS_FETCH) is not None:
+            return
+
+        next_attempt = self._coordinator.solcast.proxy_next_attempt_at
+        if next_attempt is None and self._coordinator.solcast.proxy_forecast_cron is not None:
+            derived_next = self._next_from_proxy_cron(
+                self._coordinator.solcast.dt_helper.real_now_utc(),
+                self._coordinator.solcast.proxy_forecast_cron,
+            )
+            if derived_next is not None:
+                self._coordinator.solcast.proxy_next_attempt_at = derived_next
+                next_attempt = derived_next
+                _LOGGER.debug(
+                    "Derived next proxy forecast collection from cron %s: %s",
+                    self._coordinator.solcast.proxy_forecast_cron,
+                    derived_next.strftime(DT_DATE_FORMAT),
+                )
+        if next_attempt is None:
+            return
+
+        _now = self._coordinator.solcast.dt_helper.real_now_utc().replace(microsecond=0)
+        follow_at = next_attempt + timedelta(seconds=self._coordinator.solcast.proxy_poll_delay_seconds)
+        if follow_at <= _now:
+            follow_at = _now + timedelta(seconds=max(1, self._coordinator.solcast.proxy_poll_delay_seconds))
+
+        existing = self._coordinator.tasks.get(TASK_PROXY_UPDATE)
+        if self._proxy_scheduled_for != follow_at and existing is not None:
+            existing()
+            self._coordinator.tasks.pop(TASK_PROXY_UPDATE, None)
+            self._proxy_scheduled_for = None
+
+        if self._coordinator.tasks.get(TASK_PROXY_UPDATE) is None:
+            _LOGGER.debug(
+                "Create task %s to fire at %02d:%02d:%02d UTC",
+                TASK_PROXY_UPDATE,
+                follow_at.hour,
+                follow_at.minute,
+                follow_at.second,
+            )
+            self._coordinator.tasks[TASK_PROXY_UPDATE] = async_track_point_in_utc_time(
+                self._coordinator.hass,
+                self._fetch_proxy,
+                follow_at,
+            )
+            self._proxy_scheduled_for = follow_at
+
+        self.set_next_update()
+
     async def check_forecast_fetch(self, _called_at: dt | None = None) -> None:
         """Check for an auto forecast update event."""
+
+        if self._coordinator.solcast.proxy_mode:
+            await self._check_proxy_forecast_fetch()
+            return
 
         if self._coordinator.solcast.options.auto_update != AutoUpdate.NONE:
             if len(self._intervals) > 0:
@@ -257,6 +365,17 @@ class Updater:
                     _LOGGER.debug("Removing expired auto update intervals")
                     self._intervals = [interval for i, interval in enumerate(self._intervals) if i not in pop_expired]
                     self.set_next_update()
+
+    async def _fetch_proxy(self, _called_at: dt | None = None) -> None:
+        """Handle a scheduled proxy-follow forecast update."""
+
+        _LOGGER.info("Auto update forecast (proxy-follow)")
+        self._coordinator.tasks.pop(TASK_PROXY_UPDATE, None)
+        self._proxy_scheduled_for = None
+        if self._coordinator.solcast.tasks.get(TASK_FORECASTS_FETCH) is not None:
+            return
+        self.set_next_update()
+        await self.forecast_update(completion=f"Completed task {TASK_PROXY_UPDATE}")
 
     async def _fetch(self, _called_at: dt | None = None) -> None:
         """Handle a scheduled auto forecast update."""
@@ -288,6 +407,8 @@ class Updater:
 
             await self._coordinator.update_integration_listeners()
             await self._coordinator.async_request_refresh()
+            if self._coordinator.solcast.proxy_mode:
+                await self._check_proxy_forecast_fetch()
 
             _LOGGER.debug(completion)
         finally:
@@ -362,33 +483,13 @@ class Updater:
 
         scheduled = False
         if get_actuals:
+            self._validate_proxy_actuals_cron()
             actuals_updated_today = self._coordinator.solcast.estimated_actuals_updated_today
             if not actuals_updated_today:
                 if TASK_NEW_DAY_ACTUALS in self._coordinator.tasks:
                     return True
 
-                tz = self._coordinator.solcast.options.tz
-                now_minute = self._get_minute_of_day(dt_util.now(tz))
-                estimated_actuals_fetch_delay = self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY]
-
-                if now_minute <= estimated_actuals_fetch_delay:
-                    update_at = (
-                        dt_util.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)  # i.e. midnight local
-                        + timedelta(minutes=max(now_minute, estimated_actuals_fetch_delay))
-                        + timedelta(minutes=randint(1, 14), seconds=randint(0, 59))
-                    )
-                    _LOGGER.debug(
-                        "Scheduling estimated actuals update at %s",
-                        update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
-                    )
-                else:
-                    # If startup/reload happened after the scheduled window then the timer was likely cancelled and not recreated. Schedule it again.
-                    update_at = dt_util.now(tz).replace(microsecond=0) + timedelta(seconds=30 + randint(0, 29))
-                    _LOGGER.info(
-                        "Estimated actuals update window was missed, scheduling at %s",
-                        update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
-                    )
-
+                update_at = self._proxy_actuals_update_at() or self._local_actuals_update_at()
                 self._coordinator.tasks[TASK_NEW_DAY_ACTUALS] = async_track_point_in_utc_time(
                     self._coordinator.hass,
                     self._actuals,
@@ -396,6 +497,111 @@ class Updater:
                 )
                 scheduled = True
         return scheduled
+
+    def _local_actuals_update_at(self) -> dt:
+        """Return when to collect estimated actuals directly from Solcast."""
+
+        tz = self._coordinator.solcast.options.tz
+        now_minute = self._get_minute_of_day(dt_util.now(tz))
+        estimated_actuals_fetch_delay = self._coordinator.solcast.advanced_options[ADVANCED_ESTIMATED_ACTUALS_FETCH_DELAY]
+
+        if now_minute <= estimated_actuals_fetch_delay:
+            update_at = (
+                dt_util.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)  # i.e. midnight local
+                + timedelta(minutes=max(now_minute, estimated_actuals_fetch_delay))
+                + timedelta(minutes=randint(1, 14), seconds=randint(0, 59))
+            )
+            _LOGGER.debug(
+                "Scheduling estimated actuals update at %s",
+                update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
+            )
+        else:
+            # If startup/reload happened after the scheduled window then the timer was likely cancelled and not recreated. Schedule it again.
+            update_at = dt_util.now(tz).replace(microsecond=0) + timedelta(seconds=30 + randint(0, 29))
+            _LOGGER.info(
+                "Estimated actuals update window was missed, scheduling at %s",
+                update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
+            )
+        return update_at
+
+    def _first_unsuitable_actuals_day(self, cron_expression: str, earliest_minute: int, latest_minute: int | None = None) -> date | None:
+        """Return the first local day in the next year whose first proxy collection is missing or outside the acceptable local minute window."""
+
+        solcast = self._coordinator.solcast
+        tz = solcast.options.tz
+        today = solcast.dt_helper.real_now_utc().astimezone(tz).date()
+        for offset in range(366):
+            day = today + timedelta(days=offset)
+            day_start = dt.combine(day, dt.min.time(), tzinfo=tz)
+            first = self._next_from_proxy_cron(day_start - timedelta(seconds=1), cron_expression)
+            local = first.astimezone(tz) if first is not None else None
+            local_minute = local.hour * 60 + local.minute if local is not None else -1
+            if (
+                local is None
+                or local.date() != day
+                or local_minute < earliest_minute
+                or (latest_minute is not None and local_minute > latest_minute)
+            ):
+                return day
+        return None
+
+    def _proxy_actuals_update_at(self) -> dt | None:
+        """Return when to collect estimated actuals from the proxy, or None when it advertises no usable cron."""
+
+        solcast = self._coordinator.solcast
+        if not solcast.proxy_mode or solcast.proxy_actuals_cron is None:
+            return None
+        # The proxy collects once per cron occurrence, so the first occurrence of the local day is the one to follow.
+        collected_at = self._next_from_proxy_cron(solcast.dt_helper.day_start_utc() - timedelta(seconds=1), solcast.proxy_actuals_cron)
+        if collected_at is None:
+            return None
+
+        self._validate_proxy_actuals_cron()
+
+        tz = solcast.options.tz
+        now = solcast.dt_helper.real_now_utc().replace(microsecond=0)
+        update_at = collected_at + timedelta(seconds=solcast.proxy_poll_delay_seconds)
+        if update_at <= now:
+            update_at = now + timedelta(seconds=30 + randint(0, 29))
+            _LOGGER.info(
+                "Proxy estimated actuals collection was missed, scheduling at %s",
+                update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
+            )
+        else:
+            _LOGGER.debug(
+                "Scheduling estimated actuals update at %s (proxy-follow)",
+                update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
+            )
+        return update_at
+
+    def _validate_proxy_actuals_cron(self) -> None:
+        """Validate proxy actuals cron suitability and log startup-visible errors once per cron value."""
+
+        solcast = self._coordinator.solcast
+        if not solcast.proxy_mode or solcast.proxy_actuals_cron is None:
+            return
+        if self._proxy_actuals_cron_checked == solcast.proxy_actuals_cron:
+            return
+
+        self._proxy_actuals_cron_checked = solcast.proxy_actuals_cron
+
+        if (day := self._first_unsuitable_actuals_day(solcast.proxy_actuals_cron, 0, _LATEST_PROXY_ACTUALS_MINUTE)) is not None:
+            _LOGGER.error(
+                "Proxy estimated actuals schedule '%s' (UTC) does not first fire between 00:00 and %02d:%02d local time on %s, so a day's estimated actuals may be skipped. The proxy should collect in that local-time window on every day of the year",
+                solcast.proxy_actuals_cron,
+                *divmod(_LATEST_PROXY_ACTUALS_MINUTE, 60),
+                day.strftime(DT_DATE_ONLY_FORMAT),
+            )
+
+        if solcast.options.auto_dampen and solcast.options.generation_entities:
+            generation_delay = solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY]
+            if (day := self._first_unsuitable_actuals_day(solcast.proxy_actuals_cron, generation_delay + 1)) is not None:
+                _LOGGER.error(
+                    "Proxy estimated actuals schedule '%s' (UTC) does not first fire after the generation data fetch at %02d:%02d local time on %s, so automated dampening may model with stale generation data. The proxy should collect after that time on every day of the year",
+                    solcast.proxy_actuals_cron,
+                    *divmod(generation_delay, 60),
+                    day.strftime(DT_DATE_ONLY_FORMAT),
+                )
 
     async def _actuals(self, _called_at: dt | None = None) -> None:
         _LOGGER.info("Update estimated actuals")

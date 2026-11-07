@@ -1,7 +1,7 @@
 """Test forecasts update retry mechanism."""
 
 import asyncio
-from datetime import datetime as dt, timedelta
+from datetime import UTC, datetime as dt, timedelta
 import json
 import logging
 from typing import Any, cast
@@ -17,6 +17,8 @@ from custom_components.solcast_solar.const import (
     ADVANCED_TRIGGER_ON_API_UNAVAILABLE,
     API_KEY,
     DOMAIN,
+    DT_DATE_FORMAT,
+    DT_TIME_FORMAT,
     FORECASTS,
     ISSUE_API_UNAVAILABLE,
     LAST_UPDATED,
@@ -26,7 +28,7 @@ from custom_components.solcast_solar.const import (
     TASK_NEW_DAY_ACTUALS,
 )
 from custom_components.solcast_solar.enums import UpdateOutcome, UpdateResult
-from custom_components.solcast_solar.fetcher import Fetcher
+from custom_components.solcast_solar.fetcher import Fetcher, _DataCallStatus
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
@@ -93,6 +95,78 @@ def test_dns_error_message_falls_back_to_class_name() -> None:
         os_error = None
 
     assert Fetcher._dns_error_message(cast(ClientConnectorDNSError, DummyConnectorDNSError())) == "DummyConnectorDNSError"
+
+
+@pytest.mark.parametrize(
+    ("next_attempt", "halted", "expected_time", "message_format"),
+    [
+        pytest.param(
+            "2026-11-01T09:10:00+00:00",
+            False,
+            dt(2026, 11, 1, 9, 10, tzinfo=UTC),
+            f", next auto update at {DT_TIME_FORMAT}",
+            id="recovered",
+        ),
+        pytest.param(
+            "2026-11-02T09:10:00+00:00",
+            False,
+            dt(2026, 11, 2, 9, 10, tzinfo=UTC),
+            f", next auto update at {DT_DATE_FORMAT}",
+            id="next-day",
+        ),
+        pytest.param("", False, dt(2026, 11, 1, 9, 10, tzinfo=UTC), "", id="unknown"),
+        pytest.param("2026-11-01T09:10:00+00:00", True, dt(2026, 11, 1, 9, 10, tzinfo=UTC), "", id="halted"),
+    ],
+)
+async def test_proxy_completion_reports_latest_header_time(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+    next_attempt: str,
+    halted: bool,
+    expected_time: dt,
+    message_format: str,
+) -> None:
+    """Completion uses recovery headers rather than the pre-fetch display string."""
+    try:
+        freezer.move_to("2026-11-01 09:06:00")
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        solcast = entry.runtime_data.coordinator.solcast
+        await entry.runtime_data.coordinator.tasks_cancel()
+        await solcast.tasks_cancel()
+        solcast.data[LAST_UPDATED] = dt(2026, 11, 1, 8, 0, tzinfo=UTC)
+        solcast.fetcher.set_next_update("20:00:05")
+
+        async def recovered_call(**kwargs: Any) -> tuple[_DataCallStatus, str]:
+            await solcast.fetcher._apply_proxy_resource_headers(
+                {
+                    "x-proxy-upstream-status": "200",
+                    "x-proxy-last-fetch-status": "retry_success",
+                    "x-proxy-next-attempt-at": next_attempt,
+                    "x-proxy-halted": str(halted).lower(),
+                    "x-proxy-fetch-in-progress": "false",
+                }
+            )
+            return _DataCallStatus.SUCCESS, ""
+
+        caplog.clear()
+        with (
+            mock.patch.object(solcast.fetcher, "http_data_call", side_effect=recovered_call),
+            mock.patch.object(solcast.dampening, "refresh_granular_data", new=mock.AsyncMock()),
+            mock.patch.object(solcast.dampening, "apply_forward", new=mock.AsyncMock()),
+            mock.patch.object(solcast, "build_forecast_data", new=mock.AsyncMock(return_value=True)),
+            mock.patch.object(solcast.sites_cache, "serialise_data", new=mock.AsyncMock(return_value=True)),
+        ):
+            result = await solcast.fetcher.get_forecast_update()
+
+        assert result.outcome == UpdateOutcome.SUCCESS
+        follow_at = (expected_time + timedelta(seconds=solcast.proxy_poll_delay_seconds)).astimezone(solcast.tz)
+        suffix = follow_at.strftime(message_format)
+        assert f"Forecast update completed successfully{suffix}" in caplog.messages
+        assert "Forecast update completed successfully, next auto update at 20:00:05" not in caplog.messages
+    finally:
+        await async_cleanup_integration_tests(hass)
 
 
 def _occurs_in_log(caplog: pytest.LogCaptureFixture, text: str, occurrences: int) -> None:

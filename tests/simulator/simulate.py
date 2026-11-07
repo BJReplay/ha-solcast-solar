@@ -1,7 +1,6 @@
 """Simulated data for Solcast Solar integration."""
 
 import contextlib
-import datetime
 from datetime import datetime as dt, timedelta
 import json
 import math
@@ -9,6 +8,8 @@ from pathlib import Path
 import random
 from typing import Any
 from zoneinfo import ZoneInfo
+
+from homeassistant.util import dt as dt_util
 
 API_KEY_SITES: dict[str, Any] = {
     "1": {
@@ -796,7 +797,8 @@ class SimulatedSolcast:
         site: dict[str, Any] | None = next((s for s in sites if s["resource_id"] == site_id), None) if isinstance(sites, list) else None
         if not site:
             return {}
-        period_end = self.get_period(dt.now(datetime.UTC), timedelta(hours=hours) * -1) if period_end is None else period_end
+        period_end = self.get_period(dt_util.utcnow(), timedelta(hours=hours) * -1) if period_end is None else period_end
+        assert period_end is not None, "period_end must be provided"
 
         output_key = key or prefix
         results: list[dict[str, Any]] = []
@@ -875,7 +877,7 @@ class SimulatedSolcast:
         if not site:
             return {}
         output_key = key or prefix
-        period_end = self.get_period(dt.now(datetime.UTC), timedelta(minutes=INTERVAL_MINUTES)) if period_end is None else period_end
+        period_end = self.get_period(dt_util.utcnow(), timedelta(minutes=INTERVAL_MINUTES)) if period_end is None else period_end
 
         lookup = f"{api_key} {site_id} {hours} {period_end}"
         if cached := self.cached_forecasts.get(lookup):

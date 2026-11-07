@@ -18,6 +18,7 @@ import pytest
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
 
 from . import (
     DEFAULT_INPUT1,
@@ -111,7 +112,7 @@ async def test_midnight(
         assert "Completed task pending_update" in caplog.text
 
         # Test midnight local happenings.
-        freezer.move_to(f"{dt.now().date()} 13:59:59")
+        freezer.move_to(f"{dt_util.naive_now().date()} 13:59:59")
 
         caplog.clear()
         await wait_for_log("Updating sensor", tick_seconds=1.0, timeout_seconds=600)
@@ -147,7 +148,7 @@ async def test_timezone_transition(
         freezer.move_to(scenario["to_winter"] + " 00:00:00")
         entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone=scenario["timezone"])
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-        assert coordinator.solcast.dt_helper.dst(dt.now())
+        assert coordinator.solcast.dt_helper.dst(dt_util.naive_now())
 
         assert (
             f"Transitioning from {'summer to standard' if scenario['timezone'] == 'Australia/Sydney' else 'summer to winter'} time"
@@ -168,7 +169,7 @@ async def test_timezone_transition(
         freezer.move_to(scenario["to_summer"] + " 00:00:00")
         entry = await async_init_integration(hass, DEFAULT_INPUT1, timezone=scenario["timezone"])
         coordinator: SolcastUpdateCoordinator = entry.runtime_data.coordinator
-        assert not coordinator.solcast.dt_helper.dst(dt.now()), "DST should not be active"
+        assert not coordinator.solcast.dt_helper.dst(dt_util.naive_now()), "DST should not be active"
 
         assert (
             f"Transitioning from {'standard to summer' if scenario['timezone'] == 'Australia/Sydney' else 'winter to summer'} time"
