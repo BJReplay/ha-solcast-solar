@@ -187,6 +187,14 @@ def _resource_headers(resource: ResourceState, retry_state: RetryState) -> dict[
     }
 
 
+def _invalidate_resource_cache(resource: ResourceState) -> None:
+    """Drop cached collection payload and coverage when update validity is lost."""
+    resource.payload = None
+    resource.hours = 0
+    resource.forecast_end = None
+    resource.history_hours = 0.0
+
+
 def _json_response(payload: Any, status: int, headers: dict[str, str] | None = None) -> Response:
     return Response(
         json.dumps(payload),
@@ -400,6 +408,7 @@ class ProxyCoordinator(DurableObject):
         resource.consecutive_failures += 1
         resource.attempt_result = "retrying"
         resource.in_flight = False
+        _invalidate_resource_cache(resource)
 
         retryable = not (400 <= status < 500 and status not in (408, 425, 429))
         is_429 = status == 429
@@ -481,6 +490,7 @@ class ProxyCoordinator(DurableObject):
                     state.give_up = True
                     state.attempt_result = "give_up"
                     state.next_attempt_at = None
+                    _invalidate_resource_cache(state)
                     data["resources"][rid] = asdict(state)
                 with suppress(Exception):
                     await self.state.storage.deleteAlarm()
@@ -496,6 +506,7 @@ class ProxyCoordinator(DurableObject):
                         state.give_up = False
                         state.attempt_result = "retrying"
                         state.next_attempt_at = retry.next_attempt_at
+                        _invalidate_resource_cache(state)
                         if any_429:
                             state.status = 429
                     data["resources"][rid] = asdict(state)

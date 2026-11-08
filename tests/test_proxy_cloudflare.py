@@ -430,3 +430,85 @@ async def test_actuals_coverage_without_period_start(worker_module: ModuleType) 
     assert not rate_limited
     assert updated.history_hours == 1
     assert updated.hours == 1
+
+
+async def test_forecast_failure_invalidates_cached_payload(worker_module: ModuleType) -> None:
+    """Drop stale forecast cache immediately when a scheduled update fails."""
+    coordinator = object.__new__(worker_module.ProxyCoordinator)
+    coordinator.env = SimpleNamespace()
+    resource = worker_module.ResourceState(
+        api_key="1",
+        site="test-site",
+        kind="forecasts",
+        payload={"forecasts": [{"period_end": "2026-11-06T12:00:00Z", "period": "PT30M"}]},
+        hours=12,
+        forecast_end="2026-11-06T12:00:00Z",
+    )
+
+    with patch.object(
+        worker_module,
+        "_fetch_upstream",
+        new=AsyncMock(return_value=(500, None, "upstream error", {})),
+    ):
+        updated, success, retryable, rate_limited = await coordinator._collect_one(resource, worker_module.FORECAST_REQUEST_HOURS)
+
+    assert not success
+    assert retryable
+    assert not rate_limited
+    assert updated.payload is None
+    assert updated.hours == 0
+    assert updated.forecast_end is None
+
+
+async def test_forecast_retry_cycle_invalidates_all_kind_cache(worker_module: ModuleType) -> None:
+    """Invalidate all forecast cache entries when any forecast in the cycle fails."""
+    coordinator = object.__new__(worker_module.ProxyCoordinator)
+    coordinator.env = SimpleNamespace(MAX_ATTEMPTS="5", RETRY_BACKOFF_SECONDS="45")
+
+    first_forecast = worker_module.ResourceState(
+        api_key="1",
+        site="first",
+        kind="forecasts",
+        payload={"forecasts": [{"period_end": "2026-11-06T12:00:00Z", "period": "PT30M"}]},
+        hours=24,
+        forecast_end="2026-11-06T12:00:00Z",
+    )
+    second_forecast = worker_module.ResourceState(
+        api_key="2",
+        site="second",
+        kind="forecasts",
+        payload={"forecasts": [{"period_end": "2026-11-06T13:00:00Z", "period": "PT30M"}]},
+        hours=24,
+        forecast_end="2026-11-06T13:00:00Z",
+    )
+
+    state = {
+        "accounts": {"1": ["first"], "2": ["second"]},
+        "resources": {
+            worker_module._resource_id("1", "first", "forecasts"): worker_module.asdict(first_forecast),
+            worker_module._resource_id("2", "second", "forecasts"): worker_module.asdict(second_forecast),
+        },
+        "retry": worker_module.asdict(worker_module.RetryState()),
+    }
+    storage = SimpleNamespace(get=AsyncMock(return_value=json.dumps(state)), put=AsyncMock(), setAlarm=AsyncMock(), deleteAlarm=AsyncMock())
+    coordinator.state = SimpleNamespace(storage=storage)
+
+    async def _fetch_side_effect(_env: SimpleNamespace, path: str, _query: str) -> tuple[int, object, str, dict[str, str]]:
+        if path.endswith("/first/forecasts"):
+            return 500, None, "upstream error", {}
+        return 200, {"forecasts": [{"period_end": "2026-11-06T13:00:00Z", "period": "PT30M"}]}, "", {}
+
+    with patch.object(worker_module, "_fetch_upstream", new=AsyncMock(side_effect=_fetch_side_effect)):
+        await coordinator._run_cycle(worker_module.FORECAST_KIND)
+
+    saved = json.loads(storage.put.await_args.args[1])
+    for rid, raw in saved["resources"].items():
+        assert raw["kind"] == "forecasts"
+        assert raw["payload"] is None, rid
+        assert raw["hours"] == 0, rid
+        assert raw["retrying"] is True, rid
+        assert raw["attempt_result"] == "retrying", rid
+
+    assert saved["retry"]["active"] is True
+    assert saved["retry"]["kinds"] == ["forecasts"]
+    assert saved["retry"]["attempts"] == 1
