@@ -233,6 +233,43 @@ def test_json_response_includes_headers(worker_module: ModuleType) -> None:
     )
 
 
+@pytest.mark.parametrize("path", ["/", "/robots.txt", "/favicon.ico", "/foo", "/rooftop_sites/test"])
+async def test_default_fetch_drops_unexpected_paths(worker_module: ModuleType, path: str) -> None:
+    """Avoid Durable Object forwarding for unexpected paths."""
+    worker = object.__new__(worker_module.Default)
+    worker.env = SimpleNamespace()
+    with (
+        patch.object(worker_module, "_coordinator_stub", side_effect=AssertionError("should not forward")),
+        patch.object(worker_module, "Response", return_value=SimpleNamespace(status=404)) as response,
+    ):
+        result = await worker.fetch(SimpleNamespace(url=f"https://proxy.example{path}"))
+    assert result.status == 404
+    response.assert_called_once_with("Not found", status=404)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "/proxy-status",
+        "/proxy_status",
+        "/rooftop_sites",
+        "/__scheduled",
+        "/rooftop_sites/test-site/forecasts",
+        "/rooftop_sites/test-site/estimated_actuals",
+    ],
+)
+async def test_default_fetch_forwards_expected_paths(worker_module: ModuleType, path: str) -> None:
+    """Forward known API routes to the coordinator Durable Object."""
+    worker = object.__new__(worker_module.Default)
+    worker.env = SimpleNamespace()
+    request = SimpleNamespace(url=f"https://proxy.example{path}")
+    stub = SimpleNamespace(fetch=AsyncMock(return_value=SimpleNamespace(status=200)))
+    with patch.object(worker_module, "_coordinator_stub", return_value=stub):
+        result = await worker.fetch(request)
+    assert result.status == 200
+    stub.fetch.assert_awaited_once_with(request)
+
+
 @pytest.mark.parametrize("kind", ["forecasts", "estimated_actuals"])
 async def test_resource_route_uses_site_id(worker_module: ModuleType, kind: str) -> None:
     """Route using the site's path segment, not the resource kind."""

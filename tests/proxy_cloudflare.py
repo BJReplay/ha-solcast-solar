@@ -423,11 +423,7 @@ class ProxyCoordinator(DurableObject):
         kinds = set(retry.kinds) if retry.active else set()
         if kind_filter is not None:
             kinds.add(kind_filter)
-        resources = [
-            ResourceState(**raw)
-            for raw in data["resources"].values()
-            if raw["kind"] in kinds
-        ]
+        resources = [ResourceState(**raw) for raw in data["resources"].values() if raw["kind"] in kinds]
 
         if not resources:
             return
@@ -714,7 +710,14 @@ class Default(WorkerEntrypoint):
 
     async def fetch(self, request: Any) -> Response:
         """Route all API traffic through the coordinator DO."""
-        return await _coordinator_stub(self.env).fetch(request)
+        path = urlparse(str(request.url)).path
+        if path.startswith("/rooftop_sites/") and path.endswith(("/forecasts", "/estimated_actuals")):
+            return await _coordinator_stub(self.env).fetch(request)
+        if path in ("/rooftop_sites", "/proxy-status", "/proxy_status", "/__scheduled"):
+            return await _coordinator_stub(self.env).fetch(request)
+
+        # Drop all unexpected routes at the edge so they do not consume DO cycles.
+        return Response("Not found", status=404)
 
     async def scheduled(self, controller: Any, _ctx: Any) -> None:
         """Dispatch scheduled cycles to the coordinator DO."""
