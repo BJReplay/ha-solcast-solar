@@ -14,8 +14,13 @@ import pytest
 @pytest.fixture
 def worker_module(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     """Load the authoritative Worker without requiring the Cloudflare runtime."""
+    class _Request:
+        @staticmethod
+        def new(url: str, init: dict[str, str] | None = None) -> SimpleNamespace:
+            return SimpleNamespace(url=url, method=(init or {}).get("method", "GET"))
+
     js = ModuleType("js")
-    js.__dict__.update(Headers=object, Request=object, fetch=AsyncMock())
+    js.__dict__.update(Headers=object, Request=_Request, fetch=AsyncMock())
     workers = ModuleType("workers")
     workers.__dict__.update(DurableObject=object, Response=object, WorkerEntrypoint=object)
     monkeypatch.setitem(sys.modules, "js", js)
@@ -267,7 +272,25 @@ async def test_default_fetch_forwards_expected_paths(worker_module: ModuleType, 
     with patch.object(worker_module, "_coordinator_stub", return_value=stub):
         result = await worker.fetch(request)
     assert result.status == 200
-    stub.fetch.assert_awaited_once_with(request)
+    stub.fetch.assert_awaited_once()
+    forwarded = stub.fetch.await_args.args[0]
+    assert forwarded.url == f"https://proxy.internal{worker_module.DO_ROUTE_PREFIX}{path}"
+
+
+async def test_default_fetch_preserves_query_when_forwarding(worker_module: ModuleType) -> None:
+    """Forward query parameters unchanged to the coordinator Durable Object."""
+    worker = object.__new__(worker_module.Default)
+    worker.env = SimpleNamespace()
+    request = SimpleNamespace(url="https://proxy.example/rooftop_sites?format=json&api_key=1")
+    stub = SimpleNamespace(fetch=AsyncMock(return_value=SimpleNamespace(status=200)))
+
+    with patch.object(worker_module, "_coordinator_stub", return_value=stub):
+        result = await worker.fetch(request)
+
+    assert result.status == 200
+    stub.fetch.assert_awaited_once()
+    forwarded = stub.fetch.await_args.args[0]
+    assert forwarded.url == "https://proxy.internal/_do/rooftop_sites?format=json&api_key=1"
 
 
 @pytest.mark.parametrize("kind", ["forecasts", "estimated_actuals"])

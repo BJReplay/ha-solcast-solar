@@ -38,6 +38,7 @@ DEFAULT_ACTUALS_CRON = "45 22 * * *"
 DEFAULT_POLL_DELAY_SECONDS = "5"
 FORECAST_REQUEST_HOURS = 336
 ACTUALS_REQUEST_HOURS = 168
+DO_ROUTE_PREFIX = "/_do"
 
 FORECAST_KIND = "forecasts"
 ACTUALS_KIND = "estimated_actuals"
@@ -645,6 +646,8 @@ class ProxyCoordinator(DurableObject):
         request_url = str(request.url)
         parsed = urlparse(request_url)
         path = parsed.path
+        if path.startswith(f"{DO_ROUTE_PREFIX}/"):
+            path = path[len(DO_ROUTE_PREFIX) :]
 
         if path == "/__scheduled":
             qs = parse_qs(parsed.query)
@@ -710,11 +713,21 @@ class Default(WorkerEntrypoint):
 
     async def fetch(self, request: Any) -> Response:
         """Route all API traffic through the coordinator DO."""
-        path = urlparse(str(request.url)).path
+        request_url = str(request.url)
+        parsed = urlparse(request_url)
+        path = parsed.path
+
+        def _forward_request() -> Any:
+            do_url = f"https://proxy.internal{DO_ROUTE_PREFIX}{path}"
+            if parsed.query:
+                do_url = f"{do_url}?{parsed.query}"
+            method = str(getattr(request, "method", "GET"))
+            return Request.new(do_url, {"method": method})
+
         if path.startswith("/rooftop_sites/") and path.endswith(("/forecasts", "/estimated_actuals")):
-            return await _coordinator_stub(self.env).fetch(request)
+            return await _coordinator_stub(self.env).fetch(_forward_request())
         if path in ("/rooftop_sites", "/proxy-status", "/proxy_status", "/__scheduled"):
-            return await _coordinator_stub(self.env).fetch(request)
+            return await _coordinator_stub(self.env).fetch(_forward_request())
 
         # Drop all unexpected routes at the edge so they do not consume DO cycles.
         return Response("Not found", status=404)
