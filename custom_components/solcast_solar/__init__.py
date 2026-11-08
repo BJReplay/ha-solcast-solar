@@ -376,7 +376,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         case _:
             pass
 
-    sync_actuals_api_limit_issue(hass, entry.options, solcast.sites)
+    sync_actuals_api_limit_issue(
+        hass,
+        {**entry.options, PROXY_MODE: solcast.proxy_mode},
+        solcast.sites,
+    )
 
     await __get_granular_dampening(hass, entry, solcast)
 
@@ -585,7 +589,11 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     else:
         determination = "Refresh sensors only" + (", with spline recalculate" if recalculate_splines else "")
     _LOGGER.debug("Options updated, action: %s", determination)
-    sync_actuals_api_limit_issue(hass, entry.options, coordinator.solcast.sites)
+    sync_actuals_api_limit_issue(
+        hass,
+        {**entry.options, PROXY_MODE: coordinator.solcast.proxy_mode},
+        coordinator.solcast.sites,
+    )
     if not reload:
         await coordinator.solcast.set_options(entry.options)
         if recalculate_and_refresh:

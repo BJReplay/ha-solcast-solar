@@ -478,6 +478,7 @@ class Updater:
             self._coordinator.solcast.api_forced,
             self._coordinator.solcast.api_limit,
             get_actuals,
+            proxy_mode=self._coordinator.solcast.proxy_mode,
             allow_exceed_api_limit_maximum=self._coordinator.solcast.advanced_options.get(ADVANCED_ALLOW_EXCEED_API_LIMIT_MAXIMUM, False),
         )
 

@@ -43,6 +43,7 @@ FORECAST_KIND = "forecasts"
 ACTUALS_KIND = "estimated_actuals"
 
 _RESOURCE_KINDS = (FORECAST_KIND, ACTUALS_KIND)
+_PERIOD_RE = re.compile(r"PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?")
 
 
 @dataclass
@@ -97,7 +98,7 @@ def _from_iso(value: str | None) -> dt.datetime | None:
     if not value:
         return None
     with suppress(ValueError):
-        return dt.datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(dt.UTC)
+        return dt.datetime.fromisoformat(value).astimezone(dt.UTC)
     return None
 
 
@@ -132,7 +133,7 @@ def _row_start(row: dict[str, Any], end: dt.datetime) -> dt.datetime:
     """Resolve interval starts from Solcast's period-end and ISO time duration."""
     if "period_start" in row:
         return dt.datetime.fromisoformat(row["period_start"]).astimezone(dt.UTC)
-    duration = re.fullmatch(r"PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?", row["period"])
+    duration = _PERIOD_RE.fullmatch(row["period"])
     if duration is None or not any(duration.groups()):
         raise ValueError("Invalid Solcast period")
     hours, minutes, seconds = (float(value or 0) for value in duration.groups())
@@ -141,14 +142,19 @@ def _row_start(row: dict[str, Any], end: dt.datetime) -> dt.datetime:
 
 def _slice_rows(rows: list[dict[str, Any]], kind: str, now: dt.datetime, hours: int) -> list[dict[str, Any]]:
     sliced: list[dict[str, Any]] = []
+    past_window_seconds = -hours * 3600
+    future_window_seconds = hours * 3600
     for row in rows:
         try:
             end = dt.datetime.fromisoformat(row["period_end"]).astimezone(dt.UTC)
+            end_delta_seconds = (end - now).total_seconds()
             if kind == ACTUALS_KIND:
-                include = -hours * 3600 < (end - now).total_seconds() <= 0
+                include = past_window_seconds < end_delta_seconds <= 0
             else:
+                if end_delta_seconds <= 0:
+                    continue
                 start = _row_start(row, end)
-                include = end > now and (start - now).total_seconds() < hours * 3600
+                include = (start - now).total_seconds() < future_window_seconds
         except (KeyError, TypeError, ValueError, OverflowError):
             continue
         if include:
@@ -165,15 +171,14 @@ def _next_retry(now: dt.datetime, attempts: int, backoff_seconds: int) -> dt.dat
 
 def _resource_headers(resource: ResourceState, retry_state: RetryState) -> dict[str, str]:
     retrying = retry_state.active and resource.kind in retry_state.kinds
-    next_retry = _from_iso(retry_state.next_attempt_at) if retrying else None
     upstream_status = retry_state.last_status if retrying else resource.status
     return {
         "x-proxy-consecutive-failures": str(resource.consecutive_failures),
         "x-proxy-give-up": _bool_header(resource.give_up),
-        "x-proxy-last-fetch-at": _iso(_from_iso(resource.fetched_at)),
+        "x-proxy-last-fetch-at": resource.fetched_at or "",
         "x-proxy-last-fetch-status": "retrying" if retrying else resource.attempt_result,
-        "x-proxy-last-success-at": _iso(_from_iso(resource.last_success_at)),
-        "x-proxy-next-attempt-at": _iso(next_retry) if retrying else "",
+        "x-proxy-last-success-at": resource.last_success_at or "",
+        "x-proxy-next-attempt-at": retry_state.next_attempt_at or "" if retrying else "",
         "x-proxy-upstream-status": str(upstream_status),
         "x-proxy-retries-used": str(retry_state.attempts if retrying else resource.retries_used),
         "x-proxy-halted": _bool_header(resource.halted),
@@ -204,8 +209,9 @@ async def _fetch_upstream(env: Any, path: str, query: str = "") -> tuple[int, An
     text = await response.text()
     payload: Any = None
     detail = text if status >= 400 else ""
-    with suppress(json.JSONDecodeError):
-        payload = json.loads(text) if text else None
+    if text and text[0] in "[{":
+        with suppress(json.JSONDecodeError):
+            payload = json.loads(text)
 
     guidance: dict[str, str] = {}
     for key, value in response.headers:
@@ -220,11 +226,17 @@ class ProxyCoordinator(DurableObject):
     """Durable Object: single-writer coordinator for state and retries."""
 
     def __init__(self, state: Any, env: Any) -> None:
+        """Initialize Durable Object runtime bindings for storage and env access."""
         super().__init__(state, env)
         self.state = state
         self.env = env
+        self._state_cache: dict[str, Any] | None = None
 
     async def _load(self) -> dict[str, Any]:
+        cache = getattr(self, "_state_cache", None)
+        if cache is not None:
+            return cache
+
         data = await self.state.storage.get("state")
         if isinstance(data, str):
             data = json.loads(data)
@@ -237,24 +249,41 @@ class ProxyCoordinator(DurableObject):
         data.setdefault("accounts", {})
         data.setdefault("resources", {})
         data.setdefault("retry", asdict(RetryState()))
+        self._state_cache = data
         return data
 
     async def _save(self, data: dict[str, Any]) -> None:
         await self.state.storage.put("state", json.dumps(data))
+        self._state_cache = data
 
-    async def _register_sites(self, data: dict[str, Any], api_key: str, sites: set[str]) -> None:
-        data["accounts"][api_key] = sorted(sites)
+    async def _register_sites(self, data: dict[str, Any], api_key: str, sites: set[str]) -> bool:
+        changed = False
+        sorted_sites = sorted(sites)
+        if data["accounts"].get(api_key) != sorted_sites:
+            data["accounts"][api_key] = sorted_sites
+            changed = True
+
         stale_resources = [rid for rid, raw in data["resources"].items() if raw["api_key"] == api_key and raw["site"] not in sites]
         for rid in stale_resources:
             del data["resources"][rid]
+        if stale_resources:
+            changed = True
+
         for site in sites:
             for kind in _RESOURCE_KINDS:
                 rid = _resource_id(api_key, site, kind)
                 if rid not in data["resources"]:
                     data["resources"][rid] = asdict(ResourceState(api_key=api_key, site=site, kind=kind))
+                    changed = True
+
         if not data["resources"]:
-            data["retry"] = asdict(RetryState())
+            empty_retry = asdict(RetryState())
+            if data["retry"] != empty_retry:
+                data["retry"] = empty_retry
+                changed = True
             await self.state.storage.deleteAlarm()
+
+        return changed
 
     async def _discover(self, api_key: str) -> tuple[int, Any, str]:
         status, payload, detail, _headers = await _fetch_upstream(
@@ -265,24 +294,41 @@ class ProxyCoordinator(DurableObject):
         if status != 200:
             return status, payload, detail
 
-        if (
-            not isinstance(payload, dict)
-            or not isinstance(payload.get("sites"), list)
-            or any(
-                not isinstance(site, dict) or not isinstance(site.get("resource_id"), str) or not site["resource_id"]
-                for site in payload["sites"]
-            )
-        ):
+        if not isinstance(payload, dict):
             return (
                 502,
                 {"error": "Invalid rooftop sites response from upstream"},
                 "Invalid rooftop sites response from upstream",
             )
-        sites = {site["resource_id"] for site in payload["sites"]}
+
+        raw_sites = payload.get("sites")
+        if not isinstance(raw_sites, list):
+            return (
+                502,
+                {"error": "Invalid rooftop sites response from upstream"},
+                "Invalid rooftop sites response from upstream",
+            )
+
+        sites: set[str] = set()
+        for site in raw_sites:
+            if not isinstance(site, dict):
+                return (
+                    502,
+                    {"error": "Invalid rooftop sites response from upstream"},
+                    "Invalid rooftop sites response from upstream",
+                )
+            site_id = site.get("resource_id")
+            if not isinstance(site_id, str) or not site_id:
+                return (
+                    502,
+                    {"error": "Invalid rooftop sites response from upstream"},
+                    "Invalid rooftop sites response from upstream",
+                )
+            sites.add(site_id)
 
         data = await self._load()
-        await self._register_sites(data, api_key, sites)
-        await self._save(data)
+        if await self._register_sites(data, api_key, sites):
+            await self._save(data)
         return status, payload, detail
 
     async def _collect_one(self, resource: ResourceState, hours: int) -> tuple[ResourceState, bool, bool, bool]:
@@ -317,28 +363,31 @@ class ProxyCoordinator(DurableObject):
             resource.attempt_result = "clean_success"
             resource.next_attempt_at = None
             if resource.kind == FORECAST_KIND:
-                ends: list[dt.datetime] = []
+                latest_end: dt.datetime | None = None
                 for row in rows:
                     with suppress(KeyError, TypeError, ValueError):
-                        ends.append(dt.datetime.fromisoformat(row["period_end"]).astimezone(dt.UTC))
-                if ends:
-                    forecast_end = max(ends)
-                    resource.forecast_end = _iso(forecast_end)
-                    resource.hours = max(0, math.ceil((forecast_end - now).total_seconds() / 3600))
+                        end = dt.datetime.fromisoformat(row["period_end"]).astimezone(dt.UTC)
+                        if latest_end is None or end > latest_end:
+                            latest_end = end
+                if latest_end is not None:
+                    resource.forecast_end = _iso(latest_end)
+                    resource.hours = max(0, math.ceil((latest_end - now).total_seconds() / 3600))
                 else:
                     resource.forecast_end = None
                     resource.hours = 0
             else:
-                starts: list[dt.datetime] = []
-                ends: list[dt.datetime] = []
+                earliest_start: dt.datetime | None = None
+                latest_end: dt.datetime | None = None
                 for row in rows:
                     with suppress(KeyError, TypeError, ValueError):
                         end = dt.datetime.fromisoformat(row["period_end"]).astimezone(dt.UTC)
                         start = _row_start(row, end)
-                        starts.append(start)
-                        ends.append(end)
-                if starts and ends:
-                    span = max(ends) - min(starts)
+                        if earliest_start is None or start < earliest_start:
+                            earliest_start = start
+                        if latest_end is None or end > latest_end:
+                            latest_end = end
+                if earliest_start is not None and latest_end is not None:
+                    span = latest_end - earliest_start
                     resource.history_hours = max(0.0, span.total_seconds() / 3600)
                     resource.hours = math.ceil(resource.history_hours)
                 else:
@@ -371,11 +420,14 @@ class ProxyCoordinator(DurableObject):
         retry = RetryState(**data["retry"])
         now = _utc_now()
 
-        resources = [ResourceState(**raw) for raw in data["resources"].values()]
         kinds = set(retry.kinds) if retry.active else set()
         if kind_filter is not None:
             kinds.add(kind_filter)
-        resources = [r for r in resources if r.kind in kinds]
+        resources = [
+            ResourceState(**raw)
+            for raw in data["resources"].values()
+            if raw["kind"] in kinds
+        ]
 
         if not resources:
             return
@@ -507,11 +559,12 @@ class ProxyCoordinator(DurableObject):
             response_payload = {"error": "No scheduled collection has succeeded yet"}
             response_status = 503
         else:
-            payload_copy = json.loads(json.dumps(payload))
-            rows = payload_copy.get(kind, [])
+            rows = payload.get(kind, []) if isinstance(payload, dict) else []
             if isinstance(rows, list):
-                payload_copy[kind] = _slice_rows(rows, kind, now, hours)
-            response_payload = payload_copy
+                response_payload = dict(payload)
+                response_payload[kind] = _slice_rows(rows, kind, now, hours)
+            else:
+                response_payload = payload
             response_status = 200
 
         available_hours = float(resource.hours)
@@ -592,6 +645,7 @@ class ProxyCoordinator(DurableObject):
         return _json_response(body, 200)
 
     async def fetch(self, request: Any) -> Response:
+        """Handle Durable Object API routes and scheduled dispatches."""
         request_url = str(request.url)
         parsed = urlparse(request_url)
         path = parsed.path

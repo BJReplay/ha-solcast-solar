@@ -52,7 +52,7 @@ async def test_storage_round_trip(worker_module: ModuleType) -> None:
     storage.put.assert_awaited_once_with("state", json.dumps(state))
     storage.get.return_value = storage.put.await_args.args[1]
     assert await coordinator._load() == state
-    storage.get.assert_awaited_once_with("state")
+    storage.get.assert_not_awaited()
 
 
 @pytest.mark.parametrize("stored", [None, "{}", {}], ids=["empty", "json", "dict"])
