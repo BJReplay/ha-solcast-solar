@@ -743,7 +743,7 @@ class Default(WorkerEntrypoint):
         # Drop all unexpected routes at the edge so they do not consume DO cycles.
         return Response("Not found", status=404)
 
-    async def scheduled(self, controller: Any, _ctx: Any) -> None:
+    async def scheduled(self, controller: Any, _ctx: Any, *_extra: Any) -> None:
         """Dispatch scheduled cycles to the coordinator DO."""
         cron_value = quote(str(controller.cron), safe="")
         request = Request.new(f"https://proxy.internal/__scheduled?cron={cron_value}", {"method": "POST"})

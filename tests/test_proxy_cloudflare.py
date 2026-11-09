@@ -14,6 +14,7 @@ import pytest
 @pytest.fixture
 def worker_module(monkeypatch: pytest.MonkeyPatch) -> ModuleType:
     """Load the authoritative Worker without requiring the Cloudflare runtime."""
+
     class _Request:
         @staticmethod
         def new(url: str, init: dict[str, str] | None = None) -> SimpleNamespace:
