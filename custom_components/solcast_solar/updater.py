@@ -425,7 +425,11 @@ class Updater:
         """Check if generation fetch was missed and schedule it."""
 
         scheduled = False
-        if self._coordinator.solcast.options.get_actuals:
+        if (
+            self._coordinator.solcast.options.get_actuals
+            and self._coordinator.solcast.options.auto_dampen
+            and bool(self._coordinator.solcast.options.generation_entities)
+        ):
             if not self._coordinator.solcast.estimated_actuals_updated_today:
                 if TASK_NEW_DAY_GENERATION in self._coordinator.tasks:
                     return True

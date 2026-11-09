@@ -401,13 +401,28 @@ async def test_updater_scheduler_catch_up_and_duplicate_guards(
             generation_scheduled = await coordinator.updater.check_generation_fetch()
             estimated_actuals_scheduled = await coordinator.updater.check_estimated_actuals_fetch()
 
-        assert generation_scheduled
+        assert not generation_scheduled
         assert estimated_actuals_scheduled
-        assert TASK_NEW_DAY_GENERATION in coordinator.tasks
+        assert TASK_NEW_DAY_GENERATION not in coordinator.tasks
         assert TASK_NEW_DAY_ACTUALS in coordinator.tasks
-        assert mock_track_point.call_count == 2
-        assert "Generation update window was missed, scheduling at" in caplog.text
+        assert mock_track_point.call_count == 1
         assert "Estimated actuals update window was missed, scheduling at" in caplog.text
+
+        solcast.options.auto_dampen = True
+        solcast.options.generation_entities = ["sensor.pv_generation"]
+        with (
+            unittest.mock.patch("custom_components.solcast_solar.updater.dt") as dt_mock,
+            unittest.mock.patch("custom_components.solcast_solar.updater.randint", return_value=5),
+            unittest.mock.patch(
+                "custom_components.solcast_solar.updater.async_track_point_in_utc_time",
+                return_value=unittest.mock.Mock(),
+            ),
+        ):
+            dt_mock.now.return_value = now_local
+            assert await coordinator.updater.check_generation_fetch()
+
+        assert TASK_NEW_DAY_GENERATION in coordinator.tasks
+        assert "Generation update window was missed, scheduling at" in caplog.text
 
         coordinator.tasks[TASK_NEW_DAY_GENERATION] = unittest.mock.Mock()
         assert await coordinator.updater.check_generation_fetch()
