@@ -24,7 +24,7 @@ import math
 import random
 import re
 from typing import Any
-from urllib.parse import parse_qs, quote, urlencode, urlparse
+from urllib.parse import parse_qs, quote, urlencode
 
 from js import Headers, Request, fetch as js_fetch
 from workers import DurableObject, Response, WorkerEntrypoint
@@ -115,6 +115,20 @@ def _resource_id(api_key: str, site: str, kind: str) -> str:
 
 def _bool_header(value: bool) -> str:
     return "true" if value else "false"
+
+
+def _path_and_query(request_url: str) -> tuple[str, str]:
+    """Extract path and query from an absolute URL."""
+    scheme_sep = request_url.find("://")
+    host_start = scheme_sep + 3 if scheme_sep != -1 else 0
+    path_start = request_url.find("/", host_start)
+    if path_start == -1:
+        return "/", ""
+    path_with_query = request_url[path_start:]
+    path, has_query, query = path_with_query.partition("?")
+    if not has_query:
+        return path, ""
+    return path, query
 
 
 def _discovery_headers(env: Any) -> dict[str, str]:
@@ -523,8 +537,8 @@ class ProxyCoordinator(DurableObject):
         await self._save(data)
 
     async def _resource_response(self, request_url: str, site_id: str, kind: str) -> Response:
-        parsed = urlparse(request_url)
-        qs = parse_qs(parsed.query)
+        _path, query = _path_and_query(request_url)
+        qs = parse_qs(query)
 
         api_key = (qs.get("api_key") or [""])[0]
         if not api_key:
@@ -655,13 +669,12 @@ class ProxyCoordinator(DurableObject):
     async def fetch(self, request: Any) -> Response:
         """Handle Durable Object API routes and scheduled dispatches."""
         request_url = str(request.url)
-        parsed = urlparse(request_url)
-        path = parsed.path
+        path, query = _path_and_query(request_url)
         if path.startswith(f"{DO_ROUTE_PREFIX}/"):
             path = path[len(DO_ROUTE_PREFIX) :]
 
         if path == "/__scheduled":
-            qs = parse_qs(parsed.query)
+            qs = parse_qs(query)
             cron_value = (qs.get("cron") or [""])[0]
             forecast_cron = str(getattr(self.env, "FORECAST_CRON", DEFAULT_FORECAST_CRON))
             actuals_cron = str(getattr(self.env, "ACTUALS_CRON", DEFAULT_ACTUALS_CRON))
@@ -672,7 +685,7 @@ class ProxyCoordinator(DurableObject):
             return Response(None, status=204)
 
         if path == "/rooftop_sites":
-            qs = parse_qs(parsed.query)
+            qs = parse_qs(query)
             headers = _discovery_headers(self.env)
             api_key = (qs.get("api_key") or [""])[0]
             fmt = (qs.get("format") or ["json"])[0]
@@ -725,13 +738,36 @@ class Default(WorkerEntrypoint):
     async def fetch(self, request: Any) -> Response:
         """Route all API traffic through the coordinator DO."""
         request_url = str(request.url)
-        parsed = urlparse(request_url)
-        path = parsed.path
+        path, query = _path_and_query(request_url)
+
+        if path == "/":
+            return Response(
+                None,
+                status=204,
+                headers=[("cache-control", "public, max-age=86400, immutable")],
+            )
+
+        if path == "/robots.txt":
+            return Response(
+                "User-agent: *\nDisallow: /\n",
+                status=200,
+                headers=[
+                    ("content-type", "text/plain; charset=utf-8"),
+                    ("cache-control", "public, max-age=86400, immutable"),
+                ],
+            )
+
+        if path == "/favicon.ico":
+            return Response(
+                None,
+                status=204,
+                headers=[("cache-control", "public, max-age=86400, immutable")],
+            )
 
         def _forward_request() -> Any:
             do_url = f"https://proxy.internal{DO_ROUTE_PREFIX}{path}"
-            if parsed.query:
-                do_url = f"{do_url}?{parsed.query}"
+            if query:
+                do_url = f"{do_url}?{query}"
             method = str(getattr(request, "method", "GET"))
             return Request.new(do_url, {"method": method})
 

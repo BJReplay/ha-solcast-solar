@@ -239,7 +239,7 @@ def test_json_response_includes_headers(worker_module: ModuleType) -> None:
     )
 
 
-@pytest.mark.parametrize("path", ["/", "/robots.txt", "/favicon.ico", "/foo", "/rooftop_sites/test"])
+@pytest.mark.parametrize("path", ["/foo", "/rooftop_sites/test"])
 async def test_default_fetch_drops_unexpected_paths(worker_module: ModuleType, path: str) -> None:
     """Avoid Durable Object forwarding for unexpected paths."""
     worker = object.__new__(worker_module.Default)
@@ -251,6 +251,69 @@ async def test_default_fetch_drops_unexpected_paths(worker_module: ModuleType, p
         result = await worker.fetch(SimpleNamespace(url=f"https://proxy.example{path}"))
     assert result.status == 404
     response.assert_called_once_with("Not found", status=404)
+
+
+async def test_default_fetch_serves_root_at_edge(worker_module: ModuleType) -> None:
+    """Serve root response at edge without forwarding to the Durable Object."""
+    worker = object.__new__(worker_module.Default)
+    worker.env = SimpleNamespace()
+    request = SimpleNamespace(url="https://proxy.example/")
+
+    with (
+        patch.object(worker_module, "_coordinator_stub", side_effect=AssertionError("should not forward")),
+        patch.object(worker_module, "Response", return_value=SimpleNamespace(status=204)) as response,
+    ):
+        result = await worker.fetch(request)
+
+    assert result.status == 204
+    response.assert_called_once_with(
+        None,
+        status=204,
+        headers=[("cache-control", "public, max-age=86400, immutable")],
+    )
+
+
+async def test_default_fetch_serves_robots_txt_at_edge(worker_module: ModuleType) -> None:
+    """Serve robots policy at edge without forwarding to the Durable Object."""
+    worker = object.__new__(worker_module.Default)
+    worker.env = SimpleNamespace()
+    request = SimpleNamespace(url="https://proxy.example/robots.txt")
+
+    with (
+        patch.object(worker_module, "_coordinator_stub", side_effect=AssertionError("should not forward")),
+        patch.object(worker_module, "Response", return_value=SimpleNamespace(status=200)) as response,
+    ):
+        result = await worker.fetch(request)
+
+    assert result.status == 200
+    response.assert_called_once_with(
+        "User-agent: *\nDisallow: /\n",
+        status=200,
+        headers=[
+            ("content-type", "text/plain; charset=utf-8"),
+            ("cache-control", "public, max-age=86400, immutable"),
+        ],
+    )
+
+
+async def test_default_fetch_serves_favicon_at_edge(worker_module: ModuleType) -> None:
+    """Serve favicon response at edge without forwarding to the Durable Object."""
+    worker = object.__new__(worker_module.Default)
+    worker.env = SimpleNamespace()
+    request = SimpleNamespace(url="https://proxy.example/favicon.ico")
+
+    with (
+        patch.object(worker_module, "_coordinator_stub", side_effect=AssertionError("should not forward")),
+        patch.object(worker_module, "Response", return_value=SimpleNamespace(status=204)) as response,
+    ):
+        result = await worker.fetch(request)
+
+    assert result.status == 204
+    response.assert_called_once_with(
+        None,
+        status=204,
+        headers=[("cache-control", "public, max-age=86400, immutable")],
+    )
 
 
 @pytest.mark.parametrize(
