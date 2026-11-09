@@ -41,25 +41,75 @@ The Home Assistant integration depends on these headers and semantics:
 
 This matches the rule: one out, all out; all succeed, happy days.
 
-## Create a Worker project
+## Mac quickstart (deploy to Cloudflare)
+
+The tools used are cross-platform, and install specifics will vary by platform. This is one quickstart approach for Mac.
+
+Set up a Cloudflare free account. Enable compute observability if required.
+
+### 1) Install prerequisites
+
+Install Homebrew if needed:
 
 ```bash
-mkdir -p ~/solcast-proxy-worker
-cd ~/solcast-proxy-worker
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-Copy `proxy_cloudflare.py` into this project root and create `wrangler.toml` from the example below.
+Install Node.js LTS and Git:
 
-## Project files
+```bash
+brew update
+brew install node git
+```
 
-Minimum layout:
+Install Wrangler globally:
 
-- `proxy_cloudflare.py`
-- `wrangler.toml`
+```bash
+npm install --global wrangler
+```
+
+Verify toolchain:
+
+```bash
+node --version
+npm --version
+wrangler --version
+git --version
+```
+
+### 2) Authenticate Wrangler
+
+```bash
+wrangler login
+wrangler whoami
+```
+
+`wrangler login` opens a browser and stores credentials locally.
+
+### 3) Create local project folder
+
+Suggested layout:
+
+```text
+~/src/solcast-proxy-worker/
+  proxy_cloudflare.py
+  wrangler.toml
+```
+
+Create it:
+
+```bash
+mkdir -p ~/src/solcast-proxy-worker
+cd ~/src/solcast-proxy-worker
+```
+
+Create `wrangler.toml` from the example below.
 
 ## wrangler.toml example
 
-Note that the `cron` details are duplicated to allow sharing the proxy schedule with a HA Solcast integration.
+Note that the `cron` details are duplicated to allow sharing the proxy schedule with a HA Solcast integration. Make sure these match.
+
+All cron schedule times are **UTC**.
 
 ```toml
 name = "solcast-proxy"
@@ -69,8 +119,8 @@ compatibility_flags = ["python_workers", "disable_python_external_sdk"]
 
 [triggers]
 crons = [
-  "55 2,7,12,17 * * *",
-  "45 22 * * *"
+  "05 2,7,12,17 * * *",
+  "07 22 * * *"
 ]
 
 [[durable_objects.bindings]]
@@ -84,32 +134,72 @@ new_sqlite_classes = ["ProxyCoordinator"]
 [vars]
 SOLCAST_HOST = "api.solcast.com.au"
 SOLCAST_PORT = "443"
-FORECAST_CRON = "55 2,7,12,17 * * *"
-ACTUALS_CRON = "45 22 * * *"
+FORECAST_CRON = "05 2,7,12,17 * * *"
+ACTUALS_CRON = "07 22 * * *"
 POLL_DELAY_SECONDS = "30"
 MAX_ATTEMPTS = "5"
 RETRY_BACKOFF_SECONDS = "45"
 ```
 
-## Durable Objects and free tier
-
-Durable Objects are available on Workers Free, but only with the SQLite storage backend. This configuration uses `new_sqlite_classes`, not `new_classes`, which selects the legacy key-value backend and is not supported on Workers Free.
-
-- `[[durable_objects.bindings]]` makes the `ProxyCoordinator` namespace available to the Worker as `env.PROXY_COORDINATOR`. The Worker uses one named object, `global`, to coordinate all registered accounts, caches and lock-step retries.
-- `[[migrations]]` declares the initial creation of that class and its storage backend. `tag = "v1"` identifies this first creation; it does not imply that the Worker has previously been deployed. Keep this section for the first deployment and subsequent deployments using this migration history.
-
-See Cloudflare's [Durable Objects pricing](https://developers.cloudflare.com/durable-objects/platform/pricing/) and [class configuration documentation](https://developers.cloudflare.com/durable-objects/reference/durable-objects-migrations/).
-
 ## Deploy
 
+Deploy from the folder containing `wrangler.toml` and `proxy_cloudflare.py`:
+
 ```bash
+cd ~/src/solcast-proxy-worker
 wrangler deploy
 ```
+
+The result will show the proxy URL and other detail.
 
 Optional route binding:
 
 ```bash
 wrangler deploy --route "proxy.example.com/*"
+```
+
+### 4) Verify deployment
+
+After deploy, Wrangler prints the workers.dev URL. Verify basic endpoints:
+
+```bash
+BASE_URL="https://<your-worker>.<subdomain>.workers.dev"
+API_KEY="<your-solcast-api-key>"
+
+curl -sS -D - "$BASE_URL/rooftop_sites?format=json&api_key=$API_KEY" -o /dev/null
+curl -sS "$BASE_URL/proxy-status"
+```
+
+Expected:
+
+- `rooftop_sites` returns HTTP 200 and includes `x-solcast-proxy: true`.
+- `proxy-status` returns JSON with schedule and retry state.
+
+### 5) Update workflow
+
+When changing code or config:
+
+```bash
+cd ~/src/solcast-proxy-worker
+wrangler deploy
+```
+
+Recommended checks after each deploy:
+
+- Call `/proxy-status` and confirm cron strings match your integration settings.
+- Trigger a manual scheduled run if needed:
+
+```bash
+curl -sS -D - --get --data-urlencode 'cron=55 2,7,12,17 * * *' "$BASE_URL/__scheduled" -o /dev/null
+curl -sS -D - --get --data-urlencode 'cron=45 22 * * *' "$BASE_URL/__scheduled" -o /dev/null
+```
+
+- Re-check resource headers for fetch status:
+
+```bash
+SITE_ID="<your-site-id>"
+curl -sS -D - "$BASE_URL/rooftop_sites/$SITE_ID/forecasts?format=json&api_key=$API_KEY&hours=336" -o /dev/null
+curl -sS -D - "$BASE_URL/rooftop_sites/$SITE_ID/estimated_actuals?format=json&api_key=$API_KEY&hours=168" -o /dev/null
 ```
 
 ## Endpoints
@@ -118,6 +208,13 @@ wrangler deploy --route "proxy.example.com/*"
 - `GET /rooftop_sites/<site_id>/forecasts?format=json&api_key=...&hours=...`
 - `GET /rooftop_sites/<site_id>/estimated_actuals?format=json&api_key=...&hours=...`
 - `GET /proxy-status` (alias: `/proxy_status`)
+
+## Durable Objects and free tier
+
+Workers Free requires SQLite-backed Durable Objects. Use `new_sqlite_classes`; do not use `new_classes` (legacy KV backend), which is not supported on Workers Free.
+
+- `[[durable_objects.bindings]]` makes the `ProxyCoordinator` namespace available to the Worker as `env.PROXY_COORDINATOR`. The Worker uses one named object, `global`, to coordinate all registered accounts, caches and retries.
+- `[[migrations]]` declares the initial creation of that class and its storage backend. `tag = "v1"` identifies this first creation; it does not imply that the Worker has previously been deployed. Keep this section for the first deployment and subsequent deployments using this migration history.
 
 ## Security
 
