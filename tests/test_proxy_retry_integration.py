@@ -136,6 +136,7 @@ async def proxy_retry(
         solcast = coordinator.solcast
         await coordinator.tasks_cancel()
         await solcast.tasks_cancel()
+        solcast.proxy_follow_reschedule = None
         await hass.async_block_till_done()
 
         name = "tests.components.solcast_solar._proxy_retry_integration_proxy"

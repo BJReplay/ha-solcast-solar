@@ -10,11 +10,14 @@ from cronsim import CronSim
 from custom_components.solcast_solar.const import (
     ESTIMATED_ACTUALS,
     PROXY_ACTUALS_CRON,
+    PROXY_ACTUALS_TIMES_UTC,
     PROXY_CACHE_STATE,
     PROXY_FORECAST_CRON,
+    PROXY_FORECAST_TIMES_UTC,
     PROXY_MODE,
     PROXY_POLL_DELAY_SECONDS,
     PROXY_SAVED_AUTO_UPDATE,
+    PROXY_SCHEDULE_DAY_UTC,
     SITES,
     TOTAL_RECORDS,
 )
@@ -71,6 +74,55 @@ def test_proxy_datetime_header_unavailable(value: str | None) -> None:
 def test_proxy_cron_next_occurrence(base_time: dt, cron_expression: str, expected: dt | None) -> None:
     """Cron fallback returns the next UTC time or None for invalid expressions."""
     assert Fetcher._next_from_proxy_cron(base_time, cron_expression) == expected
+
+
+@pytest.mark.parametrize(
+    ("base_time", "schedule_day_utc", "slots_utc", "expected"),
+    [
+        pytest.param(dt(2026, 11, 1, 18, 24, tzinfo=UTC), None, ("18:30",), None, id="missing-day"),
+        pytest.param(dt(2026, 11, 1, 18, 24, tzinfo=UTC), "2026-11-01", (), None, id="no-slots"),
+        pytest.param(dt(2026, 11, 1, 18, 24, tzinfo=UTC), "2026-11-01", ("bad",), None, id="invalid-slot"),
+        pytest.param(
+            dt(2026, 11, 1, 18, 24, tzinfo=UTC),
+            "2026-11-01",
+            ("18:24", "18:30"),
+            dt(2026, 11, 1, 18, 30, tzinfo=UTC),
+            id="next-future-slot",
+        ),
+    ],
+)
+def test_proxy_schedule_next_occurrence(
+    base_time: dt,
+    schedule_day_utc: str | None,
+    slots_utc: tuple[str, ...],
+    expected: dt | None,
+) -> None:
+    """Schedule-day fallback returns the next future slot, or None when unavailable."""
+    assert Fetcher._next_from_proxy_schedule(base_time, schedule_day_utc, slots_utc) == expected
+
+
+@pytest.mark.parametrize(
+    ("base_time", "slots_utc", "poll_delay_seconds", "expected"),
+    [
+        pytest.param(dt(2026, 11, 1, 18, 24, tzinfo=UTC), ("18:24", "18:30"), 5, dt(2026, 11, 1, 18, 24, tzinfo=UTC), id="inside-window"),
+        pytest.param(
+            dt(2026, 11, 1, 18, 24, 10, tzinfo=UTC),
+            ("18:24", "18:30"),
+            5,
+            dt(2026, 11, 1, 18, 30, tzinfo=UTC),
+            id="outside-window-next-slot",
+        ),
+        pytest.param(dt(2026, 11, 1, 18, 24, tzinfo=UTC), ("bad",), 5, None, id="invalid-only"),
+    ],
+)
+def test_proxy_schedule_attempt_to_follow(
+    base_time: dt,
+    slots_utc: tuple[str, ...],
+    poll_delay_seconds: int,
+    expected: dt | None,
+) -> None:
+    """Follow attempt prefers latest in-window slot, otherwise the next future slot."""
+    assert Fetcher._attempt_to_follow_from_proxy_schedule(base_time, "2026-11-01", slots_utc, poll_delay_seconds) == expected
 
 
 async def test_missing_proxy_resource_headers(solcast: SolcastApi) -> None:
@@ -234,6 +286,36 @@ async def test_proxy_forecast_cron_persists_once(solcast: SolcastApi, cron: str 
 
 
 @pytest.mark.parametrize(
+    ("cron", "expected", "expected_update_calls"),
+    [
+        pytest.param(" 55 23 * * * ", "55 23 * * *", 0, id="trimmed"),
+        pytest.param("   ", None, 1, id="empty"),
+        pytest.param(None, None, 1, id="removed"),
+    ],
+)
+async def test_proxy_actuals_cron_persists_once(
+    solcast: SolcastApi,
+    cron: str | None,
+    expected: str | None,
+    expected_update_calls: int,
+) -> None:
+    """Persist normalized actuals cron changes without rewriting unchanged state."""
+    assert solcast.entry is not None, "An entry is required for this test"
+    await solcast.async_set_proxy_actuals_cron("55 23 * * *")
+    with patch.object(solcast.hass.config_entries, "async_update_entry", wraps=solcast.hass.config_entries.async_update_entry) as update:
+        await solcast.async_set_proxy_actuals_cron(cron, source="test")
+
+        assert solcast.proxy_actuals_cron == expected
+        assert solcast.entry.options[PROXY_ACTUALS_CRON] == expected
+        assert solcast.entry_options[PROXY_ACTUALS_CRON] == expected
+        assert update.call_count == expected_update_calls
+
+        await solcast.async_set_proxy_actuals_cron(cron, source="test")
+
+        assert update.call_count == expected_update_calls
+
+
+@pytest.mark.parametrize(
     ("headers", "initial_proxy_mode", "expected_mode", "expected_delay", "expected_cron", "expected_actuals_cron"),
     [
         pytest.param(
@@ -304,3 +386,70 @@ async def test_discovery_persists_proxy_headers(
         PROXY_FORECAST_CRON: expected_cron,
         PROXY_ACTUALS_CRON: expected_actuals_cron,
     }
+
+
+async def test_discovery_schedule_headers_persist_proxy_slots(solcast: SolcastApi) -> None:
+    """Discovery schedule headers should persist cleaned slot metadata to cache."""
+    payload = {SITES: solcast.sites, TOTAL_RECORDS: len(solcast.sites)}
+    response = MagicMock(
+        status=200,
+        headers={
+            "x-solcast-proxy": "true",
+            "x-proxy-poll-delay-seconds": "9",
+            "x-proxy-schedule-day-utc": "2026-11-10",
+            "x-proxy-forecast-times-utc": "10:00, invalid,10:00,10:15",
+            "x-proxy-estimated-actuals-times-utc": ["13:13", "bad", "13:13"],
+        },
+    )
+    response.text = AsyncMock(return_value=json.dumps(payload))
+
+    session = MagicMock()
+    session.get = AsyncMock(return_value=response)
+    with patch.object(solcast, "aiohttp_session", session):
+        status, _, _ = await solcast.sites_cache._sites_data(use_cache=False)
+
+    assert status == 200
+    assert solcast.proxy_mode is True
+    assert solcast.proxy_forecast_cron is None
+    assert solcast.proxy_actuals_cron is None
+    assert solcast.proxy_schedule_day_utc == "2026-11-10"
+    assert solcast.proxy_forecast_times_utc == ("10:00", "10:15")
+    assert solcast.proxy_actuals_times_utc == ("13:13",)
+
+    cache_path = solcast.sites_cache._get_sites_cache_filename(solcast.options.api_key)
+    cache = json.loads(Path(cache_path).read_text(encoding="utf-8"))
+    assert cache[PROXY_CACHE_STATE] == {
+        PROXY_MODE: True,
+        PROXY_POLL_DELAY_SECONDS: 9,
+        PROXY_FORECAST_CRON: None,
+        PROXY_ACTUALS_CRON: None,
+        PROXY_SCHEDULE_DAY_UTC: "2026-11-10",
+        PROXY_FORECAST_TIMES_UTC: ["10:00", "10:15"],
+        PROXY_ACTUALS_TIMES_UTC: ["13:13"],
+    }
+
+
+async def test_discovery_schedule_headers_ignore_invalid_slot_types_and_empty_tokens(solcast: SolcastApi) -> None:
+    """Non-list/non-string slot metadata and empty comma tokens are ignored safely."""
+    payload = {SITES: solcast.sites, TOTAL_RECORDS: len(solcast.sites)}
+    response = MagicMock(
+        status=200,
+        headers={
+            "x-solcast-proxy": "true",
+            "x-proxy-poll-delay-seconds": "9",
+            "x-proxy-schedule-day-utc": "2026-11-10",
+            "x-proxy-forecast-times-utc": 123,
+            "x-proxy-estimated-actuals-times-utc": "13:13, ,13:13",
+        },
+    )
+    response.text = AsyncMock(return_value=json.dumps(payload))
+
+    session = MagicMock()
+    session.get = AsyncMock(return_value=response)
+    with patch.object(solcast, "aiohttp_session", session):
+        status, _, _ = await solcast.sites_cache._sites_data(use_cache=False)
+
+    assert status == 200
+    assert solcast.proxy_schedule_day_utc == "2026-11-10"
+    assert solcast.proxy_forecast_times_utc == ()
+    assert solcast.proxy_actuals_times_utc == ("13:13",)

@@ -137,6 +137,59 @@ def test_next_from_proxy_cron(cron_expression: str, base_time: dt, expected: dt)
 
 
 @pytest.mark.parametrize(
+    ("base_time", "schedule_day_utc", "slots_utc", "expected"),
+    [
+        pytest.param(dt(2026, 11, 1, 18, 24, tzinfo=UTC), None, ("18:30",), None, id="missing-day"),
+        pytest.param(dt(2026, 11, 1, 18, 24, tzinfo=UTC), "2026-11-01", (), None, id="no-slots"),
+        pytest.param(dt(2026, 11, 1, 18, 24, tzinfo=UTC), "2026-11-01", ("bad",), None, id="invalid-slot"),
+        pytest.param(
+            dt(2026, 11, 1, 18, 24, tzinfo=UTC),
+            "2026-11-01",
+            ("18:24", "18:30"),
+            dt(2026, 11, 1, 18, 30, tzinfo=UTC),
+            id="next-future-slot",
+        ),
+    ],
+)
+def test_next_from_proxy_schedule(
+    base_time: dt,
+    schedule_day_utc: str | None,
+    slots_utc: tuple[str, ...],
+    expected: dt | None,
+) -> None:
+    """Schedule fallback returns next future slot and tolerates missing/invalid metadata."""
+    updater, _ = _make_updater(proxy_mode=True)
+
+    assert updater._next_from_proxy_schedule(base_time, schedule_day_utc, slots_utc) == expected
+
+
+@pytest.mark.parametrize(
+    ("base_time", "slots_utc", "poll_delay_seconds", "expected"),
+    [
+        pytest.param(dt(2026, 11, 1, 18, 24, tzinfo=UTC), ("18:24", "18:30"), 5, dt(2026, 11, 1, 18, 24, tzinfo=UTC), id="inside-window"),
+        pytest.param(
+            dt(2026, 11, 1, 18, 24, 10, tzinfo=UTC),
+            ("18:24", "18:30"),
+            5,
+            dt(2026, 11, 1, 18, 30, tzinfo=UTC),
+            id="outside-window-next-slot",
+        ),
+        pytest.param(dt(2026, 11, 1, 18, 24, tzinfo=UTC), ("bad",), 5, None, id="invalid-only"),
+    ],
+)
+def test_attempt_to_follow_from_proxy_schedule(
+    base_time: dt,
+    slots_utc: tuple[str, ...],
+    poll_delay_seconds: int,
+    expected: dt | None,
+) -> None:
+    """Attempt-to-follow returns latest in-window slot, else next slot."""
+    updater, _ = _make_updater(proxy_mode=True)
+
+    assert updater._attempt_to_follow_from_proxy_schedule(base_time, "2026-11-01", slots_utc, poll_delay_seconds) == expected
+
+
+@pytest.mark.parametrize(
     "cron_expression",
     [
         pytest.param("", id="empty"),
@@ -270,6 +323,36 @@ async def test_proxy_actuals_validation_runs_when_today_already_updated(
     errors = [record for record in caplog.records if record.levelname == "ERROR"]
     assert len(errors) == 1
     assert "estimated actuals schedule" in errors[0].getMessage()
+
+
+async def test_proxy_forecast_schedule_slots_derive_next_attempt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Proxy schedule slots should derive next attempt when retry timestamp is absent."""
+    updater, fake_track = _make_updater(proxy_mode=True)
+    monkeypatch.setattr("custom_components.solcast_solar.updater.async_track_point_in_utc_time", fake_track)
+    solcast = updater._coordinator.solcast
+    solcast.proxy_schedule_day_utc = "2026-11-01"
+    solcast.proxy_forecast_times_utc = ("18:24", "18:30")
+    solcast.proxy_next_attempt_at = None
+
+    await updater.check_forecast_fetch()
+
+    assert solcast.proxy_next_attempt_at == dt(2026, 11, 1, 18, 24, tzinfo=UTC)
+    assert updater._test_scheduled[0][1] == dt(2026, 11, 1, 18, 24, 5, tzinfo=UTC)
+
+
+async def test_proxy_actuals_validation_skipped_when_slots_present(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Explicit proxy actuals slots should skip cron suitability validation."""
+    updater, _ = _make_updater(proxy_mode=True, proxy_actuals_cron="55 23 * * *")
+    monkeypatch.setattr("custom_components.solcast_solar.updater.sync_actuals_quota_risk_issue", lambda *args, **kwargs: None)
+    solcast = updater._coordinator.solcast
+    solcast.proxy_actuals_times_utc = ("13:13",)
+    solcast.options.get_actuals = True
+    solcast.estimated_actuals_updated_today = True
+
+    assert await updater.check_estimated_actuals_fetch() is False
+    assert "Skipping proxy actuals cron validation" in caplog.text
 
 
 @pytest.mark.parametrize(
