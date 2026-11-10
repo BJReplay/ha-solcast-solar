@@ -4,7 +4,6 @@
 .vscode
 .vs
 .wrangler
-wrangler.toml
 py.typed
 Thumbs.db
 __pycache__

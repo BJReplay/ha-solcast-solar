@@ -1,0 +1,27 @@
+name = "solcast-proxy"
+main = "proxy_cloudflare.py"
+compatibility_date = "2026-11-05"
+compatibility_flags = ["python_workers", "disable_python_external_sdk"]
+
+[triggers]
+crons = [
+	"*/5 * * * *",
+	"05 14 * * *"
+]
+
+[[durable_objects.bindings]]
+name = "PROXY_COORDINATOR"
+class_name = "ProxyCoordinator"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ProxyCoordinator"]
+
+[vars]
+SOLCAST_HOST = "localhost"
+SOLCAST_PORT = "8443"
+FORECAST_CRON = "*/5 * * * *"
+ACTUALS_CRON = "05 14 * * *"
+POLL_DELAY_SECONDS = "5"
+MAX_ATTEMPTS = "5"
+RETRY_BACKOFF_SECONDS = "45"
