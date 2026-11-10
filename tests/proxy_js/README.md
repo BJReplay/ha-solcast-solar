@@ -143,3 +143,12 @@ For storage continuity keep Worker and DO migration lineage consistent.
   - Start `wsgi_sim.py` first, then `run_proxy_js.py`.
 - `not_fetched` responses:
   - Check `/proxy-status` and launcher logs (`[local-cron:info]`) to ensure scheduler is dispatching.
+
+## Prerequisites
+
+- Local launcher needs: Python 3.14+, Node.js 20+, `wrangler`, and `lsof`.
+- Quick install (Debian/Ubuntu): `sudo apt install -y lsof nodejs npm && npm install -g wrangler`.
+- Quick install (macOS/Homebrew): `brew install lsof node && npm install -g wrangler`.
+- Verify tools: `python --version && node --version && npm --version && wrangler --version && lsof -v | head -n 1`.
+- Optional for cloud deploy only: `wrangler login`.
+- Windows: `run_proxy_js.py` is Linux/dev-container oriented (`/proc` + `lsof`); use WSL/dev-container, or run Wrangler manually.
