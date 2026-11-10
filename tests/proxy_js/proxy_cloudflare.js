@@ -23,6 +23,7 @@ const FORECAST_REQUEST_HOURS = 336;
 const ACTUALS_REQUEST_HOURS = 168;
 const DEFAULT_MAX_ATTEMPTS = 5;
 const DEFAULT_RETRY_BACKOFF_SECONDS = 45;
+const DEFAULT_ENABLE_ESTIMATED_ACTUALS = "false";
 const RETRY_JITTER_MAX_SECONDS = 14;
 const PERIOD_RE = /^PT(?:(\d+(?:\.\d+)?)H)?(?:(\d+(?:\.\d+)?)M)?(?:(\d+(?:\.\d+)?)S)?$/;
 
@@ -63,6 +64,20 @@ function stdDev(values) {
 function parseNumber(value, fallback) {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
+}
+
+function parseBool(value, fallback = false) {
+    if (value === undefined || value === null) {
+        return fallback;
+    }
+    const normalized = String(value).trim().toLowerCase();
+    if (["1", "true", "yes", "on"].includes(normalized)) {
+        return true;
+    }
+    if (["0", "false", "no", "off"].includes(normalized)) {
+        return false;
+    }
+    return fallback;
 }
 
 function parseCronList(value, fallback) {
@@ -690,6 +705,10 @@ function buildForecastTimes(dayUtc, env) {
 }
 
 function buildActualsTimes(dayUtc, env) {
+    if (!parseBool(env.ENABLE_ESTIMATED_ACTUALS, parseBool(DEFAULT_ENABLE_ESTIMATED_ACTUALS, false))) {
+        return [];
+    }
+
     const mode = String(env.SCHEDULE_MODE || DEFAULT_MODE).toLowerCase();
     const exceptions = parseExceptions(env.SCHEDULE_EXCEPTIONS_UTC);
 
@@ -724,6 +743,7 @@ function scheduleConfigKey(env) {
         longitude: String(env.LONGITUDE || ""),
         timezone: String(env.TIMEZONE || DEFAULT_TIMEZONE),
         actualsDelay: String(env.ACTUALS_DELAY || DEFAULT_ACTUALS_DELAY_MINUTES),
+        enableEstimatedActuals: String(env.ENABLE_ESTIMATED_ACTUALS || DEFAULT_ENABLE_ESTIMATED_ACTUALS),
     });
 }
 
@@ -827,6 +847,7 @@ function scheduleHeaders(env, schedule, advice) {
         "x-proxy-observed-tick-second-p90": advice.observedSecondP90 === null ? "" : String(advice.observedSecondP90),
         "x-proxy-forecast-cron": BASE_TICK_CRON,
         "x-proxy-estimated-actuals-cron": BASE_TICK_CRON,
+        "x-proxy-estimated-actuals-enabled": boolHeader(parseBool(env.ENABLE_ESTIMATED_ACTUALS, parseBool(DEFAULT_ENABLE_ESTIMATED_ACTUALS, false))),
         "x-proxy-forecast-mode": String(schedule.mode || DEFAULT_MODE),
         "x-proxy-schedule-day-utc": String(schedule.dayUtc || ""),
         "x-proxy-forecast-times-utc": (schedule.forecastTimesUtc || []).join(","),
@@ -1526,6 +1547,7 @@ export class ProxyCoordinator {
                 rate_limited_by_upstream: Boolean(retryState.active && Number(retryState.last_status || 0) === 429),
                 poll_delay_seconds: pollDelaySeconds,
                 configured_poll_delay_seconds: configuredPollDelaySeconds,
+                estimated_actuals_enabled: parseBool(this.env.ENABLE_ESTIMATED_ACTUALS, parseBool(DEFAULT_ENABLE_ESTIMATED_ACTUALS, false)),
             },
             schedule: publicSchedule,
             polling_advice: {

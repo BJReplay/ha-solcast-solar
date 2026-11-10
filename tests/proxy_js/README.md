@@ -20,7 +20,7 @@ This folder contains the JavaScript Cloudflare Worker + Durable Object proxy for
   - `all_day`
 - Daily schedule rebuild at UTC midnight.
 - Discovery-backed site registration and stale-site cleanup.
-- Forecast and estimated-actuals collection cached per site/account.
+- Forecast collection is always scheduled; estimated-actuals collection is optional and disabled by default.
 - Retry model is lock-step: one retryable failure puts participating resources into coordinated retry.
 - While retry is active, scheduled tick collection is suppressed and retries are handled by the Durable Object alarm.
 
@@ -30,6 +30,7 @@ This folder contains the JavaScript Cloudflare Worker + Durable Object proxy for
 - `FORECAST_CRONS`, `ACTUALS_CRONS`: semicolon-separated cron list (used in `cron` mode).
 - `UPDATE_DIVISIONS`: number of forecast slots for `daylight`/`all_day`.
 - `SCHEDULE_EXCEPTIONS_UTC`: JSON array or CSV of UTC exceptions.
+- `ENABLE_ESTIMATED_ACTUALS`: `true`/`false` toggle for scheduled estimated-actuals fetching (default: `false`).
 - `LATITUDE`, `LONGITUDE`, `TIMEZONE`: required for `daylight`/`all_day`.
 - `ACTUALS_DELAY`: minutes after local midnight baseline for actuals in `daylight`/`all_day`.
 - `POLL_DELAY_SECONDS`: fixed follow delay in `cron` mode; configured/default reference for adaptive modes.
@@ -44,6 +45,64 @@ This folder contains the JavaScript Cloudflare Worker + Durable Object proxy for
 - `GET /rooftop_sites/<site_id>/estimated_actuals?format=json&api_key=...&hours=...`
 - `GET /proxy-status` (alias `/proxy_status`)
 - `POST /__scheduled` (internal/manual scheduler entrypoint)
+
+## Example `wrangler.toml`
+
+```toml
+name = "solcast-proxy-js"
+main = "proxy_cloudflare.js"
+compatibility_date = "2026-11-10"
+
+[triggers]
+crons = ["* * * * *"]
+
+[[durable_objects.bindings]]
+name = "PROXY_COORDINATOR"
+class_name = "ProxyCoordinator"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ProxyCoordinator"]
+
+[vars]
+# Schedule modes: cron | daylight | all_day
+SCHEDULE_MODE = "all_day"
+
+# cron mode supports one or more cron expressions separated by semicolons (free tier has a number of crons limit)
+#FORECAST_CRONS = "30 11,0,1,2,3,4 * * *"
+#ACTUALS_CRONS = "05 14 * * *"
+
+# daylight/all_day mode: number of spread updates per day
+UPDATE_DIVISIONS = "9"
+
+# Exceptions: JSON array or comma-separated list of HH:MM or full ISO timestamps in UTC
+SCHEDULE_EXCEPTIONS_UTC = "[]"
+
+# Required for daylight and all_day modes
+LATITUDE = "-33.856784"
+LONGITUDE = "151.215297"
+TIMEZONE = "Australia/Sydney"
+
+# Enable estimated actuals collection/scheduling.
+# Default is off; set true to collect /estimated_actuals on schedule.
+ENABLE_ESTIMATED_ACTUALS = "true"
+
+# Minutes after local midnight for estimated actuals collection when using daylight/all_day mode.
+# Proxy also adds a daily randomized +1..14 minute (and seconds) offset to mirror integration behavior.
+ACTUALS_DELAY = "0"
+
+# Poll delay behavior:
+# - cron mode: fixed POLL_DELAY_SECONDS used as-is.
+# - daylight/all_day: adaptive delay is advertised from observed tick timing; this value is kept as configured/default reference.
+#POLL_DELAY_SECONDS = "30"
+POLL_DELAY_MIN_SECONDS = "15"
+MAX_ATTEMPTS = "5"
+RETRY_BACKOFF_SECONDS = "45"
+
+[observability.logs]
+enabled = true
+invocation_logs = true
+```
 
 ## Local simulator workflow
 
@@ -126,6 +185,9 @@ curl -sS -D - "$BASE_URL/rooftop_sites?format=json&api_key=$API_KEY" -o /dev/nul
 - `x-proxy-poll-delay-seconds` behavior:
   - `cron` mode: fixed from `POLL_DELAY_SECONDS`.
   - `daylight`/`all_day`: adaptive from observed tick timing, floored by `POLL_DELAY_MIN_SECONDS`.
+- Estimated actuals schedule behavior:
+  - `ENABLE_ESTIMATED_ACTUALS=false` (default): no estimated-actuals slots are scheduled.
+  - `ENABLE_ESTIMATED_ACTUALS=true`: estimated-actuals slots are scheduled per mode (`ACTUALS_CRONS` or `ACTUALS_DELAY`).
 
 ## Durable Object storage notes
 

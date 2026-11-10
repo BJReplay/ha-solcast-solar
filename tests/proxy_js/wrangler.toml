@@ -22,7 +22,7 @@ SCHEDULE_MODE = "all_day"
 #ACTUALS_CRONS = "05 14 * * *"
 
 # daylight/all_day mode: number of spread updates per day
-UPDATE_DIVISIONS = "800"
+UPDATE_DIVISIONS = "9"
 
 # Exceptions: JSON array or comma-separated list of HH:MM or full ISO timestamps in UTC
 SCHEDULE_EXCEPTIONS_UTC = "[]"
@@ -31,6 +31,10 @@ SCHEDULE_EXCEPTIONS_UTC = "[]"
 LATITUDE = "-33.856784"
 LONGITUDE = "151.215297"
 TIMEZONE = "Australia/Sydney"
+
+# Enable estimated actuals collection/scheduling.
+# Default is off; set true to collect /estimated_actuals on schedule.
+ENABLE_ESTIMATED_ACTUALS = "true"
 
 # Minutes after local midnight for estimated actuals collection when using daylight/all_day mode.
 # Proxy also adds a daily randomized +1..14 minute (and seconds) offset to mirror integration behavior.
