@@ -134,6 +134,49 @@ async def test_forecast_headers_fallback_to_cron_when_retry_time_missing(solcast
     assert solcast.proxy_next_attempt_at == expected_next
 
 
+async def test_forecast_headers_trigger_immediate_proxy_follow_reschedule(solcast: SolcastApi) -> None:
+    """Forecast headers should immediately trigger proxy follow rescheduling."""
+    callback = AsyncMock()
+    solcast.proxy_follow_reschedule = callback
+
+    assert (
+        await solcast.fetcher._apply_proxy_resource_headers(
+            {
+                "x-proxy-upstream-status": "200",
+                "x-proxy-next-attempt-at": "2026-11-01T09:10:00+00:00",
+                "x-proxy-halted": "false",
+                "x-proxy-fetch-in-progress": "false",
+                "x-proxy-last-fetch-status": "clean_success",
+            }
+        )
+        is True
+    )
+
+    callback.assert_awaited_once()
+
+
+async def test_actuals_headers_do_not_trigger_proxy_follow_reschedule(solcast: SolcastApi) -> None:
+    """Estimated-actuals headers must not trigger forecast follow rescheduling."""
+    callback = AsyncMock()
+    solcast.proxy_follow_reschedule = callback
+
+    assert (
+        await solcast.fetcher._apply_proxy_resource_headers(
+            {
+                "x-proxy-upstream-status": "200",
+                "x-proxy-next-attempt-at": "2026-11-01T09:10:00+00:00",
+                "x-proxy-halted": "false",
+                "x-proxy-fetch-in-progress": "false",
+                "x-proxy-last-fetch-status": "clean_success",
+            },
+            path=ESTIMATED_ACTUALS,
+        )
+        is True
+    )
+
+    callback.assert_not_awaited()
+
+
 async def test_proxy_mode_without_config_entry(solcast: SolcastApi) -> None:
     """Proxy detection still updates runtime state when there is no config entry."""
     entry = solcast.entry

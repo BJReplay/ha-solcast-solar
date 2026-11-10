@@ -2,6 +2,7 @@
 
 import asyncio
 from collections import OrderedDict, defaultdict
+from collections.abc import Awaitable, Callable
 import contextlib
 import copy
 from dataclasses import dataclass
@@ -311,11 +312,15 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.proxy_poll_delay_seconds: int = int(self.entry_options.get(PROXY_POLL_DELAY_SECONDS, 5))
         self.proxy_forecast_cron: str | None = self.entry_options.get(PROXY_FORECAST_CRON)
         self.proxy_actuals_cron: str | None = self.entry_options.get(PROXY_ACTUALS_CRON)
+        self.proxy_schedule_day_utc: str | None = None
+        self.proxy_forecast_times_utc: tuple[str, ...] = ()
+        self.proxy_actuals_times_utc: tuple[str, ...] = ()
         self.proxy_next_attempt_at: dt | None = None
         self.proxy_halted: bool = False
         self.proxy_fetch_in_progress: bool = False
         self.proxy_last_fetch_status: str | None = None
         self.proxy_upstream_status: int | None = None
+        self.proxy_follow_reschedule: Callable[[], Awaitable[None]] | None = None
 
         # Private attributes.
         self._sites_actual_hard_limit: defaultdict[str, Any] = defaultdict(dict)

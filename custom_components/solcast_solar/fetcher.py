@@ -184,6 +184,45 @@ class Fetcher:
         except (CronSimError, StopIteration):
             return None
 
+    @staticmethod
+    def _next_from_proxy_schedule(base_time: dt, schedule_day_utc: str | None, slots_utc: tuple[str, ...]) -> dt | None:
+        """Return next UTC occurrence from proxy schedule-day and HH:MM slots."""
+        if not schedule_day_utc or not slots_utc:
+            return None
+        base_utc = base_time.astimezone(UTC)
+        for slot in slots_utc:
+            with contextlib.suppress(ValueError, TypeError):
+                slot_dt = dt.fromisoformat(f"{schedule_day_utc}T{slot}:00+00:00").astimezone(UTC)
+                if slot_dt > base_utc:
+                    return slot_dt
+        return None
+
+    @staticmethod
+    def _attempt_to_follow_from_proxy_schedule(
+        base_time: dt,
+        schedule_day_utc: str | None,
+        slots_utc: tuple[str, ...],
+        poll_delay_seconds: int,
+    ) -> dt | None:
+        """Return the proxy attempt to follow: latest slot still inside delay window, else next slot."""
+        if not schedule_day_utc or not slots_utc:
+            return None
+        base_utc = base_time.astimezone(UTC)
+        latest_slot: dt | None = None
+        next_slot: dt | None = None
+        for slot in slots_utc:
+            with contextlib.suppress(ValueError, TypeError):
+                slot_dt = dt.fromisoformat(f"{schedule_day_utc}T{slot}:00+00:00").astimezone(UTC)
+                if slot_dt <= base_utc:
+                    latest_slot = slot_dt
+                    continue
+                next_slot = slot_dt
+                break
+
+        if latest_slot is not None and latest_slot + timedelta(seconds=max(1, poll_delay_seconds)) > base_utc:
+            return latest_slot
+        return next_slot
+
     async def _apply_proxy_resource_headers(self, headers: Any, path: str = FORECASTS) -> bool:
         """Update runtime state from proxy resource headers when present."""
         if headers is None:
@@ -206,15 +245,21 @@ class Fetcher:
         self.api.proxy_next_attempt_at = self._header_as_dt(headers.get("x-proxy-next-attempt-at"))
         if (
             self.api.proxy_next_attempt_at is None
-            and self.api.proxy_forecast_cron
             and not self.api.proxy_halted
             and not self.api.proxy_fetch_in_progress
             and self.api.proxy_last_fetch_status != "retrying"
         ):
-            self.api.proxy_next_attempt_at = self._next_from_proxy_cron(
+            self.api.proxy_next_attempt_at = self._attempt_to_follow_from_proxy_schedule(
                 self.api.dt_helper.real_now_utc(),
-                self.api.proxy_forecast_cron,
+                self.api.proxy_schedule_day_utc,
+                self.api.proxy_forecast_times_utc,
+                self.api.proxy_poll_delay_seconds,
             )
+            if self.api.proxy_next_attempt_at is None and self.api.proxy_forecast_cron:
+                self.api.proxy_next_attempt_at = self._next_from_proxy_cron(
+                    self.api.dt_helper.real_now_utc(),
+                    self.api.proxy_forecast_cron,
+                )
         _LOGGER.debug(
             "Proxy forecast collection: status=%s, next attempt=%s, in progress=%s, halted=%s",
             self.api.proxy_last_fetch_status,
@@ -222,6 +267,8 @@ class Fetcher:
             self.api.proxy_fetch_in_progress,
             self.api.proxy_halted,
         )
+        if self.api.proxy_follow_reschedule is not None:
+            await self.api.proxy_follow_reschedule()
         return True
 
     async def build_forecast_and_actuals(self, raise_exc=False) -> bool:

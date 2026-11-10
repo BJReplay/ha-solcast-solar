@@ -86,6 +86,7 @@ class Updater:
     async def setup(self) -> None:
         """Set up auto-update scheduling."""
 
+        self._coordinator.solcast.proxy_follow_reschedule = self._check_proxy_forecast_fetch
         self.update_setup(init=True)
         await self.check_forecast_fetch()
 
@@ -275,6 +276,45 @@ class Updater:
         except (CronSimError, StopIteration):
             return None
 
+    @staticmethod
+    def _next_from_proxy_schedule(base_time: dt, schedule_day_utc: str | None, slots_utc: tuple[str, ...]) -> dt | None:
+        """Return next UTC occurrence from proxy schedule-day and HH:MM slots."""
+        if not schedule_day_utc or not slots_utc:
+            return None
+        base_utc = base_time.astimezone(dt_util.UTC)
+        for slot in slots_utc:
+            with contextlib.suppress(ValueError, TypeError):
+                slot_dt = dt.fromisoformat(f"{schedule_day_utc}T{slot}:00+00:00").astimezone(dt_util.UTC)
+                if slot_dt > base_utc:
+                    return slot_dt
+        return None
+
+    @staticmethod
+    def _attempt_to_follow_from_proxy_schedule(
+        base_time: dt,
+        schedule_day_utc: str | None,
+        slots_utc: tuple[str, ...],
+        poll_delay_seconds: int,
+    ) -> dt | None:
+        """Return the proxy attempt to follow: latest slot still inside delay window, else next slot."""
+        if not schedule_day_utc or not slots_utc:
+            return None
+        base_utc = base_time.astimezone(dt_util.UTC)
+        latest_slot: dt | None = None
+        next_slot: dt | None = None
+        for slot in slots_utc:
+            with contextlib.suppress(ValueError, TypeError):
+                slot_dt = dt.fromisoformat(f"{schedule_day_utc}T{slot}:00+00:00").astimezone(dt_util.UTC)
+                if slot_dt <= base_utc:
+                    latest_slot = slot_dt
+                    continue
+                next_slot = slot_dt
+                break
+
+        if latest_slot is not None and latest_slot + timedelta(seconds=max(1, poll_delay_seconds)) > base_utc:
+            return latest_slot
+        return next_slot
+
     async def _check_proxy_forecast_fetch(self) -> None:
         """Check for and schedule a proxy-follow forecast update event."""
         if self._coordinator.solcast.proxy_halted:
@@ -287,6 +327,21 @@ class Updater:
             return
 
         next_attempt = self._coordinator.solcast.proxy_next_attempt_at
+        if next_attempt is None:
+            derived_next = self._attempt_to_follow_from_proxy_schedule(
+                self._coordinator.solcast.dt_helper.real_now_utc(),
+                self._coordinator.solcast.proxy_schedule_day_utc,
+                self._coordinator.solcast.proxy_forecast_times_utc,
+                self._coordinator.solcast.proxy_poll_delay_seconds,
+            )
+            if derived_next is not None:
+                self._coordinator.solcast.proxy_next_attempt_at = derived_next
+                next_attempt = derived_next
+                _LOGGER.debug(
+                    "Derived next proxy forecast collection from schedule %s: %s",
+                    self._coordinator.solcast.proxy_schedule_day_utc,
+                    derived_next.strftime(DT_DATE_FORMAT),
+                )
         if next_attempt is None and self._coordinator.solcast.proxy_forecast_cron is not None:
             derived_next = self._next_from_proxy_cron(
                 self._coordinator.solcast.dt_helper.real_now_utc(),
@@ -584,6 +639,12 @@ class Updater:
 
         solcast = self._coordinator.solcast
         if not solcast.proxy_mode or solcast.proxy_actuals_cron is None:
+            return
+        if solcast.proxy_actuals_times_utc:
+            _LOGGER.debug(
+                "Skipping proxy actuals cron validation; proxy provides explicit schedule slots (%s)",
+                ", ".join(solcast.proxy_actuals_times_utc),
+            )
             return
         if self._proxy_actuals_cron_checked == solcast.proxy_actuals_cron:
             return
