@@ -12,7 +12,7 @@ This folder contains the JavaScript Cloudflare Worker + Durable Object proxy for
   - Coordinator computes due forecast/actual slots from schedule mode.
   - Retries are alarm-driven, not cron-driven.
 
-## Behavior
+## Behaviour
 
 - Schedule modes:
   - `cron`
@@ -88,10 +88,10 @@ TIMEZONE = "Australia/Sydney"
 ENABLE_ESTIMATED_ACTUALS = "true"
 
 # Minutes after local midnight for estimated actuals collection when using daylight/all_day mode.
-# Proxy also adds a daily randomized +1..14 minute (and seconds) offset to mirror integration behavior.
+# Proxy also adds a daily randomized +1..14 minute (and seconds) offset to mirror integration behaviour.
 ACTUALS_DELAY = "0"
 
-# Poll delay behavior:
+# Poll delay behaviour:
 # - cron mode: fixed POLL_DELAY_SECONDS used as-is.
 # - daylight/all_day: adaptive delay is advertised from observed tick timing; this value is kept as configured/default reference.
 #POLL_DELAY_SECONDS = "30"
@@ -106,7 +106,7 @@ invocation_logs = true
 
 ## Deployment
 
-Once the worker is deployed it will take approxmately five minutes for the per-minute cron schedule to begin firing. With worker observability logs enabled the first every-minute `* * * * *` will eventually show up, and it is at this point that things like schedules are created for all-day and daylight scheduling options. The integration should not be configured to use the proxy until this first cron execution has occurred.
+Once the worker is deployed it will take approximately five minutes for the per-minute cron schedule to begin firing. With worker observability logs enabled the first every-minute `* * * * *` will eventually show up, and it is at this point that things like schedules are created for all-day and daylight scheduling options. The integration should not be configured to use the proxy until this first cron execution has occurred.
 
 ## Local simulator workflow
 
@@ -186,10 +186,10 @@ curl -sS -D - "$BASE_URL/rooftop_sites?format=json&api_key=$API_KEY" -o /dev/nul
 ## Home Assistant integration notes
 
 - For local dev (`https://127.0.0.1:9443`), Wrangler uses a development certificate; set integration `ssl_verify` to `false` unless that cert is explicitly trusted, which it won't be.
-- `x-proxy-poll-delay-seconds` behavior:
+- `x-proxy-poll-delay-seconds` behaviour:
   - `cron` mode: fixed from `POLL_DELAY_SECONDS`.
   - `daylight`/`all_day`: adaptive from observed tick timing, floored by `POLL_DELAY_MIN_SECONDS`.
-- Estimated actuals schedule behavior:
+- Estimated actuals schedule behaviour:
   - `ENABLE_ESTIMATED_ACTUALS=false` (default): no estimated-actuals slots are scheduled.
   - `ENABLE_ESTIMATED_ACTUALS=true`: estimated-actuals slots are scheduled per mode (`ACTUALS_CRONS` or `ACTUALS_DELAY`).
 
@@ -218,3 +218,76 @@ For storage continuity keep Worker and DO migration lineage consistent.
 - Verify tools: `python --version && node --version && npm --version && wrangler --version && lsof -v | head -n 1`.
 - Optional for cloud deploy only: `wrangler login`.
 - Windows: `run_proxy_js.py` is Linux/dev-container oriented (`/proc` + `lsof`); use WSL/dev-container, or run Wrangler manually.
+
+## Response headers issued
+
+The Home Assistant integration reacts to a small, explicit subset of proxy response headers.
+
+### Discovery and scheduling headers
+
+These are emitted on `/rooftop_sites` discovery responses and tell the integration how to follow the proxy schedule. They are mode-specific, and the useful set depends on whether the proxy is running in cron mode or daylight/all_day mode.
+
+#### Shared discovery headers
+
+These are always relevant regardless of schedule mode.
+
+- `x-solcast-proxy: true` — discovery marker identifying the response as coming from a Solcast-compatible proxy.
+- `x-proxy-name` / `x-proxy-version` — human-readable proxy identity and version metadata.
+- `x-proxy-status-url` — status endpoint that can be used to inspect runtime health and scheduler state.
+- `x-proxy-timezone` — schedule timezone; the integration expects UTC.
+- `x-proxy-forecast-mode` — current forecast mode (`cron`, `daylight`, or `all_day`).
+- `x-proxy-estimated-actuals-enabled: true|false` — whether scheduled estimated-actuals collection is active.
+
+#### Cron mode headers
+
+These are the headers that matter when the proxy is following a cron-driven forecast schedule.
+
+- `x-proxy-forecast-cron` / `x-proxy-estimated-actuals-cron` — cron expressions the integration should use for scheduled follow-up.
+- `x-proxy-poll-delay-seconds` — fixed per-collection follow delay used by the integration while polling a cron schedule.
+
+#### Daylight and all_day mode headers
+
+These are the headers that describe the adaptive schedule used for daylight and all-day collection. The tick statistics are emitted in every mode, but they are only materially used to drive the adaptive delay in daylight/all_day mode.
+
+- `x-proxy-poll-delay-seconds` — adaptive follow delay recommended from observed tick timing.
+- `x-proxy-poll-delay-confidence` — optional confidence signal for the adaptive scheduling estimate; not a hard gate, but a useful indicator of schedule stability.
+- `x-proxy-observed-tick-second-p90` — observed tick timing percentile used to estimate safe follow delays in adaptive scheduling.
+- `x-proxy-schedule-day-utc` — the currently active UTC schedule day in the proxy.
+- `x-proxy-forecast-times-utc` — comma-separated forecast collection times in UTC.
+- `x-proxy-estimated-actuals-times-utc` — comma-separated estimated-actuals collection times in UTC.
+
+> In other words: `cron` mode is driven by the cron headers and fixed delay, while `daylight` and `all_day` are driven by the time-slot and adaptive polling headers rather than a fixed cron expression.
+
+### Per-resource state and retry headers
+
+These are emitted on individual resource responses, and the integration interprets them to decide whether to keep polling, retry, or wait on a shared upstream failure.
+
+- `x-proxy-upstream-status` — most recent upstream HTTP status for this resource.
+- `x-proxy-last-fetch-at` — timestamp of the last completed upstream attempt in ISO 8601 UTC format.
+- `x-proxy-last-success-at` — timestamp of the last successful upstream fetch in ISO 8601 UTC format.
+- `x-proxy-last-fetch-status` — current resource state, one of `not_fetched`, `clean_success`, `retry_success`, `retrying`, `give_up`, `budget_exhausted`, or `permanent_error`.
+- `x-proxy-consecutive-failures` — number of consecutive failed attempts since the last success.
+- `x-proxy-retries-used` — number of retry attempts used in the current cycle.
+- `x-proxy-next-attempt-at` — ISO 8601 UTC timestamp for the next retry; empty when the resource is not retrying.
+- `x-proxy-give-up` — boolean indicating the current retry cycle ended unsuccessfully.
+- `x-proxy-halted` — boolean indicating a permanent resource failure that should stop retry scheduling.
+- `x-proxy-fetch-in-progress` — boolean indicating a collection is still running and the next poll may be too soon.
+- `x-proxy-collection-deferred` — boolean indicating the read was deferred because a shared collection gate is active.
+
+### Cache and truncation headers
+
+These are read when the proxy is serving cached data and when it is responding to truncated requests.
+
+- `x-proxy-requested-hours` — client-requested forecast or actuals horizon.
+- `x-proxy-cache-hours` — currently available cache coverage, in hours.
+- `x-proxy-hours-truncated` — boolean indicating the cached response was truncated against the number of hours asked for.
+
+### Notes for custom proxy authors
+
+- The integration treats `x-proxy-next-attempt-at` as the authoritative retry schedule while a resource is retrying.
+- `x-proxy-halted` is a hard stop: once it is true, the integration should stop queueing retries for that resource.
+- `x-proxy-give-up` is not the same as a permanent halt; it tells the integration a retry cycle exhausted but the resource may recover on the next cycle.
+- `x-proxy-collection-deferred` tells the integration that a shared upstream failure is blocking other resources even though they may have valid local cache data.
+- When a resource is in flight, a short follow delay may still be too aggressive; `x-proxy-fetch-in-progress` is the indicator to honor.
+
+A compatible proxy does not need to emit every header in the wider worker implementation, but these are the ones that matter for timing, retries, and schedule-follow behaviour.
