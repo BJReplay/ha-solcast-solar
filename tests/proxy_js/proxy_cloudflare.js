@@ -324,27 +324,68 @@ function utcSecondOfDay(d) {
     return d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds();
 }
 
-function parseTimezoneParts(d, timezone) {
-    const formatter = new Intl.DateTimeFormat("en-CA", {
-        timeZone: timezone,
-        hourCycle: "h23",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-    });
+const TIMEZONE_PARTS_FORMATTER_CACHE = new Map();
 
-    const parts = formatter.formatToParts(d);
-    const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+function timezonePartsFormatter(timezone) {
+    let formatter = TIMEZONE_PARTS_FORMATTER_CACHE.get(timezone);
+    if (!formatter) {
+        formatter = new Intl.DateTimeFormat("en-CA", {
+            timeZone: timezone,
+            hourCycle: "h23",
+            year: "numeric",
+            month: "2-digit",
+            day: "2-digit",
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+        });
+        TIMEZONE_PARTS_FORMATTER_CACHE.set(timezone, formatter);
+    }
+    return formatter;
+}
+
+function parseTimezoneParts(d, timezone) {
+    const parts = timezonePartsFormatter(timezone).formatToParts(d);
+
+    let year = 0;
+    let month = 0;
+    let day = 0;
+    let hour = 0;
+    let minute = 0;
+    let second = 0;
+
+    for (const part of parts) {
+        switch (part.type) {
+            case "year":
+                year = Number(part.value);
+                break;
+            case "month":
+                month = Number(part.value);
+                break;
+            case "day":
+                day = Number(part.value);
+                break;
+            case "hour":
+                hour = Number(part.value);
+                break;
+            case "minute":
+                minute = Number(part.value);
+                break;
+            case "second":
+                second = Number(part.value);
+                break;
+            default:
+                break;
+        }
+    }
+
     return {
-        year: Number(byType.year),
-        month: Number(byType.month),
-        day: Number(byType.day),
-        hour: Number(byType.hour),
-        minute: Number(byType.minute),
-        second: Number(byType.second),
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
     };
 }
 
@@ -360,10 +401,11 @@ function validateRequiredTimezone(env, mode) {
 }
 
 function localMinuteMatchesUtcDay(dayUtc, timezone, targetMinuteOfDay) {
-    const start = new Date(`${dayUtc}T00:00:00.000Z`);
+    const startMs = Date.parse(`${dayUtc}T00:00:00.000Z`);
+    const instant = new Date(startMs);
     const matches = [];
     for (let minuteOfUtcDay = 0; minuteOfUtcDay < 1440; minuteOfUtcDay += 1) {
-        const instant = new Date(start.getTime() + minuteOfUtcDay * 60000);
+        instant.setTime(startMs + minuteOfUtcDay * 60000);
         const local = parseTimezoneParts(instant, timezone);
         const localMinuteOfDay = local.hour * 60 + local.minute;
         if (localMinuteOfDay === targetMinuteOfDay) {
@@ -374,16 +416,27 @@ function localMinuteMatchesUtcDay(dayUtc, timezone, targetMinuteOfDay) {
 }
 
 function localSecondMatchesUtcDay(dayUtc, timezone, targetSecondOfDay) {
-    const start = new Date(`${dayUtc}T00:00:00.000Z`);
+    const targetMinuteOfDay = Math.floor(targetSecondOfDay / 60);
+    const targetSecond = targetSecondOfDay % 60;
+    const minuteMatches = localMinuteMatchesUtcDay(dayUtc, timezone, targetMinuteOfDay);
+    const dayStartMs = Date.parse(`${dayUtc}T00:00:00.000Z`);
+    const instant = new Date(dayStartMs);
+
     const matches = [];
-    for (let secondOfUtcDay = 0; secondOfUtcDay < 86400; secondOfUtcDay += 1) {
-        const instant = new Date(start.getTime() + secondOfUtcDay * 1000);
+    for (const minuteStart of minuteMatches) {
+        const candidate = minuteStart + targetSecond;
+        if (candidate < 0 || candidate >= 86400) {
+            continue;
+        }
+
+        instant.setTime(dayStartMs + candidate * 1000);
         const local = parseTimezoneParts(instant, timezone);
         const localSecond = local.hour * 3600 + local.minute * 60 + local.second;
         if (localSecond === targetSecondOfDay) {
-            matches.push(secondOfUtcDay);
+            matches.push(candidate);
         }
     }
+
     return uniqueSortedSeconds(matches);
 }
 
@@ -669,10 +722,10 @@ function buildForecastTimes(dayUtc, env) {
         validateRequiredTimezone(env, mode);
     }
 
-    let base = [];
+    let baseMinutes = [];
 
     if (mode === "all_day") {
-        base = spreadSecondsForDay(divisions);
+        baseMinutes = spreadTimes(0, 1439, divisions);
     } else if (mode === "daylight") {
         const latitude = parseNumber(env.LATITUDE, 0);
         const longitude = parseNumber(env.LONGITUDE, 0);
@@ -680,28 +733,27 @@ function buildForecastTimes(dayUtc, env) {
 
         if (sun.sunriseMinuteUtc === null || sun.sunsetMinuteUtc === null) {
             // Fallback to all_day spread for polar/invalid conditions.
-            base = spreadSecondsForDay(divisions);
+            baseMinutes = spreadTimes(0, 1439, divisions);
         } else {
-            const sunrise = Math.max(0, sun.sunriseMinuteUtc * 60);
-            const sunset = Math.min(86399, sun.sunsetMinuteUtc * 60);
+            const sunrise = Math.max(0, sun.sunriseMinuteUtc);
+            const sunset = Math.min(1439, sun.sunsetMinuteUtc);
             if (sunrise < sunset) {
-                base = spreadSeconds(sunrise, sunset, divisions);
+                baseMinutes = spreadTimes(sunrise, sunset, divisions);
             } else {
                 // East-of-UTC locations can have a daylight window that wraps over UTC midnight.
                 // Spread across the wrapped interval and fold back into 00:00..23:59.
-                const wrapped = spreadSecondsRaw(sunrise, sunset + 86400, divisions);
-                base = uniqueSortedSeconds(wrapped.map((s) => s % 86400));
+                const wrapped = spreadTimesRaw(sunrise, sunset + 1440, divisions);
+                baseMinutes = uniqueSortedMinutes(wrapped.map((m) => m % 1440));
             }
         }
     } else {
         const cronList = parseCronList(env.FORECAST_CRONS, DEFAULT_FORECAST_CRONS);
-        base = uniqueSortedSeconds(cronList.flatMap((expr) => cronTimesUtc(expr).map((m) => m * 60)));
+        baseMinutes = uniqueSortedMinutes(cronList.flatMap((expr) => cronTimesUtc(expr)));
     }
 
-    const baseMinutes = uniqueSortedMinutes(base.map((s) => Math.floor(s / 60)));
+    baseMinutes = uniqueSortedMinutes(baseMinutes);
     const filteredMinutes = uniqueSortedMinutes(applyExceptions(baseMinutes, dayUtc, exceptions));
-    const allowedMinutes = new Set(filteredMinutes);
-    return uniqueSortedSeconds(base.filter((s) => allowedMinutes.has(Math.floor(s / 60))));
+    return uniqueSortedSeconds(filteredMinutes.map((m) => m * 60));
 }
 
 function buildActualsTimes(dayUtc, env) {

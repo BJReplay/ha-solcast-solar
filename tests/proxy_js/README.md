@@ -49,7 +49,7 @@ This folder contains the JavaScript Cloudflare Worker + Durable Object proxy for
 ## Example `wrangler.toml`
 
 ```toml
-name = "solcast-proxy-js"
+name = "solcast-proxy"
 main = "proxy_cloudflare.js"
 compatibility_date = "2026-11-10"
 
@@ -103,6 +103,10 @@ RETRY_BACKOFF_SECONDS = "45"
 enabled = true
 invocation_logs = true
 ```
+
+## Deployment
+
+Once the worker is deployed it will take approxmately five minutes for the per-minute cron schedule to begin firing. With worker observability logs enabled the first every-minute `* * * * *` will eventually show up, and it is at this point that things like schedules are created for all-day and daylight scheduling options. The integration should not be configured to use the proxy until this first cron execution has occurred.
 
 ## Local simulator workflow
 
