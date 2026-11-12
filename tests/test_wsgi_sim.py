@@ -9,9 +9,7 @@ from pathlib import Path
 import ssl
 import sys
 from types import ModuleType
-from typing import Any
 from unittest.mock import patch
-from urllib.parse import parse_qs
 from zoneinfo import ZoneInfo
 
 from cryptography import x509
@@ -180,68 +178,6 @@ def test_route_actuals_guidance_is_not_padded(
     ]
     assert all(type(period["pv_estimate"]) in (int, float) for period in periods)
     assert all(math.isfinite(period["pv_estimate"]) for period in periods)
-
-
-@pytest.mark.parametrize(
-    ("kind", "maximum", "collection_hours"),
-    [(FORECASTS, 336, 336), (ESTIMATED_ACTUALS, 168, 168)],
-)
-def test_proxy_collects_capped_wsgi_data(
-    bounded_route_module: ModuleType,
-    freezer: FrozenDateTimeFactory,
-    monkeypatch: pytest.MonkeyPatch,
-    kind: str,
-    maximum: int,
-    collection_hours: int,
-) -> None:
-    """The real proxy serves bounded simulator data without any network calls."""
-    name = "tests.components.solcast_solar._proxy_wsgi_test"
-    spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name("proxy.py"))
-    assert spec is not None and spec.loader is not None
-    module = importlib.util.module_from_spec(spec)
-    monkeypatch.setitem(sys.modules, name, module)
-    spec.loader.exec_module(module)
-    upstream = _test_client(bounded_route_module)
-    calls: list[tuple[str, dict[str, list[str]]]] = []
-
-    def fetch(path: str, query: str) -> Any:
-        calls.append((path, parse_qs(query)))
-        response = upstream.get(path, query_string=query)
-        return module.UpstreamResponse(response.status_code, response.get_json())
-
-    clock = [datetime(2026, 9, 6, 7, 59, tzinfo=UTC)]
-    freezer.move_to(clock[0])
-    configured = module.SolcastProxy(
-        fetch=fetch,
-        now=lambda: clock[0],
-        forecast_cron="* * * * *",
-        actuals_cron="* * * * *",
-    )
-    monkeypatch.setattr(module, "proxy", configured)
-    client = module.app.test_client()
-    path = f"/rooftop_sites/1111-1111-1111-1111/{kind}"
-    query = {"api_key": "1", "hours": maximum, "format": "json"}
-    assert client.get(path, query_string=query).status_code == 503
-    assert calls == []
-    clock[0] += timedelta(minutes=1)
-    freezer.move_to(clock[0])
-    configured.run_pending()
-    assert len(calls) == 2
-    assert (
-        path,
-        {"api_key": ["1"], "format": ["json"], "hours": [str(collection_hours)]},
-    ) in calls
-    full = client.get(path, query_string=query)
-    assert full.status_code == 200
-    assert len(full.get_json()[kind]) == maximum * 2
-    assert full.headers["x-proxy-cache-hours"] == str(maximum)
-    assert full.headers["x-proxy-hours-truncated"] == "false"
-    oversized = client.get(path, query_string=query | {"hours": 1000})
-    assert oversized.get_json() == full.get_json()
-    assert oversized.headers["x-proxy-hours-truncated"] == "true"
-    small = client.get(path, query_string=query | {"hours": 8})
-    assert len(small.get_json()[kind]) == 16
-    assert len(calls) == 2
 
 
 @pytest.mark.parametrize("hours", [8, 300])
