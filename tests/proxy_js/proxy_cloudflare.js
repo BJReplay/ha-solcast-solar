@@ -893,7 +893,7 @@ function scheduleHeaders(env, schedule, advice) {
         "x-proxy-name": PROXY_NAME,
         "x-proxy-version": PROXY_VERSION,
         "x-proxy-timezone": "UTC",
-        "x-proxy-status-url": "/proxy-status",
+        "x-proxy-status-url": "/proxy_status",
         "x-proxy-poll-delay-seconds": String(effectivePollDelaySeconds),
         "x-proxy-poll-delay-confidence": advice.confidence,
         "x-proxy-observed-tick-second-p90": advice.observedSecondP90 === null ? "" : String(advice.observedSecondP90),
@@ -1643,6 +1643,15 @@ export class ProxyCoordinator {
         return new Response(discovered.detail || "", { status: discovered.status, headers });
     }
 
+    async scheduleResponse() {
+        const data = await this.rebuildScheduleIfNeeded(nowUtc());
+        const headers = {
+            ...scheduleHeaders(this.env, data.schedule, pollingAdvice(this.env, data.telemetry)),
+            "cache-control": "no-store",
+        };
+        return new Response(null, { status: 204, headers });
+    }
+
     async resourceResponseForKind(url, kind) {
         const pathRaw = new URL(url).pathname;
         const path = pathRaw.startsWith(`${DO_ROUTE_PREFIX}/`) ? pathRaw.slice(DO_ROUTE_PREFIX.length) : pathRaw;
@@ -1665,8 +1674,12 @@ export class ProxyCoordinator {
             return new Response(null, { status: 204 });
         }
 
-        if (path === "/proxy-status" || path === "/proxy_status") {
+        if (path === "/proxy_status" || path === "/proxy-status") {
             return this.statusResponse();
+        }
+
+        if (path === "/proxy_schedule" || path === "/schedule") {
+            return this.scheduleResponse();
         }
 
         if (path === "/rooftop_sites") {
@@ -1751,6 +1764,8 @@ export default {
             path === "/rooftop_sites" ||
             path === "/proxy-status" ||
             path === "/proxy_status" ||
+            path === "/proxy_schedule" ||
+            path === "/schedule" ||
             path === "/__scheduled" ||
             (path.startsWith("/rooftop_sites/") && (path.endsWith("/forecasts") || path.endsWith("/estimated_actuals")))
         ) {

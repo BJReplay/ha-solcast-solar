@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from aiohttp import ClientConnectionError, ClientResponseError, RequestInfo
 from cronsim import CronSim
 from custom_components.solcast_solar.const import (
     ESTIMATED_ACTUALS,
@@ -21,14 +22,21 @@ from custom_components.solcast_solar.const import (
     SITES,
     TOTAL_RECORDS,
 )
+from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
 from custom_components.solcast_solar.fetcher import Fetcher
+from custom_components.solcast_solar.sites_cache import SitesCache
 from custom_components.solcast_solar.solcastapi import SolcastApi
+from multidict import CIMultiDict, CIMultiDictProxy
 import pytest
+from yarl import URL
 
 from homeassistant.components.recorder import Recorder
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.event import async_track_point_in_utc_time
 
 from . import DEFAULT_INPUT1, async_cleanup_integration_tests, async_init_integration
+
+from tests.common import MockConfigEntry
 
 
 @pytest.fixture
@@ -453,3 +461,339 @@ async def test_discovery_schedule_headers_ignore_invalid_slot_types_and_empty_to
     assert solcast.proxy_schedule_day_utc == "2026-11-10"
     assert solcast.proxy_forecast_times_utc == ()
     assert solcast.proxy_actuals_times_utc == ("13:13",)
+
+
+@pytest.mark.parametrize(
+    ("status", "expected_minute", "expected_delay"),
+    [
+        pytest.param(204, 45, 9, id="fresh-schedule"),
+        pytest.param(503, 30, 5, id="refresh-failed-uses-discovery"),
+    ],
+)
+async def test_startup_refreshes_proxy_schedule_before_scheduling(
+    solcast: SolcastApi, status: int, expected_minute: int, expected_delay: int
+) -> None:
+    """Startup creates one forecast timer using refreshed metadata when available."""
+    await solcast.async_set_proxy_mode(True)
+    solcast.proxy_next_attempt_at = None
+    solcast.proxy_schedule_day_utc = "2026-11-12"
+    solcast.proxy_forecast_times_utc = ("03:30",)
+    solcast.proxy_poll_delay_seconds = 5
+    coordinator = SolcastUpdateCoordinator(solcast.hass, MockConfigEntry(domain="solcast_solar"), solcast, "test")
+    response = MagicMock(
+        status=status,
+        headers={
+            "x-solcast-proxy": "true",
+            "x-proxy-forecast-mode": "daylight",
+            "x-proxy-poll-delay-seconds": "9",
+            "x-proxy-schedule-day-utc": "2026-11-12",
+            "x-proxy-forecast-times-utc": "03:45",
+            "x-proxy-estimated-actuals-enabled": "false",
+        },
+    )
+    session = MagicMock()
+    session.get = AsyncMock(return_value=response)
+    try:
+        with (
+            patch.object(solcast, "aiohttp_session", session),
+            patch.object(solcast.dt_helper, "real_now_utc", return_value=dt(2026, 11, 12, 3, 0, tzinfo=UTC)),
+            patch("custom_components.solcast_solar.coordinator.FileWatcher.setup", new_callable=AsyncMock),
+            patch(
+                "custom_components.solcast_solar.updater.async_track_point_in_utc_time",
+                wraps=async_track_point_in_utc_time,
+            ) as track,
+        ):
+            await coordinator.setup()
+
+        assert solcast.proxy_next_attempt_at == dt(2026, 11, 12, 3, expected_minute, tzinfo=UTC)
+        assert coordinator.updater._proxy_scheduled_for == dt(2026, 11, 12, 3, expected_minute, expected_delay, tzinfo=UTC)
+        forecast_timers = [args for args in track.call_args_list if args.args[1] == coordinator.updater._fetch_proxy]
+        assert len(forecast_timers) == 1
+        session.get.assert_awaited_once()
+    finally:
+        await coordinator.tasks_cancel()
+
+
+async def test_refresh_proxy_schedule_headers(solcast: SolcastApi) -> None:
+    """Dedicated proxy schedule endpoint refreshes schedule metadata and mode."""
+    await solcast.async_set_proxy_mode(True)
+    response = MagicMock(
+        status=204,
+        headers={
+            "x-solcast-proxy": "true",
+            "x-proxy-forecast-mode": "daylight",
+            "x-proxy-poll-delay-seconds": "9",
+            "x-proxy-schedule-day-utc": "2026-11-10",
+            "x-proxy-forecast-times-utc": "10:00,10:15",
+            "x-proxy-estimated-actuals-times-utc": "13:13",
+            "x-proxy-estimated-actuals-enabled": "true",
+        },
+    )
+    session = MagicMock()
+    session.get = AsyncMock(return_value=response)
+
+    with patch.object(solcast, "aiohttp_session", session):
+        refreshed = await solcast.sites_cache.refresh_proxy_schedule(require_daylight_proxy_mode=True)
+
+    assert refreshed is True
+    assert solcast.proxy_forecast_mode == "daylight"
+    assert solcast.proxy_poll_delay_seconds == 9
+    assert solcast.proxy_schedule_day_utc == "2026-11-10"
+    assert solcast.proxy_forecast_times_utc == ("10:00", "10:15")
+    assert solcast.proxy_actuals_times_utc == ("13:13",)
+
+
+async def test_refresh_proxy_schedule_daylight_missing_slots_errors(
+    solcast: SolcastApi, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Daylight schedule refresh fails hard when required schedule headers are missing."""
+    await solcast.async_set_proxy_mode(True)
+    solcast.proxy_schedule_day_utc = "2026-11-09"
+    solcast.proxy_forecast_times_utc = ("09:00",)
+
+    response = MagicMock(
+        status=204,
+        headers={
+            "x-solcast-proxy": "true",
+            "x-proxy-forecast-mode": "daylight",
+            "x-proxy-estimated-actuals-enabled": "false",
+        },
+    )
+    session = MagicMock()
+    session.get = AsyncMock(return_value=response)
+
+    with patch.object(solcast, "aiohttp_session", session):
+        refreshed = await solcast.sites_cache.refresh_proxy_schedule(require_daylight_proxy_mode=True)
+
+    assert refreshed is False
+    assert solcast.proxy_schedule_day_utc == "2026-11-09"
+    assert solcast.proxy_forecast_times_utc == ("09:00",)
+    assert "missing required schedule headers" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param(None, id="missing"),
+        pytest.param(42, id="not-text"),
+        pytest.param("unsupported", id="unknown-mode"),
+    ],
+)
+def test_proxy_forecast_mode_invalid(value: object) -> None:
+    """Absent, non-text and unknown values cannot enable a forecast mode."""
+    assert SitesCache._parse_proxy_forecast_mode(value) is None
+
+
+@pytest.mark.parametrize(
+    ("proxy_mode", "api_key", "message"),
+    [
+        pytest.param(False, "key", "", id="direct-solcast"),
+        pytest.param(True, " , ", "no API key is configured", id="missing-key"),
+    ],
+)
+async def test_refresh_proxy_schedule_without_configuration(
+    solcast: SolcastApi, caplog: pytest.LogCaptureFixture, proxy_mode: bool, api_key: str, message: str
+) -> None:
+    """Refresh does not make requests without proxy mode and an API key."""
+    solcast.proxy_mode = proxy_mode
+    solcast.options.api_key = api_key
+    session = MagicMock()
+    session.get = AsyncMock()
+    with patch.object(solcast, "aiohttp_session", session):
+        assert await solcast.sites_cache.refresh_proxy_schedule() is False
+
+    session.get.assert_not_awaited()
+    assert message in caplog.text
+    assert ("Cannot refresh proxy schedule" in caplog.text) == proxy_mode
+
+
+@pytest.mark.parametrize(
+    "first_result",
+    [
+        pytest.param(MagicMock(status=404), id="not-found"),
+        pytest.param(TimeoutError(), id="timeout"),
+        pytest.param(ClientConnectionError("offline"), id="connection-error"),
+        pytest.param(
+            ClientResponseError(
+                RequestInfo(URL("https://proxy.test"), "GET", CIMultiDictProxy(CIMultiDict[str]()), URL("https://proxy.test")),
+                (),
+                status=502,
+            ),
+            id="response-error",
+        ),
+    ],
+)
+async def test_refresh_proxy_schedule_alias_fallback(solcast: SolcastApi, first_result: object) -> None:
+    """The alias supplies usable schedule metadata when the preferred endpoint fails."""
+    await solcast.async_set_proxy_mode(True)
+    session = MagicMock()
+    session.get = AsyncMock(
+        side_effect=[
+            first_result,
+            MagicMock(
+                status=200,
+                headers={
+                    "x-solcast-proxy": "true",
+                    "x-proxy-forecast-mode": "all_day",
+                    "x-proxy-schedule-day-utc": "2026-11-12",
+                    "x-proxy-forecast-times-utc": "03:45",
+                },
+            ),
+        ]
+    )
+    with patch.object(solcast, "aiohttp_session", session):
+        assert await solcast.sites_cache.refresh_proxy_schedule() is True
+
+    assert [call.kwargs["url"].rsplit("/", 1)[-1] for call in session.get.await_args_list] == ["proxy_schedule", "schedule"]
+    assert solcast.proxy_forecast_mode == "all_day"
+    assert solcast.proxy_schedule_day_utc == "2026-11-12"
+    assert solcast.proxy_forecast_times_utc == ("03:45",)
+
+
+@pytest.mark.parametrize(
+    ("headers", "message"),
+    [
+        pytest.param({}, "did not include x-solcast-proxy=true", id="not-a-proxy"),
+        pytest.param(
+            {"x-solcast-proxy": "true", "x-proxy-forecast-mode": "daylight", "x-proxy-forecast-times-utc": "03:45"},
+            "missing required schedule headers",
+            id="missing-day",
+        ),
+        pytest.param(
+            {
+                "x-solcast-proxy": "true",
+                "x-proxy-forecast-mode": "daylight",
+                "x-proxy-schedule-day-utc": "2026-11-12",
+                "x-proxy-forecast-times-utc": "03:45",
+                "x-proxy-estimated-actuals-enabled": "true",
+            },
+            "missing estimated actuals schedule headers",
+            id="missing-actuals",
+        ),
+    ],
+)
+async def test_refresh_proxy_schedule_invalid_headers_preserve_state(
+    solcast: SolcastApi, caplog: pytest.LogCaptureFixture, headers: dict[str, str], message: str
+) -> None:
+    """Rejected refresh responses leave the previously usable schedule unchanged."""
+    await solcast.async_set_proxy_mode(True)
+    solcast.options.get_actuals = True
+    solcast.proxy_schedule_day_utc = "2026-11-11"
+    solcast.proxy_forecast_times_utc = ("09:00",)
+    session = MagicMock()
+    session.get = AsyncMock(return_value=MagicMock(status=204, headers=headers))
+    with patch.object(solcast, "aiohttp_session", session):
+        assert await solcast.sites_cache.refresh_proxy_schedule(require_daylight_proxy_mode=True) is False
+
+    assert solcast.proxy_schedule_day_utc == "2026-11-11"
+    assert solcast.proxy_forecast_times_utc == ("09:00",)
+    assert message in caplog.text
+    session.get.assert_awaited_once()
+
+
+@pytest.mark.parametrize(
+    ("headers", "expected_delay", "expected_cron"),
+    [
+        pytest.param({"x-proxy-poll-delay-seconds": "-5", "x-proxy-forecast-cron": " */10 * * * * "}, 0, "*/10 * * * *", id="cron"),
+        pytest.param({"x-proxy-poll-delay-seconds": "invalid", "x-proxy-forecast-cron": " "}, 17, None, id="invalid-delay"),
+        pytest.param({}, 17, None, id="missing-optional-headers"),
+    ],
+)
+async def test_refresh_proxy_cron_schedule(
+    solcast: SolcastApi, headers: dict[str, str], expected_delay: int, expected_cron: str | None
+) -> None:
+    """Cron refresh replaces slot metadata and keeps the delay when it is absent or invalid."""
+    await solcast.async_set_proxy_mode(True)
+    solcast.proxy_poll_delay_seconds = 17
+    solcast.proxy_forecast_times_utc = ("09:00",)
+    session = MagicMock()
+    session.get = AsyncMock(
+        return_value=MagicMock(
+            status=200,
+            headers={
+                "x-solcast-proxy": "true",
+                "x-proxy-forecast-mode": "cron",
+                "x-proxy-estimated-actuals-cron": " 5 13 * * * ",
+                **headers,
+            },
+        )
+    )
+    with patch.object(solcast, "aiohttp_session", session):
+        assert await solcast.sites_cache.refresh_proxy_schedule() is True
+
+    assert solcast.proxy_forecast_mode == "cron"
+    assert solcast.proxy_forecast_times_utc == ()
+    assert solcast.proxy_schedule_day_utc is None
+    assert solcast.proxy_forecast_cron == expected_cron
+    assert solcast.proxy_actuals_cron == "5 13 * * *"
+    assert solcast.proxy_poll_delay_seconds == expected_delay
+
+
+@pytest.mark.parametrize(
+    ("mode", "message"),
+    [pytest.param("daylight", "endpoint was not available", id="daylight"), pytest.param("cron", "", id="cron")],
+)
+async def test_refresh_proxy_schedule_endpoints_unavailable(
+    solcast: SolcastApi, caplog: pytest.LogCaptureFixture, mode: str, message: str
+) -> None:
+    """An unavailable endpoint and alias preserve the existing schedule."""
+    await solcast.async_set_proxy_mode(True)
+    solcast.proxy_forecast_mode = mode
+    solcast.proxy_forecast_times_utc = ("09:00",)
+    session = MagicMock()
+    session.get = AsyncMock(return_value=MagicMock(status=404))
+    with patch.object(solcast, "aiohttp_session", session):
+        assert await solcast.sites_cache.refresh_proxy_schedule(require_daylight_proxy_mode=True) is False
+
+    assert solcast.proxy_forecast_times_utc == ("09:00",)
+    assert session.get.await_count == 2
+    assert message in caplog.text
+    assert ("endpoint was not available" in caplog.text) == (mode == "daylight")
+
+
+@pytest.mark.parametrize("status", [pytest.param(204, id="success"), pytest.param(503, id="failure")])
+async def test_daily_proxy_schedule_refresh(solcast: SolcastApi, status: int) -> None:
+    """The daily callback creates a forecast timer only after a successful refresh."""
+    await solcast.async_set_proxy_mode(True)
+    solcast.options.get_actuals = False
+    solcast.proxy_next_attempt_at = None
+    coordinator = SolcastUpdateCoordinator(solcast.hass, MockConfigEntry(domain="solcast_solar"), solcast, "test")
+    session = MagicMock()
+    session.get = AsyncMock(
+        return_value=MagicMock(
+            status=status,
+            headers={
+                "x-solcast-proxy": "true",
+                "x-proxy-forecast-mode": "daylight",
+                "x-proxy-schedule-day-utc": "2026-11-12",
+                "x-proxy-forecast-times-utc": "03:45",
+                "x-proxy-poll-delay-seconds": "9",
+            },
+        )
+    )
+    try:
+        with (
+            patch.object(solcast, "aiohttp_session", session),
+            patch.object(solcast.dt_helper, "real_now_utc", return_value=dt(2026, 11, 12, 3, 0, tzinfo=UTC)),
+        ):
+            await coordinator._refresh_proxy_schedule_headers()
+
+        assert len(coordinator.tasks) == int(status == 204)
+        assert coordinator.updater._proxy_scheduled_for == {
+            204: dt(2026, 11, 12, 3, 45, 9, tzinfo=UTC),
+            503: None,
+        }[status]
+    finally:
+        await coordinator.tasks_cancel()
+
+
+async def test_daily_proxy_schedule_refresh_direct_solcast(solcast: SolcastApi) -> None:
+    """The daily callback is a no-op for a direct Solcast connection."""
+    coordinator = SolcastUpdateCoordinator(solcast.hass, MockConfigEntry(domain="solcast_solar"), solcast, "test")
+    session = MagicMock()
+    session.get = AsyncMock()
+    with patch.object(solcast, "aiohttp_session", session):
+        await coordinator._refresh_proxy_schedule_headers()
+
+    session.get.assert_not_awaited()
+    assert coordinator.tasks == {}

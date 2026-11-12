@@ -606,10 +606,39 @@ class Updater:
         return None
 
     def _proxy_actuals_update_at(self) -> dt | None:
-        """Return when to collect estimated actuals from the proxy, or None when it advertises no usable cron."""
+        """Return when to collect estimated actuals from the proxy, or None when it advertises no usable schedule."""
 
         solcast = self._coordinator.solcast
-        if not solcast.proxy_mode or solcast.proxy_actuals_cron is None:
+        if not solcast.proxy_mode:
+            return None
+
+        tz = solcast.options.tz
+        now = solcast.dt_helper.real_now_utc().replace(microsecond=0)
+
+        if solcast.proxy_actuals_times_utc:
+            collected_at = self._attempt_to_follow_from_proxy_schedule(
+                now,
+                solcast.proxy_schedule_day_utc,
+                solcast.proxy_actuals_times_utc,
+                solcast.proxy_poll_delay_seconds,
+            )
+            if collected_at is None:
+                return None
+            update_at = collected_at + timedelta(seconds=solcast.proxy_poll_delay_seconds)
+            if update_at <= now:
+                update_at = now + timedelta(seconds=30 + randint(0, 29))
+                _LOGGER.info(
+                    "Proxy estimated actuals collection was missed, scheduling at %s",
+                    update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
+                )
+            else:
+                _LOGGER.debug(
+                    "Scheduling estimated actuals update at %s (proxy slot-follow)",
+                    update_at.astimezone(tz).strftime(DT_TIME_FORMAT),
+                )
+            return update_at
+
+        if solcast.proxy_actuals_cron is None:
             return None
         # The proxy collects once per cron occurrence, so the first occurrence of the local day is the one to follow.
         collected_at = self._next_from_proxy_cron(solcast.dt_helper.day_start_utc() - timedelta(seconds=1), solcast.proxy_actuals_cron)
@@ -618,8 +647,6 @@ class Updater:
 
         self._validate_proxy_actuals_cron()
 
-        tz = solcast.options.tz
-        now = solcast.dt_helper.real_now_utc().replace(microsecond=0)
         update_at = collected_at + timedelta(seconds=solcast.proxy_poll_delay_seconds)
         if update_at <= now:
             update_at = now + timedelta(seconds=30 + randint(0, 29))

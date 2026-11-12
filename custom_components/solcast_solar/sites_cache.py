@@ -193,6 +193,38 @@ class SitesCache:
                 return True
         return False
 
+    @staticmethod
+    def _parse_proxy_times_utc(value: Any) -> tuple[str, ...]:
+        """Parse proxy time slots encoded as HH:MM values."""
+        if value is None:
+            return ()
+        if isinstance(value, str):
+            raw_items = value.split(",")
+        elif isinstance(value, list):
+            raw_items = [str(item) for item in value]
+        else:
+            return ()
+
+        valid: list[str] = []
+        for item in raw_items:
+            candidate = item.strip()
+            if not candidate:
+                continue
+            if re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", candidate) is None:
+                continue
+            valid.append(candidate)
+        return tuple(dict.fromkeys(valid))
+
+    @staticmethod
+    def _parse_proxy_forecast_mode(value: Any) -> str | None:
+        """Parse and normalise proxy forecast mode."""
+        if not isinstance(value, str):
+            return None
+        mode = value.strip().lower()
+        if mode in {"cron", "daylight", "all_day"}:
+            return mode
+        return None
+
     # Public methods (alphabetical).
 
     async def cleanup_issues(self, any_unusual: bool = True) -> None:
@@ -424,6 +456,111 @@ class SitesCache:
             await self._sites_usage()
 
         return status, message, api_key_in_error
+
+    async def refresh_proxy_schedule(self, require_daylight_proxy_mode: bool = False) -> bool:
+        """Refresh proxy schedule headers from the dedicated schedule endpoint.
+
+        Returns:
+            bool: True when schedule metadata was refreshed successfully.
+        """
+        if not self.api.proxy_mode:
+            return False
+
+        api_key = next(iter(split_and_strip(self.api.options.api_key)), "")
+        if not api_key:
+            _LOGGER.error("Cannot refresh proxy schedule: no API key is configured")
+            return False
+
+        base_url = self.api.get_solcast_base_url(
+            self.api.advanced_options[ADVANCED_SOLCAST_URL],
+            self.api.advanced_options[ADVANCED_SOLCAST_PORT],
+        )
+        params: dict[str, str] = {FORMAT: JSON, API_KEY: api_key}
+
+        for endpoint in ("/proxy_schedule", "/schedule"):
+            url = f"{base_url}{endpoint}"
+            try:
+                response: ClientResponse = await self.api.aiohttp_session.get(
+                    url=url,
+                    params=params,
+                    headers=self.api.headers,
+                    ssl=self.api.advanced_options[ADVANCED_SSL_VERIFY],
+                )
+            except (TimeoutError, ClientConnectionError, ClientResponseError) as err:
+                _LOGGER.warning("Proxy schedule refresh failed for %s: %s", endpoint, err)
+                continue
+
+            if response.status == 404:
+                continue
+            if response.status not in (200, 204):
+                _LOGGER.error("Proxy schedule refresh returned unexpected status %s for %s", response.status, endpoint)
+                return False
+
+            headers = response.headers
+            if headers.get("x-solcast-proxy", "").lower() != "true":
+                _LOGGER.error("Proxy schedule refresh response from %s did not include x-solcast-proxy=true", endpoint)
+                return False
+
+            mode = self._parse_proxy_forecast_mode(headers.get("x-proxy-forecast-mode"))
+            schedule_day_utc = headers.get("x-proxy-schedule-day-utc")
+            parsed_schedule_day = schedule_day_utc.strip() if isinstance(schedule_day_utc, str) and schedule_day_utc.strip() else None
+            parsed_forecast_times = self._parse_proxy_times_utc(headers.get("x-proxy-forecast-times-utc"))
+            parsed_actuals_times = self._parse_proxy_times_utc(headers.get("x-proxy-estimated-actuals-times-utc"))
+            poll_delay: int | None = None
+            with contextlib.suppress(ValueError, TypeError):
+                poll_delay_raw = headers.get("x-proxy-poll-delay-seconds")
+                if poll_delay_raw is not None:
+                    poll_delay = int(poll_delay_raw)
+
+            estimated_actuals_enabled = headers.get("x-proxy-estimated-actuals-enabled", "").strip().lower() == "true"
+
+            if require_daylight_proxy_mode and mode == "daylight":
+                if parsed_schedule_day is None or not parsed_forecast_times:
+                    _LOGGER.error(
+                        "Proxy daylight schedule refresh from %s is missing required schedule headers (day=%s, slots=%s)",
+                        endpoint,
+                        parsed_schedule_day,
+                        list(parsed_forecast_times),
+                    )
+                    return False
+                if self.api.options.get_actuals and estimated_actuals_enabled and not parsed_actuals_times:
+                    _LOGGER.error(
+                        "Proxy daylight schedule refresh from %s is missing estimated actuals schedule headers while estimated actuals are enabled",
+                        endpoint,
+                    )
+                    return False
+
+            use_schedule_slots = bool(parsed_forecast_times or parsed_actuals_times)
+            if poll_delay is not None:
+                self.api.proxy_poll_delay_seconds = max(0, int(poll_delay))
+            self.api.proxy_forecast_mode = mode
+            self.api.proxy_schedule_day_utc = parsed_schedule_day
+            self.api.proxy_forecast_times_utc = parsed_forecast_times
+            self.api.proxy_actuals_times_utc = parsed_actuals_times
+
+            if use_schedule_slots:
+                self.api.proxy_forecast_cron = None
+                self.api.proxy_actuals_cron = None
+            else:
+                forecast_cron = headers.get("x-proxy-forecast-cron")
+                actuals_cron = headers.get("x-proxy-estimated-actuals-cron")
+                self.api.proxy_forecast_cron = forecast_cron.strip() if isinstance(forecast_cron, str) and forecast_cron.strip() else None
+                self.api.proxy_actuals_cron = actuals_cron.strip() if isinstance(actuals_cron, str) and actuals_cron.strip() else None
+
+            await self.api.async_set_proxy_mode(True, source="schedule_header")
+            _LOGGER.debug(
+                "Proxy schedule refreshed from %s: mode=%s, day=%s, forecast slots=%s, actuals slots=%s",
+                endpoint,
+                self.api.proxy_forecast_mode,
+                self.api.proxy_schedule_day_utc,
+                list(self.api.proxy_forecast_times_utc),
+                list(self.api.proxy_actuals_times_utc),
+            )
+            return True
+
+        if require_daylight_proxy_mode and self.api.proxy_forecast_mode == "daylight":
+            _LOGGER.error("Proxy daylight schedule refresh endpoint was not available")
+        return False
 
     async def load_saved_data(self) -> bool:  # noqa: C901
         """Load the saved solcast.json data.
@@ -993,27 +1130,6 @@ class SitesCache:
             async with self.api.serialise_lock, aiofiles.open(cache_filename, "w") as file:
                 await file.write(json.dumps(cache_payload, ensure_ascii=False))
 
-        def parse_proxy_times_utc(value: Any) -> tuple[str, ...]:
-            """Parse proxy time slots encoded as HH:MM values."""
-            if value is None:
-                return ()
-            if isinstance(value, str):
-                raw_items = value.split(",")
-            elif isinstance(value, list):
-                raw_items = [str(item) for item in value]
-            else:
-                return ()
-
-            valid: list[str] = []
-            for item in raw_items:
-                candidate = item.strip()
-                if not candidate:
-                    continue
-                if re.fullmatch(r"(?:[01]\d|2[0-3]):[0-5]\d", candidate) is None:
-                    continue
-                valid.append(candidate)
-            return tuple(dict.fromkeys(valid))
-
         async def apply_proxy_state_values(
             *,
             source: str,
@@ -1021,6 +1137,7 @@ class SitesCache:
             poll_delay: int | None = None,
             forecast_cron: str | None = None,
             actuals_cron: str | None = None,
+            forecast_mode: str | None = None,
             schedule_day_utc: str | None = None,
             forecast_times_utc: tuple[str, ...] = (),
             actuals_times_utc: tuple[str, ...] = (),
@@ -1035,6 +1152,7 @@ class SitesCache:
                 value = actuals_cron.strip() or None
                 self.api.proxy_actuals_cron = value
 
+            self.api.proxy_forecast_mode = forecast_mode
             self.api.proxy_schedule_day_utc = schedule_day_utc
             self.api.proxy_forecast_times_utc = forecast_times_utc
             self.api.proxy_actuals_times_utc = actuals_times_utc
@@ -1052,8 +1170,8 @@ class SitesCache:
             actuals_cron = proxy_state.get(PROXY_ACTUALS_CRON)
             schedule_day_utc = proxy_state.get(PROXY_SCHEDULE_DAY_UTC)
             parsed_schedule_day = schedule_day_utc.strip() if isinstance(schedule_day_utc, str) and schedule_day_utc.strip() else None
-            parsed_forecast_times = parse_proxy_times_utc(proxy_state.get(PROXY_FORECAST_TIMES_UTC))
-            parsed_actuals_times = parse_proxy_times_utc(proxy_state.get(PROXY_ACTUALS_TIMES_UTC))
+            parsed_forecast_times = self._parse_proxy_times_utc(proxy_state.get(PROXY_FORECAST_TIMES_UTC))
+            parsed_actuals_times = self._parse_proxy_times_utc(proxy_state.get(PROXY_ACTUALS_TIMES_UTC))
             use_schedule_slots = bool(parsed_forecast_times or parsed_actuals_times)
             await apply_proxy_state_values(
                 source=f"{source}_cache",
@@ -1061,6 +1179,7 @@ class SitesCache:
                 poll_delay=poll_delay if isinstance(poll_delay, int) else None,
                 forecast_cron=None if use_schedule_slots else forecast_cron if isinstance(forecast_cron, str) else None,
                 actuals_cron=None if use_schedule_slots else actuals_cron if isinstance(actuals_cron, str) else None,
+                forecast_mode=self.api.proxy_forecast_mode,
                 schedule_day_utc=parsed_schedule_day,
                 forecast_times_utc=parsed_forecast_times,
                 actuals_times_utc=parsed_actuals_times,
@@ -1074,10 +1193,11 @@ class SitesCache:
                 _LOGGER.debug("Proxy discovery detected for %s", redact_api_key(api_key))
                 poll_delay_value = headers.get("x-proxy-poll-delay-seconds")
                 forecast_cron = headers.get("x-proxy-forecast-cron")
+                forecast_mode = self._parse_proxy_forecast_mode(headers.get("x-proxy-forecast-mode"))
                 schedule_day_utc = headers.get("x-proxy-schedule-day-utc")
                 parsed_schedule_day = schedule_day_utc.strip() if isinstance(schedule_day_utc, str) and schedule_day_utc.strip() else None
-                parsed_forecast_times = parse_proxy_times_utc(headers.get("x-proxy-forecast-times-utc"))
-                parsed_actuals_times = parse_proxy_times_utc(headers.get("x-proxy-estimated-actuals-times-utc"))
+                parsed_forecast_times = self._parse_proxy_times_utc(headers.get("x-proxy-forecast-times-utc"))
+                parsed_actuals_times = self._parse_proxy_times_utc(headers.get("x-proxy-estimated-actuals-times-utc"))
                 use_schedule_slots = bool(parsed_forecast_times or parsed_actuals_times)
                 poll_delay: int | None = None
                 if poll_delay_value is not None:
@@ -1093,6 +1213,7 @@ class SitesCache:
                     else headers.get("x-proxy-estimated-actuals-cron")
                     if isinstance(headers.get("x-proxy-estimated-actuals-cron"), str)
                     else None,
+                    forecast_mode=forecast_mode,
                     schedule_day_utc=parsed_schedule_day,
                     forecast_times_utc=parsed_forecast_times,
                     actuals_times_utc=parsed_actuals_times,
@@ -1101,6 +1222,7 @@ class SitesCache:
 
             if self.api.proxy_mode:
                 _LOGGER.debug("Proxy discovery not detected for %s, disabling proxy mode", redact_api_key(api_key))
+                self.api.proxy_forecast_mode = None
                 await self.api.async_set_proxy_mode(False, source="discovery_header")
 
         async def load_dismissals(cache_filename: str) -> None:

@@ -276,6 +276,23 @@ async def test_proxy_actuals_follow_cron(monkeypatch: pytest.MonkeyPatch, actual
     assert [when for _, when in updater._test_scheduled] == [expected]
 
 
+async def test_proxy_actuals_follow_schedule_slots(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Explicit proxy actuals slots should follow the advertised schedule instead of a local fallback."""
+    updater, fake_track = _make_updater(proxy_mode=True)
+    monkeypatch.setattr("custom_components.solcast_solar.updater.async_track_point_in_utc_time", fake_track)
+    monkeypatch.setattr("custom_components.solcast_solar.updater.sync_actuals_quota_risk_issue", lambda *args, **kwargs: None)
+    solcast = updater._coordinator.solcast
+    solcast.proxy_schedule_day_utc = "2026-11-01"
+    solcast.proxy_actuals_times_utc = ("18:24", "18:30")
+    solcast.options.get_actuals = True
+    solcast.estimated_actuals_updated_today = False
+
+    assert await updater.check_estimated_actuals_fetch() is True
+
+    assert "new_day_actuals" in updater._coordinator.tasks
+    assert [when for _, when in updater._test_scheduled] == [dt(2026, 11, 1, 18, 24, 5, tzinfo=UTC)]
+
+
 async def test_proxy_actuals_missed_cron_schedules_promptly(monkeypatch: pytest.MonkeyPatch) -> None:
     """Starting after today's proxy collection fetches its cached actuals shortly rather than waiting a day."""
     updater, fake_track = _make_updater(proxy_mode=True, proxy_actuals_cron="0 1 * * *")
@@ -406,6 +423,34 @@ async def test_proxy_actuals_cron_after_generation(
 
     errors = [record.getMessage() for record in caplog.records if record.levelname == "ERROR"]
     assert ["generation data fetch" in message for message in errors] == [True] * int(flagged)
+
+
+@pytest.mark.parametrize(
+    ("schedule_day", "slots"),
+    [
+        pytest.param(None, ("18:30",), id="missing-day"),
+        pytest.param("2026-10-31", ("18:30",), id="expired-day"),
+        pytest.param("2026-11-01", ("18:00",), id="past-slot"),
+    ],
+)
+def test_proxy_actuals_schedule_without_remaining_slot(schedule_day: str | None, slots: tuple[str, ...]) -> None:
+    """An absent or exhausted schedule cannot supply an actuals follow time."""
+    updater, _ = _make_updater(proxy_mode=True)
+    updater._coordinator.solcast.proxy_schedule_day_utc = schedule_day
+    updater._coordinator.solcast.proxy_actuals_times_utc = slots
+
+    assert updater._proxy_actuals_update_at() is None
+
+
+def test_proxy_actuals_zero_delay_at_slot_boundary(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A zero-delay slot at the current second uses a short catch-up delay."""
+    updater, _ = _make_updater(proxy_mode=True)
+    updater._coordinator.solcast.proxy_schedule_day_utc = "2026-11-01"
+    updater._coordinator.solcast.proxy_actuals_times_utc = ("18:24",)
+    updater._coordinator.solcast.proxy_poll_delay_seconds = 0
+    monkeypatch.setattr("custom_components.solcast_solar.updater.randint", lambda _low, _high: 0)
+
+    assert updater._proxy_actuals_update_at() == dt(2026, 11, 1, 18, 24, 30, tzinfo=UTC)
 
 
 async def test_forecast_update_rechecks_proxy_schedule(monkeypatch: pytest.MonkeyPatch) -> None:

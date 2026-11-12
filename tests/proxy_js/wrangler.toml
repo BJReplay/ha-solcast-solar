@@ -15,7 +15,7 @@ new_sqlite_classes = ["ProxyCoordinator"]
 
 [vars]
 # Schedule modes: cron | daylight | all_day
-SCHEDULE_MODE = "all_day"
+SCHEDULE_MODE = "daylight"
 
 # cron mode supports one or more cron expressions separated by semicolons (free tier has a number of crons limit)
 #FORECAST_CRONS = "30 11,0,1,2,3,4 * * *"

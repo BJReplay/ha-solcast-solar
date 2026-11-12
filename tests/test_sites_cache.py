@@ -285,6 +285,7 @@ async def test_sites_data_restores_proxy_mode_from_cache_metadata(tmp_path: Path
         proxy_poll_delay_seconds=5,
         proxy_forecast_cron=None,
         proxy_actuals_cron=None,
+        proxy_forecast_mode=None,
         http_status_translate=lambda status: f"{status}",
         entry=None,
     )

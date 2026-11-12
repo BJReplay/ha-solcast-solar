@@ -43,7 +43,8 @@ This folder contains the JavaScript Cloudflare Worker + Durable Object proxy for
 - `GET /rooftop_sites?format=json&api_key=...`
 - `GET /rooftop_sites/<site_id>/forecasts?format=json&api_key=...&hours=...`
 - `GET /rooftop_sites/<site_id>/estimated_actuals?format=json&api_key=...&hours=...`
-- `GET /proxy-status` (alias `/proxy_status`)
+- `GET /proxy_schedule` (alias `/schedule`)
+- `GET /proxy_status` (alias `/proxy-status`)
 - `POST /__scheduled` (internal/manual scheduler entrypoint)
 
 ## Example `wrangler.toml`
@@ -161,7 +162,7 @@ BASE_URL="https://127.0.0.1:9443"
 API_KEY="1"
 SITE_ID="1111-1111-1111-1111"
 
-curl -k -sS "$BASE_URL/proxy-status"
+curl -k -sS "$BASE_URL/proxy_status"
 curl -k -sS -D - "$BASE_URL/rooftop_sites?format=json&api_key=$API_KEY" -o /dev/null
 curl -k -sS -D - "$BASE_URL/rooftop_sites/$SITE_ID/forecasts?format=json&api_key=$API_KEY&hours=336" -o /dev/null
 curl -k -sS -D - "$BASE_URL/rooftop_sites/$SITE_ID/estimated_actuals?format=json&api_key=$API_KEY&hours=168" -o /dev/null
@@ -179,7 +180,7 @@ curl -k --get --data-urlencode 'cron=* * * * *' "$BASE_URL/__scheduled"
 BASE_URL="https://<worker>.<subdomain>.workers.dev"
 API_KEY="<solcast-api-key>"
 
-curl -sS "$BASE_URL/proxy-status"
+curl -sS "$BASE_URL/proxy_status"
 curl -sS -D - "$BASE_URL/rooftop_sites?format=json&api_key=$API_KEY" -o /dev/null
 ```
 
@@ -208,7 +209,7 @@ For storage continuity keep Worker and DO migration lineage consistent.
 - `No simulator is listening on port ...`:
   - Start `wsgi_sim.py` first, then `run_proxy_js.py`.
 - `not_fetched` responses:
-  - Check `/proxy-status` and launcher logs (`[local-cron:info]`) to ensure scheduler is dispatching.
+  - Check `/proxy_status` and launcher logs (`[local-cron:info]`) to ensure scheduler is dispatching.
 
 ## Prerequisites
 
@@ -225,7 +226,7 @@ The Home Assistant integration reacts to a small, explicit subset of proxy respo
 
 ### Discovery and scheduling headers
 
-These are emitted on `/rooftop_sites` discovery responses and tell the integration how to follow the proxy schedule. They are mode-specific, and the useful set depends on whether the proxy is running in cron mode or daylight/all_day mode.
+These are emitted on `/rooftop_sites` discovery responses and on the dedicated schedule refresh endpoint (`/proxy_schedule`, alias `/schedule`). They tell the integration how to follow the proxy schedule. They are mode-specific, and the useful set depends on whether the proxy is running in cron mode or daylight/all_day mode.
 
 #### Shared discovery headers
 

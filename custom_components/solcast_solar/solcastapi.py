@@ -312,6 +312,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.proxy_poll_delay_seconds: int = int(self.entry_options.get(PROXY_POLL_DELAY_SECONDS, 5))
         self.proxy_forecast_cron: str | None = self.entry_options.get(PROXY_FORECAST_CRON)
         self.proxy_actuals_cron: str | None = self.entry_options.get(PROXY_ACTUALS_CRON)
+        self.proxy_forecast_mode: str | None = None
         self.proxy_schedule_day_utc: str | None = None
         self.proxy_forecast_times_utc: tuple[str, ...] = ()
         self.proxy_actuals_times_utc: tuple[str, ...] = ()
