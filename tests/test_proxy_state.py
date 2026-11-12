@@ -543,9 +543,7 @@ async def test_refresh_proxy_schedule_headers(solcast: SolcastApi) -> None:
     assert solcast.proxy_actuals_times_utc == ("13:13",)
 
 
-async def test_refresh_proxy_schedule_daylight_missing_slots_errors(
-    solcast: SolcastApi, caplog: pytest.LogCaptureFixture
-) -> None:
+async def test_refresh_proxy_schedule_daylight_missing_slots_errors(solcast: SolcastApi, caplog: pytest.LogCaptureFixture) -> None:
     """Daylight schedule refresh fails hard when required schedule headers are missing."""
     await solcast.async_set_proxy_mode(True)
     solcast.proxy_schedule_day_utc = "2026-11-09"
@@ -779,10 +777,13 @@ async def test_daily_proxy_schedule_refresh(solcast: SolcastApi, status: int) ->
             await coordinator._refresh_proxy_schedule_headers()
 
         assert len(coordinator.tasks) == int(status == 204)
-        assert coordinator.updater._proxy_scheduled_for == {
-            204: dt(2026, 11, 12, 3, 45, 9, tzinfo=UTC),
-            503: None,
-        }[status]
+        assert (
+            coordinator.updater._proxy_scheduled_for
+            == {
+                204: dt(2026, 11, 12, 3, 45, 9, tzinfo=UTC),
+                503: None,
+            }[status]
+        )
     finally:
         await coordinator.tasks_cancel()
 

@@ -47,6 +47,17 @@ This folder contains the JavaScript Cloudflare Worker + Durable Object proxy for
 - `GET /proxy_status` (alias `/proxy-status`)
 - `POST /__scheduled` (internal/manual scheduler entrypoint)
 
+### Forced cached responses
+
+Add `&force=true` to any of the three `/rooftop_sites` requests above to return the last known successful response for that API key and, where applicable, site and resource kind. This bypasses previous upstream failures, active retries, rate limiting, exhausted budgets and permanent collection failures for a read. It does not force an upstream fetch.
+
+- `force` is a proxy-only parameter, and is never forwarded upstream.
+- Bare `force` and the values `true`, `1`, `yes` and `on` enable it; values are case-insensitive. Omitted `force`, `false`, `0`, `no`, `off` and unrecognised values retain normal behaviour.
+- Forced sites discovery uses the persisted successful site list, but does attempt to get fresher data from Solcast; it returns cached data even if the upsteam call fails. An empty successful site list is valid.
+- Forced forecasts and estimated actuals still validate `format=json` and positive `hours`, and apply the normal current-time window filtering. Old cached data can therefore produce an empty array; `force` does not make expired data current.
+- With no successful response cached, the proxy returns HTTP `503`.
+- Collection/retry headers remain truthful, even with HTTP `200`: inspect `x-proxy-last-success-at`, `x-proxy-upstream-status` and `x-proxy-last-fetch-status` to assess freshness and collection failures.
+
 ## Example `wrangler.toml`
 
 ```toml
@@ -154,6 +165,20 @@ wrangler deploy
 ```
 
 ## Verification examples
+
+Direct Worker regression tests (Node.js 22+):
+
+If needed, ensure node is reachable:
+
+```bash
+export NVM_DIR="$HOME/.nvm"
+. "$NVM_DIR/nvm.sh"
+nvm use 26
+```
+
+```bash
+node --test proxy_cloudflare.test.mjs
+```
 
 ### Local (`wrangler dev`)
 

@@ -610,6 +610,14 @@ function sliceRows(rows, kind, now, hours) {
 }
 
 function invalidateResourceCache(resource) {
+    if (resource.payload) {
+        resource.last_success_cache = {
+            payload: resource.payload,
+            hours: resource.hours,
+            forecast_end: resource.forecast_end,
+            history_hours: resource.history_hours,
+        };
+    }
     resource.payload = null;
     resource.hours = 0;
     resource.forecast_end = null;
@@ -625,6 +633,7 @@ function newResourceState(apiKey, site, kind) {
         forecast_end: null,
         history_hours: 0,
         payload: null,
+        last_success_cache: null,
         error_payload: null,
         fetched_at: null,
         last_success_at: null,
@@ -802,6 +811,7 @@ function scheduleConfigKey(env) {
 function defaultState() {
     return {
         accounts: {},
+        discovery_payloads: {},
         resources: {},
         retry: newRetryState(),
         schedule: {
@@ -948,6 +958,9 @@ export class ProxyCoordinator {
         if (!data.accounts || typeof data.accounts !== "object") {
             data.accounts = {};
         }
+        if (!data.discovery_payloads || typeof data.discovery_payloads !== "object") {
+            data.discovery_payloads = {};
+        }
         if (!data.resources || typeof data.resources !== "object") {
             data.resources = {};
         }
@@ -1040,9 +1053,9 @@ export class ProxyCoordinator {
         }
 
         const data = await this.load();
-        if (await this.registerSites(data, apiKey, sites)) {
-            await this.save(data);
-        }
+        await this.registerSites(data, apiKey, sites);
+        data.discovery_payloads[apiKey] = payload;
+        await this.save(data);
         return { status, payload, detail };
     }
 
@@ -1065,6 +1078,7 @@ export class ProxyCoordinator {
         if (status === 200 && payload && typeof payload === "object" && Array.isArray(payload[resource.kind])) {
             const rows = payload[resource.kind];
             resource.payload = payload;
+            resource.last_success_cache = null;
             resource.last_success_at = iso(now);
             resource.consecutive_failures = 0;
             resource.give_up = false;
@@ -1320,6 +1334,7 @@ export class ProxyCoordinator {
         const apiKey = query.get("api_key") || "";
         const fmt = query.get("format") || "json";
         const hours = Number(query.get("hours") || "0");
+        const force = query.has("force") && parseBool(query.get("force") || "true");
 
         const data = await this.rebuildScheduleIfNeeded(nowUtc());
         const baseHeaders = scheduleHeaders(this.env, data.schedule, pollingAdvice(this.env, data.telemetry));
@@ -1339,6 +1354,12 @@ export class ProxyCoordinator {
         let resource = stateData.resources[rid];
 
         if (!resource) {
+            if (force) {
+                return jsonResponse({ error: "No successful cached response available" }, 503, {
+                    ...baseHeaders,
+                    "cache-control": "no-store",
+                });
+            }
             const discovered = await this.discover(apiKey);
             if (discovered.status !== 200) {
                 if (discovered.payload !== null && discovered.payload !== undefined) {
@@ -1353,37 +1374,38 @@ export class ProxyCoordinator {
             }
         }
 
+        const cached = force && !resource.payload ? resource.last_success_cache : resource;
         const retryState = stateData.retry && typeof stateData.retry === "object" ? stateData.retry : newRetryState();
         const headers = {
             ...baseHeaders,
             ...this.resourceHeaders(resource, retryState),
             "cache-control": "no-store",
             "x-proxy-requested-hours": String(hours),
-            "x-proxy-cache-hours": String(resource.hours || 0),
+            "x-proxy-cache-hours": String(cached?.hours || 0),
         };
 
-        if (Number(resource.status) === 429) {
+        if (!force && Number(resource.status) === 429) {
             const responsePayload = resource.attempt_result === "budget_exhausted" ? resource.error_payload : null;
             return jsonResponse(responsePayload, 429, headers);
         }
 
-        if (!resource.payload) {
-            return jsonResponse({ error: "No scheduled collection has succeeded yet" }, 503, headers);
+        if (!cached?.payload) {
+            return jsonResponse({ error: force ? "No successful cached response available" : "No scheduled collection has succeeded yet" }, 503, headers);
         }
 
         const now = nowUtc();
-        const rows = Array.isArray(resource.payload[kind]) ? resource.payload[kind] : [];
-        const responsePayload = { ...resource.payload, [kind]: sliceRows(rows, kind, now, hours) };
+        const rows = Array.isArray(cached.payload[kind]) ? cached.payload[kind] : [];
+        const responsePayload = { ...cached.payload, [kind]: sliceRows(rows, kind, now, hours) };
 
-        let availableHours = Number(resource.hours || 0);
+        let availableHours = Number(cached.hours || 0);
         const lastSuccess = fromIso(resource.last_success_at) || now;
-        if (kind === FORECAST_KIND && resource.forecast_end) {
-            const forecastEnd = fromIso(resource.forecast_end);
+        if (kind === FORECAST_KIND && cached.forecast_end) {
+            const forecastEnd = fromIso(cached.forecast_end);
             if (forecastEnd) {
                 availableHours = Math.max(0, (forecastEnd.getTime() - now.getTime()) / 3600000);
             }
         } else if (kind === ACTUALS_KIND) {
-            availableHours = Math.max(0, Number(resource.history_hours || 0) - ((now.getTime() - lastSuccess.getTime()) / 3600000));
+            availableHours = Math.max(0, Number(cached.history_hours || 0) - ((now.getTime() - lastSuccess.getTime()) / 3600000));
         }
 
         headers["x-proxy-hours-truncated"] = boolHeader(hours > availableHours);
@@ -1628,15 +1650,31 @@ export class ProxyCoordinator {
         const query = new URL(url).searchParams;
         const apiKey = query.get("api_key") || "";
         const fmt = query.get("format") || "json";
+        const force = query.has("force") && parseBool(query.get("force") || "true");
 
         const data = await this.rebuildScheduleIfNeeded(nowUtc());
-        const headers = scheduleHeaders(this.env, data.schedule, pollingAdvice(this.env, data.telemetry));
+        const headers = {
+            ...scheduleHeaders(this.env, data.schedule, pollingAdvice(this.env, data.telemetry)),
+            "cache-control": "no-store",
+        };
 
         if (!apiKey || fmt !== "json") {
             return jsonResponse({ error: "API key and JSON format required" }, 400, headers);
         }
 
-        const discovered = await this.discover(apiKey);
+        const hasFallback = force && Object.hasOwn(data.discovery_payloads, apiKey);
+        let discovered;
+        try {
+            discovered = await this.discover(apiKey);
+        } catch (error) {
+            if (!hasFallback) {
+                throw error;
+            }
+            return jsonResponse(data.discovery_payloads[apiKey], 200, headers);
+        }
+        if (hasFallback && discovered.status !== 200) {
+            return jsonResponse(data.discovery_payloads[apiKey], 200, headers);
+        }
         if (discovered.payload !== null && discovered.payload !== undefined) {
             return jsonResponse(discovered.payload, discovered.status, headers);
         }
