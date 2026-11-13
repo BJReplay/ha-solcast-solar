@@ -20,6 +20,7 @@ from custom_components.solcast_solar.const import (
     PROXY_SAVED_AUTO_UPDATE,
     PROXY_SCHEDULE_DAY_UTC,
     SITES,
+    TASK_PROXY_SCHEDULE_REFRESH_PENDING,
     TOTAL_RECORDS,
 )
 from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
@@ -747,6 +748,31 @@ async def test_refresh_proxy_schedule_endpoints_unavailable(
     assert session.get.await_count == 2
     assert message in caplog.text
     assert ("endpoint was not available" in caplog.text) == (mode == "daylight")
+
+
+@pytest.mark.parametrize(
+    ("delay", "expected"),
+    [
+        pytest.param(5, dt(2026, 11, 13, 0, 0, 15, tzinfo=UTC), id="minimum-margin"),
+        pytest.param(30, dt(2026, 11, 13, 0, 0, 30, tzinfo=UTC), id="advertised-delay"),
+        pytest.param(61, dt(2026, 11, 13, 0, 1, 1, tzinfo=UTC), id="late-cron-tick"),
+    ],
+)
+async def test_daily_proxy_schedule_refresh_delay(solcast: SolcastApi, delay: int, expected: dt) -> None:
+    """Midnight schedules a cancellable fetch after the advertised proxy delay."""
+    await solcast.async_set_proxy_mode(True)
+    solcast.proxy_poll_delay_seconds = delay
+    coordinator = SolcastUpdateCoordinator(solcast.hass, MockConfigEntry(domain="solcast_solar"), solcast, "test")
+    with (
+        patch("custom_components.solcast_solar.coordinator.async_track_point_in_utc_time") as track,
+        patch.object(solcast.sites_cache, "refresh_proxy_schedule", new_callable=AsyncMock) as refresh,
+    ):
+        coordinator._schedule_proxy_schedule_refresh(dt(2026, 11, 13, tzinfo=UTC))
+        track.assert_called_once_with(solcast.hass, coordinator._refresh_proxy_schedule_headers, expected)
+        refresh.assert_not_awaited()
+        assert coordinator.tasks[TASK_PROXY_SCHEDULE_REFRESH_PENDING] is track.return_value
+        await coordinator.tasks_cancel()
+        track.return_value.assert_called_once_with()
 
 
 @pytest.mark.parametrize("status", [pytest.param(204, id="success"), pytest.param(503, id="failure")])

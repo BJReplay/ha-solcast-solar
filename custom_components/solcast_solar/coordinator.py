@@ -1,14 +1,17 @@
 """Solcast update coordinator."""
 
-from datetime import datetime as dt
+from datetime import datetime as dt, timedelta
 from operator import itemgetter
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.event import async_track_utc_time_change
+from homeassistant.helpers.event import (
+    async_track_point_in_utc_time,
+    async_track_utc_time_change,
+)
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from .const import (
@@ -63,6 +66,7 @@ from .const import (
     TASK_LISTENERS,
     TASK_MIDNIGHT_UPDATE,
     TASK_PROXY_SCHEDULE_REFRESH,
+    TASK_PROXY_SCHEDULE_REFRESH_PENDING,
     UNDAMPENED_APE_BREAKDOWN,
     UNDAMPENED_DAILY,
     UNDAMPENED_ESTIMATE,
@@ -195,7 +199,7 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
             self.hass, self._update_integration_listeners, minute=range(0, 60, 5), second=0
         )
         self.tasks[TASK_PROXY_SCHEDULE_REFRESH] = async_track_utc_time_change(
-            self.hass, self._refresh_proxy_schedule_headers, hour=0, minute=0, second=5
+            self.hass, self._schedule_proxy_schedule_refresh, hour=0, minute=0, second=0
         )
         self._file_watcher = FileWatcher(self)
         await self._file_watcher.setup()
@@ -262,8 +266,23 @@ class SolcastUpdateCoordinator(DataUpdateCoordinator):
         await self.solcast.fetcher.reset_failure_stats()
         await self.update_integration_listeners()
 
+    @callback
+    def _schedule_proxy_schedule_refresh(self, called_at: dt) -> None:
+        """Fetch the new UTC day's schedule after the proxy's advertised delay."""
+        if not self.solcast.proxy_mode:
+            return
+
+        if cancel := self.tasks.pop(TASK_PROXY_SCHEDULE_REFRESH_PENDING, None):
+            cancel()
+        refresh_at = called_at + timedelta(seconds=max(15, self.solcast.proxy_poll_delay_seconds))
+        self.tasks[TASK_PROXY_SCHEDULE_REFRESH_PENDING] = async_track_point_in_utc_time(
+            self.hass, self._refresh_proxy_schedule_headers, refresh_at
+        )
+
     async def _refresh_proxy_schedule_headers(self, _called_at: dt | None = None) -> None:
         """Refresh proxy schedule headers from the dedicated schedule endpoint."""
+        if cancel := self.tasks.pop(TASK_PROXY_SCHEDULE_REFRESH_PENDING, None):
+            cancel()
         if not self.solcast.proxy_mode:
             return
 
