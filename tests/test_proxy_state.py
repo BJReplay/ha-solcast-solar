@@ -763,11 +763,14 @@ async def test_daily_proxy_schedule_refresh_delay(solcast: SolcastApi, delay: in
     await solcast.async_set_proxy_mode(True)
     solcast.proxy_poll_delay_seconds = delay
     coordinator = SolcastUpdateCoordinator(solcast.hass, MockConfigEntry(domain="solcast_solar"), solcast, "test")
+    cancel_pending = MagicMock()
+    coordinator.tasks[TASK_PROXY_SCHEDULE_REFRESH_PENDING] = cancel_pending
     with (
         patch("custom_components.solcast_solar.coordinator.async_track_point_in_utc_time") as track,
         patch.object(solcast.sites_cache, "refresh_proxy_schedule", new_callable=AsyncMock) as refresh,
     ):
         coordinator._schedule_proxy_schedule_refresh(dt(2026, 11, 13, tzinfo=UTC))
+        cancel_pending.assert_called_once_with()
         track.assert_called_once_with(solcast.hass, coordinator._refresh_proxy_schedule_headers, expected)
         refresh.assert_not_awaited()
         assert coordinator.tasks[TASK_PROXY_SCHEDULE_REFRESH_PENDING] is track.return_value
@@ -782,6 +785,8 @@ async def test_daily_proxy_schedule_refresh(solcast: SolcastApi, status: int) ->
     solcast.options.get_actuals = False
     solcast.proxy_next_attempt_at = None
     coordinator = SolcastUpdateCoordinator(solcast.hass, MockConfigEntry(domain="solcast_solar"), solcast, "test")
+    cancel_pending = MagicMock()
+    coordinator.tasks[TASK_PROXY_SCHEDULE_REFRESH_PENDING] = cancel_pending
     session = MagicMock()
     session.get = AsyncMock(
         return_value=MagicMock(
@@ -802,6 +807,8 @@ async def test_daily_proxy_schedule_refresh(solcast: SolcastApi, status: int) ->
         ):
             await coordinator._refresh_proxy_schedule_headers()
 
+        cancel_pending.assert_called_once_with()
+        assert TASK_PROXY_SCHEDULE_REFRESH_PENDING not in coordinator.tasks
         assert len(coordinator.tasks) == int(status == 204)
         assert (
             coordinator.updater._proxy_scheduled_for
