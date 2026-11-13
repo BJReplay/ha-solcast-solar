@@ -2,6 +2,7 @@
 
 import asyncio
 from collections import OrderedDict, defaultdict
+from collections.abc import Awaitable, Callable
 import contextlib
 import copy
 from dataclasses import dataclass
@@ -75,6 +76,11 @@ from .const import (
     LEARN_MORE_CORRUPT_FILE,
     LEARN_MORE_MISSING_FORECAST_DATA,
     PERIOD_START,
+    PROXY_ACTUALS_CRON,
+    PROXY_FORECAST_CRON,
+    PROXY_MODE,
+    PROXY_POLL_DELAY_SECONDS,
+    PROXY_SAVED_AUTO_UPDATE,
     RESOURCE_ID,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
@@ -301,6 +307,21 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.tz = options.tz
         self.usage_status: LoadStatus = LoadStatus.UNKNOWN
         self.use_forecast_confidence = f"pv_{options.key_estimate}"
+        self.proxy_mode: bool = bool(self.entry_options.get(PROXY_MODE, False))
+        self.proxy_saved_auto_update: int | None = self.entry_options.get(PROXY_SAVED_AUTO_UPDATE)
+        self.proxy_poll_delay_seconds: int = int(self.entry_options.get(PROXY_POLL_DELAY_SECONDS, 5))
+        self.proxy_forecast_cron: str | None = self.entry_options.get(PROXY_FORECAST_CRON)
+        self.proxy_actuals_cron: str | None = self.entry_options.get(PROXY_ACTUALS_CRON)
+        self.proxy_forecast_mode: str | None = None
+        self.proxy_schedule_day_utc: str | None = None
+        self.proxy_forecast_times_utc: tuple[str, ...] = ()
+        self.proxy_actuals_times_utc: tuple[str, ...] = ()
+        self.proxy_next_attempt_at: dt | None = None
+        self.proxy_halted: bool = False
+        self.proxy_fetch_in_progress: bool = False
+        self.proxy_last_fetch_status: str | None = None
+        self.proxy_upstream_status: int | None = None
+        self.proxy_follow_reschedule: Callable[[], Awaitable[None]] | None = None
 
         # Private attributes.
         self._sites_actual_hard_limit: defaultdict[str, Any] = defaultdict(dict)
@@ -329,6 +350,75 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.fetcher = Fetcher(self)
         self.query = ForecastQuery(self)
         self.sites_cache = SitesCache(self)
+
+    async def async_set_proxy_mode(self, enabled: bool, source: str = "") -> None:
+        """Set proxied operation mode and persist it in entry options."""
+
+        self.proxy_mode = enabled
+        if enabled and self.proxy_saved_auto_update is None:
+            self.proxy_saved_auto_update = int(self.options.auto_update)
+
+        if self.entry is None:
+            return
+
+        new_options = {**self.entry.options}
+        changed = False
+
+        if new_options.get(PROXY_MODE) != enabled:
+            new_options[PROXY_MODE] = enabled
+            changed = True
+
+        if (
+            enabled
+            and self.proxy_saved_auto_update is not None
+            and new_options.get(PROXY_SAVED_AUTO_UPDATE) != self.proxy_saved_auto_update
+        ):
+            new_options[PROXY_SAVED_AUTO_UPDATE] = self.proxy_saved_auto_update
+            changed = True
+
+        if new_options.get(PROXY_POLL_DELAY_SECONDS) != self.proxy_poll_delay_seconds:
+            new_options[PROXY_POLL_DELAY_SECONDS] = self.proxy_poll_delay_seconds
+            changed = True
+
+        if new_options.get(PROXY_FORECAST_CRON) != self.proxy_forecast_cron:
+            new_options[PROXY_FORECAST_CRON] = self.proxy_forecast_cron
+            changed = True
+
+        if new_options.get(PROXY_ACTUALS_CRON) != self.proxy_actuals_cron:
+            new_options[PROXY_ACTUALS_CRON] = self.proxy_actuals_cron
+            changed = True
+
+        if changed:
+            _LOGGER.debug("Persisting proxy mode %s%s", enabled, f" ({source})" if source else "")
+            self.hass.config_entries.async_update_entry(self.entry, options=new_options)
+            self.entry_options = {**new_options}
+
+    async def async_set_proxy_poll_delay(self, delay_seconds: int, source: str = "") -> None:
+        """Set proxy poll delay and persist if changed."""
+
+        delay = max(0, int(delay_seconds))
+        if self.proxy_poll_delay_seconds == delay and self.entry_options.get(PROXY_POLL_DELAY_SECONDS) == delay:
+            return
+        self.proxy_poll_delay_seconds = delay
+        await self.async_set_proxy_mode(self.proxy_mode, source=source)
+
+    async def async_set_proxy_forecast_cron(self, cron: str | None, source: str = "") -> None:
+        """Set proxy forecast cron expression and persist if changed."""
+
+        value = cron.strip() if isinstance(cron, str) and cron.strip() else None
+        if self.proxy_forecast_cron == value and self.entry_options.get(PROXY_FORECAST_CRON) == value:
+            return
+        self.proxy_forecast_cron = value
+        await self.async_set_proxy_mode(self.proxy_mode, source=source)
+
+    async def async_set_proxy_actuals_cron(self, cron: str | None, source: str = "") -> None:
+        """Set proxy estimated actuals cron expression and persist if changed."""
+
+        value = cron.strip() if isinstance(cron, str) and cron.strip() else None
+        if self.proxy_actuals_cron == value and self.entry_options.get(PROXY_ACTUALS_CRON) == value:
+            return
+        self.proxy_actuals_cron = value
+        await self.async_set_proxy_mode(self.proxy_mode, source=source)
 
     def _migrate_config_files(self) -> list[str]:
         """Migrate config files to discrete folder if required."""

@@ -70,6 +70,10 @@ from .const import (
     HEADERS_USER_AGENT,
     KEY_ESTIMATE,
     LAST_ATTEMPT,
+    PROXY_FORECAST_CRON,
+    PROXY_MODE,
+    PROXY_POLL_DELAY_SECONDS,
+    PROXY_SAVED_AUTO_UPDATE,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
@@ -372,7 +376,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         case _:
             pass
 
-    sync_actuals_api_limit_issue(hass, entry.options, solcast.sites)
+    sync_actuals_api_limit_issue(
+        hass,
+        {**entry.options, PROXY_MODE: solcast.proxy_mode},
+        solcast.sites,
+    )
 
     await __get_granular_dampening(hass, entry, solcast)
 
@@ -581,7 +589,11 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     else:
         determination = "Refresh sensors only" + (", with spline recalculate" if recalculate_splines else "")
     _LOGGER.debug("Options updated, action: %s", determination)
-    sync_actuals_api_limit_issue(hass, entry.options, coordinator.solcast.sites)
+    sync_actuals_api_limit_issue(
+        hass,
+        {**entry.options, PROXY_MODE: coordinator.solcast.proxy_mode},
+        coordinator.solcast.sites,
+    )
     if not reload:
         await coordinator.solcast.set_options(entry.options)
         if recalculate_and_refresh:
@@ -616,6 +628,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     v15: (4.3.3)    Exclude sites from core forecast
     v18: (4.4.0)    Auto-dampen, and add new options for export entity and generation entities
     v19: (4.5.1)    Rename some options for clarity
+    v20: (4.7.0)    Persist proxy-mode state, saved scheduler mode and proxy forecast cron expression
 
     An upgrade of the integration will sequentially upgrade options to the current
     version, with this function needing to consider all upgrade history and new defaults.
@@ -725,6 +738,12 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if "customhoursensor" in new_options:
             new_options[CUSTOM_HOURS] = new_options["customhoursensor"]
 
+    async def __v20(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
+        new_options.setdefault(PROXY_MODE, False)
+        new_options.setdefault(PROXY_POLL_DELAY_SECONDS, 5)
+        new_options.setdefault(PROXY_SAVED_AUTO_UPDATE, int(new_options.get(AUTO_UPDATE, AutoUpdate.NONE)))
+        new_options.setdefault(PROXY_FORECAST_CRON, None)
+
     upgrades: list[dict[str, Any]] = [
         {VERSION: 4, UPGRADE_FUNCTION: __v4},
         {VERSION: 5, UPGRADE_FUNCTION: __v5},
@@ -737,6 +756,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         {VERSION: 15, UPGRADE_FUNCTION: __v15},
         {VERSION: 18, UPGRADE_FUNCTION: __v18},
         {VERSION: 19, UPGRADE_FUNCTION: __v19},
+        {VERSION: 20, UPGRADE_FUNCTION: __v20},
     ]
     for upgrade in upgrades:
         if (entry.version < upgrade[VERSION]) or (ENTRY_OPTIONS_DEVELOPMENT and upgrade[VERSION] == CONFIG_VERSION):

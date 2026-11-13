@@ -73,6 +73,7 @@ This integration is not created by, maintained, endorsed nor approved by Solcast
     1. [Hard limit configuration](#hard-limit-configuration)
     1. [Excluded sites configuration](#excluded-sites-configuration)
     1. [Advanced configuration options](#advanced-configuration-options)
+    1. [Proxying the Solcast API](#proxying-the-solcast-api)
 1. [Sample template sensors](#sample-template-sensors)
 1. [Sample Apex chart for dashboard](#sample-apex-chart-for-dashboard)
 1. [Known issues](#known-issues)
@@ -1282,6 +1283,16 @@ These options may be set by creating a file called `solcast-advanced.json` in th
 
 For the available options, see the documentation at [Advanced options](https://github.com/BJReplay/ha-solcast-solar/blob/main/ADVOPTIONS.md).
 
+### Proxying the Solcast API
+
+A proxy may be placed between the Solcast API endpoints and this integration, allowing multiple consumers of the Solcast hobbyist API quota from a compatible set of API endpoints. Utilising a proxy address is configurable via the advanced configuration options.
+
+If a simple cron-based proxy is implemented then coordination of API retries and permanent failure handling will not be possible, and scheduling updates may become problematic. Beyond a simple proxy, the integration does feature specific proxy-detection capabilities that will respond to certain response headers when these are provided by an intermediary, and this is the recommended proxying approach to avoid unexpected integration failures when a proxy is employed.
+
+That proxy approach will also transparently provide the same situational awareness of transient failure handling as a direct-to-Solcast default configuration will. It also enables daytime, all day and cron action scheduling, with all options implementing an auto-update capability for forecasts and estimated actuals retrieval if needed so that the scheduling only needs to be set in the proxy configuration.
+
+See the sister project [Solcast Cloudflare Proxy](https://github.com/autoSteve/solcast-cloudflare-proxy) for details of a reference proxy implementation, with that project suitable for use with the Cloudflare Workers free tier to implement a cloud-based advanced proxy that utilises all needed response headers.
+
 ## Sample template sensors
 
 ### Combining site data
@@ -1551,6 +1562,21 @@ The code itself resides at `/config/custom_components/solcast_solar`, and removi
 
 Latest minor/patch releases.
 
+v4.7.0
+
+* Add coherent proxying of the Solcast hobbyist API allowing multiple consumers by @autoSteve
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.4...v4.7.0
+
+### Prior changes
+<details><summary><i>Click here for changes back to v3.0</i></summary>
+
+v4.6.4
+
+* Documentation only release by @BJReplay
+
+Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.3...v4.6.4
+
 v4.6.3
 
 * Add SSL verify by default by @autoSteve
@@ -1606,9 +1632,6 @@ v4.6.0
 * API simulator improvements by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.5.2...v4.6.0
-
-### Prior changes
-<details><summary><i>Click here for changes back to v3.0</i></summary>
 
 v4.5.2
 
