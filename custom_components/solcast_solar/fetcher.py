@@ -175,6 +175,22 @@ class Fetcher:
         return None
 
     @staticmethod
+    def _proxy_retry_follow_delay(headers: Any, fallback_delay: int) -> int:
+        """Retain fetch-follow grace without the adaptive scheduler's tick phase."""
+        follow_delay = fallback_delay
+        with contextlib.suppress(ValueError, TypeError, OverflowError):
+            proxy_delay = float(
+                headers.get("x-proxy-poll-delay-seconds", fallback_delay)
+            )
+            follow_delay = math.ceil(proxy_delay)
+            if headers.get("x-proxy-forecast-mode") in ("daylight", "all_day"):
+                tick_second = float(
+                    headers.get("x-proxy-observed-tick-second-p90") or 0
+                )
+                follow_delay = math.ceil(proxy_delay - tick_second)
+        return max(1, follow_delay)
+
+    @staticmethod
     def _next_from_proxy_cron(base_time: dt, cron_expression: str) -> dt | None:
         """Return the next UTC occurrence for the proxy forecast cron expression."""
         if len(cron_expression.split()) != 5:
@@ -375,7 +391,7 @@ class Fetcher:
                 else {}
             )
             for actual in new_data:
-                self.api.forecast_entry_update(
+                await self.api.forecast_entry_update(
                     actuals,
                     actual[PERIOD_START],
                     round(actual[ESTIMATE], 4),
@@ -530,16 +546,29 @@ class Fetcher:
     async def sort_and_prune(self, site: str | None, data: dict[str, Any], past_days: int, forecasts: dict[Any, Any]) -> None:
         """Sort and prune a forecast list."""
 
-        _past_days = self.api.dt_helper.day_start_utc(future=past_days * -1)
-        _forecasts: list[dict[str, Any]] = sorted(
-            filter(
-                lambda forecast: forecast[PERIOD_START] >= _past_days,
-                forecasts.values(),
-            ),
-            key=itemgetter(PERIOD_START),
+        cutoff = self.api.dt_helper.day_start_utc(future=-past_days)
+        filter_started = time.perf_counter()
+        filter_cpu_started = time.thread_time()
+        retained = [forecast for forecast in forecasts.values() if forecast[PERIOD_START] >= cutoff]
+        filter_elapsed = time.perf_counter() - filter_started
+        filter_cpu_elapsed = time.thread_time() - filter_cpu_started
+        sort_started = time.perf_counter()
+        sort_cpu_started = time.thread_time()
+        retained.sort(key=itemgetter(PERIOD_START))
+        sort_elapsed = time.perf_counter() - sort_started
+        sort_cpu_elapsed = time.thread_time() - sort_cpu_started
+        data[SITE_INFO][site] = {FORECASTS: retained}
+        _LOGGER.debug(
+            "History prune for %s: %d input, %d retained; filter wall=%.1f ms, filter CPU=%.1f ms, "
+            "sort wall=%.1f ms, sort CPU=%.1f ms",
+            site,
+            len(forecasts),
+            len(retained),
+            filter_elapsed * 1000,
+            filter_cpu_elapsed * 1000,
+            sort_elapsed * 1000,
+            sort_cpu_elapsed * 1000,
         )
-        # Entries hold only datetimes and numbers, so copying each dict is enough
-        data[SITE_INFO].update({site: {FORECASTS: [dict(forecast) for forecast in _forecasts]}})
 
     async def http_data_call(
         self,
@@ -625,7 +654,7 @@ class Fetcher:
                     period_start = actual[PERIOD_START]
 
                     # Add or update the new entries.
-                    self.api.forecast_entry_update(
+                    await self.api.forecast_entry_update(
                         actuals,
                         period_start,
                         round(actual[ESTIMATE], 4),
@@ -694,7 +723,7 @@ class Fetcher:
             # Add new data to the undampened forecasts.
             for forecast in new_data:
                 period_start = forecast[PERIOD_START]
-                self.api.forecast_entry_update(
+                await self.api.forecast_entry_update(
                     forecasts_undampened,
                     period_start,
                     round(forecast[ESTIMATE], 4),
@@ -727,11 +756,9 @@ class Fetcher:
 
         return _DataCallStatus.SUCCESS, ""
 
-    async def _sleep(self, delay: int):
+    async def _sleep(self, delay: int) -> None:
         """Sleep for a specified number of seconds."""
-
-        for _ in range(delay * 10):
-            await asyncio.sleep(0.1)
+        await asyncio.sleep(delay)
 
     def increment_failure_count(self):
         """Increment all three failure counters."""
@@ -872,30 +899,43 @@ class Fetcher:
                                 halted = self._header_as_bool(response.headers.get("x-proxy-halted")) is True
                                 in_progress = self._header_as_bool(response.headers.get("x-proxy-fetch-in-progress")) is True
                                 next_attempt = self._header_as_dt(response.headers.get("x-proxy-next-attempt-at"))
-                                if halted or next_attempt is None or (proxy_status != "retrying" and not in_progress):
+                                if (
+                                    halted
+                                    or next_attempt is None
+                                    or (proxy_status != "retrying" and not in_progress)
+                                ):
                                     if proxy_status == "give_up":
                                         failure_reason = "Proxy collection gave up"
                                         if status == 429:
-                                            failure_reason = f"{failure_reason} ({status})"
+                                            failure_reason = (
+                                                f"{failure_reason} ({status})"
+                                            )
                                     else:
                                         failure_reason = f"Proxy collection {proxy_status or 'unavailable'}"
                                     if status == 429 and proxy_status == "give_up":
                                         received_429 = tries
                                     break
+                                follow_delay = self._proxy_retry_follow_delay(
+                                    response.headers, self.api.proxy_poll_delay_seconds
+                                )
                                 delay = max(
                                     1,
-                                    self.api.proxy_poll_delay_seconds,
+                                    follow_delay,
                                     math.ceil(
-                                        (next_attempt - self.api.dt_helper.real_now_utc()).total_seconds()
-                                        + self.api.proxy_poll_delay_seconds
+                                        (
+                                            next_attempt
+                                            - self.api.dt_helper.real_now_utc()
+                                        ).total_seconds()
+                                        + follow_delay
                                     ),
                                 )
                                 _LOGGER.debug(
-                                    "Proxy collection %s for site %s, next attempt %s; polling in %d seconds",
+                                    "Proxy collection %s for site %s, next attempt %s; polling in %d seconds (fetch follow delay %d seconds)",
                                     proxy_status,
                                     site,
                                     next_attempt.isoformat(),
                                     delay,
+                                    follow_delay,
                                 )
                                 await self._sleep(delay)
                                 continue

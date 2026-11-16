@@ -1,6 +1,10 @@
 """Unit tests for Solcast helper functions and methods."""
 
+import asyncio
 from datetime import UTC, datetime as dt
+import gc
+import logging
+from unittest.mock import call, patch
 
 from custom_components.solcast_solar.const import (
     DEFAULT_SOLCAST_HTTPS_URL,
@@ -15,11 +19,75 @@ from custom_components.solcast_solar.util import (
     azimuth_to_compass_direction,
     diff,
     interquartile_bounds,
+    log_loop_turns,
     ordinal,
     percentile,
     split_and_strip,
 )
 import pytest
+
+
+class TestLogLoopTurns:
+    """Tests for coroutine execution-slice timing."""
+
+    async def test_occupied_slots(self, caplog: pytest.LogCaptureFixture) -> None:
+        """Occupied monitoring slots must skip timing without releasing other tools."""
+        caplog.set_level(logging.DEBUG, logger="custom_components.solcast_solar.util")
+        previous_callbacks = gc.callbacks.copy()
+
+        with (
+            patch(
+                "custom_components.solcast_solar.util.sys.monitoring.use_tool_id",
+                side_effect=ValueError("occupied"),
+            ) as use_tool_id,
+            patch(
+                "custom_components.solcast_solar.util.sys.monitoring.free_tool_id"
+            ) as free_tool_id,
+        ):
+            with log_loop_turns(self.test_occupied_slots.__code__, "Occupied slots"):
+                assert gc.callbacks == previous_callbacks
+
+            assert use_tool_id.call_args_list == [
+                call(5, "solcast-loop-timing"),
+                call(4, "solcast-loop-timing"),
+                call(3, "solcast-loop-timing"),
+            ]
+            free_tool_id.assert_not_called()
+
+        assert (
+            "Occupied slots timing skipped: monitoring slots are occupied"
+            in caplog.text
+        )
+        assert gc.callbacks == previous_callbacks
+
+    async def test_slow_slice(
+        self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A slow slice must log wall and CPU durations and clean up its GC callback."""
+        caplog.set_level(logging.DEBUG, logger="custom_components.solcast_solar.util")
+        monkeypatch.setattr(asyncio.get_running_loop(), "slow_callback_duration", 0.1)
+        previous_callbacks = gc.callbacks.copy()
+
+        with (
+            patch(
+                "custom_components.solcast_solar.util.perf_counter", return_value=0.0
+            ) as wall_clock,
+            patch(
+                "custom_components.solcast_solar.util.thread_time", return_value=0.0
+            ) as cpu_clock,
+            log_loop_turns(self.test_slow_slice.__code__, "Slow coroutine"),
+        ):
+            wall_clock.return_value = 0.125
+            cpu_clock.return_value = 0.1
+
+        assert (
+            "Slow coroutine event-loop slice took 125.0 ms: CPU=100.0 ms" in caplog.text
+        )
+        assert (
+            "Slow coroutine performance: 1 execution slices, longest 125.0 ms"
+            in caplog.text
+        )
+        assert gc.callbacks == previous_callbacks
 
 
 class TestGetSolcastBaseUrl:
@@ -81,35 +149,35 @@ class TestHttpStatusTranslate:
 class TestForecastEntryUpdate:
     """Tests for forecast_entry_update."""
 
-    def test_creates_new_entry_without_p10_p90(self) -> None:
+    async def test_creates_new_entry_without_p10_p90(self) -> None:
         """A new entry with only p50 should contain pv_estimate but no p10/p90 keys."""
         forecasts: dict = {}
         ts = dt(2025, 6, 1, 0, 0, tzinfo=UTC)
-        SolcastApi.forecast_entry_update(forecasts, ts, 1.5)
+        await SolcastApi.forecast_entry_update(forecasts, ts, 1.5)
         assert forecasts[ts][ESTIMATE] == 1.5, "pv_estimate must be stored with the provided value"
         assert ESTIMATE10 not in forecasts[ts], "pv_estimate10 must not be present when p10 was not supplied"
 
-    def test_creates_new_entry_with_p10_p90(self) -> None:
+    async def test_creates_new_entry_with_p10_p90(self) -> None:
         """A new entry created with all three estimates should store each under its constant key."""
         forecasts: dict = {}
         ts = dt(2025, 6, 1, 0, 30, tzinfo=UTC)
-        SolcastApi.forecast_entry_update(forecasts, ts, 1.5, pv10=1.0, pv90=2.0)
+        await SolcastApi.forecast_entry_update(forecasts, ts, 1.5, pv10=1.0, pv90=2.0)
         assert forecasts[ts][ESTIMATE] == 1.5, "p50 estimate must be stored under ESTIMATE"
         assert forecasts[ts][ESTIMATE10] == 1.0, "p10 estimate must be stored under ESTIMATE10"
         assert forecasts[ts][ESTIMATE90] == 2.0, "p90 estimate must be stored under ESTIMATE90"
 
-    def test_updates_existing_entry_estimate(self) -> None:
+    async def test_updates_existing_entry_estimate(self) -> None:
         """Calling forecast_entry_update on an existing entry must overwrite the p50 estimate."""
         ts = dt(2025, 6, 1, 1, 0, tzinfo=UTC)
         forecasts: dict = {ts: {PERIOD_START: ts, ESTIMATE: 1.0}}
-        SolcastApi.forecast_entry_update(forecasts, ts, 2.5)
+        await SolcastApi.forecast_entry_update(forecasts, ts, 2.5)
         assert forecasts[ts][ESTIMATE] == 2.5, f"ESTIMATE should be updated to 2.5, got {forecasts[ts][ESTIMATE]!r}"
 
-    def test_updates_existing_entry_p10_p90(self) -> None:
+    async def test_updates_existing_entry_p10_p90(self) -> None:
         """Calling forecast_entry_update on an existing entry must overwrite p10 and p90."""
         ts = dt(2025, 6, 1, 1, 30, tzinfo=UTC)
         forecasts: dict = {ts: {PERIOD_START: ts, ESTIMATE: 1.0, ESTIMATE10: 0.5, ESTIMATE90: 1.5}}
-        SolcastApi.forecast_entry_update(forecasts, ts, 2.0, pv10=1.5, pv90=2.5)
+        await SolcastApi.forecast_entry_update(forecasts, ts, 2.0, pv10=1.5, pv90=2.5)
         assert forecasts[ts][ESTIMATE10] == 1.5, f"ESTIMATE10 should be updated to 1.5, got {forecasts[ts][ESTIMATE10]!r}"
         assert forecasts[ts][ESTIMATE90] == 2.5, f"ESTIMATE90 should be updated to 2.5, got {forecasts[ts][ESTIMATE90]!r}"
 

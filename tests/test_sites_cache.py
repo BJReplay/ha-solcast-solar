@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections import defaultdict
 from datetime import UTC, timedelta
 import json
@@ -9,10 +10,12 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 from custom_components.solcast_solar.const import (
     API_KEY,
     FORECASTS,
+    LAST_UPDATED,
     PROXY_ACTUALS_CRON,
     PROXY_CACHE_STATE,
     PROXY_FORECAST_CRON,
@@ -50,6 +53,60 @@ def _make_sites_cache(tmp_path: Path, fail_copy: bool = False) -> SitesCache:
     """Create SitesCache with a minimal fake API object."""
     api = SimpleNamespace(config_dir=str(tmp_path), hass=_ExecutorHass(fail_copy=fail_copy))
     return SitesCache(api)  # pyright: ignore[reportArgumentType]
+
+
+@pytest.mark.parametrize(
+    ("payload", "failure", "expected_message", "open_calls"),
+    [
+        pytest.param(
+            object(), None, "Unable to encode dampened cache", 0, id="encoding"
+        ),
+        pytest.param(
+            None,
+            OSError("simulated write failure"),
+            "Unable to write dampened cache",
+            1,
+            id="writing",
+        ),
+    ],
+)
+async def test_serialise_data_failure(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    payload: object,
+    failure: OSError | None,
+    expected_message: str,
+    open_calls: int,
+) -> None:
+    """Failed encoding or opening a cache must preserve the previous file."""
+    sites_cache = _make_sites_cache(tmp_path)
+    filename = tmp_path / "solcast.json"
+    previous_data = b'{"previous": true}'
+    filename.write_bytes(previous_data)
+    sites_cache.api.loaded_data = True
+    sites_cache.api.integration_version = "test"
+    sites_cache.api.filename = str(filename)
+    sites_cache.api.filename_undampened = str(tmp_path / "solcast-undampened.json")
+    sites_cache.api.filename_actuals = str(tmp_path / "solcast-actuals.json")
+    sites_cache.api.filename_actuals_dampened = str(
+        tmp_path / "solcast-actuals-dampened.json"
+    )
+    sites_cache.api.filename_generation = str(tmp_path / "solcast-generation.json")
+    sites_cache.api.serialise_lock = asyncio.Lock()
+
+    with patch(
+        "custom_components.solcast_solar.sites_cache.aiofiles.open", side_effect=failure
+    ) as cache_open:
+        assert (
+            await sites_cache.serialise_data(
+                {LAST_UPDATED: dt_util.utcnow(), "payload": payload}, str(filename)
+            )
+            is False
+        )
+
+    assert cache_open.call_count == open_calls
+    assert filename.read_bytes() == previous_data
+    assert expected_message in caplog.text
 
 
 def test_site_transfer_signature_none_missing_fields(tmp_path: Path) -> None:

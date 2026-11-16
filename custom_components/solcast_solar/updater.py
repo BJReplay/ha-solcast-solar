@@ -45,7 +45,7 @@ from .const import (
 )
 from .enums import AutoUpdate
 from .issues import sync_actuals_quota_risk_issue
-from .util import ordinal
+from .util import log_loop_turns, ordinal
 
 if TYPE_CHECKING:
     from .coordinator import SolcastUpdateCoordinator
@@ -447,29 +447,30 @@ class Updater:
     async def forecast_update(self, force: bool = False, completion: str = "", need_history_hours: int = 0) -> None:
         """Get updated forecast data."""
 
-        try:
-            _LOGGER.debug("Started task %s", "update" if completion == "" else completion.replace("Completed task ", ""))
-            _LOGGER.debug("Checking for stale usage cache")
-            if self._coordinator.solcast.sites_cache.stale_usage_cache:
-                _LOGGER.warning("Usage cache reset time is stale, last reset was more than 24-hours ago, resetting API usage")
-                await self._coordinator.solcast.sites_cache.reset_usage_cache()
-                await self._coordinator.restart_time_track_midnight_update()
+        with log_loop_turns(self.forecast_update.__code__, "Forecast update"):
+            try:
+                _LOGGER.debug("Started task %s", "update" if completion == "" else completion.replace("Completed task ", ""))
+                _LOGGER.debug("Checking for stale usage cache")
+                if self._coordinator.solcast.sites_cache.stale_usage_cache:
+                    _LOGGER.warning("Usage cache reset time is stale, last reset was more than 24-hours ago, resetting API usage")
+                    await self._coordinator.solcast.sites_cache.reset_usage_cache()
+                    await self._coordinator.restart_time_track_midnight_update()
 
-            await self._coordinator.solcast.fetcher.get_forecast_update(
-                do_past_hours=need_history_hours,
-                force=force,
-            )
+                await self._coordinator.solcast.fetcher.get_forecast_update(
+                    do_past_hours=need_history_hours,
+                    force=force,
+                )
 
-            await self._coordinator.update_integration_listeners()
-            await self._coordinator.async_request_refresh()
-            if self._coordinator.solcast.proxy_mode:
-                await self._check_proxy_forecast_fetch()
+                await self._coordinator.update_integration_listeners()
+                await self._coordinator.async_request_refresh()
+                if self._coordinator.solcast.proxy_mode:
+                    await self._check_proxy_forecast_fetch()
 
-            _LOGGER.debug(completion)
-        finally:
-            with contextlib.suppress(Exception):
-                # Clean up a task created by a service call action
-                self._coordinator.tasks.pop(TASK_FORECASTS_FETCH_IMMEDIATE, None)
+                _LOGGER.debug(completion)
+            finally:
+                with contextlib.suppress(Exception):
+                    # Clean up a task created by a service call action
+                    self._coordinator.tasks.pop(TASK_FORECASTS_FETCH_IMMEDIATE, None)
 
     def _get_minute_of_day(self, time_point: dt) -> int:
         """Get the minute of the day for a given time point."""
@@ -714,33 +715,34 @@ class Updater:
     async def update_estimated_actuals_history(self, new_day: bool = False, dampen_yesterday: bool = False) -> None:
         """Update estimated actuals using the API."""
 
-        _LOGGER.debug("Started task actuals")
-        await self._coordinator.solcast.fetcher.update_estimated_actuals(dampen_yesterday=dampen_yesterday)
-        await self._coordinator.solcast.build_actual_data()
-        _LOGGER.debug("Completed task actuals")
-        task = TASK_ACTUALS_FETCH if not new_day else TASK_NEW_DAY_ACTUALS
-        if task in self._coordinator.tasks:
-            self._coordinator.tasks.pop(task, None)
+        with log_loop_turns(self.update_estimated_actuals_history.__code__, "Estimated actuals update"):
+            _LOGGER.debug("Started task actuals")
+            await self._coordinator.solcast.fetcher.update_estimated_actuals(dampen_yesterday=dampen_yesterday)
+            await self._coordinator.solcast.build_actual_data()
+            _LOGGER.debug("Completed task actuals")
+            task = TASK_ACTUALS_FETCH if not new_day else TASK_NEW_DAY_ACTUALS
+            if task in self._coordinator.tasks:
+                self._coordinator.tasks.pop(task, None)
 
-        if (
-            self._coordinator.solcast.options.auto_dampen
-            and self._coordinator.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]
-        ):
-            await self._coordinator.solcast.dampening.adaptive.update_history()
-            await self._coordinator.solcast.dampening.adaptive.determine_best_settings()
+            if (
+                self._coordinator.solcast.options.auto_dampen
+                and self._coordinator.solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_ADAPTIVE_MODEL_CONFIGURATION]
+            ):
+                await self._coordinator.solcast.dampening.adaptive.update_history()
+                await self._coordinator.solcast.dampening.adaptive.determine_best_settings()
 
-        await self._coordinator.solcast.dampening.model_automated()
-        if self._coordinator.solcast.options.auto_dampen:
-            await self._coordinator.solcast.dampening.apply_forward()
-            await self._coordinator.solcast.build_forecast_data()
+            await self._coordinator.solcast.dampening.model_automated()
+            if self._coordinator.solcast.options.auto_dampen:
+                await self._coordinator.solcast.dampening.apply_forward()
+                await self._coordinator.solcast.build_forecast_data()
 
-        if self._coordinator.solcast.options.get_actuals:
-            entity_registry = er.async_get(self._coordinator.hass)
-            entity_id = entity_registry.async_get_entity_id(SENSOR, DOMAIN, ENTITY_ACCURACY)
-            if entity_id is not None:
-                entity = entity_registry.async_get(entity_id)
-                if entity is not None and not entity.disabled_by:
-                    await self.calculate_accuracy_metrics()
+            if self._coordinator.solcast.options.get_actuals:
+                entity_registry = er.async_get(self._coordinator.hass)
+                entity_id = entity_registry.async_get_entity_id(SENSOR, DOMAIN, ENTITY_ACCURACY)
+                if entity_id is not None:
+                    entity = entity_registry.async_get(entity_id)
+                    if entity is not None and not entity.disabled_by:
+                        await self.calculate_accuracy_metrics()
 
     async def calculate_accuracy_metrics(self) -> None:
         """Calculate accuracy metrics for generation vs. undampened/dampened actuals."""

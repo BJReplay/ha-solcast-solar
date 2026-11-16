@@ -10,11 +10,13 @@ import json
 from pathlib import Path
 import re
 import shutil
+from time import perf_counter, thread_time
 from typing import TYPE_CHECKING, Any, Final
 
 import aiofiles
 from aiohttp import ClientConnectionError, ClientResponseError
 from aiohttp.client_reqrep import ClientResponse
+import orjson
 
 from homeassistant.exceptions import ConfigEntryError, ConfigEntryNotReady
 from homeassistant.helpers import issue_registry as ir
@@ -880,9 +882,6 @@ class SitesCache:
         """
         if self.api.loaded_data and data[LAST_UPDATED] != dt.fromtimestamp(0, UTC):
             data[INTEGRATION_VERSION] = self.api.integration_version
-            payload = json.dumps(data, ensure_ascii=False, cls=DateTimeEncoder)
-            async with self.api.serialise_lock, aiofiles.open(filename, "w") as file:
-                await file.write(payload)
             log_file = {
                 self.api.filename: "dampened",
                 self.api.filename_undampened: "undampened",
@@ -890,6 +889,27 @@ class SitesCache:
                 self.api.filename_actuals_dampened: "dampened estimated actual",
                 self.api.filename_generation: "generation",
             }
+            encoding_started = perf_counter()
+            encoding_cpu_started = thread_time()
+            try:
+                payload = orjson.dumps(data, default=DateTimeEncoder().default)
+            except orjson.JSONEncodeError as err:
+                _LOGGER.error("Unable to encode %s cache: %s", log_file.get(filename, UNKNOWN), err)
+                return False
+            encoding_elapsed = perf_counter() - encoding_started
+            encoding_cpu_elapsed = thread_time() - encoding_cpu_started
+            _LOGGER.debug(
+                "JSON encoding for %s cache: wall=%.1f ms, CPU=%.1f ms",
+                log_file.get(filename, UNKNOWN),
+                encoding_elapsed * 1000,
+                encoding_cpu_elapsed * 1000,
+            )
+            try:
+                async with self.api.serialise_lock, aiofiles.open(filename, "wb") as file:
+                    await file.write(payload)
+            except OSError as err:
+                _LOGGER.error("Unable to write %s cache: %s", log_file.get(filename, UNKNOWN), err)
+                return False
             _LOGGER.debug(
                 "Saved %s cache",
                 log_file.get(filename, UNKNOWN),

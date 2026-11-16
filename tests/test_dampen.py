@@ -530,7 +530,10 @@ async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.
         forecast_entry_update=SolcastApi.forecast_entry_update,
         fetcher=SimpleNamespace(sort_and_prune=sort_and_prune),
     )
-    dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.6 if _interval_pv50 == 1.0 else 0.8  # pyright: ignore[reportAttributeAccessIssue]
+    async def get_factor(_site: str, _period_start: dt, _interval_pv50: float) -> float:
+        return 0.6 if _interval_pv50 == 1.0 else 0.8
+
+    dampening.get_factor = get_factor  # pyright: ignore[reportAttributeAccessIssue]
 
     caplog.clear()
     await dampening.apply_recovered_history({site_id: {period_start.timestamp(), next_period_start.timestamp()}})
@@ -572,7 +575,10 @@ async def test_apply_recovered_history_logs_nonconsecutive_date_spans(caplog: py
         forecast_entry_update=SolcastApi.forecast_entry_update,
         fetcher=SimpleNamespace(sort_and_prune=sort_and_prune),
     )
-    dampening.get_factor = lambda _site, _period_start, _interval_pv50: 0.6 if _interval_pv50 == 1.0 else 0.8  # pyright: ignore[reportAttributeAccessIssue]
+    async def get_factor(_site: str, _period_start: dt, _interval_pv50: float) -> float:
+        return 0.6 if _interval_pv50 == 1.0 else 0.8
+
+    dampening.get_factor = get_factor  # pyright: ignore[reportAttributeAccessIssue]
 
     caplog.clear()
     await dampening.apply_recovered_history({site_id: {period_start.timestamp(), gap_period_start.timestamp()}})

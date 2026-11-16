@@ -86,6 +86,86 @@ def _dns_connector_error(message: str) -> ClientConnectorDNSError:
     )
 
 
+@pytest.mark.parametrize(
+    ("headers", "fallback_delay", "expected"),
+    [
+        pytest.param(
+            {
+                "x-proxy-forecast-mode": "daylight",
+                "x-proxy-poll-delay-seconds": "61",
+                "x-proxy-observed-tick-second-p90": "46",
+            },
+            61,
+            15,
+            id="adaptive",
+        ),
+        pytest.param(
+            {
+                "x-proxy-forecast-mode": "daylight",
+                "x-proxy-poll-delay-seconds": "61.5",
+                "x-proxy-observed-tick-second-p90": "46.5",
+            },
+            61,
+            15,
+            id="fractional-tick",
+        ),
+        pytest.param(
+            {
+                "x-proxy-forecast-mode": "all_day",
+                "x-proxy-poll-delay-seconds": "66",
+                "x-proxy-observed-tick-second-p90": "46",
+            },
+            61,
+            20,
+            id="custom-grace",
+        ),
+        pytest.param(
+            {
+                "x-proxy-forecast-mode": "cron",
+                "x-proxy-poll-delay-seconds": "30",
+                "x-proxy-observed-tick-second-p90": "46",
+            },
+            61,
+            30,
+            id="cron",
+        ),
+        pytest.param(
+            {
+                "x-proxy-forecast-mode": "daylight",
+                "x-proxy-poll-delay-seconds": "15",
+                "x-proxy-observed-tick-second-p90": "",
+            },
+            61,
+            15,
+            id="no-tick-samples",
+        ),
+        pytest.param({}, 61, 61, id="legacy-proxy"),
+        pytest.param(
+            {"x-proxy-poll-delay-seconds": "invalid"}, 61, 61, id="invalid-delay"
+        ),
+        pytest.param(
+            {
+                "x-proxy-forecast-mode": "daylight",
+                "x-proxy-poll-delay-seconds": "61",
+                "x-proxy-observed-tick-second-p90": "invalid",
+            },
+            61,
+            61,
+            id="invalid-tick",
+        ),
+        pytest.param(
+            {"x-proxy-poll-delay-seconds": "inf"}, 61, 61, id="nonfinite-delay"
+        ),
+        pytest.param({}, 0, 1, id="minimum-delay"),
+    ],
+)
+def test_proxy_retry_follow_delay(
+    headers: dict[str, str], fallback_delay: int, expected: int
+) -> None:
+    """Retry alarms use fetch grace rather than the scheduled tick-phase allowance."""
+    assert Fetcher._proxy_retry_follow_delay(headers, fallback_delay) == expected
+
+
 def test_dns_error_message_falls_back_to_class_name() -> None:
     """The DNS error helper should tolerate connector errors without an os_error."""
 
@@ -94,7 +174,90 @@ def test_dns_error_message_falls_back_to_class_name() -> None:
 
         os_error = None
 
-    assert Fetcher._dns_error_message(cast(ClientConnectorDNSError, DummyConnectorDNSError())) == "DummyConnectorDNSError"
+    assert (
+        Fetcher._dns_error_message(
+            cast(ClientConnectorDNSError, DummyConnectorDNSError())
+        )
+        == "DummyConnectorDNSError"
+    )
+
+
+@pytest.mark.usefixtures("recorder_mock")
+@pytest.mark.parametrize(
+    ("mode", "poll_delay", "expected_delay", "expected_grace"),
+    [
+        pytest.param("daylight", 61, 56, 15, id="adaptive"),
+        pytest.param("all_day", 66, 61, 20, id="custom-grace"),
+        pytest.param("cron", 30, 71, 30, id="cron"),
+    ],
+)
+async def test_proxy_retry_uses_fetch_follow_grace(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+    mode: str,
+    poll_delay: int,
+    expected_delay: int,
+    expected_grace: int,
+) -> None:
+    """The fetch loop follows retry alarms without adding a scheduled tick phase."""
+    try:
+        freezer.move_to("2026-11-15 08:37:01.338000")
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        solcast = entry.runtime_data.coordinator.solcast
+        await entry.runtime_data.coordinator.tasks_cancel()
+        await solcast.tasks_cancel()
+        solcast.proxy_poll_delay_seconds = 61
+        site_id = solcast.sites[0][RESOURCE_ID]
+        api_key = solcast.sites[0][API_KEY]
+        url = f"https://proxy.test/rooftop_sites/{site_id}/forecasts"
+        retry_response = mock.MagicMock(
+            status=429,
+            url=url,
+            headers={
+                "x-proxy-upstream-status": "429",
+                "x-proxy-last-fetch-status": "retrying",
+                "x-proxy-next-attempt-at": "2026-11-15T08:37:42.081+00:00",
+                "x-proxy-forecast-mode": mode,
+                "x-proxy-poll-delay-seconds": str(poll_delay),
+                "x-proxy-observed-tick-second-p90": "46",
+            },
+        )
+        success_response = mock.MagicMock(
+            status=200,
+            url=url,
+            headers={
+                "x-proxy-upstream-status": "200",
+                "x-proxy-last-fetch-status": "retry_success",
+            },
+        )
+        success_response.text = mock.AsyncMock(return_value=json.dumps({FORECASTS: []}))
+        mock_session = mock.MagicMock()
+        mock_session.get = mock.AsyncMock(
+            side_effect=[retry_response, success_response]
+        )
+        caplog.set_level(logging.DEBUG)
+
+        with (
+            mock.patch.object(solcast, "aiohttp_session", mock_session),
+            mock.patch.object(
+                solcast.fetcher, "_sleep", new_callable=mock.AsyncMock
+            ) as sleep,
+        ):
+            result = await solcast.fetcher.fetch_data(
+                hours=48, path=FORECASTS, site=site_id, api_key=api_key, force=True
+            )
+
+        assert result == {FORECASTS: []}
+        assert mock_session.get.await_count == 2
+        sleep.assert_awaited_once_with(expected_delay)
+        assert solcast.proxy_poll_delay_seconds == 61
+        assert (
+            f"polling in {expected_delay} seconds (fetch follow delay {expected_grace} seconds)"
+            in caplog.text
+        )
+    finally:
+        await async_cleanup_integration_tests(hass)
 
 
 @pytest.mark.parametrize(
@@ -115,7 +278,13 @@ def test_dns_error_message_falls_back_to_class_name() -> None:
             id="next-day",
         ),
         pytest.param("", False, dt(2026, 11, 1, 9, 10, tzinfo=UTC), "", id="unknown"),
-        pytest.param("2026-11-01T09:10:00+00:00", True, dt(2026, 11, 1, 9, 10, tzinfo=UTC), "", id="halted"),
+        pytest.param(
+            "2026-11-01T09:10:00+00:00",
+            True,
+            dt(2026, 11, 1, 9, 10, tzinfo=UTC),
+            "",
+            id="halted",
+        ),
     ],
 )
 async def test_proxy_completion_reports_latest_header_time(

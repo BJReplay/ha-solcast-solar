@@ -112,6 +112,7 @@ from custom_components.solcast_solar.const import (
     USE_ACTUALS,
 )
 from custom_components.solcast_solar.coordinator import SolcastUpdateCoordinator
+from custom_components.solcast_solar.dates import JSONDecoder
 from custom_components.solcast_solar.enums import AutoUpdate, HistoryType, LoadStatus
 from custom_components.solcast_solar.forecast import ForecastQuery
 from custom_components.solcast_solar.solcastapi import ConnectionOptions, SolcastApi
@@ -2007,6 +2008,39 @@ async def test_scenarios(
 
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+@pytest.mark.parametrize("field", [ESTIMATE, ESTIMATE10, ESTIMATE90, "generation"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        pytest.param(None, id="null"),
+        pytest.param(float("nan"), id="nan"),
+        pytest.param(float("inf"), id="infinity"),
+        pytest.param(-float("inf"), id="negative-infinity"),
+        pytest.param("invalid", id="string"),
+        pytest.param(True, id="boolean"),
+    ],
+)
+def test_cache_decoder_invalid_numbers(field: str, value: float | str | bool | None) -> None:
+    """Reject invalid numeric interval values before loading cache data."""
+    payload = json.dumps({PERIOD_START: "2026-11-15T00:00:00+00:00", field: value})
+
+    with pytest.raises(json.JSONDecodeError, match="Invalid numeric cache value"):
+        json.loads(payload, cls=JSONDecoder)
+
+
+@pytest.mark.parametrize("field", [ESTIMATE, ESTIMATE10, ESTIMATE90, "generation"])
+@pytest.mark.parametrize("value", [0, 0.0, 1, 1.5])
+def test_cache_decoder_valid_numbers(field: str, value: float) -> None:
+    """Preserve numeric intervals, optional fields and null metadata."""
+    timestamp = "2026-11-15T00:00:00+00:00"
+    payload = json.dumps({"tally": None, FORECASTS: [{PERIOD_START: timestamp, field: value}]})
+
+    decoded = json.loads(payload, cls=JSONDecoder)
+
+    assert decoded["tally"] is None
+    assert decoded[FORECASTS] == [{PERIOD_START: dt.fromisoformat(timestamp), field: value}]
 
 
 async def test_forecast_update_no_sites(

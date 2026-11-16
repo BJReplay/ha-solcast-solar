@@ -208,7 +208,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         return (f"{status}/{_STATUS_TRANSLATE[status]}") if _STATUS_TRANSLATE.get(status) else status
 
     @staticmethod
-    def forecast_entry_update(
+    async def forecast_entry_update(
         forecasts: dict[dt, Any],
         period_start: dt,
         pv: float,
@@ -219,11 +219,19 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
         extant = forecasts.get(period_start)
         if extant:  # Update existing.
-            forecasts[period_start][ESTIMATE] = pv
+            if (
+                extant[ESTIMATE] == pv
+                and (pv10 is None or extant.get(ESTIMATE10) == pv10)
+                and (pv90 is None or extant.get(ESTIMATE90) == pv90)
+            ):
+                return
+            updated = extant.copy()
+            updated[ESTIMATE] = pv
             if pv10 is not None:
-                forecasts[period_start][ESTIMATE10] = pv10
+                updated[ESTIMATE10] = pv10
             if pv90 is not None:
-                forecasts[period_start][ESTIMATE90] = pv90
+                updated[ESTIMATE90] = pv90
+            forecasts[period_start] = updated
         elif pv10 is not None:
             forecasts[period_start] = {
                 "period_start": period_start,
@@ -949,6 +957,9 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if dampened:
                         tally = None
                     site_forecasts: dict[dt, dict[str, dt | float]] = {}
+                    previous_site_forecasts = {
+                        forecast[PERIOD_START]: forecast for forecast in site_data_forecasts.get(resource_id, [])
+                    }
 
                     if api_key is not None:
                         for forecast_count, forecast in enumerate(siteinfo[FORECASTS]):
@@ -957,18 +968,33 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
 
                             if commencing < period_start_local.date() < last_day:
                                 # Record the individual site forecast.
-                                site_forecasts[period_start] = {
-                                    PERIOD_START: period_start,
-                                } | {
-                                    est: round(
-                                        min(
-                                            forecast[est],
-                                            sites_hard_limit[api_key][est].get(period_start, {}).get(resource_id, 100),
-                                        ),
-                                        4,
-                                    )
-                                    for est in [ESTIMATE, ESTIMATE10, ESTIMATE90]
-                                }
+                                pv = round(
+                                    min(forecast[ESTIMATE], sites_hard_limit[api_key][ESTIMATE].get(period_start, {}).get(resource_id, 100)),
+                                    4,
+                                )
+                                pv10 = round(
+                                    min(forecast[ESTIMATE10], sites_hard_limit[api_key][ESTIMATE10].get(period_start, {}).get(resource_id, 100)),
+                                    4,
+                                )
+                                pv90 = round(
+                                    min(forecast[ESTIMATE90], sites_hard_limit[api_key][ESTIMATE90].get(period_start, {}).get(resource_id, 100)),
+                                    4,
+                                )
+                                previous = previous_site_forecasts.get(period_start)
+                                if (
+                                    previous is not None
+                                    and previous[ESTIMATE] == pv
+                                    and previous[ESTIMATE10] == pv10
+                                    and previous[ESTIMATE90] == pv90
+                                ):
+                                    site_forecasts[period_start] = previous
+                                else:
+                                    site_forecasts[period_start] = {
+                                        PERIOD_START: period_start,
+                                        ESTIMATE: pv,
+                                        ESTIMATE10: pv10,
+                                        ESTIMATE90: pv90,
+                                    }
 
                                 if resource_id not in self.options.exclude_sites:
                                     # If the forecast is for today, and the site is not excluded, add to the total.
