@@ -8,6 +8,7 @@
       "description": "Do not update Python runtime versions in pytest.yml",
       "matchManagers": ["github-actions"],
       "matchDepTypes": ["uses-with"],
+      "matchPackageNames": ["actions/python-versions"],
       "matchFileNames": [".github/workflows/pytest.yml"],
       "enabled": false
     }
