@@ -5,9 +5,10 @@
   ],
   "packageRules": [
     {
-      "description": "Do not update Python runtime versions in GitHub Actions",
+      "description": "Do not update Python runtime versions in pytest.yml",
       "matchManagers": ["github-actions"],
-      "matchDatasources": ["python-version"],
+      "matchDepTypes": ["uses-with"],
+      "matchFileNames": [".github/workflows/pytest.yml"],
       "enabled": false
     }
   ]
