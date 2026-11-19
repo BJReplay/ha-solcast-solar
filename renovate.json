@@ -1,0 +1,14 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "description": "Do not update Python runtime versions in GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "matchDatasources": ["python-version"],
+      "enabled": false
+    }
+  ]
+}
