@@ -40,9 +40,7 @@ class TestLogLoopTurns:
                 "custom_components.solcast_solar.util.sys.monitoring.use_tool_id",
                 side_effect=ValueError("occupied"),
             ) as use_tool_id,
-            patch(
-                "custom_components.solcast_solar.util.sys.monitoring.free_tool_id"
-            ) as free_tool_id,
+            patch("custom_components.solcast_solar.util.sys.monitoring.free_tool_id") as free_tool_id,
         ):
             with log_loop_turns(self.test_occupied_slots.__code__, "Occupied slots"):
                 assert gc.callbacks == previous_callbacks
@@ -54,39 +52,25 @@ class TestLogLoopTurns:
             ]
             free_tool_id.assert_not_called()
 
-        assert (
-            "Occupied slots timing skipped: monitoring slots are occupied"
-            in caplog.text
-        )
+        assert "Occupied slots timing skipped: monitoring slots are occupied" in caplog.text
         assert gc.callbacks == previous_callbacks
 
-    async def test_slow_slice(
-        self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    async def test_slow_slice(self, caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch) -> None:
         """A slow slice must log wall and CPU durations and clean up its GC callback."""
         caplog.set_level(logging.DEBUG, logger="custom_components.solcast_solar.util")
         monkeypatch.setattr(asyncio.get_running_loop(), "slow_callback_duration", 0.1)
         previous_callbacks = gc.callbacks.copy()
 
         with (
-            patch(
-                "custom_components.solcast_solar.util.perf_counter", return_value=0.0
-            ) as wall_clock,
-            patch(
-                "custom_components.solcast_solar.util.thread_time", return_value=0.0
-            ) as cpu_clock,
+            patch("custom_components.solcast_solar.util.perf_counter", return_value=0.0) as wall_clock,
+            patch("custom_components.solcast_solar.util.thread_time", return_value=0.0) as cpu_clock,
             log_loop_turns(self.test_slow_slice.__code__, "Slow coroutine"),
         ):
             wall_clock.return_value = 0.125
             cpu_clock.return_value = 0.1
 
-        assert (
-            "Slow coroutine event-loop slice took 125.0 ms: CPU=100.0 ms" in caplog.text
-        )
-        assert (
-            "Slow coroutine performance: 1 execution slices, longest 125.0 ms"
-            in caplog.text
-        )
+        assert "Slow coroutine event-loop slice took 125.0 ms: CPU=100.0 ms" in caplog.text
+        assert "Slow coroutine performance: 1 execution slices, longest 125.0 ms" in caplog.text
         assert gc.callbacks == previous_callbacks
 
 

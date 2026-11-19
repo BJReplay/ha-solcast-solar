@@ -179,14 +179,10 @@ class Fetcher:
         """Retain fetch-follow grace without the adaptive scheduler's tick phase."""
         follow_delay = fallback_delay
         with contextlib.suppress(ValueError, TypeError, OverflowError):
-            proxy_delay = float(
-                headers.get("x-proxy-poll-delay-seconds", fallback_delay)
-            )
+            proxy_delay = float(headers.get("x-proxy-poll-delay-seconds", fallback_delay))
             follow_delay = math.ceil(proxy_delay)
             if headers.get("x-proxy-forecast-mode") in ("daylight", "all_day"):
-                tick_second = float(
-                    headers.get("x-proxy-observed-tick-second-p90") or 0
-                )
+                tick_second = float(headers.get("x-proxy-observed-tick-second-p90") or 0)
                 follow_delay = math.ceil(proxy_delay - tick_second)
         return max(1, follow_delay)
 
@@ -559,8 +555,7 @@ class Fetcher:
         sort_cpu_elapsed = time.thread_time() - sort_cpu_started
         data[SITE_INFO][site] = {FORECASTS: retained}
         _LOGGER.debug(
-            "History prune for %s: %d input, %d retained; filter wall=%.1f ms, filter CPU=%.1f ms, "
-            "sort wall=%.1f ms, sort CPU=%.1f ms",
+            "History prune for %s: %d input, %d retained; filter wall=%.1f ms, filter CPU=%.1f ms, sort wall=%.1f ms, sort CPU=%.1f ms",
             site,
             len(forecasts),
             len(retained),
@@ -899,35 +894,21 @@ class Fetcher:
                                 halted = self._header_as_bool(response.headers.get("x-proxy-halted")) is True
                                 in_progress = self._header_as_bool(response.headers.get("x-proxy-fetch-in-progress")) is True
                                 next_attempt = self._header_as_dt(response.headers.get("x-proxy-next-attempt-at"))
-                                if (
-                                    halted
-                                    or next_attempt is None
-                                    or (proxy_status != "retrying" and not in_progress)
-                                ):
+                                if halted or next_attempt is None or (proxy_status != "retrying" and not in_progress):
                                     if proxy_status == "give_up":
                                         failure_reason = "Proxy collection gave up"
                                         if status == 429:
-                                            failure_reason = (
-                                                f"{failure_reason} ({status})"
-                                            )
+                                            failure_reason = f"{failure_reason} ({status})"
                                     else:
                                         failure_reason = f"Proxy collection {proxy_status or 'unavailable'}"
                                     if status == 429 and proxy_status == "give_up":
                                         received_429 = tries
                                     break
-                                follow_delay = self._proxy_retry_follow_delay(
-                                    response.headers, self.api.proxy_poll_delay_seconds
-                                )
+                                follow_delay = self._proxy_retry_follow_delay(response.headers, self.api.proxy_poll_delay_seconds)
                                 delay = max(
                                     1,
                                     follow_delay,
-                                    math.ceil(
-                                        (
-                                            next_attempt
-                                            - self.api.dt_helper.real_now_utc()
-                                        ).total_seconds()
-                                        + follow_delay
-                                    ),
+                                    math.ceil((next_attempt - self.api.dt_helper.real_now_utc()).total_seconds() + follow_delay),
                                 )
                                 _LOGGER.debug(
                                     "Proxy collection %s for site %s, next attempt %s; polling in %d seconds (fetch follow delay %d seconds)",

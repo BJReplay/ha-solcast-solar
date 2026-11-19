@@ -393,11 +393,7 @@ class Dampening:
             _LOGGER.debug("Applying future dampening")
             day_start = self.api.dt_helper.day_start_utc()
 
-            self.auto_factors = {
-                period_start: factor
-                for period_start, factor in self.auto_factors.items()
-                if period_start >= day_start
-            }
+            self.auto_factors = {period_start: factor for period_start, factor in self.auto_factors.items() if period_start >= day_start}
 
             undampened_interval_pv50: defaultdict[dt, float] = defaultdict(float)
             for site in self.api.sites:
@@ -416,11 +412,7 @@ class Dampening:
                     forecast
                     for forecast in self.api.data_undampened[SITE_INFO][site_id][FORECASTS]
                     if forecast[PERIOD_START]
-                    >= (
-                        day_start
-                        if self.api.data[SITE_INFO].get(site_id)
-                        else day_start - timedelta(hours=do_past_hours)
-                    )
+                    >= (day_start if self.api.data[SITE_INFO].get(site_id) else day_start - timedelta(hours=do_past_hours))
                 ]
                 forecasts = (
                     {forecast[PERIOD_START]: forecast for forecast in self.api.data[SITE_INFO][site_id][FORECASTS]}

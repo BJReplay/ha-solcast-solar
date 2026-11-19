@@ -359,7 +359,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
         self.query = ForecastQuery(self)
         self.sites_cache = SitesCache(self)
 
-    async def async_set_proxy_mode(self, enabled: bool, source: str = "") -> None:
+    async def async_set_proxy_mode(self, enabled: bool, source: str = "", *, log_persistence: bool = True) -> None:
         """Set proxied operation mode and persist it in entry options."""
 
         self.proxy_mode = enabled
@@ -397,7 +397,8 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
             changed = True
 
         if changed:
-            _LOGGER.debug("Persisting proxy mode %s%s", enabled, f" ({source})" if source else "")
+            if log_persistence:
+                _LOGGER.debug("Persisting proxy mode %s%s", enabled, f" ({source})" if source else "")
             self.hass.config_entries.async_update_entry(self.entry, options=new_options)
             self.entry_options = {**new_options}
 
@@ -957,9 +958,7 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                     if dampened:
                         tally = None
                     site_forecasts: dict[dt, dict[str, dt | float]] = {}
-                    previous_site_forecasts = {
-                        forecast[PERIOD_START]: forecast for forecast in site_data_forecasts.get(resource_id, [])
-                    }
+                    previous_site_forecasts = {forecast[PERIOD_START]: forecast for forecast in site_data_forecasts.get(resource_id, [])}
 
                     if api_key is not None:
                         for forecast_count, forecast in enumerate(siteinfo[FORECASTS]):
@@ -969,15 +968,23 @@ class SolcastApi:  # pylint: disable=too-many-public-methods
                             if commencing < period_start_local.date() < last_day:
                                 # Record the individual site forecast.
                                 pv = round(
-                                    min(forecast[ESTIMATE], sites_hard_limit[api_key][ESTIMATE].get(period_start, {}).get(resource_id, 100)),
+                                    min(
+                                        forecast[ESTIMATE], sites_hard_limit[api_key][ESTIMATE].get(period_start, {}).get(resource_id, 100)
+                                    ),
                                     4,
                                 )
                                 pv10 = round(
-                                    min(forecast[ESTIMATE10], sites_hard_limit[api_key][ESTIMATE10].get(period_start, {}).get(resource_id, 100)),
+                                    min(
+                                        forecast[ESTIMATE10],
+                                        sites_hard_limit[api_key][ESTIMATE10].get(period_start, {}).get(resource_id, 100),
+                                    ),
                                     4,
                                 )
                                 pv90 = round(
-                                    min(forecast[ESTIMATE90], sites_hard_limit[api_key][ESTIMATE90].get(period_start, {}).get(resource_id, 100)),
+                                    min(
+                                        forecast[ESTIMATE90],
+                                        sites_hard_limit[api_key][ESTIMATE90].get(period_start, {}).get(resource_id, 100),
+                                    ),
                                     4,
                                 )
                                 previous = previous_site_forecasts.get(period_start)

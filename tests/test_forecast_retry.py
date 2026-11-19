@@ -140,9 +140,7 @@ def _dns_connector_error(message: str) -> ClientConnectorDNSError:
             id="no-tick-samples",
         ),
         pytest.param({}, 61, 61, id="legacy-proxy"),
-        pytest.param(
-            {"x-proxy-poll-delay-seconds": "invalid"}, 61, 61, id="invalid-delay"
-        ),
+        pytest.param({"x-proxy-poll-delay-seconds": "invalid"}, 61, 61, id="invalid-delay"),
         pytest.param(
             {
                 "x-proxy-forecast-mode": "daylight",
@@ -153,15 +151,11 @@ def _dns_connector_error(message: str) -> ClientConnectorDNSError:
             61,
             id="invalid-tick",
         ),
-        pytest.param(
-            {"x-proxy-poll-delay-seconds": "inf"}, 61, 61, id="nonfinite-delay"
-        ),
+        pytest.param({"x-proxy-poll-delay-seconds": "inf"}, 61, 61, id="nonfinite-delay"),
         pytest.param({}, 0, 1, id="minimum-delay"),
     ],
 )
-def test_proxy_retry_follow_delay(
-    headers: dict[str, str], fallback_delay: int, expected: int
-) -> None:
+def test_proxy_retry_follow_delay(headers: dict[str, str], fallback_delay: int, expected: int) -> None:
     """Retry alarms use fetch grace rather than the scheduled tick-phase allowance."""
     assert Fetcher._proxy_retry_follow_delay(headers, fallback_delay) == expected
 
@@ -174,12 +168,7 @@ def test_dns_error_message_falls_back_to_class_name() -> None:
 
         os_error = None
 
-    assert (
-        Fetcher._dns_error_message(
-            cast(ClientConnectorDNSError, DummyConnectorDNSError())
-        )
-        == "DummyConnectorDNSError"
-    )
+    assert Fetcher._dns_error_message(cast(ClientConnectorDNSError, DummyConnectorDNSError())) == "DummyConnectorDNSError"
 
 
 @pytest.mark.usefixtures("recorder_mock")
@@ -233,29 +222,20 @@ async def test_proxy_retry_uses_fetch_follow_grace(
         )
         success_response.text = mock.AsyncMock(return_value=json.dumps({FORECASTS: []}))
         mock_session = mock.MagicMock()
-        mock_session.get = mock.AsyncMock(
-            side_effect=[retry_response, success_response]
-        )
+        mock_session.get = mock.AsyncMock(side_effect=[retry_response, success_response])
         caplog.set_level(logging.DEBUG)
 
         with (
             mock.patch.object(solcast, "aiohttp_session", mock_session),
-            mock.patch.object(
-                solcast.fetcher, "_sleep", new_callable=mock.AsyncMock
-            ) as sleep,
+            mock.patch.object(solcast.fetcher, "_sleep", new_callable=mock.AsyncMock) as sleep,
         ):
-            result = await solcast.fetcher.fetch_data(
-                hours=48, path=FORECASTS, site=site_id, api_key=api_key, force=True
-            )
+            result = await solcast.fetcher.fetch_data(hours=48, path=FORECASTS, site=site_id, api_key=api_key, force=True)
 
         assert result == {FORECASTS: []}
         assert mock_session.get.await_count == 2
         sleep.assert_awaited_once_with(expected_delay)
         assert solcast.proxy_poll_delay_seconds == 61
-        assert (
-            f"polling in {expected_delay} seconds (fetch follow delay {expected_grace} seconds)"
-            in caplog.text
-        )
+        assert f"polling in {expected_delay} seconds (fetch follow delay {expected_grace} seconds)" in caplog.text
     finally:
         await async_cleanup_integration_tests(hass)
 

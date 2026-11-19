@@ -58,9 +58,7 @@ def _make_sites_cache(tmp_path: Path, fail_copy: bool = False) -> SitesCache:
 @pytest.mark.parametrize(
     ("payload", "failure", "expected_message", "open_calls"),
     [
-        pytest.param(
-            object(), None, "Unable to encode dampened cache", 0, id="encoding"
-        ),
+        pytest.param(object(), None, "Unable to encode dampened cache", 0, id="encoding"),
         pytest.param(
             None,
             OSError("simulated write failure"),
@@ -88,21 +86,12 @@ async def test_serialise_data_failure(
     sites_cache.api.filename = str(filename)
     sites_cache.api.filename_undampened = str(tmp_path / "solcast-undampened.json")
     sites_cache.api.filename_actuals = str(tmp_path / "solcast-actuals.json")
-    sites_cache.api.filename_actuals_dampened = str(
-        tmp_path / "solcast-actuals-dampened.json"
-    )
+    sites_cache.api.filename_actuals_dampened = str(tmp_path / "solcast-actuals-dampened.json")
     sites_cache.api.filename_generation = str(tmp_path / "solcast-generation.json")
     sites_cache.api.serialise_lock = asyncio.Lock()
 
-    with patch(
-        "custom_components.solcast_solar.sites_cache.aiofiles.open", side_effect=failure
-    ) as cache_open:
-        assert (
-            await sites_cache.serialise_data(
-                {LAST_UPDATED: dt_util.utcnow(), "payload": payload}, str(filename)
-            )
-            is False
-        )
+    with patch("custom_components.solcast_solar.sites_cache.aiofiles.open", side_effect=failure) as cache_open:
+        assert await sites_cache.serialise_data({LAST_UPDATED: dt_util.utcnow(), "payload": payload}, str(filename)) is False
 
     assert cache_open.call_count == open_calls
     assert filename.read_bytes() == previous_data

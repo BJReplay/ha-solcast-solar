@@ -530,6 +530,7 @@ async def test_apply_recovered_history_backfills_missing_actuals(caplog: pytest.
         forecast_entry_update=SolcastApi.forecast_entry_update,
         fetcher=SimpleNamespace(sort_and_prune=sort_and_prune),
     )
+
     async def get_factor(_site: str, _period_start: dt, _interval_pv50: float) -> float:
         return 0.6 if _interval_pv50 == 1.0 else 0.8
 
@@ -575,6 +576,7 @@ async def test_apply_recovered_history_logs_nonconsecutive_date_spans(caplog: py
         forecast_entry_update=SolcastApi.forecast_entry_update,
         fetcher=SimpleNamespace(sort_and_prune=sort_and_prune),
     )
+
     async def get_factor(_site: str, _period_start: dt, _interval_pv50: float) -> float:
         return 0.6 if _interval_pv50 == 1.0 else 0.8
 

@@ -1,6 +1,7 @@
 """Solcast sites, usage and cache management."""
 
-from __future__ import annotations  # Remains for compatibility with Python < 3.14+  # noqa: TID251
+# Remains for compatibility with Python < 3.14+.
+from __future__ import annotations  # noqa: TID251
 
 from collections import defaultdict
 import contextlib
@@ -459,7 +460,7 @@ class SitesCache:
 
         return status, message, api_key_in_error
 
-    async def refresh_proxy_schedule(self, require_daylight_proxy_mode: bool = False) -> bool:
+    async def refresh_proxy_schedule(self, require_daylight_proxy_mode: bool = False, *, concise_log: bool = False) -> bool:
         """Refresh proxy schedule headers from the dedicated schedule endpoint.
 
         Returns:
@@ -467,6 +468,16 @@ class SitesCache:
         """
         if not self.api.proxy_mode:
             return False
+
+        previous_schedule = {
+            "poll_delay_seconds": self.api.proxy_poll_delay_seconds,
+            "forecast_mode": self.api.proxy_forecast_mode,
+            "schedule_day_utc": self.api.proxy_schedule_day_utc,
+            "forecast_times_utc": self.api.proxy_forecast_times_utc,
+            "actuals_times_utc": self.api.proxy_actuals_times_utc,
+            "forecast_cron": self.api.proxy_forecast_cron,
+            "actuals_cron": self.api.proxy_actuals_cron,
+        }
 
         api_key = next(iter(split_and_strip(self.api.options.api_key)), "")
         if not api_key:
@@ -549,15 +560,31 @@ class SitesCache:
                 self.api.proxy_forecast_cron = forecast_cron.strip() if isinstance(forecast_cron, str) and forecast_cron.strip() else None
                 self.api.proxy_actuals_cron = actuals_cron.strip() if isinstance(actuals_cron, str) and actuals_cron.strip() else None
 
-            await self.api.async_set_proxy_mode(True, source="schedule_header")
-            _LOGGER.debug(
-                "Proxy schedule refreshed from %s: mode=%s, day=%s, forecast slots=%s, actuals slots=%s",
-                endpoint,
-                self.api.proxy_forecast_mode,
-                self.api.proxy_schedule_day_utc,
-                list(self.api.proxy_forecast_times_utc),
-                list(self.api.proxy_actuals_times_utc),
-            )
+            await self.api.async_set_proxy_mode(True, source="schedule_header", log_persistence=not concise_log)
+            if concise_log:
+                current_schedule = {
+                    "poll_delay_seconds": self.api.proxy_poll_delay_seconds,
+                    "forecast_mode": self.api.proxy_forecast_mode,
+                    "schedule_day_utc": self.api.proxy_schedule_day_utc,
+                    "forecast_times_utc": self.api.proxy_forecast_times_utc,
+                    "actuals_times_utc": self.api.proxy_actuals_times_utc,
+                    "forecast_cron": self.api.proxy_forecast_cron,
+                    "actuals_cron": self.api.proxy_actuals_cron,
+                }
+                changes = [field for field, current in current_schedule.items() if previous_schedule[field] != current]
+                _LOGGER.debug(
+                    "Proxy pre-fetch schedule refreshed: %s",
+                    f"changed: {', '.join(changes)}" if changes else "unchanged",
+                )
+            else:
+                _LOGGER.debug(
+                    "Proxy schedule refreshed from %s: mode=%s, day=%s, forecast slots=%s, actuals slots=%s",
+                    endpoint,
+                    self.api.proxy_forecast_mode,
+                    self.api.proxy_schedule_day_utc,
+                    list(self.api.proxy_forecast_times_utc),
+                    list(self.api.proxy_actuals_times_utc),
+                )
             return True
 
         if require_daylight_proxy_mode and self.api.proxy_forecast_mode == "daylight":

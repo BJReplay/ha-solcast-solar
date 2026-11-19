@@ -500,19 +500,65 @@ async def test_startup_refreshes_proxy_schedule_before_scheduling(
             patch.object(solcast.dt_helper, "real_now_utc", return_value=dt(2026, 11, 12, 3, 0, tzinfo=UTC)),
             patch("custom_components.solcast_solar.coordinator.FileWatcher.setup", new_callable=AsyncMock),
             patch(
-                "custom_components.solcast_solar.updater.async_track_point_in_utc_time",
+                "custom_components.solcast_solar.updater_proxy.async_track_point_in_utc_time",
                 wraps=async_track_point_in_utc_time,
             ) as track,
         ):
             await coordinator.setup()
 
         assert solcast.proxy_next_attempt_at == dt(2026, 11, 12, 3, expected_minute, tzinfo=UTC)
-        assert coordinator.updater._proxy_scheduled_for == dt(2026, 11, 12, 3, expected_minute, expected_delay, tzinfo=UTC)
-        forecast_timers = [args for args in track.call_args_list if args.args[1] == coordinator.updater._fetch_proxy]
+        assert coordinator.updater.proxy.scheduled_for == dt(2026, 11, 12, 3, expected_minute, expected_delay, tzinfo=UTC)
+        forecast_timers = [args for args in track.call_args_list if args.args[1] == coordinator.updater.proxy.fetch]
         assert len(forecast_timers) == 1
         session.get.assert_awaited_once()
     finally:
         await coordinator.tasks_cancel()
+
+
+@pytest.mark.parametrize(
+    ("initial_poll_delay", "expected"),
+    [
+        pytest.param(5, "changed: poll_delay_seconds", id="changed"),
+        pytest.param(9, "unchanged", id="unchanged"),
+    ],
+)
+async def test_refresh_proxy_schedule_concise_logging(
+    solcast: SolcastApi,
+    caplog: pytest.LogCaptureFixture,
+    initial_poll_delay: int,
+    expected: str,
+) -> None:
+    """Pre-fetch refresh identifies changed fields without dumping slot lists."""
+    await solcast.async_set_proxy_mode(True)
+    solcast.proxy_poll_delay_seconds = initial_poll_delay
+    solcast.proxy_forecast_mode = "daylight"
+    solcast.proxy_schedule_day_utc = "2026-11-10"
+    solcast.proxy_forecast_times_utc = ("10:00", "10:15")
+    solcast.proxy_actuals_times_utc = ("13:13",)
+    response = MagicMock(
+        status=204,
+        headers={
+            "x-solcast-proxy": "true",
+            "x-proxy-forecast-mode": "daylight",
+            "x-proxy-poll-delay-seconds": "9",
+            "x-proxy-schedule-day-utc": "2026-11-10",
+            "x-proxy-forecast-times-utc": "10:00,10:15",
+            "x-proxy-estimated-actuals-times-utc": "13:13",
+            "x-proxy-estimated-actuals-enabled": "true",
+        },
+    )
+    session = MagicMock()
+    session.get = AsyncMock(return_value=response)
+    caplog.set_level("DEBUG")
+    caplog.clear()
+
+    with patch.object(solcast, "aiohttp_session", session):
+        assert await solcast.sites_cache.refresh_proxy_schedule(require_daylight_proxy_mode=True, concise_log=True)
+
+    messages = [record.getMessage() for record in caplog.records]
+    summary = [message for message in messages if "pre-fetch schedule refreshed" in message]
+    assert summary == [f"Proxy pre-fetch schedule refreshed: {expected}"]
+    assert not any("10:00" in message or "10:15" in message for message in summary)
 
 
 async def test_refresh_proxy_schedule_headers(solcast: SolcastApi) -> None:
@@ -809,9 +855,11 @@ async def test_daily_proxy_schedule_refresh(solcast: SolcastApi, status: int) ->
 
         cancel_pending.assert_called_once_with()
         assert TASK_PROXY_SCHEDULE_REFRESH_PENDING not in coordinator.tasks
-        assert len(coordinator.tasks) == int(status == 204)
+        assert set(coordinator.tasks) == (
+            {"pending_proxy_update", "pending_proxy_schedule_refresh_before_update"} if status == 204 else set()
+        )
         assert (
-            coordinator.updater._proxy_scheduled_for
+            coordinator.updater.proxy.scheduled_for
             == {
                 204: dt(2026, 11, 12, 3, 45, 9, tzinfo=UTC),
                 503: None,
