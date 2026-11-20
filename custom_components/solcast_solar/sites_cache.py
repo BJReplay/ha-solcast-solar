@@ -501,7 +501,7 @@ class SitesCache:
                 )
             except (TimeoutError, ClientConnectionError, ClientResponseError) as err:
                 _LOGGER.warning("Proxy schedule refresh failed for %s: %s", endpoint, err)
-                continue
+                return False
 
             if response.status == 404:
                 continue
@@ -510,11 +510,6 @@ class SitesCache:
                 return False
 
             headers = response.headers
-            if headers.get("x-solcast-proxy", "").lower() != "true":
-                _LOGGER.error("Proxy schedule refresh response from %s did not include x-solcast-proxy=true", endpoint)
-                return False
-
-            mode = self._parse_proxy_forecast_mode(headers.get("x-proxy-forecast-mode"))
             schedule_day_utc = headers.get("x-proxy-schedule-day-utc")
             parsed_schedule_day = schedule_day_utc.strip() if isinstance(schedule_day_utc, str) and schedule_day_utc.strip() else None
             parsed_forecast_times = self._parse_proxy_times_utc(headers.get("x-proxy-forecast-times-utc"))
@@ -527,7 +522,7 @@ class SitesCache:
 
             estimated_actuals_enabled = headers.get("x-proxy-estimated-actuals-enabled", "").strip().lower() == "true"
 
-            if require_daylight_proxy_mode and mode == "daylight":
+            if require_daylight_proxy_mode and self.api.proxy_forecast_mode == "daylight":
                 if parsed_schedule_day is None or not parsed_forecast_times:
                     _LOGGER.error(
                         "Proxy daylight schedule refresh from %s is missing required schedule headers (day=%s, slots=%s)",
@@ -546,7 +541,6 @@ class SitesCache:
             use_schedule_slots = bool(parsed_forecast_times or parsed_actuals_times)
             if poll_delay is not None:
                 self.api.proxy_poll_delay_seconds = max(0, int(poll_delay))
-            self.api.proxy_forecast_mode = mode
             self.api.proxy_schedule_day_utc = parsed_schedule_day
             self.api.proxy_forecast_times_utc = parsed_forecast_times
             self.api.proxy_actuals_times_utc = parsed_actuals_times
@@ -578,8 +572,7 @@ class SitesCache:
                 )
             else:
                 _LOGGER.debug(
-                    "Proxy schedule refreshed from %s: mode=%s, day=%s, forecast slots=%s, actuals slots=%s",
-                    endpoint,
+                    "Proxy schedule refreshed: mode=%s, day=%s, forecast slots=%s, actuals slots=%s",
                     self.api.proxy_forecast_mode,
                     self.api.proxy_schedule_day_utc,
                     list(self.api.proxy_forecast_times_utc),

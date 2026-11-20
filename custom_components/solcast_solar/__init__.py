@@ -250,6 +250,25 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator, service_act
 
 async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator, service_actions: ServiceActions) -> bool:
     """Check whether an auto-update has been missed, and if so update forecast."""
+    if coordinator.solcast.proxy_mode:
+        solcast = coordinator.solcast
+        if solcast.proxy_halted or solcast.proxy_fetch_in_progress or solcast.proxy_last_fetch_status == "retrying":
+            return False
+        missed_at = coordinator.updater.proxy.next_from_schedule(
+            solcast.data[LAST_ATTEMPT], solcast.proxy_schedule_day_utc, solcast.proxy_forecast_times_utc
+        )
+        if missed_at is None and solcast.proxy_forecast_cron is not None:
+            missed_at = coordinator.updater.proxy.next_from_cron(solcast.data[LAST_ATTEMPT], solcast.proxy_forecast_cron)
+        if missed_at is None or missed_at + timedelta(seconds=solcast.proxy_poll_delay_seconds) > solcast.dt_helper.real_now_utc():
+            return False
+        _LOGGER.info("Proxy forecast collection was missed during restart, updating forecast")
+        await service_actions.async_update_forecast(
+            ignore_auto_enabled=True,
+            completion="Completed task update_missed",
+            need_history_hours=__need_history_hours(coordinator),
+        )
+        return True
+
     stale = False
     if coordinator.solcast.options.auto_update != AutoUpdate.NONE:
         auto_updated = coordinator.solcast.data[AUTO_UPDATED]
@@ -264,12 +283,11 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator, serv
                     coordinator.solcast.data[LAST_ATTEMPT].astimezone(coordinator.solcast.options.tz).strftime(DT_DATE_FORMAT),
                     coordinator.interval_just_passed.astimezone(coordinator.solcast.options.tz).strftime(DT_DATE_FORMAT),
                 )
-                kwargs: dict[str, Any] = {
-                    "ignore_auto_enabled": True,
-                    "completion": "Completed task update_missed",
-                    "need_history_hours": __need_history_hours(coordinator),
-                }
-                await service_actions.async_update_forecast(**kwargs)
+                await service_actions.async_update_forecast(
+                    ignore_auto_enabled=True,
+                    completion="Completed task update_missed",
+                    need_history_hours=__need_history_hours(coordinator),
+                )
                 stale = True
             else:
                 _LOGGER.debug("Auto update forecast is fresh")
