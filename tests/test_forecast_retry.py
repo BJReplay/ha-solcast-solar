@@ -180,6 +180,13 @@ def test_dns_error_message_falls_back_to_class_name() -> None:
         pytest.param("cron", 30, 71, 30, id="cron"),
     ],
 )
+@pytest.mark.parametrize(
+    ("sleep_error", "expected_result", "expected_calls"),
+    [
+        pytest.param(None, {FORECASTS: []}, 2, id="retry-success"),
+        pytest.param(TimeoutError(), "Forecast fetch timed out after 900 seconds", 1, id="retry-timeout"),
+    ],
+)
 async def test_proxy_retry_uses_fetch_follow_grace(
     hass: HomeAssistant,
     freezer: FrozenDateTimeFactory,
@@ -188,6 +195,9 @@ async def test_proxy_retry_uses_fetch_follow_grace(
     poll_delay: int,
     expected_delay: int,
     expected_grace: int,
+    sleep_error: TimeoutError | None,
+    expected_result: dict[str, list[object]] | str,
+    expected_calls: int,
 ) -> None:
     """The fetch loop follows retry alarms without adding a scheduled tick phase."""
     try:
@@ -227,12 +237,12 @@ async def test_proxy_retry_uses_fetch_follow_grace(
 
         with (
             mock.patch.object(solcast, "aiohttp_session", mock_session),
-            mock.patch.object(solcast.fetcher, "_sleep", new_callable=mock.AsyncMock) as sleep,
+            mock.patch.object(solcast.fetcher, "_sleep", new_callable=mock.AsyncMock, side_effect=sleep_error) as sleep,
         ):
             result = await solcast.fetcher.fetch_data(hours=48, path=FORECASTS, site=site_id, api_key=api_key, force=True)
 
-        assert result == {FORECASTS: []}
-        assert mock_session.get.await_count == 2
+        assert result == expected_result
+        assert mock_session.get.await_count == expected_calls
         sleep.assert_awaited_once_with(expected_delay)
         assert solcast.proxy_poll_delay_seconds == 61
         assert f"polling in {expected_delay} seconds (fetch follow delay {expected_grace} seconds)" in caplog.text

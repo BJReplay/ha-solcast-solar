@@ -1030,6 +1030,8 @@ class Fetcher:
 
         except asyncio.exceptions.CancelledError:
             _LOGGER.info("Fetch cancelled")
+        except TimeoutError:
+            return "Forecast fetch timed out after 900 seconds"
         except json.decoder.JSONDecodeError:
             return response_text
 
