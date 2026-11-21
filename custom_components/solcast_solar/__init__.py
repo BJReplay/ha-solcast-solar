@@ -70,6 +70,10 @@ from .const import (
     HEADERS_USER_AGENT,
     KEY_ESTIMATE,
     LAST_ATTEMPT,
+    PROXY_FORECAST_CRON,
+    PROXY_MODE,
+    PROXY_POLL_DELAY_SECONDS,
+    PROXY_SAVED_AUTO_UPDATE,
     SITE_DAMP,
     SITE_EXPORT_ENTITY,
     SITE_EXPORT_LIMIT,
@@ -246,6 +250,25 @@ async def __check_stale_start(coordinator: SolcastUpdateCoordinator, service_act
 
 async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator, service_actions: ServiceActions) -> bool:
     """Check whether an auto-update has been missed, and if so update forecast."""
+    if coordinator.solcast.proxy_mode:
+        solcast = coordinator.solcast
+        if solcast.proxy_halted or solcast.proxy_fetch_in_progress or solcast.proxy_last_fetch_status == "retrying":
+            return False
+        missed_at = coordinator.updater.proxy.next_from_schedule(
+            solcast.data[LAST_ATTEMPT], solcast.proxy_schedule_day_utc, solcast.proxy_forecast_times_utc
+        )
+        if missed_at is None and solcast.proxy_forecast_cron is not None:
+            missed_at = coordinator.updater.proxy.next_from_cron(solcast.data[LAST_ATTEMPT], solcast.proxy_forecast_cron)
+        if missed_at is None or missed_at + timedelta(seconds=solcast.proxy_poll_delay_seconds) > solcast.dt_helper.real_now_utc():
+            return False
+        _LOGGER.info("Proxy forecast collection was missed during restart, updating forecast")
+        await service_actions.async_update_forecast(
+            ignore_auto_enabled=True,
+            completion="Completed task update_missed",
+            need_history_hours=__need_history_hours(coordinator),
+        )
+        return True
+
     stale = False
     if coordinator.solcast.options.auto_update != AutoUpdate.NONE:
         auto_updated = coordinator.solcast.data[AUTO_UPDATED]
@@ -260,12 +283,11 @@ async def __check_auto_update_missed(coordinator: SolcastUpdateCoordinator, serv
                     coordinator.solcast.data[LAST_ATTEMPT].astimezone(coordinator.solcast.options.tz).strftime(DT_DATE_FORMAT),
                     coordinator.interval_just_passed.astimezone(coordinator.solcast.options.tz).strftime(DT_DATE_FORMAT),
                 )
-                kwargs: dict[str, Any] = {
-                    "ignore_auto_enabled": True,
-                    "completion": "Completed task update_missed",
-                    "need_history_hours": __need_history_hours(coordinator),
-                }
-                await service_actions.async_update_forecast(**kwargs)
+                await service_actions.async_update_forecast(
+                    ignore_auto_enabled=True,
+                    completion="Completed task update_missed",
+                    need_history_hours=__need_history_hours(coordinator),
+                )
                 stale = True
             else:
                 _LOGGER.debug("Auto update forecast is fresh")
@@ -372,7 +394,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         case _:
             pass
 
-    sync_actuals_api_limit_issue(hass, entry.options, solcast.sites)
+    sync_actuals_api_limit_issue(
+        hass,
+        {**entry.options, PROXY_MODE: solcast.proxy_mode},
+        solcast.sites,
+    )
 
     await __get_granular_dampening(hass, entry, solcast)
 
@@ -554,12 +580,12 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
         if changed(AUTO_DAMPEN):
             reload = True
-        if coordinator.solcast.entry_options.get(AUTO_DAMPEN, False):
-            # Turning auto-dampening off, so reset the granular dampening file content.
-            path = Path(coordinator.solcast.dampening.get_filename())
-            _LOGGER.debug("Unlink %s", path)
-            if path.exists():
-                path.unlink()
+            if coordinator.solcast.entry_options.get(AUTO_DAMPEN, False):
+                # Turning auto-dampening off, so reset the granular dampening file content.
+                path = Path(coordinator.solcast.dampening.get_filename())
+                _LOGGER.debug("Unlink %s", path)
+                if path.exists():
+                    path.unlink()
 
         if changed(SITE_DAMP):
             damp_changed = True
@@ -581,7 +607,11 @@ async def async_update_options(hass: HomeAssistant, entry: ConfigEntry) -> None:
     else:
         determination = "Refresh sensors only" + (", with spline recalculate" if recalculate_splines else "")
     _LOGGER.debug("Options updated, action: %s", determination)
-    sync_actuals_api_limit_issue(hass, entry.options, coordinator.solcast.sites)
+    sync_actuals_api_limit_issue(
+        hass,
+        {**entry.options, PROXY_MODE: coordinator.solcast.proxy_mode},
+        coordinator.solcast.sites,
+    )
     if not reload:
         await coordinator.solcast.set_options(entry.options)
         if recalculate_and_refresh:
@@ -616,6 +646,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     v15: (4.3.3)    Exclude sites from core forecast
     v18: (4.4.0)    Auto-dampen, and add new options for export entity and generation entities
     v19: (4.5.1)    Rename some options for clarity
+    v20: (4.7.0)    Persist proxy-mode state, saved scheduler mode and proxy forecast cron expression
 
     An upgrade of the integration will sequentially upgrade options to the current
     version, with this function needing to consider all upgrade history and new defaults.
@@ -725,6 +756,12 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if "customhoursensor" in new_options:
             new_options[CUSTOM_HOURS] = new_options["customhoursensor"]
 
+    async def __v20(hass: HomeAssistant, new_options: dict[str, Any]) -> None:
+        new_options.setdefault(PROXY_MODE, False)
+        new_options.setdefault(PROXY_POLL_DELAY_SECONDS, 5)
+        new_options.setdefault(PROXY_SAVED_AUTO_UPDATE, int(new_options.get(AUTO_UPDATE, AutoUpdate.NONE)))
+        new_options.setdefault(PROXY_FORECAST_CRON, None)
+
     upgrades: list[dict[str, Any]] = [
         {VERSION: 4, UPGRADE_FUNCTION: __v4},
         {VERSION: 5, UPGRADE_FUNCTION: __v5},
@@ -737,6 +774,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         {VERSION: 15, UPGRADE_FUNCTION: __v15},
         {VERSION: 18, UPGRADE_FUNCTION: __v18},
         {VERSION: 19, UPGRADE_FUNCTION: __v19},
+        {VERSION: 20, UPGRADE_FUNCTION: __v20},
     ]
     for upgrade in upgrades:
         if (entry.version < upgrade[VERSION]) or (ENTRY_OPTIONS_DEVELOPMENT and upgrade[VERSION] == CONFIG_VERSION):

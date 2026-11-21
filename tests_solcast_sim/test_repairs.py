@@ -5,7 +5,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from custom_components.solcast_sim.repairs import (  # pyright: ignore[reportMissingImports]
+from custom_components.solcast_sim.repairs import (
     REPAIR_ACTION,
     REPAIR_ACTION_KEEP,
     REPAIR_ACTION_SYNC,

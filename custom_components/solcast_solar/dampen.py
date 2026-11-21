@@ -391,12 +391,9 @@ class Dampening:
         """Apply dampening to forward forecasts."""
         if self.api.data_undampened[SITE_INFO]:
             _LOGGER.debug("Applying future dampening")
+            day_start = self.api.dt_helper.day_start_utc()
 
-            self.auto_factors = {
-                period_start: factor
-                for period_start, factor in self.auto_factors.items()
-                if period_start >= self.api.dt_helper.day_start_utc()
-            }
+            self.auto_factors = {period_start: factor for period_start, factor in self.auto_factors.items() if period_start >= day_start}
 
             undampened_interval_pv50: defaultdict[dt, float] = defaultdict(float)
             for site in self.api.sites:
@@ -404,7 +401,7 @@ class Dampening:
                     continue
                 for forecast in self.api.data_undampened[SITE_INFO][site[RESOURCE_ID]][FORECASTS]:
                     period_start = forecast[PERIOD_START]
-                    if period_start >= self.api.dt_helper.day_start_utc():
+                    if period_start >= day_start:
                         undampened_interval_pv50[period_start] += forecast[ESTIMATE] * 0.5
 
             record_adjustment = True
@@ -415,11 +412,7 @@ class Dampening:
                     forecast
                     for forecast in self.api.data_undampened[SITE_INFO][site_id][FORECASTS]
                     if forecast[PERIOD_START]
-                    >= (
-                        self.api.dt_helper.day_start_utc()
-                        if self.api.data[SITE_INFO].get(site_id)
-                        else self.api.dt_helper.day_start_utc() - timedelta(hours=do_past_hours)
-                    )
+                    >= (day_start if self.api.data[SITE_INFO].get(site_id) else day_start - timedelta(hours=do_past_hours))
                 ]
                 forecasts = (
                     {forecast[PERIOD_START]: forecast for forecast in self.api.data[SITE_INFO][site_id][FORECASTS]}
@@ -442,7 +435,7 @@ class Dampening:
                         pv90 = round(forecast[ESTIMATE90], 4)
 
                         # Retrieve the dampening factor for the period, and dampen the estimates.
-                        dampening_factor = self.get_factor(
+                        dampening_factor = await self.get_factor(
                             site_id,
                             period_start.astimezone(self.api.tz),
                             undampened_interval_pv50.get(period_start, -1),
@@ -455,9 +448,9 @@ class Dampening:
                         pv90_dampened = round(pv90 * dampening_factor, 4)
 
                         # Add or update the new entries.
-                        self.api.forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
+                        await self.api.forecast_entry_update(forecasts, period_start, pv_dampened, pv10_dampened, pv90_dampened)
                     else:
-                        self.api.forecast_entry_update(
+                        await self.api.forecast_entry_update(
                             forecasts,
                             period_start,
                             round(forecast[ESTIMATE], 4),
@@ -521,14 +514,14 @@ class Dampening:
                 period_start = actual[PERIOD_START]
                 dampened = round(
                     actual[ESTIMATE]
-                    * self.get_factor(
+                    * await self.get_factor(
                         site[RESOURCE_ID],
                         period_start.astimezone(self.api.tz),
                         undampened_interval_pv50.get(period_start, -1.0),
                     ),
                     4,
                 )
-                self.api.forecast_entry_update(extant_actuals, period_start, dampened)
+                await self.api.forecast_entry_update(extant_actuals, period_start, dampened)
 
             await self.api.fetcher.sort_and_prune(
                 site[RESOURCE_ID],
@@ -624,13 +617,13 @@ class Dampening:
             for actual in actuals_undampened:
                 period_start = actual[PERIOD_START]
                 undampened = actual[ESTIMATE]
-                factor = self.get_factor(
+                factor = await self.get_factor(
                     site[RESOURCE_ID],
                     period_start.astimezone(self.api.tz),
                     undampened_interval_pv50.get(period_start, -1.0),
                 )
                 dampened = round(undampened * factor, 4)
-                self.api.forecast_entry_update(extant_actuals, period_start, dampened)
+                await self.api.forecast_entry_update(extant_actuals, period_start, dampened)
 
             await self.api.fetcher.sort_and_prune(
                 site[RESOURCE_ID],
@@ -738,7 +731,7 @@ class Dampening:
         """
         return self._get_earliest_estimate_after(self.api.data_estimated_actuals, after=after)
 
-    def get_factor(self, site: str | None, period_start: dt, interval_pv50: float, record_adjustment: bool = False) -> float:
+    async def get_factor(self, site: str | None, period_start: dt, interval_pv50: float, record_adjustment: bool = False) -> float:
         """Retrieve either a traditional or granular dampening factor."""
         if site is not None:
             if self.api.entry_options.get(SITE_DAMP):

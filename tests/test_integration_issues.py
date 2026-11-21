@@ -16,6 +16,7 @@ from custom_components.solcast_solar.const import (
     GET_ACTUALS,
     ISSUE_ACTUALS_API_LIMIT,
     ISSUE_ACTUALS_QUOTA_TODAY,
+    PROXY_MODE,
     SUGGESTED_VALUE,
     TASK_ACTUALS_FETCH,
     USE_ACTUALS,
@@ -186,6 +187,9 @@ async def test_actuals_api_limit_issue_invalid_option_paths(
 
         sync_actuals_api_limit_issue(hass, valid, solcast.sites)
         assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_API_LIMIT) is not None, "Issue ISSUE_ACTUALS_API_LIMIT should exist"
+
+        sync_actuals_api_limit_issue(hass, {**valid, PROXY_MODE: True}, solcast.sites)
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_API_LIMIT) is None, "Issue should not exist in proxy mode"
 
         sync_actuals_api_limit_issue(hass, {**valid, AUTO_UPDATE: "bad"}, solcast.sites)
         assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_API_LIMIT) is None, "Issue ISSUE_ACTUALS_API_LIMIT should not exist"
@@ -497,6 +501,31 @@ async def test_actuals_quota_today_issue_suppressed_when_allow_exceed_and_high_l
         assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is not None, (
             "Issue should be raised for a sub-maximum limit without allow_exceed_api_limit_maximum"
         )
+    finally:
+        assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
+
+
+async def test_actuals_quota_today_issue_suppressed_in_proxy_mode(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    issue_registry: ir.IssueRegistry,
+) -> None:
+    """Test that the quota-risk issue is not raised while proxy mode is active."""
+
+    try:
+        fake_sites = [{CONF_API_KEY: "key1"}]
+
+        sync_actuals_quota_risk_issue(
+            hass,
+            fake_sites,
+            {"key1": 10},
+            {},
+            {},
+            9,
+            get_actuals=True,
+            proxy_mode=True,
+        )
+        assert issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY) is None
     finally:
         assert await async_cleanup_integration_tests(hass), "Integration test cleanup failed"
 

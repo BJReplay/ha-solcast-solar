@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from custom_components.solcast_sim.config_flow import (  # pyright: ignore[reportMissingImports]
+from custom_components.solcast_sim.config_flow import (
     SolcastSimConfigFlow,
     _default_api_key_from_solcast,
     _normalise_api_key,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections import defaultdict
 from datetime import UTC, timedelta
 import json
@@ -9,10 +10,17 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest.mock import patch
 
 from custom_components.solcast_solar.const import (
     API_KEY,
     FORECASTS,
+    LAST_UPDATED,
+    PROXY_ACTUALS_CRON,
+    PROXY_CACHE_STATE,
+    PROXY_FORECAST_CRON,
+    PROXY_MODE,
+    PROXY_POLL_DELAY_SECONDS,
     RESOURCE_ID,
     SITE_ATTRIBUTE_AZIMUTH,
     SITE_ATTRIBUTE_LATITUDE,
@@ -45,6 +53,49 @@ def _make_sites_cache(tmp_path: Path, fail_copy: bool = False) -> SitesCache:
     """Create SitesCache with a minimal fake API object."""
     api = SimpleNamespace(config_dir=str(tmp_path), hass=_ExecutorHass(fail_copy=fail_copy))
     return SitesCache(api)  # pyright: ignore[reportArgumentType]
+
+
+@pytest.mark.parametrize(
+    ("payload", "failure", "expected_message", "open_calls"),
+    [
+        pytest.param(object(), None, "Unable to encode dampened cache", 0, id="encoding"),
+        pytest.param(
+            None,
+            OSError("simulated write failure"),
+            "Unable to write dampened cache",
+            1,
+            id="writing",
+        ),
+    ],
+)
+async def test_serialise_data_failure(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+    payload: object,
+    failure: OSError | None,
+    expected_message: str,
+    open_calls: int,
+) -> None:
+    """Failed encoding or opening a cache must preserve the previous file."""
+    sites_cache = _make_sites_cache(tmp_path)
+    filename = tmp_path / "solcast.json"
+    previous_data = b'{"previous": true}'
+    filename.write_bytes(previous_data)
+    sites_cache.api.loaded_data = True
+    sites_cache.api.integration_version = "test"
+    sites_cache.api.filename = str(filename)
+    sites_cache.api.filename_undampened = str(tmp_path / "solcast-undampened.json")
+    sites_cache.api.filename_actuals = str(tmp_path / "solcast-actuals.json")
+    sites_cache.api.filename_actuals_dampened = str(tmp_path / "solcast-actuals-dampened.json")
+    sites_cache.api.filename_generation = str(tmp_path / "solcast-generation.json")
+    sites_cache.api.serialise_lock = asyncio.Lock()
+
+    with patch("custom_components.solcast_solar.sites_cache.aiofiles.open", side_effect=failure) as cache_open:
+        assert await sites_cache.serialise_data({LAST_UPDATED: dt_util.utcnow(), "payload": payload}, str(filename)) is False
+
+    assert cache_open.call_count == open_calls
+    assert filename.read_bytes() == previous_data
+    assert expected_message in caplog.text
 
 
 def test_site_transfer_signature_none_missing_fields(tmp_path: Path) -> None:
@@ -181,12 +232,26 @@ async def test_sites_data_uses_combined_extant_match_for_key_collapse(tmp_path: 
     api = SimpleNamespace(
         config_dir=str(tmp_path),
         options=SimpleNamespace(api_key="newkey"),
+        entry_options={API_KEY: "newkey"},
         sites_status=LoadStatus.OK,
         sites=[],
         http_status_translate=lambda status: f"{status}",
         entry=None,
     )
     sites_cache = SitesCache(api)  # pyright: ignore[reportArgumentType]
+    sites_cache._extant_sites = defaultdict(
+        list,
+        {
+            "newkey": [
+                {
+                    RESOURCE_ID: "1111-1111-1111-1111",
+                    "name": "First Site",
+                    "capacity_dc": 6.2,
+                    "tilt": 30,
+                }
+            ]
+        },
+    )
 
     response_json = {
         SITES: [
@@ -250,3 +315,85 @@ async def test_sites_data_uses_combined_extant_match_for_key_collapse(tmp_path: 
         "2222-2222-2222-2222",
         "3333-3333-3333-3333",
     ]
+
+
+@pytest.mark.asyncio
+async def test_sites_data_restores_proxy_mode_from_cache_metadata(tmp_path: Path) -> None:
+    """Cache-only startup should restore proxy mode from saved site metadata."""
+
+    api = SimpleNamespace(
+        config_dir=str(tmp_path),
+        options=SimpleNamespace(api_key="newkey"),
+        entry_options={API_KEY: "newkey"},
+        sites_status=LoadStatus.OK,
+        sites=[],
+        proxy_mode=False,
+        proxy_poll_delay_seconds=5,
+        proxy_forecast_cron=None,
+        proxy_actuals_cron=None,
+        proxy_forecast_mode=None,
+        http_status_translate=lambda status: f"{status}",
+        entry=None,
+    )
+
+    async def _set_proxy_mode(enabled: bool, source: str = "") -> None:
+        api.proxy_mode = enabled
+
+    async def _set_proxy_delay(delay_seconds: int, source: str = "") -> None:
+        api.proxy_poll_delay_seconds = delay_seconds
+
+    async def _set_proxy_cron(cron: str | None, source: str = "") -> None:
+        api.proxy_forecast_cron = cron
+
+    async def _set_proxy_actuals_cron(cron: str | None, source: str = "") -> None:
+        api.proxy_actuals_cron = cron
+
+    api.async_set_proxy_mode = _set_proxy_mode
+    api.async_set_proxy_poll_delay = _set_proxy_delay
+    api.async_set_proxy_forecast_cron = _set_proxy_cron
+    api.async_set_proxy_actuals_cron = _set_proxy_actuals_cron
+
+    sites_cache = SitesCache(api)  # pyright: ignore[reportArgumentType]
+    sites_cache._extant_sites = defaultdict(
+        list,
+        {
+            "newkey": [
+                {
+                    RESOURCE_ID: "1111-1111-1111-1111",
+                    "name": "First Site",
+                    "capacity_dc": 6.2,
+                    "tilt": 30,
+                }
+            ]
+        },
+    )
+
+    response_json = {
+        SITES: [
+            {
+                RESOURCE_ID: "1111-1111-1111-1111",
+                "name": "First Site",
+                "capacity_dc": 6.2,
+                "tilt": 30,
+                SITE_ATTRIBUTE_LATITUDE: -11.11111,
+                SITE_ATTRIBUTE_AZIMUTH: 66,
+            }
+        ],
+        TOTAL_RECORDS: 1,
+        PROXY_CACHE_STATE: {
+            PROXY_MODE: True,
+            PROXY_POLL_DELAY_SECONDS: 9,
+            PROXY_FORECAST_CRON: "*/10 * * * *",
+            PROXY_ACTUALS_CRON: "55 23 * * *",
+        },
+    }
+    (tmp_path / "solcast-sites.json").write_text(json.dumps(response_json), encoding="utf-8")
+
+    status, _, _ = await sites_cache._sites_data(prior_crash=True, use_cache=True)
+
+    assert status == 200
+    assert api.sites_status is LoadStatus.OK
+    assert api.proxy_mode is True
+    assert api.proxy_poll_delay_seconds == 9
+    assert api.proxy_forecast_cron == "*/10 * * * *"
+    assert api.proxy_actuals_cron == "55 23 * * *"

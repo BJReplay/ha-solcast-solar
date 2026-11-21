@@ -1,6 +1,15 @@
 """Solcast utilities."""
 
+import asyncio
+from collections.abc import Generator
+import contextlib
+import gc
+import logging
 import math
+import sys
+from threading import get_ident
+from time import perf_counter, thread_time
+from types import CodeType
 from typing import Any
 
 from .log import get_logger
@@ -97,3 +106,123 @@ def diff(lst: list[Any], non_negative: bool = True) -> list[Any]:
     for i in range(size):
         r[i] = max(0, lst[i + 1] - lst[i]) if non_negative else lst[i + 1] - lst[i]
     return r
+
+
+@contextlib.contextmanager
+def log_loop_turns(code: CodeType, label: str) -> Generator[None, None, None]:
+    """Log coroutine execution slices and GC time, excluding suspended time."""
+    if not _LOGGER.isEnabledFor(logging.DEBUG):
+        yield
+        return
+
+    threshold = asyncio.get_running_loop().slow_callback_duration
+    monitoring = sys.monitoring
+    for tool_id in (5, 4, 3):
+        try:
+            monitoring.use_tool_id(tool_id, "solcast-loop-timing")
+        except ValueError:
+            continue
+        break
+    else:
+        _LOGGER.debug("%s timing skipped: monitoring slots are occupied", label)
+        yield
+        return
+
+    task = asyncio.current_task()
+    thread_id = get_ident()
+    started: float | None = None
+    cpu_started = 0.0
+    gc_started: tuple[float, float, int] | None = None
+    gc_elapsed = 0.0
+    gc_cpu_elapsed = 0.0
+    gc_counts = [0, 0, 0]
+    turns = 0
+    longest = 0.0
+    total_elapsed = 0.0
+    total_cpu = 0.0
+    total_gc = 0.0
+    total_gc_cpu = 0.0
+    total_gc_counts = [0, 0, 0]
+
+    def record_gc(phase: str, info: dict[str, int]) -> None:
+        nonlocal gc_started, gc_elapsed, gc_cpu_elapsed
+        if get_ident() != thread_id or started is None:
+            return
+        if phase == "start":
+            gc_started = (perf_counter(), thread_time(), info["generation"])
+        elif phase == "stop" and gc_started is not None:
+            wall_start, cpu_start, generation = gc_started
+            gc_elapsed += perf_counter() - wall_start
+            gc_cpu_elapsed += thread_time() - cpu_start
+            gc_counts[generation] += 1
+            gc_started = None
+
+    def resume(*event_args: object) -> None:
+        nonlocal started, cpu_started, gc_elapsed, gc_cpu_elapsed, gc_counts
+        if (not event_args or event_args[0] is code) and asyncio.current_task() is task:
+            started = perf_counter()
+            cpu_started = thread_time()
+            gc_elapsed = 0.0
+            gc_cpu_elapsed = 0.0
+            gc_counts = [0, 0, 0]
+
+    def suspend(*event_args: object) -> None:
+        nonlocal started, turns, longest, total_elapsed, total_cpu, total_gc, total_gc_cpu
+        if (not event_args or event_args[0] is code) and asyncio.current_task() is task and started is not None:
+            elapsed = perf_counter() - started
+            cpu_elapsed = thread_time() - cpu_started
+            started = None
+            turns += 1
+            longest = max(longest, elapsed)
+            total_elapsed += elapsed
+            total_cpu += cpu_elapsed
+            total_gc += gc_elapsed
+            total_gc_cpu += gc_cpu_elapsed
+            for generation, count in enumerate(gc_counts):
+                total_gc_counts[generation] += count
+            if elapsed >= threshold:
+                _LOGGER.debug(
+                    "%s event-loop slice took %.1f ms: CPU=%.1f ms, GC wall=%.1f ms, GC CPU=%.1f ms, GC counts (gen 0/1/2)=%s",
+                    label,
+                    elapsed * 1000,
+                    cpu_elapsed * 1000,
+                    gc_elapsed * 1000,
+                    gc_cpu_elapsed * 1000,
+                    gc_counts,
+                )
+
+    events = {
+        monitoring.events.PY_RESUME: resume,
+        monitoring.events.PY_THROW: resume,
+        monitoring.events.PY_YIELD: suspend,
+        monitoring.events.PY_RETURN: suspend,
+        monitoring.events.PY_UNWIND: suspend,
+    }
+    try:
+        gc.callbacks.append(record_gc)
+        for event, handler in events.items():
+            monitoring.register_callback(tool_id, event, handler)
+        monitoring.set_events(tool_id, monitoring.events.PY_THROW | monitoring.events.PY_UNWIND)
+        monitoring.set_local_events(tool_id, code, monitoring.events.PY_RESUME | monitoring.events.PY_YIELD | monitoring.events.PY_RETURN)
+        resume()
+        yield
+    finally:
+        suspend()
+        gc.callbacks.remove(record_gc)
+        monitoring.set_events(tool_id, 0)
+        monitoring.set_local_events(tool_id, code, 0)
+        for event in events:
+            monitoring.register_callback(tool_id, event, None)
+        monitoring.free_tool_id(tool_id)
+        _LOGGER.debug(
+            "%s performance: %d execution slices, longest %.1f ms, total wall=%.1f ms, total CPU=%.1f ms, "
+            "GC wall=%.1f ms, GC CPU=%.1f ms, GC counts (gen 0/1/2)=%s (excluding suspended time)",
+            label,
+            turns,
+            longest * 1000,
+            total_elapsed * 1000,
+            total_cpu * 1000,
+            total_gc * 1000,
+            total_gc_cpu * 1000,
+            total_gc_counts,
+        )

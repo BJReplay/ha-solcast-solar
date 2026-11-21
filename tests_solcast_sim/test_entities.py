@@ -6,10 +6,10 @@ from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 from zoneinfo import ZoneInfo
 
-from custom_components.solcast_sim import (  # pyright: ignore[reportMissingImports]
+from custom_components.solcast_sim import (
     entities,
 )
-from custom_components.solcast_sim.entities import (  # pyright: ignore[reportMissingImports]
+from custom_components.solcast_sim.entities import (
     ExportEnergySensor,
     ModelSensor,
     ModelSensorDesc,
@@ -26,7 +26,7 @@ from custom_components.solcast_sim.entities import (  # pyright: ignore[reportMi
     _prefixed_display_name,
     build_entities,
 )
-from custom_components.solcast_sim.sim_core import (  # pyright: ignore[reportMissingImports]
+from custom_components.solcast_sim.sim_core import (
     SimulationProfile,
 )
 import pytest

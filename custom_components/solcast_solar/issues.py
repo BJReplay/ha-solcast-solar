@@ -27,6 +27,7 @@ from .const import (
     NEW_OPTION,
     OPTION,
     PROBLEMS,
+    PROXY_MODE,
     STOPS_WORKING,
     SUGGESTED_VALUE,
 )
@@ -77,6 +78,10 @@ def sync_actuals_api_limit_issue(hass: HomeAssistant, options: Mapping[str, Any]
         if issue_registry.async_get_issue(DOMAIN, ISSUE_ACTUALS_API_LIMIT) is not None:
             _LOGGER.debug("Remove issue for %s", ISSUE_ACTUALS_API_LIMIT)
             ir.async_delete_issue(hass, DOMAIN, ISSUE_ACTUALS_API_LIMIT)
+
+    if options.get(PROXY_MODE) is True:
+        _remove_issue()
+        return
 
     try:
         auto_update = int(options.get(AUTO_UPDATE, AutoUpdate.NONE))
@@ -155,6 +160,7 @@ def sync_actuals_quota_risk_issue(
     api_forced: dict[str, int],
     api_limit: int,
     get_actuals: bool,
+    proxy_mode: bool = False,
     allow_exceed_api_limit_maximum: bool = False,
 ) -> None:
     """Raise or remove warning issue when typical daily API usage may exhaust quota if actuals are fetched."""
@@ -166,7 +172,7 @@ def sync_actuals_quota_risk_issue(
             _LOGGER.debug("Remove issue for %s", ISSUE_ACTUALS_QUOTA_TODAY)
             ir.async_delete_issue(hass, DOMAIN, ISSUE_ACTUALS_QUOTA_TODAY)
 
-    if not get_actuals or api_limit == 0:
+    if proxy_mode or not get_actuals or api_limit == 0:
         _remove_issue()
         return
 

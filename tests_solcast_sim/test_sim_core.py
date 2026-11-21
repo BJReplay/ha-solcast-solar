@@ -6,10 +6,10 @@ from datetime import UTC, date, datetime
 from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 
-from custom_components.solcast_sim import (  # pyright: ignore[reportMissingImports]
+from custom_components.solcast_sim import (
     sim_core,
-)  # pyright: ignore[reportMissingImports]
-from custom_components.solcast_sim.sim_core import (  # pyright: ignore[reportMissingImports]
+)
+from custom_components.solcast_sim.sim_core import (
     API_KEY_SITES,
     SimulationProfile,
     SolcastSimBatteryModel,

@@ -2,8 +2,7 @@
 
 import asyncio
 import copy
-import datetime
-from datetime import datetime as dt, timedelta
+from datetime import timedelta
 import json
 import logging
 from pathlib import Path
@@ -49,6 +48,7 @@ from homeassistant.components.repairs import ConfirmRepairFlow
 from homeassistant.core import HomeAssistant
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.util import dt as dt_util
 
 from . import (
     DEFAULT_INPUT1,
@@ -63,6 +63,18 @@ from . import (
 from .simulator import API_KEY_SITES
 
 _LOGGER = logging.getLogger(__name__)
+
+
+async def _build_repair_flow(
+    hass: HomeAssistant,
+    issue_id: str,
+    data: dict[str, str | int],
+):
+    """Create a repair flow with hass and issue context for direct step calls."""
+    flow = await async_create_fix_flow(hass, issue_id, data)
+    flow.hass = hass
+    flow.context = {"issue_id": issue_id}
+    return flow
 
 
 async def test_missing_data_fixable(
@@ -86,9 +98,7 @@ async def test_missing_data_fixable(
                 data = json.loads(data_file.read_text(encoding="utf-8"))
                 # Remove future forecasts from "now" plus six days
                 for site in data[SITE_INFO].values():
-                    site[FORECASTS] = [
-                        f for f in site[FORECASTS] if f[PERIOD_START] < (dt.now(datetime.UTC) + timedelta(days=4)).isoformat()
-                    ]
+                    site[FORECASTS] = [f for f in site[FORECASTS] if f[PERIOD_START] < (dt_util.utcnow() + timedelta(days=4)).isoformat()]
                 data_file.write_text(json.dumps(data), encoding="utf-8")
                 _LOGGER.critical("%s: %s", data_file, len(data[SITE_INFO]["1111-1111-1111-1111"][FORECASTS]))
 
@@ -106,14 +116,11 @@ async def test_missing_data_fixable(
         flow = await async_create_fix_flow(hass, "not_handled_issue", {})
         assert type(flow) is ConfirmRepairFlow
 
-        flow = await async_create_fix_flow(hass, ISSUE_RECORDS_MISSING_FIXABLE, {ENTRY_ID: "missing"})
-        flow.hass = hass
+        flow = await _build_repair_flow(hass, ISSUE_RECORDS_MISSING_FIXABLE, {ENTRY_ID: "missing"})
         result = await flow.async_step_init()  # type: ignore[attr-defined]
         assert result["reason"] == EXCEPTION_ENTRY_NOT_FOUND
 
-        flow = await async_create_fix_flow(hass, issue.issue_id, {"contiguous": 8, ENTRY_ID: entry.entry_id})
-        flow.hass = hass
-        flow.context = {"issue_id": issue.issue_id}
+        flow = await _build_repair_flow(hass, issue.issue_id, {"contiguous": 8, ENTRY_ID: entry.entry_id})
 
         result = await flow.async_step_init()  # type: ignore[attr-defined]
         assert result["type"] == FlowResultType.FORM
@@ -157,9 +164,7 @@ async def test_missing_data_unfixable(
                 data = json.loads(data_file.read_text(encoding="utf-8"))
                 # Remove future forecasts to trigger missing-data detection.
                 for site in data[SITE_INFO].values():
-                    site[FORECASTS] = [
-                        f for f in site[FORECASTS] if f[PERIOD_START] < (dt.now(datetime.UTC) + timedelta(days=4)).isoformat()
-                    ]
+                    site[FORECASTS] = [f for f in site[FORECASTS] if f[PERIOD_START] < (dt_util.utcnow() + timedelta(days=4)).isoformat()]
                 # Simulate recent historical failures so the issue is not auto-fixable.
                 data[FAILURE][LAST_14D] = [1, *[0] * 13]
                 data_file.write_text(json.dumps(data), encoding="utf-8")
@@ -233,11 +238,13 @@ async def test_missing_data_initial(
         assert_issue_present()
 
         caplog.clear()
-        freezer.move_to((dt.now(tz=ZoneInfo(ZONE_RAW))).replace(hour=23, minute=59, second=0, microsecond=0))
+        freezer.move_to((dt_util.now().astimezone(ZoneInfo(ZONE_RAW))).replace(hour=23, minute=59, second=0, microsecond=0))
         await update_forecast()
 
         caplog.clear()
-        freezer.move_to((dt.now(tz=ZoneInfo(ZONE_RAW)) + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0))
+        freezer.move_to(
+            (dt_util.now().astimezone(ZoneInfo(ZONE_RAW)) + timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        )
         await hass.async_block_till_done()
         await update_forecast()
         assert_issue_not_present()

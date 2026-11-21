@@ -185,7 +185,7 @@ class RequestMatch:
         loop.get_debug.return_value = True
         kwargs: dict[str, Any] = {
             "request_info": RequestInfo(
-                url=URL(url), method=method, headers=CIMultiDictProxy(CIMultiDict(**request_headers)), real_url=URL(url)
+                url=URL(url), method=method, headers=CIMultiDictProxy(CIMultiDict(**request_headers)), real_url=URL(url),
             ),
             "writer": None,
             "continue100": None,
@@ -544,7 +544,7 @@ class aioresponses:
         return response
 
     async def _request_mock(
-        self, orig_self: ClientSession, method: str, url: URL | str, *args: Any, **kwargs: Any
+        self, orig_self: ClientSession, method: str, url: URL | str, *args: Any, **kwargs: Any,
     ) -> ClientResponse | Exception:
         """Return mocked response object or raise connection error."""
         if orig_self.closed:

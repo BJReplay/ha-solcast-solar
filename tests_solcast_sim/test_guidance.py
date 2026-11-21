@@ -10,10 +10,10 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from zoneinfo import ZoneInfo
 
-from custom_components.solcast_sim import (  # pyright: ignore[reportMissingImports]
+from custom_components.solcast_sim import (
     guidance,
 )
-from custom_components.solcast_sim.guidance import (  # pyright: ignore[reportMissingImports]
+from custom_components.solcast_sim.guidance import (
     PV_TODAY_ENERGY_UNIQUE_ID,
     GuidanceCloudWindowMode,
     _apply_estimated_actuals_jitter,
@@ -26,7 +26,7 @@ from custom_components.solcast_sim.guidance import (  # pyright: ignore[reportMi
     save_climate_cache,
     write_guidance_payload_to_file,
 )
-from custom_components.solcast_sim.sim_core import (  # pyright: ignore[reportMissingImports]
+from custom_components.solcast_sim.sim_core import (
     SimulationProfile,
 )
 import pytest
