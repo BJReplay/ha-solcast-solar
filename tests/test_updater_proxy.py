@@ -526,12 +526,13 @@ async def test_proxy_schedule_refresh_reschedules_follow_with_new_poll_delay(mon
     assert [callback for callback, _ in updater._test_scheduled].count(updater.proxy.refresh_schedule_before_update) == 1
 
 
-async def test_proxy_schedule_refresh_preserves_retry_deadline(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("microsecond", [pytest.param(0, id="whole-second"), pytest.param(64000, id="fractional-second")])
+async def test_proxy_schedule_refresh_preserves_retry_deadline(monkeypatch: pytest.MonkeyPatch, microsecond: int) -> None:
     """Refreshing poll delay does not replace an authoritative retry deadline."""
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater_proxy.async_track_point_in_utc_time", fake_track)
     solcast = updater._coordinator.solcast
-    retry_at = dt(2026, 11, 1, 18, 30, 17, tzinfo=UTC)
+    retry_at = dt(2026, 11, 1, 18, 30, 17, microsecond=microsecond, tzinfo=UTC)
     solcast.proxy_next_attempt_at = retry_at
     solcast.proxy_last_fetch_status = "retrying"
 
@@ -543,12 +544,14 @@ async def test_proxy_schedule_refresh_preserves_retry_deadline(monkeypatch: pyte
 
     solcast.sites_cache = SimpleNamespace(refresh_proxy_schedule=refresh_schedule)
     await updater.check_forecast_fetch()
-    solcast.dt_helper.real_now_utc = lambda: dt(2026, 11, 1, 18, 30, 12, tzinfo=UTC)
+    solcast.dt_helper.real_now_utc = lambda: retry_at - timedelta(seconds=5) + timedelta(milliseconds=30)
 
     await updater.proxy.refresh_schedule_before_update()
 
     assert solcast.proxy_next_attempt_at == retry_at
     assert updater.proxy.scheduled_for == retry_at + timedelta(seconds=15)
+    assert [callback for callback, _ in updater._test_scheduled].count(updater.proxy.refresh_schedule_before_update) == 1
+    assert updater.proxy.schedule_refresh_scheduled_for is None
 
 
 async def test_proxy_schedule_refresh_before_update_ignored_in_direct_mode() -> None:

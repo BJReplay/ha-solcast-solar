@@ -158,7 +158,7 @@ class ProxyUpdater:
         if next_attempt is None:
             return
 
-        now = self._coordinator.solcast.dt_helper.real_now_utc().replace(microsecond=0)
+        now = self._coordinator.solcast.dt_helper.real_now_utc()
         follow_at = next_attempt + timedelta(seconds=self._coordinator.solcast.proxy_poll_delay_seconds)
         if follow_at <= now:
             follow_at = now + timedelta(seconds=max(1, self._coordinator.solcast.proxy_poll_delay_seconds))
