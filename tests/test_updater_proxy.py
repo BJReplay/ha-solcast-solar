@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime as dt, timedelta, timezone, tzinfo
 from types import SimpleNamespace
-from typing import Any
 from unittest.mock import AsyncMock, Mock, call
 from zoneinfo import ZoneInfo
 
@@ -18,14 +18,23 @@ from custom_components.solcast_solar.updater import Updater
 import pytest
 
 
+class _TestUpdater(Updater):
+    """Expose the test coordinator stub and recorded scheduling calls."""
+
+    def __init__(self, coordinator: SimpleNamespace, scheduled: list[tuple[object, dt]]) -> None:
+        super().__init__(coordinator)  # pyright: ignore[reportArgumentType]
+        self.coordinator = coordinator
+        self.scheduled = scheduled
+
+
 def _make_updater(
     proxy_mode: bool, proxy_forecast_cron: str | None = None, proxy_actuals_cron: str | None = None, tz: tzinfo = UTC
-) -> tuple[Updater, Any]:
+) -> tuple[_TestUpdater, Callable[[object, object, dt], Callable[[], None]]]:
     """Create an Updater with lightweight coordinator/solcast stubs."""
 
-    scheduled: list[tuple[object, object]] = []
+    scheduled: list[tuple[object, dt]] = []
 
-    def fake_track_point_in_utc_time(_hass: object, callback: object, when: object) -> object:
+    def fake_track_point_in_utc_time(_hass: object, callback: object, when: dt) -> Callable[[], None]:
         scheduled.append((callback, when))
         return lambda: None
 
@@ -72,9 +81,8 @@ def _make_updater(
         tasks={},
     )
 
-    updater = Updater(coordinator)  # pyright: ignore[reportArgumentType]
+    updater = _TestUpdater(coordinator, scheduled)
     updater._intervals = [dt(2026, 11, 1, 20, 0, 0, tzinfo=UTC)]
-    updater._test_scheduled = scheduled
 
     return updater, fake_track_point_in_utc_time
 
@@ -106,11 +114,11 @@ async def test_check_forecast_fetch_derives_schedule_from_proxy_cron(monkeypatch
 
     await updater.check_forecast_fetch()
 
-    assert updater._coordinator.solcast.proxy_next_attempt_at is not None
-    assert updater._coordinator.solcast.proxy_next_attempt_at.minute == 30
-    assert "pending_proxy_update" in updater._coordinator.tasks
-    assert updater._test_scheduled[0][1] == dt(2026, 11, 1, 18, 30, 5, tzinfo=UTC)
-    assert updater._test_scheduled[1][1] == dt(2026, 11, 1, 18, 29, 55, tzinfo=UTC)
+    assert updater.coordinator.solcast.proxy_next_attempt_at is not None
+    assert updater.coordinator.solcast.proxy_next_attempt_at.minute == 30
+    assert "pending_proxy_update" in updater.coordinator.tasks
+    assert updater.scheduled[0][1] == dt(2026, 11, 1, 18, 30, 5, tzinfo=UTC)
+    assert updater.scheduled[1][1] == dt(2026, 11, 1, 18, 29, 55, tzinfo=UTC)
 
 
 @pytest.mark.parametrize(
@@ -211,8 +219,8 @@ async def test_invalid_proxy_cron_does_not_schedule(monkeypatch: pytest.MonkeyPa
 
     await updater.check_forecast_fetch()
 
-    assert updater._coordinator.solcast.proxy_next_attempt_at is None
-    assert updater._test_scheduled == []
+    assert updater.coordinator.solcast.proxy_next_attempt_at is None
+    assert updater.scheduled == []
 
 
 async def test_proxy_header_timestamp_takes_precedence_over_cron(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -220,12 +228,12 @@ async def test_proxy_header_timestamp_takes_precedence_over_cron(monkeypatch: py
     updater, fake_track = _make_updater(proxy_mode=True, proxy_forecast_cron="*/10 * * * *")
     monkeypatch.setattr("custom_components.solcast_solar.updater_proxy.async_track_point_in_utc_time", fake_track)
     next_attempt = dt(2026, 11, 1, 18, 24, 29, tzinfo=UTC)
-    updater._coordinator.solcast.proxy_next_attempt_at = next_attempt
+    updater.coordinator.solcast.proxy_next_attempt_at = next_attempt
 
     await updater.check_forecast_fetch()
 
-    assert updater._coordinator.solcast.proxy_next_attempt_at == next_attempt
-    assert updater._test_scheduled[0][1] == next_attempt + timedelta(seconds=5)
+    assert updater.coordinator.solcast.proxy_next_attempt_at == next_attempt
+    assert updater.scheduled[0][1] == next_attempt + timedelta(seconds=5)
 
 
 @pytest.mark.parametrize(
@@ -239,23 +247,23 @@ async def test_proxy_follow_schedules_exact_time(monkeypatch: pytest.MonkeyPatch
     """Short retry timestamps are scheduled without waiting for five-minute checks."""
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater_proxy.async_track_point_in_utc_time", fake_track)
-    updater._coordinator.solcast.proxy_next_attempt_at = next_attempt
+    updater.coordinator.solcast.proxy_next_attempt_at = next_attempt
 
     await updater.check_forecast_fetch()
 
-    assert updater._test_scheduled[0][1] == expected
+    assert updater.scheduled[0][1] == expected
 
 
 async def test_proxy_follow_does_not_overlap_active_fetch(monkeypatch: pytest.MonkeyPatch) -> None:
     """No follow callback is queued while the consolidated fetcher owns retries."""
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater_proxy.async_track_point_in_utc_time", fake_track)
-    updater._coordinator.solcast.proxy_next_attempt_at = dt(2026, 11, 1, 18, 24, 29, tzinfo=UTC)
-    updater._coordinator.solcast.tasks[TASK_FORECASTS_FETCH] = object()
+    updater.coordinator.solcast.proxy_next_attempt_at = dt(2026, 11, 1, 18, 24, 29, tzinfo=UTC)
+    updater.coordinator.solcast.tasks[TASK_FORECASTS_FETCH] = object()
 
     await updater.check_forecast_fetch()
 
-    assert updater._test_scheduled == []
+    assert updater.scheduled == []
 
 
 @pytest.mark.parametrize(
@@ -270,13 +278,13 @@ async def test_proxy_actuals_follow_cron(monkeypatch: pytest.MonkeyPatch, actual
     updater, fake_track = _make_updater(proxy_mode=True, proxy_actuals_cron=actuals_cron)
     monkeypatch.setattr("custom_components.solcast_solar.updater.async_track_point_in_utc_time", fake_track)
     monkeypatch.setattr("custom_components.solcast_solar.updater.sync_actuals_quota_risk_issue", lambda *args, **kwargs: None)
-    updater._coordinator.solcast.options.get_actuals = True
-    updater._coordinator.solcast.estimated_actuals_updated_today = False
+    updater.coordinator.solcast.options.get_actuals = True
+    updater.coordinator.solcast.estimated_actuals_updated_today = False
 
     assert await updater.check_estimated_actuals_fetch() is True
 
-    assert "new_day_actuals" in updater._coordinator.tasks
-    assert [when for _, when in updater._test_scheduled] == [expected]
+    assert "new_day_actuals" in updater.coordinator.tasks
+    assert [when for _, when in updater.scheduled] == [expected]
 
 
 async def test_proxy_actuals_follow_schedule_slots(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -284,7 +292,7 @@ async def test_proxy_actuals_follow_schedule_slots(monkeypatch: pytest.MonkeyPat
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater.async_track_point_in_utc_time", fake_track)
     monkeypatch.setattr("custom_components.solcast_solar.updater.sync_actuals_quota_risk_issue", lambda *args, **kwargs: None)
-    solcast = updater._coordinator.solcast
+    solcast = updater.coordinator.solcast
     solcast.proxy_schedule_day_utc = "2026-11-01"
     solcast.proxy_actuals_times_utc = ("18:24", "18:30")
     solcast.options.get_actuals = True
@@ -292,8 +300,8 @@ async def test_proxy_actuals_follow_schedule_slots(monkeypatch: pytest.MonkeyPat
 
     assert await updater.check_estimated_actuals_fetch() is True
 
-    assert "new_day_actuals" in updater._coordinator.tasks
-    assert [when for _, when in updater._test_scheduled] == [dt(2026, 11, 1, 18, 24, 5, tzinfo=UTC)]
+    assert "new_day_actuals" in updater.coordinator.tasks
+    assert [when for _, when in updater.scheduled] == [dt(2026, 11, 1, 18, 24, 5, tzinfo=UTC)]
 
 
 async def test_proxy_actuals_missed_cron_schedules_promptly(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -301,13 +309,13 @@ async def test_proxy_actuals_missed_cron_schedules_promptly(monkeypatch: pytest.
     updater, fake_track = _make_updater(proxy_mode=True, proxy_actuals_cron="0 1 * * *")
     monkeypatch.setattr("custom_components.solcast_solar.updater.async_track_point_in_utc_time", fake_track)
     monkeypatch.setattr("custom_components.solcast_solar.updater.sync_actuals_quota_risk_issue", lambda *args, **kwargs: None)
-    updater._coordinator.solcast.options.get_actuals = True
-    updater._coordinator.solcast.estimated_actuals_updated_today = False
+    updater.coordinator.solcast.options.get_actuals = True
+    updater.coordinator.solcast.estimated_actuals_updated_today = False
 
     assert await updater.check_estimated_actuals_fetch() is True
 
     now = dt(2026, 11, 1, 18, 24, 0, tzinfo=UTC)
-    [(_, when)] = updater._test_scheduled
+    [(_, when)] = updater.scheduled
     assert now + timedelta(seconds=30) <= when <= now + timedelta(seconds=59)
 
 
@@ -319,13 +327,13 @@ async def test_proxy_actuals_without_usable_cron_uses_local_schedule(monkeypatch
     monkeypatch.setattr("custom_components.solcast_solar.updater.sync_actuals_quota_risk_issue", lambda *args, **kwargs: None)
     local = Mock(return_value=dt(2026, 11, 2, 0, 5, tzinfo=UTC))
     monkeypatch.setattr(updater, "_local_actuals_update_at", local)
-    updater._coordinator.solcast.options.get_actuals = True
-    updater._coordinator.solcast.estimated_actuals_updated_today = False
+    updater.coordinator.solcast.options.get_actuals = True
+    updater.coordinator.solcast.estimated_actuals_updated_today = False
 
     assert await updater.check_estimated_actuals_fetch() is True
 
     local.assert_called_once()
-    assert [when for _, when in updater._test_scheduled] == [dt(2026, 11, 2, 0, 5, tzinfo=UTC)]
+    assert [when for _, when in updater.scheduled] == [dt(2026, 11, 2, 0, 5, tzinfo=UTC)]
 
 
 async def test_proxy_actuals_validation_runs_when_today_already_updated(
@@ -334,7 +342,7 @@ async def test_proxy_actuals_validation_runs_when_today_already_updated(
     """Startup still validates proxy actuals cron even when no actuals fetch is scheduled today."""
     updater, _ = _make_updater(proxy_mode=True, proxy_actuals_cron="30 13 * * *", tz=ZoneInfo("Australia/Sydney"))
     monkeypatch.setattr("custom_components.solcast_solar.updater.sync_actuals_quota_risk_issue", lambda *args, **kwargs: None)
-    solcast = updater._coordinator.solcast
+    solcast = updater.coordinator.solcast
     solcast.options.get_actuals = True
     solcast.estimated_actuals_updated_today = True
 
@@ -349,7 +357,7 @@ async def test_proxy_forecast_schedule_slots_derive_next_attempt(monkeypatch: py
     """Proxy schedule slots should derive next attempt when retry timestamp is absent."""
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater_proxy.async_track_point_in_utc_time", fake_track)
-    solcast = updater._coordinator.solcast
+    solcast = updater.coordinator.solcast
     solcast.proxy_schedule_day_utc = "2026-11-01"
     solcast.proxy_forecast_times_utc = ("18:24", "18:30")
     solcast.proxy_next_attempt_at = None
@@ -357,7 +365,7 @@ async def test_proxy_forecast_schedule_slots_derive_next_attempt(monkeypatch: py
     await updater.check_forecast_fetch()
 
     assert solcast.proxy_next_attempt_at == dt(2026, 11, 1, 18, 24, tzinfo=UTC)
-    assert updater._test_scheduled[0][1] == dt(2026, 11, 1, 18, 24, 5, tzinfo=UTC)
+    assert updater.scheduled[0][1] == dt(2026, 11, 1, 18, 24, 5, tzinfo=UTC)
 
 
 async def test_proxy_actuals_validation_skipped_when_slots_present(
@@ -366,7 +374,7 @@ async def test_proxy_actuals_validation_skipped_when_slots_present(
     """Explicit proxy actuals slots should skip cron suitability validation."""
     updater, _ = _make_updater(proxy_mode=True, proxy_actuals_cron="55 23 * * *")
     monkeypatch.setattr("custom_components.solcast_solar.updater.sync_actuals_quota_risk_issue", lambda *args, **kwargs: None)
-    solcast = updater._coordinator.solcast
+    solcast = updater.coordinator.solcast
     solcast.proxy_actuals_times_utc = ("13:13",)
     solcast.options.get_actuals = True
     solcast.estimated_actuals_updated_today = True
@@ -417,7 +425,7 @@ async def test_proxy_actuals_cron_after_generation(
 ) -> None:
     """A proxy actuals cron that fires before generation data is fetched is reported at ERROR level."""
     updater, _ = _make_updater(proxy_mode=True, proxy_actuals_cron=cron)
-    solcast = updater._coordinator.solcast
+    solcast = updater.coordinator.solcast
     solcast.options.auto_dampen = dampening
     solcast.options.generation_entities = ["sensor.pv_generation"] if dampening else []
     solcast.advanced_options[ADVANCED_AUTOMATED_DAMPENING_GENERATION_FETCH_DELAY] = delay
@@ -439,8 +447,8 @@ async def test_proxy_actuals_cron_after_generation(
 def test_proxy_actuals_schedule_without_remaining_slot(schedule_day: str | None, slots: tuple[str, ...]) -> None:
     """An absent or exhausted schedule cannot supply an actuals follow time."""
     updater, _ = _make_updater(proxy_mode=True)
-    updater._coordinator.solcast.proxy_schedule_day_utc = schedule_day
-    updater._coordinator.solcast.proxy_actuals_times_utc = slots
+    updater.coordinator.solcast.proxy_schedule_day_utc = schedule_day
+    updater.coordinator.solcast.proxy_actuals_times_utc = slots
 
     assert updater.proxy.actuals_update_at() is None
 
@@ -448,9 +456,9 @@ def test_proxy_actuals_schedule_without_remaining_slot(schedule_day: str | None,
 def test_proxy_actuals_zero_delay_at_slot_boundary(monkeypatch: pytest.MonkeyPatch) -> None:
     """A zero-delay slot at the current second uses a short catch-up delay."""
     updater, _ = _make_updater(proxy_mode=True)
-    updater._coordinator.solcast.proxy_schedule_day_utc = "2026-11-01"
-    updater._coordinator.solcast.proxy_actuals_times_utc = ("18:24",)
-    updater._coordinator.solcast.proxy_poll_delay_seconds = 0
+    updater.coordinator.solcast.proxy_schedule_day_utc = "2026-11-01"
+    updater.coordinator.solcast.proxy_actuals_times_utc = ("18:24",)
+    updater.coordinator.solcast.proxy_poll_delay_seconds = 0
     monkeypatch.setattr("custom_components.solcast_solar.updater_proxy.randint", lambda _low, _high: 0)
 
     assert updater.proxy.actuals_update_at() == dt(2026, 11, 1, 18, 24, 30, tzinfo=UTC)
@@ -459,7 +467,7 @@ def test_proxy_actuals_zero_delay_at_slot_boundary(monkeypatch: pytest.MonkeyPat
 async def test_forecast_update_rechecks_proxy_schedule(monkeypatch: pytest.MonkeyPatch) -> None:
     """A completed forecast update re-evaluates the proxy follow schedule."""
     updater, _ = _make_updater(proxy_mode=True)
-    coordinator = updater._coordinator
+    coordinator = updater.coordinator
     coordinator.solcast.sites_cache = SimpleNamespace(stale_usage_cache=False)
     coordinator.solcast.fetcher.get_forecast_update = AsyncMock()
     coordinator.update_integration_listeners = AsyncMock()
@@ -476,14 +484,14 @@ async def test_proxy_follow_reschedules_changed_timestamp(monkeypatch: pytest.Mo
     """A newly advertised retry replaces the previous follow event."""
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater_proxy.async_track_point_in_utc_time", fake_track)
-    updater._coordinator.solcast.proxy_next_attempt_at = dt(2026, 11, 1, 18, 24, 29, tzinfo=UTC)
+    updater.coordinator.solcast.proxy_next_attempt_at = dt(2026, 11, 1, 18, 24, 29, tzinfo=UTC)
     await updater.check_forecast_fetch()
 
-    updater._coordinator.solcast.proxy_next_attempt_at += timedelta(seconds=44)
+    updater.coordinator.solcast.proxy_next_attempt_at += timedelta(seconds=44)
     await updater.check_forecast_fetch()
 
     assert updater.proxy.scheduled_for == dt(2026, 11, 1, 18, 25, 18, tzinfo=UTC)
-    assert sum(callback == updater.proxy.fetch for callback, _ in updater._test_scheduled) == 2
+    assert sum(callback == updater.proxy.fetch for callback, _ in updater.scheduled) == 2
 
 
 async def test_proxy_follow_replaces_stale_schedule_refresh(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -491,9 +499,9 @@ async def test_proxy_follow_replaces_stale_schedule_refresh(monkeypatch: pytest.
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater_proxy.async_track_point_in_utc_time", fake_track)
     cancel_refresh = Mock()
-    updater._coordinator.tasks["pending_proxy_schedule_refresh_before_update"] = cancel_refresh
+    updater.coordinator.tasks["pending_proxy_schedule_refresh_before_update"] = cancel_refresh
     updater.proxy.schedule_refresh_scheduled_for = dt(2026, 11, 1, 18, 24, 24, tzinfo=UTC)
-    updater._coordinator.solcast.proxy_next_attempt_at = dt(2026, 11, 1, 18, 30, tzinfo=UTC)
+    updater.coordinator.solcast.proxy_next_attempt_at = dt(2026, 11, 1, 18, 30, tzinfo=UTC)
 
     await updater.check_forecast_fetch()
 
@@ -505,7 +513,7 @@ async def test_proxy_schedule_refresh_reschedules_follow_with_new_poll_delay(mon
     """A pre-collection refresh applies changed poll delay to the pending follow."""
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater_proxy.async_track_point_in_utc_time", fake_track)
-    solcast = updater._coordinator.solcast
+    solcast = updater.coordinator.solcast
     solcast.proxy_schedule_day_utc = "2026-11-01"
     solcast.proxy_forecast_times_utc = ("18:30",)
     solcast.proxy_next_attempt_at = dt(2026, 11, 1, 18, 30, tzinfo=UTC)
@@ -523,7 +531,7 @@ async def test_proxy_schedule_refresh_reschedules_follow_with_new_poll_delay(mon
     await updater.proxy.refresh_schedule_before_update()
 
     assert updater.proxy.scheduled_for == dt(2026, 11, 1, 18, 30, 15, tzinfo=UTC)
-    assert [callback for callback, _ in updater._test_scheduled].count(updater.proxy.refresh_schedule_before_update) == 1
+    assert [callback for callback, _ in updater.scheduled].count(updater.proxy.refresh_schedule_before_update) == 1
 
 
 @pytest.mark.parametrize("microsecond", [pytest.param(0, id="whole-second"), pytest.param(64000, id="fractional-second")])
@@ -531,7 +539,7 @@ async def test_proxy_schedule_refresh_preserves_retry_deadline(monkeypatch: pyte
     """Refreshing poll delay does not replace an authoritative retry deadline."""
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater_proxy.async_track_point_in_utc_time", fake_track)
-    solcast = updater._coordinator.solcast
+    solcast = updater.coordinator.solcast
     retry_at = dt(2026, 11, 1, 18, 30, 17, microsecond=microsecond, tzinfo=UTC)
     solcast.proxy_next_attempt_at = retry_at
     solcast.proxy_last_fetch_status = "retrying"
@@ -550,7 +558,7 @@ async def test_proxy_schedule_refresh_preserves_retry_deadline(monkeypatch: pyte
 
     assert solcast.proxy_next_attempt_at == retry_at
     assert updater.proxy.scheduled_for == retry_at + timedelta(seconds=15)
-    assert [callback for callback, _ in updater._test_scheduled].count(updater.proxy.refresh_schedule_before_update) == 1
+    assert [callback for callback, _ in updater.scheduled].count(updater.proxy.refresh_schedule_before_update) == 1
     assert updater.proxy.schedule_refresh_scheduled_for is None
 
 
@@ -558,7 +566,7 @@ async def test_proxy_schedule_refresh_before_update_ignored_in_direct_mode() -> 
     """A stale pre-fetch callback is harmless after proxy mode is disabled."""
     updater, _ = _make_updater(proxy_mode=False)
     refresh = AsyncMock()
-    updater._coordinator.solcast.sites_cache = SimpleNamespace(refresh_proxy_schedule=refresh)
+    updater.coordinator.solcast.sites_cache = SimpleNamespace(refresh_proxy_schedule=refresh)
 
     await updater.proxy.refresh_schedule_before_update()
 
@@ -569,7 +577,7 @@ async def test_failed_proxy_schedule_refresh_keeps_pending_follow(monkeypatch: p
     """A failed pre-collection refresh leaves the existing follow timing intact."""
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater_proxy.async_track_point_in_utc_time", fake_track)
-    solcast = updater._coordinator.solcast
+    solcast = updater.coordinator.solcast
     solcast.proxy_next_attempt_at = dt(2026, 11, 1, 18, 30, tzinfo=UTC)
     solcast.sites_cache = SimpleNamespace(refresh_proxy_schedule=AsyncMock(return_value=False))
     await updater.check_forecast_fetch()
@@ -578,7 +586,7 @@ async def test_failed_proxy_schedule_refresh_keeps_pending_follow(monkeypatch: p
     await updater.proxy.refresh_schedule_before_update()
 
     assert updater.proxy.scheduled_for == follow_at
-    assert "pending_proxy_update" in updater._coordinator.tasks
+    assert "pending_proxy_update" in updater.coordinator.tasks
 
 
 @pytest.mark.parametrize("pending", [pytest.param(False, id="no-event"), pytest.param(True, id="pending-event")])
@@ -587,7 +595,7 @@ async def test_halted_proxy_cancels_follow_event(pending: bool) -> None:
     updater, _ = _make_updater(proxy_mode=True)
     cancel = Mock()
     cancel_refresh = Mock()
-    updater._coordinator.tasks = (
+    updater.coordinator.tasks = (
         {
             "pending_proxy_update": cancel,
             "pending_proxy_schedule_refresh_before_update": cancel_refresh,
@@ -596,17 +604,17 @@ async def test_halted_proxy_cancels_follow_event(pending: bool) -> None:
         else {}
     )
     updater.proxy.scheduled_for = dt(2026, 11, 1, 18, 30, tzinfo=UTC)
-    updater._coordinator.solcast.proxy_halted = True
-    updater._coordinator.solcast.fetcher.set_next_update = Mock()
+    updater.coordinator.solcast.proxy_halted = True
+    updater.coordinator.solcast.fetcher.set_next_update = Mock()
 
     await updater.check_forecast_fetch()
 
     assert cancel.call_count == int(pending)
     assert cancel_refresh.call_count == int(pending)
-    assert updater._coordinator.tasks == {}
+    assert updater.coordinator.tasks == {}
     assert updater.proxy.scheduled_for is None
-    assert updater._test_scheduled == []
-    updater._coordinator.solcast.fetcher.set_next_update.assert_called_once_with(None)
+    assert updater.scheduled == []
+    updater.coordinator.solcast.fetcher.set_next_update.assert_called_once_with(None)
 
 
 @pytest.mark.parametrize("active_fetch", [pytest.param(False, id="fetch"), pytest.param(True, id="already-fetching")])
@@ -614,15 +622,15 @@ async def test_proxy_follow_callback_clears_event_and_avoids_overlap(monkeypatch
     """A fired follow callback relinquishes its event before starting a fetch."""
     updater, fake_track = _make_updater(proxy_mode=True)
     monkeypatch.setattr("custom_components.solcast_solar.updater_proxy.async_track_point_in_utc_time", fake_track)
-    updater._coordinator.solcast.proxy_next_attempt_at = dt(2026, 11, 1, 18, 30, tzinfo=UTC)
+    updater.coordinator.solcast.proxy_next_attempt_at = dt(2026, 11, 1, 18, 30, tzinfo=UTC)
     await updater.check_forecast_fetch()
-    updater._coordinator.solcast.tasks = {TASK_FORECASTS_FETCH: object()} if active_fetch else {}
+    updater.coordinator.solcast.tasks = {TASK_FORECASTS_FETCH: object()} if active_fetch else {}
     fetch = AsyncMock()
     monkeypatch.setattr(updater, "forecast_update", fetch)
 
     await updater.proxy.fetch()
 
-    assert "pending_proxy_update" not in updater._coordinator.tasks
+    assert "pending_proxy_update" not in updater.coordinator.tasks
     assert updater.proxy.scheduled_for is None
     assert fetch.await_count == int(not active_fetch)
     assert fetch.await_args_list == [call(completion="Completed task pending_proxy_update")] * int(not active_fetch)
