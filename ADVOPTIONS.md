@@ -411,6 +411,65 @@ The integration consumes response headers when getting data from a proxy, and is
 
 See the documentation at a reference proxy implementation for required response header details. [autoSteve/solcast-cloudflare-proxy](https://github.com/autoSteve/solcast-cloudflare-proxy).
 
+These are the response headers a proxy must supply for the integration to follow discovery, its collection schedule and handle retries and failures.
+
+#### Discovery and scheduling headers
+
+These are supplied on `/rooftop_sites` discovery responses and successful schedule refresh responses from `/proxy_schedule` (alias `/schedule`). In proxy mode the integration does not generate its own daylight/all-day update intervals, so a usable forecast schedule is required for updates.
+
+##### Shared discovery headers
+
+- `x-solcast-proxy: true`: required on discovery responses. Discovery without the marker disables proxy mode. It is not required on schedule refresh responses.
+- `x-proxy-forecast-mode`: `cron`, `daylight`, or `all_day`; required during discovery to identify the proxy's schedule mode.
+- `x-proxy-poll-delay-seconds`: integer number of seconds the integration waits after the scheduled collection time before fetching data. The delay allows collection to complete before data is fetched. If omitted, the integration retains its default delay, initially 5 seconds.
+- `x-proxy-estimated-actuals-enabled`: `true` or `false`, indicating whether the proxy schedules estimated-actuals collections. Ignored for `cron` mode.
+
+##### Cron scheduling headers
+
+These are supplied on discovery and schedule refresh responses when the schedule uses cron expressions instead of a list of collection times.
+
+- `x-proxy-forecast-cron`: one valid five-field UTC cron expression for forecast collections.
+- `x-proxy-estimated-actuals-cron`: required when estimated actuals are enabled in the integration and are collected by the proxy.
+
+##### Explicit collection time headers
+
+These are supplied on discovery and schedule refresh responses when the schedule uses a list of collection times instead of cron expressions.
+
+- `x-proxy-schedule-day-utc`: active UTC schedule date as `YYYY-MM-DD`.
+- `x-proxy-forecast-times-utc`: comma-separated UTC `HH:MM` forecast collection times, in chronological order, with no seconds.
+- `x-proxy-estimated-actuals-times-utc`: required when estimated actuals are enabled in the integration and collected by the proxy; uses the same UTC schedule date.
+
+The date and times are refreshed each UTC day using `/proxy_schedule`. The integration refreshes at startup, after UTC midnight, and five seconds before forecast collection. The schedule headers are supplied on both discovery and schedule refresh responses.
+
+Forecast times cannot be combined with an actuals cron, or vice versa: any non-empty collection time list disables both cron fallbacks.
+
+##### Optional polling headers
+
+- `x-proxy-observed-tick-second-p90`: not required. If supplied in `daylight`/`all_day` mode, the integration subtracts this number of seconds from the poll delay after a retry attempt. If omitted, retries still work using the full poll delay.
+
+#### Per-resource state and retry headers
+
+These are supplied on `/rooftop_sites/<site_id>/forecasts` and `/rooftop_sites/<site_id>/estimated_actuals` responses.
+
+##### Required resource header
+
+- `x-proxy-upstream-status`: latest upstream HTTP status as decimal text. Required for proxy-specific resource handling: without it, the integration ignores the retry, in-progress, halt, and next-attempt headers, even when already in proxy mode.
+
+##### Conditional resource headers
+
+- `x-proxy-last-fetch-status`: tells the integration whether collection is `retrying` or has exhausted retries (`give_up`). The status is `retrying` while retries are active, including when HTTP `200` cached data is returned.
+- `x-proxy-next-attempt-at`: required while retrying or polling an in-progress collection. A valid ISO 8601 timestamp with an explicit TZ offset, for example `2026-11-24T12:30:45+00:00`.
+- `x-proxy-fetch-in-progress: true`: required to keep polling a non-`200` response while collection is running if the resource is not marked `retrying`.
+- `x-proxy-halted: true`: required on permanent forecast failure to cancel automatic forecast-follow scheduling. Overrides retry advice.
+
+On a non-`200` response, continuing retries requires **both** a next-attempt timestamp and either `x-proxy-last-fetch-status: retrying` or `x-proxy-fetch-in-progress: true`. A successful, idle forecast response expects no conditional headers when discovery/refresh supplies a usable schedule; the next collection is derived from that schedule.
+
+##### Resource state notes
+
+- When a retry or halt ends, the next-attempt header is cleared, and boolean flags are omitted or set to `false`, and last-fetch status is omitted or replaced with `clean_success` / `retry_success`. Stale retry timestamps or `true` flags on recovered responses will be unexpected.
+- HTTP `200` cached data is accepted without waiting for retry completion.
+- Forecast resource headers update the global forecast-follow state.
+
 ## Developer
 
 These advanced options may be used by developers.
