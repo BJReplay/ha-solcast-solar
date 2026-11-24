@@ -827,7 +827,7 @@ class Fetcher:
                 async with asyncio.timeout(900):
                     issue_registry = ir.async_get(self.api.hass)
 
-                    if self.api.api_used[api_key] < self.api.api_limits[api_key] or force:
+                    if self.api.api_used[api_key] < self.api.api_limits[api_key] or force or self.api.proxy_mode:
                         base_url = self.api.get_solcast_base_url(
                             self.api.advanced_options[ADVANCED_SOLCAST_URL],
                             self.api.advanced_options[ADVANCED_SOLCAST_PORT],

@@ -358,8 +358,8 @@ class SitesCache:
                         if site.get(API_KEY) == api_key:
                             break
                     _LOGGER.debug("Re-serialising sites cache for %s", redact_api_key(api_key))
-                    payload = json.dumps({SITES: [site for site in self.api.sites if site.get(API_KEY) == api_key]}, ensure_ascii=False)
-                    async with self.api.serialise_lock, aiofiles.open(cache_filename, "w") as file:
+                    payload = orjson.dumps({SITES: [site for site in self.api.sites if site.get(API_KEY) == api_key]})
+                    async with self.api.serialise_lock, aiofiles.open(cache_filename, "wb") as file:
                         await file.write(payload)
 
         async def from_single_site_to_multi(api_keys: list[str]):
@@ -961,8 +961,8 @@ class SitesCache:
             DAILY_TYPICAL_FORECAST_UPDATES: self.api.api_typical_forecast_updates.get(api_key),
             RESET: self._api_used_reset[api_key],
         }
-        payload = json.dumps(json_content, ensure_ascii=False, cls=DateTimeEncoder)
-        async with self.api.serialise_lock, aiofiles.open(filename, "w") as file:
+        payload = orjson.dumps(json_content, default=DateTimeEncoder().default)
+        async with self.api.serialise_lock, aiofiles.open(filename, "wb") as file:
             await file.write(payload)
 
     async def _backup_json_caches(self) -> None:
@@ -1167,8 +1167,8 @@ class SitesCache:
                 **response_data,
                 PROXY_CACHE_STATE: proxy_state,
             }
-            async with self.api.serialise_lock, aiofiles.open(cache_filename, "w") as file:
-                await file.write(json.dumps(cache_payload, ensure_ascii=False))
+            async with self.api.serialise_lock, aiofiles.open(cache_filename, "wb") as file:
+                await file.write(orjson.dumps(cache_payload))
 
         async def apply_proxy_state_values(
             *,

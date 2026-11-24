@@ -15,6 +15,7 @@ import time
 from typing import TYPE_CHECKING, Any, Final, cast
 
 import aiofiles
+import orjson
 
 from homeassistant.components.recorder import get_instance
 from homeassistant.components.recorder.history import state_changes_during_period
@@ -75,7 +76,7 @@ from .const import (
     VERSION,
 )
 from .dampen_adapt import DampeningAdaptive
-from .dates import JSONDecoder, NoIndentEncoder
+from .dates import JSONDecoder
 from .enums import EnergyResult
 from .log import get_logger
 from .redact import format_site_key
@@ -1361,12 +1362,8 @@ class Dampening:
         """Serialise the site dampening file."""
         filename = self.get_filename()
         _LOGGER.debug("Writing granular dampening to %s", filename)
-        payload = json.dumps(
-            self.factors,
-            ensure_ascii=False,
-            cls=NoIndentEncoder,
-            indent=2,
-        )
+        payload = "{\n" + ",\n".join([f"  {orjson.dumps(k).decode()}: {orjson.dumps(v).decode()}" for k, v in self.factors.items()]) + "\n}"
+
         self.granular_serialising = True
         try:
             async with self.api.serialise_lock, aiofiles.open(filename, "w") as file:
