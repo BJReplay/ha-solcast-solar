@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from custom_components.solcast_sim.restore_helpers import (  # pyright: ignore[reportMissingImports]
+from custom_components.solcast_sim.restore_helpers import (
     prime_model_from_restore_state,
     recorder_sensor_value,
     restored_sensor_value,

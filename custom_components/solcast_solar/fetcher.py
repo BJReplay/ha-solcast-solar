@@ -1,8 +1,9 @@
 """Solcast API fetch and update orchestration."""
 
-from __future__ import annotations
+from __future__ import annotations  # Remains for compatibility with Python < 3.14+  # noqa: TID251
 
 import asyncio
+import contextlib
 from datetime import UTC, datetime as dt, timedelta
 from enum import Enum
 from hashlib import md5
@@ -15,6 +16,7 @@ from typing import TYPE_CHECKING, Any
 
 from aiohttp import ClientConnectionError, ClientConnectorDNSError, ClientResponseError
 from aiohttp.client_reqrep import ClientResponse
+from cronsim import CronSim, CronSimError
 
 from homeassistant.const import ATTR_ENTITY_ID
 from homeassistant.core import HomeAssistant
@@ -36,7 +38,9 @@ from .const import (
     API_KEY,
     AUTO_UPDATED,
     DOMAIN,
+    DT_DATE_FORMAT,
     DT_DATE_ONLY_FORMAT,
+    DT_TIME_FORMAT,
     ERROR_CODE,
     ESTIMATE,
     ESTIMATE10,
@@ -149,6 +153,136 @@ class Fetcher:
         """Return whether a DNS connector error was caused by resolver timeout."""
         return "timeout while contacting dns servers" in Fetcher._dns_error_message(err).lower()
 
+    @staticmethod
+    def _header_as_bool(value: str | None) -> bool | None:
+        """Return a bool for true/false headers, or None when unknown."""
+        if value is None:
+            return None
+        lowered = value.strip().lower()
+        if lowered == "true":
+            return True
+        if lowered == "false":
+            return False
+        return None
+
+    @staticmethod
+    def _header_as_dt(value: str | None) -> dt | None:
+        """Parse a UTC ISO datetime from a proxy header."""
+        if not value:
+            return None
+        with contextlib.suppress(ValueError, TypeError):
+            return dt.fromisoformat(value).astimezone(UTC)
+        return None
+
+    @staticmethod
+    def _proxy_retry_follow_delay(headers: Any, fallback_delay: int) -> int:
+        """Retain fetch-follow grace without the adaptive scheduler's tick phase."""
+        follow_delay = fallback_delay
+        with contextlib.suppress(ValueError, TypeError, OverflowError):
+            proxy_delay = float(headers.get("x-proxy-poll-delay-seconds", fallback_delay))
+            follow_delay = math.ceil(proxy_delay)
+            if headers.get("x-proxy-forecast-mode") in ("daylight", "all_day"):
+                tick_second = float(headers.get("x-proxy-observed-tick-second-p90") or 0)
+                follow_delay = math.ceil(proxy_delay - tick_second)
+        return max(1, follow_delay)
+
+    @staticmethod
+    def _next_from_proxy_cron(base_time: dt, cron_expression: str) -> dt | None:
+        """Return the next UTC occurrence for the proxy forecast cron expression."""
+        if len(cron_expression.split()) != 5:
+            return None
+        try:
+            return next(CronSim(cron_expression, base_time.astimezone(UTC)))
+        except (CronSimError, StopIteration):
+            return None
+
+    @staticmethod
+    def _next_from_proxy_schedule(base_time: dt, schedule_day_utc: str | None, slots_utc: tuple[str, ...]) -> dt | None:
+        """Return next UTC occurrence from proxy schedule-day and HH:MM slots."""
+        if not schedule_day_utc or not slots_utc:
+            return None
+        base_utc = base_time.astimezone(UTC)
+        for slot in slots_utc:
+            with contextlib.suppress(ValueError, TypeError):
+                slot_dt = dt.fromisoformat(f"{schedule_day_utc}T{slot}:00+00:00").astimezone(UTC)
+                if slot_dt > base_utc:
+                    return slot_dt
+        return None
+
+    @staticmethod
+    def _attempt_to_follow_from_proxy_schedule(
+        base_time: dt,
+        schedule_day_utc: str | None,
+        slots_utc: tuple[str, ...],
+        poll_delay_seconds: int,
+    ) -> dt | None:
+        """Return the proxy attempt to follow: latest slot still inside delay window, else next slot."""
+        if not schedule_day_utc or not slots_utc:
+            return None
+        base_utc = base_time.astimezone(UTC)
+        latest_slot: dt | None = None
+        next_slot: dt | None = None
+        for slot in slots_utc:
+            with contextlib.suppress(ValueError, TypeError):
+                slot_dt = dt.fromisoformat(f"{schedule_day_utc}T{slot}:00+00:00").astimezone(UTC)
+                if slot_dt <= base_utc:
+                    latest_slot = slot_dt
+                    continue
+                next_slot = slot_dt
+                break
+
+        if latest_slot is not None and latest_slot + timedelta(seconds=max(1, poll_delay_seconds)) > base_utc:
+            return latest_slot
+        return next_slot
+
+    async def _apply_proxy_resource_headers(self, headers: Any, path: str = FORECASTS) -> bool:
+        """Update runtime state from proxy resource headers when present."""
+        if headers is None:
+            return False
+
+        upstream_status_raw = headers.get("x-proxy-upstream-status")
+        if not isinstance(upstream_status_raw, str):
+            return False
+
+        await self.api.async_set_proxy_mode(True, source="resource_header")
+        if path != FORECASTS:
+            return True
+
+        with contextlib.suppress(ValueError):
+            self.api.proxy_upstream_status = int(upstream_status_raw)
+
+        self.api.proxy_halted = self._header_as_bool(headers.get("x-proxy-halted")) is True
+        self.api.proxy_fetch_in_progress = self._header_as_bool(headers.get("x-proxy-fetch-in-progress")) is True
+        self.api.proxy_last_fetch_status = headers.get("x-proxy-last-fetch-status")
+        self.api.proxy_next_attempt_at = self._header_as_dt(headers.get("x-proxy-next-attempt-at"))
+        if (
+            self.api.proxy_next_attempt_at is None
+            and not self.api.proxy_halted
+            and not self.api.proxy_fetch_in_progress
+            and self.api.proxy_last_fetch_status != "retrying"
+        ):
+            self.api.proxy_next_attempt_at = self._attempt_to_follow_from_proxy_schedule(
+                self.api.dt_helper.real_now_utc(),
+                self.api.proxy_schedule_day_utc,
+                self.api.proxy_forecast_times_utc,
+                self.api.proxy_poll_delay_seconds,
+            )
+            if self.api.proxy_next_attempt_at is None and self.api.proxy_forecast_cron:
+                self.api.proxy_next_attempt_at = self._next_from_proxy_cron(
+                    self.api.dt_helper.real_now_utc(),
+                    self.api.proxy_forecast_cron,
+                )
+        _LOGGER.debug(
+            "Proxy forecast collection: status=%s, next attempt=%s, in progress=%s, halted=%s",
+            self.api.proxy_last_fetch_status,
+            self.api.proxy_next_attempt_at,
+            self.api.proxy_fetch_in_progress,
+            self.api.proxy_halted,
+        )
+        if self.api.proxy_follow_reschedule is not None:
+            await self.api.proxy_follow_reschedule()
+        return True
+
     async def build_forecast_and_actuals(self, raise_exc=False) -> bool:
         """Build the forecast and estimated actual data.
 
@@ -253,7 +387,7 @@ class Fetcher:
                 else {}
             )
             for actual in new_data:
-                self.api.forecast_entry_update(
+                await self.api.forecast_entry_update(
                     actuals,
                     actual[PERIOD_START],
                     round(actual[ESTIMATE], 4),
@@ -303,15 +437,21 @@ class Fetcher:
         last_attempt = dt_util.now(UTC)
         status = ""
 
-        def next_update():
+        def next_update() -> str:
+            if self.api.proxy_mode:
+                if self.api.proxy_halted or self.api.proxy_next_attempt_at is None:
+                    return ""
+                follow_at = (self.api.proxy_next_attempt_at + timedelta(seconds=self.api.proxy_poll_delay_seconds)).astimezone(self.api.tz)
+                date_format = DT_TIME_FORMAT if follow_at.date() == dt_util.now(self.api.tz).date() else DT_DATE_FORMAT
+                return f", next auto update at {follow_at.strftime(date_format)}"
             return f", next auto update at {self._next_update}" if self._next_update is not None else ""
 
         if last_updated := self.api.last_updated:
             if last_updated + timedelta(seconds=10) > dt_util.now(UTC):
                 status = f"Not requesting a solar forecast because time is within ten seconds of last update ({last_updated.astimezone(self.api.tz)})"
                 _LOGGER.warning(status)
-                if self._next_update is not None:
-                    _LOGGER.info("Forecast update suppressed%s", next_update())
+                if next_update_message := next_update():
+                    _LOGGER.info("Forecast update suppressed%s", next_update_message)
                 return UpdateResult(UpdateOutcome.SKIPPED, status)
 
         await self.api.dampening.refresh_granular_data()
@@ -402,16 +542,28 @@ class Fetcher:
     async def sort_and_prune(self, site: str | None, data: dict[str, Any], past_days: int, forecasts: dict[Any, Any]) -> None:
         """Sort and prune a forecast list."""
 
-        _past_days = self.api.dt_helper.day_start_utc(future=past_days * -1)
-        _forecasts: list[dict[str, Any]] = sorted(
-            filter(
-                lambda forecast: forecast[PERIOD_START] >= _past_days,
-                forecasts.values(),
-            ),
-            key=itemgetter(PERIOD_START),
+        cutoff = self.api.dt_helper.day_start_utc(future=-past_days)
+        filter_started = time.perf_counter()
+        filter_cpu_started = time.thread_time()
+        retained = [forecast for forecast in forecasts.values() if forecast[PERIOD_START] >= cutoff]
+        filter_elapsed = time.perf_counter() - filter_started
+        filter_cpu_elapsed = time.thread_time() - filter_cpu_started
+        sort_started = time.perf_counter()
+        sort_cpu_started = time.thread_time()
+        retained.sort(key=itemgetter(PERIOD_START))
+        sort_elapsed = time.perf_counter() - sort_started
+        sort_cpu_elapsed = time.thread_time() - sort_cpu_started
+        data[SITE_INFO][site] = {FORECASTS: retained}
+        _LOGGER.debug(
+            "History prune for %s: %d input, %d retained; filter wall=%.1f ms, filter CPU=%.1f ms, sort wall=%.1f ms, sort CPU=%.1f ms",
+            site,
+            len(forecasts),
+            len(retained),
+            filter_elapsed * 1000,
+            filter_cpu_elapsed * 1000,
+            sort_elapsed * 1000,
+            sort_cpu_elapsed * 1000,
         )
-        # Entries hold only datetimes and numbers, so copying each dict is enough
-        data[SITE_INFO].update({site: {FORECASTS: [dict(forecast) for forecast in _forecasts]}})
 
     async def http_data_call(
         self,
@@ -434,12 +586,13 @@ class Fetcher:
         failure = False
 
         try:
+            now_utc = self.api.dt_helper.now_utc()
             last_day = self.api.dt_helper.day_start_utc(future=self.api.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS])
-            hours = math.ceil((last_day - self.api.dt_helper.now_utc()).total_seconds() / 3600)
+            hours = math.ceil((last_day - now_utc).total_seconds() / 3600)
             if hours > MAX_HOURS:
-                # DST Transition has blown past max hours allowable for Solcast forecast API - jump back a day
+                # DST transition can push one day over the API horizon; request one day less.
                 last_day = self.api.dt_helper.day_start_utc(future=self.api.advanced_options[ADVANCED_FORECAST_FUTURE_DAYS] - 1)
-                hours = math.ceil((last_day - self.api.dt_helper.now_utc()).total_seconds() / 3600)
+                hours = math.ceil((last_day - now_utc).total_seconds() / 3600)
             _LOGGER.debug(
                 "Polling API for site %s, last day %s, %d hours",
                 site,
@@ -496,7 +649,7 @@ class Fetcher:
                     period_start = actual[PERIOD_START]
 
                     # Add or update the new entries.
-                    self.api.forecast_entry_update(
+                    await self.api.forecast_entry_update(
                         actuals,
                         period_start,
                         round(actual[ESTIMATE], 4),
@@ -565,7 +718,7 @@ class Fetcher:
             # Add new data to the undampened forecasts.
             for forecast in new_data:
                 period_start = forecast[PERIOD_START]
-                self.api.forecast_entry_update(
+                await self.api.forecast_entry_update(
                     forecasts_undampened,
                     period_start,
                     round(forecast[ESTIMATE], 4),
@@ -598,11 +751,9 @@ class Fetcher:
 
         return _DataCallStatus.SUCCESS, ""
 
-    async def _sleep(self, delay: int):
+    async def _sleep(self, delay: int) -> None:
         """Sleep for a specified number of seconds."""
-
-        for _ in range(delay * 10):
-            await asyncio.sleep(0.1)
+        await asyncio.sleep(delay)
 
     def increment_failure_count(self):
         """Increment all three failure counters."""
@@ -676,7 +827,7 @@ class Fetcher:
                 async with asyncio.timeout(900):
                     issue_registry = ir.async_get(self.api.hass)
 
-                    if self.api.api_used[api_key] < self.api.api_limits[api_key] or force:
+                    if self.api.api_used[api_key] < self.api.api_limits[api_key] or force or self.api.proxy_mode:
                         base_url = self.api.get_solcast_base_url(
                             self.api.advanced_options[ADVANCED_SOLCAST_URL],
                             self.api.advanced_options[ADVANCED_SOLCAST_PORT],
@@ -692,12 +843,14 @@ class Fetcher:
                             _LOGGER.debug("Fetching path %s", path)
                             counter += 1
                             response_text = ""
+                            proxy_response = False
                             dns_timeout_attempts = 0
                             while True:
                                 try:
                                     response: ClientResponse = await self.api.aiohttp_session.get(
                                         url=url, params=params, headers=self.api.headers, ssl=self.api.advanced_options[ADVANCED_SSL_VERIFY]
                                     )
+                                    proxy_response = await self._apply_proxy_resource_headers(response.headers, path)
                                     _LOGGER.debug("Fetch data url %s", redact_msg_api_key(str(response.url), api_key))
                                     status = response.status
                                     if status == 200:
@@ -735,6 +888,38 @@ class Fetcher:
                                     _LOGGER.error("Client error: %s", e)
                                     status = 1000
                                     break
+                            if proxy_response and status != 200:
+                                self.increment_failure_count()
+                                proxy_status = response.headers.get("x-proxy-last-fetch-status")
+                                halted = self._header_as_bool(response.headers.get("x-proxy-halted")) is True
+                                in_progress = self._header_as_bool(response.headers.get("x-proxy-fetch-in-progress")) is True
+                                next_attempt = self._header_as_dt(response.headers.get("x-proxy-next-attempt-at"))
+                                if halted or next_attempt is None or (proxy_status != "retrying" and not in_progress):
+                                    if proxy_status == "give_up":
+                                        failure_reason = "Proxy collection gave up"
+                                        if status == 429:
+                                            failure_reason = f"{failure_reason} ({status})"
+                                    else:
+                                        failure_reason = f"Proxy collection {proxy_status or 'unavailable'}"
+                                    if status == 429 and proxy_status == "give_up":
+                                        received_429 = tries
+                                    break
+                                follow_delay = self._proxy_retry_follow_delay(response.headers, self.api.proxy_poll_delay_seconds)
+                                delay = max(
+                                    1,
+                                    follow_delay,
+                                    math.ceil((next_attempt - self.api.dt_helper.real_now_utc()).total_seconds() + follow_delay),
+                                )
+                                _LOGGER.debug(
+                                    "Proxy collection %s for site %s, next attempt %s; polling in %d seconds (fetch follow delay %d seconds)",
+                                    proxy_status,
+                                    site,
+                                    next_attempt.isoformat(),
+                                    delay,
+                                    follow_delay,
+                                )
+                                await self._sleep(delay)
+                                continue
                             if status in (200, 400, 401, 403, 404, 500, 1000):  # Do not retry for these statuses.
                                 if status != 200:
                                     self.increment_failure_count()
@@ -845,6 +1030,8 @@ class Fetcher:
 
         except asyncio.exceptions.CancelledError:
             _LOGGER.info("Fetch cancelled")
+        except TimeoutError:
+            return "Forecast fetch timed out after 900 seconds"
         except json.decoder.JSONDecodeError:
             return response_text
 

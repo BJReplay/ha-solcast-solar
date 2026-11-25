@@ -1,7 +1,7 @@
 """Test forecasts update retry mechanism."""
 
 import asyncio
-from datetime import datetime as dt, timedelta
+from datetime import UTC, datetime as dt, timedelta
 import json
 import logging
 from typing import Any, cast
@@ -17,6 +17,8 @@ from custom_components.solcast_solar.const import (
     ADVANCED_TRIGGER_ON_API_UNAVAILABLE,
     API_KEY,
     DOMAIN,
+    DT_DATE_FORMAT,
+    DT_TIME_FORMAT,
     FORECASTS,
     ISSUE_API_UNAVAILABLE,
     LAST_UPDATED,
@@ -26,7 +28,7 @@ from custom_components.solcast_solar.const import (
     TASK_NEW_DAY_ACTUALS,
 )
 from custom_components.solcast_solar.enums import UpdateOutcome, UpdateResult
-from custom_components.solcast_solar.fetcher import Fetcher
+from custom_components.solcast_solar.fetcher import Fetcher, _DataCallStatus
 from freezegun.api import FrozenDateTimeFactory
 import pytest
 
@@ -84,6 +86,80 @@ def _dns_connector_error(message: str) -> ClientConnectorDNSError:
     )
 
 
+@pytest.mark.parametrize(
+    ("headers", "fallback_delay", "expected"),
+    [
+        pytest.param(
+            {
+                "x-proxy-forecast-mode": "daylight",
+                "x-proxy-poll-delay-seconds": "61",
+                "x-proxy-observed-tick-second-p90": "46",
+            },
+            61,
+            15,
+            id="adaptive",
+        ),
+        pytest.param(
+            {
+                "x-proxy-forecast-mode": "daylight",
+                "x-proxy-poll-delay-seconds": "61.5",
+                "x-proxy-observed-tick-second-p90": "46.5",
+            },
+            61,
+            15,
+            id="fractional-tick",
+        ),
+        pytest.param(
+            {
+                "x-proxy-forecast-mode": "all_day",
+                "x-proxy-poll-delay-seconds": "66",
+                "x-proxy-observed-tick-second-p90": "46",
+            },
+            61,
+            20,
+            id="custom-grace",
+        ),
+        pytest.param(
+            {
+                "x-proxy-forecast-mode": "cron",
+                "x-proxy-poll-delay-seconds": "30",
+                "x-proxy-observed-tick-second-p90": "46",
+            },
+            61,
+            30,
+            id="cron",
+        ),
+        pytest.param(
+            {
+                "x-proxy-forecast-mode": "daylight",
+                "x-proxy-poll-delay-seconds": "15",
+                "x-proxy-observed-tick-second-p90": "",
+            },
+            61,
+            15,
+            id="no-tick-samples",
+        ),
+        pytest.param({}, 61, 61, id="legacy-proxy"),
+        pytest.param({"x-proxy-poll-delay-seconds": "invalid"}, 61, 61, id="invalid-delay"),
+        pytest.param(
+            {
+                "x-proxy-forecast-mode": "daylight",
+                "x-proxy-poll-delay-seconds": "61",
+                "x-proxy-observed-tick-second-p90": "invalid",
+            },
+            61,
+            61,
+            id="invalid-tick",
+        ),
+        pytest.param({"x-proxy-poll-delay-seconds": "inf"}, 61, 61, id="nonfinite-delay"),
+        pytest.param({}, 0, 1, id="minimum-delay"),
+    ],
+)
+def test_proxy_retry_follow_delay(headers: dict[str, str], fallback_delay: int, expected: int) -> None:
+    """Retry alarms use fetch grace rather than the scheduled tick-phase allowance."""
+    assert Fetcher._proxy_retry_follow_delay(headers, fallback_delay) == expected
+
+
 def test_dns_error_message_falls_back_to_class_name() -> None:
     """The DNS error helper should tolerate connector errors without an os_error."""
 
@@ -93,6 +169,163 @@ def test_dns_error_message_falls_back_to_class_name() -> None:
         os_error = None
 
     assert Fetcher._dns_error_message(cast(ClientConnectorDNSError, DummyConnectorDNSError())) == "DummyConnectorDNSError"
+
+
+@pytest.mark.usefixtures("recorder_mock")
+@pytest.mark.parametrize(
+    ("mode", "poll_delay", "expected_delay", "expected_grace"),
+    [
+        pytest.param("daylight", 61, 56, 15, id="adaptive"),
+        pytest.param("all_day", 66, 61, 20, id="custom-grace"),
+        pytest.param("cron", 30, 71, 30, id="cron"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("sleep_error", "expected_result", "expected_calls"),
+    [
+        pytest.param(None, {FORECASTS: []}, 2, id="retry-success"),
+        pytest.param(TimeoutError(), "Forecast fetch timed out after 900 seconds", 1, id="retry-timeout"),
+    ],
+)
+async def test_proxy_retry_uses_fetch_follow_grace(
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+    mode: str,
+    poll_delay: int,
+    expected_delay: int,
+    expected_grace: int,
+    sleep_error: TimeoutError | None,
+    expected_result: dict[str, list[object]] | str,
+    expected_calls: int,
+) -> None:
+    """The fetch loop follows retry alarms without adding a scheduled tick phase."""
+    try:
+        freezer.move_to("2026-11-15 08:37:01.338000")
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        solcast = entry.runtime_data.coordinator.solcast
+        await entry.runtime_data.coordinator.tasks_cancel()
+        await solcast.tasks_cancel()
+        solcast.proxy_poll_delay_seconds = 61
+        site_id = solcast.sites[0][RESOURCE_ID]
+        api_key = solcast.sites[0][API_KEY]
+        url = f"https://proxy.test/rooftop_sites/{site_id}/forecasts"
+        retry_response = mock.MagicMock(
+            status=429,
+            url=url,
+            headers={
+                "x-proxy-upstream-status": "429",
+                "x-proxy-last-fetch-status": "retrying",
+                "x-proxy-next-attempt-at": "2026-11-15T08:37:42.081+00:00",
+                "x-proxy-forecast-mode": mode,
+                "x-proxy-poll-delay-seconds": str(poll_delay),
+                "x-proxy-observed-tick-second-p90": "46",
+            },
+        )
+        success_response = mock.MagicMock(
+            status=200,
+            url=url,
+            headers={
+                "x-proxy-upstream-status": "200",
+                "x-proxy-last-fetch-status": "retry_success",
+            },
+        )
+        success_response.text = mock.AsyncMock(return_value=json.dumps({FORECASTS: []}))
+        mock_session = mock.MagicMock()
+        mock_session.get = mock.AsyncMock(side_effect=[retry_response, success_response])
+        caplog.set_level(logging.DEBUG)
+
+        with (
+            mock.patch.object(solcast, "aiohttp_session", mock_session),
+            mock.patch.object(solcast.fetcher, "_sleep", new_callable=mock.AsyncMock, side_effect=sleep_error) as sleep,
+        ):
+            result = await solcast.fetcher.fetch_data(hours=48, path=FORECASTS, site=site_id, api_key=api_key, force=True)
+
+        assert result == expected_result
+        assert mock_session.get.await_count == expected_calls
+        sleep.assert_awaited_once_with(expected_delay)
+        assert solcast.proxy_poll_delay_seconds == 61
+        assert f"polling in {expected_delay} seconds (fetch follow delay {expected_grace} seconds)" in caplog.text
+    finally:
+        await async_cleanup_integration_tests(hass)
+
+
+@pytest.mark.parametrize(
+    ("next_attempt", "halted", "expected_time", "message_format"),
+    [
+        pytest.param(
+            "2026-11-01T09:10:00+00:00",
+            False,
+            dt(2026, 11, 1, 9, 10, tzinfo=UTC),
+            f", next auto update at {DT_TIME_FORMAT}",
+            id="recovered",
+        ),
+        pytest.param(
+            "2026-11-02T09:10:00+00:00",
+            False,
+            dt(2026, 11, 2, 9, 10, tzinfo=UTC),
+            f", next auto update at {DT_DATE_FORMAT}",
+            id="next-day",
+        ),
+        pytest.param("", False, dt(2026, 11, 1, 9, 10, tzinfo=UTC), "", id="unknown"),
+        pytest.param(
+            "2026-11-01T09:10:00+00:00",
+            True,
+            dt(2026, 11, 1, 9, 10, tzinfo=UTC),
+            "",
+            id="halted",
+        ),
+    ],
+)
+async def test_proxy_completion_reports_latest_header_time(
+    recorder_mock: Recorder,
+    hass: HomeAssistant,
+    freezer: FrozenDateTimeFactory,
+    caplog: pytest.LogCaptureFixture,
+    next_attempt: str,
+    halted: bool,
+    expected_time: dt,
+    message_format: str,
+) -> None:
+    """Completion uses recovery headers rather than the pre-fetch display string."""
+    try:
+        freezer.move_to("2026-11-01 09:06:00")
+        entry = await async_init_integration(hass, DEFAULT_INPUT1)
+        solcast = entry.runtime_data.coordinator.solcast
+        await entry.runtime_data.coordinator.tasks_cancel()
+        await solcast.tasks_cancel()
+        solcast.data[LAST_UPDATED] = dt(2026, 11, 1, 8, 0, tzinfo=UTC)
+        solcast.fetcher.set_next_update("20:00:05")
+
+        async def recovered_call(**kwargs: Any) -> tuple[_DataCallStatus, str]:
+            await solcast.fetcher._apply_proxy_resource_headers(
+                {
+                    "x-proxy-upstream-status": "200",
+                    "x-proxy-last-fetch-status": "retry_success",
+                    "x-proxy-next-attempt-at": next_attempt,
+                    "x-proxy-halted": str(halted).lower(),
+                    "x-proxy-fetch-in-progress": "false",
+                }
+            )
+            return _DataCallStatus.SUCCESS, ""
+
+        caplog.clear()
+        with (
+            mock.patch.object(solcast.fetcher, "http_data_call", side_effect=recovered_call),
+            mock.patch.object(solcast.dampening, "refresh_granular_data", new=mock.AsyncMock()),
+            mock.patch.object(solcast.dampening, "apply_forward", new=mock.AsyncMock()),
+            mock.patch.object(solcast, "build_forecast_data", new=mock.AsyncMock(return_value=True)),
+            mock.patch.object(solcast.sites_cache, "serialise_data", new=mock.AsyncMock(return_value=True)),
+        ):
+            result = await solcast.fetcher.get_forecast_update()
+
+        assert result.outcome == UpdateOutcome.SUCCESS
+        follow_at = (expected_time + timedelta(seconds=solcast.proxy_poll_delay_seconds)).astimezone(solcast.tz)
+        suffix = follow_at.strftime(message_format)
+        assert f"Forecast update completed successfully{suffix}" in caplog.messages
+        assert "Forecast update completed successfully, next auto update at 20:00:05" not in caplog.messages
+    finally:
+        await async_cleanup_integration_tests(hass)
 
 
 def _occurs_in_log(caplog: pytest.LogCaptureFixture, text: str, occurrences: int) -> None:

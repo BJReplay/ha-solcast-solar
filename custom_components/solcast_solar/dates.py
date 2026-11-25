@@ -3,11 +3,12 @@
 from collections.abc import Iterator
 from datetime import UTC, datetime as dt, timedelta, tzinfo
 import json
+import math
 from typing import Any
 
 from homeassistant.util import dt as dt_util
 
-from .const import PERIOD_START
+from .const import ESTIMATE, ESTIMATE10, ESTIMATE90, GENERATION, PERIOD_START
 
 
 class DateTimeHelper:
@@ -127,7 +128,18 @@ class JSONDecoder(json.JSONDecoder):
         json.JSONDecoder.__init__(self, object_hook=self.date_hook, *args, **kwargs)  # noqa: B026
 
     def date_hook(self, o: Any) -> dict[str, Any]:
-        """Return converted datetimes."""
+        """Validate numeric interval values and convert ISO timestamps."""
+        if PERIOD_START in o:
+            for key in (ESTIMATE, ESTIMATE10, ESTIMATE90, GENERATION):
+                if key not in o:
+                    continue
+                value = o[key]
+                if (
+                    not isinstance(value, (int, float))
+                    or isinstance(value, bool)
+                    or (isinstance(value, float) and not math.isfinite(value))
+                ):
+                    raise json.JSONDecodeError(f"Invalid numeric cache value for {key}", "", 0)
         result: dict[str, Any] = {}
         for key, value in o.items():
             try:

@@ -35,6 +35,7 @@ You are free to raise an issue should a code exception occur after setting an ad
 1. [Forecasts](#forecasts)
 1. [Granular dampening](#granular-dampening)
 1. [General](#general)
+1. [Proxies](#proxies)
 1. [Developer](#developer)
 
 ## Automated dampening
@@ -80,6 +81,8 @@ A number of minutes to delay beyond midnight before generation history is retrie
 This value must be less than the estimated actual fetch delay option.
 
 If Home Assistant is restarted in the period between midnight and generation being retrieved then retrieval will be rescheduled.
+
+Note: If using a Solcast API Proxy and automated dampening then generation data must be retrieved before estimated actuals.
 
 **Key: "automated_dampening_generation_history_load_days"**
 
@@ -257,6 +260,8 @@ If automated dampening is enabled then modelling of new dampening factors will o
 
 If Home Assistant is restarted in the period between midnight and estimated actuals being retrieved then retrieval will be rescheduled.
 
+Note: Has no affect if using a Solcast API Proxy.
+
 **Key: "estimated_actuals_log_ape_percentiles"**
 
 Possible values: list[int] (default [50])
@@ -375,9 +380,99 @@ Possible values: string (default `"default"`)
 
 The HTTP header User-Agent is set to "ha-solcast-solar-integration/x.x.x" by default. This advanced option allows it to be set to another user agent string.
 
+## Proxies
+
+**Key: "solcast_url" / "solcast_port"**
+
+Possible values for `solcast_url`: string (default `"https://api.solcast.com.au"`)
+Possible values for `solcast_port`: integer (default `0`)
+
+A trailing `/` is optional for the URL.
+
+Specifying the TCP port to connect to the API end-points may either be by using the option `solcast_port`, or by embedding the TCP port in the `solcast_url` option (example, `https://localhost:8443/`). If `solcast_port` is used then it will override any URL-embedded port specified.
+
+When using a proxy for the Solcast API (single update, multiple downstream consumers) then this advanced option may be used to point the integration at your proxy.
+
+The integration has extensive capabilities to work in a proxied environment, provided the proxy sends the expected response headers.
+
+In proxy mode the integration can:
+
+- Auto-detect proxy behaviour from discovery headers.
+- Learn and follow proxy-provided forecast and estimated-actuals schedules, abandoning any auto-update scheduling configured.
+- Follow the proxy's advertised next-attempt time for retries, including a poll delay, rather than polling blindly.
+- Respect proxy state such as halted/in-progress fetch status and avoid redundant downstream fetch attempts.
+- Validate any estimated-actuals cron suitability across the year (including DST transitions), and logs errors if the collection is outside the intended local overnight window or conflicts with automated dampening generation-fetch ordering. Check the log for errors on integration load.
+
+If the proxy provides appropriate schedule and status headers, the integration will align its own fetch timing and retry behaviour to the proxy so multiple consumers can remain coordinated from one upstream collection flow, regardless of whether `429` status storms are happening, or other transient Internet issues.
+
+### Proxy response headers used by the integration
+
+The integration consumes response headers when getting data from a proxy, and is how it works out that the Solcast API is being proxied. A proxy should return all of them as appropriate or unexpected behaviour will likely be expected.
+
+See the documentation at a reference proxy implementation for required response header details. [autoSteve/solcast-cloudflare-proxy](https://github.com/autoSteve/solcast-cloudflare-proxy).
+
+These are the response headers a proxy must supply for the integration to follow discovery, its collection schedule and handle retries and failures.
+
+#### Discovery and scheduling headers
+
+These are supplied on `/rooftop_sites` discovery responses and successful schedule refresh responses from `/proxy_schedule` (alias `/schedule`). In proxy mode the integration does not generate its own daylight/all-day update intervals, so a usable forecast schedule is required for updates.
+
+##### Shared discovery headers
+
+- `x-solcast-proxy: true`: required on discovery responses. Discovery without the marker disables proxy mode. It is not required on schedule refresh responses.
+- `x-proxy-forecast-mode`: `cron`, `daylight`, or `all_day`; required during discovery to identify the proxy's schedule mode.
+- `x-proxy-poll-delay-seconds`: integer number of seconds the integration waits after the scheduled collection time before fetching data. The delay allows collection to complete before data is fetched. If omitted, the integration retains its default delay, initially 5 seconds.
+- `x-proxy-estimated-actuals-enabled`: `true` or `false`, indicating whether the proxy schedules estimated-actuals collections. Ignored for `cron` mode.
+
+##### Cron scheduling headers
+
+These are supplied on discovery and schedule refresh responses when the schedule uses cron expressions instead of a list of collection times.
+
+- `x-proxy-forecast-cron`: one valid five-field UTC cron expression for forecast collections.
+- `x-proxy-estimated-actuals-cron`: required when estimated actuals are enabled in the integration and are collected by the proxy.
+
+##### Explicit collection time headers
+
+These are supplied on discovery and schedule refresh responses when the schedule uses a list of collection times instead of cron expressions.
+
+- `x-proxy-schedule-day-utc`: active UTC schedule date as `YYYY-MM-DD`.
+- `x-proxy-forecast-times-utc`: comma-separated UTC `HH:MM` forecast collection times, in chronological order, with no seconds.
+- `x-proxy-estimated-actuals-times-utc`: required when estimated actuals are enabled in the integration and collected by the proxy; uses the same UTC schedule date.
+
+The date and times are refreshed each UTC day using `/proxy_schedule`. The integration refreshes at startup, after UTC midnight, and five seconds before forecast collection. The schedule headers are supplied on both discovery and schedule refresh responses.
+
+Forecast times cannot be combined with an actuals cron, or vice versa: any non-empty collection time list disables both cron fallbacks.
+
+##### Optional polling headers
+
+- `x-proxy-observed-tick-second-p90`: not required. If supplied in `daylight`/`all_day` mode, the integration subtracts this number of seconds from the poll delay after a retry attempt. If omitted, retries still work using the full poll delay.
+
+#### Per-resource state and retry headers
+
+These are supplied on `/rooftop_sites/<site_id>/forecasts` and `/rooftop_sites/<site_id>/estimated_actuals` responses.
+
+##### Required resource header
+
+- `x-proxy-upstream-status`: latest upstream HTTP status as decimal text. Required for proxy-specific resource handling: without it, the integration ignores the retry, in-progress, halt, and next-attempt headers, even when already in proxy mode.
+
+##### Conditional resource headers
+
+- `x-proxy-last-fetch-status`: tells the integration whether collection is `retrying` or has exhausted retries (`give_up`). The status is `retrying` while retries are active, including when HTTP `200` cached data is returned.
+- `x-proxy-next-attempt-at`: required while retrying or polling an in-progress collection. A valid ISO 8601 timestamp with an explicit TZ offset, for example `2026-11-24T12:30:45+00:00`.
+- `x-proxy-fetch-in-progress: true`: required to keep polling a non-`200` response while collection is running if the resource is not marked `retrying`.
+- `x-proxy-halted: true`: required on permanent forecast failure to cancel automatic forecast-follow scheduling. Overrides retry advice.
+
+On a non-`200` response, continuing retries requires **both** a next-attempt timestamp and either `x-proxy-last-fetch-status: retrying` or `x-proxy-fetch-in-progress: true`. A successful, idle forecast response expects no conditional headers when discovery/refresh supplies a usable schedule; the next collection is derived from that schedule.
+
+##### Resource state notes
+
+- When a retry or halt ends, the next-attempt header is cleared, and boolean flags are omitted or set to `false`, and last-fetch status is omitted or replaced with `clean_success` / `retry_success`. Stale retry timestamps or `true` flags on recovered responses will be unexpected.
+- HTTP `200` cached data is accepted without waiting for retry completion.
+- Forecast resource headers update the global forecast-follow state.
+
 ## Developer
 
-These advanced options are intended only for developers to use.
+These advanced options may be used by developers.
 
 **Key: "allow_exceed_api_limit_maximum"**
 
@@ -385,7 +480,7 @@ Possible values: boolean `true`/`false` (default `false`)
 
 The maximum configurable API limit is 50 by default. This value represents the maximum number of metered API calls that any Solcast hobbyist user has ever been able to make.
 
-If not specified, then this option is set to `true` when `solcast_url` is non-default. In that case this option is used to force `allow_exceed_api_limit_maximum` to `false` if required.
+If not specified, then this option is set to `true` when `solcast_url` is non-default. In that case this option is used to force `allow_exceed_api_limit_maximum` to `false` if required. (Should a proxy be in use then the auto-enablement of this option will not have any effect.)
 
 Do not set this option unless you are a developer and want to utilise the Solcast API Simulator in a dev container, plus you want to enable config/options flow adherence to a max. 50 limit by forcing it to be `false`.
 
@@ -393,8 +488,6 @@ Do not set this option unless you are a developer and want to utilise the Solcas
 
 Possible values for `solcast_url`: string (default `"https://api.solcast.com.au"`)
 Possible values for `solcast_port`: integer (default `0`)
-
-Do not set these options unless you are a developer and want to utilise the Solcast API Simulator in a dev container.
 
 A trailing `/` is optional for the URL.
 

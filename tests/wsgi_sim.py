@@ -22,15 +22,18 @@ Theory of operation:
 * API key 1 has two sites, API key 2 has one site, API key 3 has an impossible (for hobbyists) three sites.
 * Forecast for every day is the same blissful-clear-day bell curve.
 * As time goes on new forecast hour values are calculated based on the current get forecasts call time of day.
+* Rooftop HTTP forecasts are capped at 336 hours and estimated actuals at 168 hours, without padding.
+* Advanced HTTP forecast hours are also capped at 336; historical advanced duration semantics are unchanged.
 * 429 responses are only given when --bomb429 is specified.
 * An occasionally generated "I'm a teapot" status can verify that the integration handles unknown status returns gracefully.
 * The time zone used should be read from the Home Assistant configuration. If this fails then the zone will be Australia/Melbourne.
 
 SSL certificate:
 
-The integration does not care whether the api.solcast.com.au certificate is valid, so a self-signed certificate is created by this simulator.
-To generate a new self-signed certificate run in this folder: openssl req -x509 -newkey rsa:4096 -nodes -out cert.pem -keyout key.pem -days 3650,
-or simply delete *.pem files and restart the simulator to generate new ones. The DevContainer will already have openssl installed.
+A self-signed localhost certificate is generated in memory on each start.
+No certificate or private key is written to disk; existing PEM files are ignored.
+Clients must disable verification or trust the live public certificate.
+run_proxy_cloudflare.py discovers it automatically. Restart the launcher when the simulator restarts.
 
 Integration issues raised regarding the simulator will be closed without response.
 Raise a pull request instead, suggesting a fix for whatever is wrong, or to add additional functionality.
@@ -42,8 +45,13 @@ This simulator is prepared should this occur.
 
 """
 
+# pylint: disable=home-assistant-enforce-utcnow
+
 import argparse
+from collections.abc import Iterator
+from contextlib import contextmanager
 import copy
+from ctypes import CDLL, c_char_p, c_int, c_uint, get_errno
 import datetime
 from datetime import datetime as dt, timedelta
 import json
@@ -53,15 +61,19 @@ import os
 from pathlib import Path
 import random
 import re
+import ssl
 import subprocess
 import sys
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from cryptography.hazmat.primitives import serialization
 from simulator import API_KEY_SITES, SimulatedSolcast
 
 simulate = SimulatedSolcast()
 DEFAULT_PORT = 443
+MAX_FORECAST_HOURS = 336
+MAX_ACTUAL_HOURS = 168
 GUIDANCE_DIRNAME = "solcast_sim"
 GUIDANCE_FILENAME = "guidance.json"
 GUIDANCE_FILE: str | None = None
@@ -90,6 +102,7 @@ need_restart = False
 try:
     from flask import Flask, jsonify, request
     from flask.json.provider import DefaultJSONProvider
+    from werkzeug.serving import generate_adhoc_ssl_pair
 except (ModuleNotFoundError, ImportError):
     subprocess.check_call([sys.executable, "-m", "pip", "install", "flask"])
     need_restart = True
@@ -101,26 +114,6 @@ except (ModuleNotFoundError, ImportError):
 
 if need_restart:
     restart()
-
-if not (Path("cert.pem").exists() and Path("key.pem").exists()):
-    subprocess.check_call(
-        [
-            "/usr/bin/openssl",
-            "req",
-            "-x509",
-            "-newkey",
-            "rsa:4096",
-            "-nodes",
-            "-out",
-            "cert.pem",
-            "-keyout",
-            "key.pem",
-            "-days",
-            "3650",
-            "-subj",
-            "/C=AU/ST=Victoria/L=Melbourne/O=Solcast/OU=Solcast/CN=api.solcast.com.au",
-        ]
-    )
 
 API_LIMIT = 50
 BOMB_418 = False
@@ -268,6 +261,34 @@ def _refresh_guidance(force: bool = False) -> None:
     _LOGGER.info("Guidance refreshed from %s", _path_from_config(path))
 
 
+def _bounded_site_periods(
+    site_id: str,
+    api_key: str,
+    hours: int,
+    *,
+    actuals: bool = False,
+    key: str | None = None,
+) -> dict[str, list[dict[str, Any]]]:
+    """Bound HTTP periods without changing the shared fixture generators."""
+    hours = min(hours, MAX_ACTUAL_HOURS if actuals else MAX_FORECAST_HOURS)
+    now = dt.now(datetime.UTC)
+    if actuals:
+        lower, upper = now - timedelta(hours=hours), now
+        period_end = simulate.get_period(now, -timedelta(hours=hours))
+        response_key = "estimated_actuals"
+        response = simulate.raw_get_site_estimated_actuals(site_id, api_key, hours, key=key, period_end=period_end)
+    else:
+        lower, upper = now, now + timedelta(hours=hours)
+        period_end = simulate.get_period(now, timedelta(minutes=30))
+        response_key = "forecasts"
+        response = simulate.raw_get_site_forecasts(site_id, api_key, hours, key=key, period_end=period_end)
+    return response | {
+        response_key: [
+            period for period in response[response_key] if lower < dt.fromisoformat(period["period_end"]).astimezone(datetime.UTC) <= upper
+        ]
+    }
+
+
 @app.route("/rooftop_sites", methods=["GET"])
 def get_sites() -> tuple[Any, int]:
     """Return sites for an API key."""
@@ -301,7 +322,7 @@ def get_site_estimated_actuals(site_id: str) -> tuple[Any, int]:
     if request.args.get("hours") is None:
         return "{}", 500
     _refresh_guidance()
-    return jsonify(simulate.raw_get_site_estimated_actuals(site_id, api_key, int(request.args["hours"]))), 200
+    return jsonify(_bounded_site_periods(site_id, api_key, int(request.args["hours"]), actuals=True)), 200
 
 
 @app.route("/rooftop_sites/<site_id>/forecasts", methods=["GET"])
@@ -318,7 +339,7 @@ def get_site_forecasts(site_id: str) -> tuple[Any, int]:
     if request.args.get("hours") is None:
         return "{}", 500
     _refresh_guidance()
-    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, int(request.args["hours"]))), 200
+    return jsonify(_bounded_site_periods(site_id, api_key, int(request.args["hours"]))), 200
 
 
 @app.route("/data/historic/advanced_pv_power", methods=["GET"])
@@ -371,13 +392,12 @@ def get_site_forecasts_advanced() -> tuple[Any, int]:
     if api_key is None or site_id is None or hours_arg is None:
         return "{}", 500
     _hours = int(hours_arg)
-    period_end = simulate.get_period(dt.now(datetime.UTC), timedelta(minutes=30))
     response_code, issue, _ = validate_call(api_key, site_id)
     if response_code != 200:
         return jsonify(issue) if issue != "" else "", response_code
 
     _refresh_guidance()
-    return jsonify(simulate.raw_get_site_forecasts(site_id, api_key, _hours, key="pv_power_advanced", period_end=period_end)), 200  # pyright:ignore[reportCallIssue]
+    return jsonify(_bounded_site_periods(site_id, api_key, _hours, key="pv_power_advanced")), 200
 
 
 def get_time_zone():
@@ -511,6 +531,42 @@ def _apply_args(args: argparse.Namespace) -> dict[str, int | bool | list[int]]:
     }
 
 
+def _memfd_create(name: bytes) -> int:
+    """Create anonymous memory storage, including on Python builds without os.memfd_create."""
+    create = CDLL(None, use_errno=True).memfd_create
+    create.argtypes = (c_char_p, c_uint)
+    create.restype = c_int
+    descriptor = create(name, 1)  # MFD_CLOEXEC
+    if descriptor < 0:
+        error = get_errno()
+        raise OSError(error, os.strerror(error))
+    return descriptor
+
+
+@contextmanager
+def _ssl_context() -> Iterator[ssl.SSLContext]:
+    """Keep the localhost certificate in memory for the server's lifetime."""
+    cert, key = generate_adhoc_ssl_pair("localhost")
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    # SSLContext requires paths; Linux memfd descriptors avoid disk-backed PEMs.
+    with os.fdopen(_memfd_create(b"solcast-simulator-cert"), "w+b") as cert_file:
+        cert_file.write(cert.public_bytes(serialization.Encoding.PEM))
+        cert_file.flush()
+        cert_path = f"/proc/{os.getpid()}/fd/{cert_file.fileno()}"
+        with os.fdopen(_memfd_create(b"solcast-simulator-key"), "w+b") as key_file:
+            key_file.write(
+                key.private_bytes(
+                    serialization.Encoding.PEM,
+                    serialization.PrivateFormat.TraditionalOpenSSL,
+                    serialization.NoEncryption(),
+                )
+            )
+            key_file.flush()
+            context.load_cert_chain(cert_path, f"/proc/{os.getpid()}/fd/{key_file.fileno()}")
+        _LOGGER.info("In-memory localhost TLS ready; public certificate: %s", cert_path)
+        yield context
+
+
 def main(argv: list[str] | None = None) -> None:
     """Run the simulator."""
 
@@ -524,7 +580,8 @@ def main(argv: list[str] | None = None) -> None:
 
     globals().update(_apply_args(args))
     logging.getLogger("werkzeug").addFilter(_WerkzeugLogFilter())
-    app.run(debug=args.debug, host="127.0.0.1", port=args.port, ssl_context=("cert.pem", "key.pem"))
+    with _ssl_context() as context:
+        app.run(debug=args.debug, host="127.0.0.1", port=args.port, use_reloader=False, ssl_context=context)
 
 
 if __name__ == "__main__":

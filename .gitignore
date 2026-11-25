@@ -1,8 +1,11 @@
 .DS_Store
+.pytest_cache
 .vscode/settings.json
 .vscode
 .vs
-.pytest_cache
+.wrangler
+proxy_js
 py.typed
 Thumbs.db
 __pycache__
+solcast-proxy-worker
