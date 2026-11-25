@@ -1565,6 +1565,7 @@ Latest minor/patch releases.
 v4.7.0
 
 * Add coherent proxying of the Solcast hobbyist API allowing multiple consumers by @autoSteve
+* Fix update listeners after estimated actuals fetch by @autoSteve (thanks @cornclose!)
 * Fix catch fetch update timeout exception gracefully by @autoSteve
 
 Full Changelog: https://github.com/BJReplay/ha-solcast-solar/compare/v4.6.4...v4.7.0

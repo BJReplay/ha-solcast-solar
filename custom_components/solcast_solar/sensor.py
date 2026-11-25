@@ -502,7 +502,7 @@ class SensorUpdatePolicy(Enum):
 def get_sensor_update_policy(key: str) -> SensorUpdatePolicy:
     """Get the sensor update policy.
 
-    Some sensors update every five minutes (EVERY_TIME_INTERVAL), while others only update on startup or forecast fetch.
+    Some sensors update every five minutes (EVERY_TIME_INTERVAL), while others update on startup, data fetch, or date change.
 
     Arguments:
         key (str): The sensor key.
@@ -717,7 +717,7 @@ class SolcastSensor(CoordinatorEntity, SensorEntity):
 
         Some sensors are updated periodically every five minutes (those with an update policy of
         SensorUpdatePolicy.EVERY_TIME_INTERVAL), while the remaining sensors update after each
-        forecast update or when the date changes.
+        forecast or actuals update or when the date changes.
         """
         if self._update_policy == SensorUpdatePolicy.DEFAULT and not (self._coordinator.date_changed or self._coordinator.data_updated):
             return

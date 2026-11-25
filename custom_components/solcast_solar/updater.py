@@ -497,6 +497,8 @@ class Updater:
                     if entity is not None and not entity.disabled_by:
                         await self.calculate_accuracy_metrics()
 
+            await self._coordinator.update_integration_listeners()
+
     async def calculate_accuracy_metrics(self) -> None:
         """Calculate accuracy metrics for generation vs. undampened/dampened actuals."""
 
